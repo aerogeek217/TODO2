@@ -171,3 +171,9 @@
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
 }
+
+/* A widget action's panel (e.g. the dashboard's Hot rule): controls, not choices. */
+.panelFlyout {
+  padding: 12px;
+  overflow: visible;
+}

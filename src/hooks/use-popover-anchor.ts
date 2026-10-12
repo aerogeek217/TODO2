@@ -21,7 +21,15 @@ export type PopoverAnchor =
    */
   | { kind: 'rect'; left: number; top: number; right: number; bottom: number }
 
-export type PopoverPlacement = 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
+export type PopoverPlacement =
+  | 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
+  /**
+   * Beside the anchor (a submenu panel next to its menu item): the panel's
+   * top lines up with the anchor's top and it sits to the right, or to the
+   * left (`left-start`) when the right side has no room. Near the bottom it
+   * lines up with the anchor's bottom instead.
+   */
+  | 'right-start' | 'left-start'
 
 export interface UsePopoverAnchorOptions {
   /**
@@ -36,7 +44,8 @@ export interface UsePopoverAnchorOptions {
    * Initial placement. The hook flips axes when the panel would clip the
    * viewport: `bottom-*` flips to `top-*` if the panel would extend past the
    * bottom edge; `*-start` flips to `*-end` if the panel would extend past
-   * the right edge. Default `'bottom-start'`.
+   * the right edge; `right-start` flips to `left-start` (and back) when the
+   * panel doesn't fit beside the anchor. Default `'bottom-start'`.
    */
   placement?: PopoverPlacement
   /** Gap (px) between anchor edge and panel. Default 4. */
@@ -170,6 +179,10 @@ function computePopoverPosition(
   const panelHeight = panelRect?.height ?? 0
   const { vw, vh } = viewportSize()
 
+  if (place === 'right-start' || place === 'left-start') {
+    return besidePosition(a, panelWidth, panelHeight, place, off, vw, vh)
+  }
+
   // ---- Y axis (bottom-* / top-*) ----
   const wantsBottom = place.startsWith('bottom')
   let placementY: 'top' | 'bottom' = wantsBottom ? 'bottom' : 'top'
@@ -227,6 +240,41 @@ function computePopoverPosition(
   return {
     style: next,
     placement: `${placementY}-${placementX}` as PopoverPlacement,
+  }
+}
+
+/** `right-start` / `left-start`: beside the anchor, flipped to the other side or up when it doesn't fit. */
+function besidePosition(
+  a: AnchorRect,
+  panelWidth: number,
+  panelHeight: number,
+  place: 'right-start' | 'left-start',
+  off: number,
+  vw: number,
+  vh: number,
+): { style: PopoverStyle; placement: PopoverPlacement } {
+  const rightLeft = a.right + off
+  const leftLeft = a.left - off - panelWidth
+  let side: 'right' | 'left' = place === 'right-start' ? 'right' : 'left'
+  let left = side === 'right' ? rightLeft : leftLeft
+  let top = a.top
+  if (panelWidth > 0) {
+    if (side === 'right' && rightLeft + panelWidth > vw - VIEWPORT_MARGIN_PX && leftLeft >= VIEWPORT_MARGIN_PX) {
+      side = 'left'
+      left = leftLeft
+    } else if (side === 'left' && leftLeft < VIEWPORT_MARGIN_PX && rightLeft + panelWidth <= vw - VIEWPORT_MARGIN_PX) {
+      side = 'right'
+      left = rightLeft
+    }
+    left = Math.max(VIEWPORT_MARGIN_PX, Math.min(left, vw - VIEWPORT_MARGIN_PX - panelWidth))
+  }
+  if (panelHeight > 0) {
+    if (top + panelHeight > vh - VIEWPORT_MARGIN_PX) top = a.bottom - panelHeight
+    top = Math.max(VIEWPORT_MARGIN_PX, Math.min(top, vh - VIEWPORT_MARGIN_PX - panelHeight))
+  }
+  return {
+    style: { position: 'fixed', left, top, maxWidth: vw - VIEWPORT_MARGIN_PX * 2, maxHeight: vh - VIEWPORT_MARGIN_PX * 2 },
+    placement: side === 'right' ? 'right-start' : 'left-start',
   }
 }
 

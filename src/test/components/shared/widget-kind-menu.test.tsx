@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, fireEvent, screen, cleanup } from '@testing-library/react'
+import { render, fireEvent, screen, cleanup, waitFor } from '@testing-library/react'
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
 import { useUIStore } from '../../../stores/ui-store'
 
@@ -309,5 +309,79 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     fireEvent.keyDown(screen.getByRole('menuitemradio', { name: /3 days/ }), { key: 'Escape' })
     expect(screen.queryByRole('menu', { name: 'Due date makes a task urgent' })).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('WidgetKindMenu — an action that opens a panel', () => {
+  const panelAction = (onPanelButton = vi.fn()) => ({
+    label: 'Hot is',
+    note: 'U+I or Focus',
+    panel: {
+      label: 'Hot rule',
+      width: 316,
+      render: () => (
+        <div>
+          <button type="button" onClick={onPanelButton}>Urgent</button>
+          <button type="button">Important</button>
+        </div>
+      ),
+    },
+  })
+
+  it('lists the action with its note; a click opens the panel beside it with the focus inside', async () => {
+    const onClose = vi.fn()
+    const onPanelButton = vi.fn()
+    render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="dashboard"
+        onChangeKind={() => {}}
+        onClose={onClose}
+        widgetActions={[{ label: 'Customize dashboard…', onSelect: () => {} }, panelAction(onPanelButton)]}
+      />,
+    )
+    const row = screen.getByRole('menuitem', { name: /Hot is/ })
+    expect(row).toHaveTextContent('U+I or Focus')
+    expect(row).toHaveAttribute('aria-haspopup', 'dialog')
+    fireEvent.click(row)
+    const panel = screen.getByRole('dialog', { name: 'Hot rule' })
+    expect(panel.style.width).toBe('316px')
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Urgent' })))
+    // Its controls work without closing anything.
+    fireEvent.click(screen.getByRole('button', { name: 'Urgent' }))
+    expect(onPanelButton).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    // Menu keys stay in the panel: ↓ doesn't move to a menu item.
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(screen.getByRole('dialog', { name: 'Hot rule' })).toBeTruthy()
+  })
+
+  it('Esc or ← in the panel closes only the panel, back on its item', async () => {
+    const onClose = vi.fn()
+    render(<WidgetKindMenu anchor={ANCHOR} currentKind="dashboard" onChangeKind={() => {}} onClose={onClose} widgetActions={[panelAction()]} />)
+    const row = screen.getByRole('menuitem', { name: /Hot is/ })
+    row.focus()
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Urgent' })))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Hot rule' })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    await waitFor(() => expect(document.activeElement).toBe(row))
+
+    fireEvent.click(row)
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Urgent' })))
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    expect(screen.queryByRole('dialog', { name: 'Hot rule' })).toBeNull()
+    // Then Esc closes the menu.
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('the menu and its panel keep app shortcuts out', () => {
+    render(<WidgetKindMenu anchor={ANCHOR} currentKind="dashboard" onChangeKind={() => {}} onClose={() => {}} widgetActions={[panelAction()]} />)
+    expect(screen.getByRole('menu')).toHaveAttribute('data-shortcut-scope', 'none')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Hot is/ }))
+    expect(screen.getByRole('dialog', { name: 'Hot rule' })).toHaveAttribute('data-shortcut-scope', 'none')
   })
 })

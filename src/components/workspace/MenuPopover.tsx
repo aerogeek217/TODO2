@@ -40,6 +40,8 @@ export interface MenuItemEntry {
   shortcut?: string
   /** A display-only key hint for an app-wide binding (e.g. `Del`, `Space`). */
   kbd?: string
+  /** Tooltip — e.g. why a disabled item can't be picked. */
+  title?: string
 }
 
 export type MenuEntry =
@@ -266,6 +268,9 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
       aria-label={label}
       className={className}
       style={style}
+      // Arrows / Enter / Space here are the menu's, not the app's (no task
+      // cursor move, edit or complete behind it).
+      data-shortcut-scope="none"
       onKeyDown={(e) => { onKey(e, elRef.current) }}
       // Portaled, but React events still bubble to the opener (a task row's
       // select / drag / open handlers) — keep them inside.
@@ -294,6 +299,7 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
             disabled={entry.disabled}
             data-menu-index={i}
             data-menu-label={entry.label}
+            title={entry.title}
             className={`${styles.item} ${entry.danger ? styles.danger : ''} ${entry.dim ? styles.dim : ''} ${entry.children && openIndex === i ? styles.itemOpen : ''}`}
             onPointerEnter={onHoverItem ? () => onHoverItem(i, entry) : undefined}
             onClick={(e) => onSelect(entry, i, e.detail === 0)}

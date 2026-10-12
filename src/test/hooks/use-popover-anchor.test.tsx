@@ -541,3 +541,45 @@ describe('usePopoverAnchor — rect anchor + contentKey', () => {
     expect(getByTestId('panel').style.top).toBe('526px')
   })
 })
+
+describe('usePopoverAnchor — beside the anchor (right-start)', () => {
+  function BesideHarness({ anchor, size }: { anchor: PopoverAnchor; size: { width: number; height: number } }) {
+    const { panelRef, style, placementUsed } = usePopoverAnchor({
+      anchor, open: true, onClose: () => {}, placement: 'right-start', offset: 2,
+    })
+    const setPanel = useCallback((el: HTMLDivElement | null) => {
+      if (el) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => makeRect(0, 0, size.width, size.height),
+        })
+      }
+      panelRef(el)
+    }, [panelRef, size.width, size.height])
+    return <div ref={setPanel} data-testid="panel" data-placement={placementUsed} style={style}>panel</div>
+  }
+
+  it('sits to the right of the anchor, tops aligned', () => {
+    const { getByTestId } = render(
+      <BesideHarness anchor={{ kind: 'rect', left: 100, top: 200, right: 300, bottom: 228 }} size={{ width: 316, height: 200 }} />,
+    )
+    expect(getByTestId('panel').style.left).toBe('302px')
+    expect(getByTestId('panel').style.top).toBe('200px')
+    expect(getByTestId('panel').dataset.placement).toBe('right-start')
+  })
+
+  it('flips to the left side when the right has no room', () => {
+    const { getByTestId } = render(
+      <BesideHarness anchor={{ kind: 'rect', left: 600, top: 200, right: 800, bottom: 228 }} size={{ width: 316, height: 200 }} />,
+    )
+    expect(getByTestId('panel').style.left).toBe('282px') // 600 - 2 - 316
+    expect(getByTestId('panel').dataset.placement).toBe('left-start')
+  })
+
+  it('near the bottom, lines up with the anchor’s bottom instead', () => {
+    const { getByTestId } = render(
+      <BesideHarness anchor={{ kind: 'rect', left: 100, top: 700, right: 300, bottom: 728 }} size={{ width: 316, height: 200 }} />,
+    )
+    expect(getByTestId('panel').style.top).toBe('528px') // 728 - 200
+  })
+})

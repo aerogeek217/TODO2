@@ -5,6 +5,8 @@ interface DragHandleProps {
   attributes?: DraggableAttributes
   listeners?: DraggableSyntheticListeners
   ariaHidden?: boolean
+  /** Accessible name when the handle is the activator (e.g. `Move Hot`). */
+  label?: string
 }
 
 /**
@@ -13,9 +15,9 @@ interface DragHandleProps {
  * default) — actual drag wiring lives elsewhere; spread the dnd-kit pair
  * when this span IS the activator.
  */
-export function DragHandle({ className, attributes, listeners, ariaHidden = true }: DragHandleProps) {
+export function DragHandle({ className, attributes, listeners, ariaHidden = true, label }: DragHandleProps) {
   return (
-    <span className={className} aria-hidden={ariaHidden ? true : undefined} {...attributes} {...listeners}>
+    <span className={className} aria-hidden={ariaHidden ? true : undefined} aria-label={label} {...attributes} {...listeners}>
       <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
         <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
         <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />

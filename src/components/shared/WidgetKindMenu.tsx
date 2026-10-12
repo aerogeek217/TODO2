@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { WidgetKind } from '../../models/workspace-layout'
 import { WidgetKindIcon } from '../workspace/icons'
@@ -40,6 +40,24 @@ export interface WidgetSetting {
   footnote?: string
 }
 
+/**
+ * A panel a widget action opens beside its item (e.g. the dashboard's
+ * `Hot is ›`): controls rather than menu choices, so it's a small dialog —
+ * changes apply as they're made and it stays open until Esc / ← / a click
+ * outside the menu.
+ */
+export interface WidgetMenuPanel {
+  /** The panel's accessible name. */
+  label: string
+  width: number
+  render: () => ReactNode
+}
+
+/** A widget action in the tab menu: runs and closes, or opens a {@link WidgetMenuPanel}. */
+export type WidgetMenuAction =
+  | { label: string; icon?: ReactNode; onSelect: () => void; note?: undefined; panel?: undefined }
+  | { label: string; icon?: ReactNode; note?: string; panel: WidgetMenuPanel; onSelect?: undefined }
+
 export interface WidgetKindMenuProps {
   anchor: { x: number; y: number }
   /** Current widget kind. Omit in "add" mode — no row is marked active and no secondary row is shown. */
@@ -66,7 +84,7 @@ export interface WidgetKindMenuProps {
    * The widget's own actions (e.g. "Copy tasks"), listed before the kind
    * switcher. Each closes the menu after running.
    */
-  widgetActions?: ReadonlyArray<{ label: string; icon?: string; onSelect: () => void }>
+  widgetActions?: ReadonlyArray<WidgetMenuAction>
   /**
    * Lens-only, workspace order: when given, the menu opens with the list's
    * own items — "List options…", "Edit list…", "Change list ›" (showing
@@ -79,6 +97,7 @@ export interface WidgetKindMenuProps {
 }
 
 const FLYOUT_LEAVE_DELAY_MS = 120
+const PANEL_FOCUSABLE = 'button:not([disabled]):not([aria-disabled="true"]), input:not([disabled]), select:not([disabled]), [tabindex="0"]'
 const FLYOUT_WIDTH_PX = 240
 const SETTING_FLYOUT_WIDTH_PX = 248
 const FLYOUT_MAX_HEIGHT_PX = 320
@@ -104,6 +123,10 @@ export function WidgetKindMenu({
   const settingFlyoutRef = useRef<HTMLDivElement | null>(null)
   const settingRowRef = useRef<HTMLButtonElement | null>(null)
   const leaveTimerRef = useRef<number | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const panelRowRefs = useRef(new Map<number, HTMLButtonElement>())
+  /** The open action panel; `pinned` = opened by a click / key (pointer leave doesn't close it). */
+  const [panel, setPanel] = useState<{ index: number; pinned: boolean } | null>(null)
   const [flyout, setFlyout] = useState<{ x: number; y: number } | null>(null)
   /** The setting submenu; `focus` = opened from the keyboard / a click (focus moves into it). */
   const [settingFlyout, setSettingFlyout] = useState<{ x: number; y: number; focus: boolean } | null>(null)
@@ -120,7 +143,7 @@ export function WidgetKindMenu({
     closeOnResize: false,
     closeOnEscape: false,
     onClose,
-    extraInsideRefs: [flyoutRef, settingFlyoutRef],
+    extraInsideRefs: [flyoutRef, settingFlyoutRef, panelRef],
   })
 
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -205,6 +228,7 @@ export function WidgetKindMenu({
     leaveTimerRef.current = window.setTimeout(() => {
       setFlyout(null)
       setSettingFlyout(null)
+      setPanel((p) => (p?.pinned ? p : null))
       leaveTimerRef.current = null
     }, FLYOUT_LEAVE_DELAY_MS)
   }
@@ -226,6 +250,27 @@ export function WidgetKindMenu({
     const rect = row.getBoundingClientRect()
     setFlyout(null)
     setSettingFlyout((prev) => (prev && !focus ? prev : { x: rect.right + 2, y: rect.top, focus }))
+  }
+
+  /** Opens action `index`'s panel; from a click / key it stays open and takes focus. */
+  const openPanel = (index: number, pinned: boolean) => {
+    cancelLeaveTimer()
+    setFlyout(null)
+    setSettingFlyout(null)
+    setPanel((prev) => (prev && prev.index === index && (prev.pinned || !pinned) ? prev : { index, pinned }))
+    if (pinned) {
+      // Once it's mounted: focus its first control.
+      requestAnimationFrame(() => {
+        panelRef.current?.querySelector<HTMLElement>(PANEL_FOCUSABLE)?.focus()
+      })
+    }
+  }
+
+  const closePanel = () => {
+    if (!panel) return
+    const row = panelRowRefs.current.get(panel.index)
+    setPanel(null)
+    queueMicrotask(() => row?.focus())
   }
 
   const closeSettingFlyout = () => {
@@ -251,6 +296,11 @@ export function WidgetKindMenu({
     }
   }
 
+  const focusedPanelIndex = (): number | null => {
+    for (const [index, el] of panelRowRefs.current) if (el === document.activeElement) return index
+    return null
+  }
+
   const focusListRow = () => {
     if (!flyout) return
     queueMicrotask(() => listRowRef.current?.focus())
@@ -260,6 +310,10 @@ export function WidgetKindMenu({
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
+      if (panel) {
+        closePanel()
+        return
+      }
       if (settingFlyout) {
         closeSettingFlyout()
         return
@@ -283,6 +337,10 @@ export function WidgetKindMenu({
     else if (e.key === 'ArrowRight' && document.activeElement === settingRowRef.current) {
       e.preventDefault()
       openSettingFlyout(true)
+    }
+    else if (e.key === 'ArrowRight' && focusedPanelIndex() != null) {
+      e.preventDefault()
+      openPanel(focusedPanelIndex()!, true)
     }
     else if (e.key === 'ArrowLeft' && flyout) {
       e.preventDefault()
@@ -325,7 +383,28 @@ export function WidgetKindMenu({
       <span className={styles.caret} aria-hidden="true">▸</span>
     </button>
   )
-  const actionItems = widgetActions?.map((a) => (
+  const actionItems = widgetActions?.map((a, index) => (a.panel ? (
+    <button
+      type="button"
+      key={a.label}
+      ref={(el) => {
+        if (el) panelRowRefs.current.set(index, el)
+        else panelRowRefs.current.delete(index)
+      }}
+      role="menuitem"
+      className={styles.item}
+      aria-haspopup="dialog"
+      aria-expanded={panel?.index === index}
+      onPointerEnter={() => openPanel(index, false)}
+      onPointerLeave={scheduleClose}
+      onClick={() => openPanel(index, true)}
+    >
+      {!listFirst && <span className={styles.icon} aria-hidden="true">{a.icon ?? ''}</span>}
+      <span className={styles.label}>{a.label}</span>
+      {a.note && <span className={styles.note}>{a.note}</span>}
+      <span className={styles.caret} aria-hidden="true">▸</span>
+    </button>
+  ) : (
     <button
       type="button"
       key={a.label}
@@ -336,7 +415,8 @@ export function WidgetKindMenu({
       {!listFirst && <span className={styles.icon} aria-hidden="true">{a.icon ?? ''}</span>}
       <span className={styles.label}>{a.label}</span>
     </button>
-  ))
+  )))
+  const openPanelAction = panel ? widgetActions?.[panel.index] : undefined
   const kindItems = PRIMARY_KINDS.map((k) => {
     const active = k.kind === currentKind
     return (
@@ -383,6 +463,8 @@ export function WidgetKindMenu({
       style={menuStyle}
       role="menu"
       aria-label={heading}
+      // Arrows / Enter / Space here are the menu's, not the app's shortcuts.
+      data-shortcut-scope="none"
       onKeyDown={onKeyDown}
     >
       {listFirst ? (
@@ -439,6 +521,7 @@ export function WidgetKindMenu({
           style={{ left: settingFlyout.x, top: settingFlyout.y, width: SETTING_FLYOUT_WIDTH_PX }}
           role="menu"
           aria-label={widgetSetting.heading}
+          data-shortcut-scope="none"
           onPointerEnter={cancelLeaveTimer}
           onPointerLeave={scheduleClose}
           onKeyDown={onSettingFlyoutKeyDown}
@@ -467,6 +550,17 @@ export function WidgetKindMenu({
         </div>,
         document.body,
       )}
+      {panel && openPanelAction?.panel && (
+        <ActionPanel
+          panelRef={panelRef}
+          getAnchor={() => panelRowRefs.current.get(panel.index) ?? null}
+          panel={openPanelAction.panel}
+          onPointerEnter={cancelLeaveTimer}
+          onPointerLeave={panel.pinned ? undefined : scheduleClose}
+          onPin={() => setPanel((p) => (p && !p.pinned ? { ...p, pinned: true } : p))}
+          onBack={closePanel}
+        />
+      )}
       {flyout && pickListForLens && createPortal(
         <div
           ref={flyoutRef}
@@ -479,6 +573,7 @@ export function WidgetKindMenu({
           }}
           role="menu"
           aria-label="Change list"
+          data-shortcut-scope="none"
           onPointerEnter={cancelLeaveTimer}
           onPointerLeave={scheduleClose}
         >
@@ -491,5 +586,78 @@ export function WidgetKindMenu({
       )}
     </div>,
     document.body
+  )
+}
+
+/** An action's panel beside its menu item (flips left when there's no room). */
+function ActionPanel({ panelRef, getAnchor, panel, onPointerEnter, onPointerLeave, onPin, onBack }: {
+  panelRef: RefObject<HTMLDivElement | null>
+  /** Its menu item. */
+  getAnchor: () => HTMLElement | null
+  panel: WidgetMenuPanel
+  onPointerEnter: () => void
+  onPointerLeave?: () => void
+  onPin: () => void
+  onBack: () => void
+}) {
+  // Before the hook's own layout effect, which places the panel against it.
+  const anchorRef = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => { anchorRef.current = getAnchor() })
+  // The menu owns dismissal (Esc, a click outside both, Tab); this only places it.
+  const { panelRef: anchorPanelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: anchorRef },
+    open: true,
+    placement: 'right-start',
+    offset: 2,
+    closeOnScroll: false,
+    closeOnResize: false,
+    closeOnEscape: false,
+    closeOnOutsideClick: false,
+    onClose: onBack,
+  })
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    panelRef.current = el
+    anchorPanelRef(el)
+  }, [panelRef, anchorPanelRef])
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Keys stay in the panel (the menu's arrows / letters don't apply here).
+    e.stopPropagation()
+    if (e.key === 'Escape' || e.key === 'ArrowLeft') {
+      e.preventDefault()
+      onBack()
+      return
+    }
+    if (e.key !== 'Tab') return
+    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(PANEL_FOCUSABLE))
+    const first = items[0]
+    const last = items[items.length - 1]
+    if (!first || !last) return
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  return createPortal(
+    <div
+      ref={setRef}
+      className={`${styles.flyout} ${styles.panelFlyout}`}
+      style={{ ...style, width: panel.width }}
+      role="dialog"
+      aria-label={panel.label}
+      data-shortcut-scope="none"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      onPointerDown={onPin}
+      onFocus={onPin}
+      onKeyDown={onKeyDown}
+    >
+      {panel.render()}
+    </div>,
+    document.body,
   )
 }
