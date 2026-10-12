@@ -53,6 +53,7 @@ import {
 } from '../components/workspace/calendar/calendar-drag'
 import calendarStyles from '../components/workspace/calendar/CalendarWidget.module.css'
 import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
+import { CheckinDialog } from '../components/overlays/CheckinDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
@@ -407,6 +408,7 @@ export function WorkspacePage() {
       )}
 
       <TaskDialog />
+      <CheckinDialog />
       <TaskEditPopupHost />
       {showListsEditor && (
         <DashboardListsEditor onClose={closeListsEditor} initialSelectedId={listsEditorInitialId ?? undefined} />

@@ -125,6 +125,11 @@ interface UIState {
   settingsOpen: boolean
   /** The section the Settings modal shows; kept while the app stays open. */
   settingsSection: SettingsSectionId
+  /**
+   * The email check-in dialog (`CheckinDialog`): the people ticked when it
+   * opened (none from the general command). `null` = closed.
+   */
+  checkinDialog: { personIds: number[] } | null
 
   selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
@@ -164,6 +169,9 @@ interface UIState {
   openSettings: (section?: SettingsSectionId) => void
   closeSettings: () => void
   setSettingsSection: (section: SettingsSectionId) => void
+  /** Opens the email check-in dialog with `personIds` ticked (none by default). */
+  openCheckinDialog: (personIds?: readonly number[]) => void
+  closeCheckinDialog: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -189,6 +197,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   recentlyCreated: null,
   settingsOpen: false,
   settingsSection: 'appearance',
+  checkinDialog: null,
 
   selectTodo(id: number | null) {
     set({ selectedTodoId: id })
@@ -361,5 +370,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setSettingsSection(section) {
     set({ settingsSection: section })
+  },
+
+  openCheckinDialog(personIds) {
+    set({ checkinDialog: { personIds: [...new Set(personIds ?? [])] } })
+  },
+
+  closeCheckinDialog() {
+    set({ checkinDialog: null })
   },
 }))

@@ -317,6 +317,7 @@ function AppShell() {
       },
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
+      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
     }),
     [todos, selectionCount]
   )

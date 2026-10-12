@@ -2,7 +2,7 @@ import type { PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
 
-export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks'
+export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'tasks'
 
 export interface Command {
   id: string
@@ -36,6 +36,8 @@ export interface CommandContext {
   openShortcutsModal?: () => void
   /** Statuses for bulk commands */
   getStatuses?: () => Status[]
+  /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
+  openCheckinDialog?: (personIds?: number[]) => void
 }
 
 export function createCommands(ctx: CommandContext): Command[] {
@@ -86,6 +88,12 @@ export function createCommands(ctx: CommandContext): Command[] {
       ctx.setDateRange(null, yesterday)
     }},
   ]
+
+  // Email
+  const openCheckinDialog = ctx.openCheckinDialog
+  if (openCheckinDialog) {
+    commands.push({ id: 'email-checkins', name: 'Email task check-ins…', category: 'email', action: () => openCheckinDialog() })
+  }
 
   // Bulk actions — only when tasks are selected
   if (ctx.selectionCount === 1) {

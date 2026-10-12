@@ -10,12 +10,13 @@ interface CommandPaletteProps {
   onClose: () => void
 }
 
-const CATEGORY_ORDER: CommandCategory[] = ['navigation', 'task', 'bulk', 'filter', 'tasks']
+const CATEGORY_ORDER: CommandCategory[] = ['navigation', 'task', 'bulk', 'filter', 'email', 'tasks']
 const CATEGORY_LABELS: Record<CommandCategory, string> = {
   navigation: 'Navigation',
   task: 'Tasks',
   bulk: 'Bulk Actions',
   filter: 'Filters',
+  email: 'Email',
   tasks: 'Search Results',
 }
 
