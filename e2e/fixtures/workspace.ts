@@ -4,7 +4,7 @@ const DB_NAME = 'todo2'
 
 export interface WsTabSeed {
   id: string
-  kind: 'lens' | 'calendar' | 'notes' | 'status'
+  kind: 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'status'
   /** Lens tabs: index into `listDefinitions`. */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
@@ -12,6 +12,8 @@ export interface WsTabSeed {
   /** Calendar tabs: view state. */
   view?: 'month' | 'week'
   offset?: number
+  /** Eisenhower tabs: collapsed sections (view state). */
+  collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
 }
 
 export interface WsCellSeed {
@@ -195,6 +197,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
             if (tab.kind === 'calendar') {
               const viewState = tab.view != null || tab.offset != null ? { view: tab.view ?? 'month', offset: tab.offset ?? 0 } : undefined
               return { id: tab.id, kind: 'calendar', config: { dateTypes: tab.dateTypes ?? { due: true, followup: true } }, ...(viewState ? { viewState } : {}) }
+            }
+            if (tab.kind === 'eisenhower' && tab.collapsed) {
+              return { id: tab.id, kind: 'eisenhower', config: {}, viewState: { collapsed: tab.collapsed } }
             }
             return { id: tab.id, kind: tab.kind, config: {} }
           }),
