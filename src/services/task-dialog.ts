@@ -53,6 +53,8 @@ export interface TaskDialogPayload {
   source: TaskDialogSource
   /** The widget tab it was opened from: `Open as tab` adds the list's tab to that tab's cell. */
   fromTabId?: string
+  /** A person's tasks: the footer offers `Email check-in` to that person. */
+  personId?: number
 }
 
 /** A resolved heading; `label` null = a flat list (no header). */
@@ -156,5 +158,6 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
       kind: 'predicate',
       predicate: { ...emptyPredicate(), personIds: [person.id!] },
     },
+    ...(person.id != null ? { personId: person.id } : {}),
   }
 }

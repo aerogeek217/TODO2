@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act, fireEvent, within } from '@testing-library/react'
 import { TaskDialog } from '../../../components/overlays/TaskDialog'
 import { createTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
-import type { TaskDialogPayload } from '../../../services/task-dialog'
+import { personTaskDialog, type TaskDialogPayload } from '../../../services/task-dialog'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -56,7 +56,7 @@ beforeEach(() => {
   useStatusStore.setState({ statuses: STATUSES })
   useListDefinitionStore.setState({ listDefinitions: SAMPLE_LISTS })
   useListDraftStore.setState({ drafts: {} })
-  useUIStore.setState({ taskDialog: null, editPopupMode: null, selectedTodoId: null })
+  useUIStore.setState({ taskDialog: null, checkinDialog: null, editPopupMode: null, selectedTodoId: null })
   const l = layout()
   useWorkspaceStore.setState({ layouts: [l], activeLayoutId: 1, working: l, saved: l, isDirty: false, hydrated: true })
 })
@@ -167,5 +167,21 @@ describe('TaskDialog', () => {
     open({ ...HOT, source: { kind: 'todos', todoIds: [] } })
     expect(dialog()!.textContent).toContain('No tasks')
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
+  })
+
+  it('a person’s dialog offers Email check-in next to Copy tasks, opening the check-in with that person ticked', () => {
+    const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
+    open(personTaskDialog(priya))
+    const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
+    expect(footerButtons.slice(0, 2)).toEqual(['Copy tasks', 'Email check-in'])
+    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in' }))
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [priya.id] })
+    // The task dialog stays open underneath.
+    expect(dialog()).not.toBeNull()
+  })
+
+  it('other dialogs have no Email check-in', () => {
+    open(HOT)
+    expect(within(dialog()!).queryByRole('button', { name: 'Email check-in' })).toBeNull()
   })
 })

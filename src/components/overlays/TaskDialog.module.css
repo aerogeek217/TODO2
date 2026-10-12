@@ -172,7 +172,8 @@
   margin-left: -12px;
 }
 
-.spacer + .ghostBtn {
+.spacer + .ghostBtn,
+.ghostBtn + .ghostBtn {
   margin-left: 0;
 }
 

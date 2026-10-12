@@ -338,9 +338,11 @@ describe('DashboardWidget — drill hook', () => {
     expect(onDrill.mock.lastCall?.[0]).toEqual({
       title: 'Priya Nair', glyph: 'people', description: 'Open tasks assigned to Priya Nair.',
       source: { kind: 'todos', todoIds: [3, 11, 14, 15] },
+      personId: PEOPLE.find((p) => p.name === 'Priya Nair')?.id,
     })
     fireEvent.click(rows.at(-1)!)
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Unassigned', description: 'Open tasks with nobody assigned.' })
+    expect(onDrill.mock.lastCall?.[0]).not.toHaveProperty('personId')
   })
 
   it('under the top-bar filter a dialog says so and holds what the number counts', () => {

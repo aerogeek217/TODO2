@@ -490,6 +490,7 @@ export function PeopleSection({ data, options, onDrill, style }: DashboardSectio
                   glyph: 'people',
                   description: person ? `Open tasks assigned to ${person.name}.` : 'Open tasks with nobody assigned.',
                   source: { kind: 'todos', todoIds: inSortOrder(stats.ids, data) },
+                  ...(person?.id != null ? { personId: person.id } : {}),
                 })
                 : null
               const content = (

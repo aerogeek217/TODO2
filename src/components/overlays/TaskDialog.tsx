@@ -27,6 +27,7 @@ import { findTab } from '../../utils/workspace-layout-ops'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { DashGlyph } from '../workspace/dashboard/glyphs'
+import { EnvelopeIcon } from '../workspace/icons'
 import styles from './TaskDialog.module.css'
 
 /** The stores as they are now: what a source is resolved with when the dialog opens. */
@@ -69,8 +70,9 @@ function cellOfTab(layout: WorkspaceLayout, tabId: string | undefined): { cellId
  * (`ui-store.taskDialog`). Rows are full task rows (no drag); clicking one
  * opens the task editor on top. The rows are fixed when the dialog opens, so
  * a task completed here stays, struck through, until it closes, while the
- * counts behind update. Footer: Copy tasks, Open as tab (a list's dialog
- * opened from a widget), Close.
+ * counts behind update. Footer: Copy tasks, Email check-in (a person's
+ * tasks: opens the check-in dialog over this one with that person ticked),
+ * Open as tab (a list's dialog opened from a widget), Close.
  *
  * It sits low (the editor's own layer) so the rows' menus and popovers open
  * above it; the editor stacks over it (`nested`) and takes focus. Esc closes
@@ -101,6 +103,7 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
 
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
   const count = taskDialogCount(groups)
+  const { personId } = payload
 
   // Open as tab: a list's dialog opened from a widget whose tab is still there.
   const workingLayout = useWorkspaceStore((s) => s.working)
@@ -253,6 +256,17 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
             <CopyIcon />
             {copied ? 'Copied' : 'Copy tasks'}
           </button>
+          {personId != null && (
+            <button
+              type="button"
+              className={styles.ghostBtn}
+              data-task-dialog-checkin=""
+              onClick={() => useUIStore.getState().openCheckinDialog([personId])}
+            >
+              <EnvelopeIcon size={12} />
+              Email check-in
+            </button>
+          )}
           <span className={styles.spacer} />
           {tabTarget && (
             <button type="button" className={styles.ghostBtn} onClick={openAsTab}>Open as tab</button>

@@ -281,6 +281,16 @@ export function PersonIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** An envelope: email. */
+export function EnvelopeIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="2" y="3.5" width="12" height="9" rx="1.5" />
+      <path d="M2.5 4.75 8 8.75l5.5-4" />
+    </Svg>
+  )
+}
+
 /** A short bar: the mixed state of a checkbox item. */
 export function DashIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size} strokeWidth={2}><path d="M4.5 8h7" /></Svg>
