@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
+import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -17,7 +18,6 @@ import { TaskNotePopover } from './TaskNotePopover'
 import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { generateInitials } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
@@ -66,6 +66,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const [followupPopover, setFollowupPopover] = useState<{ kind: 'pill' } | null>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
+  const primaryRowRef = useRef<HTMLDivElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
 
@@ -104,7 +105,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   const handleCreatePerson = async (name: string) => {
     if (ghost) return
-    const id = await usePersonStore.getState().add(name, generateInitials(name))
+    const id = await usePersonStore.getState().getOrCreate(name)
     bulk.quickAssignPerson(todo.id, id)
   }
 
@@ -184,7 +185,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowTap(e as unknown as React.MouseEvent) } }}
     >
       {/* Line 1 */}
-      <div className={styles.primaryRow}>
+      <div className={styles.primaryRow} ref={primaryRowRef}>
         <input
           type="checkbox"
           className={styles.checkbox}
@@ -374,14 +375,19 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       )}
 
       {openDropdown === 'people' && !ghost && createPortal(
-        <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
-          <ChipSelector
-            items={allPeople.map(p => ({ id: p.id!, name: p.name }))}
-            selectedIds={assignedPeopleIds}
-            onToggle={togglePerson}
-            onCreate={handleCreatePerson}
-            placeholder="Search people..."
-          />
+        // With nobody assigned there are no avatars to anchor to (Assign people… from the menu).
+        <PortalDropdown anchorRef={people.length > 0 ? peopleRef : primaryRowRef} onClickOutside={closeDropdown}>
+          <div className={styles.chipDropdown}>
+            <ChipSelector
+              items={personPickerItems(allPeople)}
+              selectedIds={assignedPeopleIds}
+              onToggle={togglePerson}
+              onCreate={handleCreatePerson}
+              onClose={closeDropdown}
+              avatars
+              placeholder={PERSON_PICKER_PLACEHOLDER}
+            />
+          </div>
         </PortalDropdown>,
         document.body,
       )}

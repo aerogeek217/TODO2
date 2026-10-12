@@ -266,7 +266,7 @@ export function QuickAddBar({
   // Autocomplete candidates. Tags sort alphabetically; the others keep store order.
   const acPeople = useMemo<AutocompleteItem[]>(
     () =>
-      people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })),
+      people.map((p) => ({ id: p.id!, name: p.name, color: p.color, initials: p.initials, kind: 'person' as const })),
     [people],
   )
   const acTags = useMemo<AutocompleteItem[]>(
@@ -299,10 +299,6 @@ export function QuickAddBar({
     draft.tags.length > 0 ||
     !!draft.deadlineAt ||
     !!draft.recurrence
-
-  const hasUnmatched =
-    parsed.unmatchedPersons.length > 0 ||
-    parsed.unmatchedStatuses.length > 0
 
   // Focus on open; reset (and dismiss any open popup) on close. Destructure
   // `dismiss` so the effect's deps are stable — the hook returns a fresh
@@ -399,9 +395,7 @@ export function QuickAddBar({
         ac.handleKeyDown(e)
         return
       }
-      const isTagCreateNew =
-        ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
-      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || isTagCreateNew))) {
+      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || ac.state.createNew))) {
         e.preventDefault()
         e.stopPropagation()
         handleSelectItem()
@@ -443,8 +437,7 @@ export function QuickAddBar({
       : ac.state.trigger === ':'
         ? 'Statuses'
         : 'People'
-  const isTagCreateNewVisible =
-    ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
+  const isPersonCreate = ac.state.createNew && ac.state.trigger === '@'
 
   return (
     <>
@@ -493,19 +486,24 @@ export function QuickAddBar({
           </div>
         )}
 
-        {/* Unmatched tokens hint */}
-        {hasUnmatched && (
+        {/* `@name` that matches nobody — the person is created on submit */}
+        {parsed.unmatchedPersons.length > 0 && (
+          <div className={styles.unmatchedHint}>
+            <span>{parsed.unmatchedPersons.length === 1 ? 'New person:' : 'New people:'}</span>
+            <span className={styles.newPersonNames}>
+              {parsed.unmatchedPersons.map((n) => `@${n}`).join(' ')}
+            </span>
+            <span>— created when you add the task</span>
+          </div>
+        )}
+
+        {/* Unknown statuses hint */}
+        {parsed.unmatchedStatuses.length > 0 && (
           <div className={styles.unmatchedHint}>
             <span>Unknown:</span>
             <span className={styles.unmatchedNames}>
-              {[
-                ...parsed.unmatchedPersons.map((n) => `@${n}`),
-                ...parsed.unmatchedStatuses.map((n) => `:${n}`),
-              ].join(' ')}
+              {parsed.unmatchedStatuses.map((n) => `:${n}`).join(' ')}
             </span>
-            {parsed.unmatchedPersons.length > 0 && (
-              <span>— will be created on submit</span>
-            )}
           </div>
         )}
 
@@ -590,19 +588,26 @@ export function QuickAddBar({
                 </span>
               </button>
             ))}
-            {isTagCreateNewVisible && (
+            {ac.state.createNew && (
               <button
                 type="button"
-                className={`${styles.popupItem} ${styles.popupCreateNew}`}
+                className={`${styles.popupItem} ${isPersonCreate ? `${styles.popupCreatePerson} ${styles.selected}` : styles.popupCreateNew}`}
                 role="option"
-                aria-selected={false}
+                aria-selected={isPersonCreate}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   handleSelectItem()
                 }}
               >
+                {isPersonCreate && (
+                  <span className={styles.popupNewAvatar} aria-hidden="true">
+                    {ac.state.rawQuery.charAt(0).toUpperCase()}
+                  </span>
+                )}
                 <span className={styles.popupName}>
-                  Press Enter to create #{ac.state.query}
+                  {isPersonCreate
+                    ? `Press ⏎ to create @${ac.state.rawQuery}`
+                    : `Press Enter to create #${ac.state.query}`}
                 </span>
               </button>
             )}

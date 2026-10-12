@@ -71,3 +71,26 @@
     padding: 10px;
   }
 }
+
+/* `@name` that matches nobody: create row with a dashed avatar preview. */
+.createPerson {
+  color: var(--color-accent);
+}
+
+.createPerson .name {
+  font-weight: 600;
+}
+
+.newAvatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px dashed var(--color-accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}

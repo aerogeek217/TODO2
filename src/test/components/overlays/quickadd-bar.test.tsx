@@ -239,11 +239,72 @@ describe('QuickAddBar', () => {
     expect(surface.textContent ?? '').not.toContain(':doing')
   })
 
-  it('shows the unmatched hint when a name does not resolve', () => {
+  it('shows the new-person hint when a name does not resolve', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     changeInput('check it @ghost')
-    expect(screen.getByText(/Unknown:/)).toBeInTheDocument()
+    expect(screen.getByText('New person:')).toBeInTheDocument()
     expect(screen.getByText('@ghost')).toBeInTheDocument()
+    expect(screen.getByText('— created when you add the task')).toBeInTheDocument()
+    expect(screen.queryByText(/Unknown:/)).not.toBeInTheDocument()
+  })
+
+  it('names several new people, and keeps unknown statuses on their own line', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('check it @ghost @"Marco Rossi" :nope ')
+    expect(screen.getByText('New people:')).toBeInTheDocument()
+    expect(screen.getByText('@ghost @Marco Rossi')).toBeInTheDocument()
+    expect(screen.getByText('Unknown:')).toBeInTheDocument()
+    expect(screen.getByText(':nope')).toBeInTheDocument()
+  })
+
+  describe('@ create row', () => {
+    function typeAtCaret(value: string) {
+      const input = getInput()
+      input.setSelectionRange(0, 0)
+      fireEvent.change(input, { target: { value } })
+      input.setSelectionRange(value.length, value.length)
+      fireEvent.change(input, { target: { value } })
+      return input
+    }
+
+    it('offers "Press ⏎ to create @Name" when nobody matches; ⏎ inserts the token', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Call legal @Marco')
+      const listbox = screen.getByRole('listbox', { name: 'People' })
+      const option = screen.getByRole('option', { name: 'Press ⏎ to create @Marco' })
+      expect(listbox).toContainElement(option)
+      expect(option).toHaveAttribute('aria-selected', 'true')
+
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(getInput().value).toBe('Call legal @Marco ')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      // Enter went to the popup, not to submit.
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(screen.getByText('New person:')).toBeInTheDocument()
+    })
+
+    it('a partial match lists matches only — no create row', () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeAtCaret('Review @ann')
+      expect(screen.getByRole('option', { name: '@Anna' })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /create/ })).not.toBeInTheDocument()
+    })
+
+    it('an exact initials match lists that person instead of offering create', () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Alice Chen', initials: 'AC' }] })
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      // "ac" is no substring of "alice chen", but the resolver matches the initials.
+      typeAtCaret('Review @ac')
+      expect(screen.getByRole('option', { name: '@Alice Chen' })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /create/ })).not.toBeInTheDocument()
+    })
+
+    it('no create row while a quoted name is being typed', () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeAtCaret('Call @"Marco')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    })
   })
 
   it('empty hint row covers all NLP prefixes', () => {

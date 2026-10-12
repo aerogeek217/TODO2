@@ -117,10 +117,10 @@ describe('TaskEditPopup', () => {
       const { onCreate } = renderCreateMode()
 
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
 
-      // Person chip appears with @ prefix (distinct from dropdown item)
-      expect(screen.getByText('@Alice')).toBeInTheDocument()
+      // Person chip: avatar + name, removable
+      expect(screen.getByRole('button', { name: 'Alice×' })).toBeInTheDocument()
 
       typeTitle('Test task')
       clickCreate()
@@ -139,12 +139,12 @@ describe('TaskEditPopup', () => {
 
       // Toggle Alice on
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
-      expect(screen.getByText('@Alice')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      expect(screen.getByRole('button', { name: 'Alice×' })).toBeInTheDocument()
 
       // Toggle Alice off (dropdown is still open, click Alice again in the list)
-      fireEvent.click(screen.getByText('Alice'))
-      expect(screen.queryByText('@Alice')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      expect(screen.queryByRole('button', { name: 'Alice×' })).not.toBeInTheDocument()
 
       typeTitle('No person')
       clickCreate()
@@ -162,8 +162,8 @@ describe('TaskEditPopup', () => {
 
       // Add Alice and Bob
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
-      fireEvent.click(screen.getByText('Bob'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      fireEvent.click(screen.getByRole('option', { name: 'Bob' }))
 
       typeTitle('Multi assign')
       clickCreate()
@@ -183,9 +183,9 @@ describe('TaskEditPopup', () => {
 
       openPeopleDropdown()
 
-      const searchInput = screen.getByPlaceholderText('Search people...')
+      const searchInput = screen.getByPlaceholderText('Search or create people…')
       fireEvent.change(searchInput, { target: { value: 'Charlie' } })
-      fireEvent.click(screen.getByText('+ Create "Charlie"'))
+      fireEvent.click(screen.getByRole('option', { name: 'Create "Charlie"' }))
 
       await vi.waitFor(() => {
         expect(onCreatePerson).toHaveBeenCalledWith('Charlie')
@@ -202,13 +202,32 @@ describe('TaskEditPopup', () => {
       expect(assignments.personIds).toContain(50)
     })
 
+    it('the people picker: Esc closes it without closing the editor', () => {
+      const { onClose } = renderCreateMode()
+      openPeopleDropdown()
+      const searchInput = screen.getByPlaceholderText('Search or create people…')
+      expect(searchInput).toHaveFocus()
+      fireEvent.keyDown(searchInput, { key: 'Escape' })
+      expect(screen.queryByPlaceholderText('Search or create people…')).not.toBeInTheDocument()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('an @name in the title that matches nobody offers to create it', () => {
+      renderCreateMode()
+      typeTitle('Call legal @Marco')
+      const row = screen.getByRole('button', { name: 'Press ⏎ to create @Marco' })
+      expect(row).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Marco ')
+    })
+
     it('does not call the no-op assignment callbacks in create mode', () => {
       const { props } = renderCreateMode()
 
       // Toggle a person on and off in the same dropdown session
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
-      fireEvent.click(screen.getByText('Alice'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
       expect(props.onAssignPerson).not.toHaveBeenCalled()
       expect(props.onUnassignPerson).not.toHaveBeenCalled()
     })
@@ -236,11 +255,11 @@ describe('TaskEditPopup', () => {
       openPeopleDropdown()
 
       // Alice is already assigned — toggling should unassign
-      fireEvent.click(screen.getByText('Alice'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
       expect(onUnassignPerson).toHaveBeenCalledWith(1)
 
       // Bob is not assigned — toggling should assign
-      fireEvent.click(screen.getByText('Bob'))
+      fireEvent.click(screen.getByRole('option', { name: 'Bob' }))
       expect(onAssignPerson).toHaveBeenCalledWith(2)
     })
   })
@@ -296,7 +315,7 @@ describe('TaskEditPopup', () => {
 
       const searchInput = screen.getByPlaceholderText('Search tags...')
       fireEvent.change(searchInput, { target: { value: 'blocker' } })
-      fireEvent.click(screen.getByText('+ Create "blocker"'))
+      fireEvent.click(screen.getByRole('option', { name: 'Create "blocker"' }))
 
       await vi.waitFor(() => {
         expect(onCreateTag).toHaveBeenCalledWith('blocker')
@@ -378,7 +397,7 @@ describe('TaskEditPopup', () => {
 
       const searchInput = screen.getByPlaceholderText('Search tags...')
       fireEvent.change(searchInput, { target: { value: 'newtag' } })
-      fireEvent.click(screen.getByText('+ Create "newtag"'))
+      fireEvent.click(screen.getByRole('option', { name: 'Create "newtag"' }))
 
       await vi.waitFor(() => {
         expect(onCreateTag).toHaveBeenCalledWith('newtag')

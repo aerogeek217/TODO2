@@ -8,7 +8,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
-import { generateInitials } from '../../utils/person'
+import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { ChipSelector } from '../shared/ChipSelector'
@@ -115,7 +115,7 @@ export const TaskRow = memo(function TaskRow({
 
   const handleCreatePerson = async (name: string) => {
     if (ghost) return
-    const id = await usePersonStore.getState().add(name, generateInitials(name))
+    const id = await usePersonStore.getState().getOrCreate(name)
     bulk.quickAssignPerson(todo.id, id)
   }
 
@@ -149,7 +149,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${showStatusMenu || openDropdown || tagPickerOpen ? styles.rowDropdownOpen : ''}`}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
@@ -420,11 +420,13 @@ export const TaskRow = memo(function TaskRow({
         <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
           <div className={styles.chipDropdown}>
             <ChipSelector
-              items={allPeople.map(p => ({ id: p.id!, name: p.name }))}
+              items={personPickerItems(allPeople)}
               selectedIds={assignedPeopleIds}
               onToggle={togglePerson}
               onCreate={handleCreatePerson}
-              placeholder="Search people..."
+              onClose={closeDropdown}
+              avatars
+              placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>
         </PortalDropdown>,

@@ -279,3 +279,29 @@
   color: var(--color-text-primary);
 }
 
+
+/* `@name` that matches nobody — created on submit. */
+.newPersonNames {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.popupCreatePerson .popupName {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.popupNewAvatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px dashed var(--color-accent);
+  color: var(--color-accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}

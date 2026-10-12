@@ -4,7 +4,7 @@ import styles from './NlpAutocomplete.module.css'
 interface NlpAutocompleteProps {
   state: AutocompleteState
   onSelect: (item: AutocompleteItem) => void
-  /** Called when the "Press Enter to create #<query>" hint row is clicked. */
+  /** Called when the create row (`#tag` / `@person` with no match) is clicked. */
   onCreateNew?: () => void
 }
 
@@ -17,8 +17,8 @@ function headerLabel(state: AutocompleteState): string {
 export function NlpAutocomplete({ state, onSelect, onCreateNew }: NlpAutocompleteProps) {
   if (!state.visible) return null
 
-  const isTagCreateNew = state.trigger === '#' && state.items.length === 0 && state.query.length > 0
-  if (state.items.length === 0 && !isTagCreateNew) return null
+  if (state.items.length === 0 && !state.createNew) return null
+  const isPersonCreate = state.createNew && state.trigger === '@'
 
   return (
     <div className={styles.dropdown} style={{ left: state.caretLeft }}>
@@ -40,16 +40,23 @@ export function NlpAutocomplete({ state, onSelect, onCreateNew }: NlpAutocomplet
           </span>
         </button>
       ))}
-      {isTagCreateNew && (
+      {state.createNew && (
         <button
-          className={`${styles.item} ${styles.createNew}`}
+          className={`${styles.item} ${isPersonCreate ? `${styles.createPerson} ${styles.selected}` : styles.createNew}`}
           onMouseDown={(e) => {
             e.preventDefault()
             onCreateNew?.()
           }}
         >
+          {isPersonCreate && (
+            <span className={styles.newAvatar} aria-hidden="true">
+              {state.rawQuery.charAt(0).toUpperCase()}
+            </span>
+          )}
           <span className={styles.name}>
-            Press Enter to create #{state.query}
+            {isPersonCreate
+              ? `Press ⏎ to create @${state.rawQuery}`
+              : `Press Enter to create #${state.query}`}
           </span>
         </button>
       )}

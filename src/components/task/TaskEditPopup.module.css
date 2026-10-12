@@ -430,6 +430,28 @@
   border-color: var(--color-tint-14);
 }
 
+/* Person chip: the avatar takes the person's color; the name stays neutral. */
+.personTag:has(.personAvatar) {
+  padding-left: 3px;
+}
+
+.personAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-on-accent);
+}
+
+.personName {
+  color: var(--color-text-secondary);
+}
+
 .tagChip {
   display: inline-flex;
   align-items: center;

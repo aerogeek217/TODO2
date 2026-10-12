@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import type { PersistedTodoItem } from '../../../models'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
+import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../../utils/person'
 import { useTagStore } from '../../../stores/tag-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { generateInitials } from '../../../utils/person'
 import { ChipSelector } from '../../shared/ChipSelector'
 import { PortalDropdown } from '../../shared/PortalDropdown'
 import { StatusIcon } from '../../shared/StatusIcon'
@@ -217,17 +217,19 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
         <PortalDropdown anchorRef={peopleRef} onClickOutside={close}>
           <div className={styles.bulkPicker}>
             <ChipSelector
-              items={people.map((p) => ({ id: p.id!, name: p.name }))}
+              items={personPickerItems(people)}
               selectedIds={sharedPeople}
               onToggle={(personId) => {
                 const ps = usePersonStore.getState()
                 void (sharedPeople.has(personId) ? ps.bulkUnassignPerson(list, personId) : ps.bulkAssignPerson(list, personId))
               }}
               onCreate={async (name) => {
-                const personId = await usePersonStore.getState().add(name, generateInitials(name))
+                const personId = await usePersonStore.getState().getOrCreate(name)
                 await usePersonStore.getState().bulkAssignPerson(list, personId)
               }}
-              placeholder="Search people..."
+              onClose={close}
+              avatars
+              placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>
         </PortalDropdown>,

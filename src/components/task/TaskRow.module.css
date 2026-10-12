@@ -553,6 +553,7 @@
 
 .row:hover .moreBtn,
 .row:focus-within .moreBtn,
+.rowDropdownOpen .moreBtn,
 .moreBtnOpen {
   visibility: visible;
 }

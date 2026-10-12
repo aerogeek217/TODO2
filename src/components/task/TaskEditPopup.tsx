@@ -168,7 +168,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const statusMenuRef = useRef<HTMLDivElement>(null)
 
   const acPeople = useMemo(
-    () => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })),
+    () => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, initials: p.initials, kind: 'person' as const })),
     [allPeople],
   )
   const acTags = useMemo(
@@ -289,8 +289,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         ac.handleKeyDown(e)
         return
       }
-      const isTagCreateNew = ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
-      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || isTagCreateNew))) {
+      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || ac.state.createNew))) {
         e.preventDefault()
         const input = titleRef.current
         if (input) {

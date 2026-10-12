@@ -10,13 +10,21 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
+  /** People: an exact initials match counts too (as the resolver does). */
+  initials?: string
   kind: 'person' | 'tag' | 'status'
 }
 
 export interface AutocompleteState {
   visible: boolean
   trigger: NlpTrigger | null
+  /** Lowercased text after the trigger. */
   query: string
+  /** The text after the trigger as typed (the create row shows it). */
+  rawQuery: string
+  /** Nothing matches the query: the popup offers to create the `#tag` /
+   * `@person` (inserted as a token; created when the task is). */
+  createNew: boolean
   items: AutocompleteItem[]
   selectedIndex: number
   /** Position relative to the input element */
@@ -27,6 +35,8 @@ const initialState: AutocompleteState = {
   visible: false,
   trigger: null,
   query: '',
+  rawQuery: '',
+  createNew: false,
   items: [],
   selectedIndex: 0,
   caretLeft: 0,
@@ -79,11 +89,13 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
       return
     }
 
-    const query = beforeCursor.slice(triggerIdx + 1).toLowerCase()
+    const rawQuery = beforeCursor.slice(triggerIdx + 1)
+    const query = rawQuery.toLowerCase()
     triggerPosRef.current = triggerIdx
 
     // `#tag` and `:status` use case-insensitive prefix match;
-    // `@person` stays on substring match.
+    // `@person` stays on substring match, plus an exact initials match; a
+    // leading quote (`@"First Last"` being typed) is ignored for matching.
     let filtered: AutocompleteItem[]
     if (triggerChar === '#') {
       filtered = query
@@ -94,8 +106,10 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
         ? statuses.filter((item) => item.name.toLowerCase().startsWith(query))
         : statuses
     } else {
-      filtered = query
-        ? people.filter((item) => item.name.toLowerCase().includes(query))
+      const q = query.replace(/^"/, '')
+      filtered = q
+        ? people.filter((item) =>
+          item.name.toLowerCase().includes(q) || item.initials?.toLowerCase() === q)
         : people
     }
 
@@ -115,14 +129,20 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
       }
     }
 
-    // For `#`, stay visible even with no matches so we can render the
-    // "Press Enter to create #<query>" hint. `@` hides when empty.
-    const visible = filtered.length > 0 || (triggerChar === '#' && query.length > 0)
+    // With no matches, `#` and `@` stay visible to offer the create row
+    // (`:` hides). Not while a quoted `@"First Last"` is being typed: it can't
+    // be completed before the closing quote, so ⏎ mustn't insert it.
+    const createNew = filtered.length === 0
+      && query.length > 0
+      && (triggerChar === '#' || (triggerChar === '@' && !query.startsWith('"')))
+    const visible = filtered.length > 0 || createNew
 
     setState({
       visible,
       trigger: triggerChar,
       query,
+      rawQuery,
+      createNew,
       items: filtered.slice(0, 8),
       selectedIndex: 0,
       caretLeft,
@@ -148,9 +168,9 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
       if (state.items.length > 0) {
         return true // consumed — caller should call selectItem
       }
-      // For `#` with no matches, Tab/Enter accepts the user's typed query
-      // as a create-new completion (caller calls applySelection → create path).
-      if (state.trigger === '#' && state.query.length > 0) {
+      // With no matches, Tab/Enter accepts the typed query as a create-new
+      // completion (caller calls applySelection → create path).
+      if (state.createNew) {
         return true
       }
     }
@@ -159,7 +179,7 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
       return true
     }
     return false
-  }, [state.visible, state.items.length, state.trigger, state.query, dismiss])
+  }, [state.visible, state.items.length, state.createNew, dismiss])
 
   /**
    * Apply the selected autocomplete item into the input value.
@@ -177,7 +197,7 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
     let name: string
     if (selected) {
       name = selected.name
-    } else if (state.trigger === '#' && state.query.length > 0) {
+    } else if (state.createNew) {
       // Create-new path: preserve the user's typed casing from the raw slice.
       name = currentValue.slice(triggerIdx + 1, cursorPos)
     } else {
@@ -196,7 +216,7 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpA
 
     dismiss()
     return { value: newValue, cursor: newCursor }
-  }, [state.items, state.selectedIndex, state.trigger, state.query, dismiss])
+  }, [state.items, state.selectedIndex, state.trigger, state.createNew, dismiss])
 
   // Clean up on unmount
   useEffect(() => {

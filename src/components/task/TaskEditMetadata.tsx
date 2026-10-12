@@ -1,5 +1,7 @@
 import type { Person, Tag, RecurrenceType } from '../../models'
 import { ChipSelector } from '../shared/ChipSelector'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
+import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
@@ -79,9 +81,11 @@ export function TaskEditMetadata({
         <div className={styles.chipArea} ref={peopleRef}>
           {assignedPeople.map((person) => (
             <button key={`p-${person.id}`} className={styles.personTag}
-              style={person.color ? { color: person.color, borderColor: person.color } : undefined}
               onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
-              @{person.name}
+              <span className={styles.personAvatar} style={{ background: person.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
+                {(person.initials || person.name).charAt(0).toUpperCase()}
+              </span>
+              <span className={styles.personName}>{person.name}</span>
               <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onTogglePerson(person.id!) }}>&times;</span>
             </button>
           ))}
@@ -92,11 +96,13 @@ export function TaskEditMetadata({
           {openDropdown === 'people' && (
             <div className={styles.chipDropdown}>
               <ChipSelector
-                items={allPeople.toSorted((a, b) => a.name.localeCompare(b.name)).map(p => ({ id: p.id!, name: p.name }))}
+                items={personPickerItems(allPeople)}
                 selectedIds={assignedPeopleIds}
                 onToggle={onTogglePerson}
                 onCreate={onCreatePerson}
-                placeholder="Search people..."
+                onClose={() => setOpenDropdown(null)}
+                avatars
+                placeholder={PERSON_PICKER_PLACEHOLDER}
               />
             </div>
           )}

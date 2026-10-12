@@ -225,7 +225,7 @@ describe('TaskRow', () => {
 
       fireEvent.contextMenu(getRow())
       fireEvent.click(screen.getByRole('menuitem', { name: 'Assign people…' }))
-      expect(screen.getByPlaceholderText('Search people...')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Search or create people…')).toBeInTheDocument()
 
       fireEvent.contextMenu(getRow())
       fireEvent.click(screen.getByRole('menuitem', { name: 'Add tag…' }))
