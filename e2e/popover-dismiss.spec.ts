@@ -4,8 +4,8 @@ import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget } from
 
 /**
  * Popover-dismissal contract for portaled popovers built on
- * `usePopoverAnchor`: the task-row context menu (`ContextMenu`) and the
- * workspace cell's ⋯ menu (`MenuPopover`). JSDOM fires synthetic `scroll` /
+ * `usePopoverAnchor`: the task menu opened by right-click (`TaskMenu` on
+ * `MenuPopover`) and the workspace cell's ⋯ menu (`MenuPopover`). JSDOM fires synthetic `scroll` /
  * `resize` events with no layout consequences; the contract reads the
  * capture-phase scroll handler and the window resize listener installed by
  * `usePopoverAnchor`, so a real browser is the authoritative surface.
@@ -49,10 +49,11 @@ test.describe('task-row context menu — portalized dismissal contract', () => {
   test('right-click opens a portalized menu with the task actions; outside-click closes it', async ({ page }) => {
     await rightClickRowCenter(page, 'seed')
 
-    const menu = page.getByRole('menu')
+    const menu = page.getByRole('menu', { name: 'Task actions' })
     await expect(menu.getByRole('menuitem')).toHaveText([
-      'Open', 'Mark complete', 'Set follow-up…', 'Followed up', 'Add to Focus', 'Delete',
+      /^Open/, /^Mark complete/, /^Set due date…/, /^Follow-up/, /^Followed up/, /^Assign people…/, /^Add tag…/, /^Delete/,
     ])
+    await expect(menu.getByRole('menuitemcheckbox')).toHaveText(['Urgent', 'Important', 'Focus'])
     // Portalization invariant: the menu lives at body level, not inside the
     // task row's DOM subtree.
     expect(await menu.evaluate((el) => el.parentElement === document.body)).toBe(true)

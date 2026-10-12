@@ -33,6 +33,6 @@ test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ 
   await tagsRow.getByRole('button', { name: '+ Add' }).click()
 
   // Both seeded tags appear in the picker. Pre-fix this list would be empty.
-  await expect(page.getByRole('button', { name: 'urgent' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'later' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'urgent', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'later', exact: true })).toBeVisible()
 })

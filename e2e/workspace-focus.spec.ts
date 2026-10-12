@@ -17,9 +17,9 @@ function rowIn(page: Page, widget: Locator, title: string): Locator {
   return widget.locator('[data-row-key]', { has: page.locator(`span[title="${title}"]`) })
 }
 
-async function menuAction(page: Page, row: Locator, item: string): Promise<void> {
+async function menuMarker(page: Page, row: Locator, marker: string): Promise<void> {
   await row.locator('[data-todo-id]').click({ button: 'right' })
-  await page.getByRole('menuitem', { name: item }).click()
+  await page.getByRole('menuitemcheckbox', { name: marker }).click()
 }
 
 test('putting tasks in focus fills the Focus list, whose order persists', async ({ page }) => {
@@ -43,7 +43,7 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
   await expect(focus.locator('[data-row-key]')).toHaveCount(0)
 
   // Row menu.
-  await menuAction(page, rowIn(page, all, 'Bravo'), 'Add to Focus')
+  await menuMarker(page, rowIn(page, all, 'Bravo'), 'Focus')
   await expect.poll(() => titles(focus)).toEqual(['Bravo'])
   await expect(rowIn(page, all, 'Bravo').getByRole('img', { name: 'Focus' })).toBeVisible()
   await expect(rowIn(page, all, 'Alpha').getByRole('img', { name: 'Focus' })).toHaveCount(0)
@@ -68,7 +68,7 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
   await expect.poll(() => titles(focus)).toEqual(['Charlie', 'Bravo'])
 
   // Out of focus: leaves the Focus list, keeps its place in All.
-  await menuAction(page, rowIn(page, focus, 'Charlie'), 'Remove from Focus')
+  await menuMarker(page, rowIn(page, focus, 'Charlie'), 'Focus')
   await expect.poll(() => titles(focus)).toEqual(['Bravo'])
   await expect.poll(() => titles(all)).toEqual(['Alpha', 'Bravo', 'Charlie'])
 })

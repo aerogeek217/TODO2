@@ -174,12 +174,13 @@ test.describe('Task follow-up', () => {
     expect(color).toBe('rgb(245, 200, 66)')
   })
 
-  test('row menu: "Set follow-up…" opens the popover at the pointer; "Followed up" stamps the task', async ({ page }) => {
+  test('row menu: Follow-up › "Pick a date or interval…" opens the popover; "Followed up" stamps the task', async ({ page }) => {
     const row = taskRowByTitle(page, 'beta')
     const title = row.locator('span[title="beta"]')
     const tb = (await title.boundingBox())!
     await page.mouse.click(tb.x + 5, tb.y + 5, { button: 'right' })
-    await page.getByRole('menuitem', { name: 'Set follow-up…' }).click()
+    await page.getByRole('menuitem', { name: /^Follow-up/ }).click()
+    await page.getByRole('menuitem', { name: 'Pick a date or interval…' }).click()
     const pop = popover(page)
     await expect(pop).toBeVisible()
     await expectInViewport(page, pop)
