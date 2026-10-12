@@ -68,6 +68,14 @@ export const CHECKIN_LABELS = {
   notes: 'Notes:',
 } as const
 
+/** The labels of a task's meta line (`Due … · Next follow-up … · Tags … · Also assigned …`). */
+export const CHECKIN_META_LABELS = {
+  due: 'Due',
+  nextFollowup: 'Next follow-up',
+  tags: 'Tags',
+  alsoAssigned: 'Also assigned',
+} as const
+
 /** The empty Completed box. */
 export const CHECKIN_COMPLETED_BOX = '[ ]'
 
@@ -147,15 +155,15 @@ function metaItems(
     const days = daysUntil(todo.dueDate, ctx.today) ?? 0
     const late = -days
     items.push(late > 0
-      ? { label: 'Due', value: `${formatEmailDay(todo.dueDate, ctx.today)} (${late} day${late === 1 ? '' : 's'} overdue)`, alert: true }
-      : { label: 'Due', value: formatEmailDay(todo.dueDate, ctx.today) })
+      ? { label: CHECKIN_META_LABELS.due, value: `${formatEmailDay(todo.dueDate, ctx.today)} (${late} day${late === 1 ? '' : 's'} overdue)`, alert: true }
+      : { label: CHECKIN_META_LABELS.due, value: formatEmailDay(todo.dueDate, ctx.today) })
   }
-  if (todo.nextFollowupAt) items.push({ label: 'Next follow-up', value: formatEmailDay(todo.nextFollowupAt, ctx.today) })
+  if (todo.nextFollowupAt) items.push({ label: CHECKIN_META_LABELS.nextFollowup, value: formatEmailDay(todo.nextFollowupAt, ctx.today) })
   const tags = ctx.assignedTagsMap?.get(todo.id) ?? []
-  if (tags.length > 0) items.push({ label: 'Tags', value: tags.map((t) => `#${oneLine(t.name)}`).join('  ') })
+  if (tags.length > 0) items.push({ label: CHECKIN_META_LABELS.tags, value: tags.map((t) => `#${oneLine(t.name)}`).join('  ') })
   if (opts.includeOthers) {
     const others = (ctx.assignedPeopleMap.get(todo.id) ?? []).filter((p) => p.id !== person.id)
-    if (others.length > 0) items.push({ label: 'Also assigned', value: others.map((p) => oneLine(p.name)).join(', ') })
+    if (others.length > 0) items.push({ label: CHECKIN_META_LABELS.alsoAssigned, value: others.map((p) => oneLine(p.name)).join(', ') })
   }
   return items
 }
