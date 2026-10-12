@@ -179,3 +179,15 @@ test('long-pressing a list tab opens its list sheet; a list edit shows the save 
   await expect(wsCell(page, 'a1').getByTestId('save-list')).toBeVisible()
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
 })
+
+test('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {
+  const errors: string[] = []
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+  await seed(page)
+  await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(page.getByTestId('layout-save')).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
+  expect(errors.filter((e) => e.includes('changed size between renders'))).toEqual([])
+})

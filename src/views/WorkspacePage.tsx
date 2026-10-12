@@ -8,6 +8,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
   type Modifier,
+  type SensorInstance,
 } from '@dnd-kit/core'
 import { useBlocker } from 'react-router'
 import type { PersistedTodoItem } from '../models'
@@ -62,7 +63,16 @@ import overlayStyles from '../components/workspace/DragOverlayTask.module.css'
 import styles from './WorkspacePage.module.css'
 
 /** No drag sensors on mobile: layout editing and task drags are desktop-only there. */
-const NO_SENSORS: ReturnType<typeof useSensors> = []
+/**
+ * A sensor that never starts a drag (it has no activators): phones use it
+ * in place of the pointer sensor, since drags are off there. Swapping
+ * sensors rather than passing none keeps the list the same length — dnd-kit
+ * uses it as an effect's dependency array, which must not change size.
+ */
+class NoDragSensor implements SensorInstance {
+  static activators = []
+  autoScrollEnabled = false
+}
 
 /** The tab ghost follows the pointer at +12 / +10 px. */
 const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform, active }) => {
@@ -297,10 +307,9 @@ export function WorkspacePage() {
     if (!useWorkspaceStore.getState().hydrated) void useWorkspaceStore.getState().init()
   }, [])
 
-  const pointerSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
-  )
-  const sensors = isMobile ? NO_SENSORS : pointerSensors
+  const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
+  const noDragSensor = useSensor(NoDragSensor)
+  const sensors = useSensors(isMobile ? noDragSensor : pointerSensor)
 
   // Tab drags find their target from pointer geometry, not dnd-kit
   // droppables; task drags match the widgets' droppables (calendar days,
