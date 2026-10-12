@@ -163,6 +163,58 @@ export const todoRepository = {
     })
   },
 
+  /**
+   * Inserts several open tasks with their people and tags in one
+   * transaction (all or nothing), each with its `created` event. Returns the
+   * new ids in input order.
+   */
+  async insertManyWithAssignments(
+    items: readonly { todo: NewTodoItem; personIds: readonly number[]; tagIds: readonly number[] }[],
+  ): Promise<number[]> {
+    return db.transaction('rw', [db.todos, db.todoEvents, db.todoPeople, db.todoTags], async () => {
+      const ids: number[] = []
+      for (const { todo, personIds, tagIds } of items) {
+        const row: TodoItem = withoutUndefinedCompletedAt({ ...todo, uid: todo.uid ?? newTodoUid(), completedAt: undefined })
+        const id = await db.todos.add(row) as number
+        await db.todoEvents.add({
+          todoId: id,
+          type: 'created',
+          fromValue: null,
+          toValue: null,
+          timestamp: todo.createdAt.toISOString(),
+        } as TodoEvent)
+        for (const personId of new Set(personIds)) await db.todoPeople.add({ todoId: id, personId })
+        for (const tagId of new Set(tagIds)) await db.todoTags.add({ todoId: id, tagId })
+        ids.push(id)
+      }
+      return ids
+    })
+  },
+
+  /**
+   * Puts tasks back with their ids, people and tags (redo of a create that
+   * was undone). Join rows that already exist are not duplicated.
+   */
+  async restoreManyWithAssignments(
+    items: readonly { todo: PersistedTodoItem; personIds: readonly number[]; tagIds: readonly number[] }[],
+  ): Promise<void> {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags], async () => {
+      for (const { todo, personIds, tagIds } of items) {
+        await db.todos.put(todo)
+        for (const personId of new Set(personIds)) {
+          if (await db.todoPeople.where({ todoId: todo.id, personId }).count() === 0) {
+            await db.todoPeople.add({ todoId: todo.id, personId })
+          }
+        }
+        for (const tagId of new Set(tagIds)) {
+          if (await db.todoTags.where({ todoId: todo.id, tagId }).count() === 0) {
+            await db.todoTags.add({ todoId: todo.id, tagId })
+          }
+        }
+      }
+    })
+  },
+
   async update(todo: PersistedTodoItem): Promise<void> {
     const now = new Date()
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {

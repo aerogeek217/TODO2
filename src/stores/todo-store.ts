@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { PersistedTodoItem } from '../models'
+import type { NewTodoItem, PersistedTodoItem } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
@@ -13,6 +13,21 @@ import { addFollowupInterval, formatFollowupDate } from '../utils/followup'
 /** Next follow-up for a task created (or followed up) at `now`: today + the Settings default. */
 function defaultNextFollowup(now: Date): Date {
   return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
+}
+
+/** A task to create with the people and tags it starts with (`addMany`). */
+export interface NewTaskWithAssignments {
+  todo: Omit<NewTodoItem, 'sortOrder'>
+  personIds: readonly number[]
+  tagIds: readonly number[]
+}
+
+/** Reloads the people / tag assignment caches for every loaded task. */
+async function reloadAssignments(todoIds: number[]): Promise<void> {
+  const { usePersonStore } = await import('./person-store')
+  const { useTagStore } = await import('./tag-store')
+  await usePersonStore.getState().loadAssignments(todoIds)
+  await useTagStore.getState().loadAssignments(todoIds)
 }
 
 interface TodoState {
@@ -33,6 +48,15 @@ interface TodoState {
   loadAll: () => Promise<void>
   ensureAllLoaded: () => Promise<void>
   add: (title: string) => Promise<number>
+  /**
+   * Creates several tasks, with their people and tags, in one transaction
+   * and as one undo step (`description`; `snackbar` shows the undo
+   * snackbar). New tasks go last. Returns their ids in input order.
+   */
+  addMany: (
+    items: readonly NewTaskWithAssignments[],
+    options: { description: string; snackbar?: boolean },
+  ) => Promise<number[]>
   update: (todo: PersistedTodoItem) => Promise<void>
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -114,6 +138,45 @@ export const useTodoStore = create<TodoState>((set, get) => {
       )
       return id
     }, 'Failed to add task')
+  },
+
+  async addMany(items, { description, snackbar = false }) {
+    if (items.length === 0) return []
+    return mutate(set, async () => {
+      const maxSort = get().todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
+      const rows = items.map((item, i) => ({ ...item, todo: { ...item.todo, sortOrder: maxSort + 1 + i } }))
+      const ids = await todoRepository.insertManyWithAssignments(rows)
+      const created = await todoRepository.getByIds(ids)
+      const snapshots = ids.flatMap((id, i) => {
+        const todo = created.find((t) => t.id === id)
+        const item = items[i]
+        return todo && item ? [{ todo, personIds: [...item.personIds], tagIds: [...item.tagIds] }] : []
+      })
+      const put = async () => {
+        const present = new Set(get().todos.map((t) => t.id))
+        set({
+          todos: [...get().todos, ...snapshots.map((s) => s.todo).filter((t) => !present.has(t.id))],
+          todosVersion: get().todosVersion + 1,
+        })
+        await reloadAssignments(get().todos.map((t) => t.id))
+      }
+      await put()
+      undoable(
+        description,
+        async () => {
+          await todoRepository.restoreManyWithAssignments(snapshots)
+          await put()
+        },
+        async () => {
+          await todoRepository.bulkDelete(ids)
+          useListOrderStore.getState().forgetTodos(ids)
+          const idSet = new Set(ids)
+          set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
+        },
+        snackbar,
+      )
+      return ids
+    }, 'Failed to add tasks')
   },
 
   async update(todo: PersistedTodoItem) {
