@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 const DB_NAME = 'todo2'
 
@@ -329,4 +329,20 @@ export async function dragRow(
   await page.mouse.move(x + 4, toY, { steps: 12 })
   if (during) await during()
   await page.mouse.up()
+}
+
+/**
+ * The Settings modal, opened with the top bar's gear unless it is already
+ * open (e.g. from a `#/settings` deep link); optionally switched to a
+ * section by its label.
+ */
+export async function openSettings(page: Page, section?: string): Promise<Locator> {
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  if (!(await dialog.isVisible())) await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(dialog).toBeVisible()
+  if (section) {
+    await dialog.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click()
+    await expect(dialog.getByRole('heading', { level: 2, name: section })).toBeVisible()
+  }
+  return dialog
 }

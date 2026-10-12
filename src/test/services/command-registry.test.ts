@@ -5,7 +5,7 @@ import { makeTodo } from '../helpers'
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
-    navigateTo: vi.fn(),
+    openSettings: vi.fn(),
     openQuickAdd: vi.fn(),
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
@@ -29,27 +29,19 @@ beforeEach(() => {
 // ─── Navigation commands ─────────────────────────────────────────────────────
 
 describe('createCommands — navigation commands', () => {
-  it('createCommands_noSelection_includesWorkspaceAndSettingsNavigation', () => {
+  it('createCommands_noSelection_includesOpenSettingsButNoWorkspaceNavigation', () => {
     const ctx = makeContext()
     const commands = createCommands(ctx)
-    const navIds = commands.filter(c => c.category === 'navigation' && c.id.startsWith('nav-')).map(c => c.id)
-    expect(navIds).toEqual(['nav-workspace', 'nav-settings'])
+    expect(commands.find(c => c.id === 'open-settings')?.name).toBe('Open Settings')
+    expect(commands.some(c => c.id.startsWith('nav-'))).toBe(false)
   })
 
-  it('createCommands_navWorkspace_actionCallsNavigateToRoot', () => {
+  it('createCommands_openSettings_actionOpensTheModal', () => {
     const ctx = makeContext()
     const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-workspace')!
+    const cmd = commands.find(c => c.id === 'open-settings')!
     cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/')
-  })
-
-  it('createCommands_navSettings_actionCallsNavigateToSettings', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-settings')!
-    cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/settings')
+    expect(ctx.openSettings).toHaveBeenCalledOnce()
   })
 
   it('createCommands_noSelection_includesNewTaskCommand', () => {

@@ -48,6 +48,10 @@
   --topbar-height: 40px;
   --topbar-search-width-collapsed: 140px;
   --topbar-search-width-expanded: 200px;
+  --sync-strip-height: 36px;
+  --settings-modal-width: 940px;
+  --settings-modal-height: 680px;
+  --settings-nav-width: 220px;
 
   /* Workspace (columns of cells) */
   --workspace-gutter: 6px;

@@ -1,0 +1,467 @@
+/* Settings sections — shared by the desktop Settings modal and the mobile
+ * Settings page. A section is a column of rows: label (+ optional help) on
+ * the left, the control on the right. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.labelCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 5px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.help {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.controlColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ═══ Buttons (D0: radius 6, 600, 28 high) ═══ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.buttonPrimary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+}
+
+.buttonSecondary {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.buttonSecondary:hover:not(:disabled) {
+  background: var(--color-tint-12);
+}
+
+.buttonDanger {
+  background: transparent;
+  color: var(--color-danger);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: var(--color-text-on-accent);
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ═══ Theme segmented control ═══ */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.segment {
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--color-text-primary);
+}
+
+.segmentActive,
+.segmentActive:hover {
+  background: var(--color-surface-bright);
+  color: var(--color-text-primary);
+}
+
+/* ═══ Select / text input ═══ */
+
+.select {
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.select:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg);
+}
+
+.select option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+/* A bare label in the left column (rows whose component renders its own label). */
+.labelInline {
+  composes: label;
+  padding-top: 5px;
+}
+
+/* A text input sized like `.select`. */
+.input {
+  composes: select;
+  cursor: text;
+}
+
+/* ═══ Messages ═══ */
+
+.muted {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.warningText {
+  font-size: var(--font-size-meta);
+  color: var(--color-warning);
+}
+
+.successMsg {
+  font-size: var(--font-size-meta);
+  color: var(--color-accent);
+}
+
+.errorMsg {
+  font-size: var(--font-size-meta);
+  color: var(--color-danger);
+}
+
+.exportWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.exportWarning > button {
+  flex-shrink: 0;
+}
+
+.about {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+/* ═══ File storage ═══ */
+
+.fileName {
+  font-size: var(--font-size-task);
+  color: var(--color-text-primary);
+  font-family: monospace;
+  overflow-wrap: anywhere;
+}
+
+/* ═══ Backups ═══ */
+
+.backupList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.backupRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-meta);
+}
+
+.backupTime {
+  flex: 1;
+  color: var(--color-text-secondary);
+}
+
+.backupBadge {
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.backupBadgeDestructive {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.backupSize {
+  color: var(--color-text-muted);
+  font-family: monospace;
+  min-width: 50px;
+  text-align: right;
+}
+
+.backupActions {
+  display: flex;
+  gap: 4px;
+}
+
+.backupBtn {
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  transition: opacity 0.15s;
+}
+
+.backupBtn:hover {
+  opacity: 0.85;
+}
+
+.backupBtnDanger:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+/* ═══ Data integrity ═══ */
+
+.auditList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.auditRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: var(--font-size-meta);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  cursor: default;
+}
+
+.auditRowSevere {
+  border-left: 3px solid var(--color-danger);
+  padding-left: 7px;
+}
+
+.auditRowSevere .auditCount {
+  color: var(--color-danger);
+}
+
+.auditCount {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-warning);
+  min-width: 20px;
+  text-align: right;
+}
+
+.auditDesc {
+  color: var(--color-text-secondary);
+  flex: 1 1 auto;
+}
+
+.auditRowClickable {
+  cursor: pointer;
+}
+
+.auditRowClickable:hover,
+.auditRowClickable:focus-visible {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.auditRowClickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.auditViewHint {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.auditRowClickable:hover .auditViewHint,
+.auditRowClickable:focus-visible .auditViewHint {
+  color: var(--color-accent);
+}
+
+/* ═══ Delete completed tasks popup ═══ */
+
+.cleanupOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-dialog);
+}
+
+.cleanupPopup {
+  background: var(--color-surface-high);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  width: 400px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-modal);
+}
+
+.cleanupTitle {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.cleanupRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cleanupCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+/* ═══ Keyboard shortcuts (inline list) ═══ */
+
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-theme="light"] .cleanupPopup {
+  background: var(--color-surface);
+}
+
+/* ── Mobile: rows stack, controls get touch sizes ── */
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .labelCell,
+  .labelInline {
+    padding-top: 0;
+  }
+
+  .button,
+  .segment {
+    min-height: var(--touch-target-min);
+    padding: 0 16px;
+  }
+
+  .segmented {
+    display: flex;
+  }
+
+  .segment {
+    flex: 1;
+  }
+
+  .select {
+    width: 100%;
+    min-height: var(--touch-target-min);
+  }
+}

@@ -18,7 +18,6 @@ import {
   readScopeRows,
   type ScopedSelectMode,
 } from '../utils/scoped-selection'
-import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
 export type ShortcutCategory = 'general' | 'navigation' | 'task' | 'notes'
 
@@ -32,7 +31,7 @@ export const SHORTCUT_CATEGORIES: ReadonlyArray<{ id: ShortcutCategory; label: s
 export interface ShortcutCallbacks {
   openPalette: () => void
   closePalette: () => void
-  navigate: (path: string) => void
+  openSettings: () => void
   openShortcutsModal?: () => void
 }
 
@@ -410,14 +409,9 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
 
 export const SEQUENCE_BINDINGS: SequenceBinding[] = [
   {
-    prefix: 'g', key: 'w',
-    modalRow: { category: 'navigation', label: 'G then W', description: 'Go to Workspace' },
-    handler: ({ callbacks }) => callbacks.navigate(ROUTE_WORKSPACE),
-  },
-  {
     prefix: 'g', key: 's',
-    modalRow: { category: 'navigation', label: 'G then S', description: 'Go to Settings' },
-    handler: ({ callbacks }) => callbacks.navigate(ROUTE_SETTINGS),
+    modalRow: { category: 'navigation', label: 'G then S', description: 'Open Settings' },
+    handler: ({ callbacks }) => callbacks.openSettings(),
   },
 ]
 

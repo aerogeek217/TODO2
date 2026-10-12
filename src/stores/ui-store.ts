@@ -4,6 +4,19 @@ import type { ScopedSelection } from '../utils/scoped-selection'
 
 type EditPopupMode = 'edit' | 'create' | null
 
+/** The sections of the Settings modal (and the mobile Settings page), in order. */
+export type SettingsSectionId =
+  | 'appearance'
+  | 'task-defaults'
+  | 'entities'
+  | 'completed'
+  | 'file-storage'
+  | 'backups'
+  | 'import-export'
+  | 'data-integrity'
+  | 'shortcuts'
+  | 'about'
+
 export type AttributeFilter =
   | { type: 'person'; personId: number; personName: string }
 
@@ -100,6 +113,13 @@ interface UIState {
    * previous pill is still visible.
    */
   recentlyCreated: { todoId: number; key: number } | null
+  /**
+   * The desktop Settings modal. It sits over the workspace and never changes
+   * the route, so opening it never triggers the unsaved-layout prompt.
+   */
+  settingsOpen: boolean
+  /** The section the Settings modal shows; kept while the app stays open. */
+  settingsSection: SettingsSectionId
 
   selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
@@ -131,6 +151,10 @@ interface UIState {
   setQuickAddDraft: (draft: { rawTitle: string; defaults?: FilterDefaults } | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
+  /** Opens the Settings modal on `section`, or on the last section viewed. */
+  openSettings: (section?: SettingsSectionId) => void
+  closeSettings: () => void
+  setSettingsSection: (section: SettingsSectionId) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -154,6 +178,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
+  settingsOpen: false,
+  settingsSection: 'appearance',
 
   selectTodo(id: number | null) {
     set({ selectedTodoId: id })
@@ -306,5 +332,17 @@ export const useUIStore = create<UIState>((set, get) => ({
   clearRecentlyCreated() {
     if (get().recentlyCreated === null) return
     set({ recentlyCreated: null })
+  },
+
+  openSettings(section) {
+    set({ settingsOpen: true, ...(section ? { settingsSection: section } : {}) })
+  },
+
+  closeSettings() {
+    set({ settingsOpen: false })
+  },
+
+  setSettingsSection(section) {
+    set({ settingsSection: section })
   },
 }))

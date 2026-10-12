@@ -1,7 +1,6 @@
 import type { PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
-import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks'
 
@@ -14,7 +13,8 @@ export interface Command {
 }
 
 export interface CommandContext {
-  navigateTo: (path: string) => void
+  /** Opens the Settings modal. */
+  openSettings: () => void
   openQuickAdd: () => void
   /** Number of currently selected tasks */
   selectionCount: number
@@ -46,8 +46,7 @@ export function createCommands(ctx: CommandContext): Command[] {
   const cmdA = formatShortcut('Mod-A')
   const commands: Command[] = [
     // Navigation
-    { id: 'nav-workspace', name: 'Go to Workspace', shortcut: 'G then W', category: 'navigation', action: () => ctx.navigateTo(ROUTE_WORKSPACE) },
-    { id: 'nav-settings', name: 'Go to Settings', shortcut: 'G then S', category: 'navigation', action: () => ctx.navigateTo(ROUTE_SETTINGS) },
+    { id: 'open-settings', name: 'Open Settings', shortcut: 'G then S', category: 'navigation', action: ctx.openSettings },
     { id: 'focus-filter', name: 'Focus Filters', shortcut: 'F', category: 'navigation', action: () => {
       const filterRow = document.querySelector('[data-filter-row]')
       const firstBtn = filterRow?.querySelector('button') as HTMLElement | null

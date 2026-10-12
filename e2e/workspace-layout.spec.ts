@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { dragTab, seedWorkspace, wsCell, wsShape, wsTab, type WsLayoutSeed } from './fixtures/workspace'
+import { dragTab, openSettings, seedWorkspace, wsCell, wsShape, wsTab, type WsLayoutSeed } from './fixtures/workspace'
 
 /**
  * Workspace layout editing in a real browser: the three tab drop targets
  * (cell middle / cell edge / column edge) plus tab-strip insertion, column
  * and cell resizing, collapse, and the saved-layout flow (save icon, the
  * Save / Discard / Cancel prompt on layout switch and on leaving the route,
- * persistence across reload).
+ * none when Settings opens over the workspace, persistence across reload).
  */
 
 const twoColumns: WsLayoutSeed = {
@@ -240,24 +240,42 @@ test.describe('saved layouts', () => {
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'statusTab']], [['calTab']]])
   })
 
+  test('opening Settings with unsaved changes shows no prompt and keeps the layout dirty', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns] })
+    await wsTab(page, 'statusTab').click()
+    await wsTab(page, 'statusTab').getByRole('button', { name: 'Close Status' }).click()
+    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+
+    const settings = await openSettings(page)
+    await expect(page.getByRole('dialog', { name: /Save changes/ })).toHaveCount(0)
+    await expect(page).toHaveURL(/#\/$/)
+    await settings.getByRole('button', { name: 'Close settings' }).click()
+    await expect(settings).toBeHidden()
+    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+  })
+
   test('leaving the workspace with unsaved changes prompts; Cancel stays, Discard leaves', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'statusTab').click()
     await wsTab(page, 'statusTab').getByRole('button', { name: 'Close Status' }).click()
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    // Only the phone's Settings tab still navigates away from the workspace.
+    await page.setViewportSize({ width: 390, height: 844 })
+    const settingsTab = page.getByRole('tab', { name: 'Settings' })
+    await settingsTab.click()
     const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
     await expect(dialog).toContainText('You’re leaving the workspace.')
     await dialog.getByRole('button', { name: /Cancel/ }).click()
     await expect(page).toHaveURL(/#\/$/)
-    await expect(page.locator('[data-ws-area]')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Settings' }).click()
+    await settingsTab.click()
     await dialog.getByRole('button', { name: 'Discard' }).click()
     await expect(page).toHaveURL(/#\/settings$/)
 
     // Back on the workspace: the discarded change is gone, nothing to save.
-    await page.getByRole('button', { name: 'Workspace' }).click()
+    await page.getByRole('tab', { name: 'Workspace' }).click()
+    await page.setViewportSize({ width: 1280, height: 800 })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'statusTab']], [['calTab']]])
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   })

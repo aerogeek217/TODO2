@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
-import { createHashRouter, RouterProvider, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
+import { createHashRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
@@ -38,6 +38,7 @@ import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then(m => ({ default: m.SettingsModal })))
 const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
 import styles from './App.module.css'
 import './styles/fonts.css'
@@ -196,6 +197,23 @@ function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<s
   return <PurgeCompletedDialog tasks={tasks} retentionDays={retentionDays} onDone={onClose} onDismiss={onClose} />
 }
 
+/**
+ * `#/settings`: the Settings page on mobile; on desktop a deep link that
+ * opens the workspace with the Settings modal open.
+ */
+function SettingsRoute() {
+  const isMobile = useIsMobile()
+  if (isMobile) return <SettingsPage />
+  return <SettingsDeepLink />
+}
+
+function SettingsDeepLink() {
+  useEffect(() => {
+    useUIStore.getState().openSettings()
+  }, [])
+  return <Navigate to={ROUTE_WORKSPACE} replace />
+}
+
 function AppShell() {
   const { ensureLoaded: loadPeople } = usePersonStore()
   const { load: loadSettings } = useSettingsStore()
@@ -207,17 +225,20 @@ function AppShell() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   /** uids of the completed tasks past retention at launch (for the purge prompt). */
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
-  const navigate = useNavigate()
   const location = useLocation()
   // Desktop: quick add lives in the sidebar. Mobile: a floating + above the tab bar.
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
 
-  // Reset filter sheet when viewport transitions from mobile to desktop
+  // Reset filter sheet when viewport transitions from mobile to desktop; the
+  // Settings modal is desktop only (mobile has the Settings page).
   useEffect(() => {
     if (!isMobile) {
       useUIStore.getState().setFilterSheetOpen(false)
+    } else {
+      useUIStore.getState().closeSettings()
     }
   }, [isMobile])
+  const settingsOpen = useUIStore((s) => s.settingsOpen)
 
   const lastPathRef = useRef(location.pathname)
   useEffect(() => {
@@ -257,7 +278,7 @@ function AppShell() {
   useKeyboardShortcuts({
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
-    navigate,
+    openSettings: () => useUIStore.getState().openSettings(),
     openShortcutsModal: () => setShowShortcuts(true),
     enabled: !isMobile,
   })
@@ -269,7 +290,7 @@ function AppShell() {
 
   const commandCtx = useMemo(
     () => ({
-      navigateTo: (path: string) => navigate(path),
+      openSettings: () => useUIStore.getState().openSettings(),
       openQuickAdd: () => useUIStore.getState().openQuickAdd(),
       selectionCount,
       bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
@@ -288,7 +309,7 @@ function AppShell() {
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
     }),
-    [navigate, todos, selectionCount]
+    [todos, selectionCount]
   )
 
   const commands = useMemo(() => createCommands(commandCtx), [commandCtx])
@@ -334,7 +355,7 @@ function AppShell() {
             {LEGACY_ROUTES.map((path) => (
               <Route key={path} path={path} element={<Navigate to={ROUTE_WORKSPACE} replace />} />
             ))}
-            <Route path={ROUTE_SETTINGS} element={<SettingsPage />} />
+            <Route path={ROUTE_SETTINGS} element={<SettingsRoute />} />
             <Route path="*" element={<Navigate to={ROUTE_WORKSPACE} replace />} />
           </Routes>
         </Suspense>
@@ -352,6 +373,11 @@ function AppShell() {
       )}
       {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {!isMobile && settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal />
+        </Suspense>
+      )}
 
       <AppBulkConfirmDialog />
       {purgeLaunchUids && (

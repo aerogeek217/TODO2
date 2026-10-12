@@ -17,7 +17,7 @@ describe('useKeyboardShortcuts — focus gating', () => {
     options = {
       openPalette: noop,
       closePalette: noop,
-      navigate: noop,
+      openSettings: noop,
       openShortcutsModal,
     }
   })
@@ -70,35 +70,35 @@ describe('useKeyboardShortcuts — focus gating', () => {
 
 describe('useKeyboardShortcuts — sequence chords (G then …)', () => {
   const noop = () => {}
-  let navigate: ReturnType<typeof vi.fn<(path: string) => void>>
+  let openSettings: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
-    navigate = vi.fn<(path: string) => void>()
+    openSettings = vi.fn<() => void>()
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
   })
 
-  it('G then W navigates to the workspace (/)', () => {
-    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
-    dispatchKey(window, 'g')
-    dispatchKey(window, 'w')
-    expect(navigate).toHaveBeenCalledExactlyOnceWith('/')
-  })
-
-  it('G then S navigates to /settings', () => {
-    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
+  it('G then S opens Settings', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings }))
     dispatchKey(window, 'g')
     dispatchKey(window, 's')
-    expect(navigate).toHaveBeenCalledExactlyOnceWith('/settings')
+    expect(openSettings).toHaveBeenCalledOnce()
   })
 
-  it('G then unrelated key (e.g., x) does not navigate', () => {
-    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
+  it('G then W does nothing (the workspace is the only page)', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings }))
+    dispatchKey(window, 'g')
+    dispatchKey(window, 'w')
+    expect(openSettings).not.toHaveBeenCalled()
+  })
+
+  it('G then unrelated key (e.g., x) does not open Settings', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings }))
     dispatchKey(window, 'g')
     dispatchKey(window, 'x')
-    expect(navigate).not.toHaveBeenCalled()
+    expect(openSettings).not.toHaveBeenCalled()
   })
 })
 

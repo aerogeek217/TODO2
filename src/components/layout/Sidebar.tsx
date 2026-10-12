@@ -3,7 +3,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import { useUIStore } from '../../stores/ui-store'
 import { formatShortcut } from '../../utils/platform'
-import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
+import { ROUTE_WORKSPACE } from '../../routes'
 import styles from './Sidebar.module.css'
 
 const views = [
@@ -66,8 +66,8 @@ export function Sidebar() {
           <span style={{ fontSize: 18, lineHeight: 1 }}>{resolvedTheme === 'dark' ? '☀' : '☾'}</span>
         </button>
         <button
-          className={`${styles.iconButton} ${location.pathname === ROUTE_SETTINGS ? styles.active : ''}`}
-          onClick={() => navigate(ROUTE_SETTINGS)}
+          className={styles.iconButton}
+          onClick={() => useUIStore.getState().openSettings()}
           title="Settings"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

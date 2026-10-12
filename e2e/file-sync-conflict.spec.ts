@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openSettings } from './fixtures/workspace'
 
 /**
  * Sync-file conflict flow in a real browser.
@@ -99,7 +100,7 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   await writeSyncFile(page, fileText)
 
   await page.goto('/#/settings')
-  await page.getByRole('button', { name: 'Attach to File' }).click()
+  await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
 
   // Conflict dialog before anything changed.
   const dialog = page.getByRole('dialog', { name: 'Browser data and sync file differ' })
@@ -115,6 +116,9 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   const banner = page.getByTestId('file-sync-paused')
   await expect(banner).toContainText('File sync paused')
   expect(await readSyncFile(page)).toBe(fileText)
+  // The strip sits under the Settings modal: close it first.
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden()
   const titles = ((await dumpDb(page)).todos as Array<{ title: string }>).map((t) => t.title)
   expect(titles).toEqual(['Browser task'])
 
@@ -142,10 +146,11 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
 
   // Now in sync: a reload loads silently.
   await page.reload()
-  // Connected again (Settings shows the attached file) with no prompt.
-  await expect(page.getByRole('button', { name: 'Attach to Different File' })).toBeVisible()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByTestId('file-sync-paused')).toHaveCount(0)
+  // Connected again: Settings shows the attached file.
+  await expect((await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to Different File' })).toBeVisible()
 })
 
 test('an unreadable sync file pauses sync and is never overwritten by edits', async ({ page }) => {
@@ -155,7 +160,7 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   await writeSyncFile(page, '{ not json')
 
   await page.goto('/#/settings')
-  await page.getByRole('button', { name: 'Attach to File' }).click()
+  await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
 
   await expect(page.getByTestId('file-sync-paused')).toContainText('invalid JSON')
   // A real app edit (QuickAdd → Dexie hooks), not a raw IDB write.

@@ -33,10 +33,14 @@ test('cold load of / renders person and tag chips and person groups', async ({ p
   await expectChipsAndGroups(page)
 })
 
-test('opening the app on another route, then the workspace, renders the same chips', async ({ page }) => {
+test('a cold load of the Settings deep link, then closing it, renders the same chips', async ({ page }) => {
   await seedWorkspace(page, seed)
+  await page.goto('about:blank')
   await page.goto('/#/settings')
-  await page.reload()
-  await page.getByRole('button', { name: 'Workspace' }).click()
+  // Desktop: the deep link opens the workspace with the Settings modal open.
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect(page).toHaveURL(/#\/$/)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden()
   await expectChipsAndGroups(page)
 })

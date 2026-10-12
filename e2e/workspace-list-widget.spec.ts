@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
@@ -159,12 +159,17 @@ test('closing the last widget of an unsaved list asks first; leaving the workspa
   await page.getByTestId('list-options').getByLabel('Group').selectOption('people')
   await page.keyboard.press('Escape')
 
-  // Leaving the workspace.
-  await page.getByRole('button', { name: 'Settings' }).click()
+  // Opening Settings never asks; leaving the workspace (the phone's Settings tab) does.
+  await openSettings(page)
+  await page.keyboard.press('Escape')
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
+  await expect(dialog).toHaveCount(0)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: 'Settings' }).click()
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: /Cancel/ }).click()
   await expect(page).toHaveURL(/#\/$/)
+  await page.setViewportSize({ width: 1280, height: 800 })
 
   // Closing its only widget: Save writes the list, then closes the tab.
   await wsTab(page, 't1').getByRole('button', { name: 'Close Team' }).click()
