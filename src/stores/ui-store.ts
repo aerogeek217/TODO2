@@ -20,6 +20,13 @@ export type SettingsSectionId =
 export type AttributeFilter =
   | { type: 'person'; personId: number; personName: string }
 
+/** What Quick Add (or the editor it hands off to) starts from; see `quickAddDraft`. */
+export interface QuickAddDraftSeed {
+  rawTitle: string
+  defaults?: FilterDefaults
+  source?: string
+}
+
 export interface FilteredListPopup {
   x: number
   y: number
@@ -102,8 +109,10 @@ interface UIState {
    *    widget's "+ Add task" affordance to plumb the list's predicate
    *    through to QuickAddBar's submit handler. When absent, the submit
    *    handler falls back to `useFilterStore.getState().filters`.
+   * 4. `source` names where the task is being added (e.g. an Eisenhower
+   *    quadrant): the bar shows `Adding to <source>`.
    */
-  quickAddDraft: { rawTitle: string; defaults?: FilterDefaults } | null
+  quickAddDraft: QuickAddDraftSeed | null
   /**
    * Most recently created task — drives the transient `RecentTaskPill`
    * overlay. The pill renders for ~5s after creation so the user can click
@@ -146,9 +155,9 @@ interface UIState {
   closeListsEditor: () => void
   openListEditorDialog: (id: number) => void
   closeListEditorDialog: () => void
-  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults }) => void
+  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
-  setQuickAddDraft: (draft: { rawTitle: string; defaults?: FilterDefaults } | null) => void
+  setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
   /** Opens the Settings modal on `section`, or on the last section viewed. */
@@ -308,11 +317,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openQuickAdd(seed) {
-    let draft: { rawTitle: string; defaults?: FilterDefaults } | null = null
+    let draft: QuickAddDraftSeed | null = null
     if (typeof seed === 'string') {
       draft = { rawTitle: seed }
-    } else if (seed && (seed.rawTitle != null || seed.defaults)) {
-      draft = { rawTitle: seed.rawTitle ?? '', ...(seed.defaults ? { defaults: seed.defaults } : {}) }
+    } else if (seed && (seed.rawTitle != null || seed.defaults || seed.source)) {
+      draft = {
+        rawTitle: seed.rawTitle ?? '',
+        ...(seed.defaults ? { defaults: seed.defaults } : {}),
+        ...(seed.source ? { source: seed.source } : {}),
+      }
     }
     set({ quickAddOpen: true, quickAddDraft: draft })
   },

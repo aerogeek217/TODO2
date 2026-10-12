@@ -485,3 +485,26 @@ describe('QuickAddBar — render guarantees', () => {
     warnSpy.mockRestore()
   })
 })
+
+describe('QuickAddBar — preset (e.g. an Eisenhower quadrant\'s "+")', () => {
+  beforeEach(() => seedStores())
+  afterEach(() => cleanup())
+
+  it('shows the preset markers and the source before anything is typed', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: true, important: true, source: 'Do' }} />)
+    const texts = chipTexts()
+    expect(texts.slice(0, 2)).toEqual(['Urgent', 'Important'])
+    expect(texts.at(-1)).toBe('Adding to Do')
+  })
+
+  it('a typed /urgent adds to the preset (one chip each)', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ important: true, source: 'Schedule' }} />)
+    changeInput('Book caterer /urgent')
+    expect(chipTexts().filter((t) => t === 'Urgent' || t === 'Important')).toEqual(['Urgent', 'Important'])
+  })
+
+  it('no preset: no chips row until something is typed', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    expect(chipTexts()).toEqual([])
+  })
+})

@@ -11,7 +11,7 @@ import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
-import { QuickAddBar, type QuickAddDraft } from './components/overlays/QuickAddBar'
+import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './components/overlays/QuickAddBar'
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
@@ -158,10 +158,18 @@ function AppQuickAddBar() {
     useUIStore.getState().openCreatePopup()
   }, [])
 
+  // An explicit seed (a list's "+ Add task", an Eisenhower quadrant's "+")
+  // shows its markers and source as read-only chips.
+  const preset = useMemo<QuickAddPreset | undefined>(() => {
+    if (!draft?.defaults && !draft?.source) return undefined
+    return { ...markerFlags(draft.defaults), ...(draft.source ? { source: draft.source } : {}) }
+  }, [draft])
+
   return (
     <QuickAddBar
       open={open}
       initialDraft={draft ?? undefined}
+      preset={preset}
       onClose={close}
       onSubmit={handleSubmit}
       onOpenFullEditor={handleOpenFullEditor}

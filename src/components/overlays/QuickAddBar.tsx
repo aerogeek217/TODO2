@@ -93,6 +93,13 @@ export type QuickAddDraft = ParsedTokens & {
   resolved: ResolvedInput
 }
 
+export interface QuickAddPreset {
+  urgent?: boolean
+  important?: boolean
+  focus?: boolean
+  source?: string
+}
+
 export interface QuickAddBarProps {
   open: boolean
   onClose: () => void
@@ -105,6 +112,12 @@ export interface QuickAddBarProps {
   /** Pre-fill `rawTitle` on open. Read on the closed→open transition;
    * subsequent draft changes don't re-seed. */
   initialDraft?: { rawTitle: string }
+  /**
+   * What the task gets whatever is typed (e.g. an Eisenhower quadrant's
+   * "+": its Urgent / Important flags), shown as read-only chips, plus
+   * `source` — where the task is being added (`Adding to Schedule`).
+   */
+  preset?: QuickAddPreset
   /**
    * Optional override for tests. The default pipeline subscribes to the live
    * person / status stores and runs `parseInput` →
@@ -156,20 +169,21 @@ function NewPersonChip({ name }: { name: string }) {
   )
 }
 
-function ParsedChips({ draft, defaultFollowup, today }: {
+function ParsedChips({ draft, preset, defaultFollowup, today }: {
   draft: QuickAddDraft
+  preset?: QuickAddPreset
   defaultFollowup: Date
   today: Date
 }) {
   return (
     <div className={styles.chipsRow} role="group" aria-label="What the task gets">
-      {draft.urgent && (
+      {(draft.urgent || preset?.urgent) && (
         <span className={`${styles.chip} ${styles.markerChip}`} data-tint="urgent"><UrgentIcon /> Urgent</span>
       )}
-      {draft.important && (
+      {(draft.important || preset?.important) && (
         <span className={`${styles.chip} ${styles.markerChip}`} data-tint="followup"><ImportantIcon /> Important</span>
       )}
-      {draft.focus && (
+      {(draft.focus || preset?.focus) && (
         <span className={`${styles.chip} ${styles.markerChip}`} data-tint="accent"><FocusIcon /> Focus</span>
       )}
       {draft.tags.map((t) => (
@@ -199,8 +213,13 @@ function ParsedChips({ draft, defaultFollowup, today }: {
           {draft.status.name}
         </span>
       )}
+      {preset?.source && <span className={styles.chipsSource}>Adding to {preset.source}</span>}
     </div>
   )
+}
+
+function hasPreset(preset: QuickAddPreset | undefined): boolean {
+  return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.source)
 }
 
 /** One line per command that sets nothing. */
@@ -339,6 +358,7 @@ export function QuickAddBar({
   onSubmit,
   onOpenFullEditor,
   initialDraft,
+  preset,
   parse,
 }: QuickAddBarProps) {
   const [raw, setRaw] = useState('')
@@ -551,8 +571,8 @@ export function QuickAddBar({
         </div>
 
         {/* Chips row — what the task will get */}
-        {raw.trim().length > 0 && (
-          <ParsedChips draft={draft} defaultFollowup={defaultFollowup} today={today} />
+        {(raw.trim().length > 0 || hasPreset(preset)) && (
+          <ParsedChips draft={draft} preset={preset} defaultFollowup={defaultFollowup} today={today} />
         )}
 
         {/* `@name` that matches nobody — the person is created on submit */}

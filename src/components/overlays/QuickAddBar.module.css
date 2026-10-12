@@ -189,6 +189,14 @@
   color: var(--color-accent);
 }
 
+/* Where the task is being added (e.g. "Adding to Schedule"), at the row's end. */
+.chipsSource {
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .markerChip {
   padding: 0 8px 0 6px;
   border-radius: var(--radius-pill);
