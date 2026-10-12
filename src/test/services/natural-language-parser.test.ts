@@ -1,382 +1,347 @@
-import { describe, it, expect } from 'vitest'
-import { parseInput } from '../../services/natural-language-parser'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { parseInput, removeSpans } from '../../services/natural-language-parser'
 
-/** `toDateString()` of today + `days` (local midnight). */
-function dayAtOffset(days: number): string {
-  const t = new Date()
-  return new Date(t.getFullYear(), t.getMonth(), t.getDate() + days).toDateString()
-}
+// Sat 10 Oct 2026, local time.
+const TODAY = new Date(2026, 9, 10)
+const day = (y: number, m: number, d: number) => new Date(y, m - 1, d)
+const parse = (text: string) => parseInput(text, TODAY)
 
-describe('natural-language-parser', () => {
-  it('extracts a plain title with no tokens', () => {
-    const result = parseInput('Buy groceries')
-    expect(result.title).toBe('Buy groceries')
-    expect(result.tokens).toHaveLength(0)
-    expect(result.dueDate).toBeUndefined()
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 10, 15, 30))
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('parseInput — plain text', () => {
+  it('a title with no tokens is untouched', () => {
+    const r = parse('Buy groceries')
+    expect(r.title).toBe('Buy groceries')
+    expect(r.tokens).toHaveLength(0)
+    expect(r.problems).toHaveLength(0)
+    expect(r.dueDate).toBeUndefined()
+    expect(r).toMatchObject({ urgent: false, important: false, focus: false, followupNone: false })
   })
 
+  it('empty input', () => {
+    const r = parse('')
+    expect(r.title).toBe('')
+    expect(r.tokens).toHaveLength(0)
+  })
+
+  // Free-text dates, deadlines, recurrence and `:status` are gone: they stay in the title.
+  it.each([
+    'Call mom tomorrow',
+    'Submit report today',
+    'Pay rent by fri',
+    'Meeting friday',
+    'Sprint planning next monday',
+    'Lease due 5/4',
+    'Renew !10/20',
+    'Ship !tuesday',
+    'Plan offsite next week',
+    'Wrap up this month',
+    'Followup in 3 days',
+    'Pay rent 5/15/2099',
+    'Standup every day',
+    'Report every 2 weeks',
+    'Backup repeat daily',
+    'Fix login :blocked',
+    ':doing fix it',
+    'Send deck /Q4planning',
+  ])('"%s" stays plain title text', (text) => {
+    const r = parse(text)
+    expect(r.title).toBe(text)
+    expect(r.dueDate).toBeUndefined()
+    expect(r.recurrence).toBeUndefined()
+    expect(r.status).toBeUndefined()
+    expect(r.tokens).toHaveLength(0)
+  })
+
+  it.each([
+    'Review path/to/file',
+    'Check the /etc/hosts file',
+    'Read https://example.com/due/fri',
+    'Split it a/b',
+    'Half 1/2 done',
+    'Stamp 2025/12/05',
+    'Cut x/urgent here',
+  ])('a / inside a word, path or URL is no command: "%s"', (text) => {
+    const r = parse(text)
+    expect(r.title).toBe(text)
+    expect(r.tokens.filter((t) => t.type === 'command')).toHaveLength(0)
+    expect(r.problems).toHaveLength(0)
+  })
+})
+
+describe('parseInput — people', () => {
   it('extracts @person', () => {
-    const result = parseInput('Review PR @Mike')
-    expect(result.title).toBe('Review PR')
-    expect(result.persons).toEqual(['Mike'])
-    expect(result.tokens.find((t) => t.type === 'person')?.value).toBe('Mike')
+    const r = parse('Review PR @Mike')
+    expect(r.title).toBe('Review PR')
+    expect(r.persons).toEqual(['Mike'])
   })
 
-  it('extracts multiple @persons', () => {
-    const result = parseInput('Review PR @Mike @Sarah')
-    expect(result.title).toBe('Review PR')
-    expect(result.persons).toEqual(['Mike', 'Sarah'])
+  it('extracts several and quoted names', () => {
+    const r = parse('Review PR @Mike @"Sarah Connor"')
+    expect(r.title).toBe('Review PR')
+    expect(r.persons).toEqual(['Mike', 'Sarah Connor'])
   })
 
-  it('a bare "tomorrow" sets the due date', () => {
-    const result = parseInput('Submit report tomorrow')
-    expect(result.title).toBe('Submit report')
-    expect(result.dueDate?.toDateString()).toBe(dayAtOffset(1))
+  it('a person named like a date is just a person', () => {
+    const r = parse('Ask @friday about the report')
+    expect(r.persons).toEqual(['friday'])
+    expect(r.dueDate).toBeUndefined()
+  })
+})
+
+describe('parseInput — tags (#foo)', () => {
+  type TagCase = { input: string; tags: string[]; title?: string }
+  const cases: TagCase[] = [
+    { input: '#foo bar', tags: ['foo'], title: 'bar' },
+    { input: '/proj #foo bar', tags: ['foo'], title: '/proj bar' },
+    { input: 'Do thing #Urgent', tags: ['Urgent'] },
+    { input: '#Foo work #foo more #FOO', tags: ['Foo'] },
+    { input: 'ship it #foo!', tags: ['foo'], title: 'ship it !' },
+    { input: 'email@work#followup today', tags: [] },
+    { input: '#alpha middle #beta end', tags: ['alpha', 'beta'], title: 'middle end' },
+    { input: '#high-priority #v_2', tags: ['high-priority', 'v_2'] },
+    // `#urgent` is a tag, `/urgent` the command.
+    { input: 'fix #urgent', tags: ['urgent'], title: 'fix' },
+  ]
+  it.each(cases)('parses tags from "$input"', ({ input, tags, title }) => {
+    const r = parse(input)
+    expect(r.tags).toEqual(tags)
+    if (title !== undefined) expect(r.title).toBe(title)
+  })
+})
+
+describe('parseInput — flag commands', () => {
+  it.each([
+    ['/urgent', 'urgent'],
+    ['/important', 'important'],
+    ['/focus', 'focus'],
+  ] as const)('%s sets %s and leaves the title', (cmd, flag) => {
+    const r = parse(`Call legal ${cmd}`)
+    expect(r[flag]).toBe(true)
+    expect(r.title).toBe('Call legal')
+    expect(r.tokens).toEqual([expect.objectContaining({ type: 'command', command: flag, value: '', raw: cmd })])
   })
 
-  it('a bare "today" sets the due date', () => {
-    const result = parseInput('Call dentist today')
-    expect(result.dueDate?.toDateString()).toBe(dayAtOffset(0))
+  it('works at the start, any case, all together', () => {
+    const r = parse('/URGENT /Important plan /focus')
+    expect(r).toMatchObject({ urgent: true, important: true, focus: true, title: 'plan' })
   })
 
-  it('a bare date window ("next month") sets the due date to its last day', () => {
-    const result = parseInput('Plan offsite next month')
-    const t = new Date()
-    expect(result.title).toBe('Plan offsite')
-    expect(result.dueDate?.toDateString()).toBe(new Date(t.getFullYear(), t.getMonth() + 2, 0).toDateString())
-    expect(result.tokens.find((tok) => tok.type === 'date')?.raw).toBe('next month')
+  it('a repeated flag is harmless', () => {
+    const r = parse('a /urgent /urgent')
+    expect(r.urgent).toBe(true)
+    expect(r.title).toBe('a')
+    expect(r.problems).toHaveLength(0)
   })
 
-  it('parses a complex input with date + person', () => {
-    const result = parseInput('Review PR tomorrow @Mike')
-    expect(result.title).toBe('Review PR')
-    expect(result.persons).toEqual(['Mike'])
-    expect(result.dueDate).toBeInstanceOf(Date)
+  it('a flag with trailing letters is an unknown command', () => {
+    const r = parse('a /urgently')
+    expect(r.urgent).toBe(false)
+    expect(r.title).toBe('a /urgently')
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'unknown', raw: '/urgently' })])
+  })
+})
+
+describe('parseInput — /due', () => {
+  type DueCase = { arg: string; due: Date }
+  const cases: DueCase[] = [
+    { arg: 'today', due: day(2026, 10, 10) },
+    { arg: 'tomorrow', due: day(2026, 10, 11) },
+    { arg: 'tmr', due: day(2026, 10, 11) },
+    { arg: 'mon', due: day(2026, 10, 12) },
+    { arg: 'monday', due: day(2026, 10, 12) },
+    { arg: 'fri', due: day(2026, 10, 16) },
+    // Today is Saturday: `sat` is the next one, never today.
+    { arg: 'sat', due: day(2026, 10, 17) },
+    { arg: 'next fri', due: day(2026, 10, 16) },
+    { arg: 'in 3 days', due: day(2026, 10, 13) },
+    { arg: '3d', due: day(2026, 10, 13) },
+    { arg: '1w', due: day(2026, 10, 17) },
+    { arg: '2w', due: day(2026, 10, 24) },
+    { arg: '1m', due: day(2026, 11, 10) },
+    { arg: '10/30', due: day(2026, 10, 30) },
+    // Past MM/DD rolls into next year.
+    { arg: '5/4', due: day(2027, 5, 4) },
+    { arg: '5/4/27', due: day(2027, 5, 4) },
+    { arg: '12/31/2099', due: day(2099, 12, 31) },
+    { arg: '24 Oct', due: day(2026, 10, 24) },
+    { arg: 'Oct 24', due: day(2026, 10, 24) },
+    { arg: '2026-10-24', due: day(2026, 10, 24) },
+    { arg: 'Tue 13 Oct 2026', due: day(2026, 10, 13) },
+    { arg: 'FRI', due: day(2026, 10, 16) },
+  ]
+  it.each(cases)('/due $arg', ({ arg, due }) => {
+    const r = parse(`Renew domain /due ${arg}`)
+    expect(r.dueDate).toEqual(due)
+    expect(r.title).toBe('Renew domain')
+    expect(r.problems).toHaveLength(0)
+    expect(r.tokens.at(-1)).toMatchObject({ command: 'due', value: arg })
   })
 
-  it('parses combined input: title + date + person', () => {
-    const result = parseInput('Buy groceries tomorrow @john')
-    expect(result.title).toBe('Buy groceries')
-    expect(result.persons).toEqual(['john'])
-    expect(result.dueDate).toBeInstanceOf(Date)
+  it('reads the longest date and leaves the rest in the title', () => {
+    const r = parse('/due fri prep slides')
+    expect(r.dueDate).toEqual(day(2026, 10, 16))
+    expect(r.title).toBe('prep slides')
   })
 
-  it('handles input with only tokens', () => {
-    const result = parseInput('@Sarah tomorrow')
-    expect(result.persons).toEqual(['Sarah'])
-    expect(result.dueDate).toBeInstanceOf(Date)
+  it('stops the argument at the next token', () => {
+    const r = parse('/due 24 #q4 Oct')
+    expect(r.dueDate).toBeUndefined()
+    expect(r.tags).toEqual(['q4'])
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'unreadable', command: 'due', raw: '/due 24' })])
   })
 
-  it('handles empty input', () => {
-    const result = parseInput('')
-    expect(result.title).toBe('')
-    expect(result.tokens).toHaveLength(0)
+  it.each(['frday', '13/1', '2/30', 'soon', 'this week', 'next month'])(
+    'an unreadable argument stays in the title: /due %s',
+    (arg) => {
+      const r = parse(`Renew /due ${arg}`)
+      expect(r.dueDate).toBeUndefined()
+      expect(r.title).toBe(`Renew /due ${arg}`)
+      const first = arg.split(' ')[0]
+      expect(r.problems).toEqual([expect.objectContaining({ kind: 'unreadable', command: 'due', raw: `/due ${first}` })])
+    },
+  )
+
+  it('a missing argument is unreadable', () => {
+    const r = parse('Renew /due')
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'unreadable', raw: '/due' })])
+    expect(r.title).toBe('Renew /due')
   })
 
-  it('extracts a day name as the due date', () => {
-    const result = parseInput('Meeting friday')
-    expect(result.title).toBe('Meeting')
-    expect(result.dueDate?.getDay()).toBe(5) // Friday
+  it('the first /due wins; a later one stays in the title', () => {
+    const r = parse('/due mon review /due fri')
+    expect(r.dueDate).toEqual(day(2026, 10, 12))
+    expect(r.title).toBe('review /due fri')
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'duplicate', command: 'due', raw: '/due fri' })])
   })
 
-  it('extracts "next monday" as the due date', () => {
-    const result = parseInput('Sprint planning next monday')
-    expect(result.title).toBe('Sprint planning')
-    expect(result.dueDate?.getDay()).toBe(1)
+  it('an unreadable first /due lets a later valid one count', () => {
+    const r = parse('/due frday /due fri')
+    expect(r.dueDate).toEqual(day(2026, 10, 16))
+    expect(r.title).toBe('/due frday')
+  })
+})
+
+describe('parseInput — /followup', () => {
+  it.each([
+    ['2w', day(2026, 10, 24)],
+    ['1m', day(2026, 11, 10)],
+    ['3m', day(2027, 1, 10)],
+    ['10d', day(2026, 10, 20)],
+    ['fri', day(2026, 10, 16)],
+    ['24 Oct', day(2026, 10, 24)],
+    ['10/30', day(2026, 10, 30)],
+  ] as const)('/followup %s', (arg, date) => {
+    const r = parse(`Vendor contract /followup ${arg}`)
+    expect(r.nextFollowupAt).toEqual(date)
+    expect(r.followupNone).toBe(false)
+    expect(r.title).toBe('Vendor contract')
   })
 
-  it('a /word stays in the title as plain text', () => {
-    const result = parseInput('Fix header /Design')
-    expect(result.title).toBe('Fix header /Design')
-    expect(result.tokens).toHaveLength(0)
+  it('/follow-up is the same command', () => {
+    expect(parse('x /follow-up 2w').nextFollowupAt).toEqual(day(2026, 10, 24))
   })
 
-  it('a leading /word stays in the title alongside other tokens', () => {
-    const result = parseInput('/Backend Fix the API @Mike')
-    expect(result.title).toBe('/Backend Fix the API')
-    expect(result.persons).toEqual(['Mike'])
-    expect(result.tokens.map((t) => t.type)).toEqual(['person'])
+  it('/followup none drops the default', () => {
+    const r = parse('x /followup none')
+    expect(r.followupNone).toBe(true)
+    expect(r.nextFollowupAt).toBeUndefined()
+    expect(r.title).toBe('x')
   })
 
-  it('does not treat a path as a token', () => {
-    const result = parseInput('Review path/to/file')
-    expect(result.title).toBe('Review path/to/file')
-    expect(result.tokens).toHaveLength(0)
+  it('an unreadable interval stays in the title', () => {
+    const r = parse('x /followup 2x')
+    expect(r.nextFollowupAt).toBeUndefined()
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'unreadable', command: 'followup', raw: '/followup 2x' })])
+  })
+})
+
+describe('parseInput — /repeat', () => {
+  it.each(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'] as const)(
+    '/repeat %s with a due date',
+    (f) => {
+      const r = parse(`Standup /due today /repeat ${f}`)
+      expect(r.recurrence).toBe(f)
+      expect(r.title).toBe('Standup')
+      expect(r.problems).toHaveLength(0)
+    },
+  )
+
+  it('without /due it is recognised but ignored (dropped from the title)', () => {
+    const r = parse('Standup /repeat weekly')
+    expect(r.title).toBe('Standup')
+    expect(r.tokens.filter((t) => t.command === 'repeat')).toHaveLength(0)
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'ignored', command: 'repeat', raw: '/repeat weekly' })])
+    // Kept so a due date picked in the editor can still anchor it.
+    expect(r.recurrence).toBe('weekly')
   })
 
-  // ─── Cross-type overlap detection ──────────────────────────────────────────
+  it.each(['fortnightly', 'every', ''])('an unknown frequency stays in the title: "%s"', (arg) => {
+    const r = parse(`x /due mon /repeat ${arg}`.trim())
+    expect(r.recurrence).toBeUndefined()
+    expect(r.problems.at(-1)).toMatchObject({ kind: 'unreadable', command: 'repeat' })
+  })
+})
 
-  it('person @friday is not also parsed as a date', () => {
-    const result = parseInput('Ask @friday about the report')
-    expect(result.persons).toEqual(['friday'])
-    expect(result.dueDate).toBeUndefined()
-    expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
+describe('parseInput — /status', () => {
+  it('a single word', () => {
+    const r = parse('Fix login /status blocked')
+    expect(r.status).toBe('blocked')
+    expect(r.title).toBe('Fix login')
   })
 
-  it('person and separate date do not conflict when non-overlapping', () => {
-    const result = parseInput('Ask @Mike about tomorrow')
-    expect(result.persons).toEqual(['Mike'])
-    expect(result.dueDate).toBeInstanceOf(Date)
+  it('a quoted name with spaces', () => {
+    const r = parse('Vendor /status "In progress" call')
+    expect(r.status).toBe('In progress')
+    expect(r.title).toBe('Vendor call')
   })
 
-  it('bare day name on same day resolves to next week, not today', () => {
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-    const todayName = dayNames[new Date().getDay()]
-    const result = parseInput(`Task ${todayName}`)
-    expect(result.dueDate?.toDateString()).toBe(dayAtOffset(7))
+  it('an unclosed quote or missing name is unreadable', () => {
+    expect(parse('x /status "In progress').problems[0]).toMatchObject({ kind: 'unreadable', raw: '/status "In' })
+    expect(parse('x /status').problems[0]).toMatchObject({ kind: 'unreadable', raw: '/status' })
   })
 
-  describe('deadline syntax', () => {
-    function dateAtOffset(days: number): string {
-      const t = new Date()
-      t.setHours(0, 0, 0, 0)
-      return new Date(t.getTime() + days * 24 * 60 * 60 * 1000).toDateString()
-    }
+  it('the first /status wins', () => {
+    const r = parse('/status doing x /status blocked')
+    expect(r.status).toBe('doing')
+    expect(r.title).toBe('x /status blocked')
+  })
+})
 
-    type DeadlineCase = {
-      input: string
-      title: string
-      day?: number
-      offsetDays?: number
-    }
-
-    const matches: DeadlineCase[] = [
-      // `by` syntax
-      { input: 'Submit report by friday', title: 'Submit report', day: 5 },
-      { input: 'Call vendor by tomorrow', title: 'Call vendor', offsetDays: 1 },
-      { input: 'Wrap up tasks by this week', title: 'Wrap up tasks' },
-      // `!` syntax
-      { input: 'Urgent task !tuesday', title: 'Urgent task', day: 2 },
-      { input: 'Ship it !today', title: 'Ship it', offsetDays: 0 },
-      // `due` syntax
-      { input: 'Submit report due friday', title: 'Submit report', day: 5 },
-      { input: 'Call vendor due tomorrow', title: 'Call vendor', offsetDays: 1 },
-      { input: 'Ship feature due tmr', title: 'Ship feature', offsetDays: 1 },
-      { input: 'Email client due today', title: 'Email client', offsetDays: 0 },
-      { input: 'Wrap up tasks due this week', title: 'Wrap up tasks' },
-      { input: 'Present plan due next monday', title: 'Present plan', day: 1 },
-      { input: 'Followup due in 3 days', title: 'Followup', offsetDays: 3 },
-    ]
-
-    it.each(matches)('extracts deadline from "$input"', ({ input, title, day, offsetDays }) => {
-      const result = parseInput(input)
-      expect(result.title).toBe(title)
-      expect(result.dueDate).toBeInstanceOf(Date)
-      if (day !== undefined) expect(result.dueDate!.getDay()).toBe(day)
-      if (offsetDays !== undefined) {
-        expect(result.dueDate!.toDateString()).toBe(dateAtOffset(offsetDays))
-      }
-    })
-
-    const noMatches: Array<{ input: string; reason: string }> = [
-      { input: 'Done by default', reason: '"by" followed by non-date words' },
-      { input: 'Urgent!', reason: 'bare "!" without a date' },
-      { input: 'Pay invoice due to vendor', reason: '"due" followed by non-date words' },
-    ]
-
-    it.each(noMatches)('does not extract deadline ($reason): "$input"', ({ input }) => {
-      const result = parseInput(input)
-      expect(result.title).toBe(input)
-      expect(result.dueDate).toBeUndefined()
-    })
-
-    it('an explicit "by <date>" wins over an earlier bare date', () => {
-      const result = parseInput('Review today by in 3 days')
-      expect(result.title).toBe('Review')
-      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(3))
-    })
-
-    it('an explicit "due <date>" wins over an earlier bare date', () => {
-      const result = parseInput('Review today due in 3 days')
-      expect(result.title).toBe('Review')
-      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(3))
-    })
-
-    it('does not extract "due" inside another word (overdue)', () => {
-      const result = parseInput('Mark task overdue tomorrow')
-      // "overdue" must not satisfy the word boundary; the standalone
-      // "tomorrow" is then a bare date and still sets the due date.
-      expect(result.title).toBe('Mark task overdue')
-      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(1))
-    })
-
-    it('only consumes "due monday" from "due monday at 5pm"', () => {
-      const result = parseInput('Sync due monday at 5pm')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.getDay()).toBe(1)
-      expect(result.title).toBe('Sync at 5pm')
-    })
+describe('parseInput — unknown commands and mixes', () => {
+  it('an unknown command stays in the title and is reported', () => {
+    const r = parse('Call plumber /urgnt')
+    expect(r.title).toBe('Call plumber /urgnt')
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'unknown', raw: '/urgnt', start: 13, end: 19 })])
   })
 
-  describe('numeric dates (MM/DD)', () => {
-    function todayMidnight(): Date {
-      const d = new Date()
-      d.setHours(0, 0, 0, 0)
-      return d
-    }
-    function pad(n: number): string {
-      return n.toString().padStart(2, '0')
-    }
-
-    it('parses bare MM/DD as a due date in the next-future year', () => {
-      // Pick a date that's definitely in the past for "this year" — yesterday.
-      const today = todayMidnight()
-      const past = new Date(today)
-      past.setDate(past.getDate() - 1)
-      const input = `Task ${past.getMonth() + 1}/${past.getDate()}`
-      const result = parseInput(input)
-      expect(result.title).toBe('Task')
-      // Past MM/DD rolls forward to next year.
-      expect(result.dueDate?.getFullYear()).toBe(today.getFullYear() + 1)
-      expect(result.dueDate?.getMonth()).toBe(past.getMonth())
-      expect(result.dueDate?.getDate()).toBe(past.getDate())
+  it('a board example: everything at once', () => {
+    const r = parse('1:1 with Ben @Ben /due mon /repeat weekly /status waiting /followup none')
+    expect(r).toMatchObject({
+      title: '1:1 with Ben',
+      persons: ['Ben'],
+      dueDate: day(2026, 10, 12),
+      recurrence: 'weekly',
+      status: 'waiting',
+      followupNone: true,
     })
-
-    it('parses bare MM/DD as today when MM/DD === today', () => {
-      const today = todayMidnight()
-      const input = `Task ${today.getMonth() + 1}/${today.getDate()}`
-      const result = parseInput(input)
-      expect(result.dueDate?.toDateString()).toBe(today.toDateString())
-    })
-
-    it('parses bare MM/DD as future date in current year when MM/DD is upcoming', () => {
-      const today = todayMidnight()
-      const future = new Date(today)
-      future.setDate(future.getDate() + 14)
-      const input = `Task ${future.getMonth() + 1}/${future.getDate()}`
-      const result = parseInput(input)
-      expect(result.dueDate?.toDateString()).toBe(future.toDateString())
-    })
-
-    it('respects an explicit two-digit year (MM/DD/YY → 20YY)', () => {
-      const result = parseInput('Task 5/4/30')
-      expect(result.title).toBe('Task')
-      expect(result.dueDate?.getFullYear()).toBe(2030)
-      expect(result.dueDate?.getMonth()).toBe(4) // May
-      expect(result.dueDate?.getDate()).toBe(4)
-    })
-
-    it('respects an explicit four-digit year (MM/DD/YYYY)', () => {
-      const result = parseInput('Task 12/31/2099')
-      expect(result.dueDate?.getFullYear()).toBe(2099)
-      expect(result.dueDate?.getMonth()).toBe(11) // December
-      expect(result.dueDate?.getDate()).toBe(31)
-    })
-
-    it('"due MM/DD" is a due date', () => {
-      const today = todayMidnight()
-      const future = new Date(today)
-      future.setDate(future.getDate() + 14)
-      const input = `Task due ${future.getMonth() + 1}/${future.getDate()}`
-      const result = parseInput(input)
-      expect(result.title).toBe('Task')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.toDateString()).toBe(future.toDateString())
-    })
-
-    it('"by MM/DD/YY" is a deadline with explicit year', () => {
-      const result = parseInput('Ship feature by 6/3/27')
-      expect(result.title).toBe('Ship feature')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.getFullYear()).toBe(2027)
-      expect(result.dueDate!.getMonth()).toBe(5) // June
-      expect(result.dueDate!.getDate()).toBe(3)
-    })
-
-    it('"!MM/DD" is a deadline', () => {
-      const today = todayMidnight()
-      const future = new Date(today)
-      future.setDate(future.getDate() + 7)
-      const input = `Urgent !${future.getMonth() + 1}/${future.getDate()}`
-      const result = parseInput(input)
-      expect(result.title).toBe('Urgent')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.toDateString()).toBe(future.toDateString())
-    })
-
-    it('rejects out-of-range month (13/1)', () => {
-      const result = parseInput('Task 13/1')
-      expect(result.title).toBe('Task 13/1')
-      expect(result.dueDate).toBeUndefined()
-    })
-
-    it('rejects rolled-over invalid date (2/30)', () => {
-      const result = parseInput('Task 2/30')
-      expect(result.title).toBe('Task 2/30')
-      expect(result.dueDate).toBeUndefined()
-    })
-
-    it('does not match digits inside path/12/05/file', () => {
-      const result = parseInput('Edit path/12/05/file.txt')
-      expect(result.dueDate).toBeUndefined()
-      expect(result.title).toBe('Edit path/12/05/file.txt')
-    })
-
-    it('does not match inside ISO-like 2025/12/05', () => {
-      const result = parseInput('Stamp 2025/12/05')
-      expect(result.dueDate).toBeUndefined()
-      expect(result.title).toBe('Stamp 2025/12/05')
-    })
-
-    it('does not match a single-digit "year" suffix (5/4/3 stays in title)', () => {
-      const result = parseInput('Note 5/4/3')
-      expect(result.dueDate).toBeUndefined()
-      expect(result.title).toBe('Note 5/4/3')
-    })
-
-    it('"due MM/DD" wins over an earlier bare MM/DD; both leave the title', () => {
-      const today = todayMidnight()
-      const bare = new Date(today); bare.setDate(bare.getDate() + 3)
-      const dl = new Date(today); dl.setDate(dl.getDate() + 10)
-      const input = `Review ${pad(bare.getMonth() + 1)}/${pad(bare.getDate())} due ${dl.getMonth() + 1}/${dl.getDate()}`
-      const result = parseInput(input)
-      expect(result.title).toBe('Review')
-      expect(result.dueDate!.toDateString()).toBe(dl.toDateString())
-    })
-
-    it('strips the numeric date from the title', () => {
-      const result = parseInput('Pay rent 5/15/2099')
-      expect(result.title).toBe('Pay rent')
-    })
+    expect(r.tokens.map((t) => t.command ?? t.type)).toEqual(['person', 'due', 'repeat', 'status', 'followup'])
   })
 
-  describe('tags (#foo)', () => {
-    type TagCase = { input: string; tags: string[]; title?: string }
+  it('token spans index the text', () => {
+    const text = 'Book venue #q4 /important /due 10/30'
+    const r = parse(text)
+    for (const t of r.tokens) expect(text.slice(t.start, t.end)).toBe(t.raw)
+  })
 
-    const cases: TagCase[] = [
-      { input: '#foo bar', tags: ['foo'], title: 'bar' },
-      { input: '/proj #foo bar', tags: ['foo'], title: '/proj bar' },
-      { input: 'Do thing #Urgent', tags: ['Urgent'] },
-      { input: 'ship #FooBar', tags: ['FooBar'] },
-      // Dedupe case-variants by lowercase, first-seen case wins.
-      { input: '#Foo work #foo more #FOO', tags: ['Foo'] },
-      // Capture stops at the first non-slug char.
-      { input: 'ship it #foo!', tags: ['foo'], title: 'ship it !' },
-      { input: '#urgent ship it', tags: ['urgent'], title: 'ship it' },
-      // word#tag is NOT a tag (requires whitespace before #).
-      { input: 'email@work#followup today', tags: [] },
-      { input: '#foo work #bar then #foo', tags: ['foo', 'bar'] },
-      { input: '#alpha middle #beta end', tags: ['alpha', 'beta'], title: 'middle end' },
-      { input: '#high-priority #v_2', tags: ['high-priority', 'v_2'] },
-      { input: 'Plain title', tags: [] },
-    ]
-
-    it.each(cases)('parses tags from "$input"', ({ input, tags, title }) => {
-      const result = parseInput(input)
-      expect(result.tags).toEqual(tags)
-      if (title !== undefined) expect(result.title).toBe(title)
-    })
-
-    it('captures #foo and emits a tag token', () => {
-      const result = parseInput('#foo bar')
-      expect(result.tokens.find((t) => t.type === 'tag')?.value).toBe('foo')
-    })
-
-    it('tag does not shadow date keyword elsewhere in the input', () => {
-      // `#today` is a tag; a bare `today` after it is still a date.
-      const result = parseInput('#today today')
-      expect(result.tags).toEqual(['today'])
-      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(0))
-    })
+  it('removeSpans removes spans and collapses whitespace', () => {
+    expect(removeSpans('a  b c d', [{ start: 3, end: 4 }, { start: 7, end: 8 }])).toBe('a c')
   })
 })

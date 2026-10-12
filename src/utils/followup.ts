@@ -1,5 +1,5 @@
 import type { TodoItem } from '../models/todo-item'
-import { parseDatePhrase } from '../services/natural-language-parser'
+import { parseDatePhrase } from './date-phrase'
 import { MS_PER_DAY, startOfDay } from './date'
 
 /**

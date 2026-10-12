@@ -38,6 +38,10 @@ export function useTaskEditCallbacks() {
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)
     if (todo) {
       const followupTouched = 'nextFollowupAt' in partial || partial.lastFollowupAt !== undefined
+        || resolved.nextFollowupAt !== undefined || resolved.followupNone === true
+      const urgent = partial.urgent === true || resolved.urgent === true
+      const important = partial.important === true || resolved.important === true
+      const focus = partial.focus === true || resolved.focus === true
       const hasMeta =
         followupTouched ||
         partial.dueDate !== undefined ||
@@ -45,20 +49,24 @@ export function useTaskEditCallbacks() {
         resolved.dueDate !== undefined || resolved.recurrence ||
         resolved.statusId !== undefined ||
         partial.recurrenceRule ||
-        partial.focus || partial.urgent || partial.important
+        urgent || important || focus
       if (hasMeta) {
         const nextDeadline = partial.dueDate ?? resolved.dueDate ?? todo.dueDate
+        // The editor's Next field (passed when changed or cleared from the
+        // default) wins; otherwise a `/followup` in the title, else the default.
+        const nextFollowupAt = 'nextFollowupAt' in partial
+          ? partial.nextFollowupAt
+          : resolved.followupNone ? undefined : (resolved.nextFollowupAt ?? todo.nextFollowupAt)
         await updateTodo({
           ...todo,
           dueDate: nextDeadline,
           statusId: resolved.statusId ?? partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
-          // The editor's Next field may have been changed or cleared from the default.
-          nextFollowupAt: 'nextFollowupAt' in partial ? partial.nextFollowupAt : todo.nextFollowupAt,
+          nextFollowupAt,
           lastFollowupAt: partial.lastFollowupAt ?? todo.lastFollowupAt,
-          focus: partial.focus ?? todo.focus,
-          urgent: partial.urgent ?? todo.urgent,
-          important: partial.important ?? todo.important,
+          ...(focus ? { focus: true } : {}),
+          ...(urgent ? { urgent: true } : {}),
+          ...(important ? { important: true } : {}),
           recurrenceRule: partial.recurrenceRule
             ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
         })

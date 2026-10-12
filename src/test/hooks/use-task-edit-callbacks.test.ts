@@ -77,6 +77,35 @@ describe('useTaskEditCallbacks — create', () => {
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.title).toBe('Call legal')
   })
 
+  it('slash commands typed in the editor title set the task’s fields', async () => {
+    const { result } = renderHook(() => useTaskEditCallbacks())
+    let id = 0
+    await act(async () => { id = await result.current.onCreate({ title: 'Renew /urgent /focus /due 10/30 /followup none' }) })
+    const todo = useTodoStore.getState().todos.find((t) => t.id === id)!
+    expect(todo.title).toBe('Renew')
+    expect(todo.urgent).toBe(true)
+    expect(todo.focus).toBe(true)
+    expect(todo.important).toBeUndefined()
+    expect([todo.dueDate?.getMonth(), todo.dueDate?.getDate()]).toEqual([9, 30])
+    expect(todo.nextFollowupAt).toBeUndefined()
+  })
+
+  it('the editor’s own Next follow-up wins over a /followup in the title', async () => {
+    const { result } = renderHook(() => useTaskEditCallbacks())
+    let id = 0
+    await act(async () => {
+      id = await result.current.onCreate({ title: 'Renew /followup none', nextFollowupAt: day(2027, 1, 1) })
+    })
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt).toEqual(day(2027, 1, 1))
+  })
+
+  it('without /followup a new task keeps the default next follow-up', async () => {
+    const { result } = renderHook(() => useTaskEditCallbacks())
+    let id = 0
+    await act(async () => { id = await result.current.onCreate({ title: 'Plain' }) })
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt).toBeInstanceOf(Date)
+  })
+
   it('onCreatePerson reuses an existing person whatever the case', async () => {
     const existing = await usePersonStore.getState().add('Dana Kim', 'DK')
     const { result } = renderHook(() => useTaskEditCallbacks())

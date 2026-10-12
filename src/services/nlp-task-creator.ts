@@ -24,7 +24,8 @@ export function parseTaskInput(
 
 /**
  * Apply resolved NLP metadata to a newly created task.
- * Writes the due date / status and assigns people. Recurrence anchors
+ * Writes the due date / status / markers / next follow-up (`/followup`
+ * replaces the default; `none` clears it) and assigns people. Recurrence anchors
  * to the due date; without one the recurrence is dropped. `@name` tokens
  * that matched nobody create the person first (lookup-or-create via
  * `person-store`), then are assigned like matched people. Tags go through the
@@ -42,7 +43,9 @@ export async function applyNlpMetadata(
   const hasUpdates =
     resolved.dueDate !== undefined ||
     resolved.recurrence !== undefined ||
-    resolved.statusId !== undefined
+    resolved.statusId !== undefined ||
+    resolved.urgent === true || resolved.important === true || resolved.focus === true ||
+    resolved.nextFollowupAt !== undefined || resolved.followupNone === true
   const hasTags = resolved.tags.length > 0
   const personIds = [...resolved.personIds]
   if (resolved.unmatchedPersons.length > 0) {
@@ -72,6 +75,11 @@ export async function applyNlpMetadata(
             dueDate: nextDue,
             recurrenceRule: nextRule,
             statusId: nextStatusId,
+            ...(resolved.urgent ? { urgent: true } : {}),
+            ...(resolved.important ? { important: true } : {}),
+            ...(resolved.focus ? { focus: true } : {}),
+            // `/followup` replaces the default next follow-up; `none` drops it.
+            nextFollowupAt: resolved.followupNone ? undefined : (resolved.nextFollowupAt ?? todo.nextFollowupAt),
           })
         }
       }

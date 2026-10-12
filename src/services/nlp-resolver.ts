@@ -1,10 +1,16 @@
 import type { Person, RecurrenceType, Status, Tag } from '../models'
-import type { ParsedInput } from './natural-language-parser'
+import { removeSpans, type CommandProblem, type ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { TagLimitError } from '../stores/tag-store'
 
 export interface ResolvedInput {
+  /** The task title: the text without its recognised tokens. An unknown
+   * `/status` name stays in it, like any other unreadable command. */
   title: string
+  /** The text without its command tokens (`@` / `#` kept) — the editor's
+   * title after a Quick Add → Details handoff, whose fields carry the
+   * commands. Absent when nothing was parsed. */
+  textWithoutCommands?: string
   dueDate?: Date
   recurrence?: RecurrenceType
   personIds: number[]
@@ -13,10 +19,20 @@ export interface ResolvedInput {
   unmatchedPersons: string[]
   /** Normalized tag slugs from `#foo` tokens (pass-through from `ParsedInput`). */
   tags: string[]
-  /** Resolved status ID (first match wins) from `:foo` tokens */
+  /** Resolved status ID from `/status <name>` */
   statusId?: number
-  /** Status names from `:foo` tokens that didn't match any existing status */
+  /** The `/status` name when it matched no status (it stays in the title) */
   unmatchedStatuses: string[]
+  urgent?: boolean
+  important?: boolean
+  focus?: boolean
+  /** From `/followup <date|interval>`. */
+  nextFollowupAt?: Date
+  /** `/followup none`: no next follow-up instead of the default. */
+  followupNone?: boolean
+  /** Commands that set nothing (`CommandProblem`), including a `/status`
+   * naming no status (`unmatched`). Absent when nothing was parsed. */
+  problems?: CommandProblem[]
 }
 
 /**
@@ -159,9 +175,10 @@ export async function resolveUnmatchedPeople(
 }
 
 /**
- * Resolve parsed NLP input against known people and statuses.
- * Statuses: `:foo` tokens match against the status registry by case-insensitive
- * exact-then-prefix; first match wins, unmatched names land in `unmatchedStatuses`.
+ * Resolve parsed NLP input against known people and statuses. People match
+ * by name (exact, then prefix), initials or first name; `/status` matches the
+ * status registry case-insensitively, exact then prefix. A status name that
+ * matches nothing stays in the title and is reported as a problem.
  */
 export function resolveInput(
   parsed: ParsedInput,
@@ -169,16 +186,39 @@ export function resolveInput(
   statuses: Status[] = [],
 ): ResolvedInput {
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
-  const statusResult = resolveNames(parsed.statuses, (name) => matchByName(name, statuses, (s) => s.name))
+  const status = parsed.status !== undefined
+    ? matchByName(parsed.status, statuses, (s) => s.name)
+    : undefined
+  const unknownStatus = parsed.status !== undefined && status?.id === undefined
+    ? parsed.tokens.find((t) => t.command === 'status')
+    : undefined
+  const kept = parsed.tokens.filter((t) => t !== unknownStatus)
+  const problems: CommandProblem[] = unknownStatus
+    ? [...parsed.problems, {
+      kind: 'unmatched' as const,
+      command: 'status' as const,
+      raw: unknownStatus.raw,
+      start: unknownStatus.start,
+      end: unknownStatus.end,
+    }].sort((a, b) => a.start - b.start)
+    : parsed.problems
+  const ignored = parsed.problems.filter((p) => p.kind === 'ignored')
 
   return {
-    title: parsed.title,
+    title: unknownStatus ? removeSpans(parsed.text, [...kept, ...ignored]) : parsed.title,
+    textWithoutCommands: removeSpans(parsed.text, [...kept.filter((t) => t.type === 'command'), ...ignored]),
     dueDate: parsed.dueDate,
     recurrence: parsed.recurrence,
     personIds: persons.ids,
     unmatchedPersons: persons.unmatched,
     tags: parsed.tags,
-    statusId: statusResult.ids[0],
-    unmatchedStatuses: statusResult.unmatched,
+    statusId: status?.id,
+    unmatchedStatuses: unknownStatus && parsed.status !== undefined ? [parsed.status] : [],
+    ...(parsed.urgent ? { urgent: true } : {}),
+    ...(parsed.important ? { important: true } : {}),
+    ...(parsed.focus ? { focus: true } : {}),
+    ...(parsed.nextFollowupAt ? { nextFollowupAt: parsed.nextFollowupAt } : {}),
+    ...(parsed.followupNone ? { followupNone: true } : {}),
+    problems,
   }
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { resolveInput, resolveTags, resolveUnmatchedPeople, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
 import { TagLimitError } from '../../stores/tag-store'
-import type { Person, Tag } from '../../models'
+import type { Person, Status, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 
 function makeMockTagStore(initialTags: Tag[] = []): TagStoreLike & { nextId: number } {
@@ -52,19 +52,26 @@ describe('nlp-resolver', () => {
     expect(result.unmatchedPersons).toEqual(unmatched)
   })
 
-  it('preserves the due date from parsed input', () => {
-    const parsed = parseInput('Task tomorrow')
+  it('passes the commands through', () => {
+    const parsed = parseInput('Buy groceries /due tomorrow /urgent /important /focus /followup 2w @John', new Date(2026, 9, 10))
     const result = resolveInput(parsed, people)
-    expect(result.dueDate).toBeInstanceOf(Date)
-    expect(result.title).toBe('Task')
+    expect(result).toMatchObject({
+      title: 'Buy groceries',
+      dueDate: new Date(2026, 9, 11),
+      urgent: true,
+      important: true,
+      focus: true,
+      nextFollowupAt: new Date(2026, 9, 24),
+      personIds: [1],
+      problems: [],
+    })
+    expect(result.followupNone).toBeUndefined()
   })
 
-  it('handles combined input with multiple token types', () => {
-    const parsed = parseInput('Buy groceries tomorrow @John')
-    const result = resolveInput(parsed, people)
-    expect(result.title).toBe('Buy groceries')
-    expect(result.dueDate).toBeInstanceOf(Date)
-    expect(result.personIds).toEqual([1])
+  it('a plain date word is title text', () => {
+    const result = resolveInput(parseInput('Task tomorrow'), people)
+    expect(result.dueDate).toBeUndefined()
+    expect(result.title).toBe('Task tomorrow')
   })
 
   it('keeps a /word in the resolved title', () => {
@@ -72,6 +79,49 @@ describe('nlp-resolver', () => {
     const result = resolveInput(parsed, people)
     expect(result.title).toBe('Fix bug /Backend')
     expect(result.personIds).toEqual([3])
+    expect(result.problems).toEqual([expect.objectContaining({ kind: 'unknown', raw: '/Backend' })])
+  })
+
+  it('textWithoutCommands drops the commands but keeps @ and # tokens', () => {
+    const result = resolveInput(parseInput('Call @Mike /urgent about #q4 /due fri /urgnt'), people)
+    expect(result.title).toBe('Call about /urgnt')
+    expect(result.textWithoutCommands).toBe('Call @Mike about #q4 /urgnt')
+  })
+})
+
+describe('nlp-resolver — /status', () => {
+  const statuses: Status[] = [
+    { id: 10, name: 'Doing', color: '#0af', sortOrder: 0 },
+    { id: 11, name: 'Blocked', color: '#f00', sortOrder: 1 },
+    { id: 12, name: 'In progress', color: '#0f0', sortOrder: 2 },
+  ]
+
+  it.each([
+    ['/status doing', 10],
+    ['/status Doing', 10],
+    ['/status bl', 11],
+    ['/status "In progress"', 12],
+    ['/status in', 12],
+  ] as const)('%s resolves', (cmd, id) => {
+    const result = resolveInput(parseInput(`fix it ${cmd}`), people, statuses)
+    expect(result.statusId).toBe(id)
+    expect(result.title).toBe('fix it')
+    expect(result.unmatchedStatuses).toEqual([])
+  })
+
+  it('an unknown name stays in the title and is reported', () => {
+    const result = resolveInput(parseInput('fix it /status typo now'), people, statuses)
+    expect(result.statusId).toBeUndefined()
+    expect(result.title).toBe('fix it /status typo now')
+    expect(result.textWithoutCommands).toBe('fix it /status typo now')
+    expect(result.unmatchedStatuses).toEqual(['typo'])
+    expect(result.problems).toEqual([expect.objectContaining({ kind: 'unmatched', command: 'status', raw: '/status typo' })])
+  })
+
+  it('without a status registry every name is unknown', () => {
+    const result = resolveInput(parseInput('fix it /status doing'), people)
+    expect(result.statusId).toBeUndefined()
+    expect(result.unmatchedStatuses).toEqual(['doing'])
   })
 })
 
