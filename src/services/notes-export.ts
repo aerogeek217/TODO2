@@ -1,6 +1,5 @@
 /**
- * Notes export helpers — ported from
- * `docs/plans/design_handoff_dashboard_redesign/src/prototype-components.jsx`.
+ * Notes export helpers (Markdown ↔ HTML, rich copy).
  * Users type Markdown with light shorthand (ALL-CAPS headings, em-dash
  * bullets). `normalizeToMarkdown` folds the shorthand into canonical
  * Markdown so `mdToHtml` (and external paste targets) see a clean stream.
