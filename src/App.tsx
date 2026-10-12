@@ -7,6 +7,7 @@ import { useSettingsStore } from './stores/settings-store'
 import { useFileStorageStore } from './stores/file-storage-store'
 import { TopBar } from './components/layout/TopBar'
 import { FileSyncBanner } from './components/layout/FileSyncBanner'
+import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
@@ -247,6 +248,7 @@ function AppShell() {
   }, [location.pathname])
 
   useEffect(() => {
+    removeLegacySyncKeys()
     loadSettings()
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))

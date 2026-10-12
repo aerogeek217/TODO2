@@ -1,78 +1,106 @@
-.banner {
+/* The sync warning strip (36px, between the top bar and the workspace) and
+ * the warning actions it shares with the storage pill's popover. */
+
+.strip {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  background: var(--color-accent-bg-light);
-  border-bottom: 1px solid var(--color-border);
+  gap: 10px;
+  height: var(--sync-strip-height);
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-canvas-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.icon {
+  color: var(--color-warning);
   flex-shrink: 0;
 }
 
 .message {
   flex: 1;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message strong {
-  color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ghost,
+.primary {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.primary {
+  background: color-mix(in srgb, var(--color-warning) 22%, transparent);
+  color: var(--color-text-primary);
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-warning) 32%, transparent);
+}
+
+.ghost:disabled,
+.primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ghost:focus-visible,
+.primary:focus-visible,
+.dismiss:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .dismiss {
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 16px;
-  line-height: 1;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color 0.1s;
-  flex-shrink: 0;
 }
 
 .dismiss:hover {
+  background: var(--color-tint-8);
   color: var(--color-text-primary);
-}
-
-.dismissText {
-  background: none;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 3px 10px;
-  border-radius: var(--radius-chip);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.dismissText:hover {
-  color: var(--color-text-primary);
-}
-
-.bannerWarning {
-  background: rgba(245, 166, 35, 0.1);
-  border-bottom-color: rgba(245, 166, 35, 0.3);
-}
-
-.grantAccess {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  border: none;
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  font-weight: var(--font-weight-semibold);
-  padding: 4px 12px;
-  border-radius: var(--radius-chip);
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: opacity 0.1s;
-}
-
-.grantAccess:hover {
-  opacity: 0.85;
 }

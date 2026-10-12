@@ -1,0 +1,186 @@
+/* The top bar's storage status pill and its popover. */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  max-width: 200px;
+  padding: 0 9px 0 8px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pill:hover {
+  background: var(--color-tint-6);
+}
+
+.pill:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.text {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.syncing .dot {
+  background: var(--color-accent);
+}
+
+.paused,
+.error {
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  box-shadow: none;
+  color: var(--color-warning);
+}
+
+.paused .dot,
+.error .dot {
+  background: var(--color-warning);
+}
+
+.open,
+.open:hover {
+  background: var(--color-tint-8);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+/* Below 1024px only the dot shows, unless the pill is a warning. */
+@media (max-width: 1023px) {
+  .local,
+  .syncing {
+    width: 24px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .local .text,
+  .syncing .text {
+    display: none;
+  }
+}
+
+/* ═══ Popover ═══ */
+
+.popover {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 320px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-popover);
+}
+
+[data-theme="light"] .popover {
+  background: var(--color-surface);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.titleDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.titleDot.syncing {
+  background: var(--color-accent);
+}
+
+.titleDot.paused,
+.titleDot.error {
+  background: var(--color-warning);
+}
+
+.body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.line {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.primary:hover {
+  background: var(--color-accent-dim);
+}
+
+.secondary {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.secondary:hover {
+  background: var(--color-tint-12);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

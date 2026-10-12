@@ -21,6 +21,9 @@ interface FileStorageState extends FileStorageStatus {
   pendingConflict: SyncConflictInfo | null
   /** Set while the service waits for consent to upgrade an older sync file. */
   pendingFileUpgrade: FileUpgradeInfo | null
+  /** The `error` text the user dismissed (the warning strip's ×); it shows again if the error changes. */
+  dismissedError: string | null
+  dismissError: () => void
   initialize: () => Promise<void>
   openFile: () => Promise<void>
   createFile: () => Promise<void>
@@ -83,6 +86,9 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     pendingLegacyImport: null,
     pendingConflict: null,
     pendingFileUpgrade: null,
+    dismissedError: null,
+
+    dismissError: () => set((s) => ({ dismissedError: s.error })),
 
     initialize: () => withLoading(() => fileStorageService.initialize(), 'Failed to initialize file storage'),
 

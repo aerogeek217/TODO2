@@ -13,7 +13,7 @@ interface FileSyncPausedControlsProps {
  * re-shows the conflict / upgrade prompt, or re-reads a fixed file) and
  * "Keep browser data…" (confirm, back the file up, overwrite it). Leaving it
  * alone keeps sync paused with both sides untouched. Shared by
- * `FileSyncBanner` and Settings → Database Location.
+ * the sync warning strip, the storage pill and Settings → File storage.
  */
 export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName }: FileSyncPausedControlsProps) {
   const paused = useFileStorageStore((s) => s.paused)

@@ -649,15 +649,3 @@
 .dateInput:focus {
   border-color: var(--color-accent-dim);
 }
-
-/* ═══ Storage status ═══ */
-
-.storageStatus {
-  margin-left: auto;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-

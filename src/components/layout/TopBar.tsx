@@ -9,7 +9,6 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { useFileStorageStore } from '../../stores/file-storage-store'
 import { startOfToday } from '../../utils/date'
 import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
@@ -18,6 +17,7 @@ import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { ContextMenu } from '../overlays/ContextMenu'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
+import { StoragePill } from './StoragePill'
 import { CloseIcon, FunnelIcon, PlusIcon, SearchIcon } from '../workspace/icons'
 import { useMediaQuery } from '../../hooks/use-media-query'
 import { formatShortcut } from '../../utils/platform'
@@ -319,7 +319,6 @@ export function TopBar() {
     : 0
   const showMiniList = searchFocused && localSearch.length > 0 && !!miniListGroups && totalMatchCount > 0
 
-  const { isConnected, isSupported } = useFileStorageStore()
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
   const settingsOpen = useUIStore((s) => s.settingsOpen)
@@ -447,9 +446,7 @@ export function TopBar() {
       </div>
 
       <div className={styles.right}>
-        {isSupported && !isConnected && (
-          <span className={styles.storageStatus}>Local only</span>
-        )}
+        <StoragePill />
         <button
           type="button"
           className={`${styles.gear} ${settingsOpen ? styles.gearOpen : ''}`}

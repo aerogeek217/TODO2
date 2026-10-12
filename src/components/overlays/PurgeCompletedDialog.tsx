@@ -77,7 +77,7 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
       title={`Delete ${plural(tasks.length, 'old completed task')}?`}
     >
       <DialogBody>
-        These tasks were completed more than {plural(retentionDays, 'day')} ago (Settings → Completed Tasks).
+        These tasks were completed more than {plural(retentionDays, 'day')} ago (Settings → Completed tasks).
         <ul className={styles.list} data-testid="purge-task-list">
           {tasks.map((t) => (
             <li key={t.id} className={styles.row}>
@@ -90,7 +90,7 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
         </ul>
         <div className={styles.note}>
           <strong>Export &amp; delete</strong> saves them to a file first — add them back any time with
-          Settings → Import tasks (append)…. A backup snapshot is taken before deleting either way.
+          Settings → Import / Export → Import tasks (append)…. A backup snapshot is taken before deleting either way.
         </div>
         {error && <div className={styles.error} role="alert">{error}</div>}
       </DialogBody>

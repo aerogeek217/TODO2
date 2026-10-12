@@ -165,7 +165,7 @@ describe('resolveTags', () => {
     const tagStore: TagStoreLike = {
       tags: [{ id: 1, name: 'existing', color: '#aaa' }],
       async add(): Promise<number> {
-        throw new TagLimitError('Tag limit reached (1) — delete unused tags in Settings → Tags.')
+        throw new TagLimitError('Tag limit reached (1) — delete unused tags in Settings → People, statuses & tags.')
       },
     }
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})

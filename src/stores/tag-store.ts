@@ -106,7 +106,7 @@ export const useTagStore = create<TagState>((set, get) => {
       const { maxTags } = useSettingsStore.getState()
       if (get().tags.length >= maxTags) {
         throw new TagLimitError(
-          `Tag limit reached (${maxTags}) — delete unused tags in Settings → Tags.`,
+          `Tag limit reached (${maxTags}) — delete unused tags in Settings → People, statuses & tags.`,
         )
       }
       const id = await tagRepository.getOrCreate(trimmed, color)
