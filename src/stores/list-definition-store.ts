@@ -13,6 +13,7 @@ import { undoable } from '../services/undoable'
 import { bySortOrder } from '../utils/sort-order'
 import { listOrderRepository } from '../data/list-order-repository'
 import { useListOrderStore } from './list-order-store'
+import { useSettingsStore } from './settings-store'
 
 interface AddInput {
   name: string
@@ -56,6 +57,18 @@ export function emptyPredicate(): TodoPredicate {
     markers: null,
     tags: null,
   }
+}
+
+/**
+ * A check-in scope on the deleted list goes back to all open tasks. Returns
+ * whether it pointed at the list (so undo can restore it).
+ */
+async function clearCheckinScopeFor(listDefinitionId: number): Promise<boolean> {
+  const settings = useSettingsStore.getState()
+  const scope = settings.checkinTaskScope
+  if (scope.kind !== 'list' || scope.listDefinitionId !== listDefinitionId) return false
+  await settings.setCheckinTaskScope({ kind: 'all' })
+  return true
 }
 
 function nextSortOrder(defs: PersistedListDefinition[]): number {
@@ -134,6 +147,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     await listDefinitionRepository.remove(id)
     useListOrderStore.getState().forgetList(id)
     set({ listDefinitions: prev.filter(d => d.id !== id) })
+    const scopeCleared = await clearCheckinScopeFor(id)
 
     undoable(
       `Delete list "${def.name}"`,
@@ -142,6 +156,11 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
         await listDefinitionRepository.restore(def)
         await useListOrderStore.getState().restoreRows(ranks)
         await get().load()
+        // Undo brings back the check-in choice too, unless it was changed since.
+        const settings = useSettingsStore.getState()
+        if (scopeCleared && settings.checkinTaskScope.kind === 'all') {
+          await settings.setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
+        }
       },
       true,
     )

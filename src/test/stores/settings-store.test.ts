@@ -183,4 +183,48 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
   })
+
+  it('check-in open method defaults to mailto, saves, and ignores junk on load', async () => {
+    useSettingsStore.setState({ checkinOpenMethod: 'eml' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
+
+    await useSettingsStore.getState().setCheckinOpenMethod('eml')
+    expect((await db.settings.get('checkinOpenMethod'))!.value).toBe('eml')
+    useSettingsStore.setState({ checkinOpenMethod: 'mailto' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinOpenMethod).toBe('eml')
+
+    await useSettingsStore.getState().setCheckinOpenMethod('outlook' as never)
+    expect((await db.settings.get('checkinOpenMethod'))!.value).toBe('eml')
+
+    await db.settings.put({ key: 'checkinOpenMethod', value: 'pigeon' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
+  })
+
+  it('check-in task scope defaults to all, saves each kind, and ignores junk on load', async () => {
+    useSettingsStore.setState({ checkinTaskScope: { kind: 'hot' } })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 12 })
+    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('list:12')
+    useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: 12 })
+
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'due-soon' })
+    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('due-soon')
+
+    // Not a scope: not written.
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 0 })
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'later' } as never)
+    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('due-soon')
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'due-soon' })
+
+    await db.settings.put({ key: 'checkinTaskScope', value: 'list:abc' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+  })
 })

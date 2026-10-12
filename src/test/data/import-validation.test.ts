@@ -349,6 +349,35 @@ describe('validateImportData', () => {
     })
   })
 
+  describe('check-in settings', () => {
+    it('accepts both open methods and every task scope', () => {
+      for (const [key, value] of [
+        ['checkinOpenMethod', 'mailto'], ['checkinOpenMethod', 'eml'],
+        ['checkinTaskScope', 'all'], ['checkinTaskScope', 'due-soon'], ['checkinTaskScope', 'hot'], ['checkinTaskScope', 'list:3'],
+      ]) {
+        const result = validateImportData(validData({ settings: [{ key, value }] }))
+        expect(result.ok, `${key}=${value}`).toBe(true)
+        if (result.ok) expect(result.data.settings).toEqual([{ key, value }])
+      }
+    })
+
+    it('keeps a list scope even when the file has no such list (read falls back to all)', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'list:99' }], listDefinitions: [] }))
+      expect(result.ok).toBe(true)
+    })
+
+    it('rejects other values', () => {
+      for (const [key, value, message] of [
+        ['checkinOpenMethod', 'outlook', 'checkinOpenMethod must be mailto or eml'],
+        ['checkinTaskScope', 'overdue', 'checkinTaskScope must be all, due-soon, hot or list:<id>'],
+        ['checkinTaskScope', 'list:x', 'checkinTaskScope must be all, due-soon, hot or list:<id>'],
+      ] as const) {
+        const result = validateImportData(validData({ settings: [{ key, value }] }))
+        expect(result).toEqual({ ok: false, error: expect.stringContaining(message) })
+      }
+    })
+  })
+
   it('todo with valid recurrenceRule passes; invalid type fails', () => {
     const validResult = validateImportData(validData({
       todos: [makeTodo({ recurrenceRule: { type: 'weekly' } })],

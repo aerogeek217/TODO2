@@ -30,6 +30,13 @@ export const SETTING_KEYS = {
    * (`[{"urgent":true,"important":true},{"focus":true}]`). Absent = that default.
    */
   hotRule: 'hotRule',
+  /** How a check-in email opens: `mailto` (open, then paste) or `eml` (download a draft). Absent = `mailto`. */
+  checkinOpenMethod: 'checkinOpenMethod',
+  /**
+   * Which open tasks a check-in email covers: `all`, `due-soon`, `hot` or
+   * `list:<listDefinitionId>`. Absent = `all`; a deleted list reads as `all`.
+   */
+  checkinTaskScope: 'checkinTaskScope',
   /** Id of the workspace layout that is open (a `layouts` row). */
   activeLayoutId: 'activeLayoutId',
 } as const

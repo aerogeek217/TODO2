@@ -78,6 +78,8 @@ function buildSeed(): Seed {
       { key: 'followupDefaultInterval', value: '2w' },
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
+      { key: 'checkinOpenMethod', value: 'eml' },
+      { key: 'checkinTaskScope', value: 'list:2' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },

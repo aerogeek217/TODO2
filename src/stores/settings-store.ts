@@ -18,6 +18,15 @@ import {
   type UrgentDueWithinDays,
 } from '../utils/urgency'
 import { DEFAULT_HOT_RULE, formatHotRule, normalizeHotRule, parseHotRule, type HotRule } from '../utils/hot'
+import {
+  DEFAULT_CHECKIN_OPEN_METHOD,
+  DEFAULT_CHECKIN_TASK_SCOPE,
+  formatCheckinTaskScope,
+  isCheckinOpenMethod,
+  parseCheckinTaskScope,
+  type CheckinOpenMethod,
+  type CheckinTaskScope,
+} from '../utils/checkin-settings'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -46,6 +55,13 @@ interface SettingsState {
   urgentDueWithinDays: UrgentDueWithinDays
   /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
   hotRule: HotRule
+  /** How a check-in email opens in the mail app. */
+  checkinOpenMethod: CheckinOpenMethod
+  /**
+   * Which open tasks a check-in covers, as stored. A `list` scope may name a
+   * list that no longer exists: read it through `resolveCheckinTaskScope`.
+   */
+  checkinTaskScope: CheckinTaskScope
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
@@ -60,6 +76,8 @@ interface SettingsState {
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
+  setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
+  setCheckinTaskScope: (scope: CheckinTaskScope) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -196,6 +214,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
+  checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
+  checkinTaskScope: DEFAULT_CHECKIN_TASK_SCOPE,
 
   async load() {
     try {
@@ -215,6 +235,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
+      let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
+      let checkinTaskScope: CheckinTaskScope = DEFAULT_CHECKIN_TASK_SCOPE
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const rest = row.key.slice('color.'.length)
@@ -250,10 +272,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
         } else if (row.key === SETTING_KEYS.hotRule) {
           hotRule = parseHotRule(row.value) ?? DEFAULT_HOT_RULE
+        } else if (row.key === SETTING_KEYS.checkinOpenMethod) {
+          if (isCheckinOpenMethod(row.value)) checkinOpenMethod = row.value
+        } else if (row.key === SETTING_KEYS.checkinTaskScope) {
+          checkinTaskScope = parseCheckinTaskScope(row.value) ?? DEFAULT_CHECKIN_TASK_SCOPE
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval, urgentDueWithinDays, hotRule })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -355,5 +381,33 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (next.length === 0) return
     await settingsRepository.put(SETTING_KEYS.hotRule, formatHotRule(next))
     set({ hotRule: next })
+  },
+
+  // The check-in choices are radios: the state is set before the write so a
+  // controlled radio doesn't snap back while it is saved.
+  async setCheckinOpenMethod(method: CheckinOpenMethod) {
+    if (!isCheckinOpenMethod(method)) return
+    const prev = get().checkinOpenMethod
+    set({ checkinOpenMethod: method })
+    try {
+      await settingsRepository.put(SETTING_KEYS.checkinOpenMethod, method)
+    } catch (e) {
+      console.error('Failed to save the check-in open method:', e)
+      set({ checkinOpenMethod: prev })
+    }
+  },
+
+  async setCheckinTaskScope(scope: CheckinTaskScope) {
+    const value = formatCheckinTaskScope(scope)
+    const parsed = parseCheckinTaskScope(value)
+    if (!parsed) return
+    const prev = get().checkinTaskScope
+    set({ checkinTaskScope: parsed })
+    try {
+      await settingsRepository.put(SETTING_KEYS.checkinTaskScope, value)
+    } catch (e) {
+      console.error('Failed to save the check-in task scope:', e)
+      set({ checkinTaskScope: prev })
+    }
   },
 }))

@@ -3,6 +3,7 @@ import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
 import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { criteriaToPredicate, predicateToCriteria, matchesFilter } from '../../stores/filter-store'
 import { buildDashboardLists } from '../../services/dashboard-lists'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
@@ -13,6 +14,7 @@ beforeEach(async () => {
   await db.open()
   useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
   useUndoStore.setState({ undoStack: [], redoStack: [] } as never)
+  useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
 })
 
 describe('useListDefinitionStore load', () => {
@@ -112,6 +114,38 @@ describe('useListDefinitionStore mutations', () => {
     const after = useListDefinitionStore.getState().listDefinitions
     expect(after).toHaveLength(1)
     expect(after[0]!.name).toBe('Going away')
+  })
+
+  it('remove clears a check-in scope on that list; undo brings it back, redo clears it again', async () => {
+    const id = await useListDefinitionStore.getState().add({ name: 'Check-in list' })
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
+
+    await useListDefinitionStore.getState().remove(id)
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+    expect((await db.settings.get('checkinTaskScope'))?.value).toBe('all')
+
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: id })
+    expect((await db.settings.get('checkinTaskScope'))?.value).toBe(`list:${id}`)
+
+    await useUndoStore.getState().redo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+  })
+
+  it('remove leaves a check-in scope on another list alone; undo keeps a scope changed since', async () => {
+    const keep = await useListDefinitionStore.getState().add({ name: 'Keep' })
+    const gone = await useListDefinitionStore.getState().add({ name: 'Gone' })
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: keep })
+    await useListDefinitionStore.getState().remove(gone)
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: keep })
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: keep })
+
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: gone })
+    await useListDefinitionStore.getState().remove(gone)
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'hot' })
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'hot' })
   })
 
   it('clone duplicates with a unique name', async () => {

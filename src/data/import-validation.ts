@@ -12,6 +12,7 @@ import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatHotRule, parseHotRule } from '../utils/hot'
+import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-settings'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
@@ -347,6 +348,14 @@ function checkSetting(v: unknown): CheckResult {
     return parseHotRule(v.value as string) !== undefined
       ? true
       : 'value (hotRule must be a list of lines, each with at least one of urgent / important / focus)'
+  }
+  if (v.key === SETTING_KEYS.checkinOpenMethod) {
+    return isCheckinOpenMethod(v.value) ? true : 'value (checkinOpenMethod must be mailto or eml)'
+  }
+  if (v.key === SETTING_KEYS.checkinTaskScope) {
+    return parseCheckinTaskScope(v.value as string) !== undefined
+      ? true
+      : 'value (checkinTaskScope must be all, due-soon, hot or list:<id>)'
   }
   return true
 }
