@@ -428,3 +428,59 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(titles()).toEqual(['Bob task', 'Alice task', 'Shared task'])
   })
 })
+
+describe('ListWidget People group headers: email check-in', () => {
+  beforeEach(() => {
+    useUIStore.setState({ checkinDialog: null, taskDialog: null })
+    useTodoStore.setState((s) => ({ todos: [...s.todos, makeTodo({ id: 5, title: 'Nobody’s task', sortOrder: 5 })] }))
+  })
+
+  const header = (key: string) => document.querySelector(`[data-list-group="${key}"] button[aria-expanded]`) as HTMLElement
+
+  it('each person’s group has an envelope that opens the check-in with them ticked; Unassigned has none', () => {
+    setup(def({ grouping: 'people' }))
+    expect(screen.getAllByRole('button', { name: /^Email check-in to / }).map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Email check-in to Alice', 'Email check-in to Bob'])
+    expect(document.querySelector('[data-list-group="unassigned"] [aria-label^="Email check-in"]')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    // The header itself still collapses its group.
+    fireEvent.click(header('person-1'))
+    expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
+  })
+
+  it('other groupings get no envelope and no menu', () => {
+    setup(def({ grouping: 'status' }))
+    expect(screen.queryByRole('button', { name: /^Email check-in to / })).toBeNull()
+    fireEvent.contextMenu(document.querySelector('[data-list-group] button[aria-expanded]')!)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('right-click on a person’s header opens its menu; Show all opens the person’s task dialog', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
+    const menu = screen.getByRole('menu', { name: 'Alice group' })
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
+      .toEqual(['Email check-in: Alice', 'Show all of Alice’s tasks'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Show all of Alice’s tasks' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Alice', personId: 1 })
+    expect(useUIStore.getState().checkinDialog).toBeNull()
+  })
+
+  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.keyDown(header('person-2'), { key: 'F10', shiftKey: true })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in: Bob' }))
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Email check-in to Alice' }), { key: 'ContextMenu' })
+    expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
+  })
+
+  it('Unassigned’s header has no menu', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.contextMenu(header('unassigned'))
+    fireEvent.keyDown(header('unassigned'), { key: 'F10', shiftKey: true })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+})

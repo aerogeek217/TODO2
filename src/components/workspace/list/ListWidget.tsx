@@ -43,6 +43,9 @@ import { PredicateChips } from './PredicateChips'
 import { useChipNames } from './filter-menu'
 import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
+import { MenuPopover } from '../MenuPopover'
+import { PersonGroupHeader } from './PersonGroupHeader'
+import { groupPerson, personGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers } from '../../../utils/markers'
@@ -122,6 +125,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const bodyRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
+  const [headerMenu, setHeaderMenu] = useState<{ person: GroupPerson; at: { x: number; y: number } } | null>(null)
 
   const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates } = useBuiltList(
     definition,
@@ -340,6 +344,23 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         {grouped ? displaySections.map((section) => {
           const isCollapsed = collapsedKeys.has(section.key)
           const crossTarget = drag?.target?.cross === true && drag.target.sectionKey === section.key
+          const person = isMobile ? null : groupPerson(groupedBy, section)
+          const header = (
+            <button
+              type="button"
+              className={`${styles.groupHeader} ${person && !drag ? styles.groupHeaderWithAction : ''}`}
+              aria-expanded={!isCollapsed}
+              onClick={() => toggleGroup(tab.id, section.key)}
+            >
+              <span className={styles.groupChevron}><ChevronDownIcon /></span>
+              <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
+              <span className={styles.groupName} style={{ color: section.accentColor ?? 'var(--color-text-secondary)' }} data-testid="list-group-name">{section.label}</span>
+              <span className={styles.groupCount}>{section.todos.length}</span>
+              {crossTarget && sourceLabel != null && (
+                <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
+              )}
+            </button>
+          )
           return (
             <div
               key={section.key}
@@ -347,20 +368,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
               data-list-group={section.key}
               data-list-section={section.key}
             >
-              <button
-                type="button"
-                className={styles.groupHeader}
-                aria-expanded={!isCollapsed}
-                onClick={() => toggleGroup(tab.id, section.key)}
-              >
-                <span className={styles.groupChevron}><ChevronDownIcon /></span>
-                <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
-                <span className={styles.groupName} style={{ color: section.accentColor ?? 'var(--color-text-secondary)' }} data-testid="list-group-name">{section.label}</span>
-                <span className={styles.groupCount}>{section.todos.length}</span>
-                {crossTarget && sourceLabel != null && (
-                  <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
-                )}
-              </button>
+              {person ? (
+                <PersonGroupHeader
+                  person={person}
+                  showAction={!drag}
+                  onOpenMenu={(at) => setHeaderMenu({ person, at })}
+                >
+                  {header}
+                </PersonGroupHeader>
+              ) : header}
               {!isCollapsed && renderSectionRows(section)}
             </div>
           )
@@ -437,6 +453,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           at={pendingSwitch.at}
           onConfirm={switchToManual}
           onCancel={() => setPendingSwitch(null)}
+        />
+      )}
+      {headerMenu && (
+        <MenuPopover
+          point={headerMenu.at}
+          label={`${headerMenu.person.name} group`}
+          closeOnScroll
+          entries={personGroupMenu(headerMenu.person)}
+          onClose={() => setHeaderMenu(null)}
         />
       )}
       {pendingReassign && (
