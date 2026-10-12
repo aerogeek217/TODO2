@@ -138,6 +138,12 @@
   color: var(--color-text-muted);
 }
 
+/* The lines a Convert would take, while its button is hovered or focused. */
+.host :global(.cm-line.cm-convert-scope) {
+  background: var(--color-accent-bg-subtle);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
 /* The popup is portalled to the body (above dialogs and note popovers). */
 .nlpPopup {
   position: fixed;

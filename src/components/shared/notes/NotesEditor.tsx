@@ -6,12 +6,15 @@ import { markdown } from '@codemirror/lang-markdown'
 import { htmlToMarkdown } from '../../../services/notes-export'
 import { notesNlp, notesPopupField, type NotesNlpConfig, type NotesPopupState } from './notes-nlp'
 import { NotesNlpPopup } from './NotesNlpPopup'
+import { convertHighlight } from './notes-convert-highlight'
 import styles from './NotesEditor.module.css'
 
 interface NotesEditorProps {
   value: string
   onChange: (value: string) => void
   onLineChange?: (line: number) => void
+  /** The main selection (offsets), reported whenever it or the text changes. */
+  onSelectionChange?: (selection: { from: number; to: number }) => void
   /** Extra key bindings added to the editor (e.g. ⌘T convert-to-task). */
   extraKeymap?: Array<{ key: string; run: (view: EditorView) => boolean }>
   placeholder?: string
@@ -41,6 +44,7 @@ export function NotesEditor({
   value,
   onChange,
   onLineChange,
+  onSelectionChange,
   extraKeymap = [],
   placeholder,
   viewRef: externalViewRef,
@@ -50,6 +54,7 @@ export function NotesEditor({
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
   const onLineChangeRef = useRef(onLineChange)
+  const onSelectionChangeRef = useRef(onSelectionChange)
   const extraKeymapRef = useRef(extraKeymap)
   const valueRef = useRef(value)
   const keymapCompartment = useRef(new Compartment())
@@ -57,6 +62,7 @@ export function NotesEditor({
 
   onChangeRef.current = onChange
   onLineChangeRef.current = onLineChange
+  onSelectionChangeRef.current = onSelectionChange
   extraKeymapRef.current = extraKeymap
   valueRef.current = value
 
@@ -98,6 +104,7 @@ export function NotesEditor({
         pasteHandler,
         keymapCompartment.current.of(buildKeymap()),
         nlp ? notesNlp(nlp) : [],
+        convertHighlight,
         EditorView.updateListener.of((update) => {
           const nextPopup = update.state.field(notesPopupField, false) ?? null
           if (nextPopup !== (update.startState.field(notesPopupField, false) ?? null)) {
@@ -114,6 +121,8 @@ export function NotesEditor({
             const head = update.state.selection.main.head
             const line = update.state.doc.lineAt(head).number - 1
             onLineChangeRef.current?.(line)
+            const { from, to } = update.state.selection.main
+            onSelectionChangeRef.current?.({ from, to })
           }
         }),
       ],

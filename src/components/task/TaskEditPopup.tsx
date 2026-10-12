@@ -18,6 +18,7 @@ import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
+import { draftEditorTitle, type TaskDraft } from '../../services/task-draft'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
@@ -57,6 +58,20 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   onToggleComplete?: never
   onDelete?: never
   onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], tagIds: number[] }) => Promise<number>
+  /**
+   * Starts from this draft (a converted note line) instead of Quick Add's
+   * handoff and the screen filter's defaults; the draft already carries
+   * them. People and tags still to create show as `@` / `#` in the title.
+   */
+  seed?: TaskDraft
+  /**
+   * Draft mode (editing a row of the convert preview): nothing is stored.
+   * The footer's Save draft hands the fields back instead of creating, and
+   * there is no Last follow-up / Followed up (a draft has no history).
+   */
+  onSaveDraft?: (todo: Partial<TodoItem>, assignments: { personIds: number[], tagIds: number[] }) => void
+  /** Stacks the editor above dialogs (the convert preview, another editor). */
+  nested?: boolean
 }
 
 type TaskEditPopupProps = EditModeProps | CreateModeProps
@@ -72,6 +87,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const isEdit = mode === 'edit'
   const todo = isEdit ? props.todo : undefined
+  // Read once: later prop changes mustn't clobber edits.
+  const [seed] = useState(() => (props.mode === 'create' ? props.seed : undefined))
+  const isDraft = props.mode === 'create' && props.onSaveDraft !== undefined
+  const nested = props.mode === 'create' && props.nested === true
 
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
@@ -85,11 +104,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // filter (the top bar may have no filter even though the list itself
   // narrows). Falls back to the active filter otherwise.
   const filterDefaults = useMemo(() => {
-    if (mode !== 'create') return null
+    if (mode !== 'create' || seed) return null
     const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
     if (draftDefaults) return draftDefaults
     return getFilterDefaults(useFilterStore.getState().filters)
-  }, [mode])
+  }, [mode, seed])
 
   // QuickAddBar handoff: when the create popup mounts and `ui-store.quickAddDraft`
   // is set (the bar's "Open full editor →" path stashed an in-progress draft),
@@ -98,7 +117,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // mustn't clobber user edits, and `closeEditPopup` clears the draft on close
   // so a re-mount starts clean unless re-seeded.
   const [quickAddSeed] = useState(() => {
-    if (mode !== 'create') return null
+    if (mode !== 'create' || seed) return null
     const draft = useUIStore.getState().quickAddDraft
     if (!draft) return null
     const { resolved } = parseTaskInput(
@@ -121,44 +140,49 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return { title: resolved.textWithoutCommands ?? draft.rawTitle, resolved, tagIds }
   })
 
-  const [title, setTitle] = useState(todo?.title ?? quickAddSeed?.title ?? '')
-  const [notes, setNotes] = useState(todo?.notes ?? '')
-  const notesRef = useRef<string>(todo?.notes ?? '')
-  const [progress, setProgress] = useState(todo?.progress ?? '')
+  const [title, setTitle] = useState(todo?.title ?? (seed ? draftEditorTitle(seed) : quickAddSeed?.title) ?? '')
+  const [notes, setNotes] = useState(todo?.notes ?? seed?.notes ?? '')
+  const notesRef = useRef<string>(todo?.notes ?? seed?.notes ?? '')
+  const [progress, setProgress] = useState(todo?.progress ?? seed?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
-    todo?.statusId
-    ?? quickAddSeed?.resolved.statusId
-    ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
+    seed ? seed.statusId : (
+      todo?.statusId
+      ?? quickAddSeed?.resolved.statusId
+      ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
+    ),
   )
   const [deadline, setDeadline] = useState<Date | null>(
-    todo?.dueDate ?? quickAddSeed?.resolved.dueDate ?? null,
+    todo?.dueDate ?? seed?.dueDate ?? quickAddSeed?.resolved.dueDate ?? null,
   )
   // Follow-up: edit mode reads/writes the task directly (edits apply as you
   // make them); create mode keeps a draft seeded with the Settings default.
   // A Quick Add `/followup` replaces the default (`none` clears it).
-  const seededFollowup = quickAddSeed?.resolved.followupNone === true || quickAddSeed?.resolved.nextFollowupAt !== undefined
+  // A draft's `nextFollowupAt`: undefined = the default, null = none.
+  const seededFollowup = seed
+    ? seed.nextFollowupAt !== undefined
+    : quickAddSeed?.resolved.followupNone === true || quickAddSeed?.resolved.nextFollowupAt !== undefined
   const [draftNextFollowup, setDraftNextFollowup] = useState<Date | undefined>(() => {
     if (mode !== 'create') return undefined
-    if (seededFollowup) return quickAddSeed?.resolved.nextFollowupAt
+    if (seededFollowup) return seed ? (seed.nextFollowupAt ?? undefined) : quickAddSeed?.resolved.nextFollowupAt
     return addFollowupInterval(new Date(), followupInterval)
   })
   const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
   // Create mode: marker drafts, seeded from a Markers filter and Quick Add's
   // `/urgent` `/important` `/focus`.
-  const [draftUrgent, setDraftUrgent] = useState(filterDefaults?.markers?.urgent === true || quickAddSeed?.resolved.urgent === true)
-  const [draftImportant, setDraftImportant] = useState(filterDefaults?.markers?.important === true || quickAddSeed?.resolved.important === true)
-  const [draftFocus, setDraftFocus] = useState(filterDefaults?.markers?.focus === true || quickAddSeed?.resolved.focus === true)
+  const [draftUrgent, setDraftUrgent] = useState(seed?.urgent === true || filterDefaults?.markers?.urgent === true || quickAddSeed?.resolved.urgent === true)
+  const [draftImportant, setDraftImportant] = useState(seed?.important === true || filterDefaults?.markers?.important === true || quickAddSeed?.resolved.important === true)
+  const [draftFocus, setDraftFocus] = useState(seed?.focus === true || filterDefaults?.markers?.focus === true || quickAddSeed?.resolved.focus === true)
   const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create' && !seededFollowup)
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
-    todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
+    todo?.recurrenceRule?.type ?? seed?.recurrence ?? quickAddSeed?.resolved.recurrence ?? '',
   )
   // Local state for create mode assignments (no todoId exists yet). QuickAdd
   // seed merges with filter defaults — both contribute pre-checked entities.
   const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(
-    () => new Set([...(filterDefaults?.personIds ?? []), ...(quickAddSeed?.resolved.personIds ?? [])]),
+    () => new Set([...(seed?.personIds ?? []), ...(filterDefaults?.personIds ?? []), ...(quickAddSeed?.resolved.personIds ?? [])]),
   )
   const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(
-    () => new Set([...(filterDefaults?.tagIds ?? []), ...(quickAddSeed?.tagIds ?? [])]),
+    () => new Set([...(seed?.tagIds ?? []), ...(filterDefaults?.tagIds ?? []), ...(quickAddSeed?.tagIds ?? [])]),
   )
 
   const effectiveAssignedPeople = mode === 'create'
@@ -231,9 +255,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       const tag = (e.target as HTMLElement).tagName
+      // Handled here: an editor stacked over another surface (the convert
+      // preview, another editor) must not close that one too.
+      e.stopPropagation()
       if (tag === 'INPUT' || tag === 'TEXTAREA') {
         ;(e.target as HTMLElement).blur()
-        e.stopPropagation()
+        // Focus stays in the editor, so the next Esc closes it.
+        ;(e.currentTarget as HTMLElement).focus({ preventScroll: true })
       } else {
         onClose()
       }
@@ -412,8 +440,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
 
   const handleCreate = async () => {
-    if (mode !== 'create' || !title.trim()) return
-    const newTodoId = await props.onCreate({
+    if (props.mode !== 'create' || !title.trim()) return
+    const partial: Partial<TodoItem> = {
       title: title.trim(),
       notes: notes || undefined,
       progress: progress || undefined,
@@ -426,11 +454,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
       ...(draftFocus ? { focus: true } : {}),
-    }, {
-      personIds: [...pendingPersonIds],
-      tagIds: [...pendingTagIds],
-    })
-    void newTodoId
+    }
+    const assignments = { personIds: [...pendingPersonIds], tagIds: [...pendingTagIds] }
+    if (props.onSaveDraft) props.onSaveDraft(partial, assignments)
+    else await props.onCreate(partial, assignments)
     onClose()
   }
 
@@ -513,7 +540,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [showStatusMenu])
 
   return (
-    <div className={styles.backdrop} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
+    <div className={`${styles.backdrop} ${nested ? styles.backdropNested : ''}`} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
       <div className={styles.card}>
         <TaskEditHeader
           isEdit={isEdit}
@@ -528,6 +555,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onClose={onClose}
           acState={ac.state}
           onAcPick={(row) => ac.select(row, titleRef.current)}
+          isDraft={isDraft}
         />
 
         {/* Status badge */}
@@ -636,6 +664,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onFollowupNextChange={handleNextFollowupChange}
             onFollowupLastChange={handleLastFollowupChange}
             onFollowedUp={handleFollowedUp}
+            hideLastFollowup={isDraft}
           />
 
           {/* Progress */}
@@ -659,6 +688,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 source={notesSource}
                 showToolbar
                 placeholder="Add notes..."
+                convert={!seed}
               />
             </div>
           </div>
@@ -667,7 +697,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         {isEdit && todo ? (
           <TaskEditFooter mode="edit" todo={todo} onDelete={props.onDelete} onDuplicate={props.onDuplicate} onClose={onClose} />
         ) : (
-          <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} />
+          <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
         )}
       </div>
     </div>

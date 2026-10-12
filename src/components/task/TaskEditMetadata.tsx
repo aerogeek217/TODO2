@@ -38,6 +38,8 @@ interface TaskEditMetadataProps {
   onFollowupNextChange: (next: Date | null) => void
   onFollowupLastChange: (last: Date | null) => void
   onFollowedUp: () => void
+  /** Draft mode: no Last follow-up row or Followed up button. */
+  hideLastFollowup?: boolean
 }
 
 export function TaskEditMetadata({
@@ -50,7 +52,7 @@ export function TaskEditMetadata({
   onCreatePerson, onCreateTag,
   openDropdown, setOpenDropdown,
   followupNext, followupLast, followupNextHint,
-  onFollowupNextChange, onFollowupLastChange, onFollowedUp,
+  onFollowupNextChange, onFollowupLastChange, onFollowedUp, hideLastFollowup = false,
 }: TaskEditMetadataProps) {
   return (
     <div className={styles.metaSection}>
@@ -146,6 +148,7 @@ export function TaskEditMetadata({
         onNextChange={onFollowupNextChange}
         onLastChange={onFollowupLastChange}
         onFollowedUp={onFollowedUp}
+        hideLast={hideLastFollowup}
         rowClassName={styles.metaRow}
         labelClassName={styles.metaLabel}
       />

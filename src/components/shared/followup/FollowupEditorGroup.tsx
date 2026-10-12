@@ -16,6 +16,8 @@ interface FollowupEditorGroupProps {
   onFollowedUp: () => void
   /** Replaces the Next hint while the input shows the stored value (create mode: `Default · 1 month`). */
   nextHint?: string
+  /** Hides the Last row and the Followed up button (a draft task has no history). */
+  hideLast?: boolean
   /** Row / label classes from the host editor so the group lines up with its other rows. */
   rowClassName?: string
   labelClassName?: string
@@ -47,7 +49,7 @@ function HelpText({ state, today, fallback, fallbackClass }: {
  */
 export function FollowupEditorGroup({
   next, last, onNextChange, onLastChange, onFollowedUp, nextHint,
-  rowClassName, labelClassName,
+  hideLast = false, rowClassName, labelClassName,
 }: FollowupEditorGroupProps) {
   const today = useToday()
   const nextInput = useFollowupInput(next, 'next', today)
@@ -139,7 +141,7 @@ export function FollowupEditorGroup({
         />
       </div>
 
-      <div className={rowClassName}>
+      {!hideLast && <div className={rowClassName}>
         <span className={labelClassName}>Last</span>
         <div className={`${styles.editorInputWrap} ${lastInput.state.kind === 'invalid' ? styles.inputWrapError : ''}`}>
           <input
@@ -199,7 +201,7 @@ export function FollowupEditorGroup({
           <FollowedUpIcon />
           Followed up
         </button>
-      </div>
+      </div>}
     </div>
   )
 }

@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useTodoStore } from '../../stores/todo-store'
 import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
+import { isNotesConvertOpen } from '../shared/notes/NotesConvert'
 import { TOAST_VISIBLE_MS } from '../../constants'
 import styles from './TaskNotePopover.module.css'
 
-const isNlpPopup = (target: Element) => target.closest('[data-nlp-popup]') !== null
+// The notes' `@ # /` popup is portalled to the body, and so are the notes →
+// tasks dialogs: clicks there aren't outside clicks.
+const isNotesLayer = (target: Element) => target.closest('[data-nlp-popup]') !== null || isNotesConvertOpen()
 
 interface TaskNotePopoverProps {
   todoId: number
@@ -30,13 +33,12 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   const draftRef = useRef<string>(initialNotes)
   const [, setDraft] = useState<string>(initialNotes)
 
-  // The notes' `@ # /` popup is portalled to the body: picking a row in it
-  // isn't an outside click.
-  useClickOutside(containerRef, onClose, true, isNlpPopup)
+  useClickOutside(containerRef, onClose, true, isNotesLayer)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      // While a convert dialog is open, Esc belongs to it.
+      if (e.key === 'Escape' && !isNotesConvertOpen()) {
         e.stopPropagation()
         onClose()
       }

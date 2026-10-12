@@ -19,6 +19,8 @@ interface TaskEditFooterCreateProps {
   onClose: () => void
   onCreate: () => void
   titleValid: boolean
+  /** Draft mode: Save draft instead of Create task; nothing is stored. */
+  isDraft?: boolean
 }
 
 type TaskEditFooterProps = TaskEditFooterEditProps | TaskEditFooterCreateProps
@@ -29,6 +31,24 @@ export function TaskEditFooter(props: TaskEditFooterProps) {
   if (mode === 'edit') {
     const { todo, onDelete, onDuplicate } = props
     return <EditFooter todo={todo} onDelete={onDelete} onDuplicate={onDuplicate} onClose={onClose} />
+  }
+
+  if (props.isDraft) {
+    return (
+      <div className={`${styles.createFooter} ${styles.draftFooter}`}>
+        <span className={styles.draftNote}>Nothing is saved until you create the tasks</span>
+        <button className={styles.cancelButton} onClick={onClose}>
+          Cancel <kbd className={styles.footerKbd}>Esc</kbd>
+        </button>
+        <button
+          className={styles.saveButton}
+          disabled={!props.titleValid}
+          onClick={props.onCreate}
+        >
+          Save draft
+        </button>
+      </div>
+    )
   }
 
   return (

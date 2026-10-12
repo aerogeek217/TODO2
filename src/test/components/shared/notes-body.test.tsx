@@ -29,26 +29,6 @@ describe('NotesBody', () => {
     expect(screen.queryByText(/saved|unsaved|saving/i)).not.toBeInTheDocument()
   })
 
-  it('exposes the convert-to-task shortcut as Alt+T on Windows', async () => {
-    vi.stubGlobal('navigator', { platform: 'Win32' } as Navigator)
-    await act(async () => {
-      await useNoteStore.getState().load()
-    })
-    render(<NotesBody />)
-    const btn = screen.getByLabelText('Convert line to task')
-    expect(btn.getAttribute('title')).toMatch(/Alt\+T/)
-  })
-
-  it('exposes the convert-to-task shortcut as ⌥T on Mac', async () => {
-    vi.stubGlobal('navigator', { platform: 'MacIntel' } as Navigator)
-    await act(async () => {
-      await useNoteStore.getState().load()
-    })
-    render(<NotesBody />)
-    const btn = screen.getByLabelText('Convert line to task')
-    expect(btn.getAttribute('title')).toMatch(/⌥T/)
-  })
-
   it('renders the toolbar by default', async () => {
     await act(async () => {
       await useNoteStore.getState().load()

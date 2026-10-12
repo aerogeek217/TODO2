@@ -1,19 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { useNoteStore } from '../../../stores/note-store'
-import { useSettingsStore } from '../../../stores/settings-store'
-import { useTodoStore } from '../../../stores/todo-store'
-import { useFilterStore } from '../../../stores/filter-store'
-import { usePersonStore } from '../../../stores/person-store'
-import { useStatusStore } from '../../../stores/status-store'
-import type { PersistedTodoItem } from '../../../models'
 import { formatShortcut } from '../../../utils/platform'
-import { getFilterDefaults, markerFlags, seedsMarkers, supplementWithFilterDefaults } from '../../../utils/filter-defaults'
-import { parseTaskInput, applyNlpMetadata } from '../../../services/nlp-task-creator'
 import { copyNotesRich } from '../../../services/notes-export'
+import { convertCandidates, selectionLines } from '../../../services/note-lines'
 import { NotesEditor } from './NotesEditor'
-import { NotesToolbar } from './NotesToolbar'
+import { NotesToolbar, type NotesConvertControl } from './NotesToolbar'
 import { storeNotesNlpConfig } from './notes-nlp-stores'
+import { showConvertScope } from './notes-convert-highlight'
+import { useNotesConvert } from './NotesConvert'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesBody.module.css'
 
@@ -46,17 +41,17 @@ interface NotesBodyProps {
   source?: NotesSource
   /** Placeholder text for the editor. */
   placeholder?: string
+  /** Notes → tasks (the toolbar's Convert and Alt+T). Defaults to true. */
+  convert?: boolean
 }
 
-const LINE_PREFIX_RE = /^(\s*)(?:[—–\-•]\s+)?(?:\[[ xX]\]\s+)?(.*)$/
-const ALREADY_CONVERTED_RE = /^\s*✓\s/
-
 /**
- * Presentation-neutral notes body used by the notes widget and task note
- * popovers. Owns the editor + Alt-T convert action; the outer chrome is
+ * Presentation-neutral notes body used by the notes widget, the task
+ * editor's notes and task note popovers. Owns the editor and notes → tasks
+ * (the toolbar's Convert, Alt+T — `useNotesConvert`); the outer chrome is
  * supplied by each surface.
  */
-export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, source, placeholder }: NotesBodyProps) {
+export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, source, placeholder, convert = true }: NotesBodyProps) {
   const storeActiveId = useNoteStore((s) => s.activeId)
   const activeId = activeIdOverride !== undefined ? activeIdOverride : storeActiveId
   const notes = useNoteStore((s) => s.notes)
@@ -64,11 +59,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const load = useNoteStore((s) => s.load)
   const storeFlush = useNoteStore((s) => s.flush)
 
-  const addTodo = useTodoStore((s) => s.add)
-  const updateTodo = useTodoStore((s) => s.update)
-  const assignPerson = usePersonStore((s) => s.assignPerson)
-
-  const [caretLine, setCaretLine] = useState(0)
+  const [selection, setSelection] = useState<{ from: number; to: number }>({ from: 0, to: 0 })
   const [copying, setCopying] = useState(false)
   const viewRef = useRef<EditorView | null>(null)
   // `@ # /` popup + tints over the live stores (read once by the editor).
@@ -93,93 +84,45 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     if (activeId != null) storeSetContent(activeId, next)
   }, [source, activeId, storeSetContent])
 
-  const convertLineToTask = useCallback(async (view: EditorView) => {
-    if (source == null && activeId == null) return false
-    const state = view.state
-    const head = state.selection.main.head
-    const line = state.doc.lineAt(head)
-    if (ALREADY_CONVERTED_RE.test(line.text)) return false
-    const match = line.text.match(LINE_PREFIX_RE)
-    if (!match) return false
-    const [, leading, rawRest] = match
-    if (rawRest == null) return false
-    const rawTitle = rawRest.trim()
-    if (!rawTitle) return false
-
-    // Parse line via NLP + apply the active filter's defaults (as QuickAdd does).
-    const people = usePersonStore.getState().people
-    const statuses = useStatusStore.getState().statuses
-    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, statuses)
-    const fd = getFilterDefaults(useFilterStore.getState().filters)
-    supplementWithFilterDefaults(resolved, fd)
-    const effectiveTitle = parsedTitle || rawTitle
-
-    let newId: number
-    try {
-      newId = await addTodo(effectiveTitle)
-    } catch {
-      onConvertToast?.('Failed to convert line')
-      return true
-    }
-
-    try {
-      await applyNlpMetadata(
-        newId,
-        resolved,
-        (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-        updateTodo,
-        assignPerson,
-      )
-      // Filter-inferred status only applies when no settings default pre-filled
-      // the row (matching TaskEditPopup's priority: settings default wins).
-      if (fd.statusId != null && useSettingsStore.getState().defaultStatusId == null) {
-        const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
-        if (todo) await updateTodo({ ...todo, statusId: fd.statusId })
-      }
-      if (seedsMarkers(fd)) {
-        const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
-        if (todo) await updateTodo({ ...todo, ...markerFlags(fd) })
-      }
-    } catch {
-      // Task was created; metadata failure is non-fatal for the user flow.
-    }
-    onConvertToast?.('Converted line to task')
-
-    // Replace the line's prefix with `✓ ` so the author sees it's been pulled.
-    view.dispatch({
-      changes: {
-        from: line.from,
-        to: line.to,
-        insert: `${leading}✓ ${effectiveTitle}`,
-      },
-    })
-    return true
-  }, [activeId, addTodo, updateTodo, assignPerson, onConvertToast, source])
+  const contentRef = useLatestRef(content)
+  const handleChangeRef = useLatestRef(handleChange)
+  const notesConvert = useNotesConvert({
+    viewRef,
+    getText: useCallback(() => contentRef.current, [contentRef]),
+    setText: useCallback((next: string) => handleChangeRef.current(next), [handleChangeRef]),
+    onToast: useCallback((message: string) => toastRef.current?.(message), [toastRef]),
+  })
+  const { convertLine, convertScope } = notesConvert
+  const canConvert = convert && (source != null || activeId != null)
 
   const extraKeymap = useMemo(
-    () => [
-      {
-        key: 'Alt-t',
-        run: (view: EditorView) => {
-          void convertLineToTask(view)
-          return true
-        },
+    () => (canConvert ? [{
+      key: 'Alt-t',
+      run: (view: EditorView) => {
+        convertLine(view)
+        return true
       },
-    ],
-    [convertLineToTask],
+    }] : []),
+    [canConvert, convertLine],
   )
 
-  const lines = content.split('\n')
-  const currentLineText = lines[caretLine] ?? ''
-  const canConvert = currentLineText.trim().length > 0 && !ALREADY_CONVERTED_RE.test(currentLineText)
+  // The bullet lines the toolbar's Convert would take: the selection's, or the note's.
+  const scope = useMemo(() => {
+    const range = selectionLines(content, selection.from, selection.to)
+    return { lines: convertCandidates(content, range).map((c) => c.line), selection: range != null }
+  }, [content, selection])
+  const scopeRef = useLatestRef(scope)
   const convertShortcut = formatShortcut('Alt-t')
-
-  const handleConvertClick = useCallback(() => {
-    const view = viewRef.current
-    if (!view) return
-    void convertLineToTask(view)
-    view.focus()
-  }, [convertLineToTask])
+  const convertControl = useMemo<NotesConvertControl | undefined>(() => (canConvert ? {
+    count: scope.lines.length,
+    selection: scope.selection,
+    shortcutLabel: convertShortcut,
+    onClick: () => {
+      showConvertScope(viewRef.current, [])
+      convertScope()
+    },
+    onShowScope: (show) => showConvertScope(viewRef.current, show ? scopeRef.current.lines : []),
+  } : undefined), [canConvert, scope, convertShortcut, convertScope, scopeRef])
 
   const handleCopy = useCallback(async () => {
     setCopying(true)
@@ -208,20 +151,19 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
           viewRef={viewRef}
           onCopy={handleCopy}
           copying={copying}
-          onConvertToTask={handleConvertClick}
-          canConvertToTask={canConvert}
-          convertShortcutLabel={convertShortcut}
+          convert={convertControl}
         />
       )}
       <NotesEditor
         value={content}
         onChange={handleChange}
-        onLineChange={setCaretLine}
+        onSelectionChange={setSelection}
         extraKeymap={extraKeymap}
         placeholder={placeholder ?? 'Jot notes here…'}
         viewRef={viewRef}
         nlp={nlp}
       />
+      {notesConvert.layer}
     </div>
   )
 }
