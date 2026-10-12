@@ -2,9 +2,8 @@
  * Permanent diagnostic infrastructure for the task DnD
  * subsystem. `?debug-dnd=1` traces the full drop path on every
  * pointer-up — collision rule chosen → resolved `over.id`
- * → guard outcomes → final dispatch — so the next silent failure (the kind
- * triage P5 had to forensically diagnose) shows its mechanics in the console
- * without needing a fresh instrumentation pass.
+ * → guard outcomes → final dispatch — so the next silent drop failure shows
+ * its mechanics in the console without needing a fresh instrumentation pass.
  *
  * Pattern: read `window.location.search` once at module load, expose the
  * resolved boolean as a const, and gate per-call-site logs on it via the

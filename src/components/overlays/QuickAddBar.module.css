@@ -204,7 +204,7 @@
   line-height: 1.4;
 }
 
-/* ─── Autocomplete popup (P3 — portal-anchored to document.body) ──────── */
+/* ─── Autocomplete popup (portal-anchored to document.body) ───────────── */
 
 /* Positioned via inline `top`/`left`/`width` from the bar's input rect +
  * caret offset. `position: fixed` keeps it pinned during scroll/resize; the

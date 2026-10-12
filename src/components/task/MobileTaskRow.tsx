@@ -31,7 +31,7 @@ interface MobileTaskRowProps {
   onOpenDetail?: (todoId: number) => void
 }
 
-// Mobile feature parity (Phase 6 of code-review-2026-04-25): chip taps now
+// Mobile feature parity: chip taps
 // open the same popovers/pickers as `TaskRow`, and a long-press on the row
 // fires `onContextMenu` (browser-emulated on touch) to open the shared task-
 // row action menu via `buildTaskRowMenuItems`. The action menu mirrors

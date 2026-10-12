@@ -75,7 +75,7 @@ interface UIState {
    * mounts the per-list editor dialog *without* the surrounding Lists
    * manager modal. Drives the "Edit list" entry from a list tab's menu.
    * The Lists manager's
-   * own row-click → P2 dialog-on-modal flow keeps using the
+   * own row-click → dialog-on-modal flow keeps using the
    * `listsEditorOpen` + `listsEditorInitialId` pair above; the two paths
    * are deliberately distinct so the surfaces don't stack.
    */

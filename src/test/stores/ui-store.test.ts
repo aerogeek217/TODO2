@@ -136,9 +136,8 @@ describe('useUIStore', () => {
   })
 
   it('openListEditorDialog does NOT open the Lists manager modal', () => {
-    // Direct dialog and Lists manager are deliberately separate flows
-    // (triage-2026-04-26 P5 / Q7=A): a tab pill's Edit list opens only the
-    // dialog, not the manager underneath.
+    // Direct dialog and Lists manager are deliberately separate flows: a
+    // list tab's Edit list opens only the dialog, not the manager underneath.
     useUIStore.getState().openListEditorDialog(7)
     expect(useUIStore.getState().listEditorDialogId).toBe(7)
     expect(useUIStore.getState().listsEditorOpen).toBe(false)

@@ -11,14 +11,14 @@ export type ListMembership =
   | { kind: 'custom'; predicate: TodoPredicate }
 
 /**
- * Persisted sort field. Post ui-consistency-2026-04-25 P4 this is a flat
+ * Persisted sort field: a flat
  * `TodoSortBy` literal — the former discriminated union (`{kind:'sort-order'}`
  * / `{kind:'sortBy', by}` / etc.) was flattened in the v46 Dexie migration.
  */
 export type ListSort = TodoSortBy
 
 /**
- * Persisted grouping field. Post ui-consistency-2026-04-25 P4 this is a flat
+ * Persisted grouping field: a flat
  * `TodoGroupBy` literal — the former discriminated union (`{kind:'none'}` /
  * `{kind:'by-field', by}` / `{kind:'by-tag'}` / etc.) was flattened in the
  * v46 Dexie migration. The former `{kind:'by-sortBy'}` "match the sort"

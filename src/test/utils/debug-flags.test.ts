@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
- * Tests for `?debug-dnd=1` (P5 of ui-consistency-2026-04-25). The flag is
- * read once at module load, so each test re-imports `debug-flags.ts` after
- * stubbing `window.location.search`. We also spot-check that the four wrap
- * sites (`task-dnd/dispatch`, `task-dnd/collision`, `rail-dnd`, the rails
- * drag monitor) actually call `dndLog` so the debug ladder appears end-to-end
- * when the flag is on.
+ * Tests for `?debug-dnd=1`. The flag is read once at module load, so each
+ * test re-imports `debug-flags.ts` after stubbing `window.location.search`.
+ * The wrap sites (`task-dnd/dispatch`, `task-dnd/collision`) are checked for
+ * production silence below.
  */
 
 const ORIGINAL_LOCATION = typeof window !== 'undefined' ? window.location : undefined
@@ -75,13 +73,8 @@ describe('dndLog', () => {
 })
 
 describe('debug-dnd wrap sites — production silence', () => {
-  // The wrap-site fixture drags previously asserted that each of the four
-  // dndLog call-sites (dispatch / collision / rail-dnd / drag-monitor) emits
-  // its expected label under `?debug-dnd=1`. That coverage was a costly
-  // mock-heavy walk to assert "this string passed through dndLog at this
-  // call-site"; the dndLog tests above already pin the contract end-to-end.
-  // The single remaining test below pins the load-bearing invariant:
-  // production (no flag) emits no debug noise.
+  // The dndLog tests above pin the logging contract; this one pins the
+  // load-bearing invariant: production (no flag) emits no debug noise.
   it('emits no logs when ?debug-dnd is absent', async () => {
     stubSearch('')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

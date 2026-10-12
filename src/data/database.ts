@@ -130,9 +130,9 @@ export class Todo2Database extends Dexie {
     // clearing is acceptable.
     this.version(24).stores({})
 
-    // v25: add standalone `notes` table for the dashboard Markdown inbox
-    // (Phase 3 of the dashboard + canvas master plan). Shape matches multi-note
-    // semantics so a future multi-row UI doesn't require another schema bump.
+    // v25: add standalone `notes` table for the dashboard Markdown inbox.
+    // Shape matches multi-note semantics so a future multi-row UI doesn't
+    // require another schema bump.
     this.version(25).stores({
       notes: '++id, modifiedAt',
     })
@@ -149,7 +149,7 @@ export class Todo2Database extends Dexie {
     })
 
     // v27: add `floatingCalendars` table — backing store for rail calendar
-    // slots popped out to the canvas (P6 of canvas-rails-polish). No data
+    // slots popped out to the canvas. No data
     // migration; the table starts empty.
     this.version(27).stores({
       floatingCalendars: '++id, canvasId',
@@ -200,7 +200,7 @@ export class Todo2Database extends Dexie {
     // 'vertical' / 0 at read time; existing rows need no rewriting.
     this.version(32).stores({})
 
-    // v33: taskboard-as-singleton (widget-taskboard-dnd P1). Coalesce all
+    // v33: taskboard-as-singleton. Coalesce all
     // `taskboards` rows into one (union entries, dedupe by `todoId`, keep
     // first-seen sort order); drop `name` from the surviving row; strip
     // `taskboardId` from every `floatingTaskboards` row and from every
@@ -234,7 +234,7 @@ export class Todo2Database extends Dexie {
     // view `tags: string[]` clauses to `tags: number[]` via the same slug→id
     // lookup. Unknown names on stored predicates are dropped with a single
     // console warning. The inline `todo.tags` field survives transiently
-    // through Phase 8; v37 removes it.
+    // until v37 removes it.
     this.version(36)
       .stores({
         tags: '++id, name',
@@ -249,7 +249,7 @@ export class Todo2Database extends Dexie {
       .stores({})
 
     // v38: add `floatingHorizons` table — backing store for the horizon widget
-    // popped out to canvas (Phase 5 of features-batch-2026-04). No data
+    // popped out to canvas. No data
     // migration; the table starts empty. Mirrors the v27 floatingCalendars
     // bump + v33 floatingTaskboards shape (placement-only; ribbon state lives
     // in settings).
@@ -267,24 +267,24 @@ export class Todo2Database extends Dexie {
         savedViews: null,
       })
 
-    // v40: add optional `groupBy` + `groupOrder` to projects (Phase 2 of
-    // task-grouping). Both fields are stored inline and neither is indexed, so
-    // the schema string is unchanged — version bump is for auditability.
-    // Existing rows need no rewriting (omitted fields are read as undefined).
+    // v40: add optional `groupBy` + `groupOrder` to projects. Both fields
+    // are stored inline and neither is indexed, so the schema string is
+    // unchanged — version bump is for auditability. Existing rows need no
+    // rewriting (omitted fields are read as undefined).
     this.version(40).stores({})
 
-    // v41: lift runtime-filter pick from scalar to array (lists-consistency
-    // P5). Walks `listInsets` rows and rewrites `runtimeFilterValue: number`
-    // → `[number]`; walks `settings.canvasRails` JSON and lifts every tab's
-    // scalar `runtimeFilterValue` to a single-entry array. Idempotent — rows
+    // v41: lift runtime-filter pick from scalar to array. Walks `listInsets`
+    // rows and rewrites `runtimeFilterValue: number` → `[number]`; walks
+    // `settings.canvasRails` JSON and lifts every tab's scalar
+    // `runtimeFilterValue` to a single-entry array. Idempotent — rows
     // already in the array shape pass through unchanged.
     this.version(41).stores({})
 
-    // v42: add `todoEvents` history-log table (Phase 3 of
-    // stats-widgets-2026-04-25). Append-only `{ todoId, type, fromValue,
-    // toValue, timestamp }`. Backfills `created` events for every existing
-    // todo at `createdAt`, and `completed` events at `completedAt` for any
-    // currently-completed rows. No `scheduled` / `deadline` / `status` /
+    // v42: add `todoEvents` history-log table. Append-only
+    // `{ todoId, type, fromValue, toValue, timestamp }`. Backfills `created`
+    // events for every existing todo at `createdAt`, and `completed` events
+    // at `completedAt` for any currently-completed rows. No `scheduled` /
+    // `deadline` / `status` /
     // `reopened` history is synthesised — we don't have it.
     this.version(42)
       .stores({
@@ -292,7 +292,7 @@ export class Todo2Database extends Dexie {
       })
 
     // v43: add `floatingStatus` table — placement-only backing store for the
-    // status stat widget (Phase 1 of stats-widgets-2026-04-25). Mirrors v38
+    // status stat widget. Mirrors v38
     // floatingHorizons / v27 floatingCalendars; widget content is derived
     // from todo + status state.
     this.version(43).stores({
@@ -312,8 +312,8 @@ export class Todo2Database extends Dexie {
     })
 
     // v46: flatten `ListDefinition.sort` / `.grouping` from discriminated
-    // unions to flat `TodoSortBy` / `TodoGroupBy` literals
-    // (ui-consistency-2026-04-25 P4). The former `{kind:'sortBy', by:X}` /
+    // unions to flat `TodoSortBy` / `TodoGroupBy` literals. The former
+    // `{kind:'sortBy', by:X}` /
     // `{kind:'sort-order'}` / `{kind:'effective-date-asc'}` etc. collapse to
     // single strings; the former `{kind:'by-sortBy'}` "match the sort"
     // semantic is converted to whichever flat literal the sort field now

@@ -99,9 +99,8 @@ function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: Search
  *
  * Right-clicking surfaces the same context menu as `TaskRow`. The menu lives
  * on the parent `TopBar` (not on each row) so it survives re-renders and so
- * the dropdown stays mounted underneath the menu (P2 of
- * `search-and-notes-bugs` — keep the result list visible while the menu is
- * open so the user can pick another row).
+ * the dropdown stays mounted underneath the menu (the result list stays
+ * visible while the menu is open so the user can pick another row).
  */
 function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContextMenu }: {
   todo: PersistedTodoItem

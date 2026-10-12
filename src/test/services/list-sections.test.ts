@@ -50,7 +50,7 @@ const buildFlatSection = (todos: PersistedTodoItem[]) => build(todos, 'none')
 
 describe('buildListSections — due and follow-up grouping', () => {
   // Fixed Monday so `+3 days` (Thursday) and `+4 days` (Friday) stay inside
-  // the calendar week (weekStartsOn=1 → Mon-Sun); the post-P9 bucketer keys
+  // the calendar week (weekStartsOn=1 → Mon-Sun); the bucketer keys
   // "this week" off the calendar boundary, not a rolling-7-day window.
   const MONDAY = new Date(2026, 0, 12)
 

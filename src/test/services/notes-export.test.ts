@@ -194,7 +194,7 @@ describe('notes-export XSS hardening', () => {
 
   it('mdToHtml HTML-attribute-escapes quotes in URLs', () => {
     const html = mdToHtml('[t](https://x.com/"a)')
-    // After the P3 hardening, `escapeHtml` itself now escapes `"`, so the URL's
+    // `escapeHtml` itself escapes `"`, so the URL's
     // raw `"` becomes `&quot;` in the text-pass, then `escapeHtmlAttr`'s `&`
     // pass re-escapes that `&` → `&amp;quot;`. Either way, no raw `"` reaches
     // the attribute and the entity is safe.

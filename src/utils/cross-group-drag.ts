@@ -49,9 +49,8 @@ function parseId(key: string, prefix: string): number | null {
  *   - Source and target are the same group — pure reorder, no field
  *     change.
  *   - `groupBy` is a date dimension (`deadline` / `followup`).
- *     Date buckets are derived, not assigned (Q5 in the lists-consistency
- *     plan); the visual reorder still happens, but the date itself is
- *     never rewritten.
+ *     Date buckets are derived, not assigned; the date itself is never
+ *     rewritten.
  *   - The bucket key doesn't parse against its expected prefix
  *     (defensive — protects against id-shape mismatches between caller
  *     and `task-grouping`).

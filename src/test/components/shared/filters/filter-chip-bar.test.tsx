@@ -124,7 +124,7 @@ describe('FilterChipBar — primitive', () => {
     })
 
     it('opening Date with no active filter does NOT commit a today anchor', () => {
-      // Item 11 (triage-2026-04-27 batch 2): clicking the Date chip without
+      // Clicking the Date chip without
       // editing inputs must leave the predicate untouched. The earlier UX
       // auto-stamped startOfToday() as the start anchor on open and surprised
       // users by activating a filter from a no-op interaction.

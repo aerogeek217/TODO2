@@ -1,12 +1,12 @@
 import type { TodoSortBy, TodoGroupBy } from './todo-sort-group'
 
-/** Alias of the unified `TodoSortBy` (post ui-consistency-2026-04-25 P4). */
+/** Alias of the unified `TodoSortBy`. */
 export type ListSortBy = TodoSortBy
 
-/** Alias of the unified `TodoGroupBy` (post ui-consistency-2026-04-25 P4). */
+/** Alias of the unified `TodoGroupBy`. */
 export type ListGroupBy = TodoGroupBy
 
-/** Alias of the unified `TodoSortBy` (post ui-consistency-2026-04-25 P4). */
+/** Alias of the unified `TodoSortBy`. */
 export type ListItemSortBy = TodoSortBy
 
 export type DateField = 'deadline' | 'followup' | 'created' | 'modified'

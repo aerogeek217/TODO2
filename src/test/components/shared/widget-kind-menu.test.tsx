@@ -225,7 +225,7 @@ describe('WidgetKindMenu', () => {
     })
   })
 
-  describe('Edit list opens the direct dialog (triage-2026-04-26 P5)', () => {
+  describe('Edit list opens the direct dialog', () => {
     beforeEach(() => {
       useUIStore.setState({
         listEditorDialogId: null,
@@ -236,8 +236,7 @@ describe('WidgetKindMenu', () => {
 
     it('clicking Edit list when bound to openListEditorDialog opens only the dialog (no Lists manager)', () => {
       const DEF_ID = 42
-      // Mirrors the SlotRenderer / ListInsetNode call-site binding —
-      // post-P5 the "Edit list" entry from a tab pill / float menu calls
+      // Mirrors the list tab call-site binding: the "Edit list" entry calls
       // `openListEditorDialog`, not `openListsEditor` (manager modal).
       render(
         <WidgetKindMenu

@@ -42,8 +42,8 @@ export interface TaskDraggableProps extends SharedProps {
 /**
  * Shared `useDraggable` wrapper. Owns the id + data payload shape so every
  * surface that renders a draggable task row emits identical ids (per
- * `taskDragId`) and identical `data.type` values. Extracted in Phase 4 of the
- * DnD unification — replaces the hand-rolled per-surface wrappers.
+ * `taskDragId`) and identical `data.type` values, instead of hand-rolled
+ * per-surface wrappers.
  *
  * Render-prop API: the caller keeps control over the wrapper DOM (classNames,
  * placeholder variants, opacity, data-* attrs) — this component only owns id

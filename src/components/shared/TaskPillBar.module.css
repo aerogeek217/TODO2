@@ -1,6 +1,6 @@
 /*
- * Shared task-pill bar — used by TaskRow, MobileTaskRow, SearchResultRow,
- * EventRow. The five surfaces converged in ui-consistency-2026-04-25 P2 onto
+ * Shared task-pill bar — used by TaskRow, MobileTaskRow, the top bar's
+ * SearchResultRow and calendar entries. Every surface shares
  * one set of chip styles, with mode flags driving icon-only / read-only /
  * stacked-date variants.
  *

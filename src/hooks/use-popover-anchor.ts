@@ -233,9 +233,9 @@ function computePopoverPosition(
  * ) : null
  * ```
  *
- * Replaces the per-popover positioning useEffects in `RuntimeFilterPicker`
- * (canonical, post-triage P3), `ListDefinitionPickerPopup`,
- * `WidgetKindMenu`, `FilteredListPopup` and `ContextMenu`.
+ * Every anchored popover uses it (e.g. `RuntimeFilterPicker`,
+ * `ListDefinitionPickerPopup`, `WidgetKindMenu`, `FilteredListPopup`,
+ * `ContextMenu`, `MenuPopover`) instead of its own positioning effects.
  */
 export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAnchorResult {
   const {

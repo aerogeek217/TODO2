@@ -55,8 +55,8 @@ describe('todoRepository', () => {
   })
 
   it('delete cascades todoTags so no orphan join rows remain', async () => {
-    // P1 of code-review-2026-04-25: pre-fix, deleting a todo left its
-    // todoTags rows behind because db.todoTags wasn't in the rw transaction.
+    // Regression: deleting a todo once left its todoTags rows behind because
+    // db.todoTags wasn't in the rw transaction.
     const tagId = await db.tags.add({ name: 'urgent', color: '#ff0000' })
     const id = await todoRepository.insert(makeTodo())
     await db.todoTags.add({ todoId: id, tagId })

@@ -58,8 +58,7 @@ export function createAssignmentActions<T extends { id?: number }>(
       // `unassign` may write the map optimistically while we're awaiting,
       // and the post-fetch DB read can predate that write's commit. Using a
       // pre-await snapshot to rebuild the map would clobber the optimistic
-      // entry — `triage-2026-04-28 P4` was filed against exactly this race
-      // (QuickAdd `@person` chip not appearing on the new row).
+      // entry (seen as a QuickAdd `@person` chip not appearing on the new row).
       const fetched = newIds.length > 0
         ? await repo.getForTodos(newIds)
         : new Map<number, T[]>()

@@ -59,7 +59,7 @@ describe('DashboardListsEditor — list rows', () => {
   })
 })
 
-// "Match sort field" grouping option retired in ui-consistency-2026-04-25 P4.
+// There is no "Match sort field" grouping option.
 // The on-disk shape is flat literals, so coupling sort↔group is now an
 // explicit "set both to the same value" UX, not a special grouping kind.
 

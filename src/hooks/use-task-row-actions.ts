@@ -68,7 +68,7 @@ interface UseTaskRowActionsOpts {
  *
  * Ghost rows (filtered-out tasks still rendered for context) are NOT gated
  * here — same right-click menu / same actions as a non-ghost row, per the
- * triage-2026-04-27-batch2 P1 decision. A ghosted task is still a real task
+ * product decision. A ghosted task is still a real task
  * the user can complete or delete.
  */
 export function useTaskRowActions({ todo }: UseTaskRowActionsOpts) {
