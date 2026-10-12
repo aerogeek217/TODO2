@@ -136,4 +136,29 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 1, unit: 'm' })
   })
+
+  it('urgentDueWithinDays defaults to 3 days, persists Off / day counts, and ignores junk on load', async () => {
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
+
+    await useSettingsStore.getState().setUrgentDueWithinDays(null)
+    expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('off')
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBeNull()
+
+    await useSettingsStore.getState().setUrgentDueWithinDays(0)
+    expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('0')
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBe(0)
+
+    // Out of range: not written.
+    await useSettingsStore.getState().setUrgentDueWithinDays(-2)
+    expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('0')
+
+    await db.settings.put({ key: 'urgentDueWithinDays', value: 'soon' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
+  })
 })

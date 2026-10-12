@@ -22,6 +22,9 @@ export {
   type DateAnchor,
   type RelativeDateToken,
   RELATIVE_DATE_TOKENS,
+  type MarkerKey,
+  type MarkersFilter,
+  MARKER_KEYS,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'
 export { type TodoEvent, type PersistedTodoEvent, type TodoEventType } from './todo-event'

@@ -22,7 +22,7 @@ import { PortalDropdown } from '../shared/PortalDropdown'
 
 import { ContextMenu } from '../overlays/ContextMenu'
 import { TaskNotePopover } from './TaskNotePopover'
-import { FocusMarker } from '../shared/FocusMarker'
+import { TaskMarkers } from '../shared/TaskMarkers'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -68,7 +68,9 @@ export const TaskRow = memo(function TaskRow({
 
 
   // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
-  const { bulk, handleToggleComplete, handleToggleFocus, handleDelete } = useTaskRowActions({ todo })
+  const {
+    bulk, urgentOn, handleToggleComplete, handleToggleUrgent, handleToggleImportant, handleToggleFocus, handleDelete,
+  } = useTaskRowActions({ todo })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
@@ -161,11 +163,11 @@ export const TaskRow = memo(function TaskRow({
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
       />
 
-      {todo.focus && (
-        <span className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}>
-          <FocusMarker />
-        </span>
-      )}
+      <TaskMarkers
+        todo={todo}
+        today={today}
+        className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}
+      />
 
       {isEditing ? (
         <input
@@ -436,6 +438,9 @@ export const TaskRow = memo(function TaskRow({
           y={contextMenu.y}
           items={buildTaskRowMenuItems({
             todo,
+            urgentOn,
+            onToggleUrgent: handleToggleUrgent,
+            onToggleImportant: handleToggleImportant,
             onToggleFocus: handleToggleFocus,
             onOpenDetail,
             onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),

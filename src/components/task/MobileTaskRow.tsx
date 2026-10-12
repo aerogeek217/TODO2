@@ -19,7 +19,7 @@ import { generateInitials } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
-import { FocusMarker } from '../shared/FocusMarker'
+import { TaskMarkers } from '../shared/TaskMarkers'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -53,7 +53,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const today = startOfToday()
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
 
-  const { bulk, handleToggleComplete, handleToggleFocus, handleDelete } = useTaskRowActions({ todo })
+  const {
+    bulk, urgentOn, handleToggleComplete, handleToggleUrgent, handleToggleImportant, handleToggleFocus, handleDelete,
+  } = useTaskRowActions({ todo })
 
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
@@ -161,11 +163,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           aria-label="Toggle complete"
         />
 
-        {todo.focus && (
-          <span className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}>
-            <FocusMarker size={16} />
-          </span>
-        )}
+        <TaskMarkers
+          todo={todo}
+          today={today}
+          size={16}
+          className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}
+        />
 
         <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
@@ -353,6 +356,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           y={contextMenu.y}
           items={buildTaskRowMenuItems({
             todo,
+            urgentOn,
+            onToggleUrgent: handleToggleUrgent,
+            onToggleImportant: handleToggleImportant,
             onToggleFocus: handleToggleFocus,
             onOpenDetail,
             onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),

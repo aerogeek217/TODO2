@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import type {
   PersistedTodoItem, Person, Status, Tag, TodoPredicate,
 } from '../../models'
@@ -16,6 +16,7 @@ import { emptyPredicate } from '../../stores/list-definition-store'
 import { applyRuntimeFilter, buildDashboardLists } from '../../services/dashboard-lists'
 import { buildListSections, type ListSectionsContext, type Section } from '../../services/list-sections'
 import { makeTodo } from '../helpers'
+import { useSettingsStore } from '../../stores/settings-store'
 
 // The list page and list widgets must show the same sections for the same
 // list definition. Each path below mirrors its surface: the list page loads a
@@ -44,10 +45,10 @@ const beta: Tag = { id: 4, name: 'Project: Beta', color: '#a57' }
 
 const todos: PersistedTodoItem[] = [
   makeTodo({ id: 1, title: 'Pay invoice', sortOrder: 9, dueDate: day(10, 10), statusId: 1 }),
-  makeTodo({ id: 2, title: 'call plumber', sortOrder: 3, dueDate: day(10, 14), nextFollowupAt: day(10, 20), focus: true }),
+  makeTodo({ id: 2, title: 'call plumber', sortOrder: 3, dueDate: day(10, 14), nextFollowupAt: day(10, 20), focus: true, important: true }),
   makeTodo({ id: 3, title: 'Draft memo', sortOrder: 5, dueDate: day(10, 15), statusId: 2 }),
   makeTodo({ id: 4, title: 'book flights', sortOrder: 1, dueDate: day(10, 18), nextFollowupAt: day(10, 13) }),
-  makeTodo({ id: 5, title: 'Archive old files', sortOrder: 7, dueDate: day(10, 19), statusId: 1, focus: true }),
+  makeTodo({ id: 5, title: 'Archive old files', sortOrder: 7, dueDate: day(10, 19), statusId: 1, focus: true, urgent: true }),
   makeTodo({ id: 6, title: 'Plan offsite', sortOrder: 2, dueDate: day(12, 1), nextFollowupAt: day(10, 14), statusId: 2 }),
   makeTodo({ id: 7, title: 'Read book', sortOrder: 8, nextFollowupAt: day(11, 30) }),
   makeTodo({ id: 8, title: 'Done thing', sortOrder: 4, isCompleted: true, dueDate: day(10, 12) }),
@@ -125,8 +126,9 @@ const predicates: Array<[string, TodoPredicate]> = [
   ['search by tag name', { ...emptyPredicate(), searchText: 'work' }],
   ['search by status name', { ...emptyPredicate(), searchText: 'waiting' }],
   ['search by project tag name', { ...emptyPredicate(), searchText: 'beta' }],
-  ['in focus', { ...emptyPredicate(), focus: true }],
-  ['not in focus', { ...emptyPredicate(), focus: false }],
+  ['in focus', { ...emptyPredicate(), markers: { focus: true } }],
+  ['urgent (flag or due soon)', { ...emptyPredicate(), markers: { urgent: true } }],
+  ['important and in focus', { ...emptyPredicate(), markers: { important: true, focus: true } }],
 ]
 
 const runtimeCases: Array<[string, RuntimeFilterSpec | undefined, number[] | undefined]> = [
@@ -139,6 +141,11 @@ const runtimeCases: Array<[string, RuntimeFilterSpec | undefined, number[] | und
   ['prompt cleared', { field: 'person' }, []],
   ['prompt unanswered', { field: 'tag' }, undefined],
 ]
+
+// The urgent marker counts due dates within 3 days (the default range).
+beforeEach(() => {
+  useSettingsStore.setState({ urgentDueWithinDays: 3 })
+})
 
 describe('list page and list widgets build the same sections', () => {
   for (const groupBy of TODO_GROUP_BY_VALUES) {

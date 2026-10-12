@@ -422,10 +422,97 @@ describe('TaskEditPopup', () => {
       expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'New focused task', focus: true }), expect.anything())
     })
 
-    it('create mode: a focus-only screen filter starts the toggle on', () => {
-      useFilterStore.getState().setFocus(true)
+    it('create mode: a Markers screen filter starts those toggles on', () => {
+      useFilterStore.getState().setMarkers({ focus: true, important: true })
       renderCreateMode()
-      expect(screen.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Important' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Urgent' })).toHaveAttribute('aria-pressed', 'false')
+    })
+  })
+
+  describe('Urgent and Important toggles', () => {
+    // Sat 10 Oct 2026; the default range: due within 3 days is urgent.
+    const today = new Date(2026, 9, 10, 9)
+    const day = (offset: number) => new Date(2026, 9, 10 + offset)
+
+    beforeEach(async () => {
+      vi.useFakeTimers({ now: today, toFake: ['Date'] })
+      await resetDb()
+      resetStores()
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
+      useUIStore.setState({ bulkConfirmation: null })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('edit mode: Urgent and Important flag the task and clear it again', async () => {
+      const todo = makeTodo({ id: 42, title: 'Flag me' })
+      useTodoStore.setState({ todos: [todo] })
+      const { rerender, props } = renderEditMode(todo)
+      const urgent = () => screen.getByRole('button', { name: 'Urgent' })
+      const important = () => screen.getByRole('button', { name: 'Important' })
+      expect(urgent()).toHaveAttribute('aria-pressed', 'false')
+      expect(important()).toHaveAttribute('aria-pressed', 'false')
+
+      await act(async () => { fireEvent.click(urgent()) })
+      await act(async () => { fireEvent.click(important()) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]).toMatchObject({ urgent: true, important: true }))
+      rerender(<TaskEditPopup {...props} todo={useTodoStore.getState().todos[0]!} />)
+      expect(urgent()).toHaveAttribute('aria-pressed', 'true')
+      expect(urgent()).toHaveAttribute('data-urgent', 'flag')
+      expect(important()).toHaveAttribute('aria-pressed', 'true')
+
+      // Flagged, no due date: the flag just clears (no prompt).
+      await act(async () => { fireEvent.click(urgent()) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.urgent).toBeUndefined())
+      expect(useUIStore.getState().bulkConfirmation).toBeNull()
+    })
+
+    it('edit mode: a task urgent only by its due date shows the clock; clearing asks to remove the date', async () => {
+      const todo = makeTodo({ id: 7, title: 'Pick up prescriptions', dueDate: day(3) })
+      useTodoStore.setState({ todos: [todo] })
+      renderEditMode(todo)
+      const urgent = screen.getByRole('button', { name: 'Urgent' })
+      expect(urgent).toHaveAttribute('aria-pressed', 'true')
+      expect(urgent).toHaveAttribute('data-urgent', 'date')
+      expect(urgent.getAttribute('title')).toBe('Urgent: due soon\nDue Tue 13, within 3 days. Click to make it not urgent.')
+
+      await act(async () => { fireEvent.click(urgent) })
+      const prompt = useUIStore.getState().bulkConfirmation!
+      expect(prompt).toMatchObject({
+        action: 'custom',
+        title: 'Remove the due date?',
+        message: 'Pick up prescriptions is due Tue 13, within 3 days, so it counts as urgent. Removing the due date makes it not urgent.',
+        confirmLabel: 'Remove due date',
+        cancelLabel: 'Cancel',
+      })
+      // Nothing changed yet.
+      expect(useTodoStore.getState().todos[0]!.dueDate).toEqual(day(3))
+    })
+
+    it('create mode: the draft due date lights Urgent with the clock; clearing removes the draft date', async () => {
+      const { onCreate } = renderCreateMode()
+      typeTitle('Call plumber')
+      fireEvent.change(screen.getByTitle('Set due date').querySelector('input')!, { target: { value: '2026-10-11' } })
+      const urgent = () => screen.getByRole('button', { name: 'Urgent' })
+      expect(urgent()).toHaveAttribute('data-urgent', 'date')
+
+      fireEvent.click(urgent())
+      const prompt = useUIStore.getState().bulkConfirmation!
+      expect(prompt.title).toBe('Remove the due date?')
+      act(() => { prompt.onConfirm!() })
+      expect(urgent()).toHaveAttribute('aria-pressed', 'false')
+
+      fireEvent.click(urgent())
+      fireEvent.click(screen.getByRole('button', { name: 'Important' }))
+      await act(async () => { clickCreate() })
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Call plumber', urgent: true, important: true, dueDate: undefined }),
+        expect.anything(),
+      )
     })
   })
 

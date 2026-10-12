@@ -1,16 +1,37 @@
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
+import {
+  URGENT_DUE_WITHIN_CHOICES,
+  formatUrgentDueWithinDays,
+  parseUrgentDueWithinDays,
+  urgentRangeLabel,
+  type UrgentDueWithinDays,
+} from '../../../utils/urgency'
 import { SettingRow } from './SettingRow'
 import styles from './sections.module.css'
 
-/** Defaults for new tasks: status, next follow-up, and the first day of the week. */
+/** `Off` / `Today` / `Within 3 days` — a range choice as the select shows it. */
+function urgentChoiceLabel(range: UrgentDueWithinDays): string {
+  return range == null || range === 0 ? urgentRangeLabel(range) : `Within ${urgentRangeLabel(range)}`
+}
+
+/**
+ * Defaults for new tasks: status, next follow-up, when a due date makes a
+ * task urgent, and the first day of the week.
+ */
 export function TaskDefaultsSection() {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const setDefaultStatusId = useSettingsStore((s) => s.setDefaultStatusId)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const setWeekStartsOn = useSettingsStore((s) => s.setWeekStartsOn)
   const statuses = useStatusStore((s) => s.statuses)
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const setUrgentRange = useSettingsStore((s) => s.setUrgentDueWithinDays)
+  // A range set outside the offered choices (e.g. by an import) still shows.
+  const urgentChoices = URGENT_DUE_WITHIN_CHOICES.includes(urgentRange)
+    ? URGENT_DUE_WITHIN_CHOICES
+    : [...URGENT_DUE_WITHIN_CHOICES, urgentRange]
 
   return (
     <div className={styles.section}>
@@ -33,6 +54,26 @@ export function TaskDefaultsSection() {
         inputClassName={styles.input}
         hintClassName={styles.muted}
       />
+      <SettingRow
+        label="Due date makes a task urgent"
+        help="Overdue tasks count too. They show a clock instead of the urgent mark."
+      >
+        <select
+          className={styles.select}
+          aria-label="Due date makes a task urgent"
+          value={formatUrgentDueWithinDays(urgentRange)}
+          onChange={(e) => {
+            const next = parseUrgentDueWithinDays(e.target.value)
+            if (next !== undefined) void setUrgentRange(next)
+          }}
+        >
+          {urgentChoices.map((range) => (
+            <option key={formatUrgentDueWithinDays(range)} value={formatUrgentDueWithinDays(range)}>
+              {urgentChoiceLabel(range)}
+            </option>
+          ))}
+        </select>
+      </SettingRow>
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">
         <select
           className={styles.select}

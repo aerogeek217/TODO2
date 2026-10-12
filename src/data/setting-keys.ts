@@ -20,6 +20,11 @@ export const SETTING_KEYS = {
   maxTags: 'maxTags',
   /** Default next-follow-up interval for new tasks / "Followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',
+  /**
+   * "Due date makes a task urgent": days ahead (`0` = today) or `off`.
+   * Absent = the default (3 days).
+   */
+  urgentDueWithinDays: 'urgentDueWithinDays',
   /** Id of the workspace layout that is open (a `layouts` row). */
   activeLayoutId: 'activeLayoutId',
 } as const

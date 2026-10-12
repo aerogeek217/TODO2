@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useFilterStore, matchesFilter, applyFilter, countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
 import type { PersistedTodoItem } from '../../models'
 import { makeTodo } from '../helpers'
+import { useSettingsStore } from '../../stores/settings-store'
 
 /** Short-hand: current active filter state from the store. */
 const f = () => useFilterStore.getState().filters
@@ -191,38 +192,61 @@ describe('useFilterStore', () => {
     })
   })
 
-  describe('focus filter', () => {
-    it('true keeps only tasks in focus; false only tasks not in focus; null is off', () => {
-      const focused = makeTodo({ id: 1, focus: true })
-      const plain = makeTodo({ id: 2 })
-      expect(f().focus).toBeNull()
-      expect(matchesFilter(f(), focused)).toBe(true)
-      expect(matchesFilter(f(), plain)).toBe(true)
-      useFilterStore.getState().setFocus(true)
-      expect(matchesFilter(f(), focused)).toBe(true)
-      expect(matchesFilter(f(), plain)).toBe(false)
-      useFilterStore.getState().setFocus(false)
-      expect(matchesFilter(f(), focused)).toBe(false)
-      expect(matchesFilter(f(), plain)).toBe(true)
+  describe('markers filter', () => {
+    const today = new Date(2026, 9, 10)
+    const day = (offset: number) => new Date(2026, 9, 10 + offset)
+
+    beforeEach(() => {
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('counts as an active filter and clears with clearAll', () => {
-      useFilterStore.getState().setFocus(true)
+    it('each ticked marker narrows; several AND together', () => {
+      const focused = makeTodo({ id: 1, focus: true })
+      const important = makeTodo({ id: 2, important: true })
+      const both = makeTodo({ id: 3, important: true, focus: true })
+      const plain = makeTodo({ id: 4 })
+      expect(f().markers).toBeNull()
+      for (const t of [focused, important, both, plain]) expect(matchesFilter(f(), t, undefined, today)).toBe(true)
+      useFilterStore.getState().setMarkers({ focus: true })
+      expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, false, true, false])
+      useFilterStore.getState().setMarkers({ focus: true, important: true })
+      expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([false, false, true, false])
+    })
+
+    it('Urgent means effective urgent: the flag, or due within the range (overdue included)', () => {
+      useFilterStore.getState().setMarkers({ urgent: true })
+      const flagged = makeTodo({ id: 1, urgent: true })
+      const overdue = makeTodo({ id: 2, dueDate: day(-2) })
+      const edge = makeTodo({ id: 3, dueDate: day(3) })
+      const later = makeTodo({ id: 4, dueDate: day(4) })
+      const doneOverdue = makeTodo({ id: 5, dueDate: day(-2), isCompleted: true })
+      useFilterStore.getState().setShowCompleted(true)
+      expect([flagged, overdue, edge, later, doneOverdue].map((t) => matchesFilter(f(), t, undefined, today)))
+        .toEqual([true, true, true, false, false])
+      // Range off: only the flag counts.
+      useSettingsStore.setState({ urgentDueWithinDays: null })
+      expect([flagged, overdue, edge].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, false, false])
+    })
+
+    it('counts as one active filter, clears with clearAll, and an emptied set is no filter', () => {
+      useFilterStore.getState().setMarkers({ urgent: true, focus: true })
       expect(useFilterStore.getState().isActive).toBe(true)
       expect(countActiveFilters(f())).toBe(1)
       useFilterStore.getState().clearAll()
-      expect(f().focus).toBeNull()
+      expect(f().markers).toBeNull()
+      useFilterStore.getState().setMarkers({})
+      expect(f().markers).toBeNull()
       expect(useFilterStore.getState().isActive).toBe(false)
     })
 
     it('round-trips through the predicate; a predicate without it reads as null', () => {
-      useFilterStore.getState().setFocus(false)
+      useFilterStore.getState().setMarkers({ important: true })
       const predicate = criteriaToPredicate(f())
-      expect(predicate.focus).toBe(false)
-      expect(predicateToCriteria(predicate).focus).toBe(false)
-      const { focus: _drop, ...legacy } = predicate
+      expect(predicate.markers).toEqual({ important: true })
+      expect(predicateToCriteria(predicate).markers).toEqual({ important: true })
+      const { markers: _drop, ...legacy } = predicate
       void _drop
-      expect(predicateToCriteria(legacy).focus).toBeNull()
+      expect(predicateToCriteria(legacy).markers).toBeNull()
     })
   })
 

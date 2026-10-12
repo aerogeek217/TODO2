@@ -597,12 +597,15 @@ describe('v49 fixture → v59: taskboard tasks are in focus, in a manually order
   })
 
   it('creates the Focus list (focus = true, manual, ungrouped) last, with ranks in taskboard order', async () => {
+    const atV59 = fixtureAt(59).listDefinitions!.find((d) => d.id === FOCUS_LIST_ID)!
+    expect((atV59.membership as { predicate: Record<string, unknown> }).predicate).toMatchObject({ focus: true })
     await importFixture()
     const focus = await db.listDefinitions.get(FOCUS_LIST_ID)
     expect(focus).toMatchObject({
       id: FOCUS_LIST_ID, name: 'Focus', sortOrder: 4, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
     })
-    expect(focus!.membership.predicate).toMatchObject({ focus: true, showCompleted: false, personIds: null, tags: null, hasFollowup: null })
+    // v61 turned its focus filter into the Markers filter.
+    expect(focus!.membership.predicate).toMatchObject({ markers: { focus: true }, showCompleted: false, personIds: null, tags: null, hasFollowup: null })
     const ranks = (await db.listOrders.toArray()).map((r) => [r.listDefinitionId, r.todoId, r.rank])
     expect(ranks).toEqual([[FOCUS_LIST_ID, 6, 1], [FOCUS_LIST_ID, 1, 2]])
   })
@@ -699,5 +702,32 @@ describe('v49 fixture → v60: projects are Project: tags, canvas data is gone',
   it('upgrading the v60 data again changes nothing', () => {
     const upgraded = fixtureAt(CURRENT_DB_VERSION)
     expect(upgradeDataSet(upgraded, 59, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
+// ── v61: the Focus filter folds into the Markers filter ──────────────────
+describe('v49 fixture → v61: list predicates use markers; no task is flagged urgent or important', () => {
+  it('no stored list keeps a focus filter; the Focus list requires the Focus marker', async () => {
+    await importFixture()
+    const defs = await db.listDefinitions.orderBy('id').toArray()
+    for (const d of defs) expect('focus' in d.membership.predicate, `${d.name}.focus`).toBe(false)
+    expect(defs.find((d) => d.id === FOCUS_LIST_ID)!.membership.predicate.markers).toEqual({ focus: true })
+    // The fixture's own lists had no focus filter: they gain no markers.
+    for (const d of defs.filter((x) => x.id !== FOCUS_LIST_ID)) {
+      expect(d.membership.predicate.markers ?? null, d.name).toBeNull()
+    }
+  })
+
+  it('tasks get no urgent / important flag and no urgent-range setting is invented', async () => {
+    await importFixture()
+    for (const t of await db.todos.toArray()) {
+      expect('urgent' in t || 'important' in t, `todo ${t.id}`).toBe(false)
+    }
+    expect(await db.settings.get('urgentDueWithinDays')).toBeUndefined()
+  })
+
+  it('upgrading the v61 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 60, CURRENT_DB_VERSION)).toBe(upgraded)
   })
 })

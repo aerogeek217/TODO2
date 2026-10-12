@@ -1,21 +1,25 @@
 import type { FilterCriteria } from '../stores/filter-store'
 import { predicateToCriteria } from '../stores/filter-store'
 import type { ResolvedInput } from '../services/nlp-resolver'
-import type { TodoPredicate } from '../models'
+import type { MarkersFilter, TodoItem, TodoPredicate } from '../models'
+import { activeMarkers } from './markers'
 
 export interface FilterDefaults {
   personIds: number[]
   tagIds: number[]
   statusId: number | undefined
-  /** The filter keeps only tasks in focus: new tasks start in focus. */
-  focus?: boolean
+  /**
+   * The markers the filter requires (Urgent / Important / Focus): new tasks
+   * start with those flags, so they show where they were added.
+   */
+  markers?: MarkersFilter
 }
 
 /**
  * Extract task creation defaults from active filter criteria.
  * Strips sentinel value 0 (None/Unaffiliated) from entity ID sets.
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
- * A focus-only filter makes new tasks start in focus.
+ * A Markers filter makes new tasks start with those markers flagged.
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const personIds = filters.personIds ? [...filters.personIds].filter(id => id !== 0) : []
@@ -27,7 +31,22 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) statusId = only
   }
 
-  return { personIds, tagIds, statusId, focus: filters.focus === true }
+  const markers = activeMarkers(filters.markers)
+  return markers.length > 0
+    ? { personIds, tagIds, statusId, markers: Object.fromEntries(markers.map((k) => [k, true])) }
+    : { personIds, tagIds, statusId }
+}
+
+/** The task flags a filter's markers seed (`{}` when none): spread into a new task. */
+export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefined): Pick<TodoItem, 'urgent' | 'important' | 'focus'> {
+  const out: Pick<TodoItem, 'urgent' | 'important' | 'focus'> = {}
+  for (const k of activeMarkers(fd?.markers)) out[k] = true
+  return out
+}
+
+/** Whether a filter's defaults seed any marker flag. */
+export function seedsMarkers(fd: Pick<FilterDefaults, 'markers'> | null | undefined): boolean {
+  return activeMarkers(fd?.markers).length > 0
 }
 
 /**

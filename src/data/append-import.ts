@@ -149,6 +149,8 @@ export async function appendImportTasks(
       if (t.nextFollowupAt != null) row.nextFollowupAt = t.nextFollowupAt
       if (t.recurrenceRule != null) row.recurrenceRule = t.recurrenceRule
       if (t.focus === true) row.focus = true
+      if (t.urgent === true) row.urgent = true
+      if (t.important === true) row.important = true
       const statusId = await resolveStatus(t.statusId)
       if (statusId != null) row.statusId = statusId
       const id = await db.todos.add(row) as number

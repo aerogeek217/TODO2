@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, screen, fireEvent, act } from '@testing-library/react'
+import { render, cleanup, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
 import { useListDefinitionStore, emptyPredicate } from '../../../stores/list-definition-store'
@@ -11,6 +11,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { SINGLE_BINDINGS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
@@ -304,11 +305,45 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([undefined, undefined])
   })
 
-  it('a focus list offers + Add task (new tasks start in focus)', () => {
-    setup(def({}, { focus: true }))
+  it('the bulk bar Urgent / Important buttons are tri-state; Urgent counts due dates and asks before removing them', async () => {
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, important: true }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2, dueDate: tomorrow }),
+      ],
+    })
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+
+    const important = screen.getByRole('button', { name: 'Mark important' })
+    expect(important).toHaveAttribute('aria-pressed', 'mixed')
+    await act(async () => { fireEvent.click(important) })
+    expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([true, true])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove important' })) })
+    expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([undefined, undefined])
+
+    // Bob's task is urgent by its due date: mixed until both are flagged.
+    const urgent = screen.getByRole('button', { name: 'Mark urgent' })
+    expect(urgent).toHaveAttribute('aria-pressed', 'mixed')
+    await act(async () => { fireEvent.click(urgent) })
+    expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([true, true])
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove urgent' })) })
+    expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([undefined, undefined])
+    await waitFor(() => expect(useUIStore.getState().bulkConfirmation).toMatchObject({
+      ids: [2], message: '1 of 2 tasks stays urgent because of its due date.',
+    }))
+  })
+
+  it('a Markers list offers + Add task (new tasks start with those markers)', () => {
+    setup(def({}, { markers: { focus: true, important: true } }))
     expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
-    expect(useUIStore.getState().quickAddDraft?.defaults?.focus).toBe(true)
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
   })
 
   it('a manual list follows its ranks; unranked tasks come after, oldest first', () => {

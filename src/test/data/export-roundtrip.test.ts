@@ -40,7 +40,7 @@ const FULL_PREDICATE: TodoPredicate = {
   dateRangeIncludeNoDate: true,
   hasDeadline: true,
   hasFollowup: false,
-  focus: false,
+  markers: { urgent: true, important: true },
   tags: [1],
 }
 
@@ -55,6 +55,8 @@ function buildSeed(): Seed {
         nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
         recurrenceRule: { type: 'monthly', originalDayOfMonth: 31 },
         focus: true,
+        urgent: true,
+        important: true,
         createdAt: at('2026-09-02T10:00:00.000Z'), modifiedAt: at('2026-09-11T09:30:00.000Z'),
         statusId: 2, sortOrder: 0,
       },
@@ -73,6 +75,7 @@ function buildSeed(): Seed {
       { key: 'seededAssignedStatusId', value: '1' },
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
+      { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },
@@ -88,7 +91,7 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, focus: true } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, markers: { focus: true } } },
       sort: 'followup', grouping: 'followup', pinnedToDashboard: false,
     }, {
       id: 1, name: 'By person', sortOrder: 0,

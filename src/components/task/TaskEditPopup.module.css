@@ -237,6 +237,18 @@
   color: var(--color-marker-focus);
 }
 
+.markerToggleUrgentOn,
+.markerToggleUrgentOn:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-marker-urgent);
+}
+
+.markerToggleImportantOn,
+.markerToggleImportantOn:hover {
+  background: var(--color-followup-bg);
+  color: var(--color-marker-important);
+}
+
 .badgeStar {
   color: var(--color-followup);
   border-color: rgba(245, 200, 66, 0.3);

@@ -3,7 +3,9 @@ import { toggleItem } from '../../../utils/filter'
 import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
 import { FollowupFlagIcon } from '../FollowupIcons'
-import { FocusIcon } from '../FocusMarker'
+import { MarkerIcon } from '../MarkerIcons'
+import { MARKER_KEYS } from '../../../models'
+import { activeMarkers, MARKER_COLOR, MARKER_LABELS, toggleMarker } from '../../../utils/markers'
 import sheet from '../../overlays/FilterSheet.module.css'
 import {
   cycleTri,
@@ -166,8 +168,7 @@ export function FilterChipBarMobile({
     setTags(toggleItem(tagIdsSet, tagId, allTagIds))
   }
 
-  const focus = p.focus ?? null
-  const togglesActiveCount = (p.showCompleted ? 1 : 0) + (focus !== null ? 1 : 0)
+  const togglesActiveCount = (p.showCompleted ? 1 : 0) + activeMarkers(p.markers).length
 
   return (
     <>
@@ -192,20 +193,25 @@ export function FilterChipBarMobile({
               aria-label="Show completed"
             />
           </div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}><FocusIcon /></span>
-              In focus
-            </span>
-            <button
-              className={`${sheet.triToggle} ${focus !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => update({ focus: cycleTri(focus) })}
-              aria-label={`In focus: ${focus === null ? 'No filter' : focus ? 'Only tasks in focus' : 'Only tasks not in focus'}`}
-              title={focus === null ? 'No filter' : focus ? 'Only tasks in focus' : 'Only tasks not in focus'}
-            >
-              {triIcon(focus)}
-            </button>
-          </div>
+          {/* Markers: every switched-on marker is required (strict AND). */}
+          {MARKER_KEYS.map((key) => {
+            const on = p.markers?.[key] === true
+            return (
+              <div key={key} className={sheet.filterRow}>
+                <span className={sheet.filterLabel}>
+                  <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
+                  {MARKER_LABELS[key]}
+                </span>
+                <button
+                  className={`${sheet.toggle} ${on ? sheet.toggleActive : ''}`}
+                  onClick={() => update({ markers: toggleMarker(p.markers, key) })}
+                  role="switch"
+                  aria-checked={on}
+                  aria-label={`Only ${MARKER_LABELS[key].toLowerCase()} tasks`}
+                />
+              </div>
+            )
+          })}
         </div>
       </AccordionSection>
 

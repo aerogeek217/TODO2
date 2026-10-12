@@ -6,10 +6,11 @@ export type ImportTodoTag = TodoTag
 
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { toDate, toOptDate } from './date-revive'
-import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
+import { MARKER_KEYS, RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
+import { parseUrgentDueWithinDays } from '../utils/urgency'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
@@ -96,6 +97,8 @@ function checkTodo(v: unknown): CheckResult {
     ['nextFollowupAt', isOptDateLike(v.nextFollowupAt)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
     ['focus', isOptTriBool(v.focus)],
+    ['urgent', isOptTriBool(v.urgent)],
+    ['important', isOptTriBool(v.important)],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['statusId', isOptNum(v.statusId)],
@@ -118,6 +121,13 @@ function isOptTriBool(v: unknown): boolean {
   return v === undefined || v === null || isBool(v)
 }
 
+/** A Markers filter: absent / null, or an object of known markers set to `true`. */
+function isOptMarkers(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (!isObj(v)) return false
+  return Object.entries(v).every(([k, val]) => (MARKER_KEYS as readonly string[]).includes(k) && val === true)
+}
+
 function isTodoPredicateShape(v: unknown): boolean {
   if (!isObj(v)) return false
   if (typeof v.showCompleted !== 'boolean'
@@ -128,7 +138,7 @@ function isTodoPredicateShape(v: unknown): boolean {
   if (v.dateField !== undefined && !(DATE_FIELD_VALUES as readonly unknown[]).includes(v.dateField)) return false
   if (!isOptTriBool(v.hasDeadline)) return false
   if (!isOptTriBool(v.hasFollowup)) return false
-  if (!isOptTriBool(v.focus)) return false
+  if (!isOptMarkers(v.markers)) return false
   return true
 }
 
@@ -324,6 +334,11 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (followupDefaultInterval must look like 3d, 2w, 1m or 1y)'
   }
+  if (v.key === SETTING_KEYS.urgentDueWithinDays) {
+    return parseUrgentDueWithinDays(v.value as string) !== undefined
+      ? true
+      : 'value (urgentDueWithinDays must be off or a day count 0–365)'
+  }
   return true
 }
 
@@ -367,6 +382,8 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     recurrenceRule: v.recurrenceRule != null ? v.recurrenceRule as RecurrenceRule : undefined,
     // Only `true` is stored; `false` / absent both mean "not in focus".
     focus: v.focus === true ? true : undefined,
+    urgent: v.urgent === true ? true : undefined,
+    important: v.important === true ? true : undefined,
     statusId: optNum(v.statusId),
   } satisfies AllFields<TodoItem>
 }

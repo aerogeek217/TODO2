@@ -9,7 +9,10 @@ import { addFollowupInterval, describeFollowupInterval } from '../../utils/follo
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
-import { FocusIcon } from '../shared/FocusMarker'
+import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from '../shared/MarkerIcons'
+import { askClearUrgent, clearUrgent, planClearUrgent } from '../../services/clear-urgent'
+import { startOfToday } from '../../utils/date'
+import { urgentByDateReason, urgentMark } from '../../utils/urgency'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
@@ -71,6 +74,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
 
   // Compute filter defaults once for create mode (views with filter UI only).
   // List-widget handoff: when the QuickAddBar was opened from a list's
@@ -131,7 +135,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     () => (mode === 'create' ? addFollowupInterval(new Date(), followupInterval) : undefined),
   )
   const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
-  const [draftFocus, setDraftFocus] = useState(filterDefaults?.focus === true)
+  // Create mode: marker drafts, seeded from a Markers filter.
+  const [draftUrgent, setDraftUrgent] = useState(filterDefaults?.markers?.urgent === true)
+  const [draftImportant, setDraftImportant] = useState(filterDefaults?.markers?.important === true)
+  const [draftFocus, setDraftFocus] = useState(filterDefaults?.markers?.focus === true)
   const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create')
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
     todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
@@ -396,6 +403,42 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setNextFollowupIsDefault(false)
   }
 
+  // Urgent is effective urgent: the flag, or the due date within the
+  // Settings range (then the toggle shows the clock). Turning it off on a
+  // task urgent by date asks about the due date (`services/clear-urgent`).
+  const markerToday = startOfToday()
+  const urgentSubject = {
+    title: (isEdit ? todo?.title : title.trim()) || 'This task',
+    urgent: isEdit ? todo?.urgent === true : draftUrgent,
+    dueDate: deadline ?? undefined,
+    isCompleted: isEdit ? todo?.isCompleted === true : false,
+  }
+  const urgentState = urgentMark(urgentSubject, markerToday, urgentRange)
+  const urgentReason = urgentState === 'date' ? urgentByDateReason(urgentSubject, markerToday, urgentRange) : ''
+  const handleToggleUrgent = () => {
+    if (isEdit && todo) {
+      if (urgentState === null) void useTodoStore.getState().bulkSetUrgent([todo.id], true)
+      else void clearUrgent([todo.id])
+      return
+    }
+    if (urgentState === null) {
+      setDraftUrgent(true)
+      return
+    }
+    const plan = planClearUrgent([urgentSubject], markerToday, urgentRange)
+    if (plan.clearFlag.length > 0) setDraftUrgent(false)
+    if (plan.prompt) askClearUrgent(plan.prompt, [], () => handleDeadlineChange(null))
+  }
+
+  const importantOn = isEdit ? todo?.important === true : draftImportant
+  const handleToggleImportant = () => {
+    if (isEdit && todo) {
+      void useTodoStore.getState().bulkSetImportant([todo.id], !importantOn)
+    } else {
+      setDraftImportant((v) => !v)
+    }
+  }
+
   const focusOn = isEdit ? todo?.focus === true : draftFocus
   const handleToggleFocus = () => {
     if (isEdit && todo) {
@@ -416,6 +459,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       nextFollowupAt: draftNextFollowup,
       lastFollowupAt: draftLastFollowup,
       recurrenceRule: buildRule(),
+      ...(draftUrgent ? { urgent: true } : {}),
+      ...(draftImportant ? { important: true } : {}),
       ...(draftFocus ? { focus: true } : {}),
     }, {
       personIds: [...pendingPersonIds],
@@ -571,6 +616,27 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             </div>
           )}
           {statuses.length > 0 && <span className={styles.badgeDivider} aria-hidden="true" />}
+          <button
+            type="button"
+            className={`${styles.markerToggle} ${urgentState ? styles.markerToggleUrgentOn : ''}`}
+            aria-pressed={urgentState !== null}
+            onClick={handleToggleUrgent}
+            title={urgentState === 'date'
+              ? `Urgent: due soon\n${urgentReason} Click to make it not urgent.`
+              : urgentState === 'flag' ? 'Remove urgent' : 'Mark urgent'}
+            data-urgent={urgentState ?? undefined}
+          >
+            {urgentState === 'date' ? <UrgentClockIcon /> : <UrgentIcon />} Urgent
+          </button>
+          <button
+            type="button"
+            className={`${styles.markerToggle} ${importantOn ? styles.markerToggleImportantOn : ''}`}
+            aria-pressed={importantOn}
+            onClick={handleToggleImportant}
+            title={importantOn ? 'Remove important' : 'Mark important'}
+          >
+            <ImportantIcon outline={!importantOn} /> Important
+          </button>
           <button
             type="button"
             className={`${styles.markerToggle} ${focusOn ? styles.markerToggleFocusOn : ''}`}

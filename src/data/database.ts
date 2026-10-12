@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 60
+export const CURRENT_DB_VERSION = 61
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -460,10 +460,7 @@ export class Todo2Database extends Dexie {
     // a `Project: <name>` tag on its tasks, folds project filters / grouping
     // / sort / prompts in stored lists into tags, and removes the canvas and
     // project settings.
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `60` first.
-    this.version(CURRENT_DB_VERSION)
+    this.version(60)
       .stores({
         todos: '++id, isCompleted, dueDate, sortOrder, statusId, &uid',
         notes: '++id, modifiedAt',
@@ -474,7 +471,16 @@ export class Todo2Database extends Dexie {
         floatingNotes: null,
         floatingStatus: null,
       })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, 60))
+
+    // v61: the Focus filter folds into the Markers filter. No index change
+    // (`urgent` / `important` task flags aren't indexed); the transform
+    // (`upgrades/v61-focus-filter-to-markers.ts`) rewrites stored list
+    // predicates from `focus` to `markers`.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `61` first.
+    this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
 

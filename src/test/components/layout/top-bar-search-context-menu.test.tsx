@@ -46,6 +46,8 @@ describe('buildSearchContextMenuItems — search context menu', () => {
       'Open',
       'Mark complete',
       'Followed up',
+      'Mark urgent',
+      'Mark important',
       'Add to Focus',
       '--',
       'Delete',
@@ -102,6 +104,22 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     })
     itemByLabel(items, 'Remove from Focus').action()
     expect(bulkSetFocus).toHaveBeenCalledWith([11], false)
+  })
+
+  it('Mark important / Remove important flag just this task', () => {
+    const bulkSetImportant = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetImportant } as never)
+    itemByLabel(buildSearchContextMenuItems({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() }), 'Mark important').action()
+    expect(bulkSetImportant).toHaveBeenCalledWith([9], true)
+    itemByLabel(buildSearchContextMenuItems({ todo: makeTodo({ id: 9, important: true }), onOpen: vi.fn() }), 'Remove important').action()
+    expect(bulkSetImportant).toHaveBeenCalledWith([9], false)
+  })
+
+  it('Mark urgent flags just this task', () => {
+    const bulkSetUrgent = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetUrgent } as never)
+    itemByLabel(buildSearchContextMenuItems({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() }), 'Mark urgent').action()
+    expect(bulkSetUrgent).toHaveBeenCalledWith([9], true)
   })
 
   it('Followed up stamps just this task (search rows are not part of the selection)', () => {

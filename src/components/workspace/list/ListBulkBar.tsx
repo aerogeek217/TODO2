@@ -11,7 +11,11 @@ import { PortalDropdown } from '../../shared/PortalDropdown'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { FollowupFlagIcon } from '../../shared/FollowupIcons'
 import { FollowupPopover } from '../../shared/followup/FollowupPopover'
-import { FocusIcon } from '../../shared/FocusMarker'
+import { FocusIcon, ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
+import { setUrgent } from '../../../services/clear-urgent'
+import { useSettingsStore } from '../../../stores/settings-store'
+import { startOfToday } from '../../../utils/date'
+import { isEffectivelyUrgent } from '../../../utils/urgency'
 import { AtIcon, CheckIcon, CloseIcon, HashIcon, TrashIcon } from '../icons'
 import styles from './ListWidget.module.css'
 
@@ -32,9 +36,11 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
 
 /**
  * The floating bar over a list widget with 2+ rows selected: set due date,
- * set follow-up, assign people, add tag, complete, focus, delete, clear.
- * Focus is tri-state: when only some are in focus, a click puts all of them
- * in; when all are, a click takes all of them out. Each goes
+ * set follow-up, assign people, add tag, complete, urgent, important, focus,
+ * delete, clear. The markers are tri-state: when only some tasks have one, a
+ * click gives it to all of them; when all have it, a click takes it off all
+ * (Urgent counts tasks urgent by due date too, and turning it off asks about
+ * those dates — `services/clear-urgent.ts`). Each goes
  * through the existing bulk paths (`bulkSet*`, `bulkAssign*`,
  * `showBulkConfirmation`).
  */
@@ -58,6 +64,12 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
   const allCompleted = selectedTodos.length > 0 && selectedTodos.every((t) => t.isCompleted)
   const focusedCount = selectedTodos.filter((t) => t.focus === true).length
   const allFocused = selectedTodos.length > 0 && focusedCount === selectedTodos.length
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const today = startOfToday()
+  const urgentCount = selectedTodos.filter((t) => isEffectivelyUrgent(t, today, urgentRange)).length
+  const allUrgent = selectedTodos.length > 0 && urgentCount === selectedTodos.length
+  const importantCount = selectedTodos.filter((t) => t.important === true).length
+  const allImportant = selectedTodos.length > 0 && importantCount === selectedTodos.length
   const sharedPeople = useMemo(() => sharedIds(assignedPeopleMap, ids), [assignedPeopleMap, ids])
   const sharedTags = useMemo(() => sharedIds(assignedTagsMap, ids), [assignedTagsMap, ids])
   // The follow-up popover edits "the selection": it starts empty.
@@ -143,6 +155,26 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
         onClick={() => useUIStore.getState().showBulkConfirmation(allCompleted ? 'uncomplete' : 'complete', list)}
       >
         <CheckIcon />
+      </button>
+      <button
+        type="button"
+        className={`${styles.bulkButton} ${urgentCount > 0 ? styles.bulkButtonUrgent : ''}`}
+        title={allUrgent ? 'Remove urgent' : urgentCount > 0 ? `Mark urgent (${urgentCount} of ${selectedTodos.length} urgent)` : 'Mark urgent'}
+        aria-label={allUrgent ? 'Remove urgent' : 'Mark urgent'}
+        aria-pressed={allUrgent ? true : urgentCount > 0 ? 'mixed' : false}
+        onClick={() => { void setUrgent(list, !allUrgent) }}
+      >
+        <UrgentIcon />
+      </button>
+      <button
+        type="button"
+        className={`${styles.bulkButton} ${importantCount > 0 ? styles.bulkButtonImportant : ''}`}
+        title={allImportant ? 'Remove important' : importantCount > 0 ? `Mark important (${importantCount} of ${selectedTodos.length} important)` : 'Mark important'}
+        aria-label={allImportant ? 'Remove important' : 'Mark important'}
+        aria-pressed={allImportant ? true : importantCount > 0 ? 'mixed' : false}
+        onClick={() => { void useTodoStore.getState().bulkSetImportant(list, !allImportant) }}
+      >
+        <ImportantIcon />
       </button>
       <button
         type="button"

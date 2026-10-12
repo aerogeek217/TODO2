@@ -188,7 +188,7 @@ describe('dev seed → prepareImport → restore', () => {
     expect(todos.filter((t) => t.focus).map((t) => t.id).sort((a, b) => a - b)).toEqual([...boardIds].sort((a, b) => a - b))
     const focus = (await db.listDefinitions.toArray()).find((l) => l.name === 'Focus')!
     expect(focus).toMatchObject({ sort: 'manual', grouping: 'none' })
-    expect(focus.membership.predicate.focus).toBe(true)
+    expect(focus.membership.predicate.markers).toEqual({ focus: true })
     const ranks = (await db.listOrders.where('listDefinitionId').equals(focus.id!).toArray()).sort((a, b) => a.rank - b.rank)
     expect(ranks.map((r) => r.todoId)).toEqual(boardIds)
     // The rail taskboard tab shows the Focus list now.

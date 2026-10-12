@@ -46,7 +46,7 @@ export function useTaskEditCallbacks() {
         resolved.dueDate !== undefined || resolved.recurrence ||
         resolved.statusId !== undefined ||
         partial.recurrenceRule ||
-        partial.focus
+        partial.focus || partial.urgent || partial.important
       if (hasMeta) {
         const nextDeadline = partial.dueDate ?? resolved.dueDate ?? todo.dueDate
         await updateTodo({
@@ -58,6 +58,8 @@ export function useTaskEditCallbacks() {
           nextFollowupAt: 'nextFollowupAt' in partial ? partial.nextFollowupAt : todo.nextFollowupAt,
           lastFollowupAt: partial.lastFollowupAt ?? todo.lastFollowupAt,
           focus: partial.focus ?? todo.focus,
+          urgent: partial.urgent ?? todo.urgent,
+          important: partial.important ?? todo.important,
           recurrenceRule: partial.recurrenceRule
             ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
         })

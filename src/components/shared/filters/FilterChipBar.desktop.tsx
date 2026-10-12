@@ -5,7 +5,8 @@ import { toggleItem } from '../../../utils/filter'
 import { clearChipField, filterChips, type FilterChipField } from '../../../utils/filter-chips'
 import type { TodoPredicate } from '../../../models'
 import topBar from '../../layout/TopBar.module.css'
-import { FocusIcon } from '../FocusMarker'
+import { ImportantIcon } from '../MarkerIcons'
+import { hasMarkers } from '../../../utils/markers'
 import {
   AtIcon,
   CheckIcon,
@@ -16,7 +17,7 @@ import {
   StatusRingIcon,
   WidgetKindIcon,
 } from '../../workspace/icons'
-import { DateRangePanelBody, EntityDropdownItems, FocusPanelBody, SelectionPanelBody } from './FilterPanels'
+import { DateRangePanelBody, EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import {
   useFilterChipBarState,
   type EntityKey,
@@ -24,7 +25,7 @@ import {
 } from './FilterChipBar.shared'
 import styles from './ScreenFilters.module.css'
 
-type FieldKey = Extract<FilterChipField, 'people' | 'tags' | 'dates' | 'status' | 'focus'>
+type FieldKey = Extract<FilterChipField, 'people' | 'tags' | 'dates' | 'status' | 'markers'>
 
 type FieldPanel =
   | {
@@ -37,7 +38,7 @@ type FieldPanel =
     }
   | { kind: 'custom'; render: (close: () => void) => ReactNode }
 
-/** One screen filter (People, Tags, Dates, Status, Focus) as the bar and the Filters menu show it. */
+/** One screen filter (People, Tags, Dates, Status, Markers) as the bar and the Filters menu show it. */
 interface FieldDef {
   key: FieldKey
   label: string
@@ -260,7 +261,7 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
       switch (chip.field) {
         case 'people':
         case 'status':
-        case 'focus':
+        case 'markers':
           out[chip.field] = chip.value
           break
         case 'tags':
@@ -276,7 +277,7 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
 }
 
 /**
- * The top bar's screen filters: People, Tags, Dates, Status and Focus
+ * The top bar's screen filters: People, Tags, Dates, Status and Markers
  * buttons (folded into one Filters menu when `fold` is set), then Show
  * completed and Clear all. The pickers are the shared `FilterPanels`.
  */
@@ -447,15 +448,16 @@ export function FilterChipBarDesktop({
     })
   }
   fields.push({
-    key: 'focus',
-    label: 'Focus',
-    icon: <FocusIcon />,
-    highlighted: (p.focus ?? null) !== null,
-    value: values.focus ?? null,
-    onClear: () => clearField('focus'),
+    key: 'markers',
+    label: 'Markers',
+    icon: <ImportantIcon outline />,
+    highlighted: hasMarkers(p.markers),
+    value: values.markers ?? null,
+    onClear: () => clearField('markers'),
     panel: {
       kind: 'custom',
-      render: (close) => <FocusPanelBody value={p.focus ?? null} onChange={(focus) => { update({ focus }); close() }} />,
+      // Several markers can be ticked, so picking one keeps the picker open.
+      render: () => <MarkersPanelBody value={p.markers ?? null} onChange={(markers) => update({ markers })} />,
     },
   })
 

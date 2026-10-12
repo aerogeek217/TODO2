@@ -181,6 +181,7 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   label: string,
   get: () => { todos: PersistedTodoItem[] },
   set: SetFn,
+  opts: { showSnackbar?: boolean } = {},
 ): Promise<void> {
   const prevValues = get().todos
     .filter((t) => ids.includes(t.id))
@@ -210,7 +211,7 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
     label,
     {
       description: label,
-      redo: () => bulkUpdateField(ids, field, value, label, get, set),
+      redo: () => bulkUpdateField(ids, field, value, label, get, set, opts),
       undo: async () => {
         const mutations = prevValues
           .filter((s) => s.prev !== value)
@@ -226,6 +227,7 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
           })
         }
       },
+      showSnackbar: opts.showSnackbar,
     },
   )
 }

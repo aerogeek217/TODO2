@@ -46,6 +46,21 @@ export type DateAnchor =
   | { kind: 'relative'; token: RelativeDateToken }
   | { kind: 'offset'; days: number }
 
+/** A task marker the Markers filter can require. */
+export type MarkerKey = 'urgent' | 'important' | 'focus'
+
+/** Markers in display order (Urgent › Important › Focus). */
+export const MARKER_KEYS: readonly MarkerKey[] = ['urgent', 'important', 'focus']
+
+/**
+ * The Markers filter: a task must have **every** listed marker (strict AND).
+ * `urgent` means effective urgent — flagged, or due within the Settings range
+ * (`utils/urgency.ts`). Only `true` values are stored; an empty object is no
+ * filter. (A string form, e.g. a derived `'hot'`, can join this union
+ * without rewriting stored predicates.)
+ */
+export type MarkersFilter = { [K in MarkerKey]?: true }
+
 /**
  * Serializable predicate describing the live filter fields. Intentionally does
  * NOT include @deprecated legacy keys (`priorities`, `completedFilter`, etc.)
@@ -77,11 +92,10 @@ export interface TodoPredicate {
    */
   hasFollowup?: boolean | null
   /**
-   * Tri-state filter on `TodoItem.focus`: `true` = only tasks in focus,
-   * `false` = only tasks not in focus, null = no filter. Optional on read
-   * (predicates stored before the field existed read as `null`).
+   * Markers filter (Urgent / Important / Focus, strict AND); null or absent
+   * = no filter. Optional on read.
    */
-  focus?: boolean | null
+  markers?: MarkersFilter | null
   /**
    * null = no filter; array of tag ids (into the `tags` registry) with OR
    * semantics (todo must have at least one assigned tag in the set). A todo

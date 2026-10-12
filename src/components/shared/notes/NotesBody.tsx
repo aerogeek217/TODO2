@@ -8,7 +8,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import type { PersistedTodoItem } from '../../../models'
 import { formatShortcut } from '../../../utils/platform'
-import { getFilterDefaults, supplementWithFilterDefaults } from '../../../utils/filter-defaults'
+import { getFilterDefaults, markerFlags, seedsMarkers, supplementWithFilterDefaults } from '../../../utils/filter-defaults'
 import { parseTaskInput, applyNlpMetadata } from '../../../services/nlp-task-creator'
 import { copyNotesRich } from '../../../services/notes-export'
 import { NotesEditor } from './NotesEditor'
@@ -131,9 +131,9 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
         if (todo) await updateTodo({ ...todo, statusId: fd.statusId })
       }
-      if (fd.focus) {
+      if (seedsMarkers(fd)) {
         const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
-        if (todo) await updateTodo({ ...todo, focus: true })
+        if (todo) await updateTodo({ ...todo, ...markerFlags(fd) })
       }
     } catch {
       // Task was created; metadata failure is non-fatal for the user flow.

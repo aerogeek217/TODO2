@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
 import {
   composeScreenFilter,
@@ -10,6 +10,7 @@ import {
 import { emptyPredicate } from '../../stores/list-definition-store'
 import type { TodoNameLookups } from '../../utils/filter'
 import { makeTodo } from '../helpers'
+import { useSettingsStore } from '../../stores/settings-store'
 
 // The screen (top-bar) filter composed with a list's own filter: narrowing
 // clauses AND strictly (even on the same field); showCompleted ORs.
@@ -30,9 +31,9 @@ const waiting: Status = { id: 2, name: 'Waiting', color: '#aa0', sortOrder: 1 }
  */
 const todos: PersistedTodoItem[] = [
   makeTodo({ id: 1, title: 'Alice only', statusId: 1, dueDate: day(10, 10) }),
-  makeTodo({ id: 2, title: 'Bob only', statusId: 2, dueDate: day(10, 20), nextFollowupAt: day(10, 16), focus: true }),
+  makeTodo({ id: 2, title: 'Bob only', statusId: 2, dueDate: day(10, 20), nextFollowupAt: day(10, 16), focus: true, urgent: true }),
   makeTodo({ id: 3, title: 'Alice and Bob', statusId: 1, dueDate: day(10, 15), focus: true }),
-  makeTodo({ id: 4, title: 'Nobody', nextFollowupAt: day(10, 30) }),
+  makeTodo({ id: 4, title: 'Nobody', nextFollowupAt: day(10, 30), important: true }),
   makeTodo({ id: 5, title: 'Alice done', isCompleted: true, statusId: 1, dueDate: day(10, 12) }),
   makeTodo({ id: 6, title: 'Nobody done', isCompleted: true }),
 ]
@@ -66,7 +67,7 @@ function evaluatorIds(screen: FilterCriteria, list: FilterCriteria): number[] {
     dateRangeIncludeNoDate: list.dateRangeIncludeNoDate,
     hasDeadline: list.hasDeadline,
     hasFollowup: list.hasFollowup,
-    focus: list.focus,
+    markers: list.markers,
   }
   return todos.filter((t) => evaluate(predicate, t)).map((t) => t.id)
 }
@@ -101,11 +102,17 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
   },
   { name: 'has due date', a: { hasDeadline: true }, b: { hasDeadline: false }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
   { name: 'has follow-up', a: { hasFollowup: true }, b: { hasDeadline: true }, onlyA: [2, 4], onlyB: [1, 2, 3], both: [2] },
-  { name: 'focus', a: { focus: true }, b: { focus: false }, onlyA: [2, 3], onlyB: [1, 4], both: [] },
-  { name: 'focus with people', a: { focus: true }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
+  { name: 'markers', a: { markers: { focus: true } }, b: { markers: { important: true } }, onlyA: [2, 3], onlyB: [4], both: [] },
+  // Urgent = flagged (2) or due within 3 days, overdue included (1, 3).
+  { name: 'urgent marker with focus', a: { markers: { urgent: true } }, b: { markers: { focus: true } }, onlyA: [1, 2, 3], onlyB: [2, 3], both: [2, 3] },
+  { name: 'markers with people', a: { markers: { focus: true } }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
 ]
 
 describe('composeScreenFilter', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
+  })
+
   it('ORs showCompleted into both stages and leaves the other clauses alone', () => {
     const screen = crit({ personIds: new Set([1]) })
     const list = crit({ showCompleted: true, tags: new Set([2]) })

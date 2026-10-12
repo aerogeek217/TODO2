@@ -138,6 +138,8 @@
   --color-header-bg: #1f2120;
 
   /* Task markers (shown before the title when set). */
+  --color-marker-urgent: var(--color-danger);
+  --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
 
   /* Accent */
@@ -146,6 +148,8 @@
 
   /* Danger / warning accents */
   --color-danger: #ee7d77;
+  /* Danger ghost hover, Urgent toggle on. */
+  --color-danger-bg: rgba(238, 125, 119, 0.12);
   --color-warning: #f5a623;
   --color-followup: #f5c842;
   /* Follow-up pill fills: base, strong (today / overdue / hovered ×), and the
@@ -272,6 +276,8 @@
   --color-header-bg: #f7fbfa;
 
   /* Task markers (shown before the title when set). */
+  --color-marker-urgent: var(--color-danger);
+  --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
 
   /* Accent — deepened for contrast on light backgrounds */
@@ -280,6 +286,7 @@
 
   /* Danger / warning — deepened for readability */
   --color-danger: #d94a43;
+  --color-danger-bg: rgba(196, 60, 53, 0.10);
   --color-warning: #d08a12;
   --color-followup: #826600;
   --color-followup-bg: rgba(245, 200, 66, 0.24);

@@ -388,6 +388,14 @@
   color: var(--color-marker-focus);
 }
 
+.bulkButtonUrgent {
+  color: var(--color-marker-urgent);
+}
+
+.bulkButtonImportant {
+  color: var(--color-marker-important);
+}
+
 .bulkDanger {
   color: var(--color-danger);
 }

@@ -1,6 +1,7 @@
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { TodoPredicate } from '../models'
 import type { DateAnchor } from '../models/filter-predicate'
+import { markersEqual } from './markers'
 
 function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null | undefined): boolean {
   if (a == null && b == null) return true
@@ -29,7 +30,7 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
     a.dateRangeIncludeNoDate === b.dateRangeIncludeNoDate &&
     a.hasDeadline === b.hasDeadline &&
     (a.hasFollowup ?? null) === (b.hasFollowup ?? null) &&
-    (a.focus ?? null) === (b.focus ?? null) &&
+    markersEqual(a.markers, b.markers) &&
     idArraysEqualAsSet(a.personIds, b.personIds) &&
     idArraysEqualAsSet(a.statusIds, b.statusIds) &&
     idArraysEqualAsSet(a.tags, b.tags) &&

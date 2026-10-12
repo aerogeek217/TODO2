@@ -11,6 +11,12 @@ import {
   parseFollowupInterval,
   type FollowupInterval,
 } from '../utils/followup'
+import {
+  DEFAULT_URGENT_DUE_WITHIN_DAYS,
+  formatUrgentDueWithinDays,
+  parseUrgentDueWithinDays,
+  type UrgentDueWithinDays,
+} from '../utils/urgency'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -35,6 +41,8 @@ interface SettingsState {
   maxTags: number
   /** Next follow-up for new tasks and after "Followed up" = today + this. */
   followupDefaultInterval: FollowupInterval
+  /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
+  urgentDueWithinDays: UrgentDueWithinDays
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
@@ -46,6 +54,7 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
+  setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -180,6 +189,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   weekStartsOn: 1 as WeekStart,
   maxTags: DEFAULT_MAX_TAGS,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
+  urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
 
   async load() {
     try {
@@ -197,6 +207,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let weekStartsOn: WeekStart = 1
       let maxTags: number = DEFAULT_MAX_TAGS
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
+      let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const rest = row.key.slice('color.'.length)
@@ -227,10 +238,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
         } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
+        } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
+          const parsed = parseUrgentDueWithinDays(row.value)
+          urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval, urgentDueWithinDays })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -318,5 +332,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (!parseFollowupInterval(value)) return
     await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
     set({ followupDefaultInterval: { ...interval } })
+  },
+
+  async setUrgentDueWithinDays(range: UrgentDueWithinDays) {
+    const value = formatUrgentDueWithinDays(range)
+    if (parseUrgentDueWithinDays(value) === undefined) return
+    await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
+    set({ urgentDueWithinDays: range })
   },
 }))

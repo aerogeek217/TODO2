@@ -43,6 +43,12 @@ interface TodoState {
   bulkSetFollowup: (ids: number[], date: Date | null) => Promise<void>
   /** Puts every task in `ids` in focus (`on`) or takes it out. One undo step. */
   bulkSetFocus: (ids: number[], on: boolean) => Promise<void>
+  /** Flags every task in `ids` urgent (`on`) or clears the flag. One undo step. */
+  bulkSetUrgent: (ids: number[], on: boolean) => Promise<void>
+  /** Flags every task in `ids` important (`on`) or clears the flag. One undo step. */
+  bulkSetImportant: (ids: number[], on: boolean) => Promise<void>
+  /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
+  bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
    * "Followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
    * Settings default interval`, on every task in `ids`. One undo step with
@@ -373,6 +379,26 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'focus', on ? true : undefined, label, get, set)
   },
 
+  async bulkSetUrgent(ids: number[], on: boolean) {
+    if (ids.length === 0) return
+    const what = ids.length === 1 ? 'task' : `${ids.length} tasks`
+    const label = on ? `Flag ${what} urgent` : `Clear urgent on ${what}`
+    await bulkUpdateField(ids, 'urgent', on ? true : undefined, label, get, set)
+  },
+
+  async bulkSetImportant(ids: number[], on: boolean) {
+    if (ids.length === 0) return
+    const what = ids.length === 1 ? 'task' : `${ids.length} tasks`
+    const label = on ? `Flag ${what} important` : `Clear important on ${what}`
+    await bulkUpdateField(ids, 'important', on ? true : undefined, label, get, set)
+  },
+
+  async bulkClearDueDate(ids: number[]) {
+    if (ids.length === 0) return
+    const label = ids.length === 1 ? 'Removed the due date' : `Removed ${ids.length} due dates`
+    await bulkUpdateField(ids, 'dueDate', undefined, label, get, set, { showSnackbar: true })
+  },
+
   async markFollowedUp(ids: number[]) {
     const targets = get().todos.filter((t) => ids.includes(t.id))
     if (targets.length === 0) return
@@ -498,6 +524,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         progress: todo.progress,
         statusId: todo.statusId,
         recurrenceRule: todo.recurrenceRule,
+        ...(todo.urgent === true ? { urgent: true } : {}),
+        ...(todo.important === true ? { important: true } : {}),
       })
       const newTodo = await todoRepository.getById(newId)
       if (newTodo) {

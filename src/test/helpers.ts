@@ -92,6 +92,14 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
+ * Store specs of the v60 schema: the current specs (v61 changed no store).
+ * Update when a later version changes a store spec.
+ */
+export function v60StoreSpecs(): Record<string, string> {
+  return currentStoreSpecs()
+}
+
+/**
  * Store specs of the v59 schema: the current specs plus the project / canvas /
  * floating-widget stores v60 dropped, and the `projectId` / `canvasId`
  * indexes it removed. Update when a later version changes a store spec (add
@@ -99,7 +107,7 @@ function currentStoreSpecs(): Record<string, string> {
  */
 export function v59StoreSpecs(): Record<string, string> {
   return {
-    ...currentStoreSpecs(),
+    ...v60StoreSpecs(),
     todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId, &uid',
     notes: '++id, modifiedAt, canvasId',
     projects: '++id, canvasId, sortOrder',

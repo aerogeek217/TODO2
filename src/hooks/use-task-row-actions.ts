@@ -2,9 +2,21 @@ import { useCallback } from 'react'
 import type { PersistedTodoItem } from '../models'
 import { useBulkActions } from './use-bulk-actions'
 import type { ContextMenuItem } from '../models/context-menu'
+import { useSettingsStore } from '../stores/settings-store'
+import { startOfToday } from '../utils/date'
+import { isEffectivelyUrgent } from '../utils/urgency'
 
 interface BuildMenuItemsOpts {
   todo: PersistedTodoItem
+  /**
+   * Whether the task counts as urgent (flagged, or due within the Settings
+   * range): the Urgent item then turns Urgent off.
+   */
+  urgentOn: boolean
+  /** Turns Urgent on (flag) / off (may ask about the due date), per `urgentOn`. */
+  onToggleUrgent: () => void
+  /** Flags the task (or the selection) important / clears it, per `todo.important`. */
+  onToggleImportant: () => void
   /** Adds the task (or the selection) to Focus / removes it, per `todo.focus`. */
   onToggleFocus: () => void
   onOpenDetail?: (todoId: number) => void
@@ -23,7 +35,7 @@ interface BuildMenuItemsOpts {
  * tests cover the menu shape without mounting a row.
  */
 export function buildTaskRowMenuItems({
-  todo, onToggleFocus,
+  todo, urgentOn, onToggleUrgent, onToggleImportant, onToggleFocus,
   onOpenDetail, onSetFollowup, onFollowedUp,
   onComplete, onDelete,
 }: BuildMenuItemsOpts): ContextMenuItem[] {
@@ -44,6 +56,14 @@ export function buildTaskRowMenuItems({
       label: 'Followed up',
       action: onFollowedUp,
     }] : []),
+    {
+      label: urgentOn ? 'Remove urgent' : 'Mark urgent',
+      action: onToggleUrgent,
+    },
+    {
+      label: todo.important ? 'Remove important' : 'Mark important',
+      action: onToggleImportant,
+    },
     {
       label: todo.focus ? 'Remove from Focus' : 'Add to Focus',
       action: onToggleFocus,
@@ -73,10 +93,20 @@ interface UseTaskRowActionsOpts {
  */
 export function useTaskRowActions({ todo }: UseTaskRowActionsOpts) {
   const bulk = useBulkActions()
+  const range = useSettingsStore((s) => s.urgentDueWithinDays)
+  const urgentOn = isEffectivelyUrgent(todo, startOfToday(), range)
 
   const handleToggleComplete = useCallback(() => {
     bulk.toggleComplete(todo.id)
   }, [bulk, todo.id])
+
+  const handleToggleUrgent = useCallback(() => {
+    bulk.setUrgent(todo.id, !urgentOn)
+  }, [bulk, todo.id, urgentOn])
+
+  const handleToggleImportant = useCallback(() => {
+    bulk.setImportant(todo.id, todo.important !== true)
+  }, [bulk, todo.id, todo.important])
 
   const handleToggleFocus = useCallback(() => {
     bulk.setFocus(todo.id, todo.focus !== true)
@@ -86,5 +116,8 @@ export function useTaskRowActions({ todo }: UseTaskRowActionsOpts) {
     bulk.remove(todo.id)
   }, [bulk, todo.id])
 
-  return { bulk, handleToggleComplete, handleToggleFocus, handleDelete }
+  return {
+    bulk, urgentOn,
+    handleToggleComplete, handleToggleUrgent, handleToggleImportant, handleToggleFocus, handleDelete,
+  }
 }

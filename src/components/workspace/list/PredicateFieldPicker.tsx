@@ -8,7 +8,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { toggleItem } from '../../../utils/filter'
-import { EntityDropdownItems, DateRangePanelBody, FocusPanelBody, SelectionPanelBody } from '../../shared/filters/FilterPanels'
+import { EntityDropdownItems, DateRangePanelBody, MarkersPanelBody, SelectionPanelBody } from '../../shared/filters/FilterPanels'
 import { DEFAULT_PREDICATE } from '../../shared/filters/FilterChipBar.shared'
 import topBar from '../../layout/TopBar.module.css'
 import styles from './ListWidget.module.css'
@@ -74,8 +74,9 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
         <DatesPicker predicate={predicate} presetField={adding ? dateField : undefined} update={update} onClose={onClose} />
       ) : field === 'text' ? (
         <TextPicker predicate={predicate} update={update} onClose={onClose} />
-      ) : field === 'focus' ? (
-        <FocusPanelBody value={predicate.focus ?? null} onChange={(focus) => { update({ focus }); onClose() }} />
+      ) : field === 'markers' ? (
+        // Several markers can be ticked, so picking one keeps the picker open.
+        <MarkersPanelBody value={predicate.markers ?? null} onChange={(markers) => update({ markers })} />
       ) : (
         <EntityPicker field={field} predicate={predicate} adding={adding} update={update} onClose={onClose} />
       )}
@@ -88,7 +89,7 @@ const PICKER_TITLE: Record<ListFilterField, string> = {
   people: 'People',
   tags: 'Tags',
   status: 'Status',
-  focus: 'Focus',
+  markers: 'Markers',
   dates: 'Date',
   text: 'Text',
 }

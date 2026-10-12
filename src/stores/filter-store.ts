@@ -1,10 +1,11 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Status, Tag, DateField, TodoPredicate, DateAnchor } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Status, Tag, DateField, TodoPredicate, DateAnchor, MarkersFilter } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
 import { resolveDateAnchor } from '../utils/effective-date'
 import { useSettingsStore } from './settings-store'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from '../utils/filter'
+import { activeMarkers, hasMarkers, matchesMarkers } from '../utils/markers'
 
 export type { DateField }
 
@@ -47,8 +48,11 @@ export interface FilterCriteria {
   hasDeadline: boolean | null
   /** Tri-state presence filter on `nextFollowupAt`. null = no filter. */
   hasFollowup: boolean | null
-  /** Tri-state filter on `TodoItem.focus` (true = in focus only). null = no filter. */
-  focus: boolean | null
+  /**
+   * Markers filter: the task must have every listed marker (Urgent = effective
+   * urgent, `utils/urgency.ts`). null = no filter.
+   */
+  markers: MarkersFilter | null
   /**
    * null = no filter; Set of tag ids (into the `tags` registry) — todo must
    * have at least one assigned tag in the set (OR semantics). An empty Set
@@ -74,7 +78,7 @@ interface FilterState {
   setDateRangeIncludeNoDate: (include: boolean) => void
   setHasDeadline: (value: boolean | null) => void
   setHasFollowup: (value: boolean | null) => void
-  setFocus: (value: boolean | null) => void
+  setMarkers: (value: MarkersFilter | null) => void
   setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
@@ -91,13 +95,13 @@ const defaultFilters: FilterCriteria = {
   dateRangeIncludeNoDate: false,
   hasDeadline: null,
   hasFollowup: null,
-  focus: null,
+  markers: null,
   tags: null,
 }
 
 /**
  * Number of active screen filters, one per control: people, status,
- * tags, dates (range or due / follow-up presence), focus, show completed,
+ * tags, dates (range or due / follow-up presence), markers, show completed,
  * search.
  */
 export function countActiveFilters(f: FilterCriteria): number {
@@ -107,7 +111,7 @@ export function countActiveFilters(f: FilterCriteria): number {
     f.statusIds !== null,
     f.tags !== null,
     dates,
-    f.focus != null,
+    hasMarkers(f.markers),
     f.showCompleted,
     f.searchText !== '',
   ].filter(Boolean).length
@@ -159,8 +163,8 @@ export function matchesFilter(
     const has = todo.nextFollowupAt != null
     if (has !== filters.hasFollowup) return false
   }
-  if (filters.focus != null) {
-    if ((todo.focus === true) !== filters.focus) return false
+  if (filters.markers != null && !matchesMarkers(todo, filters.markers, today, useSettingsStore.getState().urgentDueWithinDays)) {
+    return false
   }
   if (filters.tags !== null) {
     const ids = assignedTagIds ?? []
@@ -267,7 +271,7 @@ export function createPredicateEvaluator(
  * The screen (top-bar) filter composed with a list's own filter, as the two
  * stages a task must both pass:
  *
- * - Narrowing clauses (people, status, tags, focus, search, dates) AND
+ * - Narrowing clauses (people, status, tags, markers, search, dates) AND
  *   together — strictly, even on the same field: screen `@Alice` + list
  *   `@Bob` keeps only tasks assigned to both.
  * - `showCompleted` ORs: completed tasks show when either side shows them.
@@ -327,7 +331,7 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
     hasDeadline: f.hasDeadline,
     hasFollowup: f.hasFollowup,
-    focus: f.focus,
+    markers: normalizeMarkers(f.markers),
     tags: f.tags ? Array.from(f.tags) : null,
   }
 }
@@ -345,9 +349,18 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     dateRangeIncludeNoDate: p.dateRangeIncludeNoDate,
     hasDeadline: p.hasDeadline ?? null,
     hasFollowup: p.hasFollowup ?? null,
-    focus: p.focus ?? null,
+    markers: normalizeMarkers(p.markers),
     tags: p.tags ? new Set(p.tags) : null,
   }
+}
+
+/** A copy of the required markers, or null when none is ticked. */
+function normalizeMarkers(m: MarkersFilter | null | undefined): MarkersFilter | null {
+  const keys = activeMarkers(m)
+  if (keys.length === 0) return null
+  const out: MarkersFilter = {}
+  for (const k of keys) out[k] = true
+  return out
 }
 
 function commit(set: (s: Partial<FilterState>) => void, filters: FilterCriteria) {
@@ -402,8 +415,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...get().filters, hasFollowup })
   },
 
-  setFocus(focus: boolean | null) {
-    commit(set, { ...get().filters, focus })
+  setMarkers(markers: MarkersFilter | null) {
+    commit(set, { ...get().filters, markers: normalizeMarkers(markers) })
   },
 
   setTags(tags: Set<number> | null) {

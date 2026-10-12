@@ -3,6 +3,7 @@ import type { TodoPredicate } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
+import { hasMarkers } from '../../../utils/markers'
 
 export type FilterChipDensity = 'desktop' | 'mobile'
 
@@ -43,7 +44,7 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   dateRangeIncludeNoDate: false,
   hasDeadline: null,
   hasFollowup: null,
-  focus: null,
+  markers: null,
   tags: null,
 }
 
@@ -59,7 +60,7 @@ export function hasAnyFilter(p: TodoPredicate): boolean {
     p.dateRangeEnd !== null ||
     p.hasDeadline !== null ||
     (p.hasFollowup ?? null) !== null ||
-    (p.focus ?? null) !== null ||
+    hasMarkers(p.markers) ||
     (p.tags ?? null) !== null
   )
 }

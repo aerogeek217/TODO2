@@ -66,14 +66,17 @@ describe('filterChips', () => {
     ])
   })
 
-  it('a focus clause reads In focus / Not in focus, after status and before text', () => {
-    expect(filterChips({ ...emptyPredicate(), focus: true }, names)).toEqual([
-      { field: 'focus', label: 'Focus', value: 'In focus' },
+  it('a Markers clause reads the first marker (+N), after status and before text', () => {
+    expect(filterChips({ ...emptyPredicate(), markers: { focus: true } }, names)).toEqual([
+      { field: 'markers', label: 'Markers', value: 'Focus' },
     ])
-    expect(filterChips({ ...emptyPredicate(), focus: false, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
-      .toEqual(['status', 'focus', 'text'])
-    expect(filterChips({ ...emptyPredicate(), focus: false }, names)[0]!.value).toBe('Not in focus')
-    expect(hasNarrowingFilters({ ...emptyPredicate(), focus: false })).toBe(true)
+    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true }, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
+      .toEqual(['status', 'markers', 'text'])
+    // Display order is Urgent › Important › Focus, whatever the stored order.
+    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Urgent +1')
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: true } })).toBe(true)
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: {} })).toBe(false)
+    expect(filterChips({ ...emptyPredicate(), markers: {} }, names)).toEqual([])
   })
 
   it('describeFilters joins chips in words', () => {
@@ -105,13 +108,13 @@ describe('clearChipField', () => {
     const p = {
       ...emptyPredicate(),
       personIds: [1], tags: [2], statusIds: [1], searchText: 'x',
-      dateRangeStart: { kind: 'offset' as const, days: 0 }, dateRangeIncludeNoDate: true, hasDeadline: true, hasFollowup: false, focus: true,
+      dateRangeStart: { kind: 'offset' as const, days: 0 }, dateRangeIncludeNoDate: true, hasDeadline: true, hasFollowup: false, markers: { urgent: true as const },
     }
     expect(clearChipField(p, 'people').personIds).toBeNull()
     expect(clearChipField(p, 'tags').tags).toBeNull()
     expect(clearChipField(p, 'status').statusIds).toBeNull()
     expect(clearChipField(p, 'text').searchText).toBe('')
-    expect(clearChipField(p, 'focus')).toMatchObject({ focus: null, personIds: [1] })
+    expect(clearChipField(p, 'markers')).toMatchObject({ markers: null, personIds: [1] })
     const dates = clearChipField(p, 'dates')
     expect(dates).toMatchObject({ dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null, hasFollowup: null, personIds: [1] })
   })

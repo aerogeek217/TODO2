@@ -41,6 +41,14 @@ export interface TodoItem {
    * them. Absent = not in focus.
    */
   focus?: boolean
+  /**
+   * Flagged urgent (red exclamation). Only `true` is stored. A task also
+   * counts as urgent when its due date is within the Settings range
+   * (`utils/urgency.ts` `isEffectivelyUrgent`) — that never sets this flag.
+   */
+  urgent?: boolean
+  /** Flagged important (yellow star). Only `true` is stored. */
+  important?: boolean
   createdAt: Date
   modifiedAt: Date
   statusId?: number

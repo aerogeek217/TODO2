@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react'
-import type { DateAnchor } from '../../../models'
+import { MARKER_KEYS, type DateAnchor, type MarkersFilter } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import { fixedAnchor } from '../../../stores/filter-store'
 import { startOfToday } from '../../../utils/date'
@@ -8,6 +8,9 @@ import { DateAnchorInput } from '../DateAnchorInput'
 import { StatusIcon } from '../StatusIcon'
 import topBar from '../../layout/TopBar.module.css'
 import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
+import { MarkerIcon } from '../MarkerIcons'
+import { MARKER_COLOR, MARKER_LABELS, toggleMarker } from '../../../utils/markers'
+import markerStyles from './MarkersPanel.module.css'
 
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
@@ -265,31 +268,40 @@ export function DateRangePanelBody({
   )
 }
 
-const FOCUS_OPTIONS: ReadonlyArray<{ value: boolean | null; label: string }> = [
-  { value: null, label: 'Any task' },
-  { value: true, label: 'In focus' },
-  { value: false, label: 'Not in focus' },
-]
-
-/** The focus filter: any task / only tasks in focus / only tasks not in focus. */
-export function FocusPanelBody({ value, onChange }: {
-  value: boolean | null
-  onChange: (v: boolean | null) => void
+/**
+ * The Markers filter: Urgent / Important / Focus checkboxes; a task must have
+ * every ticked marker (strict AND). Ticking keeps the picker open.
+ */
+export function MarkersPanelBody({ value, onChange }: {
+  value: MarkersFilter | null
+  onChange: (v: MarkersFilter | null) => void
 }) {
   return (
-    <div role="radiogroup" aria-label="Focus">
-      {FOCUS_OPTIONS.map((opt) => (
-        <label
-          key={String(opt.value)}
-          className={topBar.dropdownItem}
-          role="radio"
-          aria-checked={value === opt.value}
-          onClick={() => onChange(opt.value)}
-        >
-          <span className={`${topBar.check} ${value === opt.value ? topBar.checked : ''}`} />
-          {opt.label}
-        </label>
-      ))}
+    <div className={markerStyles.panel} role="group" aria-label="Markers">
+      {MARKER_KEYS.map((key) => {
+        const on = value?.[key] === true
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`${topBar.dropdownItem} ${markerStyles.row} ${on ? markerStyles.rowOn : ''}`}
+            role="checkbox"
+            aria-checked={on}
+            onClick={() => onChange(toggleMarker(value, key))}
+          >
+            <span className={markerStyles.glyph} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
+            <span className={markerStyles.label}>{MARKER_LABELS[key]}</span>
+            {on && (
+              <svg className={markerStyles.tick} width="12" height="12" viewBox="0 0 16 16" aria-hidden>
+                <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        )
+      })}
+      <p className={markerStyles.note}>
+        Tasks must have every ticked marker (strict AND). Urgent includes urgent by due date.
+      </p>
     </div>
   )
 }

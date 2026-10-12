@@ -3,12 +3,15 @@ import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo, makePerson, resetEntityStores } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
   remove: vi.fn(),
   setFocus: vi.fn(),
+  setUrgent: vi.fn(),
+  setImportant: vi.fn(),
   setDeadline: vi.fn(),
   setStatus: vi.fn(),
   quickAssignPerson: vi.fn(),
@@ -129,6 +132,69 @@ describe('TaskRow', () => {
       fireEvent.contextMenu(getRow())
       fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Focus' }))
       expect(mockBulk.setFocus).toHaveBeenCalledWith(3, false)
+    })
+  })
+
+  describe('urgent / important menu items', () => {
+    beforeEach(() => {
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
+      mockBulk.setUrgent.mockClear()
+      mockBulk.setImportant.mockClear()
+    })
+
+    it('Mark urgent / Mark important flag the row task (or its selection)', () => {
+      render(<TaskRow todo={makeTodo({ id: 3 })} />)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark urgent' }))
+      expect(mockBulk.setUrgent).toHaveBeenCalledWith(3, true)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark important' }))
+      expect(mockBulk.setImportant).toHaveBeenCalledWith(3, true)
+    })
+
+    it('a task urgent only by its due date offers Remove urgent (which may ask about the date)', () => {
+      render(<TaskRow todo={makeTodo({ id: 4, dueDate: new Date(2026, 3, 18) })} />)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Remove urgent' }))
+      expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, false)
+    })
+  })
+
+  describe('markers', () => {
+    beforeEach(() => {
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
+    })
+
+    it('shows Urgent › Important › Focus before the title, each only when set', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
+      const names = screen.getByTestId('task-markers').querySelectorAll('[role="img"]')
+      expect([...names].map((n) => n.getAttribute('aria-label'))).toEqual(['Urgent', 'Important', 'Focus'])
+      const title = screen.getByText('All three')
+      expect(screen.getByTestId('task-markers').compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('a task urgent only by its due date shows the clock; a flagged one the mark', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
+      const clock = screen.getByRole('img', { name: 'Urgent: due soon' })
+      expect(clock.querySelector('title')!.textContent).toBe('Urgent: due soon\nDue Sat 18, within 3 days.')
+      expect(screen.queryByRole('img', { name: 'Urgent' })).toBeNull()
+      unmount()
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', urgent: true, dueDate: new Date(2026, 3, 18) })} />)
+      expect(screen.getByRole('img', { name: 'Urgent' })).toBeInTheDocument()
+      expect(screen.queryByRole('img', { name: 'Urgent: due soon' })).toBeNull()
+    })
+
+    it('no clock when the range is off, the date is far, or the task is completed', () => {
+      useSettingsStore.setState({ urgentDueWithinDays: null })
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 15) })} />)
+      expect(screen.queryByTestId('task-markers')).toBeNull()
+      unmount()
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
+      const second = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 30) })} />)
+      expect(screen.queryByTestId('task-markers')).toBeNull()
+      second.unmount()
+      render(<TaskRow todo={makeTodo({ id: 1, isCompleted: true, dueDate: new Date(2026, 3, 15) })} />)
+      expect(screen.queryByTestId('task-markers')).toBeNull()
     })
   })
 

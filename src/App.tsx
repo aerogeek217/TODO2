@@ -24,7 +24,7 @@ import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
 import { applyNlpMetadata } from './services/nlp-task-creator'
-import { getFilterDefaults, supplementWithFilterDefaults } from './utils/filter-defaults'
+import { getFilterDefaults, markerFlags, seedsMarkers, supplementWithFilterDefaults } from './utils/filter-defaults'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -130,11 +130,11 @@ function AppQuickAddBar() {
         await tagStore.assignTag(id, tagId)
       }
     }
-    // A focus filter / the Focus list's "+ Add task": the task starts in focus
-    // so it shows where it was added.
-    if (fd.focus) {
+    // A Markers filter (e.g. the Focus list's "+ Add task"): the task starts
+    // with those markers so it shows where it was added.
+    if (seedsMarkers(fd)) {
       const created = useTodoStore.getState().todos.find((t) => t.id === id)
-      if (created) await useTodoStore.getState().update({ ...created, focus: true })
+      if (created) await useTodoStore.getState().update({ ...created, ...markerFlags(fd) })
     }
     useUIStore.getState().showRecentlyCreated(id)
     close()
