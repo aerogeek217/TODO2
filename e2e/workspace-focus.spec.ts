@@ -3,7 +3,7 @@ import { dragRow, readListOrders, seedWorkspace, wsListWidget } from './fixtures
 
 /**
  * Focus: a task put in focus (row menu, task editor) shows in a Focus list
- * widget (predicate focus = true, manual order); reordering that list saves
+ * widget (predicate markers = { focus }, manual order); reordering that list saves
  * at once and survives a reload; taking a task out of focus removes it.
  */
 
@@ -26,7 +26,7 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
   await seedWorkspace(page, {
     listDefinitions: [
       { name: 'All' },
-      { name: 'Focus', predicate: { focus: true } },
+      { name: 'Focus', predicate: { markers: { focus: true } } },
     ],
     tasks: [{ title: 'Alpha' }, { title: 'Bravo' }, { title: 'Charlie' }],
     layouts: [{

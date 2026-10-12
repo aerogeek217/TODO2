@@ -66,6 +66,10 @@ export interface WorkspaceSeed {
     recurrence?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
     /** Name of a status from `statuses`. */
     status?: string
+    /** Marker flags. */
+    urgent?: boolean
+    important?: boolean
+    focus?: boolean
   }>
 }
 
@@ -82,7 +86,7 @@ export function emptyPredicate(): Record<string, unknown> {
     dateRangeIncludeNoDate: false,
     hasDeadline: null,
     hasFollowup: null,
-    focus: null,
+    markers: null,
     tags: null,
   }
 }
@@ -159,6 +163,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(task.recurrence ? { recurrenceRule: { type: task.recurrence } } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
         ...(task.status != null ? { statusId: statusIds.get(task.status) } : {}),
+        ...(task.urgent ? { urgent: true } : {}),
+        ...(task.important ? { important: true } : {}),
+        ...(task.focus ? { focus: true } : {}),
         createdAt: now,
         modifiedAt: now,
         sortOrder: ++taskOrder,
