@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useCallback, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { getActiveTab, type LayoutCell } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -11,11 +11,10 @@ import { copyTasksRich } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { CellTabStrip } from './CellTabStrip'
-import { WidgetBody } from './WidgetBody'
+import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import { ADDABLE_KINDS, countListWidgets, kindLabel, useAddWidget, useTabTitle } from './widget-hooks'
 import { SaveListButton } from './list/SaveListButton'
-import type { ListWidgetResult } from './list/ListWidget'
 import { pointBelow } from './list/popover-point'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
@@ -32,6 +31,8 @@ import {
 } from './icons'
 import { useTabDrag } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
+import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
+import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import styles from './WorkspaceCell.module.css'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
@@ -163,12 +164,13 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const collapsed = cell.collapsed === true
-  const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
+  const [lens, setLens] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
   const [changeToList, setChangeToList] = useState<{ tabId: string; anchor: { x: number; y: number } } | null>(null)
+  const [customize, setCustomize] = useState<{ tabId: string; focusListTiles: boolean } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
   const activeCount = lens && lens.tabId === active?.id ? lens.result.countLabel : undefined
@@ -183,6 +185,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   }
   const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
   const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
+  const closeCustomize = useCallback(() => setCustomize(null), [])
   const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
 
   const hit = drag?.hit
@@ -194,6 +197,11 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const menuListName = useListDefinitionStore((s) =>
     menuTab?.kind === 'lens' ? s.listDefinitions.find((d) => d.id === menuTab.config.listDefinitionId)?.name : undefined,
   )
+
+  const dashboardActions = useDashboardMenuActions({
+    onCustomize: () => { if (menuTab) setCustomize({ tabId: menuTab.id, focusListTiles: false }) },
+    summary: menuTab && lens?.tabId === menuTab.id ? lens.result.summary : undefined,
+  })
 
   const cellMenuEntries: MenuEntry[] = [
     {
@@ -298,6 +306,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
             key={active.id}
             tab={active}
             onResult={(result) => setLens({ tabId: active.id, result })}
+            onAddListTile={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: true }) : undefined}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} />}
         </div>
@@ -351,7 +360,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
             : undefined}
           currentListName={menuListName}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
-          widgetActions={menuTab.kind === 'lens' && lens && lens.tabId === menuTab.id
+          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && lens && lens.tabId === menuTab.id
             ? [{
                 label: 'Copy tasks',
                 icon: '⧉',
@@ -375,6 +384,13 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
           listIds={guard.listIds}
           onDone={() => { guard.run(); setGuard(null) }}
           onCancel={() => setGuard(null)}
+        />
+      )}
+      {customize && (
+        <CustomizeDashboardDialog
+          tabId={customize.tabId}
+          focusListTiles={customize.focusListTiles}
+          onClose={closeCustomize}
         />
       )}
       {changeToList && (

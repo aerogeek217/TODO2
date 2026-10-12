@@ -46,8 +46,13 @@ function totalLine(n: number) {
  * open tasks, the total, `+ Or…` and `Reset to default`. Every change saves at
  * once. A new line starts empty and is stored once it has a marker; the
  * rule always keeps at least one marker.
+ *
+ * `variant="flyout"` is the compact form for a menu flyout (the dashboard
+ * tab menu's `Hot is ›`): a heading, the lines without per-line counts, then
+ * `+ Or…` beside the total and a note that the rule is app-wide.
  */
-export function HotRuleEditor() {
+export function HotRuleEditor({ variant = 'settings' }: { variant?: 'settings' | 'flyout' }) {
+  const flyout = variant === 'flyout'
   const rule = useSettingsStore((s) => s.hotRule)
   const setHotRule = useSettingsStore((s) => s.setHotRule)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
@@ -92,8 +97,18 @@ export function HotRuleEditor() {
 
   const removeLine = (index: number) => commit(draft.filter((_, i) => i !== index))
 
+  const addLine = (
+    <button type="button" className={styles.addLine} onClick={() => setDraft([...draft, {}])}>
+      <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden>
+        <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+      Or…
+    </button>
+  )
+
   return (
-    <div className={styles.editor}>
+    <div className={`${styles.editor} ${flyout ? styles.flyout : ''}`}>
+      {flyout && <div className={styles.heading}>Hot when a task has all markers of any line</div>}
       {draft.map((line, index) => {
         const markers = lineMarkers(line)
         const others = draft.filter((_, i) => i !== index)
@@ -105,7 +120,7 @@ export function HotRuleEditor() {
           <div key={index} className={styles.lineWrap}>
             {index > 0 && <div className={styles.or}>or</div>}
             <div className={styles.line} role="group" aria-label={`Hot rule line ${index + 1}`}>
-              <span className={styles.hasAll}>Has all</span>
+              {!flyout && <span className={styles.hasAll}>Has all</span>}
               {MARKER_KEYS.map((key) => {
                 const on = line[key] === true
                 const locked = on && lastMarker
@@ -125,7 +140,7 @@ export function HotRuleEditor() {
                 )
               })}
               <span className={styles.count}>
-                {markers.length > 0 ? `${lineCounts[index] ?? 0} now` : 'Pick markers'}
+                {flyout ? '' : markers.length > 0 ? `${lineCounts[index] ?? 0} now` : 'Pick markers'}
               </span>
               {canRemove ? (
                 <button
@@ -145,22 +160,29 @@ export function HotRuleEditor() {
           </div>
         )
       })}
-      <button type="button" className={styles.addLine} onClick={() => setDraft([...draft, {}])}>
-        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden>
-          <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-        Or…
-      </button>
-      <div className={styles.footer}>
-        <span className={styles.total} data-testid="hot-rule-total">{totalLine(total)}</span>
-        <button
-          type="button"
-          className={styles.reset}
-          onClick={() => commit(DEFAULT_HOT_RULE)}
-        >
-          Reset to default
-        </button>
-      </div>
+      {flyout ? (
+        <>
+          <div className={styles.flyoutFooter}>
+            {addLine}
+            <span className={styles.hotNow} data-testid="hot-rule-total">{total} hot now</span>
+          </div>
+          <div className={styles.footnote}>One rule for the whole app; also in Settings › Task Defaults.</div>
+        </>
+      ) : (
+        <>
+          {addLine}
+          <div className={styles.footer}>
+            <span className={styles.total} data-testid="hot-rule-total">{totalLine(total)}</span>
+            <button
+              type="button"
+              className={styles.reset}
+              onClick={() => commit(DEFAULT_HOT_RULE)}
+            >
+              Reset to default
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

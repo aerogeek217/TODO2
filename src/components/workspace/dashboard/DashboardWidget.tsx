@@ -7,29 +7,27 @@ import type { DashboardTab } from '../../../models/workspace-layout'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import type { TileStats } from '../../../services/stats/tiles'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import { usePersonStore } from '../../../stores/person-store'
-import { useStatusStore } from '../../../stores/status-store'
-import { useTagStore } from '../../../stores/tag-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { filterChips } from '../../../utils/filter-chips'
 import { nextScopedSelection, readScopeRows } from '../../../utils/scoped-selection'
 import { ListBulkBar } from '../list/ListBulkBar'
 import type { ListRowSelectMods } from '../list/ListWidgetRow'
 import { useElementSize } from '../calendar/use-element-size'
-import { countOf, listTileHint, tileSubLine, withScreenNote } from './dashboard-copy'
+import { countOf, tileSubLine, withScreenNote } from './dashboard-copy'
 import { TILES, tileDrill } from './dashboard-tiles'
 import { DASHBOARD_WIDE_MIN_PX, packSections, sectionRowTracks, TILES_PER_ROW } from './dashboard-layout'
 import { DASHBOARD_SECTIONS } from './dashboard-sections'
+import { buildDashboardSummary, type DashboardSummary } from './dashboard-summary'
 import { DashGlyph } from './glyphs'
+import { useListTileHints } from './use-list-tile-hints'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from './use-dashboard-data'
 import styles from './DashboardWidget.module.css'
 
-/** What the widget reports to its cell: the tab count. */
+/** What the widget reports to its cell: the tab count and the counts for "Copy summary". */
 export interface DashboardResult {
   /** Open tasks shown; `shown of total` when the screen filter hides some. */
   countLabel: string
+  summary: DashboardSummary
 }
 
 /** The Open tile's sparkline: the open count per day over the trend range. */
@@ -89,14 +87,7 @@ function ListTiles({ data, onDrill, onAddListTile }: {
   onDrill?: OnDashboardDrill
   onAddListTile?: () => void
 }) {
-  const defs = useListDefinitionStore((s) => s.listDefinitions)
-  const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
-  const statuses = useStatusStore((s) => s.statuses)
-  const hints = useMemo(() => {
-    const names = { people, tags, statuses }
-    return new Map(defs.map((d) => [d.id, listTileHint(filterChips(d.membership.predicate, names))]))
-  }, [defs, people, tags, statuses])
+  const hints = useListTileHints()
   return (
     <div className={styles.lists} aria-label="List tiles" role="group">
       <span className={styles.listsCaption}>Lists</span>
@@ -180,10 +171,14 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   }, [sizeRef])
 
   const countLabel = countOf(data.tiles.shown.open.ids.length, data.tiles.total.open.ids.length)
+  const summary = useMemo(
+    () => buildDashboardSummary(config.tiles, data.tiles, data.listTiles),
+    [config.tiles, data.tiles, data.listTiles],
+  )
   const onResultRef = useLatestRef(onResult)
   useEffect(() => {
-    onResultRef.current?.({ countLabel })
-  }, [countLabel, onResultRef])
+    onResultRef.current?.({ countLabel, summary })
+  }, [countLabel, summary, onResultRef])
 
   const onSelect = useCallback((key: string, _todoId: number, mods: ListRowSelectMods) => {
     const root = rootRef.current

@@ -70,6 +70,21 @@ export function hotRuleInWords(rule: HotRule): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+const MARKER_SHORT: Record<MarkerKey, string> = { urgent: 'U', important: 'I', focus: 'F' }
+const MARKER_NAME: Record<MarkerKey, string> = { urgent: 'Urgent', important: 'Important', focus: 'Focus' }
+
+/**
+ * The Hot rule at a glance, for the tab menu's `Hot is` item: `U+I or Focus`
+ * (a one-marker line names it; a longer line uses initials).
+ */
+export function hotRuleShort(rule: HotRule): string {
+  return rule.map((line) => {
+    const keys = lineMarkers(line)
+    const only = keys.length === 1 ? keys[0] : undefined
+    return only ? MARKER_NAME[only] : keys.map((k) => MARKER_SHORT[k]).join('+')
+  }).filter((s) => s !== '').join(' or ')
+}
+
 /** What a tile's sub-line needs beyond its own stats. */
 export interface TileCopyContext {
   today: Date
@@ -193,6 +208,24 @@ export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext
       return `Open tasks due today through ${formatFollowupDay(addDays(ctx.today, 6), ctx.today)}.`
     case 'noFollowup':
       return 'Open tasks with no next follow-up date.'
+  }
+}
+
+/** What a tile counts, in a few words — the Customize dialog's line beside it. */
+export function tileCatalogHint(id: keyof TileStats, ctx: { today: Date; urgentRange: UrgentDueWithinDays }): string {
+  switch (id) {
+    case 'open': return 'All open tasks'
+    case 'hot': return 'Matches the Hot setting'
+    case 'urgent':
+      if (ctx.urgentRange == null) return 'Flagged urgent'
+      if (ctx.urgentRange === 0) return 'Flagged, or due today or earlier'
+      return `Flagged, or due within ${urgentRangeLabel(ctx.urgentRange)}`
+    case 'overdue': return 'Due before today'
+    case 'followupDue': return 'Next follow-up today or earlier'
+    case 'focus': return 'Marked Focus'
+    case 'dueToday': return 'Due today'
+    case 'dueNext7': return `Today through ${formatFollowupDay(addDays(ctx.today, 6), ctx.today)}`
+    case 'noFollowup': return 'Open, no next follow-up'
   }
 }
 

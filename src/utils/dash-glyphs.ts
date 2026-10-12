@@ -18,6 +18,8 @@ export const DASH_GLYPH = {
   none: 'M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM5 8h6',
   chevron: 'M6 4l4 4-4 4',
   plus: 'M8 3v10M3 8h10',
+  sliders: 'M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7M11 3v3M5 10v3',
+  copy: 'M6.5 5.5h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1zM10.5 3.5v-.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h.5',
 } as const
 
 export type DashGlyphName = keyof typeof DASH_GLYPH

@@ -89,9 +89,17 @@ describe('DashboardWidget — the design sample', () => {
     expect(tile('open').querySelector('polyline')).not.toBeNull()
   })
 
-  it('reports the open count for the tab', () => {
-    setup()
-    expect(lastResult).toEqual({ countLabel: '19' })
+  it('reports the open count for the tab and its counts for Copy summary', () => {
+    setup(tabWith({ listTiles: [1] }))
+    expect(lastResult?.countLabel).toBe('19')
+    expect(lastResult?.summary.plain).toBe('Open 19 · Hot 4 · Urgent 8 · Overdue 2 · Follow-up due 2 · Focus 3\nWaiting on 2')
+  })
+
+  it('“+ Add list tile” shows when the host can open Customize', () => {
+    const onAdd = vi.fn()
+    render(<DndContext><DashboardWidget tab={tabWith()} onAddListTile={onAdd} /></DndContext>)
+    fireEvent.click(document.querySelector<HTMLElement>('[aria-label="List tiles"] button')!)
+    expect(onAdd).toHaveBeenCalled()
   })
 
   it('renders every section in the default order and spans', () => {
@@ -208,7 +216,8 @@ describe('DashboardWidget — screen filter', () => {
     expect(tile('hot').textContent).toContain('1 in Focus')
     expect(tile('overdue').textContent).toContain('Nothing overdue')
     expect(tile('focus').textContent).toContain('None due today')
-    expect(lastResult).toEqual({ countLabel: '5 of 19' })
+    expect(lastResult?.countLabel).toBe('5 of 19')
+    expect(lastResult?.summary.plain).toBe('Open 5 of 19 · Hot 1 of 4 · Urgent 1 of 8 · Overdue 0 of 2 · Follow-up due 0 of 2 · Focus 1 of 3')
     expect(sectionCount('hot')).toBe('1 of 4')
     expect(sectionCount('status')).toBe('5 of 19 open')
   })

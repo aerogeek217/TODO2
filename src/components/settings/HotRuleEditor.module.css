@@ -202,3 +202,41 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/* The flyout form (dashboard tab menu › Hot is ›): fills its 316px panel. */
+.flyout {
+  max-width: none;
+}
+
+.flyout .line {
+  padding: 0 4px 0 6px;
+}
+
+.heading {
+  padding: 0 2px 4px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.flyoutFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hotNow {
+  margin-left: auto;
+  margin-top: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.footnote {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-muted);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
