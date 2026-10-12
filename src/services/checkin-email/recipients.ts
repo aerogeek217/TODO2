@@ -5,19 +5,28 @@
  */
 import type { PersistedPerson, Person, PersistedTodoItem } from '../../models'
 
+/** How many open tasks each person has assigned (people with none are absent). */
+export function openTaskCounts(
+  todos: readonly PersistedTodoItem[],
+  assignedPeopleMap: ReadonlyMap<number, readonly Person[]>,
+): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const t of todos) {
+    if (t.isCompleted) continue
+    for (const p of assignedPeopleMap.get(t.id) ?? []) {
+      if (p.id != null) counts.set(p.id, (counts.get(p.id) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
 export function checkinRecipients(
   people: readonly Person[],
   todos: readonly PersistedTodoItem[],
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>,
   openedFor: readonly number[],
 ): PersistedPerson[] {
-  const withOpenTasks = new Set<number>()
-  for (const t of todos) {
-    if (t.isCompleted) continue
-    for (const p of assignedPeopleMap.get(t.id) ?? []) {
-      if (p.id != null) withOpenTasks.add(p.id)
-    }
-  }
+  const withOpenTasks = openTaskCounts(todos, assignedPeopleMap)
   const byId = new Map<number, PersistedPerson>()
   for (const p of people) {
     const id = p.id

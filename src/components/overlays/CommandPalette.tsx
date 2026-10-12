@@ -203,6 +203,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
                         )
                       })()}
                     </span>
+                    {cmd.hint && <span className={styles.resultHint}>{cmd.hint}</span>}
                     {cmd.shortcut && <span className={styles.resultShortcut}>{cmd.shortcut}</span>}
                   </div>
                 )

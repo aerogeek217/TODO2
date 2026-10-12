@@ -22,6 +22,7 @@ import { formatShortcut } from './utils/platform'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
+import { openTaskCounts } from './services/checkin-email/recipients'
 import { backupScheduler } from './services/backup-scheduler'
 import { applyNlpMetadata } from './services/nlp-task-creator'
 import { getFilterDefaults, markerFlags, seedsMarkers, supplementWithFilterDefaults } from './utils/filter-defaults'
@@ -295,6 +296,8 @@ function AppShell() {
   const handleClosePalette = useCallback(() => setShowPalette(false), [])
 
   const todos = useTodoStore((s) => s.todos)
+  const people = usePersonStore((s) => s.people)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
 
   const commandCtx = useMemo(
@@ -319,8 +322,10 @@ function AppShell() {
       getStatuses: () => useStatusStore.getState().statuses,
       openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
       openCheckinImport: () => useUIStore.getState().openCheckinImport(),
+      getPeople: () => people,
+      getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
     }),
-    [todos, selectionCount]
+    [todos, people, assignedPeopleMap, selectionCount]
   )
 
   const commands = useMemo(() => createCommands(commandCtx), [commandCtx])

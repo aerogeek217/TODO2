@@ -240,3 +240,45 @@ describe('createCommands — no dynamic commands', () => {
     expect(commands.filter(c => c.category === 'tasks')).toHaveLength(0)
   })
 })
+
+// ─── Email check-in commands ─────────────────────────────────────────────────
+
+describe('createCommands — email check-ins', () => {
+  const people = [
+    { id: 1, name: 'Zoe Park', initials: 'ZP', email: 'zoe@example.com' },
+    { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
+    { id: 3, name: 'No Email', initials: 'NE' },
+    { id: 4, name: 'Idle Person', initials: 'IP', email: 'idle@example.com' },
+    { id: 5, name: 'Blank Email', initials: 'BE', email: '' },
+  ]
+  const counts = new Map([[1, 1], [2, 4], [3, 2], [5, 3]])
+  const emailCommands = (ctx: CommandContext) => createCommands(ctx).filter((c) => c.category === 'email')
+
+  it('createCommands_people_onePerPersonWithEmailAndOpenTasks_byName_withOpenTaskHint', () => {
+    const openCheckinDialog = vi.fn()
+    const ctx = makeContext({ openCheckinDialog, openCheckinImport: vi.fn(), getPeople: () => people, getOpenTaskCounts: () => counts })
+    expect(emailCommands(ctx).map((c) => [c.name, c.hint])).toEqual([
+      ['Email task check-ins…', 'choose people'],
+      ['Import check-in reply…', undefined],
+      ['Email check-in: Ada Lovelace', '4 open tasks'],
+      ['Email check-in: Zoe Park', '1 open task'],
+    ])
+  })
+
+  it('createCommands_personCommand_opensTheDialogWithThatPersonTicked', () => {
+    const openCheckinDialog = vi.fn()
+    const ctx = makeContext({ openCheckinDialog, getPeople: () => people, getOpenTaskCounts: () => counts })
+    createCommands(ctx).find((c) => c.id === 'email-checkin-2')!.action()
+    expect(openCheckinDialog).toHaveBeenCalledWith([2])
+  })
+
+  it('createCommands_noOpenTaskCounts_noPersonCommands', () => {
+    const ctx = makeContext({ openCheckinDialog: vi.fn(), getPeople: () => people })
+    expect(emailCommands(ctx).map((c) => c.id)).toEqual(['email-checkins'])
+  })
+
+  it('createCommands_withoutCheckinDialog_noPersonCommands', () => {
+    const ctx = makeContext({ getPeople: () => people, getOpenTaskCounts: () => counts })
+    expect(emailCommands(ctx)).toEqual([])
+  })
+})

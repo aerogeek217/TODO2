@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Person } from '../../../models'
-import { checkinRecipients } from '../../../services/checkin-email/recipients'
+import { checkinRecipients, openTaskCounts } from '../../../services/checkin-email/recipients'
 import { makePerson, makeTodo } from '../../helpers'
 
 const ada = makePerson({ id: 1, name: 'Ada' })
@@ -27,5 +27,11 @@ describe('checkinRecipients', () => {
 
   it('skips ids of people that no longer exist', () => {
     expect(checkinRecipients([ada, bob], todos, assigned, [99]).map((p) => p.name)).toEqual(['Ada', 'Bob'])
+  })
+})
+
+describe('openTaskCounts', () => {
+  it('counts each person’s open tasks; completed tasks and people with none are left out', () => {
+    expect(openTaskCounts(todos, assigned)).toEqual(new Map([[2, 2], [1, 1]]))
   })
 })

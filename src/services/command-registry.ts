@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Status } from '../models'
+import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
 
@@ -8,6 +8,8 @@ export interface Command {
   id: string
   name: string
   shortcut?: string
+  /** Muted text on the right of the row (e.g. `4 open tasks`). */
+  hint?: string
   category: CommandCategory
   action: () => void
 }
@@ -40,6 +42,35 @@ export interface CommandContext {
   openCheckinDialog?: (personIds?: number[]) => void
   /** Opens the check-in reply import dialog. */
   openCheckinImport?: () => void
+  /** People, for the per-person check-in commands. */
+  getPeople?: () => readonly Person[]
+  /** Open tasks assigned per person id (people with none may be absent). */
+  getOpenTaskCounts?: () => ReadonlyMap<number, number>
+}
+
+const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
+
+/**
+ * `Email check-in: <person>` for each person with an email address and at
+ * least one open task, by name; the hint counts their open tasks.
+ */
+function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) => void): Command[] {
+  const counts = ctx.getOpenTaskCounts?.() ?? new Map<number, number>()
+  return (ctx.getPeople?.() ?? [])
+    .flatMap((p) => {
+      const id = p.id
+      const n = id != null ? counts.get(id) ?? 0 : 0
+      if (id == null || n === 0 || (p.email ?? '') === '') return []
+      return [{ id, name: p.name, n }]
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(({ id, name, n }): Command => ({
+      id: `email-checkin-${id}`,
+      name: `Email check-in: ${name}`,
+      hint: openTasksLabel(n),
+      category: 'email',
+      action: () => open([id]),
+    }))
 }
 
 export function createCommands(ctx: CommandContext): Command[] {
@@ -94,11 +125,12 @@ export function createCommands(ctx: CommandContext): Command[] {
   // Email
   const openCheckinDialog = ctx.openCheckinDialog
   if (openCheckinDialog) {
-    commands.push({ id: 'email-checkins', name: 'Email task check-ins…', category: 'email', action: () => openCheckinDialog() })
+    commands.push({ id: 'email-checkins', name: 'Email task check-ins…', hint: 'choose people', category: 'email', action: () => openCheckinDialog() })
   }
   if (ctx.openCheckinImport) {
     commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
   }
+  if (openCheckinDialog) commands.push(...personCheckinCommands(ctx, openCheckinDialog))
 
   // Bulk actions — only when tasks are selected
   if (ctx.selectionCount === 1) {
