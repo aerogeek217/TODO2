@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
+import { FollowupPopover } from '../../components/shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
@@ -147,5 +148,32 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onUpdate.mock.calls[0]![0].lastFollowupAt).toEqual(day(2026, 9, 13))
     fireEvent.click(screen.getByRole('button', { name: 'Followed up' }))
     expect(onFollowedUp).toHaveBeenCalledTimes(1)
+  })
+
+  it('edit mode: Followed up is dimmed when the task was already followed up today', () => {
+    renderEdit(makeTodo({ id: 7, lastFollowupAt: day(2026, 10, 9) }))
+    expect(screen.getByRole('button', { name: 'Followed up' })).not.toHaveAttribute('data-done-today')
+    cleanup()
+    renderEdit(makeTodo({ id: 7, lastFollowupAt: new Date(2026, 9, 10, 9, 0) }))
+    expect(screen.getByRole('button', { name: 'Followed up' })).toHaveAttribute('data-done-today', 'true')
+  })
+})
+
+describe('FollowupPopover — Followed up', () => {
+  it('is the primary button until the task was followed up today, then dimmed (still works)', () => {
+    const onFollowedUp = vi.fn()
+    const anchor = { kind: 'point' as const, x: 10, y: 10 }
+    render(<FollowupPopover todo={makeTodo({ id: 1 })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={onFollowedUp} />)
+    expect(screen.getByRole('button', { name: /^Followed up/ })).not.toHaveAttribute('data-done-today')
+    cleanup()
+    render(<FollowupPopover todo={makeTodo({ id: 1, lastFollowupAt: NOW })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={onFollowedUp} />)
+    const done = screen.getByRole('button', { name: /^Followed up/ })
+    expect(done).toHaveAttribute('data-done-today', 'true')
+    fireEvent.click(done)
+    expect(onFollowedUp).toHaveBeenCalledTimes(1)
+    cleanup()
+    // The bulk bar decides for the whole selection.
+    render(<FollowupPopover todo={makeTodo({ id: 1, lastFollowupAt: NOW })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={onFollowedUp} followedUpToday={false} />)
+    expect(screen.getByRole('button', { name: /^Followed up/ })).not.toHaveAttribute('data-done-today')
   })
 })

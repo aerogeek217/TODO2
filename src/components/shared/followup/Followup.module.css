@@ -241,6 +241,21 @@
   background: var(--color-followup-bg-strong);
 }
 
+/* Already followed up today: pressing it again only moves the next date, so it
+   steps down to a quiet secondary button. */
+.followedUpPrimary.followedUpDone,
+.followedUpSecondary.followedUpDone {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  filter: none;
+}
+
+.followedUpPrimary.followedUpDone:hover,
+.followedUpSecondary.followedUpDone:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
 .followedUpPrimary:focus-visible,
 .followedUpSecondary:focus-visible,
 .quickButton:focus-visible,

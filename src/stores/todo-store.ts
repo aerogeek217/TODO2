@@ -41,6 +41,8 @@ interface TodoState {
   bulkSetDeadline: (ids: number[], date: Date | null) => Promise<void>
   /** Sets (or, with `null`, clears) `nextFollowupAt` on every task in `ids`. */
   bulkSetFollowup: (ids: number[], date: Date | null) => Promise<void>
+  /** Sets (or, with `null`, clears) `lastFollowupAt` on every task in `ids`. */
+  bulkSetLastFollowup: (ids: number[], date: Date | null) => Promise<void>
   /** Puts every task in `ids` in focus (`on`) or takes it out. One undo step. */
   bulkSetFocus: (ids: number[], on: boolean) => Promise<void>
   /** Flags every task in `ids` urgent (`on`) or clears the flag. One undo step. */
@@ -370,6 +372,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async bulkSetFollowup(ids: number[], date: Date | null) {
     const label = date ? `Set follow-up on ${ids.length} tasks` : `Clear follow-up on ${ids.length} tasks`
     await bulkUpdateField(ids, 'nextFollowupAt', date ?? undefined, label, get, set)
+  },
+
+  async bulkSetLastFollowup(ids: number[], date: Date | null) {
+    const label = date ? `Set last follow-up on ${ids.length} tasks` : `Clear last follow-up on ${ids.length} tasks`
+    await bulkUpdateField(ids, 'lastFollowupAt', date ?? undefined, label, get, set)
   },
 
   async bulkSetFocus(ids: number[], on: boolean) {

@@ -78,7 +78,10 @@ export function useTaskEditCallbacks() {
     return id
   }, [addTodo, updateTodo, assignPerson, people, statuses])
 
-  /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
+  /**
+   * Wrap onUpdate to propagate bulk-applicable field changes to other selected
+   * tasks: status, due date and both follow-up dates (like "Followed up").
+   */
   const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {
     // Snapshot store state BEFORE the optimistic update modifies it
     const current = useTodoStore.getState().todos.find(t => t.id === updated.id)
@@ -95,6 +98,8 @@ export function useTaskEditCallbacks() {
       store.bulkSetDeadline(otherIds, updated.dueDate ?? null)
     if (updated.nextFollowupAt?.getTime() !== current.nextFollowupAt?.getTime())
       store.bulkSetFollowup(otherIds, updated.nextFollowupAt ?? null)
+    if (updated.lastFollowupAt?.getTime() !== current.lastFollowupAt?.getTime())
+      store.bulkSetLastFollowup(otherIds, updated.lastFollowupAt ?? null)
   }, [updateTodo])
 
   const editProps = useMemo(() => {

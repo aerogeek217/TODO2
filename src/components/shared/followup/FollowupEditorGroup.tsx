@@ -190,7 +190,12 @@ export function FollowupEditorGroup({
           fallback={lastIsToday ? '✓ Today' : (lastInput.storedHint ?? '')}
           fallbackClass={lastIsToday ? styles.editorHintAccent : undefined}
         />
-        <button type="button" className={styles.followedUpSecondary} onClick={onFollowedUp}>
+        <button
+          type="button"
+          className={`${styles.followedUpSecondary} ${lastIsToday ? styles.followedUpDone : ''}`}
+          onClick={onFollowedUp}
+          data-done-today={lastIsToday ? 'true' : undefined}
+        >
           <FollowedUpIcon />
           Followed up
         </button>

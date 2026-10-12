@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import {
   addFollowupInterval,
   formatFollowupDate,
+  isFollowedUpToday,
   relativeDayPhrase,
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../../utils/followup'
@@ -23,6 +24,11 @@ interface FollowupPopoverProps {
   onSetNext: (date: Date | null) => void
   /** "Followed up": last = now, next = today + the default interval. */
   onFollowedUp: () => void
+  /**
+   * Already followed up today (dims "Followed up"). Defaults to `todo`'s own
+   * last follow-up; the bulk bar passes "every selected task".
+   */
+  followedUpToday?: boolean
 }
 
 /**
@@ -32,7 +38,7 @@ interface FollowupPopoverProps {
  * ⏎ (valid input) or a quick button applies and closes; Esc / outside click
  * closes without change.
  */
-export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp }: FollowupPopoverProps) {
+export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday }: FollowupPopoverProps) {
   const today = useToday()
   const interval = useSettingsStore((s) => s.followupDefaultInterval)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -59,6 +65,8 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
   }
 
   const nextAfterFollowup = addFollowupInterval(today, interval)
+  // Only highlight "Followed up" when it would record something new.
+  const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
   const s = input.state
 
   return createPortal(
@@ -132,8 +140,9 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
       </div>
       <button
         type="button"
-        className={styles.followedUpPrimary}
+        className={`${styles.followedUpPrimary} ${doneToday ? styles.followedUpDone : ''}`}
         onClick={() => { onFollowedUp(); onClose() }}
+        data-done-today={doneToday ? 'true' : undefined}
       >
         <FollowedUpIcon />
         Followed up

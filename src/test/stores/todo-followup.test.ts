@@ -118,3 +118,18 @@ describe('bulkSetFollowup', () => {
     expect((await db.todos.get(a))!.nextFollowupAt).toEqual(day(2027, 1, 4))
   })
 })
+
+describe('bulkSetLastFollowup', () => {
+  it('sets and clears lastFollowupAt on every task, undoably', async () => {
+    const a = await useTodoStore.getState().add('A')
+    const b = await useTodoStore.getState().add('B')
+    await useTodoStore.getState().bulkSetLastFollowup([a, b], day(2026, 9, 13))
+    expect((await db.todos.get(a))!.lastFollowupAt).toEqual(day(2026, 9, 13))
+    expect(mem(b).lastFollowupAt).toEqual(day(2026, 9, 13))
+    await useUndoStore.getState().undo()
+    expect((await db.todos.get(b))!.lastFollowupAt).toBeUndefined()
+    await useTodoStore.getState().bulkSetLastFollowup([a], day(2026, 9, 1))
+    await useTodoStore.getState().bulkSetLastFollowup([a], null)
+    expect((await db.todos.get(a))!.lastFollowupAt).toBeUndefined()
+  })
+})
