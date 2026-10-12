@@ -45,8 +45,8 @@ export interface WsLayoutSeed {
 export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
-  /** Names, or a name with initials / colour. */
-  people?: Array<string | { name: string; initials?: string; color?: string }>
+  /** Names, or a name with initials / colour / email. */
+  people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   tags?: string[]
   /** Status names, added after the app's own. */
   statuses?: string[]
@@ -134,6 +134,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       const p = typeof entry === 'string' ? { name: entry } : entry
       const row: Record<string, unknown> = { name: p.name, initials: p.initials ?? p.name.slice(0, 2).toUpperCase() }
       if (p.color) row.color = p.color
+      if (p.email) row.email = p.email
       personIds.set(p.name, await add(tx.objectStore('people'), row))
     }
     const tagIds = new Map<string, number>()
