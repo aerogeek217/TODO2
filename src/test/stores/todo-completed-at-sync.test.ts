@@ -51,11 +51,10 @@ describe('store and DB agree on completedAt', () => {
 
   it('update() completing, then an unrelated edit keeps the stored time', async () => {
     const id = await useTodoStore.getState().add('U')
-    const mem = () => useTodoStore.getState().todos.find((t) => t.id === id)!
-    await useTodoStore.getState().update({ ...mem(), isCompleted: true })
+    await useTodoStore.getState().update(id, { isCompleted: true })
     await expectInSync(id, 'update complete')
     const at = (await db.todos.get(id))!.completedAt
-    await useTodoStore.getState().update({ ...mem(), title: 'Renamed' })
+    await useTodoStore.getState().update(id, { title: 'Renamed' })
     expect((await db.todos.get(id))!.completedAt).toEqual(at)
     await expectInSync(id, 'unrelated edit')
   })

@@ -41,8 +41,7 @@ export function useBulkActions() {
     if (ids.length > 1) {
       useTodoStore.getState().bulkSetDeadline(ids, date)
     } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, dueDate: date ?? undefined })
+      void useTodoStore.getState().update(todoId, { dueDate: date ?? undefined })
     }
   }, [])
 
@@ -51,8 +50,7 @@ export function useBulkActions() {
     if (ids.length > 1) {
       useTodoStore.getState().bulkSetFollowup(ids, date)
     } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, nextFollowupAt: date ?? undefined })
+      void useTodoStore.getState().update(todoId, { nextFollowupAt: date ?? undefined })
     }
   }, [])
 
@@ -83,8 +81,7 @@ export function useBulkActions() {
     if (ids.length > 1) {
       useTodoStore.getState().bulkSetStatus(ids, statusId)
     } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, statusId, modifiedAt: new Date() })
+      void useTodoStore.getState().update(todoId, { statusId })
     }
   }, [])
 

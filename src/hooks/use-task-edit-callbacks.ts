@@ -4,7 +4,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
-import type { TodoItem, PersistedTodoItem } from '../models'
+import type { TodoItem, TodoChanges } from '../models'
 import { parseTaskInput } from '../services/nlp-task-creator'
 import { resolveTags, resolveUnmatchedPeople } from '../services/nlp-resolver'
 import { makeRecurrenceRule } from '../services/recurrence'
@@ -57,8 +57,7 @@ export function useTaskEditCallbacks() {
         const nextFollowupAt = 'nextFollowupAt' in partial
           ? partial.nextFollowupAt
           : resolved.followupNone ? undefined : (resolved.nextFollowupAt ?? todo.nextFollowupAt)
-        await updateTodo({
-          ...todo,
+        await updateTodo(id, {
           dueDate: nextDeadline,
           statusId: resolved.statusId ?? partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
@@ -90,27 +89,28 @@ export function useTaskEditCallbacks() {
   }, [addTodo, updateTodo, assignPerson, people, statuses])
 
   /**
-   * Wrap onUpdate to propagate bulk-applicable field changes to other selected
-   * tasks: status, due date and both follow-up dates (like "Followed up").
+   * Saves the editor's changes to the task, and applies the bulk-applicable
+   * ones to the other selected tasks: status, due date and both follow-up
+   * dates (like "Followed up").
    */
-  const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {
-    // Snapshot store state BEFORE the optimistic update modifies it
-    const current = useTodoStore.getState().todos.find(t => t.id === updated.id)
+  const bulkAwareUpdate = useCallback((id: number, changes: TodoChanges) => {
+    // The task's values before this edit (the optimistic update replaces them).
+    const current = useTodoStore.getState().todos.find(t => t.id === id)
 
-    updateTodo(updated)
+    void updateTodo(id, changes)
 
-    const otherIds = getOtherSelectedIds(updated.id)
+    const otherIds = getOtherSelectedIds(id)
     if (otherIds.length === 0 || !current) return
 
     const store = useTodoStore.getState()
-    if (updated.statusId !== current.statusId)
-      store.bulkSetStatus(otherIds, updated.statusId)
-    if (updated.dueDate?.getTime() !== current.dueDate?.getTime())
-      store.bulkSetDeadline(otherIds, updated.dueDate ?? null)
-    if (updated.nextFollowupAt?.getTime() !== current.nextFollowupAt?.getTime())
-      store.bulkSetFollowup(otherIds, updated.nextFollowupAt ?? null)
-    if (updated.lastFollowupAt?.getTime() !== current.lastFollowupAt?.getTime())
-      store.bulkSetLastFollowup(otherIds, updated.lastFollowupAt ?? null)
+    if ('statusId' in changes && changes.statusId !== current.statusId)
+      store.bulkSetStatus(otherIds, changes.statusId)
+    if ('dueDate' in changes && changes.dueDate?.getTime() !== current.dueDate?.getTime())
+      store.bulkSetDeadline(otherIds, changes.dueDate ?? null)
+    if ('nextFollowupAt' in changes && changes.nextFollowupAt?.getTime() !== current.nextFollowupAt?.getTime())
+      store.bulkSetFollowup(otherIds, changes.nextFollowupAt ?? null)
+    if ('lastFollowupAt' in changes && changes.lastFollowupAt?.getTime() !== current.lastFollowupAt?.getTime())
+      store.bulkSetLastFollowup(otherIds, changes.lastFollowupAt ?? null)
   }, [updateTodo])
 
   const editProps = useMemo(() => {
@@ -130,7 +130,7 @@ export function useTaskEditCallbacks() {
       todo: selectedTodo,
       assignedPeople: assignedPeopleMap.get(selectedTodo.id) ?? [],
       assignedTags: assignedTagsMap.get(selectedTodo.id) ?? [],
-      onUpdate: bulkAwareUpdate,
+      onUpdate: (changes: TodoChanges) => bulkAwareUpdate(selectedTodo.id, changes),
       onToggleComplete: () => useTodoStore.getState().toggleComplete(selectedTodo.id),
       onFollowedUp: () => {
         useTodoStore.getState().markFollowedUp([selectedTodo.id, ...getOtherSelectedIds(selectedTodo.id)])

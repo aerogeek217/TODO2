@@ -1,4 +1,4 @@
-export { type TodoItem, type PersistedTodoItem, type NewTodoItem } from './todo-item'
+export { type TodoItem, type PersistedTodoItem, type NewTodoItem, type TodoChanges } from './todo-item'
 export { type Person, type PersistedPerson } from './person'
 export { type Tag, type PersistedTag } from './tag'
 export { type TodoPerson } from './todo-person'

@@ -19,7 +19,7 @@ interface TodoStoreModule {
   useTodoStore: {
     getState(): {
       todos: TodoRow[]
-      update(todo: TodoRow): Promise<void>
+      update(id: number, changes: Partial<TodoRow>): Promise<void>
     }
   }
 }
@@ -46,7 +46,7 @@ async function setNextFollowup(page: Page, title: string, y: number, m: number, 
     const state = mod.useTodoStore.getState()
     const todo = state.todos.find((x) => x.title === title)
     if (!todo) throw new Error(`no todo ${title}`)
-    await state.update({ ...todo, nextFollowupAt: new Date(y, m - 1, d) })
+    await state.update(todo.id, { nextFollowupAt: new Date(y, m - 1, d) })
   }, { url: TODO_STORE_URL, title, y, m, d })
 }
 

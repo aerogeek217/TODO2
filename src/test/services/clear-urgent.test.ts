@@ -116,7 +116,7 @@ describe('clearUrgent / setUrgent on stored tasks', () => {
   async function addTask(title: string, patch: { urgent?: boolean; dueDate?: Date }) {
     const id = await useTodoStore.getState().add(title)
     const todo = useTodoStore.getState().todos.find((x) => x.id === id)!
-    await useTodoStore.getState().update({ ...todo, ...patch })
+    await useTodoStore.getState().update(todo.id, patch)
     return id
   }
   const mem = (id: number) => useTodoStore.getState().todos.find((x) => x.id === id)!

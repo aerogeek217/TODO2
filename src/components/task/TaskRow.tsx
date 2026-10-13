@@ -77,8 +77,8 @@ export const TaskRow = memo(function TaskRow({
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
-    useTodoStore.getState().update({ ...todo, title: newTitle, modifiedAt: new Date() })
-  }, [todo])
+    void useTodoStore.getState().update(todo.id, { title: newTitle })
+  }, [todo.id])
   const {
     isEditing, editTitle, setEditTitle, inputRef: titleInputRef,
     save: saveTitle, handleKeyDown: handleTitleKeyDown, scheduleEdit, cancelScheduledEdit,

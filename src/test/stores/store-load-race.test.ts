@@ -82,7 +82,7 @@ describe('load vs. edit', () => {
     const load = useTodoStore.getState().loadAll()
     await gate.read
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)!
-    await useTodoStore.getState().update({ ...todo, title: 'New title' })
+    await useTodoStore.getState().update(todo.id, { title: 'New title' })
     gate.release()
     await load
 
@@ -102,7 +102,7 @@ describe('load vs. edit', () => {
     const getAll = vi.spyOn(todoRepository, 'getAll')
 
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)!
-    const edit = useTodoStore.getState().update({ ...todo, title: 'New title' })
+    const edit = useTodoStore.getState().update(todo.id, { title: 'New title' })
     const load = useTodoStore.getState().loadAll()
     await new Promise((r) => setTimeout(r, 0))
     expect(getAll).not.toHaveBeenCalled()

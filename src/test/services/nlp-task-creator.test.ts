@@ -77,7 +77,7 @@ describe('applyNlpMetadata', () => {
     )
 
     expect(updateTodo).toHaveBeenCalledOnce()
-    const updated = updateTodo.mock.calls[0]![0]
+    const updated = updateTodo.mock.calls[0]![1]
     expect(updated.dueDate).toEqual(due)
   })
 
@@ -103,7 +103,7 @@ describe('applyNlpMetadata', () => {
     )
 
     expect(updateTodo).toHaveBeenCalledOnce()
-    const updated = updateTodo.mock.calls[0]![0]
+    const updated = updateTodo.mock.calls[0]![1]
     expect(updated.recurrenceRule?.type).toBe('weekly')
   })
 
@@ -335,7 +335,7 @@ describe('applyNlpMetadata — slash commands', () => {
     const updateTodo = vi.fn()
     await applyNlpMetadata(1, { ...base, urgent: true, important: true, focus: true }, () => todo, updateTodo, vi.fn())
     expect(updateTodo).toHaveBeenCalledOnce()
-    expect(updateTodo.mock.calls[0]![0]).toMatchObject({ urgent: true, important: true, focus: true })
+    expect(updateTodo.mock.calls[0]![1]).toMatchObject({ urgent: true, important: true, focus: true })
   })
 
   it('/followup replaces the default next follow-up', async () => {
@@ -343,28 +343,29 @@ describe('applyNlpMetadata — slash commands', () => {
     const updateTodo = vi.fn()
     const next = new Date(2026, 9, 24)
     await applyNlpMetadata(1, { ...base, nextFollowupAt: next }, () => todo, updateTodo, vi.fn())
-    expect(updateTodo.mock.calls[0]![0].nextFollowupAt).toEqual(next)
+    expect(updateTodo.mock.calls[0]![1].nextFollowupAt).toEqual(next)
   })
 
   it('/followup none clears the default next follow-up', async () => {
     const todo = makeTodo({ id: 1, title: 'Task', nextFollowupAt: new Date(2026, 10, 10) })
     const updateTodo = vi.fn()
     await applyNlpMetadata(1, { ...base, followupNone: true }, () => todo, updateTodo, vi.fn())
-    expect(updateTodo.mock.calls[0]![0].nextFollowupAt).toBeUndefined()
+    expect(updateTodo.mock.calls[0]![1].nextFollowupAt).toBeUndefined()
   })
 
   it('without /followup the default next follow-up is kept', async () => {
     const todo = makeTodo({ id: 1, title: 'Task', nextFollowupAt: new Date(2026, 10, 10) })
     const updateTodo = vi.fn()
     await applyNlpMetadata(1, { ...base, urgent: true }, () => todo, updateTodo, vi.fn())
-    expect(updateTodo.mock.calls[0]![0].nextFollowupAt).toEqual(new Date(2026, 10, 10))
+    // Only the parsed fields are written: the follow-up isn't touched.
+    expect(updateTodo).toHaveBeenCalledWith(1, { urgent: true })
   })
 
   it('/repeat without a due date is dropped', async () => {
     const todo = makeTodo({ id: 1, title: 'Task' })
     const updateTodo = vi.fn()
     await applyNlpMetadata(1, { ...base, recurrence: 'weekly' }, () => todo, updateTodo, vi.fn())
-    expect(updateTodo.mock.calls[0]![0].recurrenceRule).toBeUndefined()
+    expect(updateTodo.mock.calls[0]![1].recurrenceRule).toBeUndefined()
   })
 
   it('a full command line goes from text to task fields', async () => {
@@ -372,7 +373,7 @@ describe('applyNlpMetadata — slash commands', () => {
     const updateTodo = vi.fn()
     const { resolved } = parseTaskInput('Standup /due 10/30 /repeat weekly /urgent /followup none', [])
     await applyNlpMetadata(1, resolved, () => todo, updateTodo, vi.fn())
-    const updated = updateTodo.mock.calls[0]![0]
+    const updated = updateTodo.mock.calls[0]![1]
     expect(resolved.title).toBe('Standup')
     expect(updated.dueDate.getMonth()).toBe(9)
     expect(updated.dueDate.getDate()).toBe(30)

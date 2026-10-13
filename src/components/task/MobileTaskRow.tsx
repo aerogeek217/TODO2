@@ -213,9 +213,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             e.stopPropagation()
             if (!ghost) {
               if (!todo.statusId && quickStatusId != null) {
-                useTodoStore.getState().update({ ...todo, statusId: quickStatusId, modifiedAt: new Date() })
+                useTodoStore.getState().update(todo.id, { statusId: quickStatusId })
               } else if (todo.statusId) {
-                useTodoStore.getState().update({ ...todo, statusId: undefined, modifiedAt: new Date() })
+                useTodoStore.getState().update(todo.id, { statusId: undefined })
               }
             }
           }}

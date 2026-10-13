@@ -44,7 +44,7 @@ describe('new tasks get the default next follow-up', () => {
 
   it('duplicate() copies the source next follow-up but not the last one', async () => {
     const id = await useTodoStore.getState().add('C')
-    await useTodoStore.getState().update({ ...mem(id), nextFollowupAt: day(2026, 12, 1), lastFollowupAt: day(2026, 10, 1) })
+    await useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 12, 1), lastFollowupAt: day(2026, 10, 1) })
     const copy = (await useTodoStore.getState().duplicate(id))!
     const row = (await db.todos.get(copy))!
     expect(row.nextFollowupAt).toEqual(day(2026, 12, 1))
@@ -53,9 +53,7 @@ describe('new tasks get the default next follow-up', () => {
 
   it('a recurring task advancing on completion keeps its follow-up (not a new task)', async () => {
     const id = await useTodoStore.getState().add('R')
-    await useTodoStore.getState().update({
-      ...mem(id), dueDate: day(2026, 10, 12), recurrenceRule: { type: 'weekly' },
-    })
+    await useTodoStore.getState().update(id, { dueDate: day(2026, 10, 12), recurrenceRule: { type: 'weekly' } })
     const before = (await db.todos.get(id))!.nextFollowupAt
     await useTodoStore.getState().toggleComplete(id)
     const row = (await db.todos.get(id))!
@@ -88,7 +86,7 @@ describe('markFollowedUp', () => {
 
   it('is one undo step with the snackbar; undo restores the previous values in store and DB', async () => {
     const a = await useTodoStore.getState().add('A')
-    await useTodoStore.getState().update({ ...mem(a), nextFollowupAt: undefined })
+    await useTodoStore.getState().update(a, { nextFollowupAt: undefined })
     useUndoStore.getState().clear()
     await useTodoStore.getState().markFollowedUp([a])
     const undo = useUndoStore.getState()

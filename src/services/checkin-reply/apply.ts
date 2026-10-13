@@ -86,11 +86,7 @@ export async function applyCheckinUpdates(
 
     for (const u of updates) {
       if (u.progress === undefined && u.notes === undefined) continue
-      // Read after the completions above, so the edit keeps them.
-      const current = useTodoStore.getState().todos.find((t) => t.id === u.todoId)
-      if (!current) continue
-      await useTodoStore.getState().update({
-        ...current,
+      await useTodoStore.getState().update(u.todoId, {
         ...(u.progress !== undefined ? { progress: u.progress } : {}),
         ...(u.notes !== undefined ? { notes: u.notes === '' ? undefined : u.notes } : {}),
       })

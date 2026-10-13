@@ -241,7 +241,7 @@ describe('todoStore', () => {
     const id = await useTodoStore.getState().add('Original')
     const original = useTodoStore.getState().todos.find((t) => t.id === id)!
     const due = new Date(2026, 5, 15)
-    await useTodoStore.getState().update({ ...original, dueDate: due, notes: 'n', statusId: 3 })
+    await useTodoStore.getState().update(original.id, { dueDate: due, notes: 'n', statusId: 3 })
     const tagA = await tagRepository.insert({ name: 'Project: Alpha', color: '#123456' })
     const tagB = await tagRepository.insert({ name: 'urgent', color: '#654321' })
     await tagRepository.assignTag(id, tagA)
@@ -303,7 +303,7 @@ describe('todoStore', () => {
 
       // Act
       await expect(
-        useTodoStore.getState().update({ ...original, title: 'Changed title' })
+        useTodoStore.getState().update(original.id, { title: 'Changed title' })
       ).rejects.toThrow('DB error')
 
       // Assert

@@ -15,22 +15,11 @@ describe('buildRescheduleUpdate', () => {
   it('sets a due date at noon on a task that had none', () => {
     const todo = makeTodo({ id: 3, nextFollowupAt: new Date(2026, 3, 1) })
     const next = buildRescheduleUpdate(todo, new Date(2026, 3, 20))
-    expect(next.dueDate).toEqual(new Date(2026, 3, 20, 12, 0, 0))
-    // The follow-up date is not a calendar placement: untouched.
-    expect(next.nextFollowupAt).toEqual(new Date(2026, 3, 1))
+    // Only the due date changes: the follow-up date isn't in the changes.
+    expect(next).toEqual({ dueDate: new Date(2026, 3, 20, 12, 0, 0) })
   })
 
-  it('bumps modifiedAt', () => {
-    const todo = makeTodo({
-      id: 6,
-      dueDate: new Date(2026, 3, 15),
-      modifiedAt: new Date(2026, 0, 1),
-    })
-    const next = buildRescheduleUpdate(todo, new Date(2026, 3, 20))
-    expect(next.modifiedAt.getTime()).toBeGreaterThan(todo.modifiedAt.getTime())
-  })
-
-  it('moves the next follow-up instead when asked, keeping its time; the due date and last follow-up stay', () => {
+  it('moves the next follow-up instead when asked, keeping its time; nothing else is in the changes', () => {
     const todo = makeTodo({
       id: 5,
       dueDate: new Date(2026, 3, 15, 9, 0, 0),
@@ -38,14 +27,11 @@ describe('buildRescheduleUpdate', () => {
       lastFollowupAt: new Date(2026, 3, 1),
     })
     const next = buildRescheduleUpdate(todo, new Date(2026, 3, 22), 'followup')
-    expect(next.nextFollowupAt).toEqual(new Date(2026, 3, 22, 8, 30, 0))
-    expect(next.dueDate).toEqual(new Date(2026, 3, 15, 9, 0, 0))
-    expect(next.lastFollowupAt).toEqual(new Date(2026, 3, 1))
+    expect(next).toEqual({ nextFollowupAt: new Date(2026, 3, 22, 8, 30, 0) })
   })
 
   it('sets a follow-up at noon on a task that had none', () => {
     const next = buildRescheduleUpdate(makeTodo({ id: 6 }), new Date(2026, 3, 22), 'followup')
-    expect(next.nextFollowupAt).toEqual(new Date(2026, 3, 22, 12, 0, 0))
-    expect(next.dueDate).toBeUndefined()
+    expect(next).toEqual({ nextFollowupAt: new Date(2026, 3, 22, 12, 0, 0) })
   })
 })

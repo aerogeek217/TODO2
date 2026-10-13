@@ -338,7 +338,7 @@ export function WorkspacePage() {
         reschedule: async (todoId, date, type) => {
           const t = useTodoStore.getState().todos.find((x) => x.id === todoId)
           if (!t) return
-          await useTodoStore.getState().update(buildRescheduleUpdate(t, date, type))
+          await useTodoStore.getState().update(todoId, buildRescheduleUpdate(t, date, type))
         },
         chooseType,
       },

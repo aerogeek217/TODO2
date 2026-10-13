@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { NewTodoItem, PersistedTodoItem } from '../models'
+import type { NewTodoItem, PersistedTodoItem, TodoChanges } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { useUndoStore } from './undo-store'
@@ -94,12 +94,12 @@ interface TodoState {
     options: { description: string; snackbar?: boolean },
   ) => Promise<number[]>
   /**
-   * Saves an edited task: only the fields of `todo` that differ from the
-   * task's current row are written, so pass a copy read from the store just
-   * before (`{ ...current, title }`). One undo step; undo restores only those
-   * fields. No change → no write and no undo step.
+   * Saves an edit to a task: `changes` holds just the fields the caller
+   * changed, and only those are written (fields that already hold the value
+   * are skipped). One undo step; undo restores only those fields. No change
+   * → no write and no undo step.
    */
-  update: (todo: PersistedTodoItem) => Promise<void>
+  update: (id: number, changes: TodoChanges) => Promise<void>
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
@@ -274,13 +274,16 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }, 'Failed to add tasks')
   },
 
-  async update(todo: PersistedTodoItem) {
-    const prev = get().todos.find((t) => t.id === todo.id)
+  async update(id: number, changes: TodoChanges) {
+    const prev = get().todos.find((t) => t.id === id)
     if (!prev) return
     // Resolve completedAt once and hand the same value to the repository, so
     // the store and the DB never hold two independently minted timestamps.
-    const completedAt = resolveCompletedAt(prev, todo, new Date())
-    return patchTodo(todo.id, todoChanges(prev, { ...todo, completedAt }), `Edit "${todo.title}"`)
+    const patch = changes.isCompleted === undefined ? changes : {
+      ...changes,
+      completedAt: resolveCompletedAt(prev, { isCompleted: changes.isCompleted, completedAt: changes.completedAt }, new Date()),
+    }
+    return patchTodo(id, patch, `Edit "${changes.title ?? prev.title}"`)
   },
 
   async toggleComplete(id: number) {

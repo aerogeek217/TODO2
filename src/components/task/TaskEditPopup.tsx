@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { TodoItem, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
+import type { TodoItem, TodoChanges, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
 import { DEFAULT_STATUS_ICON } from '../../models'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -23,6 +23,8 @@ import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
+import { editorChanges, editorFieldsOf, type EditorFields } from './editor-fields'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditPopupBaseProps {
@@ -42,7 +44,8 @@ interface TaskEditPopupBaseProps {
 interface EditModeProps extends TaskEditPopupBaseProps {
   mode: 'edit'
   todo: PersistedTodoItem
-  onUpdate: (todo: PersistedTodoItem) => void
+  /** Saves the fields the user changed (only those). */
+  onUpdate: (changes: TodoChanges) => void
   onToggleComplete: () => void
   onDelete: () => void
   onDuplicate?: () => void
@@ -246,6 +249,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setDeadline(todoDueDate ?? null)
     setRecurrenceType(todoRecurrenceType ?? '')
   }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoDueDate, todoRecurrenceType])
+  const formRef = useLatestRef<EditorFields>({ title, notes, progress, statusId, deadline, recurrenceType })
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.
@@ -279,19 +283,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return undefined
   }, [recurrenceType, deadline])
 
-  const saveEdit = useCallback((overrides: Partial<TodoItem> = {}) => {
-    if (!isEdit || !todo) return
-    props.onUpdate({
-      ...todo,
-      title: title.trim() || todo.title,
-      notes: notes || undefined,
-      progress: progress || undefined,
-      statusId,
-      dueDate: deadline ?? undefined,
-      recurrenceRule: buildRule(),
-      ...overrides,
-    })
-  }, [isEdit, todo, title, notes, progress, statusId, deadline, buildRule, props])
+  // Writes the fields that differ from the task (title / progress on blur;
+  // the other fields also save as they change).
+  const saveEdit = () => {
+    if (props.mode !== 'edit') return
+    const changes = editorChanges(formRef.current, editorFieldsOf(props.todo))
+    if (Object.keys(changes).length > 0) props.onUpdate(changes)
+  }
 
   const handleTitleBlur = () => { if (isEdit) saveEdit() }
 
@@ -314,8 +312,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (e.key === 'Escape') titleRef.current?.blur()
   }
 
-  const todoRef = useRef(todo)
-  todoRef.current = todo
   const onUpdateRef = useRef(isEdit ? props.onUpdate : undefined)
   onUpdateRef.current = isEdit ? props.onUpdate : undefined
 
@@ -324,15 +320,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     set: (next) => {
       notesRef.current = next
       setNotes(next)
-      const current = todoRef.current
-      const update = onUpdateRef.current
-      if (current && update) {
-        update({
-          ...current,
-          notes: next ? next : undefined,
-          modifiedAt: new Date(),
-        })
-      }
+      onUpdateRef.current?.({ notes: next ? next : undefined })
     },
   }), [])
 
@@ -343,12 +331,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (isEdit && todo) {
       const nextRule: typeof todo.recurrenceRule =
         recurrenceType && next ? makeRecurrenceRule(recurrenceType, next) : undefined
-      props.onUpdate({
-        ...todo,
-        dueDate: next ?? undefined,
-        recurrenceRule: nextRule,
-        modifiedAt: new Date(),
-      })
+      props.onUpdate({ dueDate: next ?? undefined, recurrenceRule: nextRule })
     }
   }
 
@@ -358,11 +341,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (isEdit && todo) {
       const nextRule: typeof todo.recurrenceRule =
         val && deadline ? makeRecurrenceRule(val, deadline) : undefined
-      props.onUpdate({
-        ...todo,
-        recurrenceRule: nextRule,
-        modifiedAt: new Date(),
-      })
+      props.onUpdate({ recurrenceRule: nextRule })
     }
   }
 
@@ -372,7 +351,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const handleNextFollowupChange = (next: Date | null) => {
     if (isEdit && todo) {
-      props.onUpdate({ ...todo, nextFollowupAt: next ?? undefined, modifiedAt: new Date() })
+      props.onUpdate({ nextFollowupAt: next ?? undefined })
     } else {
       setDraftNextFollowup(next ?? undefined)
       setNextFollowupIsDefault(false)
@@ -381,7 +360,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const handleLastFollowupChange = (last: Date | null) => {
     if (isEdit && todo) {
-      props.onUpdate({ ...todo, lastFollowupAt: last ?? undefined, modifiedAt: new Date() })
+      props.onUpdate({ lastFollowupAt: last ?? undefined })
     } else {
       setDraftLastFollowup(last ?? undefined)
     }
@@ -586,7 +565,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                       e.stopPropagation()
                       setStatusId(undefined)
                       setShowStatusMenu(false)
-                      if (isEdit && todo) props.onUpdate({ ...todo, statusId: undefined, modifiedAt: new Date() })
+                      if (props.mode === 'edit') props.onUpdate({ statusId: undefined })
                     }}
                   >
                     <span style={{ color: 'var(--color-text-muted)' }}><StatusIcon icon="circle" /></span>
@@ -600,7 +579,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                         e.stopPropagation()
                         setStatusId(s.id)
                         setShowStatusMenu(false)
-                        if (isEdit && todo) props.onUpdate({ ...todo, statusId: s.id, modifiedAt: new Date() })
+                        if (props.mode === 'edit') props.onUpdate({ statusId: s.id })
                       }}
                     >
                       <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>

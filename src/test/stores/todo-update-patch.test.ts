@@ -1,7 +1,7 @@
-// `useTodoStore.update` writes only the fields an edit changes, so an edit
-// can't put back an older value of a field another write changed. Each
-// interleaving test holds one write at a chosen point and runs the other
-// in between.
+// `useTodoStore.update(id, changes)` writes only the fields an edit changes,
+// so an edit can't put back an older value of a field another write changed.
+// Each interleaving test holds one write at a chosen point and runs the
+// other in between.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { todoRepository } from '../../data'
@@ -35,13 +35,13 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('useTodoStore.update writes only the changed fields', () => {
+describe('useTodoStore.update(id, changes) writes only the changed fields', () => {
   it('writes the changed field and leaves the others as the database holds them', async () => {
     const id = await addTodo('Task')
     await useTodoStore.getState().loadAll()
     const spy = vi.spyOn(todoRepository, 'update')
 
-    await useTodoStore.getState().update({ ...inStore(id), title: 'Renamed', modifiedAt: new Date() })
+    await useTodoStore.getState().update(id, { title: 'Renamed' })
 
     expect(spy).toHaveBeenCalledWith(id, { title: 'Renamed' })
     expect((await inDb(id)).title).toBe('Renamed')
@@ -52,7 +52,7 @@ describe('useTodoStore.update writes only the changed fields', () => {
     await useTodoStore.getState().loadAll()
     const spy = vi.spyOn(todoRepository, 'update')
 
-    await useTodoStore.getState().update({ ...inStore(id), modifiedAt: new Date() })
+    await useTodoStore.getState().update(id, { title: inStore(id).title, statusId: undefined })
 
     expect(spy).not.toHaveBeenCalled()
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
@@ -63,9 +63,7 @@ describe('useTodoStore.update writes only the changed fields', () => {
     await todoRepository.update(id, { notes: 'old notes', dueDate: due })
     await useTodoStore.getState().loadAll()
 
-    const { notes: _drop, ...withoutNotes } = inStore(id)
-    void _drop
-    await useTodoStore.getState().update({ ...withoutNotes, dueDate: undefined })
+    await useTodoStore.getState().update(id, { notes: undefined, dueDate: undefined })
 
     const row = await inDb(id)
     expect(row.notes).toBeUndefined()
@@ -94,7 +92,7 @@ describe('useTodoStore.update writes only the changed fields', () => {
     await written.promise
     // The store still shows the bulk due date; the database no longer has it.
     expect(inStore(id).dueDate).toEqual(due)
-    await useTodoStore.getState().update({ ...inStore(id), notes: 'typed meanwhile' })
+    await useTodoStore.getState().update(id, { notes: 'typed meanwhile' })
     release.resolve()
     await undo
 
@@ -108,7 +106,7 @@ describe('useTodoStore.update writes only the changed fields', () => {
     const id = await addTodo('Old title')
     await useTodoStore.getState().loadAll()
 
-    await useTodoStore.getState().update({ ...inStore(id), title: 'New title' })
+    await useTodoStore.getState().update(id, { title: 'New title' })
     await useTodoStore.getState().bulkSetFocus([id], true)
     // Undo the title edit while the later focus change stays: take the focus
     // entry off the stack so the title edit is on top.
@@ -133,7 +131,7 @@ describe('useTodoStore.update writes only the changed fields', () => {
       throw new Error('DB error')
     })
 
-    const edit = useTodoStore.getState().update({ ...inStore(id), title: 'New title' })
+    const edit = useTodoStore.getState().update(id, { title: 'New title' })
     const rejected = expect(edit).rejects.toThrow('DB error')
     await useTodoStore.getState().bulkSetFocus([id], true)
     fail.resolve()
@@ -147,7 +145,7 @@ describe('useTodoStore.update writes only the changed fields', () => {
     const id = await addTodo('Task')
     await useTodoStore.getState().loadAll()
 
-    await useTodoStore.getState().update({ ...inStore(id), isCompleted: true })
+    await useTodoStore.getState().update(id, { isCompleted: true })
 
     const stamped = inStore(id).completedAt
     expect(stamped).toBeInstanceOf(Date)

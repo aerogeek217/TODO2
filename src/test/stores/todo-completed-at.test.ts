@@ -114,15 +114,15 @@ describe('completedAt on every completion path', () => {
 
   it('update() keeps completedAt in step when it flips isCompleted (TaskEditPopup-style writes)', async () => {
     const id = await useTodoStore.getState().add('Edit me')
-    await useTodoStore.getState().update({ ...inStore(id), isCompleted: true })
+    await useTodoStore.getState().update(id, { isCompleted: true })
     expect((await stored(id)).completedAt).toBeInstanceOf(Date)
     const at = (await stored(id)).completedAt
 
     // An unrelated edit of a completed task keeps the completion time.
-    await useTodoStore.getState().update({ ...inStore(id), title: 'Renamed' })
+    await useTodoStore.getState().update(id, { title: 'Renamed' })
     expect((await stored(id)).completedAt).toEqual(at)
 
-    await useTodoStore.getState().update({ ...inStore(id), isCompleted: false })
+    await useTodoStore.getState().update(id, { isCompleted: false })
     expect('completedAt' in (await stored(id))).toBe(false)
   })
 
@@ -140,7 +140,7 @@ describe('completedAt on every completion path', () => {
   it('completing a recurring task advances it instead and sets no completedAt', async () => {
     const id = await useTodoStore.getState().add('Weekly')
     const due = new Date('2026-10-12T00:00:00.000Z')
-    await useTodoStore.getState().update({ ...inStore(id), dueDate: due, recurrenceRule: { type: 'weekly' } })
+    await useTodoStore.getState().update(id, { dueDate: due, recurrenceRule: { type: 'weekly' } })
     await useTodoStore.getState().toggleComplete(id)
     const row = await stored(id)
     expect(row.isCompleted).toBe(false)

@@ -125,7 +125,7 @@ describe('TaskEditPopup — follow-up group', () => {
     fireEvent.keyDown(nextInput(), { key: 'Enter' })
     fireEvent.blur(nextInput())
     expect(onUpdate).toHaveBeenCalledTimes(1)
-    expect(onUpdate.mock.calls[0]![0]).toMatchObject({ id: 7, nextFollowupAt: day(2026, 10, 24) })
+    expect(onUpdate).toHaveBeenCalledWith({ nextFollowupAt: day(2026, 10, 24) })
   })
 
   it('edit mode: quick interval buttons and × apply immediately', () => {

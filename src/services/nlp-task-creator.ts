@@ -2,7 +2,7 @@ import { parseInput } from './natural-language-parser'
 import { resolveInput, resolveTags, resolveUnmatchedPeople, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 import { runNlpMetadataTransaction } from '../data'
-import type { Person, Status, PersistedTodoItem } from '../models'
+import type { Person, Status, PersistedTodoItem, TodoChanges } from '../models'
 
 export interface NlpCreateResult {
   title: string
@@ -37,7 +37,7 @@ export async function applyNlpMetadata(
   todoId: number,
   resolved: ResolvedInput,
   getTodo: (id: number) => PersistedTodoItem | undefined,
-  updateTodo: (todo: PersistedTodoItem) => Promise<void>,
+  updateTodo: (id: number, changes: TodoChanges) => Promise<void>,
   assignPerson: (todoId: number, personId: number) => Promise<void>,
 ): Promise<void> {
   const hasUpdates =
@@ -64,23 +64,20 @@ export async function applyNlpMetadata(
       if (hasUpdates) {
         const todo = getTodo(todoId)
         if (todo) {
-          const nextDue = resolved.dueDate ?? todo.dueDate
-          const nextStatusId = resolved.statusId ?? todo.statusId
-          let nextRule = todo.recurrenceRule
+          const changes: TodoChanges = {}
+          if (resolved.dueDate !== undefined) changes.dueDate = resolved.dueDate
           if (resolved.recurrence) {
-            nextRule = nextDue ? makeRecurrenceRule(resolved.recurrence, nextDue) : undefined
+            const due = resolved.dueDate ?? todo.dueDate
+            changes.recurrenceRule = due ? makeRecurrenceRule(resolved.recurrence, due) : undefined
           }
-          await updateTodo({
-            ...todo,
-            dueDate: nextDue,
-            recurrenceRule: nextRule,
-            statusId: nextStatusId,
-            ...(resolved.urgent ? { urgent: true } : {}),
-            ...(resolved.important ? { important: true } : {}),
-            ...(resolved.focus ? { focus: true } : {}),
-            // `/followup` replaces the default next follow-up; `none` drops it.
-            nextFollowupAt: resolved.followupNone ? undefined : (resolved.nextFollowupAt ?? todo.nextFollowupAt),
-          })
+          if (resolved.statusId !== undefined) changes.statusId = resolved.statusId
+          if (resolved.urgent) changes.urgent = true
+          if (resolved.important) changes.important = true
+          if (resolved.focus) changes.focus = true
+          // `/followup` replaces the default next follow-up; `none` drops it.
+          if (resolved.followupNone) changes.nextFollowupAt = undefined
+          else if (resolved.nextFollowupAt !== undefined) changes.nextFollowupAt = resolved.nextFollowupAt
+          await updateTodo(todoId, changes)
         }
       }
 

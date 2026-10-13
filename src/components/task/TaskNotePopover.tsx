@@ -74,14 +74,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     set: (next) => {
       draftRef.current = next
       setDraft(next)
-      const t = useTodoStore.getState().todos.find(x => x.id === todoId)
-      if (t) {
-        void useTodoStore.getState().update({
-          ...t,
-          notes: next ? next : undefined,
-          modifiedAt: new Date(),
-        })
-      }
+      void useTodoStore.getState().update(todoId, { notes: next ? next : undefined })
     },
   }), [todoId])
 

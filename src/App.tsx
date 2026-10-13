@@ -138,10 +138,7 @@ function AppQuickAddBar() {
     }
     // A Markers filter (e.g. the Focus list's "+ Add task"): the task starts
     // with those markers so it shows where it was added.
-    if (seedsMarkers(fd)) {
-      const created = useTodoStore.getState().todos.find((t) => t.id === id)
-      if (created) await useTodoStore.getState().update({ ...created, ...markerFlags(fd) })
-    }
+    if (seedsMarkers(fd)) await useTodoStore.getState().update(id, markerFlags(fd))
     useUIStore.getState().showRecentlyCreated(id)
     close()
   }, [close])

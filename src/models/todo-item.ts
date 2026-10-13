@@ -63,3 +63,10 @@ export type PersistedTodoItem = TodoItem & { id: number }
  * absent (pass it only to keep an imported task's identity).
  */
 export type NewTodoItem = Omit<TodoItem, 'id' | 'uid'> & { uid?: string }
+
+/**
+ * An edit to a task: just the fields the editor changed (`undefined` removes
+ * a field). The id is passed beside it and `modifiedAt` is stamped by the
+ * write, so neither belongs here.
+ */
+export type TodoChanges = Partial<Omit<TodoItem, 'id' | 'modifiedAt'>>

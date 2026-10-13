@@ -16,7 +16,7 @@ interface TodoStoreModule {
   useTodoStore: {
     getState(): {
       todos: Array<{ id: number; title: string }>
-      update(todo: { id: number; title: string }): Promise<void>
+      update(id: number, changes: { title?: string }): Promise<void>
     }
   }
 }
@@ -38,7 +38,7 @@ async function renameExternally(page: Page, id: number, title: string): Promise<
     const state = mod.useTodoStore.getState()
     const todo = state.todos.find((t) => t.id === id)
     if (!todo) throw new Error(`renameExternally: no todo ${id}`)
-    await state.update({ ...todo, title })
+    await state.update(todo.id, { title })
   }, { url: TODO_STORE_URL, id, title })
 }
 
