@@ -60,11 +60,15 @@ function AppBulkConfirmDialog() {
           const [first] = ids
           if (ids.length === 1 && first != null) {
             useTodoStore.getState().remove(first)
+            closeEditPopup()
+            clearSelection()
           } else {
-            useTodoStore.getState().bulkRemove(ids)
+            // Cleared only once the delete goes ahead: cancelling at the
+            // "Continue without a backup?" question keeps the selection.
+            void useTodoStore.getState().bulkRemove(ids, {
+              beforeDelete: () => { closeEditPopup(); clearSelection() },
+            })
           }
-          closeEditPopup()
-          clearSelection()
         } else {
           useTodoStore.getState().bulkSetCompleted(ids, action === 'complete')
         }

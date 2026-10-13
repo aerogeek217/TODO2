@@ -109,12 +109,14 @@ describe('bulk delete', () => {
     expect(backup?.data).toContain('Task 6')
   })
 
-  it('failed backup + Cancel deletes nothing', async () => {
+  it('failed backup + Cancel deletes nothing and never calls beforeDelete (the selection stays)', async () => {
     const ids = await addTasks(6)
     failSnapshots()
-    const pending = useTodoStore.getState().bulkRemove(ids)
+    const beforeDelete = vi.fn()
+    const pending = useTodoStore.getState().bulkRemove(ids, { beforeDelete })
     await answerBackupPrompt(false)
     await pending
+    expect(beforeDelete).not.toHaveBeenCalled()
     expect(await db.todos.count()).toBe(6)
     expect(useTodoStore.getState().todos).toHaveLength(6)
     expect(useUndoStore.getState().undoStack).toHaveLength(6) // the adds only
@@ -123,9 +125,22 @@ describe('bulk delete', () => {
   it('failed backup + Continue deletes, and the undo snackbar says no backup was taken', async () => {
     const ids = await addTasks(6)
     failSnapshots()
-    const pending = useTodoStore.getState().bulkRemove(ids)
-    await answerBackupPrompt(true)
+    let countAtBeforeDelete = -1
+    const beforeDelete = vi.fn(() => { countAtBeforeDelete = useTodoStore.getState().todos.length })
+    const pending = useTodoStore.getState().bulkRemove(ids, { beforeDelete })
+    await vi.waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
+    expect(beforeDelete).not.toHaveBeenCalled()
+    useUIStore.getState().answerConfirmation(true)
     await pending
+    expect(beforeDelete).toHaveBeenCalledTimes(1)
+    expect(countAtBeforeDelete).toBe(6)
+    // Undo restores; redo deletes again without asking or calling beforeDelete.
+    await useUndoStore.getState().undo()
+    expect(await db.todos.count()).toBe(6)
+    await useUndoStore.getState().redo()
+    expect(await db.todos.count()).toBe(0)
+    expect(beforeDelete).toHaveBeenCalledTimes(1)
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
     expect(await db.todos.count()).toBe(0)
     expect(useUndoStore.getState().snackbar?.description).toBe('Delete 6 tasks — no backup was taken')
   })
@@ -142,10 +157,13 @@ describe('bulk delete', () => {
     expect(await db.todos.count()).toBe(0)
   })
 
-  it('five tasks or fewer take no backup', async () => {
+  it('five tasks or fewer take no backup; beforeDelete runs straight away', async () => {
     const ids = await addTasks(5)
     const spy = vi.spyOn(backupScheduler, 'snapshotBeforeDestructive')
-    await useTodoStore.getState().bulkRemove(ids)
+    const beforeDelete = vi.fn()
+    const pending = useTodoStore.getState().bulkRemove(ids, { beforeDelete })
+    expect(beforeDelete).toHaveBeenCalledTimes(1)
+    await pending
     expect(spy).not.toHaveBeenCalled()
     expect(await db.todos.count()).toBe(0)
   })

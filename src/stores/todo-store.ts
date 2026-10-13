@@ -123,9 +123,11 @@ interface TodoState {
   /**
    * Deletes `ids` as one undo step (with the snackbar). More than
    * `BULK_DELETE_SNAPSHOT_MIN` tasks are backed up first; if that backup
-   * fails and the user cancels, nothing is deleted.
+   * fails and the user cancels, nothing is deleted. `beforeDelete` runs
+   * once the delete is going ahead (not on cancel) — e.g. to clear the
+   * selection, which a cancel keeps.
    */
-  bulkRemove: (ids: number[]) => Promise<void>
+  bulkRemove: (ids: number[], opts?: { beforeDelete?: () => void }) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
   /**
    * Deletes the given completed tasks (snapshot first, `takeSafetySnapshot`).
@@ -610,7 +612,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     )
   },
 
-  async bulkRemove(ids: number[]) {
+  async bulkRemove(ids: number[], opts?: { beforeDelete?: () => void }) {
     // Backup gate outside the tracked write: it may wait on the user. A redo
     // skips it — the first run already backed up this data — so a redo
     // always does what the undo stack expects.
@@ -620,6 +622,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       if (snapshot === 'cancelled') return
       noBackup = snapshot === 'without-backup'
     }
+    opts?.beforeDelete?.()
     return mutate(set, async () => {
       const snapshots = get().todos.filter((t) => ids.includes(t.id)).map(t => ({ ...t }))
       const assignments = await captureAssignmentsBulk(ids)

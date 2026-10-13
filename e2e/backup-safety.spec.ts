@@ -141,6 +141,8 @@ test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Contin
   await prompt.getByRole('button', { name: 'Cancel' }).click()
   await expect(prompt).toBeHidden()
   await expect(taskRowByTitle(page, 't6')).toBeVisible()
+  // Cancel keeps the selection too.
+  await expect(page.locator('[data-selected="true"]')).toHaveCount(6)
   expect(await dbTitles(page)).toEqual(titles)
 
   await deleteAll()
@@ -148,7 +150,12 @@ test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Contin
   await prompt.getByRole('button', { name: 'Continue' }).click()
   await expect(page.getByText('Delete 6 tasks — no backup was taken')).toBeVisible()
   await expect(taskRowByTitle(page, 't1')).toHaveCount(0)
+  await expect(page.locator('[data-selected="true"]')).toHaveCount(0)
   expect(await dbTitles(page)).toEqual([])
+  // Undo brings them back.
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(taskRowByTitle(page, 't6')).toBeVisible()
+  expect(await dbTitles(page)).toEqual(titles)
 })
 
 test('restoring a backup backs up the current data first', async ({ page }) => {
