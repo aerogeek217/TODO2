@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
+import { readSyncFile as readFile } from './fixtures/sync-file'
 
 /**
  * Sync-file conflict flow in a real browser.
@@ -26,11 +27,7 @@ async function stubPicker(page: Page) {
 }
 
 async function readSyncFile(page: Page): Promise<string> {
-  return page.evaluate(async (name) => {
-    const dir = await navigator.storage.getDirectory()
-    const fh = await dir.getFileHandle(name, { create: true })
-    return (await fh.getFile()).text()
-  }, SYNC_FILE)
+  return readFile(page, SYNC_FILE, { create: true })
 }
 
 async function writeSyncFile(page: Page, text: string) {

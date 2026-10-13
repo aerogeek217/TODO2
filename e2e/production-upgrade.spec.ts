@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
+import { readSyncFile as readFile } from './fixtures/sync-file'
 
 /**
  * First load of the current build over a production install of the v49
@@ -137,10 +138,7 @@ async function installV49(page: Page, tables: Tables, fileText: string) {
 }
 
 async function readSyncFile(page: Page): Promise<string> {
-  return page.evaluate(async (name) => {
-    const dir = await navigator.storage.getDirectory()
-    return (await (await dir.getFileHandle(name)).getFile()).text()
-  }, SYNC_FILE)
+  return readFile(page, SYNC_FILE)
 }
 
 /** Raw-IDB snapshot of every store, JSON round-tripped (Dates → ISO strings). */
