@@ -4,9 +4,17 @@ import { prepareImportText } from '../../../data/import-pipeline'
 import type { UnsupportedImportInfo } from '../../../services/migration-check'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
 import { BYTES_PER_KB } from '../../../constants'
+import type { BackupTrigger } from '../../../models'
 import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
+
+const TRIGGER_LABEL: Record<BackupTrigger, string> = {
+  auto: 'auto',
+  manual: 'manual',
+  'pre-destructive': 'pre-op',
+  'sync-file': 'sync file',
+}
 
 /** Automatic and manual snapshots of the database: restore, delete, create. */
 export function BackupsSection() {
@@ -16,7 +24,7 @@ export function BackupsSection() {
   const deleteBackup = useFileOpsStore((s) => s.deleteBackup)
   const peekBackupData = useFileOpsStore((s) => s.peekBackupData)
   const restoreBackup = useFileOpsStore((s) => s.restoreBackup)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
   const timer = useRef<number | null>(null)
@@ -27,10 +35,10 @@ export function BackupsSection() {
   }, [loadBackups])
   useEffect(() => () => { if (timer.current != null) clearTimeout(timer.current) }, [])
 
-  const showMessage = (msg: string, ms: number) => {
-    setMessage(msg)
+  const showMessage = (text: string, ms: number, error = false) => {
+    setMessage({ text, error })
     if (timer.current != null) clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setMessage(''), ms)
+    timer.current = window.setTimeout(() => setMessage(null), ms)
   }
 
   const restore = async (id: number) => {
@@ -57,14 +65,14 @@ export function BackupsSection() {
   return (
     <div className={styles.section}>
       {backups.length === 0 ? (
-        <div className={styles.muted}>No backups yet. Backups are created automatically every 24 hours and before destructive operations.</div>
+        <div className={styles.muted}>No backups yet. Backups are created automatically every 24 hours, before destructive operations, and before the sync file is rewritten.</div>
       ) : (
         <div className={styles.backupList}>
           {backups.map((b) => (
-            <div key={b.id} className={styles.backupRow}>
+            <div key={b.id} className={styles.backupRow} data-trigger={b.trigger}>
               <span className={styles.backupTime}>{new Date(b.createdAt).toLocaleString()}</span>
-              <span className={`${styles.backupBadge}${b.trigger === 'pre-destructive' ? ` ${styles.backupBadgeDestructive}` : ''}`}>
-                {b.trigger === 'pre-destructive' ? 'pre-op' : b.trigger}
+              <span className={`${styles.backupBadge}${b.trigger === 'pre-destructive' || b.trigger === 'sync-file' ? ` ${styles.backupBadgeDestructive}` : ''}`}>
+                {TRIGGER_LABEL[b.trigger]}
               </span>
               <span className={styles.backupSize}>
                 {b.sizeBytes < BYTES_PER_KB ? `${b.sizeBytes} B` : `${Math.round(b.sizeBytes / BYTES_PER_KB)} KB`}
@@ -97,14 +105,19 @@ export function BackupsSection() {
           type="button"
           className={`${styles.button} ${styles.buttonSecondary}`}
           onClick={async () => {
-            await createBackup('manual')
-            showMessage('Backup created!', 2000)
+            try {
+              await createBackup()
+              showMessage('Backup created!', 2000)
+            } catch (err) {
+              console.warn('[backup] manual backup failed', err)
+              showMessage('The backup could not be saved — browser storage may be full.', 8000, true)
+            }
           }}
         >
           Create Backup Now
         </button>
       </div>
-      {message && <div className={styles.successMsg}>{message}</div>}
+      {message && <div className={message.error ? styles.errorMsg : styles.successMsg} role={message.error ? 'alert' : undefined}>{message.text}</div>}
 
       {pendingMigration && (
         <MigrationDialog

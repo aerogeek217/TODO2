@@ -180,32 +180,67 @@ describe('backupRepository', () => {
     it('pruneSnapshots_belowKeepCount_removesNothing', async () => {
       await backupRepository.createSnapshot('auto')
       await backupRepository.createSnapshot('auto')
-      const removed = await backupRepository.pruneSnapshots(5)
+      const removed = await backupRepository.pruneSnapshots('auto', 5)
       expect(removed).toBe(0)
       const list = await backupRepository.listSnapshots()
       expect(list).toHaveLength(2)
     })
 
     it('pruneSnapshots_aboveKeepCount_removesOldest', async () => {
-      for (let i = 0; i < 5; i++) {
-        await backupRepository.createSnapshot('auto')
-      }
-      const removed = await backupRepository.pruneSnapshots(3)
+      const ids: number[] = []
+      for (let i = 0; i < 5; i++) ids.push(await backupRepository.createSnapshot('auto'))
+      const removed = await backupRepository.pruneSnapshots('auto', 3)
       expect(removed).toBe(2)
       const list = await backupRepository.listSnapshots()
-      expect(list).toHaveLength(3)
+      expect(list.map((b) => b.id).sort((a, b) => a - b)).toEqual(ids.slice(2))
     })
 
     it('pruneSnapshots_exactlyKeepCount_removesNothing', async () => {
       await backupRepository.createSnapshot('auto')
       await backupRepository.createSnapshot('auto')
-      const removed = await backupRepository.pruneSnapshots(2)
+      const removed = await backupRepository.pruneSnapshots('auto', 2)
       expect(removed).toBe(0)
     })
 
     it('pruneSnapshots_emptyDb_returnsZero', async () => {
-      const removed = await backupRepository.pruneSnapshots(10)
+      const removed = await backupRepository.pruneSnapshots('auto', 10)
       expect(removed).toBe(0)
+    })
+
+    it('prunes only the given kind: manual and sync-file backups outlive any number of others', async () => {
+      const manual = await backupRepository.createSnapshot('manual')
+      const file = await backupRepository.createSnapshotFromJson('{"raw":1}', 'sync-file')
+      for (let i = 0; i < 4; i++) {
+        await backupRepository.createSnapshot('auto')
+        await backupRepository.createSnapshot('pre-destructive')
+      }
+      await backupRepository.pruneSnapshots('auto', 1)
+      await backupRepository.pruneSnapshots('pre-destructive', 1)
+      const list = await backupRepository.listSnapshots()
+      expect(list.map((b) => b.trigger).sort()).toEqual(['auto', 'manual', 'pre-destructive', 'sync-file'])
+      expect(list.map((b) => b.id)).toEqual(expect.arrayContaining([manual, file]))
+    })
+  })
+
+  describe('newestSnapshotAt', () => {
+    it('is null without a backup of that kind', async () => {
+      await backupRepository.createSnapshot('manual')
+      expect(await backupRepository.newestSnapshotAt('auto')).toBeNull()
+    })
+
+    it('is when the newest backup of that kind was taken', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-10-01T08:00:00.000Z'))
+        await backupRepository.createSnapshot('auto')
+        vi.setSystemTime(new Date('2026-10-02T08:00:00.000Z'))
+        await backupRepository.createSnapshot('auto')
+        vi.setSystemTime(new Date('2026-10-03T08:00:00.000Z'))
+        await backupRepository.createSnapshot('manual')
+      } finally {
+        vi.useRealTimers()
+      }
+      expect((await backupRepository.newestSnapshotAt('auto'))?.toISOString()).toBe('2026-10-02T08:00:00.000Z')
     })
   })
 })

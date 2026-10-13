@@ -5,6 +5,7 @@ import { restoreFromImportData } from '../data/restore'
 import { prepareImportText } from '../data/import-pipeline'
 import type { ImportData } from '../data/import-validation'
 import { takeSafetySnapshot } from '../services/safety-snapshot'
+import { backupScheduler } from '../services/backup-scheduler'
 import { refreshAllStores } from './refresh-all'
 
 export type { BackupSummary, AuditReport }
@@ -26,7 +27,8 @@ interface FileOpsState {
   auditReport: AuditReport | null
 
   loadBackups: () => Promise<void>
-  createBackup: (trigger: 'manual') => Promise<void>
+  /** Create Backup Now. Rejects when the backup can't be stored. */
+  createBackup: () => Promise<void>
   deleteBackup: (id: number) => Promise<void>
   /** Returns the raw snapshot data for legacy-format detection before restore. */
   peekBackupData: (id: number) => Promise<string | null>
@@ -61,8 +63,8 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
     set({ backups: await backupRepository.listSnapshots() })
   },
 
-  createBackup: async (trigger) => {
-    await backupRepository.createSnapshot(trigger)
+  createBackup: async () => {
+    await backupScheduler.createManualBackup()
     await get().loadBackups()
   },
 

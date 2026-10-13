@@ -84,16 +84,35 @@ async function deleteSnapshot(id: number): Promise<void> {
   await db.backups.delete(id)
 }
 
-async function pruneSnapshots(keepCount: number): Promise<number> {
-  const allIds: number[] = []
-  await db.backups.orderBy('createdAt').reverse().eachPrimaryKey((id) => {
-    allIds.push(id as number)
-  })
-  if (allIds.length <= keepCount) return 0
-
-  const toDelete = allIds.slice(keepCount)
+/**
+ * Deletes all but the newest `keepCount` backups made by `trigger` (newest =
+ * most recently stored); other kinds are never touched. Returns how many
+ * were deleted. Reads keys only, never the snapshot data.
+ */
+async function pruneSnapshots(trigger: BackupTrigger, keepCount: number): Promise<number> {
+  const ids = (await db.backups.where('trigger').equals(trigger).primaryKeys()) as number[]
+  if (ids.length <= keepCount) return 0
+  const toDelete = ids.sort((a, b) => b - a).slice(keepCount)
   await db.backups.bulkDelete(toDelete)
   return toDelete.length
+}
+
+/**
+ * When the newest backup made by `trigger` was taken, or `null` if there is
+ * none. Reads index keys only, never the snapshot data.
+ */
+async function newestSnapshotAt(trigger: BackupTrigger): Promise<Date | null> {
+  return db.transaction('r', db.backups, async () => {
+    const ofTrigger = new Set(await db.backups.where('trigger').equals(trigger).primaryKeys())
+    if (ofTrigger.size === 0) return null
+    // The createdAt index's keys and their rows' ids, in the same order.
+    const times = await db.backups.orderBy('createdAt').keys()
+    const ids = await db.backups.orderBy('createdAt').primaryKeys()
+    for (let i = ids.length - 1; i >= 0; i--) {
+      if (ofTrigger.has(ids[i] as number)) return new Date(String(times[i]))
+    }
+    return null
+  })
 }
 
 export const backupRepository = {
@@ -105,4 +124,5 @@ export const backupRepository = {
   getSnapshot,
   deleteSnapshot,
   pruneSnapshots,
+  newestSnapshotAt,
 }

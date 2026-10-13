@@ -68,6 +68,15 @@ async function dbBackups(page: Page): Promise<Array<{ trigger: string; data: str
   }), DB_NAME)
 }
 
+/**
+ * Waits for the automatic backup every fresh browser gets at startup, so
+ * switching backup failures on afterwards can't catch it mid-write (and a
+ * reload doesn't take another: the last one is recent).
+ */
+async function startupBackupTaken(page: Page) {
+  await expect.poll(async () => (await dbBackups(page)).filter((b) => b.trigger === 'auto').length).toBe(1)
+}
+
 function backupPrompt(page: Page) {
   return page.getByRole('dialog', { name: 'Continue without a backup?' })
 }
@@ -89,6 +98,7 @@ test('import: a failed backup asks first — Cancel changes nothing, Continue im
   await expect(taskRowByTitle(page, 'Newer task')).toBeVisible()
   await page.keyboard.press('Escape')
 
+  await startupBackupTaken(page)
   await failBackups(page, true)
   await openSettings(page, 'Import / Export')
   await settings.getByRole('button', { name: 'Import JSON' }).click()
@@ -109,7 +119,7 @@ test('import: a failed backup asks first — Cancel changes nothing, Continue im
   await prompt.getByRole('button', { name: 'Continue' }).click()
   await expect(settings.getByText('Imported successfully. No backup was taken.')).toBeVisible()
   expect(await dbTitles(page)).toEqual(['Exported task'])
-  expect(await dbBackups(page)).toEqual([])
+  expect((await dbBackups(page)).filter((b) => b.trigger !== 'auto')).toEqual([])
 
   // The warning strip keeps saying so until dismissed.
   await page.keyboard.press('Escape')
@@ -123,6 +133,7 @@ test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Contin
   await installBackupFailureSwitch(page)
   const titles = ['t1', 't2', 't3', 't4', 't5', 't6']
   await seedTaskList(page, { tasks: titles.map((title) => ({ title })) })
+  await startupBackupTaken(page)
   await failBackups(page, true)
 
   const deleteAll = async () => {
@@ -173,8 +184,9 @@ test('restoring a backup backs up the current data first', async ({ page }) => {
   await page.keyboard.press('Escape')
 
   await openSettings(page, 'Backups')
-  await settings.getByRole('button', { name: 'Restore' }).click()
-  await settings.getByRole('button', { name: 'Confirm' }).click()
+  const manual = settings.locator('[data-trigger="manual"]')
+  await manual.getByRole('button', { name: 'Restore' }).click()
+  await manual.getByRole('button', { name: 'Confirm' }).click()
   await expect(settings.getByText('Restored successfully! The data it replaced was backed up first.')).toBeVisible()
   expect(await dbTitles(page)).toEqual(['In the backup'])
 
@@ -259,6 +271,7 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
       req.onerror = () => reject(req.error)
     })
   }, DB_NAME)
+  await startupBackupTaken(page)
   await page.reload()
   await failBackups(page, true)
 
@@ -303,6 +316,7 @@ test.describe('phone', () => {
         req.onerror = () => reject(req.error)
       })
     }, DB_NAME)
+    await startupBackupTaken(page)
     await page.reload()
     await failBackups(page, true)
 
