@@ -44,6 +44,15 @@ function isStr(v: unknown, maxLen: number): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= maxLen
 }
 
+/**
+ * The length limit for notes (a task's and the workspace note): none beyond
+ * the file-size cap. Nothing limits them where they are written (the notes
+ * editor takes any paste; a check-in reply can replace a task's notes), and a
+ * lower limit here made every export, backup and sync file holding a longer
+ * note fail to import.
+ */
+const NOTES_MAX_CHARS = Number.POSITIVE_INFINITY
+
 function isOptStr(v: unknown, maxLen: number): boolean {
   return v === undefined || v === null || (typeof v === 'string' && v.length <= maxLen)
 }
@@ -91,7 +100,7 @@ function checkTodo(v: unknown): CheckResult {
   return checkFields(v, [
     ['uid', isStr(v.uid, 200)],
     ['title', isStr(v.title, 500)],
-    ['notes', isOptStr(v.notes, 50000)],
+    ['notes', isOptStr(v.notes, NOTES_MAX_CHARS)],
     ['progress', isOptStr(v.progress, 500)],
     ['isCompleted', isBool(v.isCompleted)],
     ['completedAt', isOptDateLike(v.completedAt)],
@@ -249,7 +258,7 @@ function checkTodoPerson(v: unknown): CheckResult {
 function checkNote(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['content', typeof v.content === 'string' && (v.content as string).length <= 500000],
+    ['content', typeof v.content === 'string' && (v.content as string).length <= NOTES_MAX_CHARS],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
   ])

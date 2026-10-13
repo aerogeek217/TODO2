@@ -8,7 +8,7 @@ import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../services/export-import'
 import type { TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
-import { resetDb } from '../helpers'
+import { makeTodo, resetDb } from '../helpers'
 
 /**
  * Export → JSON → import round-trip guarantee.
@@ -259,5 +259,20 @@ describe('export → JSON → import round-trip', () => {
         }
       })
     }
+  })
+})
+
+describe('export → import accepts every text length the app can store', () => {
+  it('a task note and the workspace note far longer than a typical paste', async () => {
+    // Notes have no length limit in the editor (and a check-in reply can
+    // replace a note with up to its 2 MB cap), so an export holding them must
+    // import: a cap here made every backup and the sync file unloadable.
+    const long = 'x'.repeat(3_000_000)
+    await db.todos.add(makeTodo({ id: 1, notes: long }))
+    await db.notes.add({ id: 1, content: long, createdAt: new Date(), modifiedAt: new Date() })
+    const prepared = prepareImportText(JSON.stringify(await buildExportData()))
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.data.todos?.[0]?.notes).toHaveLength(long.length)
+    expect(prepared.data.notes?.[0]?.content).toHaveLength(long.length)
   })
 })
