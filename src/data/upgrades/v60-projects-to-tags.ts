@@ -168,21 +168,24 @@ function rewritePredicate(p: unknown, projectToTag: ReadonlyMap<number, number>)
   const raw = p.projectIds
   if (!Array.isArray(raw)) return { predicate: next, droppedNoProject: false }
   const droppedNoProject = raw.includes(0)
-  const projectSide: number[] = []
+  // Set lookups throughout: a file can hold huge id arrays.
+  const projectTagIds = new Set<number>()
   for (const id of raw) {
     if (!isId(id) || id === 0) continue
     const tagId = projectToTag.get(id)
-    if (tagId !== undefined && !projectSide.includes(tagId)) projectSide.push(tagId)
+    if (tagId !== undefined) projectTagIds.add(tagId)
   }
+  const projectSide = [...projectTagIds]
   // Only "no project" picked (plus maybe deleted projects): no project filter.
   if (projectSide.length === 0 && droppedNoProject) return { predicate: next, droppedNoProject }
   const tagSide = p.tags
   if (tagSide === null || tagSide === undefined) {
     next.tags = projectSide
   } else if (Array.isArray(tagSide)) {
+    const tags = new Set<unknown>(tagSide)
     next.tags = tagSide.length === 0 || projectSide.length === 0
       ? []
-      : [...tagSide, ...projectSide.filter((id) => !tagSide.includes(id))]
+      : [...tagSide, ...projectSide.filter((id) => !tags.has(id))]
   }
   return { predicate: next, droppedNoProject }
 }

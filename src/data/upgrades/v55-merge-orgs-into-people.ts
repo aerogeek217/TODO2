@@ -162,15 +162,18 @@ function mergeAssignments(
   return out.length === (todoPeopleIn ?? []).length ? todoPeopleIn : out
 }
 
-/** Maps org ids to person ids; ids of orgs that no longer exist are dropped. */
+/**
+ * Maps org ids to person ids (each once, in first-seen order); ids of orgs
+ * that no longer exist are dropped. Linear: a file can hold huge id arrays.
+ */
 function mapOrgIds(ids: readonly unknown[], orgToPerson: ReadonlyMap<number, number>): number[] {
-  const out: number[] = []
+  const out = new Set<number>()
   for (const id of ids) {
     if (!isId(id)) continue
     const mapped = id === 0 ? 0 : orgToPerson.get(id)
-    if (mapped !== undefined && !out.includes(mapped)) out.push(mapped)
+    if (mapped !== undefined) out.add(mapped)
   }
-  return out
+  return [...out]
 }
 
 /**
@@ -201,9 +204,10 @@ function rewritePredicate(p: unknown, orgToPerson: ReadonlyMap<number, number>):
     if (personSide === null || personSide === undefined) {
       next.personIds = orgSide
     } else if (Array.isArray(personSide)) {
+      const people = new Set<unknown>(personSide)
       next.personIds = personSide.length === 0 || orgSide.length === 0
         ? []
-        : [...personSide, ...orgSide.filter((id) => !personSide.includes(id))]
+        : [...personSide, ...orgSide.filter((id) => !people.has(id))]
     }
   }
   return next

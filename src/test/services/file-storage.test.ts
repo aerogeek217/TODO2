@@ -18,6 +18,7 @@ const mockValidateImportData = vi.fn()
 vi.mock('../../data/import-validation', () => ({
   validateImportData: (...args: unknown[]) => mockValidateImportData(...args),
   MAX_IMPORT_SIZE_BYTES: 50 * 1024 * 1024,
+  MAX_RECORDS_PER_TABLE: 100_000,
 }))
 
 const mockRestoreFromImportData = vi.fn().mockResolvedValue(undefined)

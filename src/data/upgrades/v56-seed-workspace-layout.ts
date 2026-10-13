@@ -75,12 +75,20 @@ interface Column {
 /** Hands out unique ids, keeping a wanted id when it is valid and still free. */
 class IdPool {
   private readonly used = new Set<string>()
+  /** Per base: the first suffix not tried yet (the ones below it are taken). */
+  private readonly nextSuffix = new Map<string, number>()
 
   take(wanted: unknown, fallback: string): string {
     // A taken id gets a `-2`, `-3`… suffix; a missing / invalid one the fallback.
     const base = typeof wanted === 'string' && wanted.length > 0 && wanted.length <= ID_MAX - 4 ? wanted : fallback
     let id = base
-    for (let n = 2; this.used.has(id); n++) id = `${base}-${n}`
+    if (this.used.has(id)) {
+      // Resume where the last search for this base stopped (ids are never
+      // freed), so many copies of one id stay linear.
+      let n = this.nextSuffix.get(base) ?? 2
+      for (id = `${base}-${n}`; this.used.has(id); id = `${base}-${n}`) n++
+      this.nextSuffix.set(base, n + 1)
+    }
     this.used.add(id)
     return id
   }

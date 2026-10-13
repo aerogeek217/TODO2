@@ -559,7 +559,7 @@ function pickRows<K extends keyof ImportData>(key: K, rows: unknown): Array<Impo
 // --- Main validation ---
 
 export const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
-const MAX_RECORDS_PER_TABLE = 100_000
+export const MAX_RECORDS_PER_TABLE = 100_000
 
 type TableValidator = { key: keyof ImportData; check: (v: unknown) => CheckResult }
 

@@ -5,6 +5,8 @@ import { upgradeV62 } from '../../data/upgrades/v62-retire-status-widget'
 import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
+import { closeTab } from '../../utils/workspace-layout-ops'
+import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb, v61StoreSpecs } from '../helpers'
 
 const AT = new Date('2026-10-01T09:00:00.000Z')
@@ -84,6 +86,44 @@ describe('upgradeV62 (pure)', () => {
     }
     expect(upgradeV62(junk)).toBe(junk)
   })
+
+  it('gives the same layout as closing each status tab in turn, on many random layouts', () => {
+    // Deterministic pseudo-random layouts: 1–3 columns of 1–3 cells of 0–5
+    // tabs, each tab a status tab or not, any of them (or none) active.
+    let seed = 7
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return seed % n
+    }
+    for (let round = 0; round < 500; round++) {
+      let nextId = 0
+      const columns = Array.from({ length: 1 + rand(3) }, () => ({
+        id: `c${nextId++}`, weight: 1,
+        cells: Array.from({ length: 1 + rand(3) }, () => {
+          const tabs = Array.from({ length: rand(6) }, () => tab(`t${nextId++}`, rand(2) === 0 ? 'status' : 'notes'))
+          const active = rand(tabs.length + 1)
+          return { id: `k${nextId++}`, weight: 1, tabs, ...(active < tabs.length ? { activeTabId: tabs[active]!.id } : {}) }
+        }),
+      }))
+      const row = layout(1, columns)
+      let expected = row as unknown as WorkspaceLayout
+      for (const col of columns) for (const cell of col.cells) for (const t of cell.tabs) {
+        if (t.kind === 'status') expected = closeTab(expected, t.id as string)
+      }
+      const [out] = upgradeV62({ layouts: [row] }).layouts!
+      expect(out, JSON.stringify(columns)).toEqual(expected)
+    }
+  })
+
+  it('stays linear on a layout with a huge number of status tabs', () => {
+    const tabs = Array.from({ length: 200_000 }, (_, i) => tab(`s${i}`, 'status'))
+    tabs.push(tab('n', 'notes'))
+    const row = layout(1, [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 's0', tabs }] }])
+    // Closing them one by one took ~10^10 steps; one pass is instant. The
+    // timeout leaves plenty of room on a loaded machine.
+    const [out] = upgradeV62({ layouts: [row] }).layouts!
+    expect(out!.columns).toEqual([{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [tab('n', 'notes')] }] }])
+  }, 20_000)
 })
 
 /** The live-DB path: a v61 database opened by the current build. */

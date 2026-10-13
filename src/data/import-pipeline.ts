@@ -1,9 +1,10 @@
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from './database'
 import { upgradeDataSet, type DataRow, type DataSet } from './schema-upgrades'
-import { validateImportData, type ImportData } from './import-validation'
+import { MAX_IMPORT_SIZE_BYTES, MAX_RECORDS_PER_TABLE, validateImportData, type ImportData } from './import-validation'
 import { detectUnsupportedImport, SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from '../services/migration-check'
 
 export type PrepareImportFailure =
+  | 'too-large'
   | 'invalid-json'
   | 'not-object'
   | 'too-new'
@@ -130,6 +131,20 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
     else rest[key] = value
   }
 
+  // The per-table record cap, checked before the transforms run (validation
+  // checks it again on the upgraded tables): it bounds their work, and covers
+  // the tables they drop (e.g. a v49 file's `orgs`), which validation never
+  // sees.
+  for (const [key, rows] of Object.entries(tables)) {
+    if (rows.length > MAX_RECORDS_PER_TABLE) {
+      return {
+        ok: false,
+        reason: 'invalid',
+        error: `"${key}" has too many records (${rows.length}). Maximum is ${MAX_RECORDS_PER_TABLE}.`,
+      }
+    }
+  }
+
   let upgradedTables: DataSet
   try {
     upgradedTables = upgradeDataSet(tables, fromVersion, CURRENT_DB_VERSION)
@@ -161,8 +176,17 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
   }
 }
 
-/** `prepareImport` over a JSON string; a parse failure is an `invalid-json` result. */
+/**
+ * `prepareImport` over a JSON string; a parse failure is an `invalid-json`
+ * result. Text over the import size cap (`MAX_IMPORT_SIZE_BYTES`, the cap the
+ * file pickers and the sync file check by file size) is `too-large`, before
+ * parsing. Its length in UTF-16 units never exceeds its UTF-8 size, so text
+ * from a file within the cap always passes.
+ */
 export function prepareImportText(text: string, options: PrepareImportOptions = {}): PrepareImportResult {
+  if (text.length > MAX_IMPORT_SIZE_BYTES) {
+    return { ok: false, reason: 'too-large', error: `The data is too large to import (${MAX_IMPORT_SIZE_BYTES / (1024 * 1024)} MB max).` }
+  }
   let parsed: unknown
   try {
     parsed = JSON.parse(text)

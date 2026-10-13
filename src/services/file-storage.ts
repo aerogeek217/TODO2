@@ -19,8 +19,7 @@ import { browserMatchesFile, browserTaskCount } from './file-sync-compare'
  * browser dirty so they surface in the next conflict check.
  */
 export type SyncPauseReason =
-  | PrepareImportFailure   // invalid-json / not-object / too-new / upgrade-failed / invalid
-  | 'too-large'
+  | PrepareImportFailure   // too-large / invalid-json / not-object / too-new / upgrade-failed / invalid
   | 'read-error'
   | 'conflict-cancelled'
   | 'upgrade-cancelled'
