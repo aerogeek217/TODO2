@@ -35,7 +35,7 @@ export async function takeSafetySnapshot(operation: string): Promise<SafetySnaps
   const proceed = await useUIStore.getState().askConfirmation({
     title: 'Continue without a backup?',
     message: `A backup could not be saved before ${operation}, so nothing has changed yet. `
-      + 'Browser storage may be full — deleting old backups in Settings → Backups frees space. '
+      + 'Browser storage may be full. '
       + 'Continue without a backup, or cancel?',
     confirmLabel: 'Continue',
     cancelLabel: 'Cancel',

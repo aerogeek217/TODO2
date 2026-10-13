@@ -71,6 +71,9 @@ describe('takeSafetySnapshot', () => {
       cancelIsDefault: true,
     })
     expect(prompt.message).toContain('before deleting 3 tasks')
+    // True on every platform: names no Settings section (a phone has no Backups section).
+    expect(prompt.message).toContain('Browser storage may be full.')
+    expect(prompt.message).not.toContain('Settings')
     useUIStore.getState().answerConfirmation(false)
     expect(await pending).toBe('cancelled')
     expect(useFileOpsStore.getState().snapshotWarning).toBeNull()
