@@ -206,7 +206,7 @@ function buildTints(view: EditorView): DecorationSet {
   return builder.finish()
 }
 
-/** Token tints (D5 colours), per visible line. */
+/** Token tints (Quick Add's colours), per visible line. */
 const tints = ViewPlugin.fromClass(class {
   decorations: DecorationSet
   private readonly unsubscribe: (() => void) | undefined

@@ -257,7 +257,7 @@ describe('TaskRow', () => {
     it('a task urgent only by its due date shows the clock; a flagged one the mark', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
       const clock = screen.getByRole('img', { name: 'Urgent: due soon' })
-      // D0 tooltip: opens after 400 ms of hover, two lines, described-by while open.
+      // Tooltip: opens after 400 ms of hover, two lines, described-by while open.
       fireEvent.pointerEnter(clock)
       act(() => { vi.advanceTimersByTime(399) })
       expect(screen.queryByRole('tooltip')).toBeNull()

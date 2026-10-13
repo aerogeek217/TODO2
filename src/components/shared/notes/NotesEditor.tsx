@@ -34,7 +34,7 @@ interface NotesEditorProps {
 /**
  * CodeMirror 6 wrapper. Deliberately minimal — only imports the
  * state/view/commands/lang-markdown modules so the offline bundle stays
- * within budget (plan target: ~150 KB added over the pre-Phase-3 bundle).
+ * small (about 150 KB for the editor).
  *
  * Caret line is reported back via `onLineChange` each time the selection
  * settles; `NotesBody` uses it to decide whether the current line qualifies

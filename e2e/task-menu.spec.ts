@@ -3,7 +3,7 @@ import { taskRowByTitle } from './fixtures/seed'
 import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
 
 /**
- * The task menu, the D0 tooltip and the list bulk bar's ⋯ More in a real
+ * The task menu, the tooltip and the list bulk bar's ⋯ More in a real
  * browser: focus handoff (open → first item, Esc → back to ⋯), arrow-key
  * navigation into and out of the Follow-up submenu, submenu placement beside
  * its item (flipped left near the right edge), the 400 ms tooltip delay, and

@@ -19,7 +19,7 @@ function WithTrigger({ entries }: { entries: readonly MenuEntry[] }) {
 const item = (label: string, extra: Partial<Extract<MenuEntry, { kind: 'item' }>> = {}): MenuEntry =>
   ({ kind: 'item', label, onSelect: vi.fn(), ...extra })
 
-describe('MenuPopover — D0 popover menu', () => {
+describe('MenuPopover — the popover menu', () => {
   it('checkbox items: aria-checked true / false / mixed with a note', () => {
     render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={[
       item('On', { checkbox: true, checked: true }),

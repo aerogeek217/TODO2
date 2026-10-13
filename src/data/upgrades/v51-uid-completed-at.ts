@@ -42,7 +42,7 @@ function hash128(str: string): [number, number, number, number] {
  * Deterministic on purpose: the live DB (Dexie upgrade) and a copy of the
  * same data in a sync file / backup (import upgrade) must end up with the
  * *same* uid for the same task — otherwise every upgraded file would differ
- * from the upgraded browser DB (release gate: first-deploy sync comparison)
+ * from the upgraded browser DB (so the first load of a new build would report a conflict)
  * and a re-imported archive of an existing task wouldn't match by uid.
  * Distinct tasks in one DB differ in `id`, so they hash apart; across
  * databases the inputs only coincide for copies of the same task.

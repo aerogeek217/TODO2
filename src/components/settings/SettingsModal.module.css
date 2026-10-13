@@ -1,4 +1,4 @@
-/* The desktop Settings modal (D0 dialog, large). No transform on the frame:
+/* The desktop Settings modal (a large standard dialog). No transform on the frame:
  * the editors a section opens are `position: fixed` and must stay relative
  * to the viewport. */
 

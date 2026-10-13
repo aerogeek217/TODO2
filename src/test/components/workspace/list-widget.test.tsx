@@ -293,7 +293,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     return screen.getByRole('menu', { name: 'More actions' })
   }
 
-  it('the bulk bar keeps the D4 order and puts Followed up + Markers under ⋯ More', () => {
+  it('the bulk bar keeps its button order and puts Followed up + Markers under ⋯ More', () => {
     setup(def())
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })

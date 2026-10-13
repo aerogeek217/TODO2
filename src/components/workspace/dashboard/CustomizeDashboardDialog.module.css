@@ -1,4 +1,4 @@
-/* Customize dashboard: a D0 dialog (800 wide, two columns) — tiles and list
+/* Customize dashboard: a standard dialog (800 wide, two columns) — tiles and list
  * tiles on the left, sections on the right. It sits at the task editor's
  * layer so its option menus and the saved-list menu open above it. */
 
@@ -146,7 +146,7 @@
   cursor: grabbing;
 }
 
-/* D0 drag handle: dim at rest, chip tint on hover, accent while held. */
+/* Drag handle: dim at rest, chip tint on hover, accent while held. */
 .grip {
   display: inline-flex;
   align-items: center;

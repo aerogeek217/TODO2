@@ -70,7 +70,7 @@ describe('urgentMark', () => {
 })
 
 describe('urgentByDateReason / dueDatePhrase', () => {
-  it('words the reason per D7', () => {
+  it('words the reason', () => {
     expect(urgentByDateReason(task({ dueDate: day(3) }), today, 3)).toBe('Due Tue 13, within 3 days.')
     expect(urgentByDateReason(task({ dueDate: day(1) }), today, 1)).toBe('Due Sun 11, within 1 day.')
     expect(urgentByDateReason(task({ dueDate: day(0) }), today, 3)).toBe('Due today.')

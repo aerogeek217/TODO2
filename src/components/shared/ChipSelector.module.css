@@ -4,7 +4,7 @@
   padding: 0 4px;
 }
 
-/* Person picker: the D0 popover width (264 with the host's border). */
+/* Person picker: the popover width (264 with the host's border). */
 .people {
   width: 262px;
   max-width: calc(100vw - 24px);

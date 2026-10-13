@@ -8,7 +8,7 @@ function Trigger({ text, shortcut }: { text: string | null; shortcut?: string })
   return <button type="button" {...triggerProps}>Copy{tooltip}</button>
 }
 
-describe('useTooltip / <Tooltip> — the D0 tooltip', () => {
+describe('useTooltip / <Tooltip> — the app tooltip', () => {
   beforeEach(() => { vi.useFakeTimers() })
   afterEach(() => {
     cleanup()

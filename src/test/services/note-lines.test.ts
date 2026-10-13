@@ -121,7 +121,7 @@ describe('selectionLines', () => {
   })
 
   it('covers every line the selection touches, even partly', () => {
-    // From the middle of line 6 to the middle of line 8 (D5 frame d).
+    // From the middle of line 6 to the middle of line 8.
     expect(selectionLines(NOTE, at(NOTE, 6, 20), at(NOTE, 8, 10))).toEqual({ from: 6, to: 8 })
   })
 

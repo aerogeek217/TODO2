@@ -34,7 +34,7 @@ type JoinTableRow<AK extends string, BK extends string> =
   & { id?: number }
 
 /**
- * DUP-9: Create assign/unassign operations for a join table.
+ * Create assign/unassign operations for a join table.
  * @param table The Dexie join table (e.g., db.todoPeople)
  * @param aKey The first foreign key field name (e.g., 'todoId')
  * @param bKey The second foreign key field name (e.g., 'personId')
@@ -74,7 +74,7 @@ export function createJoinOps<
 }
 
 /**
- * DUP-10: Build an assignment map from a join table + entity table.
+ * Build an assignment map from a join table + entity table.
  * Returns Map<linkId, Entity[]> for the given link IDs.
  * @param linkTable The join table (e.g., db.todoPeople)
  * @param entityTable The entity table (e.g., db.people)

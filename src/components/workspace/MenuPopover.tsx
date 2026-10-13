@@ -69,7 +69,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
 }
 
 /**
- * Popover menu (D0): 28px items with a leading icon and an optional trailing
+ * Popover menu: 28px items with a leading icon and an optional trailing
  * note, key hint, check / mixed dash or chevron; separators and group labels;
  * radio and checkbox rows; nested submenus. ↑↓ / Home / End move, a letter
  * jumps to the next item starting with it, Enter activates, → / ← open and

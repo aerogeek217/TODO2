@@ -1,7 +1,7 @@
 import type { Table } from 'dexie'
 
 /**
- * DUP-8: Factory for shared repository CRUD operations.
+ * Factory for shared repository CRUD operations.
  * Returns base getAll, getById, insert, update, delete methods.
  * Extend per-repo for custom queries and cascade deletes.
  */

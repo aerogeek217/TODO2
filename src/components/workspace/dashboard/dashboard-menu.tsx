@@ -6,7 +6,7 @@ import { hotRuleShort } from './dashboard-copy'
 import type { DashboardSummary } from './dashboard-summary'
 import { DashGlyph } from './glyphs'
 
-/** The Hot flyout's width (D0 popover surface). */
+/** The Hot flyout's width (the popover surface). */
 export const HOT_FLYOUT_WIDTH_PX = 316
 
 /**

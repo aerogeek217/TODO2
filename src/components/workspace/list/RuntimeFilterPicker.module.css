@@ -17,7 +17,7 @@
   flex-shrink: 0;
 }
 
-/* Pills + input — reads as a single D0 input. */
+/* Pills + input — reads as a single input. */
 .field {
   flex: 1;
   min-width: 0;

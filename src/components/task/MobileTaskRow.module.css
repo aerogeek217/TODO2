@@ -232,7 +232,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Empty follow-up slot on touch: always shown (no hover), D4's round ghost flag. */
+/* Empty follow-up slot on touch: always shown (no hover), a round ghost flag. */
 .emptyFollowupAction {
   flex-shrink: 0;
   display: inline-flex;

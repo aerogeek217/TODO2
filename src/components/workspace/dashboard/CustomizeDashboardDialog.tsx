@@ -70,7 +70,7 @@ export interface CustomizeDashboardDialogProps {
 }
 
 /**
- * Customize dashboard (a D0 dialog, 800 wide): tiles (show + reorder), list
+ * Customize dashboard (a standard dialog, 800 wide): tiles (show + reorder), list
  * tiles (add a saved list, remove, reorder) and sections (show, reorder,
  * their options). Every change is written to the tab's config at once — it
  * shows behind the dialog and makes the layout unsaved (Save / Discard is

@@ -17,11 +17,7 @@ const NO_STATUS_COLOR = 'var(--color-text-muted)'
  * per status in `statuses` order (matches the user-defined sort), followed by
  * the synthetic "No status" bucket if any todos lack a `statusId`. Entries
  * with zero count are still emitted so the legend lists every configured
- * status.
- *
- * Note: D4 also calls for filtering by status `kind !== 'done'`, but the
- * Status model has no `kind` field today — this clause is a no-op until that
- * lands. The `!isCompleted` check covers the dominant case.
+ * status. Open tasks are the ones not completed (statuses have no "done" kind).
  */
 export function selectStatusBreakdown(
   todos: readonly PersistedTodoItem[],

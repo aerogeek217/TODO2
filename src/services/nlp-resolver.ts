@@ -36,7 +36,7 @@ export interface ResolvedInput {
 }
 
 /**
- * DUP-11: Case-insensitive name matching. Tries exact match, then prefix.
+ * Case-insensitive name matching. Tries exact match, then prefix.
  */
 function matchByName<T>(name: string, items: T[], getKey: (item: T) => string): T | undefined {
   const lower = name.toLowerCase()
@@ -56,7 +56,7 @@ function matchPerson(name: string, people: Person[]): Person | undefined {
 }
 
 /**
- * DUP-12: Resolve a list of parsed names against known entities, deduplicating by ID.
+ * Resolve a list of parsed names against known entities, deduplicating by ID.
  */
 function resolveNames<T extends { id?: number }>(
   names: string[],

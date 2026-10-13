@@ -1,4 +1,4 @@
-/* List options popover (D0 popover, 288 wide). */
+/* List options popover (popover, 288 wide). */
 
 .popover {
   z-index: var(--z-dialog-nested);

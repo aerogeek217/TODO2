@@ -51,7 +51,7 @@
   min-width: 0;
 }
 
-/* ═══ Buttons (D0: radius 6, 600, 28 high) ═══ */
+/* ═══ Buttons (radius 6, weight 600, 28 high) ═══ */
 
 .button {
   display: inline-flex;

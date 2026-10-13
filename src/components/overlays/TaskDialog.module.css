@@ -1,4 +1,4 @@
-/* The task dialog: a D0 dialog listing the tasks behind a number. It sits at
+/* The task dialog: a standard dialog listing the tasks behind a number. It sits at
  * the task editor's layer (and before it in the page) so the editor and the
  * rows' menus / popovers open above it. */
 

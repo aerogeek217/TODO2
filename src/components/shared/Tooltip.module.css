@@ -1,4 +1,4 @@
-/* D0 tooltip: no arrow, 180ms fade after the 400ms open delay (in JS). */
+/* The app tooltip: no arrow, 180ms fade after the 400ms open delay (in JS). */
 .tooltip {
   position: fixed;
   z-index: var(--z-tooltip);

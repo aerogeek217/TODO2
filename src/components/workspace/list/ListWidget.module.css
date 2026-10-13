@@ -249,7 +249,7 @@
   font-weight: var(--font-weight-regular);
 }
 
-/* ── Rows: selection, cursor, drag (D0 row states) ──────────────────────── */
+/* ── Rows: selection, cursor, drag (row states) ──────────────────────── */
 
 .row {
   position: relative;
@@ -465,7 +465,7 @@
   box-shadow: var(--shadow-dropdown);
 }
 
-/* ── Switch to manual order? (D0 popover, 330 wide) ─────────────────────── */
+/* ── Switch to manual order? (popover, 330 wide) ─────────────────────── */
 
 .switchPopover {
   z-index: var(--z-dialog-nested);
@@ -596,7 +596,7 @@
   background: var(--color-surface-hover);
 }
 
-/* ── Empty states (D0: text only) ───────────────────────────────────────── */
+/* ── Empty states (text only) ───────────────────────────────────────── */
 
 .empty {
   display: flex;
