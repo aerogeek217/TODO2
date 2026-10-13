@@ -33,6 +33,7 @@ import type { SettingRow } from './database'
 
 export { isValidCssColor } from '../utils/css'
 import { isValidCssColor } from '../utils/css'
+import { parseColorSettingKey } from '../models/theme-colors'
 
 // --- Field helpers ---
 
@@ -290,15 +291,16 @@ const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
 const SETTING_VALUE_MAX_LEN = 200
 
 /**
- * Whether `key` is a recognized settings row key. Theme color rows use the
- * `color.dark.<name>` / `color.light.<name>` prefix; the prefix branch
- * accepts any well-formed color row regardless of the `<name>` segment.
+ * Whether `key` is a recognized settings row key. Theme color rows are
+ * `color.dark.<name>` / `color.light.<name>` with `<name>` one of the theme
+ * colours (`parseColorSettingKey`); any other `color.*` key is unrecognized,
+ * like an unknown key (dropped on import with a warning).
  *
  * Used by the audit pass (`src/data/audit.ts`) to detect unrecognized
  * settings rows on a forced cross-floor load.
  */
 export function isKnownSettingKey(key: string): boolean {
-  return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
+  return VALID_SETTING_KEYS.includes(key) || parseColorSettingKey(key) !== null
 }
 
 /** `checkSetting` result for a well-formed row whose key this build doesn't know. */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateImportData, isValidCssColor } from '../../data/import-validation'
+import { validateImportData, isValidCssColor, isKnownSettingKey } from '../../data/import-validation'
 
 const now = new Date().toISOString()
 
@@ -758,5 +758,15 @@ describe('validateImportData — Date revival', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.data.todoEvents[0]!.timestamp).toBe(iso)
+  })
+})
+
+describe('isKnownSettingKey — theme colour rows', () => {
+  it('knows color.<dark|light>.<theme colour> only', () => {
+    expect(isKnownSettingKey('color.dark.accent')).toBe(true)
+    expect(isKnownSettingKey('color.light.canvasBg')).toBe(true)
+    for (const key of ['color.dark.constructor', 'color.dark.__proto__', 'color.light.toString', 'color.dark.priorityHigh', 'color.sepia.accent', 'color.dark', 'color.dark.accent.x']) {
+      expect(isKnownSettingKey(key), key).toBe(false)
+    }
   })
 })

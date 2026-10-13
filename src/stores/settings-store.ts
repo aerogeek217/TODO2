@@ -3,7 +3,7 @@ import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
-import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
+import { DEFAULT_THEMED_COLORS, parseColorSettingKey } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
@@ -240,14 +240,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let checkinTaskScope: CheckinTaskScope = DEFAULT_CHECKIN_TASK_SCOPE
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
-          const rest = row.key.slice('color.'.length)
-          if (rest.startsWith('dark.') || rest.startsWith('light.')) {
-            const theme: ThemeName = rest.startsWith('dark.') ? 'dark' : 'light'
-            const colorKey = rest.slice(theme.length + 1) as keyof ThemeColors
-            if (colorKey in colors[theme] && isValidCssColor(row.value)) {
-              colors[theme][colorKey] = row.value
-              customKeys[theme].add(colorKey)
-            }
+          const color = parseColorSettingKey(row.key)
+          if (color && isValidCssColor(row.value)) {
+            colors[color.theme][color.name] = row.value
+            customKeys[color.theme].add(color.name)
           }
         } else if (row.key === SETTING_KEYS.defaultStatusId) {
           defaultStatusId = row.value ? Number(row.value) : null

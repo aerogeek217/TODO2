@@ -51,3 +51,19 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     deadline: '#b838c0',
   },
 }
+
+const THEME_NAMES: readonly ThemeName[] = ['dark', 'light']
+
+/**
+ * The theme and colour a `color.<theme>.<name>` settings key stands for, or
+ * `null` when it isn't one: an unknown theme, or a name that isn't one of
+ * `ThemeColors`' own keys (so `color.dark.constructor` / `__proto__` are not
+ * colours).
+ */
+export function parseColorSettingKey(key: string): { theme: ThemeName; name: keyof ThemeColors } | null {
+  const [prefix, theme, name, ...extra] = key.split('.')
+  if (prefix !== 'color' || name === undefined || extra.length > 0) return null
+  const t = THEME_NAMES.find((n) => n === theme)
+  if (!t || !Object.hasOwn(DEFAULT_THEMED_COLORS[t], name)) return null
+  return { theme: t, name: name as keyof ThemeColors }
+}

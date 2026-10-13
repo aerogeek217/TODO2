@@ -780,3 +780,37 @@ describe('v49 fixture with 1,000-character names and titles: every one survives 
     expect((await db.todos.toArray()).map((t) => t.title)).toContain(long('title'))
   })
 })
+
+// ── Crafted keys: never a prototype, never a colour ─────────────────────────────────────────────────
+describe('v49 fixture with a __proto__ key and colour keys that are not theme colours', () => {
+  it('imports: __proto__ is skipped, unknown colour rows are dropped with a warning, real colours kept', async () => {
+    const text = JSON.stringify(fixture)
+    // `JSON.parse` makes `__proto__` an own property, as a crafted file would.
+    const raw = JSON.parse(`{"__proto__":{"todos":[],"polluted":true},${text.slice(1)}`) as Record<string, unknown>
+    expect(Object.hasOwn(raw, '__proto__')).toBe(true)
+    const settings = raw.settings as Array<{ key: string; value: string }>
+    settings.push(
+      { key: 'color.dark.constructor', value: '#123456' },
+      { key: 'color.dark.__proto__', value: '#123456' },
+      { key: 'color.light.toString', value: '#123456' },
+      { key: 'color.dark.priorityHigh', value: '#ff0000' }, // a colour this app no longer has
+      { key: 'color.sepia.accent', value: '#123456' },
+      { key: 'color.dark.accent.extra', value: '#123456' },
+    )
+
+    const prepared = prepareImport(raw)
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.warnings).toHaveLength(1)
+    for (const key of ['color.dark.constructor', 'color.dark.__proto__', 'color.light.toString', 'color.dark.priorityHigh', 'color.sepia.accent', 'color.dark.accent.extra']) {
+      expect(prepared.warnings[0]).toContain(key)
+    }
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    expect(Object.getPrototypeOf(prepared.data)).toBe(Object.prototype)
+
+    await restoreFromImportData(prepared.data)
+    const rows = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
+    expect(rows.get('color.dark.accent')).toBe('#4f8cff')
+    expect([...rows.keys()].filter((k) => k.startsWith('color.')).sort()).toEqual(['color.dark.accent', 'color.light.accent'])
+    expect(await db.todos.count()).toBe(fixture.todos.length)
+  })
+})

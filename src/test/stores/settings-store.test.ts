@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
+import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 
 const DARK_DEFAULTS = {
   accent: '#a2cfcb',
@@ -45,6 +46,17 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().colors.dark.accent).toBe('#112233')
     expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#fafafa')
+  })
+
+  it('load ignores colour rows whose name is not a theme colour (no prototype keys)', async () => {
+    await db.settings.put({ key: 'color.dark.constructor', value: '#123456' })
+    await db.settings.put({ key: 'color.dark.__proto__', value: '#123456' })
+    await db.settings.put({ key: 'color.light.hasOwnProperty', value: '#123456' })
+    await useSettingsStore.getState().load()
+    const { colors } = useSettingsStore.getState()
+    expect(Object.keys(colors.dark).sort()).toEqual(Object.keys(DEFAULT_THEMED_COLORS.dark).sort())
+    expect(Object.hasOwn(colors.dark, 'constructor')).toBe(false)
+    expect(typeof colors.light.hasOwnProperty).toBe('function')
   })
 
   it('load ignores invalid per-theme colors', async () => {

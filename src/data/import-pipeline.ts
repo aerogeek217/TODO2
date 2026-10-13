@@ -124,9 +124,12 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
   // Split table arrays (the DataSet the transforms see) from everything else
   // (`__schemaVersion`, `exportedAt`, `savedAt`, and any malformed non-array
   // table value, which validation must still see in order to reject it).
-  const tables: DataSet = {}
-  const rest: Record<string, unknown> = {}
+  // Prototype-less, and a `__proto__` key (which `JSON.parse` makes an own
+  // property) is no table: it is skipped, never assigned.
+  const tables: DataSet = Object.create(null) as DataSet
+  const rest: Record<string, unknown> = Object.create(null) as Record<string, unknown>
   for (const [key, value] of Object.entries(raw)) {
+    if (key === '__proto__') continue
     if (Array.isArray(value)) tables[key] = value as DataRow[]
     else rest[key] = value
   }
