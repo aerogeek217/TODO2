@@ -132,3 +132,27 @@ test('the person chip on a task row opens that person’s open tasks', async ({ 
   await dialog(page).getByRole('button', { name: 'Close' }).last().click()
   await expect(dialog(page)).toHaveCount(0)
 })
+
+test('a row’s status menu and notes popover open above the task dialog', async ({ page }) => {
+  await seedWorkspace(page, {
+    statuses: ['Waiting'],
+    tasks: [{ title: 'Call the plumber', notes: 'Ask about the boiler' }],
+    layouts: SEED.layouts,
+  })
+  await dash(page).locator('[data-dash-tile="open"]').click()
+  const row = dialogRow(page, 'Call the plumber')
+
+  // A click is refused if anything covers the target, so these prove the
+  // portaled menu / popover are on top of the dialog.
+  await row.getByRole('button', { name: 'Set status' }).click()
+  await page.getByRole('button', { name: 'Waiting' }).click()
+  await expect(row.getByRole('button', { name: 'Status: Waiting' })).toBeVisible()
+
+  await row.getByRole('button', { name: 'Edit notes' }).click()
+  const notes = page.getByRole('dialog', { name: 'Task notes' })
+  await notes.getByText('Ask about the boiler').click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' today')
+  await expect(notes).toContainText('Ask about the boiler today')
+  await expect(dialog(page)).toBeVisible()
+})

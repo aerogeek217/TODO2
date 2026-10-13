@@ -1,6 +1,8 @@
 .popover {
   position: fixed;
-  z-index: var(--z-dropdown);
+  /* Overlay layer: above the task dialog it may be opened from (mounted
+   * later), below an editor opened from it (Alt+T, Convert). */
+  z-index: var(--z-overlay);
   display: flex;
   flex-direction: column;
   width: 360px;
