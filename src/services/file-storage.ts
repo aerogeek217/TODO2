@@ -105,7 +105,8 @@ function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
  *   (multi-machine case), asking first if it needs a schema upgrade;
  * - browser has unsynced changes, or there is no sync record and the browser
  *   has tasks → conflict dialog (file / browser / cancel) unless both sides
- *   already hold identical data.
+ *   already hold identical data (an older file compared after its upgrade;
+ *   identical + older → the upgrade prompt).
  *
  * While synced, Dexie hooks write the whole DB to the file 500 ms after each
  * change. Change-tracking hooks stay installed while a file is attached even
@@ -384,10 +385,12 @@ class FileStorageService {
     const fileChanged = hasRecord ? state.fileSavedAt !== fileId : null
     const dirty = state.dirtySince !== null
 
-    // Identical data on both sides is never a conflict (and covers browsers
-    // upgrading from builds that didn't keep a sync record).
-    const sameSchema = prepared.sourceVersion === CURRENT_DB_VERSION
-    const identical = (!hasRecord || dirty) && sameSchema
+    // Identical data on both sides is never a conflict. This also covers a
+    // browser upgrading from a build that kept no sync record: its database
+    // was upgraded at open by the same transforms that upgraded
+    // `prepared.data`, so a file that was in sync before the upgrade still
+    // matches — and an older file then gets the upgrade prompt below.
+    const identical = !hasRecord || dirty
       ? await browserMatchesFile(prepared.data).catch(() => false)
       : false
 
@@ -447,10 +450,11 @@ class FileStorageService {
     // here: back up the raw text BEFORE anything changes on either side.
     if (prepared.upgraded && !(await this.backupFileText(text))) return
 
-    // The browser already holds this file's data (same content, or clean and
-    // synced with this very version of the file): the load loses nothing.
-    const browserHoldsFile = !prepared.upgraded
-      && (identical || (hasRecord && !dirty && fileChanged === false))
+    // The browser already holds this file's data (same content — after the
+    // file's upgrade, if it needed one — or clean and synced with this very
+    // version of the file): the load loses nothing.
+    const browserHoldsFile = identical
+      || (!prepared.upgraded && hasRecord && !dirty && fileChanged === false)
     if (!(await this.applyFileData(prepared.data, fileId, browserHoldsFile))) return
     if (prepared.upgraded) {
       // Older file, upgrade confirmed: write it back at CURRENT_DB_VERSION.

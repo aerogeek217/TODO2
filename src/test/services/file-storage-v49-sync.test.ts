@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import Dexie from 'dexie'
 import fixture from '../fixtures/v49-export.json'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { prepareImportText } from '../../data/import-pipeline'
 import { FILE_SYNC_STATE_KEY } from '../../services/file-sync-state'
 import { fileStorageService as svc } from '../../services/file-storage'
 import type { SyncConflictInfo } from '../../services/file-storage'
-import { resetDb } from '../helpers'
+import { browserMatchesFile } from '../../services/file-sync-compare'
+import { resetDb, v50StoreSpecs } from '../helpers'
 
 /**
  * CURRENT_DB_VERSION is past 49 (v50 Dates, v51 uid + completedAt, …), so a
@@ -154,5 +156,115 @@ describe('v49 sync file opened by a post-v49 build (CURRENT ≥ 50)', () => {
     expect(await db.todos.count()).toBe(fixture.todos.length)
     expect(write).toHaveBeenCalledTimes(1)
     expect((JSON.parse(write.mock.calls[0]![0]) as Record<string, unknown>).__schemaVersion).toBe(CURRENT_DB_VERSION)
+  })
+})
+
+/**
+ * The fixture as a production v49 user might hold it: names past the old
+ * 200-character import limit, a long title, and notes past the old 50k limit
+ * (the v49 editors never capped them). A deep copy — the fixture is frozen.
+ */
+function productionV49Data(): Record<string, unknown> {
+  const data = JSON.parse(JSON.stringify(fixture)) as Record<string, Array<Record<string, unknown>>>
+  const long = (prefix: string, length: number) => `${prefix} `.padEnd(length, 'x')
+  data.people![0]!.name = long('Long person', 260)
+  data.tags![0]!.name = long('Long tag', 300)
+  data.statuses![0]!.name = long('Long status', 240)
+  data.orgs![0]!.name = long('Long org', 250)
+  data.projects![0]!.name = long('Long project', 250)
+  data.listDefinitions![0]!.name = long('Long list', 220)
+  data.todos![0]!.title = long('Long title', 1200)
+  data.todos![0]!.notes = long('Long notes', 60_000)
+  data.notes![0]!.content = long('Workspace note', 120_000)
+  return data
+}
+
+/**
+ * Builds the browser side of a production v49 install: a v49 database holding
+ * `data` (what the v49 build restored from its sync file), then opens it with
+ * the current build, so Dexie upgrades it to CURRENT_DB_VERSION.
+ */
+async function openUpgradedV49Browser(data: Record<string, unknown>) {
+  db.close()
+  await Dexie.delete(db.name)
+  const v49 = new Dexie(db.name)
+  v49.version(49).stores(v50StoreSpecs())
+  await v49.open()
+  for (const [name, rows] of Object.entries(data)) {
+    if (Array.isArray(rows) && rows.length > 0) await v49.table(name).bulkAdd(rows)
+  }
+  v49.close()
+  await db.open()
+  expect(db.verno).toBe(CURRENT_DB_VERSION)
+}
+
+describe('first load after deploying over a v49 build (no sync record)', () => {
+  // The v49 build kept no sync record and wrote the whole database to the
+  // file on every change, so an in-sync file holds exactly the browser's data.
+  const data = productionV49Data()
+  const fileText = JSON.stringify({ ...data, savedAt: SAVED_AT }, null, 2)
+
+  it('in-sync sides: the upgrade prompt, not a conflict; confirming backs up the raw file, then both sides match', async () => {
+    await openUpgradedV49Browser(data)
+    const { handle, write } = makeHandle(fileText)
+    mockLoadFileHandle.mockResolvedValue(handle)
+    const ask = vi.fn().mockResolvedValue(true)
+    svc.onConfirmFileUpgrade(ask)
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 49, toVersion: CURRENT_DB_VERSION })
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.isConnected).toBe(true)
+    // The raw v49 text was backed up before the file was rewritten.
+    expect((await db.backups.toArray()).filter((b) => b.data === fileText)).toHaveLength(1)
+    expect(write).toHaveBeenCalledTimes(1)
+    const written = prepareImportText(write.mock.calls[0]![0])
+    expect(written).toMatchObject({ ok: true, sourceVersion: CURRENT_DB_VERSION, upgraded: false })
+    if (!written.ok) return
+    expect(await browserMatchesFile(written.data)).toBe(true)
+    expect(written.data.todos).toHaveLength(fixture.todos.length)
+    expect(written.data.todos.some((t) => t.title.length === 1200 && (t.notes ?? '').length === 60_000)).toBe(true)
+    expect(written.data.people.some((p) => p.name.length === 260)).toBe(true)
+    expect(written.data.people.some((p) => p.name === `Org: ${data.orgs![0]!.name as string}`)).toBe(true)
+    expect(written.data.tags.some((t) => t.name === `Project: ${data.projects![0]!.name as string}`)).toBe(true)
+    expect(JSON.parse(localStorage.getItem(FILE_SYNC_STATE_KEY) ?? '{}')).toMatchObject({ dirtySince: null })
+  })
+
+  it('cancelling the upgrade prompt leaves the file, the browser and the backups untouched', async () => {
+    await openUpgradedV49Browser(data)
+    const { handle, write } = makeHandle(fileText)
+    mockLoadFileHandle.mockResolvedValue(handle)
+    svc.onConfirmFileUpgrade(async () => false)
+    const before = await db.todos.orderBy('id').toArray()
+
+    await svc.initialize()
+
+    expect(svc.status.paused?.reason).toBe('upgrade-cancelled')
+    expect(write).not.toHaveBeenCalled()
+    expect((await db.backups.toArray()).filter((b) => b.data === fileText)).toHaveLength(0)
+    expect(await db.todos.orderBy('id').toArray()).toEqual(before)
+  })
+
+  it('sides that differ still get the conflict prompt, naming the older file', async () => {
+    await openUpgradedV49Browser(data)
+    const changed = JSON.parse(fileText) as { todos: Array<{ title: string }> }
+    changed.todos[1]!.title = 'Edited on another machine'
+    const { handle, write } = makeHandle(JSON.stringify(changed))
+    mockLoadFileHandle.mockResolvedValue(handle)
+    const ask = vi.fn()
+    svc.onConfirmFileUpgrade(ask)
+    let info: SyncConflictInfo | null = null
+    svc.onConflict(async (i) => { info = i; return 'cancel' })
+
+    await svc.initialize()
+
+    expect(ask).not.toHaveBeenCalled()
+    expect(info).toMatchObject({ reason: 'no-sync-record', file: { schemaVersion: 49 } })
+    expect(svc.status.paused?.reason).toBe('conflict-cancelled')
+    expect(write).not.toHaveBeenCalled()
   })
 })

@@ -17,6 +17,7 @@ export function FileUpgradeDialog({ info, onConfirm, onCancel }: FileUpgradeDial
         To keep syncing, this version will load it and save it back in the v{info.toVersion} format.
         Older TODO2 builds won&rsquo;t be able to open the file afterwards.
         <div className={styles.note}>
+          A copy of the file as it is now is saved first (Settings &rarr; Backups).
           Cancel leaves the file and this browser&rsquo;s data untouched and pauses sync.
         </div>
       </DialogBody>

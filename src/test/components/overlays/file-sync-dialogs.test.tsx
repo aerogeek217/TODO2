@@ -50,6 +50,7 @@ describe('FileUpgradeDialog', () => {
     const onCancel = vi.fn()
     render(<FileUpgradeDialog info={{ fileName: 'f.json', fromVersion: 49, toVersion: 50 }} onConfirm={onConfirm} onCancel={onCancel} />)
     expect(screen.getByRole('dialog')).toHaveTextContent('schema v49')
+    expect(screen.getByRole('dialog')).toHaveTextContent('A copy of the file as it is now is saved first')
     fireEvent.click(screen.getByRole('button', { name: 'Upgrade file' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel (pause sync)' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
