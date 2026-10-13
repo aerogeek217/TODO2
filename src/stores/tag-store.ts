@@ -3,7 +3,7 @@ import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 import { useSettingsStore } from './settings-store'
@@ -96,24 +96,26 @@ export const useTagStore = create<TagState>((set, get) => {
     },
     ensureLoaded: () => tagEnsure.ensureLoaded(),
 
-    async add(name: string, color = DEFAULT_ENTITY_COLOR) {
-      const trimmed = name.trim()
-      const target = trimmed.toLowerCase()
-      const existing = get().tags.find(
-        (t) => t.name.trim().toLowerCase() === target && t.id !== undefined,
-      )
-      if (existing?.id != null) return existing.id
-      const { maxTags } = useSettingsStore.getState()
-      if (get().tags.length >= maxTags) {
-        throw new TagLimitError(
-          `Tag limit reached (${maxTags}) — delete unused tags in Settings → People, statuses & tags.`,
+    add(name: string, color = DEFAULT_ENTITY_COLOR) {
+      return trackWrite(async () => {
+        const trimmed = name.trim()
+        const target = trimmed.toLowerCase()
+        const existing = get().tags.find(
+          (t) => t.name.trim().toLowerCase() === target && t.id !== undefined,
         )
-      }
-      const id = await tagRepository.getOrCreate(trimmed, color)
-      if (!get().tags.some((t) => t.id === id)) {
-        set({ tags: [...get().tags, { id, name: trimmed, color }] })
-      }
-      return id
+        if (existing?.id != null) return existing.id
+        const { maxTags } = useSettingsStore.getState()
+        if (get().tags.length >= maxTags) {
+          throw new TagLimitError(
+            `Tag limit reached (${maxTags}) — delete unused tags in Settings → People, statuses & tags.`,
+          )
+        }
+        const id = await tagRepository.getOrCreate(trimmed, color)
+        if (!get().tags.some((t) => t.id === id)) {
+          set({ tags: [...get().tags, { id, name: trimmed, color }] })
+        }
+        return id
+      })
     },
 
     async update(tag: Tag) {
@@ -131,34 +133,36 @@ export const useTagStore = create<TagState>((set, get) => {
       )
     },
 
-    async remove(id: number) {
-      const tag = get().tags.find((t) => t.id === id)
-      const joins = await captureJoinRows([
-        { table: db.todoTags, key: 'tagId', id },
-      ])
-      await tagRepository.delete(id)
-      const prevMap = get().assignedTagsMap
-      const nextMap = new Map(
-        Array.from(prevMap, ([k, tags]) => [k, tags.filter((t) => t.id !== id)] as const),
-      )
-      set({
-        tags: get().tags.filter((t) => t.id !== id),
-        assignedTagsMap: nextMap,
-      })
-      if (tag) {
-        undoable(
-          `Delete tag "${tag.name}"`,
-          () => get().remove(id),
-          async () => {
-            await tagRepository.restoreWithJoins(tag, joins)
-            await get().load()
-            const { useTodoStore } = await import('./todo-store')
-            const todoIds = useTodoStore.getState().todos.map((t) => t.id)
-            await get().loadAssignments(todoIds)
-          },
-          true,
+    remove(id: number) {
+      return trackWrite(async () => {
+        const tag = get().tags.find((t) => t.id === id)
+        const joins = await captureJoinRows([
+          { table: db.todoTags, key: 'tagId', id },
+        ])
+        await tagRepository.delete(id)
+        const prevMap = get().assignedTagsMap
+        const nextMap = new Map(
+          Array.from(prevMap, ([k, tags]) => [k, tags.filter((t) => t.id !== id)] as const),
         )
-      }
+        set({
+          tags: get().tags.filter((t) => t.id !== id),
+          assignedTagsMap: nextMap,
+        })
+        if (tag) {
+          undoable(
+            `Delete tag "${tag.name}"`,
+            () => get().remove(id),
+            async () => {
+              await tagRepository.restoreWithJoins(tag, joins)
+              await get().load()
+              const { useTodoStore } = await import('./todo-store')
+              const todoIds = useTodoStore.getState().todos.map((t) => t.id)
+              await get().loadAssignments(todoIds)
+            },
+            true,
+          )
+        }
+      })
     },
 
     loadAssignments: assignment.loadAssignments,

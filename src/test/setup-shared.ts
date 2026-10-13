@@ -6,6 +6,7 @@ import { afterAll, beforeAll, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import type * as Zustand from 'zustand'
 import { db } from '../data/database'
+import { resetWriteTracking } from '../stores/store-helpers'
 
 type StoreReset = () => void
 type ResetRegistry = typeof globalThis & { __zustandStoreResets?: Set<StoreReset> }
@@ -29,6 +30,8 @@ vi.mock('zustand', async (importOriginal) => {
 
 beforeAll(async () => {
   for (const reset of (globalThis as ResetRegistry).__zustandStoreResets ?? []) reset()
+  // A write a previous file left unsettled would hold up every later load.
+  resetWriteTracking()
   // Closed but auto-opening, like an untouched db in a fresh worker.
   await db.delete({ disableAutoOpen: false })
   localStorage.clear()

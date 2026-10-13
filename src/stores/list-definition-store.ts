@@ -8,7 +8,7 @@ import type {
   PersistedListDefinition,
 } from '../models/list-definition'
 import type { TodoPredicate } from '../models'
-import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { undoable } from '../services/undoable'
 import { bySortOrder } from '../utils/sort-order'
 import { listOrderRepository } from '../data/list-order-repository'
@@ -138,32 +138,34 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     await get().update({ ...def, pinnedToDashboard: pinned })
   },
 
-  async remove(id) {
-    const prev = get().listDefinitions
-    const def = prev.find(d => d.id === id)
-    if (!def) return
+  remove(id) {
+    return trackWrite(async () => {
+      const prev = get().listDefinitions
+      const def = prev.find(d => d.id === id)
+      if (!def) return
 
-    const ranks = await listOrderRepository.getByList(id)
-    await listDefinitionRepository.remove(id)
-    useListOrderStore.getState().forgetList(id)
-    set({ listDefinitions: prev.filter(d => d.id !== id) })
-    const scopeCleared = await clearCheckinScopeFor(id)
+      const ranks = await listOrderRepository.getByList(id)
+      await listDefinitionRepository.remove(id)
+      useListOrderStore.getState().forgetList(id)
+      set({ listDefinitions: prev.filter(d => d.id !== id) })
+      const scopeCleared = await clearCheckinScopeFor(id)
 
-    undoable(
-      `Delete list "${def.name}"`,
-      () => get().remove(id),
-      async () => {
-        await listDefinitionRepository.restore(def)
-        await useListOrderStore.getState().restoreRows(ranks)
-        await get().load()
-        // Undo brings back the check-in choice too, unless it was changed since.
-        const settings = useSettingsStore.getState()
-        if (scopeCleared && settings.checkinTaskScope.kind === 'all') {
-          await settings.setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
-        }
-      },
-      true,
-    )
+      undoable(
+        `Delete list "${def.name}"`,
+        () => get().remove(id),
+        async () => {
+          await listDefinitionRepository.restore(def)
+          await useListOrderStore.getState().restoreRows(ranks)
+          await get().load()
+          // Undo brings back the check-in choice too, unless it was changed since.
+          const settings = useSettingsStore.getState()
+          if (scopeCleared && settings.checkinTaskScope.kind === 'all') {
+            await settings.setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
+          }
+        },
+        true,
+      )
+    })
   },
 
   async clone(id) {
@@ -187,21 +189,23 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     })
   },
 
-  async reorder(fromIndex, toIndex) {
-    const prev = get().listDefinitions
-    const sorted = [...prev].sort(bySortOrder)
-    if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
-    const [moved] = sorted.splice(fromIndex, 1)
-    if (!moved) return
-    sorted.splice(toIndex, 0, moved)
-    const updated = sorted.map((d, i) => ({ ...d, sortOrder: i }))
-    set({ listDefinitions: updated })
-    try {
-      await listDefinitionRepository.reorder(updated.map(d => d.id))
-    } catch (e) {
-      console.error('Failed to reorder list definitions:', e)
-      set({ listDefinitions: prev, error: 'Failed to reorder list definitions' })
-    }
+  reorder(fromIndex, toIndex) {
+    return trackWrite(async () => {
+      const prev = get().listDefinitions
+      const sorted = [...prev].sort(bySortOrder)
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
+      const [moved] = sorted.splice(fromIndex, 1)
+      if (!moved) return
+      sorted.splice(toIndex, 0, moved)
+      const updated = sorted.map((d, i) => ({ ...d, sortOrder: i }))
+      set({ listDefinitions: updated })
+      try {
+        await listDefinitionRepository.reorder(updated.map(d => d.id))
+      } catch (e) {
+        console.error('Failed to reorder list definitions:', e)
+        set({ listDefinitions: prev, error: 'Failed to reorder list definitions' })
+      }
+    })
   },
   }
 })

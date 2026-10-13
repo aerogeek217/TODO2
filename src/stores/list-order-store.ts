@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { listOrderRepository } from '../data/list-order-repository'
 import type { PersistedListOrder } from '../models/list-order'
 import type { ListRanks, RankWrite } from '../utils/list-order'
+import { readFresh, trackWrite } from './store-helpers'
 
 const NO_RANKS: ListRanks = new Map()
 
@@ -43,6 +44,17 @@ function group(rows: readonly PersistedListOrder[]): Map<number, Map<number, num
 
 let inflight: Promise<void> | null = null
 
+/** Awaits a rank write; false (logged) when it failed. */
+async function saveOrLog(write: Promise<void>): Promise<boolean> {
+  try {
+    await write
+    return true
+  } catch (e) {
+    console.error('Failed to save list order:', e)
+    return false
+  }
+}
+
 export const useListOrderStore = create<ListOrderState>((set, get) => {
   const withList = (listDefinitionId: number, fn: (ranks: Map<number, number>) => void) => {
     const next = new Map(get().ranks)
@@ -58,7 +70,7 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
     loaded: false,
 
     async load() {
-      const rows = await listOrderRepository.getAll()
+      const rows = await readFresh(() => listOrderRepository.getAll())
       set({ ranks: group(rows), loaded: true })
     },
 
@@ -70,28 +82,25 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
 
     async setRanks(listDefinitionId, writes) {
       if (writes.length === 0) return
-      withList(listDefinitionId, (list) => {
-        for (const w of writes) list.set(w.todoId, w.rank)
+      const saved = await trackWrite(async () => {
+        withList(listDefinitionId, (list) => {
+          for (const w of writes) list.set(w.todoId, w.rank)
+        })
+        return saveOrLog(listOrderRepository.setRanks(listDefinitionId, writes))
       })
-      try {
-        await listOrderRepository.setRanks(listDefinitionId, writes)
-      } catch (e) {
-        console.error('Failed to save list order:', e)
-        await get().load()
-      }
+      // Outside the tracked write: the reload waits for writes to settle.
+      if (!saved) await get().load()
     },
 
     async replaceList(listDefinitionId, writes) {
-      withList(listDefinitionId, (list) => {
-        list.clear()
-        for (const w of writes) list.set(w.todoId, w.rank)
+      const saved = await trackWrite(async () => {
+        withList(listDefinitionId, (list) => {
+          list.clear()
+          for (const w of writes) list.set(w.todoId, w.rank)
+        })
+        return saveOrLog(listOrderRepository.replaceList(listDefinitionId, writes))
       })
-      try {
-        await listOrderRepository.replaceList(listDefinitionId, writes)
-      } catch (e) {
-        console.error('Failed to save list order:', e)
-        await get().load()
-      }
+      if (!saved) await get().load()
     },
 
     forgetTodos(todoIds) {
@@ -120,12 +129,14 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
 
     async restoreRows(rows) {
       if (rows.length === 0) return
-      await listOrderRepository.restore(rows)
-      const next = new Map(get().ranks)
-      for (const [listId, restored] of group(rows)) {
-        next.set(listId, new Map([...(next.get(listId) ?? NO_RANKS), ...restored]))
-      }
-      set({ ranks: next })
+      await trackWrite(async () => {
+        await listOrderRepository.restore(rows)
+        const next = new Map(get().ranks)
+        for (const [listId, restored] of group(rows)) {
+          next.set(listId, new Map([...(next.get(listId) ?? NO_RANKS), ...restored]))
+        }
+        set({ ranks: next })
+      })
     },
   }
 })

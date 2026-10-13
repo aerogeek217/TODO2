@@ -3,7 +3,7 @@ import type { Person } from '../models'
 import { db, personRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { undoable } from '../services/undoable'
 import { generateInitials, withEmail } from '../utils/person'
 
@@ -65,25 +65,29 @@ export const usePersonStore = create<PersonState>((set, get) => {
     },
     ensureLoaded: () => personEnsure.ensureLoaded(),
 
-    async add(name: string, initials: string, color?: string, email?: string) {
-      const person = withEmail<Person>({ name, initials, ...(color ? { color } : {}) }, email)
-      const id = await personRepository.insert(person)
-      set({ people: [...get().people, { ...person, id }] })
-      return id
+    add(name: string, initials: string, color?: string, email?: string) {
+      return trackWrite(async () => {
+        const person = withEmail<Person>({ name, initials, ...(color ? { color } : {}) }, email)
+        const id = await personRepository.insert(person)
+        set({ people: [...get().people, { ...person, id }] })
+        return id
+      })
     },
 
-    async getOrCreate(name: string) {
-      const trimmed = name.trim()
-      const target = trimmed.toLowerCase()
-      const existing = get().people.find(
-        (p) => p.id !== undefined && p.name.trim().toLowerCase() === target,
-      )
-      if (existing?.id !== undefined) return existing.id
-      const person = await personRepository.getOrCreate(trimmed, generateInitials(trimmed))
-      if (!get().people.some((p) => p.id === person.id)) {
-        set({ people: [...get().people, person] })
-      }
-      return person.id
+    getOrCreate(name: string) {
+      return trackWrite(async () => {
+        const trimmed = name.trim()
+        const target = trimmed.toLowerCase()
+        const existing = get().people.find(
+          (p) => p.id !== undefined && p.name.trim().toLowerCase() === target,
+        )
+        if (existing?.id !== undefined) return existing.id
+        const person = await personRepository.getOrCreate(trimmed, generateInitials(trimmed))
+        if (!get().people.some((p) => p.id === person.id)) {
+          set({ people: [...get().people, person] })
+        }
+        return person.id
+      })
     },
 
     async update(input: Person) {
@@ -102,34 +106,36 @@ export const usePersonStore = create<PersonState>((set, get) => {
       )
     },
 
-    async remove(id: number) {
-      const person = get().people.find((p) => p.id === id)
-      const joins = await captureJoinRows([
-        { table: db.todoPeople, key: 'personId', id },
-      ])
-      await personRepository.delete(id)
-      const prevMap = get().assignedPeopleMap
-      const nextMap = new Map(
-        Array.from(prevMap, ([k, people]) => [k, people.filter((p) => p.id !== id)] as const),
-      )
-      set({
-        people: get().people.filter((p) => p.id !== id),
-        assignedPeopleMap: nextMap,
-      })
-      if (person) {
-        undoable(
-          `Delete person "${person.name}"`,
-          () => get().remove(id),
-          async () => {
-            await personRepository.restoreWithJoins(person, joins)
-            await get().load()
-            const { useTodoStore } = await import('./todo-store')
-            const todoIds = useTodoStore.getState().todos.map(t => t.id)
-            await get().loadAssignments(todoIds)
-          },
-          true,
+    remove(id: number) {
+      return trackWrite(async () => {
+        const person = get().people.find((p) => p.id === id)
+        const joins = await captureJoinRows([
+          { table: db.todoPeople, key: 'personId', id },
+        ])
+        await personRepository.delete(id)
+        const prevMap = get().assignedPeopleMap
+        const nextMap = new Map(
+          Array.from(prevMap, ([k, people]) => [k, people.filter((p) => p.id !== id)] as const),
         )
-      }
+        set({
+          people: get().people.filter((p) => p.id !== id),
+          assignedPeopleMap: nextMap,
+        })
+        if (person) {
+          undoable(
+            `Delete person "${person.name}"`,
+            () => get().remove(id),
+            async () => {
+              await personRepository.restoreWithJoins(person, joins)
+              await get().load()
+              const { useTodoStore } = await import('./todo-store')
+              const todoIds = useTodoStore.getState().todos.map(t => t.id)
+              await get().loadAssignments(todoIds)
+            },
+            true,
+          )
+        }
+      })
     },
 
     loadAssignments: assignment.loadAssignments,

@@ -27,6 +27,7 @@ import {
   type CheckinOpenMethod,
   type CheckinTaskScope,
 } from '../utils/checkin-settings'
+import { readFresh, trackWrite } from './store-helpers'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -219,7 +220,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async load() {
     try {
-      const rows = await settingsRepository.getAll()
+      const rows = await readFresh(() => settingsRepository.getAll())
       const colors: ThemedColors = {
         dark: { ...DEFAULT_THEMED_COLORS.dark },
         light: { ...DEFAULT_THEMED_COLORS.light },
@@ -288,126 +289,150 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  async setColor(theme: ThemeName, key: keyof ThemeColors, value: string) {
-    if (!isValidCssColor(value)) return
-    await settingsRepository.put(`color.${theme}.${key}`, value)
-    customizedColorKeys[theme].add(key)
-    const current = get().colors
-    const colors: ThemedColors = {
-      ...current,
-      [theme]: { ...current[theme], [key]: value },
-    }
-    set({ colors })
-    if (theme === resolveTheme(get().themeMode)) {
-      applyThemeOverrides(customizedColorKeys, colors, theme)
-    }
+  setColor(theme: ThemeName, key: keyof ThemeColors, value: string) {
+    return trackWrite(async () => {
+      if (!isValidCssColor(value)) return
+      await settingsRepository.put(`color.${theme}.${key}`, value)
+      customizedColorKeys[theme].add(key)
+      const current = get().colors
+      const colors: ThemedColors = {
+        ...current,
+        [theme]: { ...current[theme], [key]: value },
+      }
+      set({ colors })
+      if (theme === resolveTheme(get().themeMode)) {
+        applyThemeOverrides(customizedColorKeys, colors, theme)
+      }
+    })
   },
 
-  async resetColors(theme?: ThemeName) {
-    const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
-    for (const t of targets) {
-      const keys = Object.keys(DEFAULT_THEMED_COLORS[t]).map((k) => `color.${t}.${k}`)
-      await settingsRepository.bulkDelete(keys)
-      customizedColorKeys[t] = new Set()
-    }
-    const current = get().colors
-    const colors: ThemedColors = { ...current }
-    for (const t of targets) colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
-    set({ colors })
-    applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
+  resetColors(theme?: ThemeName) {
+    return trackWrite(async () => {
+      const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
+      for (const t of targets) {
+        const keys = Object.keys(DEFAULT_THEMED_COLORS[t]).map((k) => `color.${t}.${k}`)
+        await settingsRepository.bulkDelete(keys)
+        customizedColorKeys[t] = new Set()
+      }
+      const current = get().colors
+      const colors: ThemedColors = { ...current }
+      for (const t of targets) colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
+      set({ colors })
+      applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
+    })
   },
 
-  async setThemeMode(mode: ThemeMode) {
-    await settingsRepository.put(SETTING_KEYS.themeMode, mode)
-    set({ themeMode: mode })
-    applyThemeMode(mode)
-    setupMediaQueryListener(mode)
-    // Switching mode flips which `colors[theme]` bag drives the inline
-    // overrides — re-apply against the newly-resolved theme.
-    applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
+  setThemeMode(mode: ThemeMode) {
+    return trackWrite(async () => {
+      await settingsRepository.put(SETTING_KEYS.themeMode, mode)
+      set({ themeMode: mode })
+      applyThemeMode(mode)
+      setupMediaQueryListener(mode)
+      // Switching mode flips which `colors[theme]` bag drives the inline
+      // overrides — re-apply against the newly-resolved theme.
+      applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
+    })
   },
 
-  async setDefaultStatusId(id: number | null) {
-    if (id == null) {
-      await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
-    }
-    set({ defaultStatusId: id })
+  setDefaultStatusId(id: number | null) {
+    return trackWrite(async () => {
+      if (id == null) {
+        await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
+      } else {
+        await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
+      }
+      set({ defaultStatusId: id })
+    })
   },
 
-  async setQuickStatusId(id: number | null) {
-    if (id == null) {
-      await settingsRepository.delete(SETTING_KEYS.quickStatusId)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.quickStatusId, String(id))
-    }
-    set({ quickStatusId: id })
+  setQuickStatusId(id: number | null) {
+    return trackWrite(async () => {
+      if (id == null) {
+        await settingsRepository.delete(SETTING_KEYS.quickStatusId)
+      } else {
+        await settingsRepository.put(SETTING_KEYS.quickStatusId, String(id))
+      }
+      set({ quickStatusId: id })
+    })
   },
 
-  async setWeekStartsOn(day: WeekStart) {
-    if (!isValidWeekStart(day)) return
-    await settingsRepository.put(SETTING_KEYS.weekStartsOn, String(day))
-    set({ weekStartsOn: day })
+  setWeekStartsOn(day: WeekStart) {
+    return trackWrite(async () => {
+      if (!isValidWeekStart(day)) return
+      await settingsRepository.put(SETTING_KEYS.weekStartsOn, String(day))
+      set({ weekStartsOn: day })
+    })
   },
 
-  async setCompletedRetentionDays(days: number | null) {
-    if (days == null) {
-      await settingsRepository.delete(SETTING_KEYS.completedRetentionDays)
-    } else if (!isValidRetentionDays(days)) {
-      return
-    } else {
-      await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
-    }
-    set({ completedRetentionDays: days })
+  setCompletedRetentionDays(days: number | null) {
+    return trackWrite(async () => {
+      if (days == null) {
+        await settingsRepository.delete(SETTING_KEYS.completedRetentionDays)
+      } else if (!isValidRetentionDays(days)) {
+        return
+      } else {
+        await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
+      }
+      set({ completedRetentionDays: days })
+    })
   },
 
-  async setFollowupDefaultInterval(interval: FollowupInterval) {
-    const value = formatFollowupInterval(interval)
-    if (!parseFollowupInterval(value)) return
-    await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
-    set({ followupDefaultInterval: { ...interval } })
+  setFollowupDefaultInterval(interval: FollowupInterval) {
+    return trackWrite(async () => {
+      const value = formatFollowupInterval(interval)
+      if (!parseFollowupInterval(value)) return
+      await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
+      set({ followupDefaultInterval: { ...interval } })
+    })
   },
 
-  async setUrgentDueWithinDays(range: UrgentDueWithinDays) {
-    const value = formatUrgentDueWithinDays(range)
-    if (parseUrgentDueWithinDays(value) === undefined) return
-    await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
-    set({ urgentDueWithinDays: range })
+  setUrgentDueWithinDays(range: UrgentDueWithinDays) {
+    return trackWrite(async () => {
+      const value = formatUrgentDueWithinDays(range)
+      if (parseUrgentDueWithinDays(value) === undefined) return
+      await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
+      set({ urgentDueWithinDays: range })
+    })
   },
 
-  async setHotRule(rule: HotRule) {
-    const next = normalizeHotRule(rule)
-    if (next.length === 0) return
-    await settingsRepository.put(SETTING_KEYS.hotRule, formatHotRule(next))
-    set({ hotRule: next })
+  setHotRule(rule: HotRule) {
+    return trackWrite(async () => {
+      const next = normalizeHotRule(rule)
+      if (next.length === 0) return
+      await settingsRepository.put(SETTING_KEYS.hotRule, formatHotRule(next))
+      set({ hotRule: next })
+    })
   },
 
   // The check-in choices are radios: the state is set before the write so a
   // controlled radio doesn't snap back while it is saved.
-  async setCheckinOpenMethod(method: CheckinOpenMethod) {
-    if (!isCheckinOpenMethod(method)) return
-    const prev = get().checkinOpenMethod
-    set({ checkinOpenMethod: method })
-    try {
-      await settingsRepository.put(SETTING_KEYS.checkinOpenMethod, method)
-    } catch (e) {
-      console.error('Failed to save the check-in open method:', e)
-      set({ checkinOpenMethod: prev })
-    }
+  setCheckinOpenMethod(method: CheckinOpenMethod) {
+    return trackWrite(async () => {
+      if (!isCheckinOpenMethod(method)) return
+      const prev = get().checkinOpenMethod
+      set({ checkinOpenMethod: method })
+      try {
+        await settingsRepository.put(SETTING_KEYS.checkinOpenMethod, method)
+      } catch (e) {
+        console.error('Failed to save the check-in open method:', e)
+        set({ checkinOpenMethod: prev })
+      }
+    })
   },
 
-  async setCheckinTaskScope(scope: CheckinTaskScope) {
-    const value = formatCheckinTaskScope(scope)
-    const parsed = parseCheckinTaskScope(value)
-    if (!parsed) return
-    const prev = get().checkinTaskScope
-    set({ checkinTaskScope: parsed })
-    try {
-      await settingsRepository.put(SETTING_KEYS.checkinTaskScope, value)
-    } catch (e) {
-      console.error('Failed to save the check-in task scope:', e)
-      set({ checkinTaskScope: prev })
-    }
+  setCheckinTaskScope(scope: CheckinTaskScope) {
+    return trackWrite(async () => {
+      const value = formatCheckinTaskScope(scope)
+      const parsed = parseCheckinTaskScope(value)
+      if (!parsed) return
+      const prev = get().checkinTaskScope
+      set({ checkinTaskScope: parsed })
+      try {
+        await settingsRepository.put(SETTING_KEYS.checkinTaskScope, value)
+      } catch (e) {
+        console.error('Failed to save the check-in task scope:', e)
+        set({ checkinTaskScope: prev })
+      }
+    })
   },
 }))

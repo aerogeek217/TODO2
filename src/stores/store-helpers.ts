@@ -1,9 +1,12 @@
 /**
- * Shared helpers for Zustand store patterns.
- * DUP-1: loadWithState — loading/error boilerplate
- * DUP-2: updateEntityInMap — refresh entity references in assignment maps
- * DUP-4: captureAssignments — capture person IDs for undo
- * DUP-5: bulkUpdateField — shared bulk field update with undo
+ * Shared helpers for Zustand store patterns:
+ * - `trackWrite` / `readFresh` — keep a `load()` from overwriting an edit made
+ *   while its read was in flight
+ * - `loadWithState` — loading / error boilerplate around a fresh read
+ * - `mutate` / `optimistic` — tracked store writes with error state
+ * - `updateEntityInMap` — refresh entity references in assignment maps
+ * - `captureAssignments` — capture person ids for undo
+ * - `bulkUpdateField` — shared bulk field update with undo
  *
  * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
  * (`captureJoinRows`) and the per-entity repositories' `restoreWithJoins`
@@ -18,9 +21,68 @@ import { undoable } from '../services/undoable'
 
 export type SetFn = (partial: Record<string, unknown>) => void
 
+// ── Load vs. write ──────────────────────────────────────────────────────────
+//
+// A store's `load()` reads the database and then replaces its state with what
+// it read. A write that lands while that read is in flight (an optimistic edit
+// is already in the state, its database write may not be) would be wiped out
+// by the stale result. So every store write runs through `trackWrite` (the
+// `optimistic` / `mutate` helpers do it for their callers), and every load
+// reads through `readFresh`, which waits for writes in flight to settle and
+// reads again when a write started during its read.
+//
+// Rule: a tracked write must never await a `readFresh` load — the load would
+// wait for the write that is waiting for it. (Assignment-map loads don't use
+// `readFresh`; they merge with the latest map instead, so writes may call them.)
+
+/** Bumped when a tracked write starts. */
+let writesStarted = 0
+const writesInFlight = new Set<Promise<unknown>>()
+
+/** Reads in a row before `readFresh` gives up waiting for a quiet moment. */
+const MAX_FRESH_READS = 5
+
 /**
- * DUP-1: Execute a data-fetching function with loading/error state management.
- * Returns the fetched data, or undefined on error.
+ * Runs a store write — its state change and its database write — so that
+ * loads overlapping it read again once it has settled.
+ */
+export function trackWrite<T>(write: () => Promise<T>): Promise<T> {
+  writesStarted++
+  const p = write()
+  writesInFlight.add(p)
+  const done = () => { writesInFlight.delete(p) }
+  p.then(done, done)
+  return p
+}
+
+/**
+ * Reads with `fetcher` once no tracked write is in flight, and reads again if
+ * a write started meanwhile, so the result already holds every write the
+ * store has applied. Use it for any read whose result replaces store state.
+ */
+export async function readFresh<T>(fetcher: () => Promise<T>): Promise<T> {
+  for (let reads = 1; ; reads++) {
+    while (writesInFlight.size > 0) await Promise.allSettled([...writesInFlight])
+    // Same tick as the empty check: no write can slip in between.
+    const started = writesStarted
+    const data = await fetcher()
+    if (writesStarted === started) return data
+    if (reads >= MAX_FRESH_READS) {
+      console.warn('[store] writes kept landing during a load; using the latest read')
+      return data
+    }
+  }
+}
+
+/** Test hook: forgets writes left in flight by a previous test file. */
+export function resetWriteTracking(): void {
+  writesInFlight.clear()
+}
+
+/**
+ * Execute a data-fetching function with loading/error state management.
+ * The read goes through `readFresh`. Returns the fetched data, or undefined
+ * on error.
  */
 export async function loadWithState<T>(
   set: SetFn,
@@ -29,7 +91,7 @@ export async function loadWithState<T>(
 ): Promise<T | undefined> {
   set({ loading: true, error: null })
   try {
-    const data = await fetcher()
+    const data = await readFresh(fetcher)
     return data
   } catch (e) {
     console.error(`Failed to load ${label}:`, e)
@@ -77,20 +139,23 @@ export function makeEnsureLoaded(load: () => Promise<void>): {
 /**
  * Wrap a store mutation with error handling: clears previous error, catches failures,
  * logs them, sets error state, and re-throws so callers can handle if needed.
+ * The mutation is a tracked write (`trackWrite`).
  */
-export async function mutate<T>(
+export function mutate<T>(
   set: SetFn,
   fn: () => Promise<T>,
   label: string,
 ): Promise<T> {
-  set({ error: null })
-  try {
-    return await fn()
-  } catch (e) {
-    console.error(`${label}:`, e)
-    set({ error: label })
-    throw e
-  }
+  return trackWrite(async () => {
+    set({ error: null })
+    try {
+      return await fn()
+    } catch (e) {
+      console.error(`${label}:`, e)
+      set({ error: label })
+      throw e
+    }
+  })
 }
 
 /**
@@ -99,9 +164,10 @@ export async function mutate<T>(
  * rollbacks from stomping each other's state.
  *
  * Undo is only registered after successful persist. Failed operations never enter the
- * undo stack.
+ * undo stack. `apply` runs synchronously, before this returns; the whole
+ * update is a tracked write (`trackWrite`).
  */
-export async function optimistic(
+export function optimistic(
   set: SetFn,
   apply: () => void,
   persist: () => Promise<void>,
@@ -114,24 +180,26 @@ export async function optimistic(
     showSnackbar?: boolean
   },
 ): Promise<void> {
-  set({ error: null })
-  apply()
-  try {
-    await persist()
-    if (undo) {
-      undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+  return trackWrite(async () => {
+    set({ error: null })
+    apply()
+    try {
+      await persist()
+      if (undo) {
+        undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+      }
+    } catch (e) {
+      console.error(`${label}:`, e)
+      rollback()
+      set({ error: label })
+      throw e
     }
-  } catch (e) {
-    console.error(`${label}:`, e)
-    rollback()
-    set({ error: label })
-    throw e
-  }
+  })
 }
 
 
 /**
- * DUP-2: Update an entity in an assignment map (Map<todoId, Entity[]>).
+ * Update an entity in an assignment map (Map<todoId, Entity[]>).
  * When an entity is edited, all references in the map must be refreshed.
  */
 export function updateEntityInMap<E extends { id?: number }>(
@@ -148,7 +216,7 @@ export function updateEntityInMap<E extends { id?: number }>(
 }
 
 /**
- * DUP-4: Capture current person assignment IDs for a todo (for undo).
+ * Capture current person assignment IDs for a todo (for undo).
  */
 export async function captureAssignments(todoId: number): Promise<{
   personIds: number[]
@@ -158,7 +226,7 @@ export async function captureAssignments(todoId: number): Promise<{
 }
 
 /**
- * DUP-4: Capture assignments for multiple todos at once.
+ * Capture assignments for multiple todos at once.
  */
 export async function captureAssignmentsBulk(todoIds: number[]): Promise<
   Array<{ todoId: number; personIds: number[] }>
@@ -171,7 +239,7 @@ export async function captureAssignmentsBulk(todoIds: number[]): Promise<
 }
 
 /**
- * DUP-5: Bulk update a single field on multiple todos, with undo support.
+ * Bulk update a single field on multiple todos, with undo support.
  * Uses optimistic update: state changes immediately, DB write follows.
  */
 export async function bulkUpdateField<K extends keyof PersistedTodoItem>(

@@ -3,7 +3,7 @@ import type { NewTodoItem, PersistedTodoItem } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
-import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
@@ -694,36 +694,42 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }, 'Failed to duplicate task')
   },
 
-  async _restore(todo: PersistedTodoItem, personIds: number[]) {
-    await todoRepository.restoreWithAssignments(todo, personIds)
-    set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
-    // Refresh assignment caches
-    if (personIds.length > 0) {
-      const { usePersonStore } = await import('./person-store')
-      await usePersonStore.getState().loadAssignments(get().todos.map(t => t.id))
-    }
+  _restore(todo: PersistedTodoItem, personIds: number[]) {
+    return trackWrite(async () => {
+      await todoRepository.restoreWithAssignments(todo, personIds)
+      set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
+      // Refresh assignment caches
+      if (personIds.length > 0) {
+        const { usePersonStore } = await import('./person-store')
+        await usePersonStore.getState().loadAssignments(get().todos.map(t => t.id))
+      }
+    })
   },
 
-  async _removeNoUndo(id: number) {
-    await todoRepository.delete(id)
-    useListOrderStore.getState().forgetTodos([id])
-    set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
+  _removeNoUndo(id: number) {
+    return trackWrite(async () => {
+      await todoRepository.delete(id)
+      useListOrderStore.getState().forgetTodos([id])
+      set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
+    })
   },
 
-  async purgeCompleted(ids: number[]) {
-    // Only rows that are still completed — the caller's list came from a
-    // prompt the user answered, and a task reopened meanwhile must survive.
-    // Checked against the database, not `todos` (which may not be loaded yet).
-    const doomed = (await todoRepository.getByIds(ids)).filter((t) => t.isCompleted).map((t) => t.id)
-    if (doomed.length === 0) return 0
-    // Snapshot before destructive purge
-    const { backupScheduler } = await import('../services/backup-scheduler')
-    await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
-    await todoRepository.bulkDelete(doomed)
-    useListOrderStore.getState().forgetTodos(doomed)
-    const doomedSet = new Set(doomed)
-    set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
-    return doomed.length
+  purgeCompleted(ids: number[]) {
+    return trackWrite(async () => {
+      // Only rows that are still completed — the caller's list came from a
+      // prompt the user answered, and a task reopened meanwhile must survive.
+      // Checked against the database, not `todos` (which may not be loaded yet).
+      const doomed = (await todoRepository.getByIds(ids)).filter((t) => t.isCompleted).map((t) => t.id)
+      if (doomed.length === 0) return 0
+      // Snapshot before destructive purge
+      const { backupScheduler } = await import('../services/backup-scheduler')
+      await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
+      await todoRepository.bulkDelete(doomed)
+      useListOrderStore.getState().forgetTodos(doomed)
+      const doomedSet = new Set(doomed)
+      set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
+      return doomed.length
+    })
   },
 
   }

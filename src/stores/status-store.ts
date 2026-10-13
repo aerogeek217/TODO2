@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../models'
 import { statusRepository, settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
-import { loadWithState, optimistic, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { useTodoStore } from './todo-store'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
@@ -42,16 +42,18 @@ export const useStatusStore = create<StatusState>((set, get) => {
   },
   ensureLoaded: () => statusEnsure.ensureLoaded(),
 
-  async add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON) {
-    const { statuses } = get()
-    if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
-      throw new Error(`Status "${name}" already exists`)
-    }
-    const maxSort = statuses.reduce((max, s) => Math.max(max, s.sortOrder), 0)
-    const entry: Status = { name, color, sortOrder: maxSort + 1, icon }
-    const id = await statusRepository.insert(entry)
-    set({ statuses: [...statuses, { ...entry, id }] })
-    return id
+  add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON) {
+    return trackWrite(async () => {
+      const { statuses } = get()
+      if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+        throw new Error(`Status "${name}" already exists`)
+      }
+      const maxSort = statuses.reduce((max, s) => Math.max(max, s.sortOrder), 0)
+      const entry: Status = { name, color, sortOrder: maxSort + 1, icon }
+      const id = await statusRepository.insert(entry)
+      set({ statuses: [...get().statuses, { ...entry, id }] })
+      return id
+    })
   },
 
   async update(status: Status) {
@@ -69,77 +71,81 @@ export const useStatusStore = create<StatusState>((set, get) => {
     )
   },
 
-  async remove(id: number) {
-    const status = get().statuses.find(s => s.id === id)
-    // Capture affected todos and default setting before deletion
-    const affectedTodoIds = await statusRepository.getTodoIdsForStatus(id)
-    const { useSettingsStore } = await import('./settings-store')
-    const settingsState = useSettingsStore.getState()
-    const wasDefault = settingsState.defaultStatusId === id
-    const wasSeededAssigned = settingsState.seededAssignedStatusId === id
+  remove(id: number) {
+    return trackWrite(async () => {
+      const status = get().statuses.find(s => s.id === id)
+      // Capture affected todos and default setting before deletion
+      const affectedTodoIds = await statusRepository.getTodoIdsForStatus(id)
+      const { useSettingsStore } = await import('./settings-store')
+      const settingsState = useSettingsStore.getState()
+      const wasDefault = settingsState.defaultStatusId === id
+      const wasSeededAssigned = settingsState.seededAssignedStatusId === id
 
-    await statusRepository.delete(id)
-    set({ statuses: get().statuses.filter(s => s.id !== id) })
+      await statusRepository.delete(id)
+      set({ statuses: get().statuses.filter(s => s.id !== id) })
 
-    // Update in-memory todo store
-    if (affectedTodoIds.length > 0) {
-      const { useTodoStore } = await import('./todo-store')
-      useTodoStore.setState({
-        todos: useTodoStore.getState().todos.map(t =>
-          affectedTodoIds.includes(t.id) ? { ...t, statusId: undefined } : t
-        ),
-      })
-    }
+      // Update in-memory todo store
+      if (affectedTodoIds.length > 0) {
+        const { useTodoStore } = await import('./todo-store')
+        useTodoStore.setState({
+          todos: useTodoStore.getState().todos.map(t =>
+            affectedTodoIds.includes(t.id) ? { ...t, statusId: undefined } : t
+          ),
+        })
+      }
 
-    if (wasDefault) {
-      await useSettingsStore.getState().setDefaultStatusId(null)
-    }
-    if (wasSeededAssigned) {
-      await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
-      useSettingsStore.setState({ seededAssignedStatusId: null })
-    }
+      if (wasDefault) {
+        await useSettingsStore.getState().setDefaultStatusId(null)
+      }
+      if (wasSeededAssigned) {
+        await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
+        useSettingsStore.setState({ seededAssignedStatusId: null })
+      }
 
-    if (status) {
-      undoable(
-        `Delete status "${status.name}"`,
-        () => get().remove(id),
-        async () => {
-          await statusRepository.restoreWithTodos(status, affectedTodoIds)
-          if (wasDefault) {
-            await useSettingsStore.getState().setDefaultStatusId(id)
-          }
-          if (wasSeededAssigned) {
-            await settingsRepository.put(SETTING_KEYS.seededAssignedStatusId, String(id))
-            useSettingsStore.setState({ seededAssignedStatusId: id })
-          }
-          await get().load()
-          // Reload todo store to reflect restored statusIds
-          const { useTodoStore } = await import('./todo-store')
-          await useTodoStore.getState().loadAll()
-        },
-        true,
-      )
-    }
+      if (status) {
+        undoable(
+          `Delete status "${status.name}"`,
+          () => get().remove(id),
+          async () => {
+            await statusRepository.restoreWithTodos(status, affectedTodoIds)
+            if (wasDefault) {
+              await useSettingsStore.getState().setDefaultStatusId(id)
+            }
+            if (wasSeededAssigned) {
+              await settingsRepository.put(SETTING_KEYS.seededAssignedStatusId, String(id))
+              useSettingsStore.setState({ seededAssignedStatusId: id })
+            }
+            await get().load()
+            // Reload todo store to reflect restored statusIds
+            const { useTodoStore } = await import('./todo-store')
+            await useTodoStore.getState().loadAll()
+          },
+          true,
+        )
+      }
+    })
   },
 
-  async reorder(fromIndex: number, toIndex: number) {
-    const prev = get().statuses
-    const sorted = [...prev].sort(bySortOrder)
-    if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
+  reorder(fromIndex: number, toIndex: number) {
+    return trackWrite(async () => {
+      const prev = get().statuses
+      const sorted = [...prev].sort(bySortOrder)
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
 
-    const [moved] = sorted.splice(fromIndex, 1)
-    if (!moved) return
-    sorted.splice(toIndex, 0, moved)
+      const [moved] = sorted.splice(fromIndex, 1)
+      if (!moved) return
+      sorted.splice(toIndex, 0, moved)
 
-    const updated = sorted.map((s, i) => ({ ...s, sortOrder: i }))
-    set({ statuses: updated })
+      const updated = sorted.map((s, i) => ({ ...s, sortOrder: i }))
+      set({ statuses: updated })
 
-    try {
-      await statusRepository.reorder(updated.map(s => s.id!))
-    } catch (e) {
-      console.error('Failed to reorder statuses:', e)
-      set({ statuses: prev, error: 'Failed to reorder statuses' })
-    }
+      try {
+        await statusRepository.reorder(updated.map(s => s.id!))
+      } catch (e) {
+        console.error('Failed to reorder statuses:', e)
+        set({ statuses: prev, error: 'Failed to reorder statuses' })
+      }
+    })
   },
 
   selectTodoCountByStatusId(statusId: number) {
