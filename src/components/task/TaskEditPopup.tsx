@@ -23,7 +23,7 @@ import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
-import { editorChanges, editorFieldsOf, type EditorFields } from './editor-fields'
+import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './TaskEditPopup.module.css'
 
@@ -229,27 +229,44 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     else if (nested) backdropRef.current?.focus({ preventScroll: true })
   }, [isEdit, nested])
 
-  // Sync state when todo changes externally (edit mode). Keyed on the synced
-  // fields (not the `todo` object) so an unrelated field change — e.g. a
-  // `modifiedAt` bump — doesn't clobber in-progress edits.
+  // Edit mode: the editor shows changes made elsewhere (a bulk edit, a
+  // calendar drop, undo) except in the fields the user has changed since the
+  // last sync, which keep the user's text. `baselineRef` holds the task's
+  // values at the last sync; saving writes only the fields that differ from
+  // it (`editorChanges`), so nothing changed elsewhere is written back over.
   const todoId = todo?.id
   const todoTitle = todo?.title
   const todoNotes = todo?.notes
   const todoProgress = todo?.progress
   const todoStatusId = todo?.statusId
   const todoDueDate = todo?.dueDate
-  const todoRecurrenceType = todo?.recurrenceRule?.type
-  useEffect(() => {
-    if (todoId === undefined) return
-    setTitle(todoTitle ?? '')
-    setNotes(todoNotes ?? '')
-    notesRef.current = todoNotes ?? ''
-    setProgress(todoProgress ?? '')
-    setStatusId(todoStatusId ?? undefined)
-    setDeadline(todoDueDate ?? null)
-    setRecurrenceType(todoRecurrenceType ?? '')
-  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoDueDate, todoRecurrenceType])
+  const todoRecurrenceRule = todo?.recurrenceRule
+  const baselineRef = useRef<EditorFields | null>(todo ? editorFieldsOf(todo) : null)
+  const baselineIdRef = useRef(todoId)
   const formRef = useLatestRef<EditorFields>({ title, notes, progress, statusId, deadline, recurrenceType })
+  useEffect(() => {
+    if (todoId === undefined || todoTitle === undefined) return
+    const store = editorFieldsOf({
+      title: todoTitle, notes: todoNotes, progress: todoProgress, statusId: todoStatusId,
+      dueDate: todoDueDate, recurrenceRule: todoRecurrenceRule,
+    })
+    const baseline = baselineRef.current
+    // Another task: show all of it.
+    const show = baseline && baselineIdRef.current === todoId
+      ? storeUpdatesToShow(store, baseline, formRef.current)
+      : store
+    baselineRef.current = store
+    baselineIdRef.current = todoId
+    if (show.title !== undefined) setTitle(show.title)
+    if (show.notes !== undefined) {
+      setNotes(show.notes)
+      notesRef.current = show.notes
+    }
+    if (show.progress !== undefined) setProgress(show.progress)
+    if ('statusId' in show) setStatusId(show.statusId)
+    if (show.deadline !== undefined) setDeadline(show.deadline)
+    if (show.recurrenceType !== undefined) setRecurrenceType(show.recurrenceType)
+  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.
@@ -283,11 +300,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return undefined
   }, [recurrenceType, deadline])
 
-  // Writes the fields that differ from the task (title / progress on blur;
-  // the other fields also save as they change).
+  // Writes the fields the user changed since the last sync (title / progress
+  // on blur; the other fields also save as they change).
   const saveEdit = () => {
-    if (props.mode !== 'edit') return
-    const changes = editorChanges(formRef.current, editorFieldsOf(props.todo))
+    const baseline = baselineRef.current
+    if (props.mode !== 'edit' || !baseline) return
+    const changes = editorChanges(formRef.current, baseline)
     if (Object.keys(changes).length > 0) props.onUpdate(changes)
   }
 

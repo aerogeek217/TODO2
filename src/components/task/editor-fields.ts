@@ -40,6 +40,24 @@ export function editedFields(form: EditorFields, baseline: EditorFields): Set<Ed
 }
 
 /**
+ * The store's new values the editor should show: fields changed in the store
+ * since the last sync that the user hasn't changed in the editor. A field
+ * the user is editing keeps the user's value.
+ */
+export function storeUpdatesToShow(
+  store: EditorFields,
+  baseline: EditorFields,
+  form: EditorFields,
+): Partial<EditorFields> {
+  const edited = editedFields(form, baseline)
+  const out: Partial<Record<EditorField, unknown>> = {}
+  for (const f of FIELDS) {
+    if (!edited.has(f) && !sameFieldValue(store[f], baseline[f])) out[f] = store[f]
+  }
+  return out as Partial<EditorFields>
+}
+
+/**
  * What saving the editor writes: only the fields the user changed since the
  * last sync, so a change made elsewhere meanwhile is never written back over.
  * An emptied title is not saved; the repeat rule is rebuilt when the repeat
