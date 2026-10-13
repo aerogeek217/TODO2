@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
 
 /**
  * Eisenhower widget in a real browser: rows dragged between quadrants and in
@@ -68,7 +68,7 @@ async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => P
   await page.mouse.move(x0 + 8, y0 + 8, { steps: 2 })
   await page.mouse.move(b.x + b.width * at.x, b.y + b.height * at.y, { steps: 14 })
   if (during) await during()
-  await page.mouse.up()
+  await releaseDrag(page)
 }
 
 test.describe('dragging between quadrants', () => {

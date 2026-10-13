@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * The Dashboard tab menu and Customize dialog in a real browser: reordering
@@ -72,7 +72,7 @@ async function dragGrip(page: Page, grip: Locator, onto: Locator, below: boolean
   await expect(grip).toHaveAttribute('aria-pressed', 'true')
   const y = below ? to.y + to.height * 0.8 : to.y + to.height * 0.2
   await page.mouse.move(from.x + from.width / 2, y, { steps: 12 })
-  await page.mouse.up()
+  await releaseDrag(page)
 }
 
 test('reordering and hiding in Customize show behind the dialog and make the layout unsaved', async ({ page }) => {

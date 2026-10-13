@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
 
 /**
  * The Dashboard widget in a real browser: a cold load straight into a
@@ -118,7 +118,7 @@ test('a Hot row drags onto a calendar day to set its due date', async ({ page })
   await page.mouse.move(from.x + 50, from.y + from.height / 2 + 8, { steps: 2 })
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 })
   await expect(day).toHaveAttribute('data-drop-target', 'true')
-  await page.mouse.up()
+  await releaseDrag(page)
   await expect(day).toContainText('Plan the offsite')
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 })

@@ -290,6 +290,26 @@ export async function wsShape(page: Page): Promise<string[][][]> {
 }
 
 /**
+ * Lets go of a dnd-kit drag and waits until the page takes clicks again.
+ * After a drag, dnd-kit stops every click at the document for 50 ms (so the
+ * release isn't a click); a test that clicks a drop prompt sooner than any
+ * person could would lose that click. Probes with a click on a scratch
+ * element (stopped there, so no app listener sees it) until one gets through.
+ */
+export async function releaseDrag(page: Page): Promise<void> {
+  await page.mouse.up()
+  await page.waitForFunction(() => {
+    const probe = document.createElement('div')
+    let reached = false
+    probe.addEventListener('click', (e) => { reached = true; e.stopPropagation() })
+    document.body.appendChild(probe)
+    probe.click()
+    probe.remove()
+    return reached
+  })
+}
+
+/**
  * Drags a tab with trusted mouse events to (x, y), checking `during` (if
  * given) before releasing. Crosses dnd-kit's 5px activation distance first.
  */
@@ -308,7 +328,7 @@ export async function dragTab(
   await page.mouse.move(x0 + 8, y0 + 8, { steps: 2 })
   await page.mouse.move(to.x, to.y, { steps: 12 })
   if (during) await during()
-  await page.mouse.up()
+  await releaseDrag(page)
 }
 
 export function wsListWidget(page: Page, tabId: string): Locator {
@@ -370,7 +390,7 @@ export async function dragRow(
   await page.mouse.move(x + 2, y0 + 8, { steps: 2 })
   await page.mouse.move(x + 4, toY, { steps: 12 })
   if (during) await during()
-  await page.mouse.up()
+  await releaseDrag(page)
 }
 
 /**

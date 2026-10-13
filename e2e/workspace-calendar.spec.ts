@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
 
 /**
  * Calendar widget in a real browser: list rows dropped on a day (with the
@@ -93,7 +93,7 @@ async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => P
   await page.mouse.move(x0 + 8, y0 + 8, { steps: 2 })
   await page.mouse.move(end.x, end.y, { steps: 14 })
   if (during) await during()
-  await page.mouse.up()
+  await releaseDrag(page)
   return end
 }
 
