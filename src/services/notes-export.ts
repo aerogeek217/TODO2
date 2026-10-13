@@ -101,20 +101,26 @@ export function sanitizeHref(raw: string): string {
   return SAFE_URL_SCHEMES.includes(scheme) ? s : '#'
 }
 
+const HTML_ENTITY_CHARS: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }
+
+/** Inverse of `escapeHtml` (one pass, so `&amp;lt;` stays `&lt;`). */
+function unescapeHtml(s: string): string {
+  return s.replace(/&(amp|lt|gt|quot|#39);/g, (_m, name: string) => HTML_ENTITY_CHARS[name] ?? _m)
+}
+
 function inlineMd(s: string): string {
-  // Every `$1` capture below is fed back through `escapeHtml` even though
-  // the outer `escapeHtml(s)` already ran. The defensive re-escape pins the
-  // invariant: a future chain reorder that lets raw `<` / `>` reach the
-  // captures (e.g. moving a transformation that emits HTML before these
-  // regexes) cannot smuggle them into the output. The double-encoding is
-  // visible (`&lt;` → `&amp;lt;`) and asserted in the test suite.
+  // The line is escaped once, up front, so every capture below is already
+  // HTML-safe text and goes into the output as is (escaping it again would
+  // show `Dana&#39;s` in the pasted text). A link target is the exception:
+  // it is unescaped back to the raw URL, checked by `sanitizeHref`, and
+  // escaped for the attribute.
   return escapeHtml(s)
-    .replace(/\*\*([^*]+)\*\*/g, (_m, text) => `<strong>${escapeHtml(text)}</strong>`)
-    .replace(/\*([^*]+)\*/g, (_m, text) => `<em>${escapeHtml(text)}</em>`)
-    .replace(/`([^`]+)`/g, (_m, text) => `<code>${escapeHtml(text)}</code>`)
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
-      const safe = sanitizeHref(href)
-      return `<a href="${escapeHtmlAttr(safe)}">${escapeHtml(text)}</a>`
+    .replace(/\*\*([^*]+)\*\*/g, (_m, text: string) => `<strong>${text}</strong>`)
+    .replace(/\*([^*]+)\*/g, (_m, text: string) => `<em>${text}</em>`)
+    .replace(/`([^`]+)`/g, (_m, text: string) => `<code>${text}</code>`)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, href: string) => {
+      const safe = sanitizeHref(unescapeHtml(href))
+      return `<a href="${escapeHtmlAttr(safe)}">${text}</a>`
     })
 }
 

@@ -194,11 +194,8 @@ describe('notes-export XSS hardening', () => {
 
   it('mdToHtml HTML-attribute-escapes quotes in URLs', () => {
     const html = mdToHtml('[t](https://x.com/"a)')
-    // `escapeHtml` itself escapes `"`, so the URL's
-    // raw `"` becomes `&quot;` in the text-pass, then `escapeHtmlAttr`'s `&`
-    // pass re-escapes that `&` → `&amp;quot;`. Either way, no raw `"` reaches
-    // the attribute and the entity is safe.
-    expect(html).toContain('&amp;quot;')
+    // The URL's raw `"` is escaped once for the attribute.
+    expect(html).toContain('href="https://x.com/&quot;a"')
     expect(html).not.toMatch(/href="https:\/\/x\.com\/"a"/)
     expect(html).not.toMatch(/<a href="[^"]*"[^>]*"/) // no second `"` in attr
   })
@@ -223,37 +220,35 @@ describe('notes-export XSS hardening', () => {
     expect(md).toBe('[X](https://example.com)')
   })
 
-  it('inlineMd defensively re-escapes link text (chain-reorder safety)', () => {
+  it('inlineMd escapes link text once and keeps markup inert', () => {
     const html = mdToHtml('[<script>x](https://example.com)')
-    // No active <script> tag reaches the output regardless of chain order.
     expect(html).not.toMatch(/<script[\s>]/i)
-    // The defensive re-escape double-encodes `&lt;` → `&amp;lt;` — that marker
-    // pins the fix, so a future regression that drops the escape at the
-    // link-substitution site fails this test.
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('href="https://example.com"')
+    expect(html).toContain('<a href="https://example.com">&lt;script&gt;x</a>')
+    expect(html).not.toContain('&amp;lt;')
   })
 
-  it('inlineMd defensively re-escapes bold text (chain-reorder safety)', () => {
-    const html = mdToHtml('**<script>x**')
+  it.each([
+    ['bold', '**<script>x & y**', '<strong>&lt;script&gt;x &amp; y</strong>'],
+    ['italic', '*<script>x & y*', '<em>&lt;script&gt;x &amp; y</em>'],
+    ['code', '`<script>x & y`', '<code>&lt;script&gt;x &amp; y</code>'],
+  ])('inlineMd escapes %s text once', (_kind, md, expected) => {
+    const html = mdToHtml(md)
     expect(html).not.toMatch(/<script[\s>]/i)
-    // Same double-encode marker as the link branch — pins the fix in place.
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('<strong>')
+    expect(html).toContain(expected)
   })
 
-  it('inlineMd defensively re-escapes italic text (chain-reorder safety)', () => {
-    const html = mdToHtml('*<script>x*')
-    expect(html).not.toMatch(/<script[\s>]/i)
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('<em>')
+  it("inlineMd shows apostrophes and ampersands in formatted text as written", () => {
+    const html = mdToHtml("**Dana's Q&A** and *it's* [R&D](https://a.example/?b=1&c=2)")
+    expect(html).toContain('<strong>Dana&#39;s Q&amp;A</strong>')
+    expect(html).toContain('<em>it&#39;s</em>')
+    expect(html).toContain('<a href="https://a.example/?b=1&amp;c=2">R&amp;D</a>')
+    expect(html).not.toContain('&amp;#39;')
+    expect(html).not.toContain('&amp;amp;')
   })
 
-  it('inlineMd defensively re-escapes code text (chain-reorder safety)', () => {
-    const html = mdToHtml('`<script>x`')
-    expect(html).not.toMatch(/<script[\s>]/i)
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('<code>')
+  it('inlineMd still blocks an entity-hidden javascript: link', () => {
+    expect(mdToHtml('[x](&#106;avascript:alert(1))')).toContain('href="#"')
+    expect(mdToHtml('[x](javascript:alert(1))')).toContain('href="#"')
   })
 
   it('escapeHtml escapes both single and double quotes (attribute-context safety)', () => {
