@@ -2,7 +2,9 @@
  * Shared helpers for Zustand store patterns:
  * - `trackWrite` / `readFresh` — keep a `load()` from overwriting an edit made
  *   while its read was in flight
- * - `loadWithState` — loading / error boilerplate around a fresh read
+ * - `loadWithState` / `reportLoadFailure` — loading / error boilerplate around
+ *   a fresh read; a failed load is reported to the user
+ * - `makeEnsureLoaded` — load once, retry after a failure
  * - `mutate` / `optimistic` — tracked store writes with error state
  * - `updateEntityInMap` — refresh entity references in assignment maps
  * - `captureAssignments` — capture a task's people and tags for undo
@@ -19,6 +21,7 @@ import { tagRepository } from '../data/tag-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from '../services/undoable'
+import { useUndoStore } from './undo-store'
 
 export type SetFn = (partial: Record<string, unknown>) => void
 
@@ -81,9 +84,18 @@ export function resetWriteTracking(): void {
 }
 
 /**
+ * A load failed: logs it and tells the user (the undo snackbar's notice), so
+ * a store left empty by a transient storage error isn't silent.
+ */
+export function reportLoadFailure(label: string, error: unknown): void {
+  console.error(`Failed to load ${label}:`, error)
+  useUndoStore.getState().notify(`Couldn't load ${label}. Reload the page to try again.`)
+}
+
+/**
  * Execute a data-fetching function with loading/error state management.
  * The read goes through `readFresh`. Returns the fetched data, or undefined
- * on error.
+ * on error (reported with `reportLoadFailure`).
  */
 export async function loadWithState<T>(
   set: SetFn,
@@ -95,7 +107,7 @@ export async function loadWithState<T>(
     const data = await readFresh(fetcher)
     return data
   } catch (e) {
-    console.error(`Failed to load ${label}:`, e)
+    reportLoadFailure(label, e)
     set({ error: `Failed to load ${label}` })
     return undefined
   } finally {
@@ -104,36 +116,24 @@ export async function loadWithState<T>(
 }
 
 /**
- * Memoize a `load()` so callers (pages, widgets) can fire
- * `ensureLoaded()` on every mount without re-hitting IndexedDB. Concurrent
- * callers share the same in-flight promise; once the first load resolves,
- * subsequent calls are a no-op until `resetLoaded()` is invoked (e.g. after
- * an import / DB reset).
- *
- * Usage: keep one instance per store (`const ensure = makeEnsureLoaded(load)`)
- * and expose `ensure` as the store action; expose `resetLoaded()` for paths
- * that need to force a re-fetch.
+ * Memoize a `load()` so callers (pages, widgets) can fire `ensureLoaded()`
+ * on every mount without re-hitting IndexedDB. Concurrent callers share the
+ * same in-flight load; once `isLoaded()` (a store flag the load sets only
+ * when its read succeeded) is true, calls are a no-op. A failed load leaves
+ * the flag unset, so the next `ensureLoaded()` tries again. `load` reports
+ * its own failure (`loadWithState`); the returned promise never rejects.
  */
-export function makeEnsureLoaded(load: () => Promise<void>): {
-  ensureLoaded: () => Promise<void>
-  resetLoaded: () => void
-} {
-  let loaded = false
+export function makeEnsureLoaded(
+  load: () => Promise<void>,
+  isLoaded: () => boolean,
+): () => Promise<void> {
   let inflight: Promise<void> | null = null
-  return {
-    ensureLoaded() {
-      if (loaded) return Promise.resolve()
-      if (inflight) return inflight
-      const p = load()
-        .then(() => { loaded = true; inflight = null })
-        .catch((err) => { inflight = null; throw err })
-      inflight = p
-      return p
-    },
-    resetLoaded() {
-      loaded = false
-      inflight = null
-    },
+  return () => {
+    if (isLoaded()) return Promise.resolve()
+    inflight ??= load()
+      .catch((e: unknown) => { console.error('Load failed:', e) })
+      .finally(() => { inflight = null })
+    return inflight
   }
 }
 

@@ -77,6 +77,8 @@ interface TodoState {
    */
   todosVersion: number
   loading: boolean
+  /** A load has read the rows (a failed load leaves it false, so `ensureAllLoaded` retries). */
+  loaded: boolean
   error: string | null
 
   loadAll: () => Promise<void>
@@ -151,7 +153,7 @@ interface TodoState {
 }
 
 export const useTodoStore = create<TodoState>((set, get) => {
-  const allEnsure = makeEnsureLoaded(() => get().loadAll())
+  const allEnsure = makeEnsureLoaded(() => get().loadAll(), () => get().loaded)
 
   /**
    * Writes `changes` to one task as an undoable edit (`description`). Only
@@ -195,13 +197,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
   todos: [],
   todosVersion: 0,
   loading: false,
+  loaded: false,
   error: null,
 
   async loadAll() {
-    const todos = await loadWithState(set, () => todoRepository.getAll(), 'all todos')
-    if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
+    const todos = await loadWithState(set, () => todoRepository.getAll(), 'tasks')
+    if (todos) set({ todos, todosVersion: get().todosVersion + 1, loaded: true })
   },
-  ensureAllLoaded: () => allEnsure.ensureLoaded(),
+  ensureAllLoaded: allEnsure,
 
   async add(title: string) {
     return mutate(set, async () => {

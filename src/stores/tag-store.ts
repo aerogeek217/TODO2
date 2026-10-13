@@ -25,6 +25,8 @@ interface TagState {
   tags: Tag[]
   assignedTagsMap: Map<number, Tag[]>
   loading: boolean
+  /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
+  loaded: boolean
   error: string | null
 
   load: () => Promise<void>
@@ -67,7 +69,7 @@ export function countTodosByTag(assignedTagsMap: ReadonlyMap<number, readonly Ta
 }
 
 export const useTagStore = create<TagState>((set, get) => {
-  const tagEnsure = makeEnsureLoaded(() => get().load())
+  const tagEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   const assignment = createAssignmentActions(
     {
       repo: {
@@ -88,13 +90,14 @@ export const useTagStore = create<TagState>((set, get) => {
     tags: [],
     assignedTagsMap: new Map(),
     loading: false,
+    loaded: false,
     error: null,
 
     async load() {
       const tags = await loadWithState(set, () => tagRepository.getAll(), 'tags')
-      if (tags) set({ tags })
+      if (tags) set({ tags, loaded: true })
     },
-    ensureLoaded: () => tagEnsure.ensureLoaded(),
+    ensureLoaded: tagEnsure,
 
     add(name: string, color = DEFAULT_ENTITY_COLOR) {
       return trackWrite(async () => {

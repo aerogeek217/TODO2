@@ -11,6 +11,8 @@ import { bySortOrder } from '../utils/sort-order'
 interface StatusState {
   statuses: Status[]
   loading: boolean
+  /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
+  loaded: boolean
   error: string | null
 
   load: () => Promise<void>
@@ -30,17 +32,18 @@ interface StatusState {
 }
 
 export const useStatusStore = create<StatusState>((set, get) => {
-  const statusEnsure = makeEnsureLoaded(() => get().load())
+  const statusEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {
   statuses: [],
   loading: false,
+  loaded: false,
   error: null,
 
   async load() {
     const statuses = await loadWithState(set, () => statusRepository.getAll(), 'statuses')
-    if (statuses) set({ statuses })
+    if (statuses) set({ statuses, loaded: true })
   },
-  ensureLoaded: () => statusEnsure.ensureLoaded(),
+  ensureLoaded: statusEnsure,
 
   add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON) {
     return trackWrite(async () => {

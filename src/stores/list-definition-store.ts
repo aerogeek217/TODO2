@@ -28,6 +28,8 @@ interface AddInput {
 interface ListDefinitionState {
   listDefinitions: PersistedListDefinition[]
   loading: boolean
+  /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
+  loaded: boolean
   error: string | null
 
   load: () => Promise<void>
@@ -76,17 +78,18 @@ function nextSortOrder(defs: PersistedListDefinition[]): number {
 }
 
 export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
-  const defEnsure = makeEnsureLoaded(() => get().load())
+  const defEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {
   listDefinitions: [],
   loading: false,
+  loaded: false,
   error: null,
 
   async load() {
-    const rows = await loadWithState(set, () => listDefinitionRepository.getAll(), 'list definitions')
-    if (rows) set({ listDefinitions: rows })
+    const rows = await loadWithState(set, () => listDefinitionRepository.getAll(), 'saved lists')
+    if (rows) set({ listDefinitions: rows, loaded: true })
   },
-  ensureLoaded: () => defEnsure.ensureLoaded(),
+  ensureLoaded: defEnsure,
 
   async add({ name, membership, sort, grouping, pinnedToDashboard = true, maxTasks, limitMode }) {
     const trimmed = name.trim()

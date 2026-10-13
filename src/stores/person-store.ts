@@ -11,6 +11,8 @@ interface PersonState {
   people: Person[]
   assignedPeopleMap: Map<number, Person[]>
   loading: boolean
+  /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
+  loaded: boolean
   error: string | null
 
   load: () => Promise<void>
@@ -36,7 +38,7 @@ interface PersonState {
 }
 
 export const usePersonStore = create<PersonState>((set, get) => {
-  const personEnsure = makeEnsureLoaded(() => get().load())
+  const personEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   const assignment = createAssignmentActions(
     {
       repo: {
@@ -57,13 +59,14 @@ export const usePersonStore = create<PersonState>((set, get) => {
     people: [],
     assignedPeopleMap: new Map(),
     loading: false,
+    loaded: false,
     error: null,
 
     async load() {
       const people = await loadWithState(set, () => personRepository.getAll(), 'people')
-      if (people) set({ people })
+      if (people) set({ people, loaded: true })
     },
-    ensureLoaded: () => personEnsure.ensureLoaded(),
+    ensureLoaded: personEnsure,
 
     add(name: string, initials: string, color?: string, email?: string) {
       return trackWrite(async () => {

@@ -23,9 +23,8 @@ import { useTrendEventsStore } from './trend-events-store'
  * an entity owner and this function the single seam that knows about all
  * of them.
  *
- * `tagStore` and `listDefinitionStore` go through `load()`, not
- * `ensureLoaded()` — `makeEnsureLoaded` short-circuits on a closure-cached
- * `loaded = true`, which would silently keep the pre-import data.
+ * Every store goes through `load()`, not `ensureLoaded()` — that is a no-op
+ * once the store has loaded, which would silently keep the pre-import data.
  */
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
