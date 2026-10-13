@@ -192,8 +192,9 @@ export const todoRepository = {
   },
 
   /**
-   * Puts tasks back with their ids, people and tags (redo of a create that
-   * was undone). Join rows that already exist are not duplicated.
+   * Puts tasks back with their ids, people and tags (undo of a delete, redo
+   * of a create that was undone). Join rows that already exist are not
+   * duplicated.
    */
   async restoreManyWithAssignments(
     items: readonly { todo: PersistedTodoItem; personIds: readonly number[]; tagIds: readonly number[] }[],
@@ -244,19 +245,6 @@ export const todoRepository = {
 
   async restore(todo: PersistedTodoItem): Promise<void> {
     await db.todos.put(todo)
-  },
-
-  async restoreWithAssignments(
-    todo: PersistedTodoItem,
-    personIds: number[],
-  ): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople], async () => {
-      await db.todos.put(todo)
-      for (const personId of personIds) {
-        const existing = await db.todoPeople.where({ todoId: todo.id, personId }).count()
-        if (existing === 0) await db.todoPeople.add({ todoId: todo.id, personId })
-      }
-    })
   },
 
   async delete(id: number): Promise<void> {

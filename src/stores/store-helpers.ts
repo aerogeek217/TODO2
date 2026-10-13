@@ -5,7 +5,7 @@
  * - `loadWithState` — loading / error boilerplate around a fresh read
  * - `mutate` / `optimistic` — tracked store writes with error state
  * - `updateEntityInMap` — refresh entity references in assignment maps
- * - `captureAssignments` — capture person ids for undo
+ * - `captureAssignments` — capture a task's people and tags for undo
  * - `bulkUpdateField` — shared bulk field update with undo
  *
  * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
@@ -15,6 +15,7 @@
  */
 
 import { personRepository } from '../data/person-repository'
+import { tagRepository } from '../data/tag-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from '../services/undoable'
@@ -215,26 +216,32 @@ export function updateEntityInMap<E extends { id?: number }>(
   return updated
 }
 
-/**
- * Capture current person assignment IDs for a todo (for undo).
- */
-export async function captureAssignments(todoId: number): Promise<{
+/** A task's people and tags, captured before a delete so undo can put them back. */
+export interface CapturedAssignments {
   personIds: number[]
-}> {
-  const people = await personRepository.getAssignedPeople(todoId)
-  return { personIds: people.map((p) => p.id!) }
+  tagIds: number[]
 }
 
-/**
- * Capture assignments for multiple todos at once.
- */
+/** Capture a task's person and tag assignment ids (for undo). */
+export async function captureAssignments(todoId: number): Promise<CapturedAssignments> {
+  const [captured] = await captureAssignmentsBulk([todoId])
+  return { personIds: captured?.personIds ?? [], tagIds: captured?.tagIds ?? [] }
+}
+
+/** Capture person and tag assignment ids for several tasks at once. */
 export async function captureAssignmentsBulk(todoIds: number[]): Promise<
-  Array<{ todoId: number; personIds: number[] }>
+  Array<{ todoId: number } & CapturedAssignments>
 > {
-  const pMap = await personRepository.getAssignedPeopleForTodos(todoIds)
+  const [pMap, tMap] = await Promise.all([
+    personRepository.getAssignedPeopleForTodos(todoIds),
+    tagRepository.getAssignedTagsForTodos(todoIds),
+  ])
+  const ids = (rows: readonly { id?: number }[] | undefined) =>
+    (rows ?? []).flatMap((r) => (r.id != null ? [r.id] : []))
   return todoIds.map((todoId) => ({
     todoId,
-    personIds: (pMap.get(todoId) ?? []).map((p) => p.id!),
+    personIds: ids(pMap.get(todoId)),
+    tagIds: ids(tMap.get(todoId)),
   }))
 }
 

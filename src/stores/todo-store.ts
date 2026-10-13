@@ -3,7 +3,7 @@ import type { NewTodoItem, PersistedTodoItem } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
-import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
 import { useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
@@ -110,7 +110,7 @@ interface TodoState {
   purgeCompleted: (ids: number[]) => Promise<number>
   duplicate: (id: number) => Promise<number | undefined>
   /** Internal: restore a deleted todo (for undo). */
-  _restore: (todo: PersistedTodoItem, personIds: number[]) => Promise<void>
+  _restore: (todo: PersistedTodoItem, assignments: CapturedAssignments) => Promise<void>
   /** Internal: remove without undo registration (for redo of add). */
   _removeNoUndo: (id: number) => Promise<void>
 }
@@ -302,7 +302,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return
       const snapshot = { ...todo }
-      const { personIds } = await captureAssignments(id)
+      const assignments = await captureAssignments(id)
       const ranks = await listOrderRepository.getByTodos([id])
 
       await todoRepository.delete(id)
@@ -313,7 +313,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         `Delete "${todo.title}"`,
         () => get()._removeNoUndo(id),
         async () => {
-          await get()._restore(snapshot, personIds)
+          await get()._restore(snapshot, assignments)
           await useListOrderStore.getState().restoreRows(ranks)
         },
         true,
@@ -592,8 +592,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const snapshots = get().todos.filter((t) => ids.includes(t.id)).map(t => ({ ...t }))
       const assignments = await captureAssignmentsBulk(ids)
       const assignmentData = snapshots.map(t => {
-        const a = assignments.find(a => a.todoId === t.id)!
-        return { todo: t, personIds: a.personIds }
+        const a = assignments.find(a => a.todoId === t.id)
+        return { todo: t, personIds: a?.personIds ?? [], tagIds: a?.tagIds ?? [] }
       })
 
       const ranks = await listOrderRepository.getByTodos(ids)
@@ -607,8 +607,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         `Delete ${ids.length} tasks`,
         () => get().bulkRemove(ids),
         async () => {
-          for (const { todo, personIds } of assignmentData) {
-            await get()._restore(todo, personIds)
+          for (const { todo, personIds, tagIds } of assignmentData) {
+            await get()._restore(todo, { personIds, tagIds })
           }
           await useListOrderStore.getState().restoreRows(ranks)
         },
@@ -669,11 +669,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
         set({ todos: [...get().todos, newTodo], todosVersion: get().todosVersion + 1 })
       }
       // Copy assignments at repo level (bypasses store undo registration)
-      const { personIds } = await captureAssignments(id)
+      const { personIds, tagIds } = await captureAssignments(id)
       const { personRepository } = await import('../data/person-repository')
       for (const pid of personIds) await personRepository.assignPerson(newId, pid)
       const { tagRepository } = await import('../data/tag-repository')
-      const tagIds = ((await tagRepository.getAssignedTagsForTodos([id])).get(id) ?? []).map((t) => t.id!)
       for (const tid of tagIds) await tagRepository.assignTag(newId, tid)
       // Refresh assignment caches for the new task
       const todoIds = get().todos.map(t => t.id)
@@ -694,15 +693,15 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }, 'Failed to duplicate task')
   },
 
-  _restore(todo: PersistedTodoItem, personIds: number[]) {
+  _restore(todo: PersistedTodoItem, { personIds, tagIds }: CapturedAssignments) {
     return trackWrite(async () => {
-      await todoRepository.restoreWithAssignments(todo, personIds)
-      set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
-      // Refresh assignment caches
-      if (personIds.length > 0) {
-        const { usePersonStore } = await import('./person-store')
-        await usePersonStore.getState().loadAssignments(get().todos.map(t => t.id))
-      }
+      await todoRepository.restoreManyWithAssignments([{ todo, personIds, tagIds }])
+      set({
+        todos: [...get().todos.filter((t) => t.id !== todo.id), todo],
+        todosVersion: get().todosVersion + 1,
+      })
+      // Refresh assignment caches (they keep the entries the delete left).
+      await reloadAssignments(get().todos.map((t) => t.id))
     })
   },
 

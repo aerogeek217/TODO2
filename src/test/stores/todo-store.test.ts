@@ -110,6 +110,42 @@ describe('todoStore', () => {
     expect(await db.todos.get(id3)).toBeUndefined()
   })
 
+  it('undoing a delete brings the task back with its people and tags', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    const personId = await personRepository.insert({ name: 'Dana', initials: 'DA' })
+    const tagId = await tagRepository.getOrCreate('ops', '#111111')
+    await personRepository.assignPerson(id, personId)
+    await tagRepository.assignTag(id, tagId)
+
+    await useTodoStore.getState().remove(id)
+    expect(await db.todoTags.where('todoId').equals(id).count()).toBe(0)
+    await useUndoStore.getState().undo()
+
+    expect(useTodoStore.getState().todos.map((t) => t.id)).toEqual([id])
+    expect((await db.todoPeople.where('todoId').equals(id).toArray()).map((r) => r.personId)).toEqual([personId])
+    expect((await db.todoTags.where('todoId').equals(id).toArray()).map((r) => r.tagId)).toEqual([tagId])
+    expect(useTagStore.getState().assignedTagsMap.get(id)?.map((t) => t.id)).toEqual([tagId])
+  })
+
+  it('undoing a bulk delete brings every task back with its tags', async () => {
+    const id1 = await useTodoStore.getState().add('Task 1')
+    const id2 = await useTodoStore.getState().add('Task 2')
+    const tagA = await tagRepository.getOrCreate('a', '#111111')
+    const tagB = await tagRepository.getOrCreate('b', '#222222')
+    await tagRepository.assignTag(id1, tagA)
+    await tagRepository.assignTag(id2, tagA)
+    await tagRepository.assignTag(id2, tagB)
+
+    await useTodoStore.getState().bulkRemove([id1, id2])
+    await useUndoStore.getState().undo()
+
+    const tagsOf = async (id: number) =>
+      (await db.todoTags.where('todoId').equals(id).toArray()).map((r) => r.tagId).sort()
+    expect(useTodoStore.getState().todos.map((t) => t.id).sort()).toEqual([id1, id2].sort())
+    expect(await tagsOf(id1)).toEqual([tagA])
+    expect(await tagsOf(id2)).toEqual([tagA, tagB].sort())
+  })
+
   it('todosVersion bumps on id-set changes but not on field edits', async () => {
     // Dashboard/ListView memoize assignment-load effects on
     // `${todos.length}:${todosVersion}`, so the bump contract is load-bearing:
