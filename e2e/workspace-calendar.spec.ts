@@ -311,3 +311,76 @@ test('a narrow calendar shows dots; selecting a day lists its entries', async ({
   await expect(list.locator('[data-cal-entry="due"]')).toContainText('Pick up prescriptions')
   await expect(list.locator('[data-cal-entry="followup"]')).toContainText('Vendor contract')
 })
+
+/** The calendar in week rows (under 560px wide), in a cell `calWeight` of its column's height (the rest is a notes cell). */
+function weekRowsLayout(calWeight: number): WorkspaceSeed['layouts'] {
+  return [{
+    name: 'Main',
+    columns: [
+      { id: 'colA', weight: 3, cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
+      {
+        id: 'colB',
+        weight: 2,
+        cells: [
+          { id: 'b1', weight: calWeight, tabs: [{ id: 'calTab', kind: 'calendar', view: 'week', offset: 0 }] },
+          ...(calWeight < 1 ? [{ id: 'b2', weight: 1 - calWeight, tabs: [{ id: 'notesTab', kind: 'notes' as const }] }] : []),
+        ],
+      },
+    ],
+  }]
+}
+
+/** Every week row: its entries and `+N more` stay inside it (none drawn over the next day). */
+async function expectRowsContainTheirEntries(page: Page): Promise<void> {
+  const overflow = await calendar(page).locator('[data-cal-grid="rows"]').evaluate((grid) =>
+    Array.from(grid.children).flatMap((row) => {
+      const bottom = row.getBoundingClientRect().bottom
+      return Array.from(row.querySelectorAll('[data-cal-entry], button'))
+        .filter((el) => el.getBoundingClientRect().bottom > bottom + 0.5)
+        .map((el) => `${(row as HTMLElement).dataset.day}: ${el.textContent}`)
+    }),
+  )
+  expect(overflow).toEqual([])
+}
+
+test.describe('week rows', () => {
+  test('a short cell caps each day to its row with +N more instead of drawing over the next days', async ({ page }) => {
+    await seedWorkspace(page, {
+      listDefinitions: [TASK_LIST],
+      tasks: ['One', 'Two', 'Three', 'Four', 'Five'].map((title) => ({ title, dueInDays: 0 })),
+      layouts: weekRowsLayout(0.25),
+    })
+    await expect(calendar(page)).toHaveAttribute('data-mode', 'rows')
+    const today = await day(page, 0)
+    const more = today.getByRole('button', { name: /^\+\d+ more$/ })
+    await expect(more).toBeVisible()
+    const shown = await today.locator('[data-cal-entry]').count()
+    await expect(more).toHaveText(`+${5 - shown} more`)
+    await expectRowsContainTheirEntries(page)
+
+    await more.click()
+    const popover = page.getByTestId('calendar-day-popover')
+    await expect(popover.locator('[data-cal-entry]')).toHaveCount(5)
+    await expect(more).toHaveAttribute('aria-expanded', 'true')
+    await page.keyboard.press('Escape')
+    await expect(popover).toHaveCount(0)
+  })
+
+  test('a tall cell gives a busy day the room the quiet days leave, without scrolling', async ({ page }) => {
+    await seedWorkspace(page, {
+      listDefinitions: [TASK_LIST],
+      tasks: Array.from({ length: 30 }, (_, n) => ({ title: `Busy ${n + 1}`, dueInDays: 0 })),
+      layouts: weekRowsLayout(1),
+    })
+    await expect(calendar(page)).toHaveAttribute('data-mode', 'rows')
+    const today = await day(page, 0)
+    const more = today.getByRole('button', { name: /^\+\d+ more$/ })
+    await expect(more).toBeVisible()
+    const shown = await today.locator('[data-cal-entry]').count()
+    expect(shown).toBeGreaterThan(4)
+    await expect(more).toHaveText(`+${30 - shown} more`)
+    await expectRowsContainTheirEntries(page)
+    const rows = calendar(page).locator('[data-cal-grid="rows"]')
+    expect(await rows.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true)
+  })
+})

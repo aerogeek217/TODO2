@@ -17,7 +17,7 @@ interface CalendarDayPopoverProps {
 }
 
 /**
- * Every entry of one month day ("+N more"). Entries click to edit and drag
+ * Every entry of one day (a month cell's or week row's "+N more"). Entries click to edit and drag
  * like any entry: the popover hides when a drag starts (its entry stays
  * mounted as the drag source) and closes when the drag ends. Esc, × or a
  * click outside closes it.

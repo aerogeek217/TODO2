@@ -5,8 +5,9 @@ import {
   calendarRangeLabel,
   calendarRangeName,
   convertCalendarOffset,
+  dayOverflow,
   monthCellFit,
-  monthCellOverflow,
+  weekRowsFit,
   weekStartOf,
   weekdayLabels,
 } from '../../utils/calendar-grid'
@@ -104,9 +105,33 @@ describe('month cell fit', () => {
   })
 
   it('overflow: everything when it fits, else fit − 1 entries and +N more', () => {
-    expect(monthCellOverflow(3, 3)).toEqual({ shown: 3, more: 0 })
-    expect(monthCellOverflow(6, 3)).toEqual({ shown: 2, more: 4 })
-    expect(monthCellOverflow(2, 0)).toEqual({ shown: 0, more: 2 })
-    expect(monthCellOverflow(5, Number.POSITIVE_INFINITY)).toEqual({ shown: 5, more: 0 })
+    expect(dayOverflow(3, 3)).toEqual({ shown: 3, more: 0 })
+    expect(dayOverflow(6, 3)).toEqual({ shown: 2, more: 4 })
+    expect(dayOverflow(2, 0)).toEqual({ shown: 0, more: 2 })
+    expect(dayOverflow(5, Number.POSITIVE_INFINITY)).toEqual({ shown: 5, more: 0 })
+  })
+})
+
+describe('week rows fit', () => {
+  // Row heights: 1 slot → 40 (the minimum), 2 → 62, 3 → 88, 4 → 114, 5 → 140;
+  // the container's padding and six gaps take 24.
+  it('is unbounded before measuring and when every day fits', () => {
+    expect(weekRowsFit(0, [9, 9, 9, 9, 9, 9, 9])).toBe(Number.POSITIVE_INFINITY)
+    expect(weekRowsFit(304, [0, 0, 0, 0, 0, 0, 0])).toBe(Number.POSITIVE_INFINITY)
+    expect(weekRowsFit(400, [2, 2, 0, 0, 0, 0, 0])).toBe(Number.POSITIVE_INFINITY)
+  })
+
+  it('caps every row at the largest slot count that fits', () => {
+    // Uncapped 672 and capped at 4 646 > 576; capped at 3: 542.
+    expect(weekRowsFit(600, [1, 4, 5, 4, 3, 2, 4])).toBe(3)
+    // Exactly fitting at a cap counts.
+    expect(weekRowsFit(542 + 24, [1, 4, 5, 4, 3, 2, 4])).toBe(3)
+    expect(weekRowsFit(542 + 23, [1, 4, 5, 4, 3, 2, 4])).toBe(2)
+  })
+
+  it('is at least 1 when even minimum-height rows overflow (the rows scroll)', () => {
+    expect(weekRowsFit(345, [1, 4, 5, 4, 3, 2, 4])).toBe(1)
+    expect(weekRowsFit(209, [1, 4, 5, 4, 3, 2, 4])).toBe(1)
+    expect(weekRowsFit(200, [0, 0, 0, 0, 0, 0, 0])).toBe(1)
   })
 })

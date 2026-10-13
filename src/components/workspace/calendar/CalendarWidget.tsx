@@ -33,7 +33,8 @@ import {
   convertCalendarOffset,
   dayLabel,
   monthCellFit,
-  monthCellOverflow,
+  dayOverflow,
+  weekRowsFit,
   weekdayLabels,
 } from '../../../utils/calendar-grid'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
@@ -174,6 +175,31 @@ function washClass(entries: readonly CalendarEntry[], day: Date, today: Date): s
   return wash === 'due' ? (styles.washDue ?? false) : wash === 'followup' ? (styles.washFollowup ?? false) : false
 }
 
+/** `+N more` in a day's last slot: opens the day popover over the day. */
+function MoreButton({ day, more, open, onMore, md }: {
+  day: Date
+  more: number
+  open: boolean
+  onMore: (day: Date, cell: HTMLElement) => void
+  /** Week rows: a 24px slot. */
+  md?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles.more} ${md ? styles.moreMd : ''} ${open ? styles.moreOpen : ''}`}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={(e) => {
+        const cell = e.currentTarget.closest<HTMLElement>('[data-day]')
+        if (cell) onMore(day, cell)
+      }}
+    >
+      +{more} more
+    </button>
+  )
+}
+
 // ── Month ────────────────────────────────────────────────────────────────
 
 function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
@@ -188,7 +214,7 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
   const { setNodeRef, highlighted } = useDayTarget(ctx, day)
   const isToday = day.getTime() === ctx.today.getTime()
   const outside = day.getMonth() !== month
-  const { shown, more } = monthCellOverflow(entries.length, fit)
+  const { shown, more } = dayOverflow(entries.length, fit)
   return (
     <div
       ref={setNodeRef}
@@ -202,20 +228,7 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
         <span className={isToday ? styles.todayPill : undefined}>{day.getDate()}</span>
       </div>
       {entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="sm" ctx={ctx} />)}
-      {more > 0 && (
-        <button
-          type="button"
-          className={`${styles.more} ${moreOpen ? styles.moreOpen : ''}`}
-          aria-haspopup="dialog"
-          aria-expanded={moreOpen}
-          onClick={(e) => {
-            const cell = e.currentTarget.closest<HTMLElement>('[data-day]')
-            if (cell) onMore(day, cell)
-          }}
-        >
-          +{more} more
-        </button>
-      )}
+      {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} />}
       {highlighted && <DropLabel ctx={ctx} />}
     </div>
   )
@@ -263,9 +276,17 @@ function weekdayShort(d: Date): string {
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] ?? ''
 }
 
-function WeekRow({ day, entries, ctx }: { day: Date; entries: CalendarEntry[]; ctx: DayContext }) {
+function WeekRow({ day, entries, fit, ctx, onMore, moreOpen }: {
+  day: Date
+  entries: CalendarEntry[]
+  fit: number
+  ctx: DayContext
+  onMore: (day: Date, cell: HTMLElement) => void
+  moreOpen: boolean
+}) {
   const { setNodeRef, highlighted } = useDayTarget(ctx, day)
   const isToday = day.getTime() === ctx.today.getTime()
+  const { shown, more } = dayOverflow(entries.length, fit)
   return (
     <div
       ref={setNodeRef}
@@ -281,9 +302,43 @@ function WeekRow({ day, entries, ctx }: { day: Date; entries: CalendarEntry[]; c
       <div className={styles.weekEntries}>
         {entries.length === 0
           ? <span className={styles.emptyDash} aria-hidden="true">—</span>
-          : entries.map((e) => <EntryItem key={e.key} entry={e} size="md" ctx={ctx} />)}
+          : entries.slice(0, shown).map((e) => <EntryItem key={e.key} entry={e} size="md" ctx={ctx} />)}
+        {more > 0 && <MoreButton day={day} more={more} open={moreOpen} onMore={onMore} md />}
       </div>
       {highlighted && <DropLabel ctx={ctx} />}
+    </div>
+  )
+}
+
+/**
+ * The week as seven rows sharing the cell's height. When the days' entries
+ * don't all fit, every row is capped at the same number of slots
+ * (`weekRowsFit` over the measured height) and a row over it ends in
+ * `+N more`.
+ */
+function WeekRows({ days, entriesByDay, ctx, onMore, moreDayMs }: {
+  days: Date[]
+  entriesByDay: Map<string, CalendarEntry[]>
+  ctx: DayContext
+  onMore: (day: Date, cell: HTMLElement) => void
+  moreDayMs: number | null
+}) {
+  const [rowsRef, rowsSize] = useElementSize()
+  const entriesOf = (day: Date) => entriesByDay.get(dayKey(day)) ?? []
+  const fit = weekRowsFit(rowsSize.height, days.map((d) => entriesOf(d).length))
+  return (
+    <div ref={rowsRef} className={styles.weekRows} data-cal-grid="rows">
+      {days.map((day) => (
+        <WeekRow
+          key={day.getTime()}
+          day={day}
+          entries={entriesOf(day)}
+          fit={fit}
+          ctx={ctx}
+          onMore={onMore}
+          moreOpen={moreDayMs === day.getTime()}
+        />
+      ))}
     </div>
   )
 }
@@ -551,11 +606,13 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
       break
     case 'rows':
       body = (
-        <div className={styles.weekRows} data-cal-grid="rows">
-          {range.days.map((day) => (
-            <WeekRow key={day.getTime()} day={day} entries={entriesByDay.get(dayKey(day)) ?? []} ctx={ctx} />
-          ))}
-        </div>
+        <WeekRows
+          days={range.days}
+          entriesByDay={entriesByDay}
+          ctx={ctx}
+          onMore={openMore}
+          moreDayMs={more?.dayMs ?? null}
+        />
       )
       break
     case 'columns':

@@ -231,6 +231,11 @@
   cursor: pointer;
 }
 
+.moreMd {
+  height: var(--cal-entry-md);
+  padding: 0 6px;
+}
+
 .more:hover,
 .moreOpen {
   background: var(--color-tint-12);
@@ -256,7 +261,9 @@
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
   gap: 8px;
-  flex: 1 1 auto;
+  /* Grow to share the cell, never shrink over the entries: a day's entries
+   * are capped to fit instead (`weekRowsFit`), and rows at their minimum scroll. */
+  flex: 1 0 auto;
   min-height: 40px;
   padding: 6px 6px 6px 8px;
   border-radius: var(--radius-md);
@@ -268,6 +275,16 @@
   display: flex;
   flex-direction: column;
   line-height: 1.15;
+}
+
+/* Fixed line heights keep a one-entry week row at its 40px minimum
+ * (`WEEK_ROWS.dateBlock` in utils/calendar-grid). */
+.dateBlock .weekdayName {
+  line-height: 12px;
+}
+
+.dateBlock .weekDate {
+  line-height: 16px;
 }
 
 .columnHeader {

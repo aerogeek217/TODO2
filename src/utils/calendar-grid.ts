@@ -5,7 +5,7 @@ import { addDays } from './date'
 /**
  * Calendar grid math: which days a month / week view shows, its toolbar
  * label, moving the offset between views, and how many entries fit a month
- * cell. Day arithmetic goes through local `new Date(y, m, d)` so DST days
+ * cell or a week row. Day arithmetic goes through local `new Date(y, m, d)` so DST days
  * never shift a date.
  */
 
@@ -132,14 +132,48 @@ export function monthCellFit(cellHeight: number): number {
 }
 
 /**
- * How many of a day's `count` entries a cell shows and how many go behind
- * `+N more`: all when they fit, else `fit − 1` entries and the more button in
- * the last slot.
+ * How many of a day's `count` entries a month cell or week row shows and how
+ * many go behind `+N more`: all when they fit, else `fit − 1` entries and the
+ * more button in the last slot.
  */
-export function monthCellOverflow(count: number, fit: number): { shown: number; more: number } {
+export function dayOverflow(count: number, fit: number): { shown: number; more: number } {
   if (count <= fit) return { shown: count, more: 0 }
   const shown = Math.max(0, fit - 1)
   return { shown, more: count - shown }
+}
+
+/**
+ * Week-rows geometry (px): the container's padding (each side) and row gap;
+ * a row's vertical padding (both sides), minimum height and date block; the
+ * 24px entry and the gap between entries.
+ */
+export const WEEK_ROWS = { padding: 6, gap: 2, rowPadding: 12, rowMin: 40, dateBlock: 28, entry: 24, entryGap: 2 } as const
+
+/** Height of a week row whose entry column holds `slots` 24px slots (an empty day's `—` takes one). */
+function weekRowHeight(slots: number): number {
+  const n = Math.max(1, slots)
+  const content = Math.max(WEEK_ROWS.dateBlock, n * WEEK_ROWS.entry + (n - 1) * WEEK_ROWS.entryGap)
+  return Math.max(WEEK_ROWS.rowMin, WEEK_ROWS.rowPadding + content)
+}
+
+/**
+ * The most entry slots a week row may use so the seven rows fit a container
+ * `height` px tall, given each day's entry count. Unbounded when every day
+ * fits (or before the container is measured); otherwise the same cap for
+ * every row — the largest that fits, so a busy day keeps as many entries as
+ * the quieter days leave room for — and at least 1 (rows at their minimum
+ * height then scroll). A row over the cap shows `cap − 1` entries and
+ * `+N more` (`dayOverflow`).
+ */
+export function weekRowsFit(height: number, counts: readonly number[]): number {
+  if (!(height > 0)) return Number.POSITIVE_INFINITY
+  const available = height - WEEK_ROWS.padding * 2 - WEEK_ROWS.gap * Math.max(0, counts.length - 1)
+  const total = (cap: number) => counts.reduce((sum, c) => sum + weekRowHeight(Math.min(c, cap)), 0)
+  if (total(Number.POSITIVE_INFINITY) <= available) return Number.POSITIVE_INFINITY
+  for (let cap = Math.max(...counts) - 1; cap > 1; cap--) {
+    if (total(cap) <= available) return cap
+  }
+  return 1
 }
 
 /** `Thu 15 Oct`. */
