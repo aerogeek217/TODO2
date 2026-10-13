@@ -110,6 +110,33 @@ describe('todoStore', () => {
     expect(await db.todos.get(id3)).toBeUndefined()
   })
 
+  it('undo → redo → undo of an add leaves no task behind', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    const undoStore = useUndoStore.getState()
+    await undoStore.undo()
+    await undoStore.redo()
+    expect(useTodoStore.getState().todos.map((t) => t.id)).toEqual([id])
+    expect(await db.todos.count()).toBe(1)
+    await undoStore.undo()
+    expect(useTodoStore.getState().todos).toHaveLength(0)
+    expect(await db.todos.count()).toBe(0)
+  })
+
+  it('undo → redo → undo of a duplicate leaves only the original', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    const tagId = await tagRepository.getOrCreate('ops', '#111111')
+    await tagRepository.assignTag(id, tagId)
+    const copyId = await useTodoStore.getState().duplicate(id)
+    const undoStore = useUndoStore.getState()
+    await undoStore.undo()
+    await undoStore.redo()
+    expect(useTodoStore.getState().todos.map((t) => t.id).sort()).toEqual([id, copyId].sort())
+    expect((await db.todoTags.where('todoId').equals(copyId!).toArray()).map((r) => r.tagId)).toEqual([tagId])
+    await undoStore.undo()
+    expect(useTodoStore.getState().todos.map((t) => t.id)).toEqual([id])
+    expect(await db.todos.count()).toBe(1)
+  })
+
   it('undoing a delete brings the task back with its people and tags', async () => {
     const id = await useTodoStore.getState().add('Task')
     const personId = await personRepository.insert({ name: 'Dana', initials: 'DA' })

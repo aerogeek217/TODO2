@@ -29,6 +29,8 @@ export interface MarkerFlagChange {
   important?: boolean
 }
 
+const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
+
 /** The stored form of a flag: only `true` is kept. */
 function flagValue(on: boolean): true | undefined {
   return on ? true : undefined
@@ -148,9 +150,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
       if (todo) {
         set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
       }
+      // Redo puts back the same row, so a later undo still finds it.
       undoable(
         `Add "${title}"`,
-        async () => { await get().add(title) },
+        async () => { if (todo) await get()._restore(todo, NO_ASSIGNMENTS) },
         () => get()._removeNoUndo(id),
       )
       return id
@@ -686,7 +689,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       }
       undoable(
         `Duplicate "${todo.title}"`,
-        async () => { await get().duplicate(id) },
+        async () => { if (newTodo) await get()._restore(newTodo, { personIds, tagIds }) },
         () => get()._removeNoUndo(newId),
       )
       return newId
