@@ -7,6 +7,7 @@ import { buildTaskArchive, selfCheckTaskArchiveJson, taskArchiveFileName } from 
 import { exportAndPurgeCompleted, listExpiredCompleted } from '../../services/purge-completed'
 import { saveTextFile } from '../../services/save-file'
 import { useTodoStore } from '../../stores/todo-store'
+import { useUIStore } from '../../stores/ui-store'
 import { SCHEMA_VERSION_KEY } from '../../services/migration-check'
 import { resetDb } from '../helpers'
 
@@ -54,6 +55,7 @@ async function seed() {
 beforeEach(async () => {
   await resetDb()
   useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useUIStore.setState(useUIStore.getInitialState(), true)
   saveMock.mockReset()
 })
 
@@ -167,10 +169,35 @@ describe('exportAndPurgeCompleted', () => {
     expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Open task'])
   })
 
-  it('a download fallback also counts as handed over', async () => {
+  it('a download fallback asks "Did the file save?" first; Cancel (the default) deletes nothing', async () => {
     const s = await seed()
     saveMock.mockResolvedValue('downloaded')
-    expect(await exportAndPurgeCompleted([s.oldBare])).toMatchObject({ status: 'done', deleted: 1, saved: 'downloaded' })
+    const pending = exportAndPurgeCompleted([s.oldBare])
+    await vi.waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
+    const prompt = useUIStore.getState().confirmPrompts[0]!
+    expect(prompt).toMatchObject({ title: 'Did the file save?', confirmLabel: 'Delete 1 task', cancelIsDefault: true })
+    useUIStore.getState().answerConfirmation(false)
+    const result = await pending
+    expect(result).toMatchObject({ status: 'kept', reason: 'unconfirmed' })
+    expect(await db.todos.get(s.oldBare)).toBeDefined()
+    expect(await db.backups.count()).toBe(0)
+  })
+
+  it('a download fallback deletes once the user confirms the file saved', async () => {
+    const s = await seed()
+    saveMock.mockResolvedValue('downloaded')
+    const pending = exportAndPurgeCompleted([s.oldBare])
+    await vi.waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
+    useUIStore.getState().answerConfirmation(true)
+    expect(await pending).toMatchObject({ status: 'done', deleted: 1, saved: 'downloaded', noBackup: false })
+    expect(await db.todos.get(s.oldBare)).toBeUndefined()
+  })
+
+  it('a picker save needs no confirmation', async () => {
+    const s = await seed()
+    saveMock.mockResolvedValue('saved')
+    await exportAndPurgeCompleted([s.oldBare])
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
   })
 
   it('an archive that would not re-import is neither saved nor followed by a delete', async () => {
