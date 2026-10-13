@@ -56,9 +56,9 @@ export interface ListSectionsContext {
  *   first, then unranked oldest first), else `sortOrder` (then id).
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
- * - `created` / `people` / `status` — no ordering of their own;
- *   they fall back to manual order (as does a stored value this build doesn't
- *   know).
+ * - `created` — oldest first by `createdAt`, ties by `sortOrder`.
+ * - `people` / `status` — no ordering of their own; they fall back to manual
+ *   order (as does a stored value this build doesn't know).
  */
 export function listSortComparator(
   sortBy: TodoSortBy,
@@ -71,8 +71,9 @@ export function listSortComparator(
     case 'deadline':
     case 'followup':
       return compareTodosByDate(sortBy)
-    case 'manual':
     case 'created':
+      return (a, b) => (a.createdAt.getTime() - b.createdAt.getTime()) || bySortOrder(a, b)
+    case 'manual':
     case 'people':
     case 'status':
       return bySortOrder

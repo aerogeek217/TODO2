@@ -398,9 +398,23 @@ describe('listSortComparator', () => {
   it('categorical sorts with no order of their own fall back to manual', () => {
     const a = makeTodo({ id: 1, title: 'b', sortOrder: 2 })
     const b = makeTodo({ id: 2, title: 'a', sortOrder: 1 })
-    for (const sortBy of ['created', 'people', 'status'] as const) {
+    for (const sortBy of ['people', 'status'] as const) {
       expect([a, b].sort(listSortComparator(sortBy)).map((t) => t.id)).toEqual([2, 1])
     }
+  })
+
+  it('sorts created oldest first, regardless of manual order', () => {
+    const a = makeTodo({ id: 1, createdAt: new Date(2026, 0, 20), sortOrder: 1 })
+    const b = makeTodo({ id: 2, createdAt: new Date(2026, 0, 5), sortOrder: 3 })
+    const c = makeTodo({ id: 3, createdAt: new Date(2026, 0, 12, 9), sortOrder: 2 })
+    expect([a, b, c].sort(listSortComparator('created')).map((t) => t.id)).toEqual([2, 3, 1])
+  })
+
+  it('breaks created ties with sortOrder', () => {
+    const d = new Date(2026, 0, 20)
+    const a = makeTodo({ id: 1, createdAt: d, sortOrder: 10 })
+    const b = makeTodo({ id: 2, createdAt: new Date(d), sortOrder: 5 })
+    expect([a, b].sort(listSortComparator('created')).map((t) => t.id)).toEqual([2, 1])
   })
 
   it('sorts deadline ascending, nulls last', () => {
