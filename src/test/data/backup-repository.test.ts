@@ -163,52 +163,6 @@ describe('backupRepository', () => {
     })
   })
 
-  describe('restoreSnapshot', () => {
-    it('restoreSnapshot_validSnapshot_returnsOkTrue', async () => {
-      await seedDb()
-      const id = await backupRepository.createSnapshot('auto')
-      const result = await backupRepository.restoreSnapshot(id)
-      expect(result.ok).toBe(true)
-    })
-
-    it('restoreSnapshot_validSnapshot_restoresDataToDb', async () => {
-      await seedDb()
-      const id = await backupRepository.createSnapshot('auto')
-
-      // Clear the DB between snapshot and restore
-      await db.todos.clear()
-      await db.settings.clear()
-
-      const result = await backupRepository.restoreSnapshot(id)
-      expect(result.ok).toBe(true)
-      const todos = await db.todos.toArray()
-      expect(todos).toHaveLength(1)
-      expect(await db.settings.get('themeMode')).toEqual({ key: 'themeMode', value: 'dark' })
-    })
-
-    it('restoreSnapshot_nonExistentId_returnsOkFalseWithError', async () => {
-      const result = await backupRepository.restoreSnapshot(9999)
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error).toContain('not found')
-      }
-    })
-
-    it('restoreSnapshot_corruptedData_returnsOkFalseWithError', async () => {
-      const id = await db.backups.add({
-        createdAt: new Date().toISOString(),
-        trigger: 'auto',
-        sizeBytes: 5,
-        data: 'NOT_JSON{{{',
-      } as any) as number
-      const result = await backupRepository.restoreSnapshot(id)
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error).toBeTruthy()
-      }
-    })
-  })
-
   describe('deleteSnapshot', () => {
     it('deleteSnapshot_existingSnapshot_removesIt', async () => {
       const id = await backupRepository.createSnapshot('auto')

@@ -45,6 +45,64 @@ async function answerBackupPrompt(proceed: boolean) {
   useUIStore.getState().answerConfirmation(proceed)
 }
 
+describe('restoreBackup', () => {
+  it('backs up the current data first, then restores', async () => {
+    const id = await backupOf('From backup')
+    expect(await useFileOpsStore.getState().restoreBackup(id)).toEqual({ status: 'done', noBackup: false })
+    expect(await titles()).toEqual(['From backup'])
+    expect(await db.settings.get('themeMode')).toEqual({ key: 'themeMode', value: 'dark' })
+    const preOp = (await db.backups.toArray()).filter((b) => b.trigger === 'pre-destructive')
+    expect(preOp).toHaveLength(1)
+    expect(preOp[0]?.data).toContain('Current')
+    // The backup list now shows the new snapshot.
+    expect(useFileOpsStore.getState().backups.map((b) => b.trigger).sort()).toEqual(['manual', 'pre-destructive'])
+  })
+
+  it('the snapshot of the current data restores what the restore replaced', async () => {
+    const id = await backupOf('From backup')
+    await useFileOpsStore.getState().restoreBackup(id)
+    const preOp = (await db.backups.toArray()).find((b) => b.trigger === 'pre-destructive')!
+    expect(await useFileOpsStore.getState().restoreBackup(preOp.id!)).toMatchObject({ status: 'done' })
+    expect(await titles()).toEqual(['Current'])
+  })
+
+  it('restores the oldest backup even when the new snapshot prunes it', async () => {
+    const oldest = await backupOf('Oldest')
+    for (let i = 0; i < 9; i++) await backupRepository.createSnapshot('auto')
+    expect(await db.backups.count()).toBe(10)
+    expect(await useFileOpsStore.getState().restoreBackup(oldest)).toMatchObject({ status: 'done' })
+    expect(await titles()).toEqual(['Oldest'])
+  })
+
+  it('failed snapshot + Cancel leaves the current data untouched', async () => {
+    const id = await backupOf('From backup')
+    failSnapshots()
+    const pending = useFileOpsStore.getState().restoreBackup(id)
+    await answerBackupPrompt(false)
+    expect(await pending).toEqual({ status: 'cancelled' })
+    expect(await titles()).toEqual(['Current'])
+  })
+
+  it('failed snapshot + Continue restores without a backup and says so', async () => {
+    const id = await backupOf('From backup')
+    failSnapshots()
+    const pending = useFileOpsStore.getState().restoreBackup(id)
+    await answerBackupPrompt(true)
+    expect(await pending).toEqual({ status: 'done', noBackup: true })
+    expect(await titles()).toEqual(['From backup'])
+    expect(useFileOpsStore.getState().snapshotWarning).toMatch(/^No backup was taken before restoring the backup/)
+  })
+
+  it('a missing or unreadable backup is an error, with no snapshot taken', async () => {
+    const spy = vi.spyOn(backupScheduler, 'snapshotBeforeDestructive')
+    expect(await useFileOpsStore.getState().restoreBackup(9999)).toEqual({ status: 'error', error: 'Backup not found' })
+    const id = await db.backups.add({ createdAt: new Date().toISOString(), trigger: 'auto', sizeBytes: 5, data: 'NOT_JSON{{{' }) as number
+    const result = await useFileOpsStore.getState().restoreBackup(id)
+    expect(result.status).toBe('error')
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+
 describe('restoreFromImport', () => {
   async function importData() {
     const id = await backupOf('Imported')

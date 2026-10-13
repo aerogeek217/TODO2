@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { backupRepository, type BackupSummary } from '../data/backup-repository'
 import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { restoreFromImportData } from '../data/restore'
+import { prepareImportText } from '../data/import-pipeline'
 import type { ImportData } from '../data/import-validation'
 import { takeSafetySnapshot } from '../services/safety-snapshot'
 import { refreshAllStores } from './refresh-all'
@@ -17,6 +18,9 @@ export type ImportOutcome =
   | { status: 'done'; noBackup: boolean }
   | { status: 'cancelled' }
 
+/** A backup restore: an import's outcome, or the backup is missing / unreadable. */
+export type RestoreOutcome = ImportOutcome | { status: 'error'; error: string }
+
 interface FileOpsState {
   backups: BackupSummary[]
   auditReport: AuditReport | null
@@ -26,7 +30,8 @@ interface FileOpsState {
   deleteBackup: (id: number) => Promise<void>
   /** Returns the raw snapshot data for legacy-format detection before restore. */
   peekBackupData: (id: number) => Promise<string | null>
-  restoreBackup: (id: number) => Promise<{ ok: true } | { ok: false; error: string }>
+  /** Restores a backup, snapshotting the current data first. */
+  restoreBackup: (id: number) => Promise<RestoreOutcome>
 
   runAudit: () => Promise<void>
   setAuditReport: (report: AuditReport | null) => void
@@ -72,9 +77,18 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   },
 
   restoreBackup: async (id) => {
-    const result = await backupRepository.restoreSnapshot(id)
-    if (result.ok) await refreshAllStores()
-    return result
+    // Read and check the backup before snapshotting: the snapshot's pruning
+    // may delete the oldest backup — possibly this one.
+    const backup = await backupRepository.getSnapshot(id)
+    if (!backup) return { status: 'error', error: 'Backup not found' }
+    const prepared = prepareImportText(backup.data)
+    if (!prepared.ok) return { status: 'error', error: prepared.error }
+    const snapshot = await takeSafetySnapshot('restoring the backup')
+    if (snapshot === 'cancelled') return { status: 'cancelled' }
+    await restoreFromImportData(prepared.data)
+    await refreshAllStores()
+    await get().loadBackups()
+    return { status: 'done', noBackup: snapshot === 'without-backup' }
   },
 
   runAudit: async () => {

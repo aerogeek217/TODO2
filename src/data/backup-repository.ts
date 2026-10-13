@@ -1,5 +1,4 @@
 import { db } from './database'
-import { parseAndRestore } from './restore'
 import { buildExportData, selfCheckExportJson } from '../services/export-import'
 import type { Backup, BackupTrigger } from '../models'
 
@@ -81,13 +80,6 @@ async function getSnapshot(id: number): Promise<Backup | undefined> {
   return await db.backups.get(id)
 }
 
-async function restoreSnapshot(id: number): Promise<{ ok: true } | { ok: false; error: string }> {
-  const backup = await db.backups.get(id)
-  if (!backup) return { ok: false, error: 'Backup not found' }
-
-  return await parseAndRestore(backup.data)
-}
-
 async function deleteSnapshot(id: number): Promise<void> {
   await db.backups.delete(id)
 }
@@ -111,7 +103,6 @@ export const backupRepository = {
   createSnapshotFromJson,
   listSnapshots,
   getSnapshot,
-  restoreSnapshot,
   deleteSnapshot,
   pruneSnapshots,
 }

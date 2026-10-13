@@ -4,6 +4,7 @@ import { prepareImportText } from '../../../data/import-pipeline'
 import type { UnsupportedImportInfo } from '../../../services/migration-check'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
 import { BYTES_PER_KB } from '../../../constants'
+import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
 
@@ -38,7 +39,10 @@ export function BackupsSection() {
     if (!data) { showMessage('Backup not found', 3000); return }
     const runRestore = async () => {
       const result = await restoreBackup(id)
-      showMessage(result.ok ? 'Restored successfully!' : `Restore failed: ${result.error}`, 3000)
+      if (result.status === 'error') showMessage(`Restore failed: ${result.error}`, 3000)
+      else if (result.status === 'cancelled') showMessage('Restore cancelled — nothing changed.', 4000)
+      else if (result.noBackup) showMessage(`Restored. ${NO_BACKUP_NOTE}`, 8000)
+      else showMessage('Restored successfully! The data it replaced was backed up first.', 5000)
     }
     // Same pipeline as the restore itself; checked up front so a below-floor
     // snapshot prompts first.
