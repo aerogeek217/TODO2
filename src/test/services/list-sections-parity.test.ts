@@ -5,7 +5,7 @@ import type {
 import { TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES, type TodoSortBy } from '../../models'
 
 /** The sorts the list page offered. */
-const LIST_SORT_VALUES: readonly TodoSortBy[] = ['manual', 'name', 'deadline', 'followup']
+const LIST_SORT_VALUES: readonly TodoSortBy[] = ['manual', 'name', 'deadline', 'followup', 'created']
 import type { PersistedListDefinition, RuntimeFilterSpec } from '../../models/list-definition'
 import {
   applyFilter,
@@ -46,6 +46,7 @@ const home: Tag = { id: 2, name: 'home' }
 const alpha: Tag = { id: 3, name: 'Project: Alpha', color: '#7a5' }
 const beta: Tag = { id: 4, name: 'Project: Beta', color: '#a57' }
 
+// Created on distinct days, in an order of their own (so the Created sort is not vacuous).
 const todos: PersistedTodoItem[] = [
   makeTodo({ id: 1, title: 'Pay invoice', sortOrder: 9, dueDate: day(10, 10), statusId: 1 }),
   makeTodo({ id: 2, title: 'call plumber', sortOrder: 3, dueDate: day(10, 14), nextFollowupAt: day(10, 20), focus: true, important: true }),
@@ -57,7 +58,7 @@ const todos: PersistedTodoItem[] = [
   makeTodo({ id: 8, title: 'Done thing', sortOrder: 4, isCompleted: true, dueDate: day(10, 12) }),
   makeTodo({ id: 9, title: 'Water plants', sortOrder: 6, notes: 'ask alice first' }),
   makeTodo({ id: 10, title: 'pay rent', sortOrder: 10, dueDate: day(10, 14), statusId: 1 }),
-]
+].map((t) => ({ ...t, createdAt: day(9, [7, 3, 9, 1, 8, 2, 10, 5, 4, 6][t.id - 1] ?? 1) }))
 
 const assignedPeopleMap = new Map<number, Person[]>([
   [1, [alice]], [2, [bob, alice]], [3, [acme]], [5, [bob]], [6, [alice, acme]], [8, [alice]], [10, [bob]],
