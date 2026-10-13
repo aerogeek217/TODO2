@@ -359,10 +359,9 @@ describe('buildListSections — tag grouping', () => {
   })
 
   it('emits no bucket for tags with no assignments (discover-on-fly)', () => {
-    // Post-L8 the helper discovers tags from `assignedTagsMap` rather than the
+    // The helper discovers tags from `assignedTagsMap` rather than the
     // registry list, so a registry tag that has no assignments simply never
-    // appears in the result. Same observable shape as the pre-L8 explicit
-    // prune-empty-buckets pass.
+    // appears in the result.
     const todos = [makeTodo({ id: 10 })]
     const assigned = new Map<number, Tag[]>([[10, [URGENT]]])
     const sections = buildTagSections(todos, assigned)

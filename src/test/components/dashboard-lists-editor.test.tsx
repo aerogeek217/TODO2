@@ -149,7 +149,7 @@ describe('DashboardListsEditor — initialSelectedId', () => {
   })
 })
 
-describe('DashboardListsEditor — draft dirty-gating (L5)', () => {
+describe('DashboardListsEditor — draft dirty-gating', () => {
   beforeEach(() => {
     useListDefinitionStore.setState({
       listDefinitions: [makeDef({ id: 1, name: 'Original name' })],

@@ -53,7 +53,7 @@ describe('useTagStore', () => {
   })
 
   it('add is idempotent — returns existing id on case-insensitive match', async () => {
-    // Post-M1, `add` is resolve-or-create: duplicate creates no longer throw,
+    // `add` is resolve-or-create: duplicate creates no longer throw,
     // they return the existing id. Keeps the registry free of races from
     // concurrent NLP calls (see concurrent test below). Explicit UI-level
     // duplicate-rejection lives in `TagEditor` via a pre-check on `tags[]`.
