@@ -36,6 +36,22 @@ export interface BulkConfirmation {
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
+/** A yes / no question some code is waiting on (`askConfirmation`). */
+export interface ConfirmPrompt {
+  title: string
+  message: string
+  confirmLabel: string
+  cancelLabel?: string
+  /** Renders the confirm button with danger styling. */
+  danger?: boolean
+  /** Focus (so Enter) starts on Cancel instead of the confirm button. */
+  cancelIsDefault?: boolean
+}
+
+interface PendingConfirmPrompt extends ConfirmPrompt {
+  resolve: (confirmed: boolean) => void
+}
+
 interface UIState {
   selectedTodoId: number | null
   selectedTodoIds: Set<number>
@@ -55,6 +71,12 @@ interface UIState {
   hoveredTodoId: number | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
+  /**
+   * Questions awaiting an answer, oldest first; `ConfirmPromptHost` shows the
+   * first. Unlike `bulkConfirmation` the asker awaits the answer, and the host
+   * is mounted outside the app shell, so it also works during startup.
+   */
+  confirmPrompts: PendingConfirmPrompt[]
   /**
    * The task dialog (`TaskDialog`): the tasks behind a dashboard number or a
    * person chip. `null` = closed.
@@ -145,6 +167,10 @@ interface UIState {
   clearSelection: () => void
   showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'cancelLabel' | 'skipIds' | 'onConfirm'>>) => void
   clearBulkConfirmation: () => void
+  /** Asks `prompt`; resolves true on confirm, false on cancel / Esc / backdrop. */
+  askConfirmation: (prompt: ConfirmPrompt) => Promise<boolean>
+  /** Answers the prompt on screen (the first in `confirmPrompts`). */
+  answerConfirmation: (confirmed: boolean) => void
   openEditPopup: (todoId: number) => void
   openCreatePopup: () => void
   closeEditPopup: () => void
@@ -191,6 +217,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
+  confirmPrompts: [],
   taskDialog: null,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
@@ -277,6 +304,19 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   clearBulkConfirmation() {
     set({ bulkConfirmation: null })
+  },
+
+  askConfirmation(prompt) {
+    return new Promise<boolean>((resolve) => {
+      set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, resolve }] })
+    })
+  },
+
+  answerConfirmation(confirmed) {
+    const [first, ...rest] = get().confirmPrompts
+    if (!first) return
+    set({ confirmPrompts: rest })
+    first.resolve(confirmed)
   },
 
   openEditPopup(todoId: number) {

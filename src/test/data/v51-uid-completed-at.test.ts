@@ -8,8 +8,10 @@ import { useTodoStore } from '../../stores/todo-store'
 import { resetDb, v50StoreSpecs } from '../helpers'
 import { selectExpiredCompleted } from '../../utils/completed-at'
 /** What the launch prompt / Settings cleanup delete once the user confirms. */
-const purgeExpired = (days: number) =>
-  useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
+const purgeExpired = async (days: number) => {
+  const outcome = await useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
+  return outcome.status === 'done' ? outcome.deleted : -1
+}
 
 const T0 = '2026-08-01T09:00:00.000Z'
 const MOD = '2026-10-01T09:00:00.000Z'

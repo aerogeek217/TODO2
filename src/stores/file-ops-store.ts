@@ -3,10 +3,19 @@ import { backupRepository, type BackupSummary } from '../data/backup-repository'
 import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { restoreFromImportData } from '../data/restore'
 import type { ImportData } from '../data/import-validation'
-import { backupScheduler } from '../services/backup-scheduler'
+import { takeSafetySnapshot } from '../services/safety-snapshot'
 import { refreshAllStores } from './refresh-all'
 
 export type { BackupSummary, AuditReport }
+
+/**
+ * An import that replaces the database. `cancelled`: the backup snapshot of
+ * the current data failed and the user didn't continue — nothing changed.
+ * `noBackup`: it ran without that snapshot (the user chose to continue).
+ */
+export type ImportOutcome =
+  | { status: 'done'; noBackup: boolean }
+  | { status: 'cancelled' }
 
 interface FileOpsState {
   backups: BackupSummary[]
@@ -24,11 +33,13 @@ interface FileOpsState {
   /** Cleans the issues in the current report; returns the cleaned count. */
   cleanupCurrentAudit: () => Promise<number>
 
-  restoreFromImport: (data: ImportData) => Promise<void>
+  /** Replaces the database with imported data, snapshotting the current data first. */
+  restoreFromImport: (data: ImportData) => Promise<ImportOutcome>
 
   /**
    * Set when a backup snapshot fails its import self-check (the snapshot is
-   * still saved). Surfaced by `FileSyncBanner` until dismissed.
+   * still saved), or when a destructive operation ran without a backup.
+   * Surfaced by `FileSyncBanner` until dismissed.
    */
   snapshotWarning: string | null
   dismissSnapshotWarning: () => void
@@ -82,12 +93,14 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   },
 
   restoreFromImport: async (data) => {
-    await backupScheduler.snapshotBeforeDestructive().catch(() => {})
+    const snapshot = await takeSafetySnapshot('importing the file')
+    if (snapshot === 'cancelled') return { status: 'cancelled' }
     await restoreFromImportData(data)
     await refreshAllStores()
+    return { status: 'done', noBackup: snapshot === 'without-backup' }
   },
 }))
 
-// Snapshot self-check failures (see `backupRepository.createSnapshot`) land in
-// the store so `FileSyncBanner` can surface them.
+// Backup warnings (see `backupRepository.reportSnapshotWarning`) land in the
+// store so `FileSyncBanner` can surface them.
 backupRepository.onSnapshotWarning((message) => useFileOpsStore.setState({ snapshotWarning: message }))

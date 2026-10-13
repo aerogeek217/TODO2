@@ -128,8 +128,8 @@ describe('buildTaskArchive', () => {
 describe('purgeCompleted', () => {
   it('deletes only the given ids that are still completed, with their join rows', async () => {
     const s = await seed()
-    const deleted = await useTodoStore.getState().purgeCompleted([s.oldDone, s.open])
-    expect(deleted).toBe(1)
+    const outcome = await useTodoStore.getState().purgeCompleted([s.oldDone, s.open])
+    expect(outcome).toEqual({ status: 'done', deleted: 1, noBackup: false })
     expect(await db.todos.get(s.oldDone)).toBeUndefined()
     expect(await db.todos.get(s.open)).toBeDefined()
     expect(await db.todoPeople.where('todoId').equals(s.oldDone).count()).toBe(0)
@@ -190,7 +190,7 @@ describe('reads the database, not the todo store (which may not hold every task)
   it('purgeCompleted deletes a listed completed task the store does not hold', async () => {
     const s = await seed()
     useTodoStore.setState({ todos: useTodoStore.getState().todos.filter((t) => t.id !== s.oldBare) })
-    expect(await useTodoStore.getState().purgeCompleted([s.oldBare])).toBe(1)
+    expect(await useTodoStore.getState().purgeCompleted([s.oldBare])).toMatchObject({ status: 'done', deleted: 1 })
     expect(await db.todos.get(s.oldBare)).toBeUndefined()
   })
 

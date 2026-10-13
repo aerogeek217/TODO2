@@ -7,7 +7,8 @@ const MAX_BACKUPS = 10
 class BackupScheduler {
   private timer: ReturnType<typeof setInterval> | null = null
   private autoRunning = false
-  private destructiveRunning = false
+  /** The pre-destructive snapshot in flight; concurrent callers share it. */
+  private destructiveSnapshot: Promise<void> | null = null
 
   start(intervalMs = DEFAULT_INTERVAL_MS) {
     if (this.timer) return
@@ -26,15 +27,28 @@ class BackupScheduler {
     }
   }
 
-  async snapshotBeforeDestructive(): Promise<void> {
-    if (this.destructiveRunning) return
-    this.destructiveRunning = true
-    try {
-      await backupRepository.createSnapshot('pre-destructive')
-      await backupRepository.pruneSnapshots(MAX_BACKUPS)
-    } finally {
-      this.destructiveRunning = false
-    }
+  /**
+   * Snapshots the whole database before a destructive operation. Rejects when
+   * the snapshot can't be stored; `services/safety-snapshot` then asks the
+   * user whether to go ahead. A caller arriving while a snapshot is in flight
+   * waits for that one (it holds the data from before either operation) and
+   * shares its outcome.
+   */
+  snapshotBeforeDestructive(): Promise<void> {
+    if (this.destructiveSnapshot) return this.destructiveSnapshot
+    const run = (async () => {
+      try {
+        await backupRepository.createSnapshot('pre-destructive')
+        // Pruning is housekeeping; the backup already exists, so don't fail on it.
+        await backupRepository.pruneSnapshots(MAX_BACKUPS).catch((err) => {
+          console.warn('[backup] prune after snapshot failed', err)
+        })
+      } finally {
+        this.destructiveSnapshot = null
+      }
+    })()
+    this.destructiveSnapshot = run
+    return run
   }
 
   /**

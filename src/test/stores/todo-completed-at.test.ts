@@ -7,8 +7,10 @@ import { isExpiredCompleted, resolveCompletedAt, retentionCutoff, selectExpiredC
 import { newTodoUid } from '../../utils/todo-uid'
 
 /** What the launch prompt / Settings cleanup delete once the user confirms. */
-const purgeExpired = (days: number) =>
-  useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
+const purgeExpired = async (days: number) => {
+  const outcome = await useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
+  return outcome.status === 'done' ? outcome.deleted : -1
+}
 
 /**
  * `completedAt` (set on completion, cleared on reopen; the purge

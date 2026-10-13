@@ -27,6 +27,7 @@ function anotherLayerIsOpen(): boolean {
   return ui.listsEditorOpen
     || ui.listEditorDialogId != null
     || ui.bulkConfirmation != null
+    || ui.confirmPrompts.length > 0
     || ui.quickAddOpen
     || ui.editPopupMode != null
 }

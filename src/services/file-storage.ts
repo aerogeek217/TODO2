@@ -7,6 +7,7 @@ import type { PrepareImportFailure } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData } from './export-import'
 import { backupScheduler } from './backup-scheduler'
+import { takeSafetySnapshot } from './safety-snapshot'
 import type { UnsupportedImportInfo } from './migration-check'
 import {
   readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId,
@@ -445,7 +446,11 @@ class FileStorageService {
     // here: back up the raw text BEFORE anything changes on either side.
     if (prepared.upgraded && !(await this.backupFileText(text))) return
 
-    await this.applyFileData(prepared.data, fileId)
+    // The browser already holds this file's data (same content, or clean and
+    // synced with this very version of the file): the load loses nothing.
+    const browserHoldsFile = !prepared.upgraded
+      && (identical || (hasRecord && !dirty && fileChanged === false))
+    if (!(await this.applyFileData(prepared.data, fileId, browserHoldsFile))) return
     if (prepared.upgraded) {
       // Older file, upgrade confirmed: write it back at CURRENT_DB_VERSION.
       await this.saveToFile({ force: true })
@@ -472,13 +477,26 @@ class FileStorageService {
     }
   }
 
-  /** Replace the browser data with the file's (browser snapshot first). */
-  private async applyFileData(data: ImportData, fileId: string): Promise<void> {
-    let snapshotFailed = false
-    await backupScheduler.snapshotBeforeDestructive().catch((err) => {
-      console.warn('[file-storage] pre-destructive snapshot failed', err)
-      snapshotFailed = true
-    })
+  /**
+   * Replace the browser data with the file's, backing the browser data up
+   * first (`takeSafetySnapshot`). If that backup fails the user is asked;
+   * on Cancel nothing changes, sync pauses and this returns false. When the
+   * browser already holds exactly this file's data (`browserHoldsFile`),
+   * nothing can be lost, so a failed backup doesn't stop the load.
+   */
+  private async applyFileData(data: ImportData, fileId: string, browserHoldsFile: boolean): Promise<boolean> {
+    if (browserHoldsFile) {
+      await backupScheduler.snapshotBeforeDestructive().catch((err) => {
+        console.warn('[file-storage] snapshot before reloading the unchanged file failed', err)
+      })
+    } else {
+      const name = this.handle?.name ?? 'the sync file'
+      const snapshot = await takeSafetySnapshot(`loading ${name} over this browser's data`)
+      if (snapshot === 'cancelled') {
+        this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
+        return false
+      }
+    }
     this.suppressSync = true
     try {
       await restoreFromImportData(data)
@@ -488,9 +506,7 @@ class FileStorageService {
     this.changeGen++
     writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
     await this.afterImportListener?.()
-    if (snapshotFailed) {
-      this._error = 'Pre-import snapshot failed — your data was loaded, but the backup may be unavailable.'
-    }
+    return true
   }
 
   /**

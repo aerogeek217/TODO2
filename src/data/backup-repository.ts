@@ -14,7 +14,7 @@ type SnapshotWarningListener = (message: string) => void
 const snapshotWarningListeners = new Set<SnapshotWarningListener>()
 
 /**
- * Subscribes `listener` to snapshots that fail their import self-check;
+ * Subscribes `listener` to backup warnings (`reportSnapshotWarning`);
  * returns its unsubscribe. `file-ops-store` subscribes for the app's
  * lifetime and `FileSyncBanner` surfaces the warning. Each subscriber only
  * removes itself, so another subscriber coming and going can't silence it.
@@ -22,6 +22,15 @@ const snapshotWarningListeners = new Set<SnapshotWarningListener>()
 function onSnapshotWarning(listener: SnapshotWarningListener): () => void {
   snapshotWarningListeners.add(listener)
   return () => { snapshotWarningListeners.delete(listener) }
+}
+
+/**
+ * Raises a backup warning: a snapshot that would not restore, or a
+ * destructive operation the user let go ahead without a backup
+ * (`services/safety-snapshot`).
+ */
+function reportSnapshotWarning(message: string): void {
+  for (const listener of snapshotWarningListeners) listener(message)
 }
 
 async function createSnapshot(trigger: BackupTrigger): Promise<number> {
@@ -33,7 +42,7 @@ async function createSnapshot(trigger: BackupTrigger): Promise<number> {
   if (problem) {
     const message = `Backup snapshot (${trigger}) would not restore: ${problem}`
     console.warn(`[backup] ${message}`)
-    for (const listener of snapshotWarningListeners) listener(message)
+    reportSnapshotWarning(message)
   }
   const backup: Backup = {
     createdAt: new Date().toISOString(),
@@ -97,6 +106,7 @@ async function pruneSnapshots(keepCount: number): Promise<number> {
 
 export const backupRepository = {
   onSnapshotWarning,
+  reportSnapshotWarning,
   createSnapshot,
   createSnapshotFromJson,
   listSnapshots,

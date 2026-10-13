@@ -11,6 +11,7 @@ import { getOpenFilePicker } from '../../../utils/file-picker'
 import { getPickerStartIn, saveTextFile } from '../../../services/save-file'
 import { findAppendDuplicatesInDb, runAppendImport, type AppendCandidate, type AppendChoice } from '../../../services/append-import'
 import { AppendImportDialog } from '../../overlays/AppendImportDialog'
+import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import { plural } from './plural'
@@ -97,10 +98,15 @@ export function ImportExportSection() {
   }
 
   const executeImport = async (data: ImportData, warnings: string[]) => {
-    await restoreFromImport(data)
+    const result = await restoreFromImport(data)
+    if (result.status === 'cancelled') {
+      showMessage('Import cancelled — nothing changed.', 4000)
+      return
+    }
+    const notes = [...(result.noBackup ? [NO_BACKUP_NOTE] : []), ...warnings]
     showMessage(
-      warnings.length > 0 ? `Imported successfully. ${warnings.join(' ')}` : 'Imported successfully!',
-      warnings.length > 0 ? 8000 : 4000,
+      notes.length > 0 ? `Imported successfully. ${notes.join(' ')}` : 'Imported successfully!',
+      notes.length > 0 ? 8000 : 4000,
     )
   }
 
@@ -166,10 +172,16 @@ export function ImportExportSection() {
     setAppendError(null)
     try {
       const result = await runAppendImport(pendingAppend.data, choices)
+      if (result.status === 'cancelled') {
+        // Back in the duplicate picker, nothing imported.
+        setAppendError('Nothing was imported — the backup could not be saved.')
+        return
+      }
       const { warnings } = pendingAppend
       setPendingAppend(null)
       const skipped = result.skipped > 0 ? ` Skipped ${plural(result.skipped, 'duplicate')}.` : ''
-      showMessage(`Imported ${plural(result.imported, 'task')}.${skipped}${warnings.length > 0 ? ` ${warnings.join(' ')}` : ''}`, 6000)
+      const notes = [...(result.noBackup ? [NO_BACKUP_NOTE] : []), ...warnings]
+      showMessage(`Imported ${plural(result.imported, 'task')}.${skipped}${notes.length > 0 ? ` ${notes.join(' ')}` : ''}`, notes.length > 0 ? 8000 : 6000)
     } catch (err) {
       setAppendError(`Import failed — ${err instanceof Error ? err.message : String(err)}`)
     } finally {

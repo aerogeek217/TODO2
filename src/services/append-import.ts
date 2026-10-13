@@ -2,7 +2,7 @@ import type { PersistedTodoItem, TodoItem } from '../models'
 import type { ImportData } from '../data/import-validation'
 import { todoRepository } from '../data/todo-repository'
 import { appendImportTasks, nameKey, type AppendChoice, type AppendImportResult } from '../data/append-import'
-import { backupScheduler } from './backup-scheduler'
+import { takeSafetySnapshot } from './safety-snapshot'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -59,14 +59,23 @@ export function defaultAppendChoices(candidates: readonly AppendCandidate[]): Ma
 }
 
 /**
- * Runs a confirmed append import: backup snapshot → `appendImportTasks` →
- * reload the affected stores.
+ * An append import's outcome. `cancelled`: the backup snapshot failed and the
+ * user didn't continue without one — nothing was imported.
+ */
+export type RunAppendImportOutcome =
+  | (AppendImportResult & { status: 'done'; noBackup: boolean })
+  | { status: 'cancelled' }
+
+/**
+ * Runs a confirmed append import: backup snapshot (`takeSafetySnapshot`) →
+ * `appendImportTasks` → reload the affected stores.
  */
 export async function runAppendImport(
   data: ImportData,
   choices: ReadonlyMap<string, AppendChoice>,
-): Promise<AppendImportResult> {
-  await backupScheduler.snapshotBeforeDestructive().catch((e) => console.warn('backup snapshot failed', e))
+): Promise<RunAppendImportOutcome> {
+  const snapshot = await takeSafetySnapshot('importing the tasks')
+  if (snapshot === 'cancelled') return { status: 'cancelled' }
 
   const result = await appendImportTasks(data, choices)
 
@@ -81,5 +90,5 @@ export async function runAppendImport(
     usePersonStore.getState().loadAssignments(todoIds),
     useTagStore.getState().loadAssignments(todoIds),
   ])
-  return result
+  return { ...result, status: 'done', noBackup: snapshot === 'without-backup' }
 }

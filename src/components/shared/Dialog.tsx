@@ -162,6 +162,8 @@ export interface ConfirmDialogProps {
   onCancel: () => void
   /** Routes through --z-dialog-nested. See `Dialog`'s `nested` prop. */
   nested?: boolean
+  /** The button focused on open (so Enter picks it). Default: confirm. */
+  initialFocus?: 'confirm' | 'cancel'
 }
 
 export function ConfirmDialog({
@@ -174,13 +176,21 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   nested = false,
+  initialFocus = 'confirm',
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
   return (
-    <Dialog open={open} onClose={onCancel} title={title} initialFocusRef={confirmRef} nested={nested}>
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      title={title}
+      initialFocusRef={initialFocus === 'cancel' ? cancelRef : confirmRef}
+      nested={nested}
+    >
       <DialogBody>{message}</DialogBody>
       <DialogActions>
-        <button type="button" className={styles.cancelButton} onClick={onCancel}>
+        <button ref={cancelRef} type="button" className={styles.cancelButton} onClick={onCancel}>
           {cancelLabel}
         </button>
         <button

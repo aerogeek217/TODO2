@@ -18,8 +18,13 @@ export async function listExpiredCompleted(
   return selectExpiredCompleted(rows, retentionDays)
 }
 
+/**
+ * `kept`: the archive was handed over but nothing was deleted —
+ * `no-backup`: the backup snapshot failed and the user cancelled.
+ */
 export type ExportAndPurgeResult =
-  | { status: 'done'; deleted: number; saved: 'saved' | 'downloaded'; fileName: string }
+  | { status: 'done'; deleted: number; saved: 'saved' | 'downloaded'; fileName: string; noBackup: boolean }
+  | { status: 'kept'; reason: 'no-backup'; fileName: string }
   | { status: 'cancelled' }
   | { status: 'error'; message: string }
 
@@ -55,6 +60,12 @@ export async function exportAndPurgeCompleted(ids: readonly number[]): Promise<E
   if (saved === 'cancelled') return { status: 'cancelled' }
 
   const archivedIds = archive.todos.map((t) => t.id).filter((id): id is number => id != null)
-  const deleted = await useTodoStore.getState().purgeCompleted(archivedIds)
-  return { status: 'done', deleted, saved, fileName }
+  const outcome = await useTodoStore.getState().purgeCompleted(archivedIds)
+  if (outcome.status === 'cancelled') return { status: 'kept', reason: 'no-backup', fileName }
+  return { status: 'done', deleted: outcome.deleted, saved, fileName, noBackup: outcome.noBackup }
+}
+
+/** What the purge dialogs say when Export & delete saved a file but deleted nothing. */
+export function keptMessage(result: Extract<ExportAndPurgeResult, { status: 'kept' }>): string {
+  return `Nothing was deleted — the backup could not be saved. The archive ${result.fileName} was saved.`
 }

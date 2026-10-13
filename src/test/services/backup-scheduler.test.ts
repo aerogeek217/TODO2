@@ -139,29 +139,56 @@ describe('BackupScheduler', () => {
 
       expect(callOrder).toEqual(['create', 'prune'])
     })
+    it('rejects when the snapshot cannot be stored', async () => {
+      mockCreateSnapshot.mockRejectedValueOnce(new Error('quota'))
+      await expect(backupScheduler.snapshotBeforeDestructive()).rejects.toThrow('quota')
+    })
+
+    it('a prune failure after a stored snapshot is not a failure', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockPruneSnapshots.mockRejectedValueOnce(new Error('prune'))
+      await expect(backupScheduler.snapshotBeforeDestructive()).resolves.toBeUndefined()
+    })
   })
 
-  describe('concurrent guard', () => {
-    it('snapshotBeforeDestructive_whileRunning_returnsWithoutCallingRepo', async () => {
-      // Arrange: make createSnapshot hang so running stays true during second call
+  describe('concurrent callers', () => {
+    it('a second caller waits for the snapshot in flight instead of starting another', async () => {
       let resolveFirst!: () => void
       mockCreateSnapshot.mockReturnValueOnce(
         new Promise<number>(resolve => { resolveFirst = () => resolve(1) })
       )
 
-      // Act: start first call (does not await), then immediately call again
       const first = backupScheduler.snapshotBeforeDestructive()
       const second = backupScheduler.snapshotBeforeDestructive()
+      let secondDone = false
+      void second.then(() => { secondDone = true })
+      await Promise.resolve()
+      expect(secondDone).toBe(false)
 
-      // Second call should return immediately since running=true
-      await second
-
-      // Assert: createSnapshot was called only once (by the first invocation)
-      expect(mockCreateSnapshot).toHaveBeenCalledTimes(1)
-
-      // Cleanup: resolve the first call so it doesn't leak
       resolveFirst()
-      await first
+      await Promise.all([first, second])
+      expect(mockCreateSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    it('shares a failure with every caller waiting on it', async () => {
+      let rejectFirst!: (err: Error) => void
+      mockCreateSnapshot.mockReturnValueOnce(
+        new Promise<number>((_, reject) => { rejectFirst = reject })
+      )
+
+      const first = backupScheduler.snapshotBeforeDestructive()
+      const second = backupScheduler.snapshotBeforeDestructive()
+      rejectFirst(new Error('quota'))
+
+      await expect(first).rejects.toThrow('quota')
+      await expect(second).rejects.toThrow('quota')
+    })
+
+    it('starts a fresh snapshot once the previous one settled', async () => {
+      mockCreateSnapshot.mockRejectedValueOnce(new Error('quota'))
+      await expect(backupScheduler.snapshotBeforeDestructive()).rejects.toThrow('quota')
+      await backupScheduler.snapshotBeforeDestructive()
+      expect(mockCreateSnapshot).toHaveBeenCalledTimes(2)
     })
   })
 })

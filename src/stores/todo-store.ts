@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { NewTodoItem, PersistedTodoItem } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
+import { useUndoStore } from './undo-store'
 import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
 import { useSettingsStore } from './settings-store'
@@ -27,6 +28,24 @@ export interface MarkerFlagChange {
   todoId: number
   urgent?: boolean
   important?: boolean
+}
+
+/**
+ * `purgeCompleted`'s outcome. `cancelled`: the backup snapshot failed and the
+ * user didn't continue without one — nothing was deleted. `noBackup`: deleted
+ * without that snapshot (the user chose to continue).
+ */
+export type PurgeOutcome =
+  | { status: 'done'; deleted: number; noBackup: boolean }
+  | { status: 'cancelled' }
+
+/** A bulk delete of more tasks than this is backed up first. */
+export const BULK_DELETE_SNAPSHOT_MIN = 5
+
+/** The backup gate before a destructive write (`services/safety-snapshot`). */
+async function takeSafetySnapshot(operation: string) {
+  const { takeSafetySnapshot: take } = await import('../services/safety-snapshot')
+  return take(operation)
 }
 
 const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
@@ -101,15 +120,20 @@ interface TodoState {
    * store and the DB write.
    */
   markFollowedUp: (ids: number[]) => Promise<void>
+  /**
+   * Deletes `ids` as one undo step (with the snackbar). More than
+   * `BULK_DELETE_SNAPSHOT_MIN` tasks are backed up first; if that backup
+   * fails and the user cancels, nothing is deleted.
+   */
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
   /**
-   * Deletes the given completed tasks (snapshot first). Never called without
-   * the user's say-so: the launch prompt and Settings cleanup pick
-   * the ids (`selectExpiredCompleted`) and ask before calling this. Ids that
-   * are no longer completed are skipped. Returns the number deleted.
+   * Deletes the given completed tasks (snapshot first, `takeSafetySnapshot`).
+   * Never called without the user's say-so: the launch prompt and Settings
+   * cleanup pick the ids (`selectExpiredCompleted`) and ask before calling
+   * this. Ids that are no longer completed are skipped.
    */
-  purgeCompleted: (ids: number[]) => Promise<number>
+  purgeCompleted: (ids: number[]) => Promise<PurgeOutcome>
   duplicate: (id: number) => Promise<number | undefined>
   /** Internal: restore a deleted todo (for undo). */
   _restore: (todo: PersistedTodoItem, assignments: CapturedAssignments) => Promise<void>
@@ -587,11 +611,16 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   async bulkRemove(ids: number[]) {
+    // Backup gate outside the tracked write: it may wait on the user. A redo
+    // skips it — the first run already backed up this data — so a redo
+    // always does what the undo stack expects.
+    let noBackup = false
+    if (ids.length > BULK_DELETE_SNAPSHOT_MIN && !useUndoStore.getState().isPerformingUndoRedo) {
+      const snapshot = await takeSafetySnapshot(`deleting ${ids.length} tasks`)
+      if (snapshot === 'cancelled') return
+      noBackup = snapshot === 'without-backup'
+    }
     return mutate(set, async () => {
-      if (ids.length > 5) {
-        const { backupScheduler } = await import('../services/backup-scheduler')
-        await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
-      }
       const snapshots = get().todos.filter((t) => ids.includes(t.id)).map(t => ({ ...t }))
       const assignments = await captureAssignmentsBulk(ids)
       const assignmentData = snapshots.map(t => {
@@ -607,7 +636,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
 
       undoable(
-        `Delete ${ids.length} tasks`,
+        noBackup ? `Delete ${ids.length} tasks — no backup was taken` : `Delete ${ids.length} tasks`,
         () => get().bulkRemove(ids),
         async () => {
           for (const { todo, personIds, tagIds } of assignmentData) {
@@ -716,21 +745,29 @@ export const useTodoStore = create<TodoState>((set, get) => {
     })
   },
 
-  purgeCompleted(ids: number[]) {
+  async purgeCompleted(ids: number[]): Promise<PurgeOutcome> {
+    // Only rows that are still completed — the caller's list came from a
+    // prompt the user answered, and a task reopened meanwhile must survive.
+    // Checked against the database, not `todos` (which may not be loaded yet).
+    const stillCompleted = async () =>
+      (await todoRepository.getByIds(ids)).filter((t) => t.isCompleted).map((t) => t.id)
+    const candidates = await stillCompleted()
+    if (candidates.length === 0) return { status: 'done', deleted: 0, noBackup: false }
+    // Backup gate outside the tracked write: it may wait on the user.
+    const snapshot = await takeSafetySnapshot(
+      `deleting ${candidates.length} completed task${candidates.length === 1 ? '' : 's'}`,
+    )
+    if (snapshot === 'cancelled') return { status: 'cancelled' }
     return trackWrite(async () => {
-      // Only rows that are still completed — the caller's list came from a
-      // prompt the user answered, and a task reopened meanwhile must survive.
-      // Checked against the database, not `todos` (which may not be loaded yet).
-      const doomed = (await todoRepository.getByIds(ids)).filter((t) => t.isCompleted).map((t) => t.id)
-      if (doomed.length === 0) return 0
-      // Snapshot before destructive purge
-      const { backupScheduler } = await import('../services/backup-scheduler')
-      await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
-      await todoRepository.bulkDelete(doomed)
-      useListOrderStore.getState().forgetTodos(doomed)
-      const doomedSet = new Set(doomed)
-      set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
-      return doomed.length
+      // Read again: a task may have been reopened while the backup ran.
+      const doomed = await stillCompleted()
+      if (doomed.length > 0) {
+        await todoRepository.bulkDelete(doomed)
+        useListOrderStore.getState().forgetTodos(doomed)
+        const doomedSet = new Set(doomed)
+        set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
+      }
+      return { status: 'done', deleted: doomed.length, noBackup: snapshot === 'without-backup' } as const
     })
   },
 

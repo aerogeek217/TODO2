@@ -14,6 +14,7 @@ import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './components/overlays/QuickAddBar'
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
+import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStatusStore } from './stores/status-store'
@@ -447,6 +448,7 @@ export default function App() {
     <ErrorBoundary scope="App">
       <RouterProvider router={router} />
       <FileMigrationOverlay />
+      <ConfirmPromptHost />
     </ErrorBoundary>
   )
 }

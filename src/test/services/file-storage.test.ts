@@ -794,3 +794,77 @@ describe('FileStorageService — status notifications', () => {
     expect(afterImport).toHaveBeenCalled()
   })
 })
+
+// ─── Browser backup before loading the file ───────────────────────────
+
+describe('FileStorageService — browser backup before the file replaces it', () => {
+  async function uiStore() {
+    return (await import('../../stores/ui-store')).useUIStore
+  }
+
+  it('backup fails → asks; Cancel leaves the browser data and the file untouched and pauses', async () => {
+    setSyncState({ fileSavedAt: '2026-09-01T00:00:00.000Z', dirtySince: null })
+    mockSnapshotBeforeDestructive.mockRejectedValue(new Error('quota'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc, writable } = await startWith()
+    const ui = await uiStore()
+    const init = svc.initialize()
+    await vi.waitFor(() => expect(ui.getState().confirmPrompts).toHaveLength(1))
+    expect(ui.getState().confirmPrompts[0]).toMatchObject({ title: 'Continue without a backup?', cancelIsDefault: true })
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    ui.getState().answerConfirmation(false)
+    await init
+
+    expectUntouched(writable)
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    expect(svc.status.isConnected).toBe(false)
+    expect(syncState().fileSavedAt).toBe('2026-09-01T00:00:00.000Z')
+  })
+
+  it('backup fails → Continue loads the file without a backup', async () => {
+    setSyncState({ fileSavedAt: '2026-09-01T00:00:00.000Z', dirtySince: null })
+    mockSnapshotBeforeDestructive.mockRejectedValue(new Error('quota'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc } = await startWith()
+    const ui = await uiStore()
+    const init = svc.initialize()
+    await vi.waitFor(() => expect(ui.getState().confirmPrompts).toHaveLength(1))
+    ui.getState().answerConfirmation(true)
+    await init
+
+    expect(mockRestoreFromImportData).toHaveBeenCalledWith(validImportData)
+    expect(svc.status.isConnected).toBe(true)
+    expect(svc.status.error).toBeNull()
+  })
+
+  it('conflict "Use file": a failed backup asks before the browser data is replaced', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockSnapshotBeforeDestructive.mockRejectedValue(new Error('quota'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc, writable } = await startWith()
+    svc.onConflict(async () => 'file')
+    const ui = await uiStore()
+    const init = svc.initialize()
+    await vi.waitFor(() => expect(ui.getState().confirmPrompts).toHaveLength(1))
+    ui.getState().answerConfirmation(false)
+    await init
+
+    expectUntouched(writable)
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    // Still unsynced: the next load asks again.
+    expect(syncState().dirtySince).toBe('2026-10-02T09:00:00.000Z')
+  })
+
+  it('in sync with this very file: a failed backup does not stop the (lossless) load', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockSnapshotBeforeDestructive.mockRejectedValue(new Error('quota'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc } = await startWith()
+    const ui = await uiStore()
+    await svc.initialize()
+
+    expect(ui.getState().confirmPrompts).toHaveLength(0)
+    expect(mockRestoreFromImportData).toHaveBeenCalledWith(validImportData)
+    expect(svc.status.isConnected).toBe(true)
+  })
+})

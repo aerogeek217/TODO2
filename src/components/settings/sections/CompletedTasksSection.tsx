@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { exportAndPurgeCompleted } from '../../../services/purge-completed'
+import { exportAndPurgeCompleted, keptMessage } from '../../../services/purge-completed'
+import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
 import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../../../utils/completed-at'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
@@ -85,9 +86,21 @@ export function CompletedTasksSection() {
       setConfirming(true)
       return
     }
-    const deleted = await purgeCompleted(matches.map((t) => t.id))
-    closeCleanup()
-    showMessage(`Deleted ${plural(deleted, 'completed task')}.`)
+    setBusy(true)
+    setError(null)
+    try {
+      const outcome = await purgeCompleted(matches.map((t) => t.id))
+      if (outcome.status === 'cancelled') {
+        setError('Nothing was deleted — the backup could not be saved.')
+        return
+      }
+      closeCleanup()
+      showMessage(`Deleted ${plural(outcome.deleted, 'completed task')}.${outcome.noBackup ? ` ${NO_BACKUP_NOTE}` : ''}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
   }
 
   /** "Export & delete": archive file first, then delete. */
@@ -102,8 +115,12 @@ export function CompletedTasksSection() {
         setError(result.message)
         return
       }
+      if (result.status === 'kept') {
+        setError(keptMessage(result))
+        return
+      }
       closeCleanup()
-      showMessage(`Saved ${plural(result.deleted, 'task')} to ${result.fileName} and deleted them.`)
+      showMessage(`Saved ${plural(result.deleted, 'task')} to ${result.fileName} and deleted them.${result.noBackup ? ` ${NO_BACKUP_NOTE}` : ''}`)
     } catch (err) {
       setError(`Nothing was deleted — ${err instanceof Error ? err.message : String(err)}`)
     } finally {

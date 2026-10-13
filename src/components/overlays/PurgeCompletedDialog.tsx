@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { PersistedTodoItem } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
-import { exportAndPurgeCompleted } from '../../services/purge-completed'
+import { exportAndPurgeCompleted, keptMessage } from '../../services/purge-completed'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import buttons from './FileSyncDialogs.module.css'
 import styles from './TaskArchiveDialogs.module.css'
@@ -47,6 +47,10 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
         setError(result.message)
         return
       }
+      if (result.status === 'kept') {
+        setError(keptMessage(result))
+        return
+      }
       onDone()
     } catch (err) {
       setError(`Nothing was deleted — ${err instanceof Error ? err.message : String(err)}`)
@@ -59,7 +63,11 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
     setBusy(true)
     setError(null)
     try {
-      await useTodoStore.getState().purgeCompleted(ids)
+      const outcome = await useTodoStore.getState().purgeCompleted(ids)
+      if (outcome.status === 'cancelled') {
+        setError('Nothing was deleted — the backup could not be saved.')
+        return
+      }
       onDone()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
