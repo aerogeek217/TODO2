@@ -83,6 +83,16 @@ describe('sendCheckinEmail — open in the mail app', () => {
     expect(events).toEqual(['clipboard'])
   })
 
+  it('copies and opens nothing for an address that is not one valid address', async () => {
+    stubClipboard(true)
+    for (const method of ['mailto', 'eml'] as const) {
+      const to = 'ada@example.com,evil@x.com'
+      expect(await sendCheckinEmail({ email: { ...email, to }, personName: 'Ada', method, sentAt })).toBe('invalid-address')
+    }
+    expect(events).toEqual([])
+    expect(blobs).toEqual([])
+  })
+
   it('opens nothing when the clipboard refuses', async () => {
     stubClipboard(false)
     expect(await sendCheckinEmail({ email, personName: 'Ada Lovelace', method: 'mailto', sentAt })).toBe('copy-failed')

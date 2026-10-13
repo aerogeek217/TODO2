@@ -16,7 +16,7 @@ import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-set
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
-import { normalizeEmail, PERSON_EMAIL_MAX } from '../utils/person'
+import { isValidEmail, normalizeEmail } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -195,8 +195,8 @@ function checkPerson(v: unknown): CheckResult {
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['initials', isStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
-    // Any string within the cap: the email shape is the person editor's check.
-    ['email', isOptStr(v.email, PERSON_EMAIL_MAX)],
+    // `email` is not checked: one that isn't a single valid address is
+    // dropped by `pickPerson` (see `personEmail`), with a warning.
   ])
 }
 
@@ -403,11 +403,23 @@ function pickStatus(v: Raw): AllFields<Status> {
   } satisfies AllFields<Status>
 }
 
+/**
+ * A person row's email as stored: trimmed, absent when empty, and dropped
+ * when it isn't one valid address (`isValidEmail`) — a `,` or `;` in it
+ * would add recipients to a check-in email. `dropped` when there was one.
+ */
+function personEmail(v: unknown): { email: string | undefined; dropped: boolean } {
+  if (v === undefined || v === null) return { email: undefined, dropped: false }
+  const email = typeof v === 'string' ? normalizeEmail(v) : undefined
+  if (email === undefined) return { email: undefined, dropped: typeof v !== 'string' }
+  return isValidEmail(email) ? { email, dropped: false } : { email: undefined, dropped: true }
+}
+
 function pickPerson(v: Raw): AllFields<Person> {
   return {
     id: optNum(v.id), name: v.name as string, initials: v.initials as string,
     color: optStr(v.color),
-    email: normalizeEmail(optStr(v.email)),
+    email: personEmail(v.email).email,
   } satisfies AllFields<Person>
 }
 
@@ -614,6 +626,10 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * stored before it checked these parts.
  */
 const ROW_FIXERS: Partial<Record<keyof ImportData, RowFixer>> = {
+  people: {
+    fixes: (row) => (personEmail(row.email).dropped ? ['invalid email dropped'] : []),
+    lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
+  },
   listDefinitions: {
     fixes: (row) => pickPredicate(isObj(row.membership) ? row.membership.predicate : undefined).fixes,
     lead: (n) => `Fixed the filters of ${plural(n, 'list', 'lists')}`,

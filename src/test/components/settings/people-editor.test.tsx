@@ -131,6 +131,20 @@ describe('PeopleEditor', () => {
     expect('email' in (await db.people.toArray())[0]!).toBe(false)
   })
 
+  it('refuses two addresses in one field (a second recipient)', async () => {
+    await usePersonStore.getState().add('Ann Lee', 'AL')
+    const { findByText, getByLabelText, getByText } = await renderEditor()
+    fireEvent.click(await findByText('Ann Lee'))
+    const email = getByLabelText('Email')
+    for (const value of ['ann@example.com, evil@x.com', 'ann@example.com;evil@x.com', 'Ann <ann@example.com>']) {
+      fireEvent.change(email, { target: { value } })
+      fireEvent.keyDown(email, { key: 'Enter' })
+      expect(getByText("Doesn't look like an email address"), value).toBeTruthy()
+    }
+    await act(async () => {})
+    expect('email' in (await db.people.toArray())[0]!).toBe(false)
+  })
+
   it('edits and then clears a person email', async () => {
     await usePersonStore.getState().add('Ann Lee', 'AL', undefined, 'ann@example.com')
     const { findByText, getByLabelText, getByText, queryByText } = await renderEditor()

@@ -23,12 +23,29 @@ export function normalizeEmail(raw: string | null | undefined): string | undefin
   return trimmed === '' ? undefined : trimmed
 }
 
+/** A dot-atom local part: runs of letters, digits and RFC 5322 `atext` symbols, joined by single dots. */
+const LOCAL_PART = /^[\p{L}\p{N}!#$%&'*+/=?^_`{|}~-]+(?:\.[\p{L}\p{N}!#$%&'*+/=?^_`{|}~-]+)*$/u
+/** One domain label: letters, digits and hyphens, not starting or ending with a hyphen. */
+const DOMAIN_LABEL = /^[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?$/u
+
 /**
- * A light `x@y.z` shape check — no spaces, one `@`, a dot in the domain.
- * The person editor uses it; imports accept any string.
+ * Whether `value` (trimmed) is one plain email address: `local@domain.tld`,
+ * the local part a dot-atom (no quotes), the domain two or more labels, at
+ * most `PERSON_EMAIL_MAX` characters. Nothing that could name a second
+ * recipient or a display name gets through — no `,` `;` `"` `<>` `()`
+ * `[]` `\` `:`, whitespace or control characters. Letters beyond ASCII are
+ * allowed (internationalised addresses).
+ *
+ * The person editor requires it, import drops an email failing it, and the
+ * check-in `mailto:` / `.eml` builders refuse one.
  */
-export function looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@.]+$/.test(value.trim())
+export function isValidEmail(value: string): boolean {
+  const address = value.trim()
+  if (address.length > PERSON_EMAIL_MAX) return false
+  const at = address.indexOf('@')
+  if (at <= 0 || at !== address.lastIndexOf('@')) return false
+  const labels = address.slice(at + 1).split('.')
+  return LOCAL_PART.test(address.slice(0, at)) && labels.length >= 2 && labels.every((l) => DOMAIN_LABEL.test(l))
 }
 
 /** `person` with `email` normalized: trimmed, or the key dropped when empty. */

@@ -325,12 +325,25 @@ describe('validateImportData', () => {
   })
 
   describe('person email', () => {
-    it('keeps any string, trimmed (the editor checks the shape, not import)', () => {
+    it('keeps a valid address, trimmed', () => {
+      const result = validateImportData(validData({ people: [makePerson({ email: '  ann@example.com ' })] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.people[0]!.email).toBe('ann@example.com')
+      expect(result.warnings).toEqual([])
+    })
+
+    it('drops an email that is not one valid address, keeping the person, with a warning', () => {
       const result = validateImportData(validData({
-        people: [makePerson({ email: '  ann@example.com ' }), makePerson({ id: 2, name: 'Bo', email: 'not an address' })],
+        people: [
+          makePerson({ email: 'a@b.com,evil@x.com' }),
+          makePerson({ id: 2, name: 'Bo', email: 'not an address' }),
+          makePerson({ id: 3, name: 'Cy', email: 'cy@example.com' }),
+        ],
       }))
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.data.people.map((p) => p.email)).toEqual(['ann@example.com', 'not an address'])
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.people.map((p) => p.email)).toEqual([undefined, undefined, 'cy@example.com'])
+      expect('email' in result.data.people[0]!).toBe(false)
+      expect(result.warnings).toEqual(['Fixed 2 people: "Alice" (invalid email dropped); "Bo" (invalid email dropped)'])
     })
 
     it('drops an empty or blank email', () => {
@@ -341,10 +354,12 @@ describe('validateImportData', () => {
       if (result.ok) for (const p of result.data.people) expect('email' in p).toBe(false)
     })
 
-    it('rejects a non-string or over-long email', () => {
+    it('drops a non-string or over-long email instead of rejecting the file', () => {
       for (const email of [42, true, ['a@b.co'], { at: 'b.co' }, `${'a'.repeat(250)}@b.co`]) {
         const result = validateImportData(validData({ people: [makePerson({ email })] }))
-        expect(result, JSON.stringify(email)).toEqual({ ok: false, error: expect.stringContaining('bad field "email"') })
+        if (!result.ok) throw new Error(result.error)
+        expect('email' in result.data.people[0]!, JSON.stringify(email)).toBe(false)
+        expect(result.warnings).toHaveLength(1)
       }
     })
   })

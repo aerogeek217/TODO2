@@ -16,6 +16,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
+import { isValidEmail } from '../../utils/person'
 import {
   CHECKIN_LIST_SCOPE_HINT,
   CHECKIN_OPEN_METHOD_OPTIONS,
@@ -38,7 +39,8 @@ interface Toast {
 }
 
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
-const hasEmail = (p: PersistedPerson) => (p.email ?? '') !== ''
+/** Whether the person has an email a check-in can go to (one valid address). */
+const hasEmail = (p: PersistedPerson) => isValidEmail(p.email ?? '')
 
 /**
  * The email check-in dialog (`ui-store.checkinDialog`): one row per person
@@ -191,6 +193,10 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
       setToast({ text: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.', error: true })
       return
     }
+    if (result === 'invalid-address') {
+      setToast({ text: `${p.name}’s email address isn’t valid, so nothing was sent. Fix it in People.`, error: true })
+      return
+    }
     setSent((prev) => new Map(prev).set(p.id, result))
     setToast({
       text: result === 'opened'
@@ -301,12 +307,12 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
                   </span>
                   <label htmlFor={inputId} className={styles.who}>
                     <span className={styles.name}>{p.name}</span>
-                    <span className={styles.email}>{email ? p.email : 'No email address'}</span>
+                    <span className={styles.email}>{email ? p.email : p.email ? 'Invalid email address' : 'No email address'}</span>
                   </label>
                   <span className={styles.count} data-checkin-count="">{tasksLabel(count)}</span>
                   {!email && (
-                    <button type="button" className={styles.outlineBtn} aria-label={`Add email for ${p.name}`} onClick={() => addEmail(p.id)}>
-                      Add email
+                    <button type="button" className={styles.outlineBtn} aria-label={`${p.email ? 'Fix' : 'Add'} email for ${p.name}`} onClick={() => addEmail(p.id)}>
+                      {p.email ? 'Fix email' : 'Add email'}
                     </button>
                   )}
                   {checked && (sentAs

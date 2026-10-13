@@ -6,14 +6,16 @@
 import type { CheckinOpenMethod } from '../../utils/checkin-settings'
 import { downloadTextFile } from '../save-file'
 import type { CheckinEmail } from './build'
+import { isValidEmail } from '../../utils/person'
 import { buildEml, buildMailtoUrl, checkinEmlFileName, copyCheckinRich, openMailtoLink } from './handoff'
 
 /**
  * `opened` — the body is on the clipboard and the `mailto:` link was opened;
  * `downloaded` — the `.eml` draft was downloaded; `copy-failed` — the
- * clipboard refused the body, so nothing was opened.
+ * clipboard refused the body, so nothing was opened; `invalid-address` — the
+ * recipient isn't one valid email address, so nothing was copied or opened.
  */
-export type CheckinSendResult = 'opened' | 'downloaded' | 'copy-failed'
+export type CheckinSendResult = 'opened' | 'downloaded' | 'copy-failed' | 'invalid-address'
 
 export interface SendCheckinInput {
   email: CheckinEmail
@@ -34,6 +36,7 @@ export interface SendCheckinInput {
  * - `eml`: downloads `Check-in - <name> - <date>.eml`, an unsent draft.
  */
 export async function sendCheckinEmail({ email, personName, method, sentAt }: SendCheckinInput): Promise<CheckinSendResult> {
+  if (!isValidEmail(email.to)) return 'invalid-address'
   if (method === 'eml') {
     const eml = buildEml({ to: email.to, toName: personName, subject: email.subject, html: email.html, plain: email.plain })
     downloadTextFile(eml, checkinEmlFileName(personName, sentAt), 'message/rfc822')

@@ -335,6 +335,18 @@ describe('sanitisable-row audit', () => {
     expect(row).toMatchObject({ id, name: 'Bad', membership: { kind: 'custom', predicate: { personIds: null, statusIds: [2], searchText: 'x'.repeat(500) } } })
     expect((await auditData()).issues).toEqual([])
   })
+
+  it('reports a person whose email is not one valid address; cleanup drops just the email', async () => {
+    const id = await db.people.add({ name: 'Ann', initials: 'AN', color: '#123456', email: 'a@b.com,evil@x.com' })
+    await db.people.add({ name: 'Bo', initials: 'BO', email: 'bo@example.com' })
+
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'people', fix: 'sanitize', count: 1, ids: [id] })])
+    await cleanupIssues(report.issues)
+
+    expect(await db.people.get(id)).toEqual({ id, name: 'Ann', initials: 'AN', color: '#123456' })
+    expect((await db.people.toArray()).map((p) => p.email)).toEqual([undefined, 'bo@example.com'])
+  })
 })
 
 // --- Unknown-setting detection: rows in `settings` whose `key` is not in the

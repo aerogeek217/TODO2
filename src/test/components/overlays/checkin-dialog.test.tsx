@@ -134,6 +134,15 @@ describe('CheckinDialog — rows', () => {
     expect(within(row(3)).queryByRole('button', { name: /Copy & open/ })).toBeNull()
   })
 
+  it('a person whose stored email is not one valid address is treated like one without: Fix email, nothing to send', () => {
+    usePersonStore.setState({ people: [ada, bob, { ...cy, email: 'cy@example.com, evil@x.com' }] })
+    open([3])
+    expect(within(row(3)).getByRole('checkbox')).toHaveProperty('disabled', true)
+    expect(within(row(3)).getByText('Invalid email address')).toBeTruthy()
+    expect(within(row(3)).getByRole('button', { name: 'Fix email for Cy Young' })).toBeTruthy()
+    expect(within(row(3)).queryByRole('button', { name: /Copy & open/ })).toBeNull()
+  })
+
   it('counts open tasks per person for the Which tasks choice (completed ones never count)', async () => {
     open([1])
     expect([count(1), count(2), count(3)]).toEqual(['3 tasks', '2 tasks', '1 task'])

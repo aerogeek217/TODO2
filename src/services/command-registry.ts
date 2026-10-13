@@ -1,6 +1,7 @@
 import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
+import { isValidEmail } from '../utils/person'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'tasks'
 
@@ -51,7 +52,7 @@ export interface CommandContext {
 const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
 
 /**
- * `Email check-in: <person>` for each person with an email address and at
+ * `Email check-in: <person>` for each person with a valid email address and at
  * least one open task, by name; the hint counts their open tasks.
  */
 function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) => void): Command[] {
@@ -60,7 +61,7 @@ function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) 
     .flatMap((p) => {
       const id = p.id
       const n = id != null ? counts.get(id) ?? 0 : 0
-      if (id == null || n === 0 || (p.email ?? '') === '') return []
+      if (id == null || n === 0 || !isValidEmail(p.email ?? '')) return []
       return [{ id, name: p.name, n }]
     })
     .sort((a, b) => a.name.localeCompare(b.name))

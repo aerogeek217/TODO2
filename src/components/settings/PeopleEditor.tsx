@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { usePersonStore } from '../../stores/person-store'
 import { personRepository } from '../../data'
-import { generateInitials, looksLikeEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
+import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
 import { ColorInput } from '../shared/ColorInput'
 import { ConfirmDialog } from '../shared/Dialog'
 import type { Person } from '../../models'
@@ -22,7 +22,7 @@ const EMAIL_SHAPE_ERROR = "Doesn't look like an email address"
 
 /** Whether a typed email can be saved: empty, or shaped like an address. */
 function emailOk(value: string): boolean {
-  return value.trim() === '' || looksLikeEmail(value)
+  return value.trim() === '' || isValidEmail(value)
 }
 
 interface EmailFieldProps {

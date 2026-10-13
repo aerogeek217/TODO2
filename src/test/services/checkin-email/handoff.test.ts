@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   EML_BOUNDARY,
+  InvalidRecipientError,
   buildEml,
   buildMailtoUrl,
   copyCheckinRich,
@@ -65,9 +66,9 @@ describe('buildMailtoUrl', () => {
       .toBe('mailto:marcus.chen@example.com?subject=Task%20check-in%3A%203%20open%20tasks')
   })
 
-  it('cannot add fields or recipients through the address or subject', () => {
-    const url = buildMailtoUrl('a@b.com?cc=evil@x.com&body=hi', 'Hi&bcc=evil@x.com\r\nBcc: z@z.com')
-    expect(url.startsWith('mailto:a@b.com%3Fcc%3Devil@x.com%26body%3Dhi?subject=')).toBe(true)
+  it('cannot add fields or recipients through the subject', () => {
+    const url = buildMailtoUrl('a@b.com', 'Hi&bcc=evil@x.com\r\nBcc: z@z.com')
+    expect(url.startsWith('mailto:a@b.com?subject=')).toBe(true)
     const query = url.slice(url.indexOf('?') + 1)
     expect(query.split('&')).toHaveLength(1)
     expect(query).not.toMatch(/%0[ad]/i)
@@ -75,8 +76,22 @@ describe('buildMailtoUrl', () => {
     expect(url).not.toContain('body=')
   })
 
-  it('drops spaces, line breaks and angle brackets from the address; encodes non-ASCII subjects', () => {
-    expect(buildMailtoUrl(' <a@b.com>\r\n', 'Café')).toBe('mailto:a@b.com?subject=Caf%C3%A9')
+  it('trims the address; encodes non-ASCII subjects and address characters', () => {
+    expect(buildMailtoUrl('  a@b.com \n', 'Café')).toBe('mailto:a@b.com?subject=Caf%C3%A9')
+    expect(buildMailtoUrl("o'neil+work@b.com", 'x')).toBe("mailto:o'neil%2Bwork@b.com?subject=x")
+  })
+
+  it.each([
+    ['a comma (a second recipient)', 'a@b.com,evil@x.com'],
+    ['a semicolon', 'a@b.com;evil@x.com'],
+    ['a query', 'a@b.com?cc=evil@x.com&body=hi'],
+    ['angle brackets', '<a@b.com>'],
+    ['a display name', '"Ann" a@b.com'],
+    ['a line break', 'a@b.com\r\nBcc: z@z.com'],
+    ['nothing', ''],
+  ])('refuses an address with %s', (_name, to) => {
+    expect(() => buildMailtoUrl(to, 'Hi')).toThrow(InvalidRecipientError)
+    expect(() => buildEml({ ...input, to })).toThrow(InvalidRecipientError)
   })
 })
 
@@ -141,7 +156,7 @@ describe('buildEml', () => {
   it('header injection: CR / LF in any header value never starts a new header', () => {
     const eml = buildEml({
       ...input,
-      to: 'victim@example.com\r\nBcc: evil@x.com',
+      to: 'victim@example.com',
       toName: 'Name\r\nBcc: evil2@x.com\nX-Evil: 1',
       subject: 'Hi\r\nBcc: evil3@x.com\rX-Evil: 2\n\nbody',
     })
@@ -149,7 +164,7 @@ describe('buildEml', () => {
     const names = headerLines.filter((l) => !l.startsWith(' ')).map((l) => l.slice(0, l.indexOf(':')))
     expect(names).toEqual(['X-Unsent', 'To', 'Subject', 'MIME-Version', 'Content-Type'])
     expect(eml).not.toMatch(/^(Bcc|X-Evil):/im)
-    expect(headers.get('To')).toBe('"Name Bcc: evil2@x.com X-Evil: 1" <victim@example.comBcc:evil@x.com>')
+    expect(headers.get('To')).toBe('"Name Bcc: evil2@x.com X-Evil: 1" <victim@example.com>')
     expect(headers.get('Subject')).toBe('Hi Bcc: evil3@x.com X-Evil: 2 body')
   })
 

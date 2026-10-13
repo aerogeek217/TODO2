@@ -4,6 +4,7 @@
  * (`X-Unsent: 1`) with the HTML and plain-text bodies.
  */
 import { toDateInputValue } from '../../utils/date'
+import { isValidEmail } from '../../utils/person'
 import { writeRichClipboard } from '../task-copy'
 
 /**
@@ -19,18 +20,33 @@ function stripControls(s: string): string {
   return out.replace(/ {2,}/g, ' ').trim()
 }
 
-/** An address as it may go in a header or `mailto:`: no controls, spaces or angle brackets. */
-function cleanAddress(address: string): string {
-  return stripControls(address).replace(/[\s<>]/g, '')
+/** Thrown by the builders for a recipient that isn't one valid address. */
+export class InvalidRecipientError extends Error {
+  constructor() {
+    super('The recipient is not a single valid email address')
+    this.name = 'InvalidRecipientError'
+  }
+}
+
+/**
+ * The one address a header or `mailto:` may carry: `address` trimmed, when
+ * it is a single valid address (`isValidEmail` — no `,` `;` quotes, angle
+ * brackets, whitespace or controls). Anything else throws
+ * `InvalidRecipientError`, so no value can add a recipient.
+ */
+function recipientAddress(address: string): string {
+  if (!isValidEmail(address)) throw new InvalidRecipientError()
+  return address.trim()
 }
 
 /**
  * `mailto:<to>?subject=<subject>` — no body (the body is pasted from the
- * clipboard). Both parts are percent-encoded, so neither can add recipients
- * or other fields; `@` stays readable.
+ * clipboard). The address must be one valid address (else this throws
+ * `InvalidRecipientError`) and is percent-encoded, `@` kept readable; the
+ * subject is percent-encoded, so it can't add fields.
  */
 export function buildMailtoUrl(to: string, subject: string): string {
-  const addr = encodeURIComponent(cleanAddress(to)).replace(/%40/g, '@')
+  const addr = encodeURIComponent(recipientAddress(to)).replace(/%40/g, '@')
   return `mailto:${addr}?subject=${encodeURIComponent(stripControls(subject))}`
 }
 
@@ -99,7 +115,7 @@ function headerText(s: string): string {
 
 /** `"Name" <address>` (quoted string, or encoded words when not ASCII); just the address without a name. */
 function headerMailbox(address: string, name: string | undefined): string {
-  const addr = cleanAddress(address)
+  const addr = recipientAddress(address)
   const display = stripControls(name ?? '')
   if (display === '') return addr
   const phrase = PRINTABLE_ASCII.test(display) && display.length <= 200
@@ -123,7 +139,9 @@ export interface EmlInput {
  * An unsent draft as an `.eml` file (RFC 5322 + MIME): `X-Unsent: 1`,
  * `multipart/alternative` with a UTF-8 plain-text part then an HTML part,
  * both base64. Every header value has its control characters (CR / LF
- * included) removed, so no value can start a new header. CRLF line endings.
+ * included) removed, so no value can start a new header; the recipient must
+ * be one valid address (else this throws `InvalidRecipientError`). CRLF line
+ * endings.
  */
 export function buildEml(input: EmlInput): string {
   const htmlDoc = [
