@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { seedWorkspace, wsCell } from './fixtures/workspace'
+import { gotoSettingsDeepLink, openSettings, seedWorkspace, wsCell } from './fixtures/workspace'
 
 /**
  * Widgets must show people / tag chips and person groups whatever route the
@@ -43,4 +43,25 @@ test('a cold load of the Settings deep link, then closing it, renders the same c
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden()
   await expectChipsAndGroups(page)
+})
+
+test('Settings counts people, statuses and tags on a cold load to an empty layout', async ({ page }) => {
+  await seedWorkspace(page, {
+    people: ['Alice', 'Ben'],
+    tags: ['home', 'work', 'q4'],
+    statuses: ['Blocked'],
+    layouts: [{ name: 'Empty', columns: [] }],
+  })
+  await expect(page.getByText('This layout is empty')).toBeVisible()
+  const counts = async (dialog: import('@playwright/test').Locator) => {
+    await expect(dialog.getByText('2 people', { exact: true })).toBeVisible()
+    await expect(dialog.getByText('1 status', { exact: true })).toBeVisible()
+    await expect(dialog.getByText('3 tags', { exact: true })).toBeVisible()
+  }
+  await counts(await openSettings(page, 'People, statuses & tags'))
+
+  // Straight into Settings from a cold start, too.
+  await page.goto('about:blank')
+  await gotoSettingsDeepLink(page)
+  await counts(await openSettings(page, 'People, statuses & tags'))
 })
