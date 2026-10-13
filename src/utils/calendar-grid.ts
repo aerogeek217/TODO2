@@ -1,5 +1,6 @@
 import type { CalendarView } from '../models/workspace-layout'
 import type { WeekStart } from './effective-date'
+import { addDays } from './date'
 
 /**
  * Calendar grid math: which days a month / week view shows, its toolbar
@@ -8,10 +9,7 @@ import type { WeekStart } from './effective-date'
  * never shift a date.
  */
 
-/** Midnight of `d` plus `n` calendar days. */
-export function addDays(d: Date, n: number): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
-}
+export { addDays }
 
 /** Midnight of the first day of the week containing `d`. */
 export function weekStartOf(d: Date, weekStartsOn: WeekStart): Date {

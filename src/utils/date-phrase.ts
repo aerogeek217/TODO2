@@ -1,4 +1,4 @@
-import { MS_PER_DAY, startOfDay } from './date'
+import { addDays, startOfDay } from './date'
 
 /**
  * The app's relative date words: `today`, `tomorrow` / `tmr`, `yesterday`,
@@ -59,8 +59,8 @@ export function parseDatePhrase(text: string, today: Date): Date | null {
   if (!lower) return null
   const base = startOfDay(today)
   if (lower === 'today') return base
-  if (lower === 'tomorrow' || lower === 'tmr') return startOfDay(new Date(base.getTime() + MS_PER_DAY))
-  if (lower === 'yesterday') return startOfDay(new Date(base.getTime() - MS_PER_DAY))
+  if (lower === 'tomorrow' || lower === 'tmr') return addDays(base, 1)
+  if (lower === 'yesterday') return addDays(base, -1)
   const next = lower.match(/^next ([a-z]+)$/)
   if (next?.[1] != null) {
     const target = weekdayIndex(next[1])

@@ -6,7 +6,7 @@ import type { Person, PersistedTodoItem, Status, Tag } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { createPredicateEvaluator } from '../../stores/filter-store'
 import { resolveCheckinTaskScope, type CheckinTaskScope } from '../../utils/checkin-settings'
-import { MS_PER_DAY, startOfDay } from '../../utils/date'
+import { addDays, startOfDay } from '../../utils/date'
 import { isDeadlinePast, type WeekStart } from '../../utils/effective-date'
 import { isHot } from '../../utils/hot'
 import type { MarkerSettings } from '../../utils/markers'
@@ -76,7 +76,7 @@ export function compareCheckinTasks(a: PersistedTodoItem, b: PersistedTodoItem):
  * follow-up now); a late follow-up never makes a task overdue, though.
  */
 function isDueSoon(t: PersistedTodoItem, today: Date): boolean {
-  const horizon = startOfDay(today).getTime() + CHECKIN_DUE_SOON_DAYS * MS_PER_DAY
+  const horizon = addDays(today, CHECKIN_DUE_SOON_DAYS).getTime()
   const due = dayOf(t.dueDate)
   const next = dayOf(t.nextFollowupAt)
   return (due != null && due <= horizon) || (next != null && next <= horizon)

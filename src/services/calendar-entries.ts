@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, Person, Status } from '../models'
 import type { CalendarDateType, CalendarDateTypes } from '../models/workspace-layout'
-import { startOfDay, MS_PER_DAY } from '../utils/date'
+import { addDays, startOfDay } from '../utils/date'
 import { generateRecurringInstances, recurrenceAnchor } from './recurrence'
 
 export interface CalendarEntry {
@@ -62,7 +62,7 @@ export function buildEntries(
   if (!firstDay || !lastDay) return map
   const types = options.dateTypes ?? DUE_ONLY
   const rangeStart = startOfDay(firstDay)
-  const rangeEnd = new Date(startOfDay(lastDay).getTime() + MS_PER_DAY)
+  const rangeEnd = addDays(lastDay, 1)
   const inRange = (d: Date) => d.getTime() >= rangeStart.getTime() && d.getTime() < rangeEnd.getTime()
 
   const statusById = new Map<number, Status>()

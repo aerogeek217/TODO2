@@ -8,6 +8,15 @@ export function startOfDay(d: Date): Date {
   return r
 }
 
+/**
+ * Midnight of `d` plus `n` calendar days. Goes through local
+ * `new Date(y, m, d)` so a DST day (23 or 25 hours) never shifts the date —
+ * never add `n * MS_PER_DAY` to step days.
+ */
+export function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+}
+
 /** Return today at midnight */
 export function startOfToday(): Date {
   return startOfDay(new Date())

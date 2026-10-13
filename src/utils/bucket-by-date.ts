@@ -1,5 +1,5 @@
 import type { WeekStart } from './effective-date'
-import { startOfDay, MS_PER_DAY } from './date'
+import { addDays, startOfDay } from './date'
 import { startOfWeek } from './effective-date'
 
 /**
@@ -37,9 +37,12 @@ export interface DateBucketBoundaries {
 }
 
 export function dateBucketBoundaries(today: Date, weekStartsOn: WeekStart): DateBucketBoundaries {
-  const base = startOfDay(today).getTime()
-  const wkStart = startOfWeek(today, weekStartsOn).getTime()
-  return { base, tomorrow: base + MS_PER_DAY, thisWeekEnd: wkStart + 6 * MS_PER_DAY }
+  const wkStart = startOfWeek(today, weekStartsOn)
+  return {
+    base: startOfDay(today).getTime(),
+    tomorrow: addDays(today, 1).getTime(),
+    thisWeekEnd: addDays(wkStart, 6).getTime(),
+  }
 }
 
 /** Key a date (any time of day) into its relative bucket; `null` for no date. */

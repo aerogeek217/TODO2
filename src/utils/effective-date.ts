@@ -1,4 +1,4 @@
-import { startOfDay, MS_PER_DAY } from './date'
+import { addDays, startOfDay, MS_PER_DAY } from './date'
 import type { TodoItem, PersistedTodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 import { bySortOrder } from './sort-order'
@@ -11,10 +11,8 @@ export type WeekStart = 0 | 1
 
 /** Start of the week containing `today`, honoring `weekStartsOn` (0 = Sun, 1 = Mon). */
 export function startOfWeek(today: Date, weekStartsOn: WeekStart): Date {
-  const base = startOfDay(today)
-  const dow = base.getDay()
-  const days = (dow - weekStartsOn + 7) % 7
-  return new Date(base.getTime() - days * MS_PER_DAY)
+  const days = (today.getDay() - weekStartsOn + 7) % 7
+  return addDays(today, -days)
 }
 
 /**
@@ -29,9 +27,6 @@ export function resolveRelativeToken(
 ): Date {
   const base = startOfDay(today)
   const dow = base.getDay()
-
-  const addDays = (d: Date, n: number) =>
-    startOfDay(new Date(d.getTime() + n * MS_PER_DAY))
 
   const endOfWeek = () => {
     const endDow = weekStartsOn === 1 ? 0 : 6
@@ -72,7 +67,7 @@ export function resolveRelativeToken(
 /**
  * Resolve a `DateAnchor` to a concrete midnight Date. `fixed` parses the ISO
  * string; `relative` resolves against `today` via `resolveRelativeToken`;
- * `offset` is `today + days * MS_PER_DAY` (truncated to midnight).
+ * `offset` is `today` plus `days` calendar days (midnight).
  */
 export function resolveDateAnchor(
   anchor: DateAnchor,
@@ -81,7 +76,7 @@ export function resolveDateAnchor(
 ): Date {
   if (anchor.kind === 'fixed') return startOfDay(new Date(anchor.iso))
   if (anchor.kind === 'offset') {
-    return startOfDay(new Date(startOfDay(today).getTime() + anchor.days * MS_PER_DAY))
+    return addDays(today, anchor.days)
   }
   return resolveRelativeToken(anchor.token, today, weekStartsOn)
 }
