@@ -144,6 +144,18 @@ describe('prepareImport — task archives and the append purpose', () => {
     expect(result).toMatchObject({ ok: true, kind: 'full' })
   })
 
+  it('a task archive with a long name and an invalid email: name kept whole, email dropped with a warning', () => {
+    const name = 'n'.repeat(1000)
+    const result = prepareImport(archive({
+      people: [{ id: 1, name, initials: 'NN', email: 'a@b.com,evil@x.com' }],
+      todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
+    }), { purpose: 'append' })
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.people).toEqual([{ id: 1, name, initials: 'NN' }])
+    // The warning quotes the name shortened.
+    expect(result.warnings).toEqual([`Fixed 1 person: "${'n'.repeat(60)}…" (invalid email dropped)`])
+  })
+
   it('still validates rows strictly for append', () => {
     const result = prepareImport(archive({ todos: [{ uid: 'u1', title: '', isCompleted: false }] }), { purpose: 'append' })
     expect(result).toMatchObject({ ok: false, reason: 'invalid' })

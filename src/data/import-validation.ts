@@ -655,10 +655,15 @@ export function sanitizeRow<K extends keyof ImportData>(table: K, row: unknown):
   return compactRow<ImportRow<K>>(pick(row as Raw))
 }
 
-/** Row label for messages: its title or name, quoted. */
+/** Longest title / name a message quotes; longer ones end in `…`. */
+const LABEL_MAX = 60
+
+/** Row label for messages: its title or name, quoted (shortened); empty when it has neither. */
 function rowLabel(row: unknown): string {
-  return isObj(row) && 'title' in row ? `"${String(row.title)}"` :
-         isObj(row) && 'name' in row ? `"${String(row.name)}"` : ''
+  const text = isObj(row) && 'title' in row ? String(row.title) :
+               isObj(row) && 'name' in row ? String(row.name) : undefined
+  if (text === undefined) return ''
+  return `"${text.length > LABEL_MAX ? `${text.slice(0, LABEL_MAX)}…` : text}"`
 }
 
 export type ValidateImportResult =
