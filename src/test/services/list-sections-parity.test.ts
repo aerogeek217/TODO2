@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type {
   PersistedTodoItem, Person, Status, Tag, TodoPredicate,
 } from '../../models'
-import { LIST_SORT_VALUES, TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES } from '../../models'
+import { TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES, type TodoSortBy } from '../../models'
+
+/** The sorts the list page offered. */
+const LIST_SORT_VALUES: readonly TodoSortBy[] = ['manual', 'name', 'deadline', 'followup']
 import type { PersistedListDefinition, RuntimeFilterSpec } from '../../models/list-definition'
 import {
   applyFilter,

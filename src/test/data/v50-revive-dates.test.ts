@@ -5,9 +5,21 @@ import { upgradeV50 } from '../../data/upgrades/v50-revive-dates'
 import { SCHEMA_UPGRADES, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
-import { todoRepository } from '../../data/todo-repository'
 import { startOfToday } from '../../utils/date'
 import { resetDb, v50StoreSpecs } from '../helpers'
+
+/** Open tasks found by an indexed `dueDate` range read (string keys would be missed). */
+async function dueTodayIds(): Promise<number[]> {
+  const today = startOfToday()
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  const rows = await db.todos.where('dueDate').between(today, tomorrow, true, false).filter((t) => !t.isCompleted).toArray()
+  return rows.map((t) => t.id as number)
+}
+
+async function overdueIds(): Promise<number[]> {
+  const rows = await db.todos.where('dueDate').below(startOfToday()).filter((t) => !t.isCompleted).toArray()
+  return rows.map((t) => t.id as number)
+}
 
 const ISO = '2026-09-01T09:00:00.000Z'
 
@@ -142,8 +154,8 @@ describe('v50 Dexie upgrade repairs a string-dated v49 database', () => {
     expect(isDate(note.createdAt) && isDate(note.modifiedAt)).toBe(true)
     expect((await db.todoEvents.get(1))!.timestamp).toBe(ISO)
 
-    expect((await todoRepository.getDueToday()).map((t) => t.id)).toEqual([1])
-    expect((await todoRepository.getOverdue()).map((t) => t.id)).toEqual([2])
+    expect(await dueTodayIds()).toEqual([1])
+    expect(await overdueIds()).toEqual([2])
   })
 })
 
@@ -152,7 +164,7 @@ describe('restored tasks are visible to dueDate range queries', () => {
     await resetDb()
   })
 
-  it('getDueToday / getOverdue find tasks restored from a JSON export', async () => {
+  it('dueDate range reads find tasks restored from a JSON export', async () => {
     const today = startOfToday()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
@@ -170,7 +182,7 @@ describe('restored tasks are visible to dueDate range queries', () => {
     if (!prepared.ok) throw new Error(prepared.error)
     await restoreFromImportData(prepared.data)
 
-    expect((await todoRepository.getDueToday()).map((t) => t.id)).toEqual([1])
-    expect((await todoRepository.getOverdue()).map((t) => t.id)).toEqual([2])
+    expect(await dueTodayIds()).toEqual([1])
+    expect(await overdueIds()).toEqual([2])
   })
 })

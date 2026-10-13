@@ -6,7 +6,7 @@ export { type TodoTag } from './todo-tag'
 export { type ListOrder, type PersistedListOrder } from './list-order'
 export { type RecurrenceRule, type RecurrenceType } from './recurrence'
 export { type Backup, type BackupTrigger } from './backup'
-export { type ListSortBy, type ListGroupBy, type ListItemSortBy, type DateField, DATE_FIELD_VALUES } from './app-view'
+export { type DateField, DATE_FIELD_VALUES } from './app-view'
 export {
   type TodoSortBy,
   type TodoGroupBy,
@@ -14,8 +14,6 @@ export {
   TODO_GROUP_BY_VALUES,
   isTodoSortBy,
   isTodoGroupBy,
-  LIST_SORT_VALUES,
-  LIST_GROUP_VALUES,
 } from './todo-sort-group'
 export {
   type TodoPredicate,

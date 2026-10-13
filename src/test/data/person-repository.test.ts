@@ -89,39 +89,6 @@ describe('personRepository', () => {
     expect(people).toHaveLength(0)
   })
 
-  it('removeAllAssignments clears links for a todo', async () => {
-    const p1 = await personRepository.insert({ name: 'Alice', initials: 'A' })
-    const p2 = await personRepository.insert({ name: 'Bob', initials: 'B' })
-    const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
-      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
-    })) as number
-    await personRepository.assignPerson(todoId, p1)
-    await personRepository.assignPerson(todoId, p2)
-
-    await personRepository.removeAllAssignments(todoId)
-    const people = await personRepository.getAssignedPeople(todoId)
-    expect(people).toHaveLength(0)
-  })
-
-  it('getTodoIdsForPerson returns linked todo ids', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
-    const t1 = (await db.todos.add({
-      title: 'Task 1', isCompleted: false,
-      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
-    })) as number
-    const t2 = (await db.todos.add({
-      title: 'Task 2', isCompleted: false,
-      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 2,
-    })) as number
-
-    await personRepository.assignPerson(t1, personId)
-    await personRepository.assignPerson(t2, personId)
-
-    const todoIds = await personRepository.getTodoIdsForPerson(personId)
-    expect(todoIds.sort()).toEqual([t1, t2].sort())
-  })
-
   it('restoreWithJoins re-inserts the person with id, color and todoPeople links', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#f28c4e' })
     const person = (await personRepository.getById(personId))!

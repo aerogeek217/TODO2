@@ -28,28 +28,6 @@ describe('todoEventRepository — write/read round-trip', () => {
     expect(all).toHaveLength(1)
   })
 
-  it('inRange filters by timestamp window and optional types', async () => {
-    await todoEventRepository.bulkAdd([
-      { todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-04-01T00:00:00.000Z' },
-      { todoId: 1, type: 'scheduled', fromValue: null, toValue: '2026-04-05T00:00:00.000Z', timestamp: '2026-04-10T00:00:00.000Z' },
-      { todoId: 2, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-04-20T00:00:00.000Z' },
-      { todoId: 2, type: 'reopened', fromValue: null, toValue: null, timestamp: '2026-05-01T00:00:00.000Z' },
-    ])
-
-    const inApril = await todoEventRepository.inRange(
-      new Date('2026-04-01T00:00:00Z'),
-      new Date('2026-05-01T00:00:00Z'),
-    )
-    expect(inApril.map((e) => e.type).sort()).toEqual(['completed', 'created', 'scheduled'])
-
-    const onlyScheduled = await todoEventRepository.inRange(
-      new Date('2026-04-01T00:00:00Z'),
-      new Date('2026-05-01T00:00:00Z'),
-      ['scheduled'],
-    )
-    expect(onlyScheduled).toHaveLength(1)
-    expect(onlyScheduled[0]!.type).toBe('scheduled')
-  })
 })
 
 describe('todoRepository — emit on insert / update / complete', () => {

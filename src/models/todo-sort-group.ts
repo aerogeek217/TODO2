@@ -42,10 +42,3 @@ export function isTodoSortBy(v: unknown): v is TodoSortBy {
 export function isTodoGroupBy(v: unknown): v is TodoGroupBy {
   return typeof v === 'string' && (TODO_GROUP_BY_VALUES as readonly string[]).includes(v)
 }
-
-/** Per-surface supported subsets — single source of truth for option arrays. */
-export const LIST_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'name', 'deadline', 'followup'] as const
-
-export const LIST_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'deadline', 'followup', 'status', 'people', 'tag'] as const

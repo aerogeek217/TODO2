@@ -1,6 +1,5 @@
 import { db } from './database'
 import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
-import { startOfToday } from '../utils/date'
 import { encodeDateValue } from './todo-event-repository'
 import { hasRecurrenceAnchor } from './recurrence-anchor'
 import { resolveCompletedAt } from '../utils/completed-at'
@@ -98,26 +97,6 @@ function buildFieldChangeEvents(
 export const todoRepository = {
   async getAll(): Promise<PersistedTodoItem[]> {
     return db.todos.orderBy('sortOrder').toArray() as Promise<PersistedTodoItem[]>
-  },
-
-  async getDueToday(): Promise<PersistedTodoItem[]> {
-    const today = startOfToday()
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    return db.todos
-      .where('dueDate')
-      .between(today, tomorrow, true, false)
-      .filter((t) => !t.isCompleted)
-      .sortBy('priority') as Promise<PersistedTodoItem[]>
-  },
-
-  async getOverdue(): Promise<PersistedTodoItem[]> {
-    const today = startOfToday()
-    return db.todos
-      .where('dueDate')
-      .below(today)
-      .filter((t) => !t.isCompleted)
-      .sortBy('dueDate') as Promise<PersistedTodoItem[]>
   },
 
   async getById(id: number): Promise<PersistedTodoItem | undefined> {
@@ -241,10 +220,6 @@ export const todoRepository = {
       const events = buildFieldChangeEvents(id, prior, { isCompleted: completed }, now.toISOString())
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
     })
-  },
-
-  async restore(todo: PersistedTodoItem): Promise<void> {
-    await db.todos.put(todo)
   },
 
   async delete(id: number): Promise<void> {

@@ -56,15 +56,6 @@ export const personRepository = {
     await todoPeopleOps.unassign(todoId, personId)
   },
 
-  async removeAllAssignments(todoId: number): Promise<void> {
-    await db.todoPeople.where('todoId').equals(todoId).delete()
-  },
-
-  async getTodoIdsForPerson(personId: number): Promise<number[]> {
-    const links = await db.todoPeople.where('personId').equals(personId).toArray()
-    return links.map((l) => l.todoId)
-  },
-
   async getTodoCountForPerson(personId: number): Promise<number> {
     return db.todoPeople.where('personId').equals(personId).count()
   },

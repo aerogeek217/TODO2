@@ -26,30 +26,6 @@ export const todoEventRepository = {
   },
 
   /**
-   * Events whose `timestamp` falls within `[from, to)` (start inclusive,
-   * end exclusive). Optional `types` filter keeps the predicate cheap when
-   * a caller only needs e.g. `'deadline'` events.
-   *
-   * `timestamp` is a string column but ISO-8601 sorts lexically — Dexie's
-   * `between` treats string ranges as a string compare, which matches our
-   * desired semantics. Caller-supplied Dates are converted to ISO.
-   */
-  async inRange(
-    from: Date,
-    to: Date,
-    types?: readonly TodoEventType[],
-  ): Promise<TodoEvent[]> {
-    const fromIso = from.toISOString()
-    const toIso = to.toISOString()
-    let collection = db.todoEvents.where('timestamp').between(fromIso, toIso, true, false)
-    if (types && types.length > 0) {
-      const typeSet = new Set<TodoEventType>(types)
-      collection = collection.filter((e) => typeSet.has(e.type))
-    }
-    return collection.toArray()
-  },
-
-  /**
    * Events at or after `from` (one indexed range read on `timestamp`),
    * optionally only of `types`.
    */
@@ -95,9 +71,4 @@ export function encodeDateValue(d: Date | undefined | null): string | null {
     return isNaN(t) ? null : new Date(t).toISOString()
   }
   return null
-}
-
-/** Two encoded scalar values are equal — used to skip no-op edits. */
-export function encodedEqual(a: string | number | null, b: string | number | null): boolean {
-  return a === b
 }
