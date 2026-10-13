@@ -16,8 +16,6 @@ export const MIGRATED_ORG_PREFIX = 'Org: '
 /** Tables v55 drops (the Dexie block declares them `null`). */
 export const V55_DROPPED_TABLES = ['orgs', 'todoOrgs', 'personOrgs'] as const
 
-const PERSON_NAME_MAX = 200
-
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v)
 }
@@ -104,7 +102,8 @@ function mergePeople(
   let nextId = maxId(peopleIn) + 1
   for (const org of orgRows) {
     const orgName = (org.name as string).trim()
-    const name = (MIGRATED_ORG_PREFIX + orgName).slice(0, PERSON_NAME_MAX)
+    // Kept whole, however long: import accepts names of any length.
+    const name = MIGRATED_ORG_PREFIX + orgName
     const existingIndex = byName.get(nameKey(name))
     if (existingIndex !== undefined) {
       const existing = people[existingIndex] as DataRow

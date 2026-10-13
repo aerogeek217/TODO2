@@ -45,7 +45,6 @@ export const V60_REMOVED_SETTING_KEYS = [
   'defaultProjectId', 'defaultProjectGroupBy', 'canvasViewport', 'canvasMaxExtent', 'canvasRails',
 ] as const
 
-const TAG_NAME_MAX = 200
 const PROJECT_AXIS = 'project'
 
 type Obj = Record<string, unknown>
@@ -90,7 +89,8 @@ function projectTags(tagsIn: DataRow[] | undefined, projects: DataRow[] | undefi
   let nextId = maxId(tagsIn) + 1
   let added = false
   for (const project of rows) {
-    const name = (V60_PROJECT_TAG_PREFIX + (project.name as string).trim()).slice(0, TAG_NAME_MAX)
+    // Kept whole, however long: import accepts names of any length.
+    const name = V60_PROJECT_TAG_PREFIX + (project.name as string).trim()
     const existing = byName.get(nameKey(name))
     if (existing !== undefined) {
       projectToTag.set(project.id as number, existing)

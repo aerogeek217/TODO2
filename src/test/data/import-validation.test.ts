@@ -427,11 +427,30 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('status with too-long name fails', () => {
+  it('accepts person, tag, status and list names of any length (the editors take any length)', () => {
+    const long = 'x'.repeat(5000)
     const result = validateImportData(validData({
-      statuses: [{ id: 1, name: 'x'.repeat(201), color: '#00ff00', sortOrder: 0 }],
+      people: [makePerson({ name: long })],
+      tags: [makeTag({ name: long })],
+      statuses: [{ id: 1, name: long, color: '#00ff00', sortOrder: 0 }],
+      listDefinitions: [{
+        id: 1, name: long, sortOrder: 0, pinnedToDashboard: true,
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false } },
+        sort: 'manual', grouping: 'none',
+      }],
     }))
-    expect(result.ok).toBe(false)
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.people[0]!.name).toBe(long)
+    expect(result.data.tags![0]!.name).toBe(long)
+    expect(result.data.statuses[0]!.name).toBe(long)
+    expect(result.data.listDefinitions[0]!.name).toBe(long)
+  })
+
+  it('still rejects an empty or non-string name', () => {
+    for (const name of ['', 42, null]) {
+      const result = validateImportData(validData({ statuses: [{ id: 1, name, color: '#00ff00', sortOrder: 0 }] }))
+      expect(result, JSON.stringify(name)).toEqual({ ok: false, error: expect.stringContaining('bad field "name"') })
+    }
   })
 
   it('multiple valid statuses pass validation', () => {

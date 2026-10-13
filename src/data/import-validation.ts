@@ -53,6 +53,15 @@ function isStr(v: unknown, maxLen: number): v is string {
  */
 const NOTES_MAX_CHARS = Number.POSITIVE_INFINITY
 
+/**
+ * The length limit for person / tag / status / list names: none beyond the
+ * file-size cap. The editors take any length and `@name` / `#tag` create
+ * names from Quick Add and notes, so a lower limit here made every export,
+ * backup and sync file holding a longer name fail to import. A name must
+ * still be a non-empty string.
+ */
+const NAME_MAX_CHARS = Number.POSITIVE_INFINITY
+
 function isOptStr(v: unknown, maxLen: number): boolean {
   return v === undefined || v === null || (typeof v === 'string' && v.length <= maxLen)
 }
@@ -184,7 +193,7 @@ function isOptRuntimeFilter(v: unknown): boolean {
 function checkListDefinition(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['name', isStr(v.name, 200)],
+    ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['membership', isValidMembership(v.membership)],
     ['sort', isValidSort(v.sort)],
@@ -203,7 +212,7 @@ function isOptStatusIcon(v: unknown): boolean {
 function checkStatus(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['name', isStr(v.name, 200)],
+    ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['icon', isOptStatusIcon(v.icon)],
@@ -213,7 +222,7 @@ function checkStatus(v: unknown): CheckResult {
 function checkPerson(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['name', isStr(v.name, 200)],
+    ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['initials', isStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
     // Any string within the cap: the email shape is the person editor's check.
@@ -224,7 +233,7 @@ function checkPerson(v: unknown): CheckResult {
 function checkTag(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['name', isStr(v.name, 200)],
+    ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['color', isValidCssColor(v.color)],
   ])
 }

@@ -275,4 +275,27 @@ describe('export → import accepts every text length the app can store', () => 
     expect(prepared.data.todos?.[0]?.notes).toHaveLength(long.length)
     expect(prepared.data.notes?.[0]?.content).toHaveLength(long.length)
   })
+
+  it('person, tag, status and list names of 1,000 characters (export → restore)', async () => {
+    // The editors have no length limit and `@name` / `#tag` create names
+    // from Quick Add and notes, so long names must survive a restore.
+    const seed = buildSeed()
+    const long = (prefix: string) => `${prefix} ${'n'.repeat(1000 - prefix.length - 1)}`
+    seed.people[0]!.name = long('person')
+    seed.tags[0]!.name = long('tag')
+    seed.statuses[0]!.name = long('status')
+    seed.listDefinitions[0]!.name = long('list')
+    await writeSeed(seed)
+
+    const prepared = prepareImportText(JSON.stringify(await buildExportData()))
+    if (!prepared.ok) throw new Error(prepared.error)
+    await resetDb()
+    await restoreFromImportData(prepared.data)
+
+    expect((await db.people.get(1))?.name).toBe(long('person'))
+    expect((await db.tags.get(1))?.name).toBe(long('tag'))
+    expect((await db.statuses.get(1))?.name).toBe(long('status'))
+    expect((await db.listDefinitions.get(2))?.name).toBe(long('list'))
+    for (const name of [long('person'), long('tag'), long('status'), long('list')]) expect(name).toHaveLength(1000)
+  })
 })
