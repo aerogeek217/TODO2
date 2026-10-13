@@ -20,6 +20,14 @@ const base: TaskDraft = {
 }
 
 describe('draftFromText', () => {
+  it('a line whose tokens fill the parser window keeps the whole line as a title over 500 characters', () => {
+    // Why import accepts titles of any length: this is a title the app makes.
+    const line = `#${'a'.repeat(499)} and the rest of the line`
+    const d = draftFromText(line, ctx)
+    expect(d.title).toBe(line)
+    expect(d.title.length).toBeGreaterThan(500)
+  })
+
   it('parses people, tags and commands out of the title', () => {
     const d = draftFromText('Draft homepage copy @Priya #planning /due mon', ctx)
     expect(d.title).toBe('Draft homepage copy')

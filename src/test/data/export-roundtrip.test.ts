@@ -298,4 +298,20 @@ describe('export → import accepts every text length the app can store', () => 
     expect((await db.listDefinitions.get(2))?.name).toBe(long('list'))
     for (const name of [long('person'), long('tag'), long('status'), long('list')]) expect(name).toHaveLength(1000)
   })
+
+  it('a task title of 1,000 characters (export → restore)', async () => {
+    // Converting a note line can make a title over 500 characters.
+    const seed = buildSeed()
+    const title = `title ${'t'.repeat(994)}`
+    seed.todos[0]!.title = title
+    await writeSeed(seed)
+
+    const prepared = prepareImportText(JSON.stringify(await buildExportData()))
+    if (!prepared.ok) throw new Error(prepared.error)
+    await resetDb()
+    await restoreFromImportData(prepared.data)
+
+    expect(title).toHaveLength(1000)
+    expect((await db.todos.get(1))?.title).toBe(title)
+  })
 })

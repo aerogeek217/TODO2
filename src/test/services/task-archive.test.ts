@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import { TASK_ARCHIVE_KIND, prepareImportText } from '../../data/import-pipeline'
+import { appendImportTasks } from '../../data/append-import'
 import { buildTaskArchive, selfCheckTaskArchiveJson, taskArchiveFileName } from '../../services/task-archive'
 import { exportAndPurgeCompleted, listExpiredCompleted } from '../../services/purge-completed'
 import { saveTextFile } from '../../services/save-file'
@@ -98,6 +99,25 @@ describe('buildTaskArchive', () => {
     expect(prepared.kind).toBe('task-archive')
     expect(prepared.data.todos[0]?.completedAt).toBeInstanceOf(Date)
     expect(prepareImportText(json)).toMatchObject({ ok: false, reason: 'task-archive' })
+  })
+
+  it('a 1,000-character title (and person name) passes the archive self-check and the append import', async () => {
+    const title = `title ${'t'.repeat(994)}`
+    const name = `person ${'p'.repeat(993)}`
+    const person = await db.people.add({ name, initials: 'PP' }) as number
+    const id = await todoRepository.insert({
+      title, isCompleted: true, completedAt: daysAgo(90), createdAt: daysAgo(100), modifiedAt: daysAgo(90), sortOrder: 1,
+    })
+    await db.todoPeople.add({ todoId: id, personId: person })
+    const json = JSON.stringify(await buildTaskArchive([id]))
+    expect(selfCheckTaskArchiveJson(json)).toBeNull()
+
+    await resetDb()
+    const prepared = prepareImportText(json, { purpose: 'append' })
+    if (!prepared.ok) throw new Error(prepared.error)
+    await appendImportTasks(prepared.data, new Map())
+    expect((await db.todos.toArray()).map((t) => t.title)).toEqual([title])
+    expect((await db.people.toArray()).map((p) => p.name)).toEqual([name])
   })
 
   it('names the file todo2-archive-<timestamp>.json', () => {

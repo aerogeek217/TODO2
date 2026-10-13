@@ -62,6 +62,16 @@ const NOTES_MAX_CHARS = Number.POSITIVE_INFINITY
  */
 const NAME_MAX_CHARS = Number.POSITIVE_INFINITY
 
+/**
+ * The length limit for task titles: none beyond the file-size cap. Most
+ * title inputs stop at 500 characters, but converting a note line can make
+ * a longer title (a line whose tokens fill the parser's 500-character window
+ * keeps the whole line), and a lower limit here made every export, backup
+ * and sync file holding one fail to import. A title must still be a
+ * non-empty string.
+ */
+const TITLE_MAX_CHARS = Number.POSITIVE_INFINITY
+
 function isOptStr(v: unknown, maxLen: number): boolean {
   return v === undefined || v === null || (typeof v === 'string' && v.length <= maxLen)
 }
@@ -108,7 +118,7 @@ function checkTodo(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
     ['uid', isStr(v.uid, 200)],
-    ['title', isStr(v.title, 500)],
+    ['title', isStr(v.title, TITLE_MAX_CHARS)],
     ['notes', isOptStr(v.notes, NOTES_MAX_CHARS)],
     ['progress', isOptStr(v.progress, 500)],
     ['isCompleted', isBool(v.isCompleted)],

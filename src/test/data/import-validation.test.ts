@@ -113,9 +113,17 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('rejects title exceeding 500 chars', () => {
-    const result = validateImportData(validData({ todos: [makeTodo({ title: 'x'.repeat(501) })] }))
-    expect(result.ok).toBe(false)
+  it('accepts a title of any length (a note line can make one over 500 chars)', () => {
+    const title = 'x'.repeat(5000)
+    const result = validateImportData(validData({ todos: [makeTodo({ title })] }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.todos[0]!.title).toBe(title)
+  })
+
+  it('quotes a long title cut to 60 characters in an error', () => {
+    const title = 't'.repeat(1000)
+    const result = validateImportData(validData({ todos: [makeTodo({ title, isCompleted: 'yes' })] }))
+    expect(result).toEqual({ ok: false, error: `Invalid "todos" record at index 0 ("${'t'.repeat(60)}…"): bad field "isCompleted"` })
   })
 
   it('rejects NaN sortOrder', () => {

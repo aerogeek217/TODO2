@@ -751,11 +751,11 @@ describe('v49 fixture → v62: the Default layout loses its status tabs', () => 
   })
 })
 
-// ── Long names: imported whole, at every step ───────────────────────────
-describe('v49 fixture with 1,000-character names: every name survives the upgrade', () => {
+// ── Long names and titles: imported whole, at every step ───────────────────────────────────────────
+describe('v49 fixture with 1,000-character names and titles: every one survives the upgrade', () => {
   const long = (prefix: string) => `${prefix} ${'n'.repeat(1000 - prefix.length - 1)}`
 
-  it('people, orgs (as Org: people), tags, projects (as Project: tags), statuses and lists keep their whole names', async () => {
+  it('people, orgs (as Org: people), tags, projects (as Project: tags), statuses, lists and tasks keep their whole names / titles', async () => {
     const raw = JSON.parse(JSON.stringify(fixture)) as Record<string, Array<Record<string, unknown>>>
     raw.people![0]!.name = long('person')
     raw.orgs![0]!.name = long('org')
@@ -763,6 +763,7 @@ describe('v49 fixture with 1,000-character names: every name survives the upgrad
     raw.projects![0]!.name = long('project')
     raw.statuses![0]!.name = long('status')
     raw.listDefinitions![0]!.name = long('list')
+    raw.todos![0]!.title = long('title')
 
     const prepared = prepareImport(raw)
     if (!prepared.ok) throw new Error(prepared.error)
@@ -776,5 +777,6 @@ describe('v49 fixture with 1,000-character names: every name survives the upgrad
     expect(tags).toContain(`Project: ${long('project')}`)
     expect((await db.statuses.toArray()).map((s) => s.name)).toContain(long('status'))
     expect((await db.listDefinitions.toArray()).map((d) => d.name)).toContain(long('list'))
+    expect((await db.todos.toArray()).map((t) => t.title)).toContain(long('title'))
   })
 })
