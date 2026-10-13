@@ -11,6 +11,8 @@ export const CHORD_TIMEOUT_MS = 1000
 export const INLINE_EDIT_BLUR_MS = 250
 /** How long the undo snackbar stays visible after an undoable action. */
 export const UNDO_SNACKBAR_MS = 5000
+/** How long a notice in the snackbar (`useUndoStore.notify`, no Undo) stays visible. */
+export const NOTICE_SNACKBAR_MS = 8000
 /** Search-input debounce in `TopBar` before the live filter pass runs. */
 export const SEARCH_DEBOUNCE_MS = 150
 /** Toast visibility window for the in-popover convert-to-task toast. */

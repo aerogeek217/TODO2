@@ -340,4 +340,24 @@ describe('useUndoStore', () => {
     vi.advanceTimersByTime(5000)
     expect(useUndoStore.getState().snackbar).toBeNull()
   })
+
+  it('notify shows a notice without touching the undo stack, for longer than an undo snackbar', () => {
+    const entry = makeEntry('action1')
+    useUndoStore.getState().push(entry, true)
+    useUndoStore.getState().notify('Deleted 2 completed tasks. No backup was taken.')
+
+    const state = useUndoStore.getState()
+    expect(state.snackbar).toEqual({ description: 'Deleted 2 completed tasks. No backup was taken.', notice: true })
+    expect(state.undoStack).toEqual([entry])
+    vi.advanceTimersByTime(5000)
+    expect(useUndoStore.getState().snackbar).not.toBeNull()
+    vi.advanceTimersByTime(3000)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
+  it('an undoable push replaces a notice', () => {
+    useUndoStore.getState().notify('notice')
+    useUndoStore.getState().push(makeEntry('action1'), true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'action1' })
+  })
 })

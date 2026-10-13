@@ -270,3 +270,46 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
   expect(await dbTitles(page)).toEqual([])
   await expect(page.getByRole('alert').filter({ hasText: 'No backup was taken before deleting 1 completed task' })).toBeVisible()
 })
+
+test.describe('phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  test('launch purge: Continue without a backup says so in the snackbar (no warning strip on a phone)', async ({ page }) => {
+    await installBackupFailureSwitch(page)
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: 'Quick add' })).toBeVisible()
+    await page.evaluate(async (db) => {
+      await new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open(db)
+        req.onsuccess = () => {
+          const idb = req.result
+          const tx = idb.transaction(['todos', 'settings'], 'readwrite')
+          const now = Date.now()
+          tx.objectStore('todos').add({
+            uid: crypto.randomUUID(), title: 'Old done', isCompleted: true, sortOrder: 1,
+            createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now), completedAt: new Date(now - 60 * 86_400_000),
+          })
+          tx.objectStore('settings').put({ key: 'completedRetentionDays', value: '30' })
+          tx.oncomplete = () => { idb.close(); resolve() }
+          tx.onerror = () => reject(tx.error)
+        }
+        req.onerror = () => reject(req.error)
+      })
+    }, DB_NAME)
+    await page.reload()
+    await failBackups(page, true)
+
+    const purge = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
+    await expect(purge).toBeVisible()
+    await purge.getByRole('button', { name: 'Delete', exact: true }).click()
+    const prompt = backupPrompt(page)
+    await expect(prompt).toBeVisible()
+    // The copy names no place the phone doesn't have.
+    await expect(prompt).not.toContainText('Settings')
+    await prompt.getByRole('button', { name: 'Continue' }).click()
+    await expect(purge).toBeHidden()
+    await expect(page.getByText('Deleted 1 completed task. No backup was taken.')).toBeVisible()
+    await expect(page.getByRole('alert').filter({ hasText: 'No backup was taken' })).toHaveCount(0)
+    expect(await dbTitles(page)).toEqual([])
+  })
+})

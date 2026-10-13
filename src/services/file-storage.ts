@@ -7,7 +7,8 @@ import type { PrepareImportFailure } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData } from './export-import'
 import { backupScheduler } from './backup-scheduler'
-import { takeSafetySnapshot } from './safety-snapshot'
+import { NO_BACKUP_NOTE, takeSafetySnapshot } from './safety-snapshot'
+import { useUndoStore } from '../stores/undo-store'
 import type { UnsupportedImportInfo } from './migration-check'
 import {
   readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId,
@@ -485,17 +486,19 @@ class FileStorageService {
    * nothing can be lost, so a failed backup doesn't stop the load.
    */
   private async applyFileData(data: ImportData, fileId: string, browserHoldsFile: boolean): Promise<boolean> {
+    const name = this.handle?.name ?? 'the sync file'
+    let noBackup = false
     if (browserHoldsFile) {
       await backupScheduler.snapshotBeforeDestructive().catch((err) => {
         console.warn('[file-storage] snapshot before reloading the unchanged file failed', err)
       })
     } else {
-      const name = this.handle?.name ?? 'the sync file'
       const snapshot = await takeSafetySnapshot(`loading ${name} over this browser's data`)
       if (snapshot === 'cancelled') {
         this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
         return false
       }
+      noBackup = snapshot === 'without-backup'
     }
     this.suppressSync = true
     try {
@@ -506,6 +509,8 @@ class FileStorageService {
     this.changeGen++
     writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
     await this.afterImportListener?.()
+    // After the stores reload (which clears the snackbar): the result toast.
+    if (noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
     return true
   }
 

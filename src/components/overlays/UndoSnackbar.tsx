@@ -9,17 +9,19 @@ export function UndoSnackbar() {
 
   return (
     <div className={styles.snackbar}>
-      <span className={styles.message}>{snackbar.description}</span>
-      <button
-        className={styles.undoButton}
-        onClick={() => {
-          undo()
-          dismissSnackbar()
-        }}
-      >
-        Undo
-      </button>
-      <button className={styles.dismissButton} onClick={dismissSnackbar}>
+      <span className={snackbar.notice ? styles.notice : styles.message}>{snackbar.description}</span>
+      {!snackbar.notice && (
+        <button
+          className={styles.undoButton}
+          onClick={() => {
+            undo()
+            dismissSnackbar()
+          }}
+        >
+          Undo
+        </button>
+      )}
+      <button className={styles.dismissButton} onClick={dismissSnackbar} aria-label="Dismiss">
         &times;
       </button>
     </div>

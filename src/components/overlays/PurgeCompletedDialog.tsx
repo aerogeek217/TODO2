@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { PersistedTodoItem } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
+import { useUndoStore } from '../../stores/undo-store'
+import { NO_BACKUP_NOTE } from '../../services/safety-snapshot'
 import { exportAndPurgeCompleted, keptMessage } from '../../services/purge-completed'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import buttons from './FileSyncDialogs.module.css'
@@ -51,6 +53,9 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
         setError(keptMessage(result))
         return
       }
+      if (result.noBackup) {
+        useUndoStore.getState().notify(`Saved ${plural(result.deleted, 'task')} to ${result.fileName} and deleted them. ${NO_BACKUP_NOTE}`)
+      }
       onDone()
     } catch (err) {
       setError(`Nothing was deleted — ${err instanceof Error ? err.message : String(err)}`)
@@ -67,6 +72,9 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
       if (outcome.status === 'cancelled') {
         setError('Nothing was deleted — the backup could not be saved.')
         return
+      }
+      if (outcome.noBackup) {
+        useUndoStore.getState().notify(`Deleted ${plural(outcome.deleted, 'completed task')}. ${NO_BACKUP_NOTE}`)
       }
       onDone()
     } catch (err) {

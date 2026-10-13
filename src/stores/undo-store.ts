@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { UNDO_SNACKBAR_MS } from '../constants'
+import { NOTICE_SNACKBAR_MS, UNDO_SNACKBAR_MS } from '../constants'
 
 export interface UndoEntry {
   description: string
@@ -14,7 +14,8 @@ interface UndoState {
   redoStack: UndoEntry[]
   isPerformingUndoRedo: boolean
   groupStartIndex: number | null
-  snackbar: { description: string } | null
+  /** What the snackbar shows. `notice`: a message with no Undo (`notify`). */
+  snackbar: { description: string; notice?: true } | null
   snackbarTimerId: ReturnType<typeof setTimeout> | null
 
   push: (entry: UndoEntry, showSnackbar?: boolean) => void
@@ -28,6 +29,12 @@ interface UndoState {
   beginGroup: () => void
   /** Merge all entries pushed since beginGroup() into a single undo entry. */
   endGroup: (description: string, showSnackbar?: boolean) => void
+  /**
+   * Shows `description` in the snackbar without an Undo button — the result
+   * of an operation that can't be undone (e.g. one run without a backup).
+   * Leaves the undo stack alone.
+   */
+  notify: (description: string) => void
   dismissSnackbar: () => void
   clear: () => void
   canUndo: () => boolean
@@ -171,6 +178,15 @@ export const useUndoStore = create<UndoState>((set, get) => ({
         snackbarTimerId: null,
       })
     }
+  },
+
+  notify(description: string) {
+    const { snackbarTimerId } = get()
+    if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
+    const timerId = setTimeout(() => {
+      set({ snackbar: null, snackbarTimerId: null })
+    }, NOTICE_SNACKBAR_MS)
+    set({ snackbar: { description, notice: true }, snackbarTimerId: timerId })
   },
 
   dismissSnackbar() {

@@ -835,6 +835,9 @@ describe('FileStorageService — browser backup before the file replaces it', ()
     expect(mockRestoreFromImportData).toHaveBeenCalledWith(validImportData)
     expect(svc.status.isConnected).toBe(true)
     expect(svc.status.error).toBeNull()
+    // The result toast (the warning strip is desktop-only).
+    const { useUndoStore } = await import('../../stores/undo-store')
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Loaded todo2-data.json. No backup was taken.', notice: true })
   })
 
   it('conflict "Use file": a failed backup asks before the browser data is replaced', async () => {
