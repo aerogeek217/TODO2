@@ -10,6 +10,7 @@ import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { addFollowupInterval, formatFollowupDate } from '../utils/followup'
+import { fieldsOf, revertChanges, todoChanges } from '../utils/todo-changes'
 
 /** Next follow-up for a task created (or followed up) at `now`: today + the Settings default. */
 function defaultNextFollowup(now: Date): Date {
@@ -90,6 +91,12 @@ interface TodoState {
     items: readonly NewTaskWithAssignments[],
     options: { description: string; snackbar?: boolean },
   ) => Promise<number[]>
+  /**
+   * Saves an edited task: only the fields of `todo` that differ from the
+   * task's current row are written, so pass a copy read from the store just
+   * before (`{ ...current, title }`). One undo step; undo restores only those
+   * fields. No change → no write and no undo step.
+   */
   update: (todo: PersistedTodoItem) => Promise<void>
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -145,6 +152,45 @@ interface TodoState {
 
 export const useTodoStore = create<TodoState>((set, get) => {
   const allEnsure = makeEnsureLoaded(() => get().loadAll())
+
+  /**
+   * Writes `changes` to one task as an undoable edit (`description`). Only
+   * the fields that differ from the task's current row are written — in the
+   * store and in the database — so an edit never puts back an older value of
+   * a field it didn't change. Undo writes back just those fields.
+   */
+  function patchTodo(id: number, changes: Partial<PersistedTodoItem>, description: string): Promise<void> {
+    const prev = get().todos.find((t) => t.id === id)
+    if (!prev) return Promise.resolve()
+    const effective = todoChanges(prev, { ...prev, ...changes })
+    if (Object.keys(effective).length === 0) return Promise.resolve()
+    const before = fieldsOf(prev, effective)
+    const now = new Date()
+    return optimistic(
+      set,
+      () => set({
+        todos: get().todos.map((t) => (t.id === id ? { ...t, ...effective, modifiedAt: now } : t)),
+      }),
+      () => todoRepository.update(id, effective),
+      // Field by field: a field another edit changed meanwhile keeps its value.
+      () => set({
+        todos: get().todos.map((t) => (t.id === id
+          ? {
+              ...t,
+              ...revertChanges(t, effective, before),
+              ...(t.modifiedAt === now ? { modifiedAt: prev.modifiedAt } : {}),
+            }
+          : t)),
+      }),
+      'Failed to update task',
+      {
+        description,
+        redo: () => patchTodo(id, effective, description),
+        undo: () => patchTodo(id, before, description),
+      },
+    )
+  }
+
   return {
   todos: [],
   todosVersion: 0,
@@ -228,27 +274,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async update(todo: PersistedTodoItem) {
     const prev = get().todos.find((t) => t.id === todo.id)
     if (!prev) return
-    const snapshot = { ...prev }
-    const now = new Date()
     // Resolve completedAt once and hand the same value to the repository, so
     // the store and the DB never hold two independently minted timestamps.
-    const resolved = { ...todo, completedAt: resolveCompletedAt(prev, todo, now) }
-    return optimistic(
-      set,
-      () => set({
-        todos: get().todos.map((t) => (t.id === todo.id ? { ...resolved, modifiedAt: now } : t)),
-      }),
-      () => todoRepository.update(resolved),
-      () => set({
-        todos: get().todos.map((t) => (t.id === todo.id ? snapshot : t)),
-      }),
-      'Failed to update task',
-      {
-        description: `Edit "${todo.title}"`,
-        redo: () => get().update(todo),
-        undo: () => get().update(snapshot),
-      },
-    )
+    const completedAt = resolveCompletedAt(prev, todo, new Date())
+    return patchTodo(todo.id, todoChanges(prev, { ...todo, completedAt }), `Edit "${todo.title}"`)
   },
 
   async toggleComplete(id: number) {

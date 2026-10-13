@@ -34,16 +34,39 @@ describe('todoRepository', () => {
     expect(todo!.isCompleted).toBe(true)
   })
 
-  it('update modifies all fields', async () => {
+  it('update writes the given fields', async () => {
     const id = await todoRepository.insert(makeTodo({ title: 'Original' }))
-    const todo = await todoRepository.getById(id)
-    todo!.title = 'Updated'
-    todo!.notes = 'note body'
-    await todoRepository.update(todo!)
+    await todoRepository.update(id, { title: 'Updated', notes: 'note body' })
 
     const updated = await todoRepository.getById(id)
     expect(updated!.title).toBe('Updated')
     expect(updated!.notes).toBe('note body')
+  })
+
+  it('update writes only the given fields: a concurrent write to another field survives', async () => {
+    const id = await todoRepository.insert(makeTodo({ title: 'Original' }))
+    await todoRepository.bulkUpdate([{ todoId: id, changes: { focus: true, statusId: 4 } }])
+    await todoRepository.update(id, { title: 'Updated' })
+
+    const updated = await todoRepository.getById(id)
+    expect(updated).toMatchObject({ title: 'Updated', focus: true, statusId: 4 })
+  })
+
+  it('update removes a field set to undefined', async () => {
+    const id = await todoRepository.insert(makeTodo({ notes: 'n' }))
+    await todoRepository.update(id, { notes: undefined })
+
+    const updated = await todoRepository.getById(id)
+    expect('notes' in updated!).toBe(false)
+  })
+
+  it('update of a deleted task does not bring it back', async () => {
+    const id = await todoRepository.insert(makeTodo())
+    await todoRepository.delete(id)
+    await todoRepository.update(id, { title: 'Edited after delete', dueDate: new Date(2026, 5, 1) })
+
+    expect(await todoRepository.getById(id)).toBeUndefined()
+    expect(await db.todoEvents.where('todoId').equals(id).count()).toBe(0)
   })
 
   it('delete removes a todo', async () => {
@@ -107,9 +130,7 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
       nextFollowupAt: followup,
       recurrenceRule: { type: 'monthly', originalDayOfMonth: 10 },
     }))
-    const row = (await todoRepository.getById(id))!
-    row.dueDate = undefined
-    await todoRepository.update(row)
+    await todoRepository.update(id, { dueDate: undefined })
 
     const updated = await todoRepository.getById(id)
     expect(updated!.dueDate).toBeUndefined()
@@ -122,9 +143,7 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
       dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
-    const row = (await todoRepository.getById(id))!
-    row.nextFollowupAt = followup
-    await todoRepository.update(row)
+    await todoRepository.update(id, { nextFollowupAt: followup })
 
     const updated = await todoRepository.getById(id)
     expect(updated!.nextFollowupAt).toEqual(followup)
@@ -136,9 +155,7 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
       dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
-    const row = (await todoRepository.getById(id))!
-    row.title = 'Renamed'
-    await todoRepository.update(row)
+    await todoRepository.update(id, { title: 'Renamed' })
 
     const updated = await todoRepository.getById(id)
     expect(updated!.title).toBe('Renamed')

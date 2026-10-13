@@ -195,16 +195,13 @@ export const todoRepository = {
     })
   },
 
-  async update(todo: PersistedTodoItem): Promise<void> {
-    const now = new Date()
-    await db.transaction('rw', [db.todos, db.todoEvents], async () => {
-      const prior = await db.todos.get(todo.id) as PersistedTodoItem | undefined
-      const cleaned = dropOrphanedRule(todo, todo)
-      const next = withoutUndefinedCompletedAt(withCompletedAt(prior, { ...cleaned, modifiedAt: now }, now))
-      const events = buildFieldChangeEvents(todo.id, prior, next, now.toISOString())
-      await db.todos.put(next)
-      if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
-    })
+  /**
+   * Writes `changes` to one task — only those fields, so a concurrent write
+   * to its other fields survives. A field set to `undefined` is removed. No-op
+   * when the task doesn't exist (a save racing a delete doesn't bring it back).
+   */
+  async update(id: number, changes: Partial<TodoItem>): Promise<void> {
+    await todoRepository.bulkUpdate([{ todoId: id, changes }])
   },
 
   /**
@@ -257,7 +254,8 @@ export const todoRepository = {
       const events: Omit<TodoEvent, 'id'>[] = []
       for (const { todoId, changes } of mutations) {
         const prior = await db.todos.get(todoId) as PersistedTodoItem | undefined
-        const merged = { ...prior, ...changes } as PersistedTodoItem
+        if (!prior) continue
+        const merged = { ...prior, ...changes }
         const cleaned = withCompletedAt(prior, dropOrphanedRule(merged, changes), now)
         await db.todos.update(todoId, { ...cleaned, modifiedAt: now })
         events.push(...buildFieldChangeEvents(todoId, prior, cleaned, ts))

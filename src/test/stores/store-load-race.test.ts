@@ -95,9 +95,9 @@ describe('load vs. edit', () => {
     await useTodoStore.getState().loadAll()
     const persist = deferred()
     const realUpdate = todoRepository.update.bind(todoRepository)
-    vi.spyOn(todoRepository, 'update').mockImplementationOnce(async (todo) => {
+    vi.spyOn(todoRepository, 'update').mockImplementationOnce(async (id, changes) => {
       await persist.promise
-      await realUpdate(todo)
+      await realUpdate(id, changes)
     })
     const getAll = vi.spyOn(todoRepository, 'getAll')
 

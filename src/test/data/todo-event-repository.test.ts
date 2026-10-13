@@ -42,25 +42,19 @@ describe('todoRepository — emit on insert / update / complete', () => {
 
   it('a follow-up change emits no event (only due date / status / completion are tracked)', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.nextFollowupAt = new Date('2026-05-01T00:00:00Z')
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { nextFollowupAt: new Date('2026-05-01T00:00:00Z') })
 
     const events = await todoEventRepository.byTodo(id)
     expect(events.map((e) => e.type)).toEqual(['created'])
   })
 
-  it('update is idempotent — re-saving the same row emits nothing', async () => {
+  it('update is idempotent — re-writing tracked fields with their values emits nothing', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.dueDate = new Date('2026-05-01T00:00:00Z')
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z') })
     const before = await todoEventRepository.byTodo(id)
 
-    // Re-fetch + re-save without altering tracked fields.
-    const todo2 = (await todoRepository.getById(id))!
-    todo2.title = 'rename only'
-    await todoRepository.update(todo2)
+    // The same due date again, plus an untracked field.
+    await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z'), title: 'rename only' })
 
     const after = await todoEventRepository.byTodo(id)
     expect(after.length).toBe(before.length)
@@ -68,9 +62,7 @@ describe('todoRepository — emit on insert / update / complete', () => {
 
   it('update emits a deadline event when dueDate changes', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.dueDate = new Date('2026-06-01T00:00:00Z')
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { dueDate: new Date('2026-06-01T00:00:00Z') })
 
     const deadline = (await todoEventRepository.byTodo(id)).filter((e) => e.type === 'deadline')
     expect(deadline).toHaveLength(1)
@@ -79,9 +71,7 @@ describe('todoRepository — emit on insert / update / complete', () => {
 
   it('update emits a status event when statusId changes', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.statusId = 7
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { statusId: 7 })
 
     const status = (await todoEventRepository.byTodo(id)).filter((e) => e.type === 'status')
     expect(status).toHaveLength(1)
@@ -127,9 +117,7 @@ describe('todoRepository — emit on insert / update / complete', () => {
 describe('todoRepository — cascade delete', () => {
   it('delete wipes every event for the todo', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.dueDate = new Date('2026-05-01T00:00:00Z')
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z') })
     expect((await todoEventRepository.byTodo(id)).length).toBeGreaterThan(1)
 
     await todoRepository.delete(id)
