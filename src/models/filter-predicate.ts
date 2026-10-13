@@ -46,6 +46,9 @@ export type DateAnchor =
   | { kind: 'relative'; token: RelativeDateToken }
   | { kind: 'offset'; days: number }
 
+/** Longest text filter a stored list keeps (its "Text contains" input has the same limit). */
+export const PREDICATE_SEARCH_TEXT_MAX = 500
+
 /** A task marker the Markers filter can require. */
 export type MarkerKey = 'urgent' | 'important' | 'focus'
 

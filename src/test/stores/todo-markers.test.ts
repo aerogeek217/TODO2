@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { validateRow, IMPORT_ROW_PICKERS } from '../../data/import-validation'
+import { validateRow, rowFixes, IMPORT_ROW_PICKERS } from '../../data/import-validation'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { emptyPredicate } from '../../stores/list-definition-store'
@@ -113,7 +113,7 @@ describe('markers in import validation', () => {
     expect(IMPORT_ROW_PICKERS.todos({ ...todo, [field]: false })[field]).toBeUndefined()
   })
 
-  it('accepts a Markers filter on a list predicate: known markers set to true', () => {
+  it('accepts a Markers filter on a list predicate: known markers set to true; drops any other', () => {
     const def = (markers: unknown) => ({
       id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers } },
@@ -122,10 +122,13 @@ describe('markers in import validation', () => {
     expect(validateRow('listDefinitions', def({ urgent: true, important: true, focus: true }))).toBe(true)
     expect(validateRow('listDefinitions', def(null))).toBe(true)
     expect(validateRow('listDefinitions', def(undefined))).toBe(true)
-    expect(validateRow('listDefinitions', def({ focus: false }))).not.toBe(true)
-    expect(validateRow('listDefinitions', def({ hot: true }))).not.toBe(true)
-    expect(validateRow('listDefinitions', def(true))).not.toBe(true)
-    expect(validateRow('listDefinitions', def(['urgent']))).not.toBe(true)
+    // Anything else is dropped on import (no filter), not rejected.
+    for (const bad of [{ focus: false }, { hot: true }, true, ['urgent']]) {
+      expect(validateRow('listDefinitions', def(bad))).toBe(true)
+      expect(rowFixes('listDefinitions', def(bad))).toEqual(['markers filter dropped'])
+      const picked = IMPORT_ROW_PICKERS.listDefinitions(def(bad))
+      expect(picked.membership.predicate.markers).toBeNull()
+    }
   })
 
   it('validates the urgent range setting: off or a day count 0–365', () => {

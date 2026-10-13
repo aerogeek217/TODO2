@@ -17,6 +17,7 @@ import { SINGLE_BINDINGS, type ShortcutCtx } from '../../../services/keyboard-sh
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
+import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 
 const alice: Person = { id: 1, name: 'Alice', initials: 'AL', color: '#c33' }
@@ -71,6 +72,19 @@ afterEach(() => {
 const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[title]')?.getAttribute('title'))
 
 describe('ListWidget', () => {
+  it('a malformed stored filter loads as no filter instead of crashing the widget', async () => {
+    const stored = def({}, { personIds: 5 as unknown as number[], tags: 'x' as unknown as number[] })
+    await db.listDefinitions.put(stored)
+    try {
+      await act(() => useListDefinitionStore.getState().load())
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.membership.predicate).toMatchObject({ personIds: null, tags: null })
+      render(<DndContext><ListWidget tab={tab} onResult={() => {}} /></DndContext>)
+      expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    } finally {
+      await db.listDefinitions.clear()
+    }
+  })
+
   it('shows the list’s open tasks and reports the count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])

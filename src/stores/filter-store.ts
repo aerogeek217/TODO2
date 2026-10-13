@@ -358,8 +358,8 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   return {
     showCompleted: p.showCompleted,
-    personIds: p.personIds ? new Set(p.personIds) : null,
-    statusIds: p.statusIds ? new Set(p.statusIds) : null,
+    personIds: Array.isArray(p.personIds) ? new Set(p.personIds) : null,
+    statusIds: Array.isArray(p.statusIds) ? new Set(p.statusIds) : null,
     searchText: p.searchText,
     dateField: p.dateField,
     dateRangeStart: readDateAnchor(p.dateRangeStart),
@@ -368,7 +368,7 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     hasDeadline: p.hasDeadline ?? null,
     hasFollowup: p.hasFollowup ?? null,
     markers: normalizeMarkers(p.markers),
-    tags: p.tags ? new Set(p.tags) : null,
+    tags: Array.isArray(p.tags) ? new Set(p.tags) : null,
   }
 }
 

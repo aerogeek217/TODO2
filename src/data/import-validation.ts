@@ -1,12 +1,12 @@
 import type { TodoItem, Person, TodoPerson, RecurrenceRule, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
-import { isTodoSortBy, isTodoGroupBy, DATE_FIELD_VALUES } from '../models'
+import { isTodoSortBy, isTodoGroupBy } from '../models'
 
 export type ImportTag = Tag
 export type ImportTodoTag = TodoTag
 
-import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
+import type { ListDefinition, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
+import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
-import { HOT_MARKERS, MARKER_KEYS, RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
@@ -129,45 +129,15 @@ function checkTodo(v: unknown): CheckResult {
 
 const VALID_LIST_MEMBERSHIP_KINDS = ['custom']
 
-function isOptDateAnchor(v: unknown): boolean {
-  if (v === undefined || v === null) return true
-  if (!isObj(v)) return false
-  if (v.kind === 'fixed') return typeof v.iso === 'string' && isDateLike(v.iso)
-  if (v.kind === 'relative') return typeof v.token === 'string' && (RELATIVE_DATE_TOKENS as readonly string[]).includes(v.token)
-  if (v.kind === 'offset') return typeof v.days === 'number' && Number.isFinite(v.days)
-  return false
-}
-
 function isOptTriBool(v: unknown): boolean {
   return v === undefined || v === null || isBool(v)
-}
-
-/** A Markers filter: absent / null, `'hot'`, or an object of known markers set to `true`. */
-function isOptMarkers(v: unknown): boolean {
-  if (v === undefined || v === null || v === HOT_MARKERS) return true
-  if (!isObj(v)) return false
-  return Object.entries(v).every(([k, val]) => (MARKER_KEYS as readonly string[]).includes(k) && val === true)
-}
-
-function isTodoPredicateShape(v: unknown): boolean {
-  if (!isObj(v)) return false
-  if (typeof v.showCompleted !== 'boolean'
-    || typeof v.searchText !== 'string'
-    || typeof v.dateRangeIncludeNoDate !== 'boolean') return false
-  if (!isOptDateAnchor(v.dateRangeStart)) return false
-  if (!isOptDateAnchor(v.dateRangeEnd)) return false
-  if (v.dateField !== undefined && !(DATE_FIELD_VALUES as readonly unknown[]).includes(v.dateField)) return false
-  if (!isOptTriBool(v.hasDeadline)) return false
-  if (!isOptTriBool(v.hasFollowup)) return false
-  if (!isOptMarkers(v.markers)) return false
-  return true
 }
 
 function isValidMembership(m: unknown): boolean {
   if (!isObj(m) || typeof m.kind !== 'string') return false
   if (!VALID_LIST_MEMBERSHIP_KINDS.includes(m.kind)) return false
   if (m.kind === 'custom') {
-    return isTodoPredicateShape(m.predicate)
+    return checkPredicateShape(m.predicate) === true
   }
   return false
 }
@@ -516,7 +486,8 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
     id: optNum(v.id),
     name: v.name as string,
     sortOrder: v.sortOrder as number,
-    membership: v.membership as ListMembership,
+    // Rebuilt from known keys; malformed filters dropped (see `rowFixes`).
+    membership: { kind: 'custom', predicate: pickPredicate((v.membership as Raw).predicate).predicate },
     sort: v.sort as ListSort,
     grouping: v.grouping as ListGrouping,
     pinnedToDashboard: typeof v.pinnedToDashboard === 'boolean' ? v.pinnedToDashboard : true,
@@ -628,6 +599,52 @@ export function validateRow(table: keyof ImportData, row: unknown): true | strin
 /** Max individual row errors spelled out in a validation failure message. */
 export const MAX_REPORTED_ROW_ERRORS = 10
 
+interface RowFixer {
+  /** What the picker drops / changes in a valid row, in words; empty when nothing. */
+  fixes: (row: Raw) => string[]
+  /** The import warning's lead for `n` fixed rows. */
+  lead: (n: number) => string
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * Tables whose valid rows can still carry a malformed part that import
+ * drops (or shortens) instead of failing the file — data the app may have
+ * stored before it checked these parts.
+ */
+const ROW_FIXERS: Partial<Record<keyof ImportData, RowFixer>> = {
+  listDefinitions: {
+    fixes: (row) => pickPredicate(isObj(row.membership) ? row.membership.predicate : undefined).fixes,
+    lead: (n) => `Fixed the filters of ${plural(n, 'list', 'lists')}`,
+  },
+}
+
+/**
+ * What import would drop or change in a row that passes `validateRow`, in
+ * words (e.g. `people filter dropped`); empty when nothing. The audit uses
+ * it to report rows already stored with such parts.
+ */
+export function rowFixes(table: keyof ImportData, row: unknown): string[] {
+  const fixer = ROW_FIXERS[table]
+  return fixer && isObj(row) ? fixer.fixes(row) : []
+}
+
+/**
+ * `row` as import stores it: rebuilt by the table's picker, so the parts
+ * `rowFixes` names are dropped. For a row that passes `validateRow`.
+ */
+export function sanitizeRow<K extends keyof ImportData>(table: K, row: unknown): ImportRow<K> {
+  const pick = IMPORT_ROW_PICKERS[table] as (v: Raw) => AllFields<ImportRow<K>>
+  return compactRow<ImportRow<K>>(pick(row as Raw))
+}
+
+/** Row label for messages: its title or name, quoted. */
+function rowLabel(row: unknown): string {
+  return isObj(row) && 'title' in row ? `"${String(row.title)}"` :
+         isObj(row) && 'name' in row ? `"${String(row.name)}"` : ''
+}
+
 export type ValidateImportResult =
   | { ok: true; data: ImportData; warnings: string[] }
   | { ok: false; error: string }
@@ -685,8 +702,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
         droppedSettingKeys.push(String(row.key))
         continue
       }
-      const label = isObj(row) && 'title' in row ? ` ("${String(row.title)}")` :
-                    isObj(row) && 'name' in row ? ` ("${String(row.name)}")` : ''
+      const label = rowLabel(row) === '' ? '' : ` (${rowLabel(row)})`
       rowErrors.push(`Invalid "${key}" record at index ${i}${label}: bad field "${result}"`)
     }
   }
@@ -734,6 +750,19 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   }
 
   const warnings: string[] = []
+  for (const [key, fixer] of Object.entries(ROW_FIXERS) as Array<[keyof ImportData, RowFixer]>) {
+    const rows = raw[key]
+    if (!Array.isArray(rows)) continue
+    const fixed: string[] = []
+    for (const row of rows) {
+      const fixes = isObj(row) ? fixer.fixes(row) : []
+      if (fixes.length > 0) fixed.push(`${rowLabel(row) || 'unnamed'} (${fixes.join(', ')})`)
+    }
+    if (fixed.length === 0) continue
+    const shown = fixed.slice(0, MAX_REPORTED_ROW_ERRORS)
+    const more = fixed.length - shown.length
+    warnings.push(`${fixer.lead(fixed.length)}: ${shown.join('; ')}${more > 0 ? `; …and ${more} more` : ''}`)
+  }
   if (droppedSettingKeys.length > 0) {
     const n = droppedSettingKeys.length
     warnings.push(`Ignored ${n} unrecognized setting${n === 1 ? '' : 's'}: ${droppedSettingKeys.join(', ')}`)

@@ -530,10 +530,12 @@ describe('validateImportData', () => {
     )
 
     it.each([['an unknown string', 'warm'], ['hot as a key', { hot: true }], ['a non-true value', { urgent: 'yes' }], ['an array', ['hot']]])(
-      'rejects a list Markers filter with %s',
+      'drops a list Markers filter with %s, with a warning',
       (_name, markers) => {
         const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
-        expect(result.ok).toBe(false)
+        if (!result.ok) throw new Error(result.error)
+        expect(result.data.listDefinitions[0]!.membership).toMatchObject({ predicate: { markers: null } })
+        expect(result.warnings).toEqual(['Fixed the filters of 1 list: "List" (markers filter dropped)'])
       },
     )
 
@@ -559,6 +561,49 @@ describe('validateImportData', () => {
         ok: false,
         error: expect.stringContaining('hotRule must be a list of lines'),
       })
+    })
+  })
+
+  describe('list predicates: malformed filters are dropped with a warning, not rejected', () => {
+    function list(id: number, name: string, predicate: Record<string, unknown>) {
+      return {
+        id, name, sortOrder: id, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, ...predicate } },
+      }
+    }
+
+    it('drops a wrongly typed id filter, shortens a long text filter, and names each list in one warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [
+          list(1, 'Fine', { personIds: [1, 0], tags: null }),
+          list(2, 'Bad people', { personIds: 5, statusIds: ['x'] }),
+          list(3, 'Long text', { searchText: 'y'.repeat(600), tags: { 1: true } }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [fine, people, text] = result.data.listDefinitions.map((d) => d.membership.predicate)
+      expect(fine).toMatchObject({ personIds: [1, 0], tags: null })
+      expect(people).toMatchObject({ personIds: null, statusIds: null })
+      expect(text).toMatchObject({ searchText: 'y'.repeat(500), tags: null })
+      expect(result.warnings).toEqual([
+        'Fixed the filters of 2 lists: "Bad people" (people filter dropped, status filter dropped); "Long text" (text filter shortened, tag filter dropped)',
+      ])
+    })
+
+    it('keeps only the known predicate keys', () => {
+      const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { focus: true, legacy: 'x' })] }))
+      if (!result.ok) throw new Error(result.error)
+      const predicate = result.data.listDefinitions[0]!.membership.predicate
+      expect(Object.keys(predicate).sort()).toEqual([
+        'dateField', 'dateRangeEnd', 'dateRangeIncludeNoDate', 'dateRangeStart', 'hasDeadline',
+        'personIds', 'searchText', 'showCompleted', 'statusIds',
+      ])
+      expect(result.warnings).toEqual([])
+    })
+
+    it('still rejects a predicate missing its core shape', () => {
+      const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { showCompleted: 'yes' })] }))
+      expect(result).toEqual({ ok: false, error: expect.stringContaining('bad field "membership"') })
     })
   })
 

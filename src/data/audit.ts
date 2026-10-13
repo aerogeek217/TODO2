@@ -4,6 +4,8 @@ import {
   KNOWN_TABLE_KEYS,
   validateRow,
   isKnownSettingKey,
+  rowFixes,
+  sanitizeRow,
 } from './import-validation'
 import { hasRecurrenceAnchor } from './recurrence-anchor'
 
@@ -43,8 +45,10 @@ export interface AuditIssue {
    * `'drop-store'` wipes an entire IDB object store via raw IDB (Dexie does
    * not expose deleteObjectStore at runtime; the closest safe primitive is
    * `clear()`). The empty store remains until a future schema bump.
+   * `'sanitize'` rewrites each row the way import stores it (`sanitizeRow`),
+   * dropping the malformed parts `rowFixes` names.
    */
-  fix: 'delete' | 'clear-field' | 'drop-store'
+  fix: 'delete' | 'clear-field' | 'drop-store' | 'sanitize'
   field?: string
   /**
    * Up to `MAX_SAMPLES_PER_ISSUE` of the offending rows for the detail popup.
@@ -188,9 +192,23 @@ export async function auditData(): Promise<AuditReport> {
     const rows = knownTableRows[tableKey] ?? []
     const badIds: number[] = []
     const badSamples: AuditSample[] = []
+    const fixIds: number[] = []
+    const fixSamples: AuditSample[] = []
     for (const row of rows) {
       const result = validateRow(tableKey, row)
-      if (result === true) continue
+      if (result === true) {
+        // Readable, but with parts an import would drop (e.g. a malformed
+        // list filter stored before import checked them).
+        const fixes = rowFixes(tableKey, row)
+        const id = (row as { id?: number }).id
+        if (fixes.length > 0 && typeof id === 'number') {
+          fixIds.push(id)
+          if (fixSamples.length < MAX_SAMPLES_PER_ISSUE) {
+            fixSamples.push({ row: toSampleRow(row), id, note: `Cleanup: ${fixes.join(', ')}` })
+          }
+        }
+        continue
+      }
       const id = (row as { id?: number }).id
       if (typeof id !== 'number') continue
       badIds.push(id)
@@ -215,6 +233,16 @@ export async function auditData(): Promise<AuditReport> {
         ids: badIds,
         fix: 'delete',
         samples: badSamples,
+      })
+    }
+    if (fixIds.length > 0) {
+      issues.push({
+        table: tableKey,
+        description: `Rows in "${tableKey}" with malformed parts (cleanup drops those parts, as an import would)`,
+        count: fixIds.length,
+        ids: fixIds,
+        fix: 'sanitize',
+        samples: fixSamples,
       })
     }
   }
@@ -454,6 +482,14 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
           await table.bulkDelete(issue.keys)
         } else {
           await table.bulkDelete(issue.ids)
+        }
+        cleaned += issue.count
+      } else if (issue.fix === 'sanitize') {
+        const table = db.table(issue.table)
+        const key = issue.table as Parameters<typeof sanitizeRow>[0]
+        for (const id of issue.ids) {
+          const row: unknown = await table.get(id)
+          if (row !== undefined) await table.put(sanitizeRow(key, row))
         }
         cleaned += issue.count
       } else if (issue.fix === 'clear-field' && issue.field) {

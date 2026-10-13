@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { DateAnchor, TodoPredicate } from '../../../models'
+import { PREDICATE_SEARCH_TEXT_MAX } from '../../../models/filter-predicate'
 import type { DateField } from '../../../models/app-view'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
@@ -199,6 +200,7 @@ function TextPicker({ predicate, update, onClose }: {
         className={topBar.dropdownSearchInput}
         type="text"
         value={predicate.searchText}
+        maxLength={PREDICATE_SEARCH_TEXT_MAX}
         placeholder="Title, notes, people, tags…"
         onChange={(e) => update({ searchText: e.target.value })}
         onKeyDown={(e) => {

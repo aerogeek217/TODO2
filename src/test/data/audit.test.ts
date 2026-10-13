@@ -308,6 +308,35 @@ describe('unknown-row audit', () => {
   })
 })
 
+// Readable rows holding a part an import would drop (stored before import
+// checked it): reported, and cleanup rewrites them the way import stores them.
+describe('sanitisable-row audit', () => {
+  const list = (name: string, predicate: Record<string, unknown>) => ({
+    name, sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+    membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
+  })
+
+  it('reports a list with a malformed filter and names what cleanup drops', async () => {
+    const id = await db.listDefinitions.add(list('Bad', { personIds: 5, markers: 'warm' }) as any)
+    await db.listDefinitions.add(list('Fine', { personIds: [1] }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped, markers filter dropped')
+  })
+
+  it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {
+    const id = await db.listDefinitions.add(list('Bad', { personIds: 5, statusIds: [2], searchText: 'x'.repeat(600) }) as any)
+
+    await cleanupIssues((await auditData()).issues)
+
+    const row = await db.listDefinitions.get(id)
+    expect(row).toMatchObject({ id, name: 'Bad', membership: { kind: 'custom', predicate: { personIds: null, statusIds: [2], searchText: 'x'.repeat(500) } } })
+    expect((await auditData()).issues).toEqual([])
+  })
+})
+
 // --- Unknown-setting detection: rows in `settings` whose `key` is not in the
 // build's recognised set. Cleanup deletes by `key` (settings is keyed by string).
 describe('unknown-setting audit', () => {
