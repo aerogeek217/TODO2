@@ -18,9 +18,13 @@ import { normalizeDashboardConfig } from '../models/dashboard-config'
  * reaches Dexie with known kinds, known keys and unique ids.
  */
 
-export const MAX_LAYOUT_COLUMNS = 32
-export const MAX_COLUMN_CELLS = 32
-export const MAX_CELL_TABS = 32
+/**
+ * Longest column / cell / tab id. The app's ids are short (`w-` + 8
+ * characters; the v56 seed's are the old rail ids, deduplicated). There is
+ * no limit on the number of columns, cells or tabs: nothing in the
+ * workspace limits them, so a cap here would make a layout the app can
+ * build fail to import. The file-size cap bounds them.
+ */
 const MAX_ID_LEN = 100
 
 type Obj = Record<string, unknown>
@@ -84,7 +88,7 @@ function checkTabSettings(tab: Obj, path: string): true | string {
  * a cell.
  */
 export function checkLayoutColumns(columns: unknown): true | string {
-  if (!Array.isArray(columns) || columns.length > MAX_LAYOUT_COLUMNS) return 'columns'
+  if (!Array.isArray(columns)) return 'columns'
   const seen = new Set<string>()
   const fresh = (id: string): boolean => {
     if (seen.has(id)) return false
@@ -97,7 +101,7 @@ export function checkLayoutColumns(columns: unknown): true | string {
     if (!isObj(col)) return cp
     if (!isId(col.id) || !fresh(col.id)) return `${cp}.id`
     if (!isWeight(col.weight)) return `${cp}.weight`
-    if (!Array.isArray(col.cells) || col.cells.length === 0 || col.cells.length > MAX_COLUMN_CELLS) return `${cp}.cells`
+    if (!Array.isArray(col.cells) || col.cells.length === 0) return `${cp}.cells`
     for (let k = 0; k < col.cells.length; k++) {
       const cell: unknown = col.cells[k]
       const kp = `${cp}.cells[${k}]`
@@ -106,7 +110,7 @@ export function checkLayoutColumns(columns: unknown): true | string {
       if (!isWeight(cell.weight)) return `${kp}.weight`
       if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${kp}.activeTabId`
       if (cell.collapsed !== undefined && typeof cell.collapsed !== 'boolean') return `${kp}.collapsed`
-      if (!Array.isArray(cell.tabs) || cell.tabs.length > MAX_CELL_TABS) return `${kp}.tabs`
+      if (!Array.isArray(cell.tabs)) return `${kp}.tabs`
       for (let t = 0; t < cell.tabs.length; t++) {
         const tab: unknown = cell.tabs[t]
         const tp = `${kp}.tabs[${t}]`

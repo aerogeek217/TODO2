@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { validateImportData, validateRow } from '../../data/import-validation'
+import { addTab } from '../../utils/workspace-layout-ops'
+import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
@@ -12,6 +14,27 @@ function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}
 }
 
 describe('layouts row validation', () => {
+  it('accepts a layout with any number of columns, cells and tabs, as the workspace reducers build it', () => {
+    // Nothing in the workspace limits the counts, so import must not either.
+    let n = 0
+    const genId = () => `w-${n++}`
+    let layout: WorkspaceLayout = { id: 1, name: 'Big', columns: [], createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
+    const notes = (): LayoutTab => ({ id: genId(), kind: 'notes', config: {} })
+    for (let c = 0; c < 40; c++) layout = addTab(layout, notes(), { kind: 'layout' }, genId)
+    const firstCell = layout.columns[0]!.cells[0]!.id
+    for (let t = 0; t < 40; t++) layout = addTab(layout, notes(), { kind: 'cell', cellId: firstCell }, genId)
+    for (let k = 0; k < 40; k++) layout = addTab(layout, notes(), { kind: 'cell-edge', cellId: firstCell, edge: 'bottom' }, genId)
+    expect(layout.columns).toHaveLength(40)
+    expect(layout.columns[0]!.cells).toHaveLength(41)
+    expect(layout.columns[0]!.cells.find((cell) => cell.id === firstCell)!.tabs).toHaveLength(41)
+
+    const row = JSON.parse(JSON.stringify(layout)) as Record<string, unknown>
+    expect(validateRow('layouts', row)).toBe(true)
+    const result = validateImportData({ todos: [], settings: [], layouts: [row] })
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.layouts[0]!.columns).toEqual(layout.columns)
+  })
+
   it('accepts every kind, an empty cell and an empty layout', () => {
     const columns = [
       { id: 'c1', weight: 1, cells: [
