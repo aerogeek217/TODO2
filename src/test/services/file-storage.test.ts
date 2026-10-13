@@ -871,3 +871,135 @@ describe('FileStorageService — browser backup before the file replaces it', ()
     expect(svc.status.isConnected).toBe(true)
   })
 })
+
+// ─── Writes never overlap; reads never race a write ───────────────────
+
+/** A writable whose `close` waits until `finish()` — a save held in flight. */
+function heldWritable() {
+  let finish!: () => void
+  const closed = new Promise<void>((resolve) => { finish = resolve })
+  const writable = { ...makeWritable(), close: vi.fn(() => closed) }
+  return { writable, finish }
+}
+
+describe('FileStorageService — saves in flight', () => {
+  it('a forced write while a save is in flight waits for it, then writes (never dropped)', async () => {
+    // Synced with file A; a debounced save to A is in flight when the user
+    // creates file B.
+    const { svc, handle: a } = await startWith()
+    await svc.initialize()
+    const held = heldWritable()
+    a.createWritable.mockResolvedValue(held.writable)
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(held.writable.write).toHaveBeenCalledTimes(1)
+
+    const { handle: b, writable: bWritable } = createMockHandle('')
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(b))
+    const creating = svc.createFile()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(bWritable.write).not.toHaveBeenCalled()
+
+    held.finish()
+    await creating
+    expect(bWritable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status.isConnected).toBe(true)
+    expect(svc.status.fileName).toBe(b.name)
+    // The sync record is B's, not the late save to A's.
+    const written = JSON.parse(bWritable.write.mock.calls[0]![0] as string) as { savedAt: string }
+    expect(syncState().fileSavedAt).toBe(written.savedAt)
+  })
+
+  it('a load waits for the save in flight before reading the file', async () => {
+    const { svc, handle } = await startWith()
+    await svc.initialize()
+    const held = heldWritable()
+    handle.createWritable.mockResolvedValue(held.writable)
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    const readsBefore = handle.getFile.mock.calls.length
+
+    const retrying = svc.retry()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handle.getFile.mock.calls.length).toBe(readsBefore)
+
+    held.finish()
+    await retrying
+    expect(handle.getFile.mock.calls.length).toBe(readsBefore + 1)
+  })
+
+  it('whenIdle resolves once the scheduled save has been written', async () => {
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    await expect(svc.whenIdle()).resolves.toBeUndefined()
+
+    fireLocalChange()
+    let idle = false
+    void svc.whenIdle().then(() => { idle = true })
+    await vi.advanceTimersByTimeAsync(100)
+    expect(idle).toBe(false)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(idle).toBe(true)
+  })
+
+  it('a failed save is logged and surfaced', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    writable.write.mockRejectedValueOnce(new Error('disk full'))
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(svc.status.error).toBe('Failed to save to file')
+    expect(warn).toHaveBeenCalledWith('[file-storage] saving to the file failed', expect.objectContaining({ message: 'disk full' }))
+  })
+})
+
+describe('FileStorageService — reading a file that another write replaces', () => {
+  function replacedError() {
+    const err = new Error('A requested file or directory could not be found at the time an operation was processed.')
+    err.name = 'NotFoundError'
+    return err
+  }
+
+  it('a snapshot that went stale mid-read is read again; the handle is kept', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const good = new File([JSON.stringify(fileBody())], 'todo2-data.json')
+    const stale = { size: good.size, lastModified: good.lastModified, text: vi.fn().mockRejectedValue(replacedError()) }
+    const getFile = vi.fn().mockResolvedValueOnce(stale).mockResolvedValue(good)
+    const { svc } = await startWith(fileBody(), { getFile })
+    await svc.initialize()
+
+    expect(getFile).toHaveBeenCalledTimes(2)
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(mockRestoreFromImportData).toHaveBeenCalled()
+    expect(svc.status.isConnected).toBe(true)
+  })
+
+  it('a file replaced on every read pauses sync (read error) instead of forgetting the file', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stale = { size: 10, lastModified: 0, text: vi.fn().mockRejectedValue(replacedError()) }
+    const { svc, writable } = await startWith(fileBody(), { getFile: vi.fn().mockResolvedValue(stale) })
+    await svc.initialize()
+
+    expect(svc.status.paused?.reason).toBe('read-error')
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expectUntouched(writable)
+  })
+
+  it('"Keep browser data": a file over the size cap is not read for its backup, and not overwritten', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const huge = { size: 50 * 1024 * 1024 + 1, lastModified: 0, text: vi.fn() }
+    const { svc, writable } = await startWith(fileBody(), { getFile: vi.fn().mockResolvedValue(huge) })
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('too-large')
+
+    await svc.overwriteFileWithBrowser()
+    expect(huge.text).not.toHaveBeenCalled()
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    expect(svc.status.paused?.message).toContain('too large to back up')
+    expectUntouched(writable)
+  })
+})

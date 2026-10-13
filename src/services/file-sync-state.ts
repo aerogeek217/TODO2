@@ -35,7 +35,9 @@ export function readFileSyncState(): FileSyncState {
       fileSavedAt: typeof o.fileSavedAt === 'string' ? o.fileSavedAt : null,
       dirtySince: typeof o.dirtySince === 'string' ? o.dirtySince : null,
     }
-  } catch {
+  } catch (err) {
+    // No record reads as never synced: the next load compares both sides.
+    console.warn('[file-sync] could not read the sync state', err)
     return { ...EMPTY }
   }
 }
@@ -51,7 +53,9 @@ export function writeFileSyncState(state: FileSyncState): void {
 export function clearFileSyncState(): void {
   try {
     localStorage.removeItem(FILE_SYNC_STATE_KEY)
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.warn('[file-sync] could not clear the sync state', err)
+  }
 }
 
 /**

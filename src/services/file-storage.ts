@@ -92,6 +92,53 @@ function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
   }
 }
 
+/** Reading a sync file's text: what was read, or why it couldn't be. */
+type FileRead =
+  | { ok: true; text: string; lastModified: number }
+  | { ok: false; reason: 'not-found' | 'too-large' | 'read-error'; error: unknown }
+
+/** Reads of a file that keeps being replaced while it is read, before giving up. */
+const READ_ATTEMPTS = 3
+
+function isNamedError(e: unknown, name: string): boolean {
+  return e instanceof Error && e.name === name
+}
+
+/**
+ * Reads the file's text, refusing a file over the import cap (50 MB) before
+ * reading it. `getFile()` is a snapshot: when a save (this tab's or
+ * another's) replaces the file between `getFile()` and reading its text,
+ * the read fails with `NotFoundError` / `NotReadableError` although the file
+ * is fine — then it is read again. `not-found` only when `getFile()` itself
+ * finds no file.
+ */
+async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
+  let replacedError: unknown = null
+  for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
+    let file: File
+    try {
+      file = await handle.getFile()
+    } catch (e: unknown) {
+      return { ok: false, reason: isNamedError(e, 'NotFoundError') ? 'not-found' : 'read-error', error: e }
+    }
+    if (file.size > MAX_IMPORT_SIZE_BYTES) return { ok: false, reason: 'too-large', error: null }
+    try {
+      return { ok: true, text: await file.text(), lastModified: file.lastModified }
+    } catch (e: unknown) {
+      if (!isNamedError(e, 'NotFoundError') && !isNamedError(e, 'NotReadableError')) {
+        return { ok: false, reason: 'read-error', error: e }
+      }
+      console.warn('[file-storage] the file was replaced while it was read; reading it again', e)
+      replacedError = e
+    }
+  }
+  return { ok: false, reason: 'read-error', error: replacedError }
+}
+
+function errorDetail(e: unknown): string {
+  return e instanceof Error ? `: ${e.message}` : ''
+}
+
 /**
  * File System Access sync. Rule: when the browser data and the sync file
  * disagree, the user decides before anything changes.
@@ -119,9 +166,12 @@ class FileStorageService {
   private suppressSync = false
   /** Writes reach the file only while this is true. */
   private syncEnabled = false
-  private saving = false
+  /** The write in flight; at most one runs at a time. */
+  private saveInFlight: Promise<boolean> | null = null
+  /** A debounced save asked for while one was in flight. */
   private pendingSave = false
   private saveTimer: ReturnType<typeof setTimeout> | null = null
+  private idleWaiters: Array<() => void> = []
   private hookCleanups: Array<() => void> = []
   /** Bumped on every tracked change; a save only clears dirty if unchanged. */
   private changeGen = 0
@@ -205,7 +255,8 @@ class FileStorageService {
       } else {
         this._error = 'Permission denied'
       }
-    } catch {
+    } catch (err) {
+      console.warn('[file-storage] could not get file access', err)
       this._error = 'Could not get file access'
     }
     this.notify()
@@ -234,6 +285,7 @@ class FileStorageService {
       await this.loadFromFile()
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return // user cancelled
+      console.warn('[file-storage] opening the file failed', e)
       this._error = 'Failed to open file'
     }
     this.notify()
@@ -257,6 +309,7 @@ class FileStorageService {
       if (await this.saveToFile({ force: true })) this.syncEnabled = true
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return
+      console.warn('[file-storage] creating the file failed', e)
       this._error = 'Failed to create file'
     }
     this.notify()
@@ -281,16 +334,18 @@ class FileStorageService {
    * snapshot first. Resumes sync on success.
    */
   async overwriteFileWithBrowser(): Promise<void> {
-    if (!this.handle || this._needsPermission) return
-    let text: string
-    try {
-      text = await (await this.handle.getFile()).text()
-    } catch (err) {
-      console.warn('[file-storage] could not read the file to back it up', err)
-      this.pause('backup-failed', `${PAUSED_PREFIX} — ${this.handle.name} could not be read, so it could not be backed up and was left untouched. Disconnect and create a new file to keep syncing.`)
+    const handle = this.handle
+    if (!handle || this._needsPermission) return
+    await this.whenIdle()
+    if (this.handle !== handle) return
+    const read = await readFileText(handle)
+    if (!read.ok) {
+      console.warn('[file-storage] could not read the file to back it up', read.error)
+      const why = read.reason === 'too-large' ? 'is too large to back up (50 MB max)' : 'could not be read, so it could not be backed up'
+      this.pause('backup-failed', `${PAUSED_PREFIX} — ${handle.name} ${why} and was left untouched. Disconnect and create a new file to keep syncing.`)
       return
     }
-    if (!(await this.backupFileText(text))) return
+    if (!(await this.backupFileText(read.text))) return
     if (await this.saveToFile({ force: true })) {
       this._paused = null
       this.syncEnabled = true
@@ -310,6 +365,28 @@ class FileStorageService {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
+    this.checkIdle()
+  }
+
+  /**
+   * Resolves once no write to the file is running or scheduled — the file
+   * then holds a complete save and is not being replaced. The load path
+   * waits for it before reading the file.
+   */
+  whenIdle(): Promise<void> {
+    if (!this.busy) return Promise.resolve()
+    return new Promise((resolve) => { this.idleWaiters.push(resolve) })
+  }
+
+  private get busy(): boolean {
+    return this.saveInFlight !== null || this.saveTimer !== null
+  }
+
+  private checkIdle() {
+    if (this.busy || this.idleWaiters.length === 0) return
+    const waiters = this.idleWaiters
+    this.idleWaiters = []
+    for (const resolve of waiters) resolve()
   }
 
   private async loadFromFile(): Promise<void> {
@@ -317,19 +394,17 @@ class FileStorageService {
     if (!handle) return
     this.stopSync()
     this._paused = null
+    // A save that was already running finishes before the file is read.
+    await this.whenIdle()
+    if (this.handle !== handle) return
 
-    let text: string
-    let lastModified: number
-    try {
-      const file = await handle.getFile()
-      if (file.size > MAX_IMPORT_SIZE_BYTES) {
+    const read = await readFileText(handle)
+    if (!read.ok) {
+      if (read.reason === 'too-large') {
         this.pause('too-large', `${PAUSED_PREFIX} — the file is too large (50 MB max).`)
         return
       }
-      text = await file.text()
-      lastModified = file.lastModified
-    } catch (e: unknown) {
-      if (e instanceof Error && e.name === 'NotFoundError') {
+      if (read.reason === 'not-found') {
         // The file is gone — nothing to protect on disk. Forget it.
         this._error = 'File not found — it may have been moved or deleted'
         this.handle = null
@@ -341,10 +416,11 @@ class FileStorageService {
         this.notify()
         return
       }
-      const detail = e instanceof Error ? `: ${e.message}` : ''
-      this.pause('read-error', `${PAUSED_PREFIX} — the file could not be read${detail}`)
+      console.warn('[file-storage] reading the file failed', read.error)
+      this.pause('read-error', `${PAUSED_PREFIX} — the file could not be read${errorDetail(read.error)}`)
       return
     }
+    const { text, lastModified } = read
 
     if (!text.trim()) {
       // Empty file — nothing to lose; seed it with the browser's data.
@@ -391,7 +467,10 @@ class FileStorageService {
     // `prepared.data`, so a file that was in sync before the upgrade still
     // matches — and an older file then gets the upgrade prompt below.
     const identical = !hasRecord || dirty
-      ? await browserMatchesFile(prepared.data).catch(() => false)
+      ? await browserMatchesFile(prepared.data).catch((err: unknown) => {
+        console.warn('[file-storage] comparing the browser data with the file failed', err)
+        return false
+      })
       : false
 
     let conflictReason: SyncConflictInfo['reason'] | null = null
@@ -520,33 +599,60 @@ class FileStorageService {
 
   /**
    * Write the whole browser DB to the file. Skipped unless sync is enabled or
-   * `force` (an explicit, user-sanctioned write). Returns true on success.
+   * `force` (an explicit, user-sanctioned write: create, overwrite, upgrade,
+   * seeding an empty file). Writes never overlap: a debounced save asked for
+   * while one runs is rescheduled after it, and a forced write waits for it
+   * and then writes — it is never dropped. Only ever writes the file attached
+   * when it was called. Returns true on success.
    */
-  private async saveToFile(opts: { force?: boolean } = {}): Promise<boolean> {
-    if (!this.handle || this.suppressSync) return false
+  private async saveToFile(opts: { force?: boolean } = {}, handle = this.handle): Promise<boolean> {
+    if (!handle || handle !== this.handle || this.suppressSync) return false
     if (!this.syncEnabled && !opts.force) return false
 
-    if (this.saving) {
-      this.pendingSave = true
-      return false
+    if (this.saveInFlight) {
+      if (!opts.force) {
+        this.pendingSave = true
+        return false
+      }
+      await this.saveInFlight
+      return this.saveToFile(opts, handle)
     }
 
-    this.saving = true
+    const run = this.writeFile(handle)
+    this.saveInFlight = run
+    try {
+      return await run
+    } finally {
+      this.saveInFlight = null
+      if (this.pendingSave) {
+        this.pendingSave = false
+        this.scheduleSave()
+      }
+      this.checkIdle()
+    }
+  }
+
+  private async writeFile(handle: FileSystemFileHandle): Promise<boolean> {
     const gen = this.changeGen
     try {
       const tables = await buildExportData()
       const savedAt = new Date().toISOString()
       const data = { ...tables, savedAt }
 
-      const writable = await this.handle.createWritable()
+      const writable = await handle.createWritable()
       try {
         await writable.write(JSON.stringify(data, null, 2))
         await writable.close()
       } catch (writeErr) {
-        await writable.abort().catch(() => {})
+        await writable.abort().catch((abortErr: unknown) => {
+          console.warn('[file-storage] discarding the failed write failed', abortErr)
+        })
         throw writeErr
       }
 
+      // Another file was attached while this save ran: it wrote the file it
+      // started on; the sync record now belongs to the new one.
+      if (handle !== this.handle) return false
       const prev = readFileSyncState()
       writeFileSyncState({
         fileSavedAt: savedAt,
@@ -557,23 +663,23 @@ class FileStorageService {
       this._error = null
       this.notify()
       return true
-    } catch {
-      this._error = 'Failed to save to file'
-      this.notify()
-      return false
-    } finally {
-      this.saving = false
-      if (this.pendingSave) {
-        this.pendingSave = false
-        this.scheduleSave()
+    } catch (err) {
+      console.warn('[file-storage] saving to the file failed', err)
+      if (handle === this.handle) {
+        this._error = 'Failed to save to file'
+        this.notify()
       }
+      return false
     }
   }
 
   private scheduleSave() {
     if (!this.handle || !this.syncEnabled) return
     if (this.saveTimer) clearTimeout(this.saveTimer)
-    this.saveTimer = setTimeout(() => { void this.saveToFile() }, DEBOUNCE_MS)
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null
+      void this.saveToFile().finally(() => this.checkIdle())
+    }, DEBOUNCE_MS)
   }
 
   /** Every tracked DB write: record it as unsynced, then save if syncing. */

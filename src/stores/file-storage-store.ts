@@ -66,7 +66,8 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     set({ isLoading: true })
     try {
       await fn()
-    } catch {
+    } catch (err) {
+      console.warn(`[file-storage] ${errorMessage}`, err)
       set({ error: errorMessage })
     } finally {
       set({ isLoading: false })
