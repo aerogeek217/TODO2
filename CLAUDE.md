@@ -6,6 +6,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 @docs/ARCHITECTURE.md
 
 ## Build & Test Commands
+- Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) builds on Node 22.
 - Install: `npm install`
 - Dev: `npm run dev` → http://localhost:5180
 - Build (both): `npm run build` → runs `npm run lint` first (hard gate — any lint error or warning fails the build, incl. the GitHub Pages deploy), then `dist/index.html` (online, CDN fonts) + `dist/todo2.html` (offline, single file). Verify with this, not `tsc --noEmit`.
