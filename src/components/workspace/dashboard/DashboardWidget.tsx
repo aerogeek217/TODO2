@@ -22,6 +22,7 @@ import { useListTileHints } from './use-list-tile-hints'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from './use-dashboard-data'
 import styles from './DashboardWidget.module.css'
+import { useScopedSelectionRelease } from '../../../hooks/use-scoped-selection-release'
 
 /** What the widget reports to its cell: the tab count and the counts for "Copy summary". */
 export interface DashboardResult {
@@ -161,6 +162,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   const isMobile = useIsMobile()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const inScope = useUIStore((s) => s.selectionScope === tab.id)
+  useScopedSelectionRelease(tab.id)
   const selectedIds = useUIStore((s) => s.selectedTodoIds)
   const cursorKey = useUIStore((s) => (s.selectionScope === tab.id ? s.selectionCursorKey : null))
   const [sizeRef, size] = useElementSize()

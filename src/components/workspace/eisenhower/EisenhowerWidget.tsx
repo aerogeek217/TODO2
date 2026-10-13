@@ -44,6 +44,7 @@ import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../
 import { dragTasks } from './eisenhower-drag'
 import tooltipStyles from '../../shared/Tooltip.module.css'
 import styles from './EisenhowerWidget.module.css'
+import { useScopedSelectionRelease } from '../../../hooks/use-scoped-selection-release'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -378,6 +379,7 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   const markerSettings = useMarkerSettings()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const inScope = useUIStore((s) => s.selectionScope === tab.id)
+  useScopedSelectionRelease(tab.id)
   const selectedIds = useUIStore((s) => s.selectedTodoIds)
   const cursorKey = useUIStore((s) => (s.selectionScope === tab.id ? s.selectionCursorKey : null))
   const [sizeRef, size] = useElementSize()

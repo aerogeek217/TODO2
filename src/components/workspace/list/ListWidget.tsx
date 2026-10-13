@@ -50,6 +50,7 @@ import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers } from '../../../utils/markers'
 import styles from './ListWidget.module.css'
+import { useScopedSelectionRelease } from '../../../hooks/use-scoped-selection-release'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -117,6 +118,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const inScope = useUIStore((s) => s.selectionScope === tab.id)
+  useScopedSelectionRelease(tab.id)
   const selectedIds = useUIStore((s) => s.selectedTodoIds)
   const cursorKey = useUIStore((s) => (s.selectionScope === tab.id ? s.selectionCursorKey : null))
   const ranks = useListRanks(definition.id)
