@@ -12,16 +12,26 @@
  * price of permanent diagnose infrastructure for a recurring failure surface.
  */
 
-function readFlag(name: string): boolean {
-  if (typeof window === 'undefined') return false
+/** Whether the URL query `search` (e.g. `?debug-dnd=1`) carries the flag `name`. */
+export function hasFlag(search: string, name: string): boolean {
   try {
-    return new URLSearchParams(window.location.search).has(name)
+    return new URLSearchParams(search).has(name)
   } catch {
     return false
   }
 }
 
-export const DEBUG_DND: boolean = readFlag('debug-dnd')
+export const DEBUG_DND: boolean = typeof window !== 'undefined' && hasFlag(window.location.search, 'debug-dnd')
+
+type DndLog = (label: string, payload?: Record<string, unknown>) => void
+
+/** The `dndLog` for a flag value: prints when `enabled`, otherwise a no-op. */
+export function makeDndLog(enabled: boolean): DndLog {
+  return (label, payload) => {
+    if (!enabled) return
+    console.warn('[debug-dnd]', label, payload ?? {})
+  }
+}
 
 /**
  * Gated console.warn for DnD diagnostics. No-op when `?debug-dnd=1` isn't on
@@ -29,7 +39,4 @@ export const DEBUG_DND: boolean = readFlag('debug-dnd')
  * optional payload object; we print under a `[debug-dnd]` prefix so the user
  * can `console.warn` filter by it in DevTools.
  */
-export function dndLog(label: string, payload?: Record<string, unknown>): void {
-  if (!DEBUG_DND) return
-  console.warn('[debug-dnd]', label, payload ?? {})
-}
+export const dndLog: DndLog = makeDndLog(DEBUG_DND)
