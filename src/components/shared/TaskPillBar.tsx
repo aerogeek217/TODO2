@@ -90,7 +90,7 @@ export const TaskPillPeople = memo(function TaskPillPeople({
   if (people.length === 0) return null
   const avatarSize = (compact || density === 'small') ? 'sm' : 'md'
   return (
-    <div ref={anchorRef} className={styles.peopleGroup}>
+    <div ref={anchorRef} className={styles.peopleGroup} data-pill="people">
       <AvatarStack
         people={[...people]}
         max={compact ? 2 : 3}
@@ -247,7 +247,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       data-followup-overdue={overdue ? 'true' : undefined}
     >
       <FollowupFlagIcon />
-      {label}
+      <span className={styles.followupLabel}>{label}</span>
       {showClear && (
         <span
           className={styles.followupClear}

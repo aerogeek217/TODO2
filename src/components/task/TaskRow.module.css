@@ -494,19 +494,102 @@
   opacity: 1;
 }
 
-/* Inside a list widget (the widget is the size container) the title keeps
- * at least a third of the row, so chips can't squeeze it to nothing. */
+/*
+ * Inside a size container (a list widget, an Eisenhower quadrant, a dashboard
+ * panel, the task dialog) the row always fits its width:
+ * - the title starts at a third of the row and takes all the free space, so
+ *   it truncates before any chip does;
+ * - when the row is still too wide, the chips give way first — the tags (to
+ *   "#…"), the progress label and the empty people slot shrink, then the
+ *   people avatars (down to one) — and the title last, sharing with the
+ *   follow-up pill's label (its flag and × stay). Shrink weights
+ *   1000 › 100 › 1: the title's is 1 so that, once the chips are at their
+ *   minimum, it takes the whole remaining shortfall;
+ * - the markers, the notes icon, the due pill, the status and the ⋯ never
+ *   shrink. The narrower tiers below trim spacing so these always fit a
+ *   workspace column (280px).
+ */
 @container (min-width: 0px) {
+  .row {
+    gap: var(--space-3);
+  }
+
   .titleBlock {
-    min-width: 33cqi;
+    flex: 1 1 33cqi;
+    min-width: 0;
+  }
+
+  .row [data-tag-chips],
+  .progressChip,
+  .chipGroupEmpty {
+    flex-shrink: 1000;
+  }
+
+  /* At least "#…" of the first tag (rather than a sliver of a chip); this
+   * replaces TagChipSelector's 44px narrow floor, which rows short of room
+   * can't afford. */
+  .row [data-tag-chips]:has([data-tag-chip]) {
+    min-width: 24px;
+  }
+
+  .row [data-pill="people"] {
+    flex-shrink: 100;
+    min-width: 18px;
+    overflow-x: clip;
+  }
+
+  /* Down to its flag and × (the label gives way; a button's automatic
+   * minimum would be its whole label). */
+  .row [data-pill="followup"] {
+    flex-shrink: 1;
+    min-width: 44px;
   }
 }
 
-/* Narrow list widgets (< 360px): a follow-up pill gives way to a due pill.
- * (People are already avatars; extra tags collapse into "+N".) */
+/* Under 480px: the first tag and "+N" for the rest (TagChipSelector does the
+ * same under 360px on every row), tighter gaps and right padding, and the
+ * drag grip over the left padding instead of in the flow. */
+@container (max-width: 479px) {
+  .row {
+    gap: var(--space-2);
+    padding-right: var(--space-1);
+  }
+
+  .dragHandle {
+    position: absolute;
+    left: 1px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .row [data-tag-chip] ~ [data-tag-chip] {
+    display: none;
+  }
+
+  .row [data-tag-chip] {
+    min-width: 0;
+  }
+
+  .row [data-tag-more] {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  /* Squeezed, "+N" drops whole onto a second, clipped line rather than
+   * showing a sliver: the first tag ("#cu…") stays alone. */
+  .row [data-tag-chips]:has([data-tag-more]) {
+    flex-wrap: wrap;
+    align-content: flex-start;
+    max-height: 18px;
+  }
+}
+
+/* Narrow (< 360px): the title starts at a quarter, the date column hugs its
+ * pill (TaskPillBar), and a follow-up pill gives way to a due pill. */
 @container (max-width: 359px) {
   .titleBlock {
-    min-width: 25cqi;
+    flex-basis: 25cqi;
   }
 
   .row:has([data-pill="due"]) [data-pill="followup"] {
@@ -516,6 +599,35 @@
   /* No due date: the empty date slot doesn't reserve a pill's width. */
   .dateStackEmpty {
     width: auto;
+  }
+}
+
+/* Under 400px: the tightest gaps. */
+@container (max-width: 399px) {
+  .row {
+    gap: var(--space-1);
+  }
+}
+
+/* Under 330px: the status and ⋯ slots just wide enough for their icons;
+ * under 300px the tags may go entirely. */
+@container (max-width: 329px) {
+  .row {
+    --status-slot-w: 20px;
+  }
+
+  .row [class*="statusButton"] {
+    padding: 0 2px;
+  }
+
+  .row .moreBtn {
+    width: 20px;
+  }
+}
+
+@container (max-width: 299px) {
+  .row [data-tag-chips]:has([data-tag-chip]) {
+    min-width: 0;
   }
 }
 

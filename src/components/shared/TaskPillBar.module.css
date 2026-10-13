@@ -248,6 +248,15 @@
 
 .followupChip svg {
   font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* The label is what gives way when a task row is short of room; the flag and
+ * the × always show. */
+.followupLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .followupChipWithClear {
@@ -273,6 +282,7 @@
 }
 
 .followupClear {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -295,10 +305,11 @@
   background: var(--color-followup-glow);
 }
 
-/* Narrow list widgets (< 360px; the widget is the size container): avatars
- * keep their size; the tags in front of them give way first. */
+/* Narrow list widgets (< 360px; the widget is the size container): the date
+ * column hugs its pill instead of reserving the full slot. */
 @container (max-width: 359px) {
-  .peopleGroup {
-    flex-shrink: 0;
+  .dateStack {
+    width: auto;
+    max-width: var(--date-slot-w, 80px);
   }
 }

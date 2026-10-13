@@ -65,6 +65,7 @@ export function TagChipSelector({
             key={`tag-${tag.id}`}
             type="button"
             className={styles.tagChip}
+            data-tag-chip=""
             style={tag.color ? { color: tag.color, borderColor: tag.color } : undefined}
             onClick={toggleOpen}
             title="Edit tags"
@@ -73,10 +74,11 @@ export function TagChipSelector({
           </button>
         ))}
         {assignedTags.length > 1 && (
-          // Narrow list widgets show only the first tag and this count.
+          // Narrow rows show only the first tag and this count.
           <button
             type="button"
             className={styles.tagMore}
+            data-tag-more=""
             onClick={toggleOpen}
             title={assignedTags.slice(1).map((t) => `#${t.name}`).join(' ')}
             aria-label={`${assignedTags.length - 1} more ${assignedTags.length === 2 ? 'tag' : 'tags'}`}
