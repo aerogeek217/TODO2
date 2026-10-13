@@ -23,6 +23,7 @@
  */
 import type { PersistedTodoItem } from '../../models'
 import { toDateInputValue } from '../../utils/date'
+import { replaceMarkdownLinks } from '../../utils/markdown-links'
 import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
@@ -135,7 +136,7 @@ export function notesLineKey(markdownLine: string): string {
   s = s.replace(/^#{1,6}\s+/, '')
   s = s.replace(/^[-*+•·▪◦]\s+/, '')
   s = s.replace(/^(?:\[\s?\]|☐)\s*/, '[ ] ').replace(/^(?:\[[xX✓✔]\]|[☑☒])\s*/, '[x] ')
-  s = s.replace(/\[([^\]]*)\]\(([^)]*)\)/g, '$1')
+  s = replaceMarkdownLinks(s, (text) => text, true)
   s = s.replace(/\*\*|__|[*`]/g, '')
   return collapse(s)
 }

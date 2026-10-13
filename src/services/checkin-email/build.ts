@@ -20,6 +20,7 @@
 import type { Person, PersistedTodoItem, Tag } from '../../models'
 import { startOfDay, toDateInputValue } from '../../utils/date'
 import { daysUntil } from '../../utils/effective-date'
+import { escapeHtml } from '../../utils/html'
 import { mdToHtml } from '../notes-export'
 import { taskRef } from './ref'
 import type { CheckinSections } from './select'
@@ -107,15 +108,6 @@ function oneLine(s: string): string {
   return s.replace(/\s+/g, ' ').trim()
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 /** `Thu, Oct 8` (`, 2027` when not this year), or `Today`. */
 function formatEmailDay(date: Date, today: Date): string {
   const d = startOfDay(new Date(date))
@@ -188,7 +180,7 @@ function sectionViews(
     ref: refOf(todo.uid),
     meta: metaItems(todo, person, ctx, opts),
     progress: oneLine(todo.progress ?? ''),
-    notes: (todo.notes ?? '').replace(/\r\n?/g, '\n').replace(/\s+$/, ''),
+    notes: (todo.notes ?? '').replace(/\r\n?/g, '\n').trimEnd(),
   })
   const out: SectionView[] = []
   if (sections.overdue.length > 0) {

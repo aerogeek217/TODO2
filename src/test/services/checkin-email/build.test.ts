@@ -304,3 +304,15 @@ describe('email-safe HTML', () => {
     expect(doc.body.firstElementChild?.tagName).toBe('DIV')
   })
 })
+
+describe('buildCheckinEmail on long pathological notes', () => {
+  it('stays fast on notes with a long run of whitespace before more text', () => {
+    const { sections, ctx } = sample()
+    const t = { ...sections.comingUp[0]!, notes: `a${'\n'.repeat(100_000)}${' '.repeat(100_000)}b  \n` }
+    const start = performance.now()
+    const email = buildCheckinEmail(marcus, { overdue: [], comingUp: [t] }, ctx, ON)
+    expect(performance.now() - start).toBeLessThan(1000)
+    expect(email.plain).toContain('b')
+    expect(email.plain).not.toContain('b  ')
+  })
+})

@@ -30,6 +30,7 @@
  */
 import { CHECKIN_LABELS, CHECKIN_META_LABELS, CHECKIN_SECTION_LABELS, CHECKIN_SIGN_OFF } from '../checkin-email/build'
 import { TASK_REF_LENGTH } from '../checkin-email/ref'
+import { escapeHtml } from '../../utils/html'
 import { sanitizeHref } from '../notes-export'
 
 /** Largest paste read (HTML + plain text, in UTF-16 code units). */
@@ -298,10 +299,6 @@ function cleanNotesCell(cell: Element): string {
     if (href != null) el.setAttribute('href', sanitizeHref(unwrapSafeLink(href)))
   }
   return clone.innerHTML
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** Reads one update table's label / value rows into `block` (the first row per label wins). */

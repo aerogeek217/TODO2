@@ -298,3 +298,42 @@ describe('copyNotesRich', () => {
     expect(ok).toBe(false)
   })
 })
+
+describe('sanitizeHref hex entities', () => {
+  it('decodes a hex entity made only of digits as hex, not decimal', () => {
+    // `&#x70;` is `p`; read as decimal 70 it became `F`.
+    expect(sanitizeHref('htt&#x70;s://example.com')).toBe('https://example.com')
+    expect(sanitizeHref('&#X6a;avascript:alert(1)')).toBe('#')
+  })
+})
+
+describe('notes-export on long pathological lines', () => {
+  // Each input took seconds to minutes with the old regexes (quadratic
+  // backtracking); a linear pass takes milliseconds.
+  const N = 200_000
+  const within = (ms: number, fn: () => void) => {
+    const start = performance.now()
+    fn()
+    expect(performance.now() - start).toBeLessThan(ms)
+  }
+
+  it('mdToHtml: a long run of whitespace inside a line', () => {
+    within(1000, () => expect(mdToHtml(`a${' '.repeat(N)}b`)).toBe(`<p>a${' '.repeat(N)}b</p>`))
+  })
+
+  it('mdToHtml: a long run of `[` with no `]`, and of `[a](` with no `)`', () => {
+    within(1000, () => {
+      expect(mdToHtml('['.repeat(N))).toBe(`<p>${'['.repeat(N)}</p>`)
+      expect(mdToHtml('[a]('.repeat(N / 4))).toBe(`<p>${'[a]('.repeat(N / 4)}</p>`)
+    })
+  })
+
+  it('htmlToMarkdown: a <pre> with a long run of newlines before its text', () => {
+    within(1000, () => expect(htmlToMarkdown(`<pre>${'\n'.repeat(N)}x</pre>`)).toContain('x'))
+  })
+
+  it('mdToHtml still links and trims as before', () => {
+    expect(mdToHtml('see [docs](https://x.com/a&b)   ')).toBe('<p>see <a href="https://x.com/a&amp;b">docs</a></p>')
+    expect(mdToHtml('[[a](u)')).toBe('<p><a href="u">[a</a></p>')
+  })
+})

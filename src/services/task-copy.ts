@@ -11,6 +11,7 @@
 import type { PersistedTodoItem, Person, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
+import { escapeHtml } from '../utils/html'
 
 export interface CopyTaskSection {
   label?: string
@@ -21,15 +22,6 @@ export interface CopyTaskContext {
   assignedPeopleMap: Map<number, Person[]>
   statusMap: Map<number, Status>
   today?: Date
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 interface TodoDetails {

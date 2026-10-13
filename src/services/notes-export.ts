@@ -5,6 +5,9 @@
  * Markdown so `mdToHtml` (and external paste targets) see a clean stream.
  */
 
+import { escapeHtml, unescapeHtml } from '../utils/html'
+import { replaceMarkdownLinks } from '../utils/markdown-links'
+
 const MAX_HEADING_LEN = 60
 const MIN_HEADING_UPPERCASE_COUNT = 3
 const ALL_CAPS_LINE = /^[A-Z][A-Z0-9 \-·]{2,60}$/
@@ -29,24 +32,6 @@ export function normalizeToMarkdown(text: string): string {
       return line
     })
     .join('\n')
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function escapeHtmlAttr(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
 }
 
 /**
@@ -83,8 +68,8 @@ export function sanitizeHref(raw: string): string {
   // Decode any leading numeric entity (hex or decimal) so `&#106;avascript:`
   // etc. can't evade the allowlist. We don't need a full entity decoder —
   // just enough to un-hide the scheme byte(s).
-  s = s.replace(/&#x?([0-9a-fA-F]+);/g, (_m, code) => {
-    const n = /^[0-9]+$/.test(code) ? parseInt(code, 10) : parseInt(code, 16)
+  s = s.replace(/&#(?:([0-9]+)|[xX]([0-9a-fA-F]+));/g, (_m, dec: string | undefined, hex: string | undefined) => {
+    const n = dec != null ? parseInt(dec, 10) : parseInt(hex ?? '', 16)
     return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : ''
   })
   // Strip ASCII whitespace + control chars (incl. \t, \n, \r, \0).
@@ -101,27 +86,20 @@ export function sanitizeHref(raw: string): string {
   return SAFE_URL_SCHEMES.includes(scheme) ? s : '#'
 }
 
-const HTML_ENTITY_CHARS: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }
-
-/** Inverse of `escapeHtml` (one pass, so `&amp;lt;` stays `&lt;`). */
-function unescapeHtml(s: string): string {
-  return s.replace(/&(amp|lt|gt|quot|#39);/g, (_m, name: string) => HTML_ENTITY_CHARS[name] ?? _m)
-}
-
 function inlineMd(s: string): string {
   // The line is escaped once, up front, so every capture below is already
   // HTML-safe text and goes into the output as is (escaping it again would
   // show `Dana&#39;s` in the pasted text). A link target is the exception:
   // it is unescaped back to the raw URL, checked by `sanitizeHref`, and
   // escaped for the attribute.
-  return escapeHtml(s)
+  const marked = escapeHtml(s)
     .replace(/\*\*([^*]+)\*\*/g, (_m, text: string) => `<strong>${text}</strong>`)
     .replace(/\*([^*]+)\*/g, (_m, text: string) => `<em>${text}</em>`)
     .replace(/`([^`]+)`/g, (_m, text: string) => `<code>${text}</code>`)
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text: string, href: string) => {
-      const safe = sanitizeHref(unescapeHtml(href))
-      return `<a href="${escapeHtmlAttr(safe)}">${text}</a>`
-    })
+  return replaceMarkdownLinks(marked, (text, href) => {
+    const safe = sanitizeHref(unescapeHtml(href))
+    return `<a href="${escapeHtml(safe)}">${text}</a>`
+  })
 }
 
 /**
@@ -141,7 +119,7 @@ export function mdToHtml(md: string): string {
   }
 
   for (const raw of lines) {
-    const line = raw.replace(/\s+$/, '')
+    const line = raw.trimEnd()
     if (!line.trim()) {
       closeList()
       continue
@@ -201,6 +179,13 @@ export function htmlToMarkdown(html: string): string {
   return out
 }
 
+/** Drops trailing `\n`s — a loop, as `/\n+$/` is quadratic on long runs of `\n`. */
+function trimTrailingNewlines(s: string): string {
+  let end = s.length
+  while (end > 0 && s[end - 1] === '\n') end--
+  return s.slice(0, end)
+}
+
 function walkNode(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) {
     // Collapse whitespace the way HTML rendering would, but keep single spaces.
@@ -237,7 +222,7 @@ function walkNode(node: Node): string {
     case 'pre': {
       // <pre><code>…</code></pre> — emit fenced block.
       const codeChild = el.querySelector(':scope > code')
-      const body = (codeChild?.textContent ?? el.textContent ?? '').replace(/\n+$/, '')
+      const body = trimTrailingNewlines(codeChild?.textContent ?? el.textContent ?? '')
       return `\n\`\`\`\n${body}\n\`\`\`\n\n`
     }
     case 'a': {

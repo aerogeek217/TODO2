@@ -241,3 +241,17 @@ describe('refs', () => {
     expect(changesOf(diff, 'b71e05d9')).toEqual([{ field: 'progress', from: '40%', to: 'first', defaultSelected: true }])
   })
 })
+
+describe('notesLineKey on long pathological lines', () => {
+  it('stays linear on a long run of `[` (a crafted reply line)', () => {
+    const line = '['.repeat(200_000)
+    const start = performance.now()
+    expect(notesLineKey(line)).toBe(line)
+    expect(notesLineKey(`x${'[]('.repeat(50_000)}`)).toBe(`x${'[]('.repeat(50_000)}`)
+    expect(performance.now() - start).toBeLessThan(1000)
+  })
+
+  it('still keys links as their text', () => {
+    expect(notesLineKey('- see [the doc](https://x.com) and [](u)')).toBe('see the doc and')
+  })
+})

@@ -1,6 +1,7 @@
 import type { DashboardTileId } from '../../../models/dashboard-config'
 import type { ListTileCount } from '../../../services/stats/list-tiles'
 import type { TileStats } from '../../../services/stats/tiles'
+import { escapeHtml } from '../../../utils/html'
 import { countOf } from './dashboard-copy'
 import { TILES } from './dashboard-tiles'
 
@@ -9,10 +10,6 @@ export interface DashboardSummary {
   plain: string
   /** The body (unwrapped) — the clipboard path adds the font wrapper. */
   html: string
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 /**
