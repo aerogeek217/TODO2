@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useTodoStore } from '../../stores/todo-store'
 import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
 import { isNotesConvertOpen } from '../shared/notes/NotesConvert'
@@ -18,11 +19,13 @@ interface TaskNotePopoverProps {
 
 /**
  * Popover anchored below a TaskRow's notes-icon that mounts `NotesBody`
- * against the todo's `notes` field. Closes on outside-click or Escape.
+ * against the todo's `notes` field. Placed by `usePopoverAnchor`: it flips
+ * above the icon / to its right edge when it would leave the viewport, and
+ * follows the icon on scroll and resize. Closes on outside-click or Escape;
+ * a click on the icon itself is left to the icon's toggle.
  */
 export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
   const [toast, setToast] = useState<string | null>(null)
 
   const initialNotes = useMemo(() => {
@@ -31,9 +34,31 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   }, [todoId])
 
   const draftRef = useRef<string>(initialNotes)
-  const [, setDraft] = useState<string>(initialNotes)
+  const [draft, setDraft] = useState<string>(initialNotes)
 
-  useClickOutside(containerRef, onClose, true, isNotesLayer)
+  // Outside clicks and Escape stay here: both must leave the notes' own
+  // layers (the `@ # /` popup, the convert dialogs) alone.
+  const isInside = useCallback(
+    (target: Element) => isNotesLayer(target) || (anchorRef.current?.contains(target) ?? false),
+    [anchorRef],
+  )
+  useClickOutside(containerRef, onClose, true, isInside)
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: anchorRef },
+    open: true,
+    closeOnScroll: false,
+    closeOnResize: false,
+    closeOnEscape: false,
+    closeOnOutsideClick: false,
+    onClose,
+    // The editor grows with its text (and the toast line): re-place so the
+    // flip / clamp use the new height.
+    contentKey: `${toast ? '1' : '0'}${draft}`,
+  })
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el
+    panelRef(el)
+  }, [panelRef])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -46,28 +71,6 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
   }, [onClose])
-
-  // Track anchor position continuously (handles scroll / layout shifts).
-  useEffect(() => {
-    let raf = 0
-    let prevTop = -9999
-    let prevLeft = -9999
-    const tick = () => {
-      const rect = anchorRef.current?.getBoundingClientRect()
-      if (rect) {
-        const top = rect.bottom + 4
-        const left = rect.left
-        if (top !== prevTop || left !== prevLeft) {
-          prevTop = top
-          prevLeft = left
-          setPos({ top, left })
-        }
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [anchorRef])
 
   const source = useMemo<NotesSource>(() => ({
     get: () => draftRef.current,
@@ -85,9 +88,10 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   return (
     <div
-      ref={containerRef}
+      ref={setPanel}
       className={styles.popover}
-      style={{ top: pos.top, left: pos.left }}
+      // The hook's viewport cap, tightened to the popover's own 60vh.
+      style={{ ...style, maxHeight: `min(60vh, ${style.maxHeight}px)` }}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}

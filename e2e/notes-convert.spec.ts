@@ -187,9 +187,7 @@ test.describe('notes → tasks', () => {
     await expect(convert).toBeVisible()
     // The popover is narrower than 360px: glyph + count only.
     await expect(convert.getByText('Convert', { exact: true })).toBeHidden()
-    // Keyboard: the popover can overflow the right edge near the window's
-    // edge (a known popover placement issue), which a mouse click refuses.
-    await convert.press('Enter')
+    await convert.click()
     const preview = page.getByRole('dialog', { name: 'Convert to tasks' })
     await expect(preview).toBeVisible()
     await page.keyboard.press('Escape')

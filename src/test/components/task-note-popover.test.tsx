@@ -63,6 +63,26 @@ describe('TaskNotePopover', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('closes on a mousedown outside, but not on the notes icon (its toggle)', async () => {
+    seedTodo('x')
+    const anchor = createRef<HTMLButtonElement>()
+    const onClose = vi.fn()
+    render(
+      <>
+        <button ref={anchor}>anchor</button>
+        <div data-testid="elsewhere">elsewhere</div>
+        <TaskNotePopover todoId={100} anchorRef={anchor} onClose={onClose} />
+      </>,
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    fireEvent.mouseDown(anchor.current!)
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.mouseDown(document.querySelector('[data-testid="elsewhere"]')!)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('persists edits to the todo-store through the source adapter', async () => {
     seedTodo('')
     const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue()
