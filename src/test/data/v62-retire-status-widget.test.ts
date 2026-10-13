@@ -88,21 +88,32 @@ describe('upgradeV62 (pure)', () => {
   })
 
   it('gives the same layout as closing each status tab in turn, on many random layouts', () => {
-    // Deterministic pseudo-random layouts: 1–3 columns of 1–3 cells of 0–5
-    // tabs, each tab a status tab or not, any of them (or none) active.
+    // Deterministic pseudo-random layouts: 1–4 columns of 1–4 cells of 0–6
+    // tabs of any kind (status about half of them), uneven weights, any tab
+    // (or none, or a stale id) active, cells sometimes collapsed.
+    // mulberry32: every bit is well mixed (a power-of-two LCG's `seed % n`
+    // has a low bit that just alternates, which never built some shapes).
     let seed = 7
     const rand = (n: number) => {
-      seed = (seed * 1103515245 + 12345) % 2147483648
-      return seed % n
+      seed = (seed + 0x6D2B79F5) | 0
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return Math.floor((((t ^ (t >>> 14)) >>> 0) / 4294967296) * n)
     }
-    for (let round = 0; round < 500; round++) {
+    const kinds = ['notes', 'lens', 'calendar', 'eisenhower', 'dashboard']
+    for (let round = 0; round < 2000; round++) {
       let nextId = 0
-      const columns = Array.from({ length: 1 + rand(3) }, () => ({
-        id: `c${nextId++}`, weight: 1,
-        cells: Array.from({ length: 1 + rand(3) }, () => {
-          const tabs = Array.from({ length: rand(6) }, () => tab(`t${nextId++}`, rand(2) === 0 ? 'status' : 'notes'))
-          const active = rand(tabs.length + 1)
-          return { id: `k${nextId++}`, weight: 1, tabs, ...(active < tabs.length ? { activeTabId: tabs[active]!.id } : {}) }
+      const columns = Array.from({ length: 1 + rand(4) }, () => ({
+        id: `c${nextId++}`, weight: 1 + rand(5),
+        cells: Array.from({ length: 1 + rand(4) }, () => {
+          const tabs = Array.from({ length: rand(7) }, () => tab(`t${nextId++}`, rand(2) === 0 ? 'status' : kinds[rand(kinds.length)]!))
+          const active = rand(tabs.length + 2)
+          const activeTabId = active < tabs.length ? tabs[active]!.id : active === tabs.length ? 'gone' : undefined
+          return {
+            id: `k${nextId++}`, weight: 1 + rand(5), tabs,
+            ...(activeTabId !== undefined ? { activeTabId } : {}),
+            ...(rand(4) === 0 ? { collapsed: true } : {}),
+          }
         }),
       }))
       const row = layout(1, columns)
