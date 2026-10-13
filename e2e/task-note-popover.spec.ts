@@ -83,8 +83,8 @@ test.describe('row notes popover placement', () => {
     const popover = page.getByRole('dialog', { name: 'Task notes' })
     await expect(popover).toBeVisible()
     await expectInsideViewport(page, popover)
-    const p = await box(popover)
-    expect(p.y + p.height).toBeLessThanOrEqual(i.y)
+    // Above the icon where it is now (opening may scroll the list a little).
+    await expect.poll(async () => (await box(popover)).y + (await box(popover)).height - (await box(icon)).y).toBeLessThanOrEqual(0)
   })
 
   test('follows the icon when the list scrolls, and the icon closes it again', async ({ page }) => {
