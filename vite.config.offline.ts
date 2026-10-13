@@ -43,6 +43,20 @@ function fileProtocolCompat(): Plugin {
   }
 }
 
+// The single file embeds its fonts as data: URLs; without this the CSP's
+// `font-src 'self'` blocks them and the page falls back to a system font.
+// (Its one inline script is why `script-src` keeps 'unsafe-inline'.)
+function offlineCsp(): Plugin {
+  return {
+    name: 'offline-csp',
+    transformIndexHtml(html) {
+      const from = "font-src 'self'"
+      if (!html.includes(from)) throw new Error(`offline build: index.html no longer contains ${JSON.stringify(from)}`)
+      return html.replace(from, "font-src 'self' data:")
+    },
+  }
+}
+
 // Rename output from index.html to todo2.html
 function renameToTodo2(): Plugin {
   return {
@@ -58,7 +72,7 @@ function renameToTodo2(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), fileProtocolCompat(), renameToTodo2()],
+  plugins: [react(), viteSingleFile(), offlineCsp(), fileProtocolCompat(), renameToTodo2()],
   base: './',
   build: {
     emptyOutDir: false,
