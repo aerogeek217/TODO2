@@ -63,7 +63,13 @@ export function FileStorageSection() {
     body = (
       <SettingRow
         label="Sync file"
-        help="Your tasks live in this browser’s storage. Attach a file to keep a copy you can back up or move to another machine."
+        help={(
+          <>
+            Your tasks live in this browser’s storage. Attach a file to keep a copy you can back up or move to another machine.
+            <br />
+            An existing file you replace is emptied by the browser before TODO2 can back it up.
+          </>
+        )}
       >
         <button type="button" className={primary} onClick={fileStorage.openFile} disabled={fileStorage.isLoading}>
           Attach to File

@@ -14,6 +14,7 @@ import {
   readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId,
 } from './file-sync-state'
 import { browserMatchesFile, browserTaskCount } from './file-sync-compare'
+import { toDateInputValue } from '../utils/date'
 
 /**
  * Why sync is paused. While paused the file is never written, no restore has
@@ -80,6 +81,16 @@ type ConflictListener = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
 type FileUpgradeListener = (info: FileUpgradeInfo) => Promise<boolean>
 
 const FILE_TYPES = [{ description: 'TODO2 Database', accept: { 'application/json': ['.json'] } }]
+
+/**
+ * Create New File's suggested name, dated with the local day
+ * (`todo2-data-YYYY-MM-DD.json`). The browser empties an existing file picked
+ * in the save dialog before the app gets control, so its text can't be
+ * backed up; a dated default keeps the suggestion off an older sync file.
+ */
+export function newSyncFileName(now: Date = new Date()): string {
+  return `todo2-data-${toDateInputValue(now)}.json`
+}
 const DEBOUNCE_MS = 500
 
 const PAUSED_PREFIX = 'File sync paused'
@@ -294,7 +305,7 @@ class FileStorageService {
   async createFile(): Promise<void> {
     try {
       const handle = await window.showSaveFilePicker({
-        suggestedName: 'todo2-data.json',
+        suggestedName: newSyncFileName(),
         types: FILE_TYPES,
       })
       this.stopSync()

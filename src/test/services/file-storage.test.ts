@@ -749,6 +749,22 @@ describe('FileStorageService — attach, create, disconnect', () => {
     expect(syncState().fileSavedAt).not.toBeNull()
   })
 
+  it('createFile suggests a name dated with the local day, never the old fixed name', async () => {
+    vi.setSystemTime(new Date(2026, 0, 5, 23, 30)) // local 5 Jan, late evening
+    const { handle } = createMockHandle('')
+    const picker = vi.fn().mockResolvedValue(handle)
+    vi.stubGlobal('showSaveFilePicker', picker)
+    const svc = await getService()
+    await svc.createFile()
+    expect(picker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'todo2-data-2026-01-05.json' }))
+  })
+
+  it('newSyncFileName pads month and day and uses the local date', async () => {
+    const { newSyncFileName } = await import('../../services/file-storage')
+    expect(newSyncFileName(new Date(2026, 9, 16, 0, 5))).toBe('todo2-data-2026-10-16.json')
+    expect(newSyncFileName(new Date(2027, 11, 31, 23, 59))).toBe('todo2-data-2027-12-31.json')
+  })
+
   it('an empty attached file is seeded with the browser data', async () => {
     const { svc, writable } = await startWith('')
     await svc.initialize()
