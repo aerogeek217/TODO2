@@ -298,19 +298,30 @@ describe('size', () => {
     expect(both.ok).toBe(false)
   })
 
-  it('reads a paste just under the cap quickly, including pathological lines', () => {
+  it('reads a plain-text paste just under the cap quickly, including pathological lines', () => {
     const email = sampleEmail()
     const filler = ' '.repeat(400_000) + 'Ref'
     const longNotes = Array.from({ length: 4000 }, (_, i) => `Line ${i} of a very long note`).join('\n')
     const plain = editPlain(email.plain, '0c4d8e17', 'Notes:', ['Notes:', longNotes, `1. ${filler}`, `${filler} Ref`])
-    const html = editHtml(email.html, '0c4d8e17', 'Notes:', `<p>${'word '.repeat(150_000)}</p>`)
-    expect(html.length + plain.length).toBeLessThan(CHECKIN_REPLY_MAX_CHARS)
+    expect(plain.length).toBeLessThan(CHECKIN_REPLY_MAX_CHARS)
     const start = performance.now()
-    const fromHtml = parse({ html, plain })
     const fromPlain = parse({ plain })
-    expect(performance.now() - start).toBeLessThan(5000)
-    expect(fromHtml.blocks).toHaveLength(4)
+    expect(performance.now() - start).toBeLessThan(2000)
     expect(fromPlain.blocks).toHaveLength(4)
     expect(block(fromPlain, '0c4d8e17').notesText?.split('\n').length).toBe(4002)
+  })
+
+  it('reads an HTML paste with a huge paragraph quickly', () => {
+    // 75k characters in one text node: enough to show anything quadratic in
+    // the reader (seconds), and small enough for jsdom's own HTML parser —
+    // far slower than a browser's (~0.45 µs a character, most of the time
+    // here; a 750k-character paste took ~0.35 s, and over 5 s once in a
+    // loaded full run) — to stay well inside the budget.
+    const email = sampleEmail()
+    const html = editHtml(email.html, '0c4d8e17', 'Notes:', `<p>${'word '.repeat(15_000)}</p>`)
+    const start = performance.now()
+    const fromHtml = parse({ html, plain: email.plain })
+    expect(performance.now() - start).toBeLessThan(2000)
+    expect(fromHtml.blocks).toHaveLength(4)
   })
 })
