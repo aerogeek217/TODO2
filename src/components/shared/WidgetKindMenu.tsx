@@ -61,8 +61,6 @@ export interface WidgetKindMenuProps {
    */
   onEditList?: () => void
   onClose: () => void
-  /** Optional label override for the secondary row (e.g. the current list-def name). */
-  secondaryLabel?: string
   /** Group-label heading. Defaults to "Change widget"; use "Add widget" in add mode. */
   heading?: string
   /**
@@ -100,7 +98,6 @@ export function WidgetKindMenu({
   pickListForLens,
   onEditList,
   onClose,
-  secondaryLabel,
   heading = 'Change widget',
   widgetActions,
   onListOptions,
@@ -122,7 +119,7 @@ export function WidgetKindMenu({
   const entries: MenuEntry[] = []
   const changeList: MenuItemEntry = {
     kind: 'item',
-    label: listFirst ? 'Change list' : (secondaryLabel ?? 'Change list…'),
+    label: listFirst ? 'Change list' : 'Change list…',
     note: listFirst ? currentListName : undefined,
     children: listChoices,
     childrenWidth: CHANGE_LIST_WIDTH_PX,

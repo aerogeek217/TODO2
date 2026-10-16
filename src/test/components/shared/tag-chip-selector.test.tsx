@@ -163,20 +163,4 @@ describe('<TagChipSelector>', () => {
       expect(onCreate).toHaveBeenCalledWith('newtag')
     })
   })
-
-  describe('disabled (ghost) mode', () => {
-    it('does not open the dropdown when disabled', () => {
-      render(
-        <TagChipSelector
-          assignedTags={[alpha]}
-          allTags={[alpha, beta]}
-          onToggle={vi.fn()}
-          onCreate={vi.fn()}
-          disabled
-        />,
-      )
-      fireEvent.click(screen.getByText('#alpha'))
-      expect(screen.queryByPlaceholderText('Search tags...')).not.toBeInTheDocument()
-    })
-  })
 })

@@ -14,8 +14,6 @@ export interface TagChipSelectorProps {
   onToggle: (tagId: number) => void
   /** Lookup-or-create-and-assign a tag by name. */
   onCreate: (name: string) => Promise<void> | void
-  /** Ghost rows: suppress popover open. */
-  disabled?: boolean
   /** Controlled popover state (the task menu's "Add tag…" opens it). Uncontrolled when omitted. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -32,7 +30,7 @@ export interface TagChipSelectorProps {
  * `tag-store` — keeps per-row spam bounded on dense surfaces.
  */
 export function TagChipSelector({
-  assignedTags, allTags, onToggle, onCreate, disabled,
+  assignedTags, allTags, onToggle, onCreate,
   open: openProp, onOpenChange,
 }: TagChipSelectorProps) {
   const [innerOpen, setInnerOpen] = useState(false)
@@ -46,9 +44,8 @@ export function TagChipSelector({
   const close = useCallback(() => setOpen(false), [setOpen])
   const toggleOpen = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    if (disabled) return
     setOpen(!open)
-  }, [disabled, open, setOpen])
+  }, [open, setOpen])
 
   const hasTags = assignedTags.length > 0
   const assignedIds = new Set(assignedTags.map((t) => t.id!))
@@ -98,7 +95,7 @@ export function TagChipSelector({
           </button>
         )}
       </div>
-      {open && !disabled && (
+      {open && (
         <AnchoredPicker anchorRef={anchorRef} onClose={close}>
           <div className={styles.dropdown}>
             <ChipSelector

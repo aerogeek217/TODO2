@@ -23,16 +23,9 @@ export interface NotesSource {
 }
 
 interface NotesBodyProps {
-  dock?: 'right' | 'bottom' | 'floating' | 'slot'
   onConvertToast?: (message: string) => void
   /** Show the inline formatting toolbar. Defaults to true. */
   showToolbar?: boolean
-  /**
-   * Override the note row this body edits. When provided, reads/writes the
-   * referenced row instead of the store's global
-   * `activeId`. Caller is responsible for ensuring the row is loaded.
-   */
-  activeIdOverride?: number | null
   /**
    * External content source (task notes, etc.). When supplied, the note-store
    * bindings are bypassed entirely — the editor reads `source.get()` and
@@ -51,9 +44,8 @@ interface NotesBodyProps {
  * (the toolbar's Convert, Alt+T — `useNotesConvert`); the outer chrome is
  * supplied by each surface.
  */
-export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, source, placeholder, convert = true }: NotesBodyProps) {
-  const storeActiveId = useNoteStore((s) => s.activeId)
-  const activeId = activeIdOverride !== undefined ? activeIdOverride : storeActiveId
+export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, convert = true }: NotesBodyProps) {
+  const activeId = useNoteStore((s) => s.activeId)
   const notes = useNoteStore((s) => s.notes)
   const storeSetContent = useNoteStore((s) => s.setContent)
   const load = useNoteStore((s) => s.load)
@@ -67,10 +59,9 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const nlp = useMemo(() => storeNotesNlpConfig((message) => toastRef.current?.(message)), [toastRef])
 
   useEffect(() => {
-    // Only auto-seed the global note when no override was specified and
-    // we aren't bound to an external source.
-    if (source == null && activeIdOverride === undefined && activeId == null) void load()
-  }, [activeId, activeIdOverride, load, source])
+    // Only auto-seed the global note when not bound to an external source.
+    if (source == null && activeId == null) void load()
+  }, [activeId, load, source])
 
   const content = source
     ? source.get()
@@ -145,7 +136,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   }, [source, activeId, storeFlush, onConvertToast])
 
   return (
-    <div className={`${styles.body} ${styles[`body_${dock}`] ?? ''}`}>
+    <div className={styles.body}>
       {showToolbar && (
         <NotesToolbar
           viewRef={viewRef}

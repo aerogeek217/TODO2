@@ -72,7 +72,7 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
       </div>
       <button
         type="button"
-        className={styles.boardButton}
+        className={styles.focusButton}
         onClick={handleAddToFocus}
         disabled={inFocus}
         title={inFocus ? 'Already in focus' : 'Add to Focus'}

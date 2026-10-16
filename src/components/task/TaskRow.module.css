@@ -298,44 +298,6 @@
   opacity: 1;
 }
 
-.orgChip {
-  font-size: var(--font-size-meta);
-  padding: 0 5px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100px;
-  transition: background 0.1s;
-}
-
-.orgChip:hover {
-  background: var(--color-surface-bright);
-}
-
-.tagChip {
-  font-size: var(--font-size-meta);
-  padding: 0 5px;
-  border: 1px solid;
-  border-radius: var(--radius-chip);
-  white-space: nowrap;
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity 0.1s;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100px;
-}
-
-.tagChip:hover {
-  opacity: 0.8;
-}
-
 .chipTrigger {
   background: transparent;
   border: none;
@@ -361,26 +323,6 @@
   padding: 4px 0;
   box-shadow: var(--shadow-dropdown);
   min-width: 140px;
-}
-
-.tagColorInput {
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.tagColorInput::-webkit-color-swatch-wrapper {
-  padding: 1px;
-}
-
-.tagColorInput::-webkit-color-swatch {
-  border: none;
-  border-radius: 2px;
 }
 
 /*

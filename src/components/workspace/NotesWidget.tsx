@@ -9,7 +9,7 @@ interface NotesWidgetProps {
 export function NotesWidget({ onToast }: NotesWidgetProps) {
   return (
     <div className={styles.wrap}>
-      <NotesBody dock="slot" onConvertToast={onToast} />
+      <NotesBody onConvertToast={onToast} />
     </div>
   )
 }
