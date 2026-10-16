@@ -8,6 +8,8 @@ import {
   type LayoutColumn,
   type LayoutTab,
   type LensTabConfig,
+  DEFAULT_CALENDAR_DATE_TYPES,
+  DEFAULT_WEIGHT,
 } from '../models/workspace-layout'
 import { normalizeDashboardConfig } from '../models/dashboard-config'
 import { isRecord } from '../utils/is-record'
@@ -122,59 +124,160 @@ export function checkLayoutColumns(columns: unknown): true | string {
   return true
 }
 
-function pickTab(raw: Obj): LayoutTab {
-  const id = raw.id as string
-  const config = raw.config as Obj
-  const view = isRecord(raw.viewState) ? raw.viewState : undefined
-  switch (raw.kind) {
-    case 'lens': {
-      const lensConfig: LensTabConfig = {}
-      if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
-      return { id, kind: 'lens', config: lensConfig }
-    }
-    case 'calendar': {
-      const types = config.dateTypes as Obj
-      const tab: LayoutTab = { id, kind: 'calendar', config: { dateTypes: { due: types.due === true, followup: types.followup === true } } }
-      if (view) {
-        const viewState: CalendarTabViewState = {}
-        if (view.view === 'week' || view.view === 'month') viewState.view = view.view
-        if (isFiniteNum(view.offset)) viewState.offset = clampCalendarOffset(view.offset)
-        if (Object.keys(viewState).length > 0) tab.viewState = viewState
-      }
-      return tab
-    }
-    case 'eisenhower': {
-      const raw = view?.collapsed
-      const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
-      const tab: LayoutTab = { id, kind: 'eisenhower', config: {} }
-      // Known quadrants, once each, in display order.
-      if (collapsed && collapsed.size > 0) tab.viewState = { collapsed: EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) }
-      return tab
-    }
-    case 'dashboard':
-      return { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
-    default:
-      // 'notes' — the only kind left (`checkLayoutColumns` vetted it).
-      return { id, kind: 'notes', config: {} }
-  }
+/** A part `pickLayoutColumns` dropped or reset, counted. */
+type LayoutFix = 'columns' | 'column' | 'cell' | 'tab' | 'size' | 'settings'
+
+const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
+  columns: ['columns reset', 'columns reset'],
+  column: ['column dropped', 'columns dropped'],
+  cell: ['cell dropped', 'cells dropped'],
+  tab: ['tab dropped', 'tabs dropped'],
+  size: ['size reset', 'sizes reset'],
+  settings: ['tab or cell settings reset', 'tab or cell settings reset'],
 }
 
-function pickCell(raw: Obj): LayoutCell {
-  const tabs = (raw.tabs as Obj[]).map(pickTab)
-  const cell: LayoutCell = { id: raw.id as string, weight: raw.weight as number, tabs }
-  if (typeof raw.activeTabId === 'string' && tabs.some((t) => t.id === raw.activeTabId)) cell.activeTabId = raw.activeTabId
-  if (raw.collapsed === true) cell.collapsed = true
-  return cell
+export interface PickedLayoutColumns {
+  columns: LayoutColumn[]
+  /**
+   * The parts `checkLayoutColumns` rejects that were dropped or reset, in
+   * words (`2 tabs dropped`, …); empty for columns that pass it.
+   */
+  fixes: string[]
 }
 
 /**
- * Rebuilds columns that passed `checkLayoutColumns` with only the model's
- * keys. A stale `activeTabId` is dropped (= first tab).
+ * Rebuilds a layout body with only the model's keys. For columns that pass
+ * `checkLayoutColumns` (all import ever picks) nothing is dropped but a stale
+ * `activeTabId` (= first tab), unknown dashboard ids / options, duplicate
+ * collapsed quadrants, and an out-of-range calendar offset (clamped).
+ *
+ * Anything else becomes a valid body, its bad parts reported in `fixes`, so
+ * the audit can repair a stored layout instead of deleting it: a column /
+ * cell / tab that isn't an object, has a bad or repeated id, or (tab) an
+ * unknown kind is dropped, as is a column left without cells; a bad size
+ * becomes 1; bad tab settings fall back to the kind's defaults; a bad
+ * `activeTabId` / `collapsed` is dropped.
  */
-export function pickLayoutColumns(columns: unknown): LayoutColumn[] {
-  return (columns as Obj[]).map((col) => ({
-    id: col.id as string,
-    weight: col.weight as number,
-    cells: (col.cells as Obj[]).map(pickCell),
-  }))
+export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
+  const counts = new Map<LayoutFix, number>()
+  const fix = (what: LayoutFix) => { counts.set(what, (counts.get(what) ?? 0) + 1) }
+  const seen = new Set<string>()
+  const fresh = (id: unknown): id is string => {
+    if (!isId(id) || seen.has(id)) return false
+    seen.add(id)
+    return true
+  }
+  const weightOf = (v: unknown): number => {
+    if (isWeight(v)) return v
+    fix('size')
+    return DEFAULT_WEIGHT
+  }
+
+  const pickTab = (tab: unknown): LayoutTab | null => {
+    if (!isRecord(tab) || !fresh(tab.id) || !isWidgetKind(tab.kind)) {
+      fix('tab')
+      return null
+    }
+    const id = tab.id
+    let config: Obj = {}
+    if (isRecord(tab.config)) config = tab.config
+    else fix('settings')
+    let view: Obj | undefined
+    if (isRecord(tab.viewState)) view = tab.viewState
+    else if (tab.viewState !== undefined) fix('settings')
+    switch (tab.kind) {
+      case 'lens': {
+        const lensConfig: LensTabConfig = {}
+        if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
+        else if (config.listDefinitionId !== undefined) fix('settings')
+        return { id, kind: 'lens', config: lensConfig }
+      }
+      case 'calendar': {
+        const types = config.dateTypes
+        const typesOk = isRecord(types) && typeof types.due === 'boolean' && typeof types.followup === 'boolean' && (types.due || types.followup)
+        if (!typesOk) fix('settings')
+        const dateTypes = typesOk
+          ? { due: types.due === true, followup: types.followup === true }
+          : { ...DEFAULT_CALENDAR_DATE_TYPES }
+        const calendar: LayoutTab = { id, kind: 'calendar', config: { dateTypes } }
+        if (view) {
+          const viewState: CalendarTabViewState = {}
+          if (view.view === 'week' || view.view === 'month') viewState.view = view.view
+          else if (view.view !== undefined) fix('settings')
+          if (isFiniteNum(view.offset)) viewState.offset = clampCalendarOffset(view.offset)
+          else if (view.offset !== undefined) fix('settings')
+          if (Object.keys(viewState).length > 0) calendar.viewState = viewState
+        }
+        return calendar
+      }
+      case 'eisenhower': {
+        const raw = view?.collapsed
+        if (raw !== undefined && (!Array.isArray(raw) || !raw.every(isEisenhowerQuadrant))) fix('settings')
+        const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
+        const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: {} }
+        // Known quadrants, once each, in display order.
+        const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
+        if (quadrants.length > 0) eisenhower.viewState = { collapsed: quadrants }
+        return eisenhower
+      }
+      case 'dashboard':
+        // Unknown ids / options inside are dropped, missing parts defaulted.
+        for (const key of ['tiles', 'listTiles', 'sections'] as const) {
+          if (config[key] !== undefined && !Array.isArray(config[key])) fix('settings')
+        }
+        return { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
+      default:
+        return { id, kind: 'notes', config: {} }
+    }
+  }
+
+  const pickCell = (cell: unknown): LayoutCell | null => {
+    if (!isRecord(cell) || !fresh(cell.id) || !Array.isArray(cell.tabs)) {
+      fix('cell')
+      return null
+    }
+    const id = cell.id
+    const weight = weightOf(cell.weight)
+    const tabs: LayoutTab[] = []
+    for (const tab of cell.tabs as unknown[]) {
+      const picked = pickTab(tab)
+      if (picked) tabs.push(picked)
+    }
+    const out: LayoutCell = { id, weight, tabs }
+    if (typeof cell.activeTabId === 'string' && tabs.some((t) => t.id === cell.activeTabId)) out.activeTabId = cell.activeTabId
+    else if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) fix('settings')
+    if (cell.collapsed === true) out.collapsed = true
+    else if (cell.collapsed !== undefined && typeof cell.collapsed !== 'boolean') fix('settings')
+    return out
+  }
+
+  const columns: LayoutColumn[] = []
+  if (Array.isArray(raw)) {
+    for (const col of raw as unknown[]) {
+      if (!isRecord(col) || !fresh(col.id) || !Array.isArray(col.cells)) {
+        fix('column')
+        continue
+      }
+      const id = col.id
+      const weight = weightOf(col.weight)
+      const cells: LayoutCell[] = []
+      for (const cell of col.cells as unknown[]) {
+        const picked = pickCell(cell)
+        if (picked) cells.push(picked)
+      }
+      if (cells.length === 0) {
+        fix('column')
+        continue
+      }
+      columns.push({ id, weight, cells })
+    }
+  } else {
+    fix('columns')
+  }
+
+  const fixes = [...counts].map(([what, n]) => {
+    const [one, many] = FIX_WORDS[what]
+    return n === 1 ? one : `${n} ${many}`
+  })
+  return { columns, fixes }
 }

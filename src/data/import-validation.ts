@@ -466,14 +466,42 @@ function pickNote(v: Raw): AllFields<Note> {
   } satisfies AllFields<Note>
 }
 
+/**
+ * A layout's name as stored: trimmed, at most `LAYOUT_NAME_MAX` long; a
+ * missing or blank one becomes `Layout`. `fix` names what changed, for a name
+ * `checkLayout` rejects (only the audit picks such a row).
+ */
+function layoutName(v: unknown): { name: string; fix?: string } {
+  if (isStr(v, LAYOUT_NAME_MAX) && v.trim().length > 0) return { name: v }
+  const trimmed = typeof v === 'string' ? v.trim() : ''
+  if (trimmed.length === 0) return { name: 'Layout', fix: 'name reset' }
+  return { name: trimmed.slice(0, LAYOUT_NAME_MAX), fix: 'name shortened' }
+}
+
+/**
+ * What `pickLayout` drops or resets in a `layouts` row, in words; empty for a
+ * row that passes `checkLayout`. Import rejects such rows; the audit
+ * repairs a stored one with `pickLayout` instead of deleting it.
+ */
+function layoutFixes(v: Raw): string[] {
+  const fixes: string[] = []
+  const name = layoutName(v.name).fix
+  if (name) fixes.push(name)
+  if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
+  return [...fixes, ...pickLayoutColumns(v.columns).fixes]
+}
+
 function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
+  // Lenient past `checkLayout` (bad dates → now, a bad last use → none), so
+  // the audit can repair a stored row with it; see `layoutFixes`.
+  const now = new Date()
   return {
     id: optNum(v.id),
-    name: v.name as string,
-    columns: pickLayoutColumns(v.columns),
-    createdAt: toDate(v.createdAt),
-    modifiedAt: toDate(v.modifiedAt),
-    lastUsedAt: toOptDate(v.lastUsedAt),
+    name: layoutName(v.name).name,
+    columns: pickLayoutColumns(v.columns).columns,
+    createdAt: isDateLike(v.createdAt) ? toDate(v.createdAt) : now,
+    modifiedAt: isDateLike(v.modifiedAt) ? toDate(v.modifiedAt) : now,
+    lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
   } satisfies AllFields<WorkspaceLayout>
 }
 
@@ -586,7 +614,11 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
   tags: { check: checkTag, pick: pickTag },
   todoTags: { check: checkTodoTag, pick: pickTodoTag },
   todoEvents: { check: checkTodoEvent, pick: pickTodoEvent },
-  layouts: { check: checkLayout, pick: pickLayout },
+  layouts: {
+    check: checkLayout,
+    pick: pickLayout,
+    fixer: { fixes: layoutFixes, lead: (n) => `Fixed ${plural(n, 'layout', 'layouts')}` },
+  },
   listOrders: { check: checkListOrder, pick: pickListOrder },
 }
 
@@ -624,7 +656,8 @@ export function rowFixes(table: DataTableName, row: unknown): string[] {
 
 /**
  * `row` as import stores it: rebuilt by the table's picker, so the parts
- * `rowFixes` names are dropped. For a row that passes `validateRow`.
+ * `rowFixes` names are dropped. For a row that passes `validateRow`, or any
+ * `layouts` row (its picker repairs what `checkLayout` rejects).
  */
 export function sanitizeRow<K extends DataTableName>(table: K, row: unknown): ImportRow<K> {
   return compactRow<ImportRow<K>>(IMPORT_TABLES[table].pick(row as Raw))

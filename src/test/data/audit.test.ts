@@ -349,6 +349,61 @@ describe('sanitisable-row audit', () => {
   })
 })
 
+describe('layouts audit', () => {
+  const at = new Date('2026-09-01T09:00:00.000Z')
+  const notes = (id: string) => ({ id, kind: 'notes', config: {} })
+  const layout = (name: string, columns: unknown) => ({ name, columns, createdAt: at, modifiedAt: at })
+  const good = () => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }]
+
+  it('does not flag a valid layout', async () => {
+    await db.layouts.add(layout('Daily', good()) as any)
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('reports a layout the schema cannot read for repair, naming what cleanup drops', async () => {
+    const id = await db.layouts.add(layout('Broken', [
+      { id: 'c1', weight: 1, cells: [{ id: 'k1', weight: -1, tabs: [notes('t1'), { id: 't2', kind: 'status', config: {} }] }] },
+    ]) as any)
+    await db.layouts.add(layout('Daily', good()) as any)
+
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
+    const sample = report.issues[0]!.samples![0]!
+    expect(sample.badFields).toEqual(['columns[0].cells[0].weight'])
+    expect(sample.note).toBe('Schema validator rejected this row: columns[0].cells[0].weight. Cleanup: size reset, tab dropped')
+  })
+
+  it('cleanup repairs a corrupt active layout instead of deleting it, keeping its good parts', async () => {
+    const id = await db.layouts.add(layout('  ', [
+      { id: 'c1', weight: 2, cells: [{ id: 'k1', weight: 1, activeTabId: 't9', tabs: [notes('t1'), { id: 't1', kind: 'notes', config: {} }] }] },
+      { id: 'c2', weight: 1, cells: [] },
+      'not a column',
+    ]) as any) as number
+    await db.settings.put({ key: 'activeLayoutId', value: String(id) })
+
+    await cleanupIssues((await auditData()).issues)
+
+    expect(await db.layouts.count()).toBe(1)
+    expect(await db.settings.get('activeLayoutId')).toEqual({ key: 'activeLayoutId', value: String(id) })
+    expect(await db.layouts.get(id)).toEqual({
+      id, name: 'Layout', createdAt: at, modifiedAt: at,
+      columns: [{ id: 'c1', weight: 2, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }],
+    })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('a layout with nothing usable left is kept, empty', async () => {
+    const id = await db.layouts.add({ name: 'Only', columns: 'garbage', createdAt: 'never', modifiedAt: at } as any) as number
+
+    await cleanupIssues((await auditData()).issues)
+
+    const row = await db.layouts.get(id)
+    expect(row).toMatchObject({ id, name: 'Only', columns: [], modifiedAt: at })
+    expect(row!.createdAt).toBeInstanceOf(Date)
+    expect((await auditData()).issues).toEqual([])
+  })
+})
+
 // --- Unknown-setting detection: rows in `settings` whose `key` is not in the
 // build's recognised set. Cleanup deletes by `key` (settings is keyed by string).
 describe('unknown-setting audit', () => {

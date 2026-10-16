@@ -1,6 +1,6 @@
 import { db } from './database'
 import { readDataTables } from './export-data'
-import { DATA_TABLE_NAMES } from './tables'
+import { DATA_TABLE_NAMES, type DataTableName } from './tables'
 import {
   KNOWN_DB_TABLES,
   validateRow,
@@ -129,6 +129,14 @@ function joinTargetTable(field: string): string {
   }
 }
 
+/**
+ * Tables whose unreadable rows cleanup repairs instead of deleting: a layout
+ * the validator rejects is rebuilt with its bad parts dropped (`sanitizeRow`
+ * → `pickLayout`), so cleanup never deletes a layout — the active one, maybe
+ * the only one, included.
+ */
+const REPAIRED_NOT_DELETED: ReadonlySet<DataTableName> = new Set<DataTableName>(['layouts'])
+
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
   const issues: AuditIssue[] = []
@@ -170,13 +178,17 @@ export async function auditData(): Promise<AuditReport> {
   // unknown-key pass for rows whose `key` isn't recognized, and the
   // invalid-value pass for rows whose `key` is fine but whose `value`
   // fails the per-key value validator (legacy shapes, stale formats).
+  // A layout the validator rejects is repaired, never deleted
+  // (`REPAIRED_NOT_DELETED`).
   for (const tableKey of DATA_TABLE_NAMES) {
-    if (tableKey === 'settings' || tableKey === 'layouts') continue
+    if (tableKey === 'settings') continue
     const rows: readonly unknown[] = tables[tableKey]
     const badIds: number[] = []
     const badSamples: AuditSample[] = []
     const fixIds: number[] = []
     const fixSamples: AuditSample[] = []
+    const repairIds: number[] = []
+    const repairSamples: AuditSample[] = []
     for (const row of rows) {
       const result = validateRow(tableKey, row)
       if (result === true) {
@@ -194,12 +206,24 @@ export async function auditData(): Promise<AuditReport> {
       }
       const id = (row as { id?: number }).id
       if (typeof id !== 'number') continue
+      // `validateRow` returns the bad field name (or a short phrase like
+      // "key (unrecognized)") on failure. Strip the parenthetical so the
+      // popup can highlight the field name reliably.
+      const badField = result.replace(/\s*\(.*\)$/, '').trim()
+      if (REPAIRED_NOT_DELETED.has(tableKey)) {
+        repairIds.push(id)
+        if (repairSamples.length < MAX_SAMPLES_PER_ISSUE) {
+          repairSamples.push({
+            row: toSampleRow(row),
+            id,
+            badFields: badField ? [badField] : [],
+            note: `Schema validator rejected this row: ${result}. Cleanup: ${rowFixes(tableKey, row).join(', ')}`,
+          })
+        }
+        continue
+      }
       badIds.push(id)
       if (badSamples.length < MAX_SAMPLES_PER_ISSUE) {
-        // `validateRow` returns the bad field name (or a short phrase like
-        // "key (unrecognized)") on failure. Strip the parenthetical so the
-        // popup can highlight the field name reliably.
-        const badField = result.replace(/\s*\(.*\)$/, '').trim()
         badSamples.push({
           row: toSampleRow(row),
           id,
@@ -226,6 +250,16 @@ export async function auditData(): Promise<AuditReport> {
         ids: fixIds,
         fix: 'sanitize',
         samples: fixSamples,
+      })
+    }
+    if (repairIds.length > 0) {
+      issues.push({
+        table: tableKey,
+        description: `Rows in "${tableKey}" that the current schema cannot read (cleanup drops their bad parts and keeps the rest)`,
+        count: repairIds.length,
+        ids: repairIds,
+        fix: 'sanitize',
+        samples: repairSamples,
       })
     }
   }
