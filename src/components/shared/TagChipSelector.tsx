@@ -1,8 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import type { Tag } from '../../models'
 import { ChipSelector } from './ChipSelector'
-import { PortalDropdown } from './PortalDropdown'
+import { AnchoredPicker } from './AnchoredPicker'
 import styles from './TagChipSelector.module.css'
 import { byName } from '../../utils/sort-order'
 
@@ -99,8 +98,8 @@ export function TagChipSelector({
           </button>
         )}
       </div>
-      {open && !disabled && createPortal(
-        <PortalDropdown anchorRef={anchorRef} onClickOutside={close}>
+      {open && !disabled && (
+        <AnchoredPicker anchorRef={anchorRef} onClose={close}>
           <div className={styles.dropdown}>
             <ChipSelector
               items={[...allTags]
@@ -109,11 +108,11 @@ export function TagChipSelector({
               selectedIds={assignedIds}
               onToggle={onToggle}
               onCreate={(name) => { void onCreate(name) }}
+              onClose={close}
               placeholder="Search tags..."
             />
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
     </>
   )

@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { PersistedTodoItem } from '../../../models'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -7,7 +6,7 @@ import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../../utils/per
 import { useTagStore } from '../../../stores/tag-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { ChipSelector } from '../../shared/ChipSelector'
-import { PortalDropdown } from '../../shared/PortalDropdown'
+import { AnchoredPicker } from '../../shared/AnchoredPicker'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { FollowupFlagIcon } from '../../shared/FollowupIcons'
 import { FollowupPopover } from '../../shared/followup/FollowupPopover'
@@ -213,8 +212,8 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
           onClose={close}
         />
       )}
-      {open === 'people' && createPortal(
-        <PortalDropdown anchorRef={peopleRef} onClickOutside={close}>
+      {open === 'people' && (
+        <AnchoredPicker anchorRef={peopleRef} onClose={close}>
           <div className={styles.bulkPicker}>
             <ChipSelector
               items={personPickerItems(people)}
@@ -232,11 +231,10 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
               placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
-      {open === 'tags' && createPortal(
-        <PortalDropdown anchorRef={tagsRef} onClickOutside={close}>
+      {open === 'tags' && (
+        <AnchoredPicker anchorRef={tagsRef} onClose={close}>
           <div className={styles.bulkPicker}>
             <ChipSelector
               items={tags.map((t) => ({ id: t.id!, name: t.name }))}
@@ -249,11 +247,11 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
                 const tagId = await useTagStore.getState().add(name)
                 await useTagStore.getState().bulkAssignTag(list, tagId)
               }}
+              onClose={close}
               placeholder="Search tags..."
             />
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
     </div>
   )

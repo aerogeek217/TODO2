@@ -18,7 +18,7 @@ import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
-import { PortalDropdown } from '../shared/PortalDropdown'
+import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { TaskMenu } from './TaskMenu'
 import type { TaskMenuHandlers } from './task-menu-entries'
 import { MoreIcon } from '../workspace/icons'
@@ -417,8 +417,8 @@ export const TaskRow = memo(function TaskRow({
       )}
 
       {/* Portaled people chip selector — anchored to peopleRef. */}
-      {!ghost && openDropdown === 'people' && createPortal(
-        <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
+      {!ghost && openDropdown === 'people' && (
+        <AnchoredPicker anchorRef={peopleRef} onClose={closeDropdown}>
           <div className={styles.chipDropdown}>
             <ChipSelector
               items={personPickerItems(allPeople)}
@@ -430,8 +430,7 @@ export const TaskRow = memo(function TaskRow({
               placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
 
       {followupPopover && !ghost && (
@@ -445,8 +444,8 @@ export const TaskRow = memo(function TaskRow({
       )}
 
       {/* Portaled status menu — anchored to statusRef (TaskPillBar's status wrapper). */}
-      {!ghost && showStatusMenu && createPortal(
-        <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
+      {!ghost && showStatusMenu && (
+        <AnchoredPicker anchorRef={statusRef} onClose={closeStatus} closeOnEscape>
           <div className={styles.statusMenu}>
             <button
               className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
@@ -466,8 +465,7 @@ export const TaskRow = memo(function TaskRow({
               </button>
             ))}
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
 
       {menu && (

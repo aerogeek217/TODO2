@@ -156,3 +156,31 @@ test('a row’s status menu and notes popover open above the task dialog', async
   await expect(notes).toContainText('Ask about the boiler today')
   await expect(dialog(page)).toBeVisible()
 })
+
+test('Esc in a row’s status menu or people picker over the task dialog closes only that', async ({ page }) => {
+  await seedWorkspace(page, {
+    statuses: ['Waiting'],
+    people: ['Alice Chen'],
+    tasks: [{ title: 'Call the plumber', people: ['Alice Chen'] }],
+    layouts: SEED.layouts,
+  })
+  await dash(page).locator('[data-dash-tile="open"]').click()
+  const row = dialogRow(page, 'Call the plumber')
+
+  await row.getByRole('button', { name: 'Set status' }).click()
+  const statusMenu = page.locator('[data-anchored-picker]')
+  await expect(statusMenu.getByRole('button', { name: 'Waiting' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(statusMenu).toHaveCount(0)
+  await expect(dialog(page)).toBeVisible()
+
+  await row.getByRole('button', { name: '1 person assigned' }).click()
+  const people = page.locator('[data-anchored-picker]')
+  // Above the dialog: the click lands on the picker, not the dialog under it.
+  await people.getByRole('option', { name: /Alice Chen/ }).click()
+  await expect(row.getByRole('button', { name: '1 person assigned' })).toHaveCount(0)
+  await expect(people.getByRole('combobox')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(people).toHaveCount(0)
+  await expect(dialog(page)).toBeVisible()
+})

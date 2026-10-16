@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useTodoStore } from '../../stores/todo-store'
@@ -35,7 +35,6 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   const draftRef = useRef<string>(initialNotes)
   const [, setDraft] = useState<string>(initialNotes)
-  const [panelHeight, setPanelHeight] = useState(0)
 
   // Outside clicks and Escape stay here: both must leave the notes' own
   // layers (the `@ # /` popup, the convert dialogs) alone.
@@ -54,20 +53,12 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     onClose,
     // The panel's height changes after it opens (the editor mounting, text,
     // the toast line): re-place so the flip / clamp use the new height.
-    contentKey: panelHeight,
+    observeSize: true,
   })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
     panelRef(el)
   }, [panelRef])
-
-  useLayoutEffect(() => {
-    const el = containerRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => setPanelHeight(el.offsetHeight))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

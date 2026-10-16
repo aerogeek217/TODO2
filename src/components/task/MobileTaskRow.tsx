@@ -10,7 +10,7 @@ import { StatusIcon } from '../shared/StatusIcon'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { ChipSelector } from '../shared/ChipSelector'
-import { PortalDropdown } from '../shared/PortalDropdown'
+import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { TaskMenu } from './TaskMenu'
 import type { TaskMenuHandlers } from './task-menu-entries'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
@@ -374,9 +374,13 @@ export const MobileTaskRow = memo(function MobileTaskRow({
         document.body,
       )}
 
-      {openDropdown === 'people' && !ghost && createPortal(
+      {openDropdown === 'people' && !ghost && (
         // With nobody assigned there are no avatars to anchor to (Assign people… from the menu).
-        <PortalDropdown anchorRef={people.length > 0 ? peopleRef : primaryRowRef} onClickOutside={closeDropdown}>
+        <AnchoredPicker
+          anchorRef={people.length > 0 ? peopleRef : primaryRowRef}
+          anchorIsInside={people.length > 0}
+          onClose={closeDropdown}
+        >
           <div className={styles.chipDropdown}>
             <ChipSelector
               items={personPickerItems(allPeople)}
@@ -388,8 +392,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
               placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
 
       {contextMenu && (
