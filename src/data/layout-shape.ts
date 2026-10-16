@@ -8,6 +8,7 @@ import {
   type LayoutColumn,
   type LayoutTab,
   type LensTabConfig,
+  type WidgetKind,
   DEFAULT_CALENDAR_DATE_TYPES,
   DEFAULT_WEIGHT,
 } from '../models/workspace-layout'
@@ -44,12 +45,13 @@ function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
-function checkTabSettings(tab: Obj, path: string): true | string {
+/** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
+function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
   const config = tab.config
   if (!isRecord(config)) return `${path}.config`
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
-  switch (tab.kind) {
+  switch (kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
       return true
@@ -75,7 +77,7 @@ function checkTabSettings(tab: Obj, path: string): true | string {
         if (config[key] !== undefined && !Array.isArray(config[key])) return `${path}.config.${key}`
       }
       return true
-    default:
+    case 'notes':
       return true
   }
 }
@@ -116,7 +118,7 @@ export function checkLayoutColumns(columns: unknown): true | string {
         if (!isRecord(tab)) return tp
         if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
         if (!isWidgetKind(tab.kind)) return `${tp}.kind`
-        const settings = checkTabSettings(tab, tp)
+        const settings = checkTabSettings(tab, tab.kind, tp)
         if (settings !== true) return settings
       }
     }
@@ -226,7 +228,7 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
           if (config[key] !== undefined && !Array.isArray(config[key])) fix('settings')
         }
         return { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
-      default:
+      case 'notes':
         return { id, kind: 'notes', config: {} }
     }
   }

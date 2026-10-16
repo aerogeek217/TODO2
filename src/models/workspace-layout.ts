@@ -17,14 +17,11 @@
 
 import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
 
-/** Widget kinds a tab can hold. */
+/**
+ * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
+ * list widget (its old name; renaming it would need a migration).
+ */
 export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard'
-
-export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'eisenhower', 'dashboard']
-
-export function isWidgetKind(v: unknown): v is WidgetKind {
-  return typeof v === 'string' && (WIDGET_KINDS as readonly string[]).includes(v)
-}
 
 export type CalendarView = 'week' | 'month'
 
@@ -156,19 +153,52 @@ export interface TabSeed {
   listDefinitionId?: number
 }
 
+/** What the app knows about one widget kind. */
+export interface WidgetKindSpec<K extends WidgetKind> {
+  /** Its name in menus, the add-widget tiles and tab titles. */
+  label: string
+  /** A new tab of this kind shows a saved list, picked before the tab is added. */
+  showsList: boolean
+  /** A new tab of this kind, with its default config. */
+  newTab: (id: string, seed: TabSeed) => TabOfKind<K>
+}
+
+/**
+ * The widget kinds, in menu order: the one table every kind list, label and
+ * new-tab default derives from (`WIDGET_KINDS`, `isWidgetKind` — which the
+ * layout import check uses —, `createTab`, the menus).
+ */
+export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> } = {
+  lens: {
+    label: 'List',
+    showsList: true,
+    newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
+  },
+  calendar: {
+    label: 'Calendar',
+    showsList: false,
+    newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
+  },
+  notes: { label: 'Notes', showsList: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  eisenhower: { label: 'Eisenhower', showsList: false, newTab: (id) => ({ id, kind: 'eisenhower', config: {} }) },
+  dashboard: { label: 'Dashboard', showsList: false, newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }) },
+}
+
+/** Every widget kind, in menu order. */
+export const WIDGET_KINDS = Object.keys(WIDGET_KIND_SPECS) as readonly WidgetKind[]
+
+export function isWidgetKind(v: unknown): v is WidgetKind {
+  return typeof v === 'string' && Object.hasOwn(WIDGET_KIND_SPECS, v)
+}
+
+/** A widget kind's name (`List`, `Calendar`, …). */
+export function widgetKindLabel(kind: WidgetKind): string {
+  return WIDGET_KIND_SPECS[kind].label
+}
+
 /** A new tab of `kind` with that kind's default config. */
-export function createTab(kind: WidgetKind, id: string, seed: TabSeed = {}): LayoutTab {
-  switch (kind) {
-    case 'lens':
-      return { id, kind, config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }
-    case 'calendar':
-      return { id, kind, config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }
-    case 'notes':
-    case 'eisenhower':
-      return { id, kind, config: {} }
-    case 'dashboard':
-      return { id, kind, config: defaultDashboardConfig() }
-  }
+export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSeed = {}): TabOfKind<K> {
+  return WIDGET_KIND_SPECS[kind].newTab(id, seed)
 }
 
 /** The cell's active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */

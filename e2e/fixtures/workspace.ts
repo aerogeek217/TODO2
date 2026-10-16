@@ -1,10 +1,11 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { createTab, WIDGET_KINDS, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
 
 const DB_NAME = 'todo2'
 
 export interface WsTabSeed {
   id: string
-  kind: 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard'
+  kind: WidgetKind
   /** Lens tabs: index into `listDefinitions`. */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
@@ -14,7 +15,7 @@ export interface WsTabSeed {
   offset?: number
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** Dashboard tabs: the config (defaults: the six default tiles, no list tiles, every section). */
+  /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
   dashboard?: {
     tiles?: string[]
     /** List tiles as indexes into `listDefinitions`. */
@@ -116,7 +117,9 @@ export function emptyPredicate(): Record<string, unknown> {
 export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<void> {
   await page.goto('/#/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  const payload = { ...seed, predicate: emptyPredicate() }
+  // Every kind's new tab, as the app makes it: the seeded tabs start from these.
+  const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
+  const payload = { ...seed, predicate: emptyPredicate(), newTabs }
   await page.evaluate(async ({ db, seed }) => {
     const idb = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open(db)
@@ -205,30 +208,26 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
           activeTabId: cell.activeTabId ?? cell.tabs[0]?.id,
           ...(cell.collapsed ? { collapsed: true } : {}),
           tabs: cell.tabs.map((tab) => {
-            if (tab.kind === 'lens') {
-              const listDefinitionId = tab.listDefIdx != null ? defIds[tab.listDefIdx] : undefined
-              return { id: tab.id, kind: 'lens', config: listDefinitionId != null ? { listDefinitionId } : {} }
+            const base = structuredClone(seed.newTabs[tab.kind])
+            const out: Record<string, unknown> = { ...base, id: tab.id }
+            const config = { ...(base.config as Record<string, unknown>) }
+            if (tab.kind === 'lens' && tab.listDefIdx != null) {
+              const listDefinitionId = defIds[tab.listDefIdx]
+              if (listDefinitionId != null) config.listDefinitionId = listDefinitionId
             }
             if (tab.kind === 'calendar') {
-              const viewState = tab.view != null || tab.offset != null ? { view: tab.view ?? 'month', offset: tab.offset ?? 0 } : undefined
-              return { id: tab.id, kind: 'calendar', config: { dateTypes: tab.dateTypes ?? { due: true, followup: true } }, ...(viewState ? { viewState } : {}) }
+              if (tab.dateTypes) config.dateTypes = tab.dateTypes
+              if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
             }
-            if (tab.kind === 'dashboard') {
-              const d = tab.dashboard ?? {}
-              return {
-                id: tab.id,
-                kind: 'dashboard',
-                config: {
-                  tiles: d.tiles ?? ['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'],
-                  listTiles: (d.listTileIdxs ?? []).map((i) => defIds[i]).filter((id) => id != null),
-                  sections: d.sections ?? ['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
-                },
-              }
+            if (tab.kind === 'dashboard' && tab.dashboard) {
+              const d = tab.dashboard
+              if (d.tiles) config.tiles = d.tiles
+              if (d.listTileIdxs) config.listTiles = d.listTileIdxs.map((i) => defIds[i]).filter((id) => id != null)
+              if (d.sections) config.sections = d.sections
             }
-            if (tab.kind === 'eisenhower' && tab.collapsed) {
-              return { id: tab.id, kind: 'eisenhower', config: {}, viewState: { collapsed: tab.collapsed } }
-            }
-            return { id: tab.id, kind: tab.kind, config: {} }
+            if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
+            out.config = config
+            return out
           }),
         })),
       }))

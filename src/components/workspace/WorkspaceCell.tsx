@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
-import { getActiveTab, type LayoutCell } from '../../models/workspace-layout'
+import { getActiveTab, WIDGET_KIND_SPECS, type LayoutCell } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -12,8 +12,8 @@ import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
-import { AddWidgetFlow } from './AddWidgetFlow'
-import { ADDABLE_KINDS, countListWidgets, kindLabel, useAddWidget, useTabTitle } from './widget-hooks'
+import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
+import { countListWidgets, useTabTitle } from './widget-hooks'
 import { SaveListButton } from './list/SaveListButton'
 import { pointBelow } from './list/popover-point'
 import { UnsavedPrompt } from './UnsavedPrompt'
@@ -27,7 +27,6 @@ import {
   PlusIcon,
   SplitBelowIcon,
   SplitRightIcon,
-  WidgetKindIcon,
 } from '../shared/icons'
 import { useTabDrag } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
@@ -48,9 +47,7 @@ interface WorkspaceCellProps {
 /** An empty cell (right after a split): kind buttons, "or drag a tab here", and a close ×. */
 function EmptyCell({ cell, style }: WorkspaceCellProps) {
   const closeCell = useWorkspaceStore((s) => s.closeCell)
-  const add = useAddWidget()
   const drag = useTabDrag()
-  const [listAnchor, setListAnchor] = useState<{ x: number; y: number } | null>(null)
   const over = drag?.hit?.kind === 'empty-cell' && drag.hit.cellId === cell.id && drag.accepts
   return (
     <section
@@ -66,29 +63,9 @@ function EmptyCell({ cell, style }: WorkspaceCellProps) {
       <span className={styles.emptyPlus}><PlusIcon size={16} /></span>
       <span className={styles.emptyTitle}>Add a widget</span>
       <div className={styles.kindRow}>
-        {ADDABLE_KINDS.map((kind) => (
-          <button
-            key={kind}
-            type="button"
-            className={styles.kindButton}
-            onClick={(e) => {
-              if (kind === 'lens') {
-                const r = e.currentTarget.getBoundingClientRect()
-                setListAnchor({ x: r.left, y: r.bottom + 4 })
-                return
-              }
-              add(kind, { kind: 'cell', cellId: cell.id })
-            }}
-          >
-            <span className={styles.kindButtonIcon}><WidgetKindIcon kind={kind} /></span>
-            {kindLabel(kind)}
-          </button>
-        ))}
+        <AddWidgetButtons target={{ kind: 'cell', cellId: cell.id }} buttonClassName={styles.kindButton} iconClassName={styles.kindButtonIcon} />
       </div>
       <span className={styles.emptyHint}>or drag a tab here</span>
-      {listAnchor && (
-        <AddWidgetFlow kind="lens" target={{ kind: 'cell', cellId: cell.id }} anchor={listAnchor} onClose={() => setListAnchor(null)} />
-      )}
     </section>
   )
 }
@@ -164,7 +141,8 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const collapsed = cell.collapsed === true
-  const [lens, setLens] = useState<{ tabId: string; result: WidgetResult } | null>(null)
+  /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
+  const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
@@ -173,7 +151,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const [customize, setCustomize] = useState<{ tabId: string; focusListTiles: boolean } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
-  const activeCount = lens && lens.tabId === active?.id ? lens.result.countLabel : undefined
+  const activeCount = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result.countLabel : undefined
   const activeListId = active?.kind === 'lens' ? active.config.listDefinitionId : undefined
   const activeListUnsaved = useIsListDirty(activeListId)
 
@@ -200,7 +178,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
 
   const dashboardActions = useDashboardMenuActions({
     onCustomize: () => { if (menuTab) setCustomize({ tabId: menuTab.id, focusListTiles: false }) },
-    summary: menuTab && lens?.tabId === menuTab.id ? lens.result.summary : undefined,
+    summary: menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
   })
 
   const cellMenuEntries: MenuEntry[] = [
@@ -305,7 +283,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
           <WidgetBody
             key={active.id}
             tab={active}
-            onResult={(result) => setLens({ tabId: active.id, result })}
+            onResult={(result) => setWidgetResult({ tabId: active.id, result })}
             onAddListTile={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: true }) : undefined}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} />}
@@ -335,7 +313,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
           currentKind={menuTab.kind}
           onChangeKind={(kind) => {
             if (kind === menuTab.kind) return
-            if (kind === 'lens') {
+            if (WIDGET_KIND_SPECS[kind].showsList) {
               setChangeToList({ tabId: menuTab.id, anchor: { x: tabMenu.x, y: tabMenu.y } })
               return
             }
@@ -360,12 +338,12 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
             : undefined}
           currentListName={menuListName}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
-          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && lens && lens.tabId === menuTab.id
+          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [{
                 label: 'Copy tasks',
                 icon: '⧉',
                 onSelect: () => {
-                  const sections = lens.result.sections
+                  const sections = widgetResult.result.sections
                   const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
                   void copyTasksRich(
                     sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })),

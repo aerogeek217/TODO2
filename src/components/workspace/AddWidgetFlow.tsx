@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
-import type { WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
+import { WidgetKindIcon } from '../shared/icons'
 import { useAddWidget } from './widget-hooks'
 
 /** A list name not used by any saved list: "New list", "New list 2", … */
@@ -18,7 +19,7 @@ function freshListName(): string {
 interface AddWidgetFlowProps {
   target: LayoutDropTarget
   anchor: { x: number; y: number }
-  /** Skip the kind menu (e.g. a kind button was clicked); only `lens` needs this flow then. */
+  /** Skip the kind menu (a kind button was clicked); only a kind that shows a list needs this flow then. */
   kind?: WidgetKind
   onClose: () => void
 }
@@ -29,7 +30,7 @@ interface AddWidgetFlowProps {
  * opens the list editor on it). A list tab is never added without a list.
  */
 export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowProps) {
-  const [step, setStep] = useState<'kind' | 'list'>(kind === 'lens' ? 'list' : 'kind')
+  const [step, setStep] = useState<'kind' | 'list'>(kind != null && WIDGET_KIND_SPECS[kind].showsList ? 'list' : 'kind')
   // The kind menu closes itself after a pick; picking "List" moves on to the
   // list picker instead of ending the flow.
   const movingOnRef = useRef(false)
@@ -41,7 +42,7 @@ export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowPr
         anchor={anchor}
         heading="Add widget"
         onChangeKind={(k) => {
-          if (k === 'lens') {
+          if (WIDGET_KIND_SPECS[k].showsList) {
             movingOnRef.current = true
             setStep('list')
             return
@@ -67,5 +68,47 @@ export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowPr
       }}
       onClose={onClose}
     />
+  )
+}
+
+interface AddWidgetButtonsProps {
+  target: LayoutDropTarget
+  buttonClassName: string | undefined
+  iconClassName: string | undefined
+  iconSize?: number
+}
+
+/**
+ * One button per widget kind (an empty layout's tiles, an empty cell's row):
+ * adds that widget at `target`, or — for a kind that shows a list — opens
+ * the list picker under the button first.
+ */
+export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconSize }: AddWidgetButtonsProps) {
+  const add = useAddWidget()
+  const [listFlow, setListFlow] = useState<{ kind: WidgetKind; anchor: { x: number; y: number } } | null>(null)
+  return (
+    <>
+      {WIDGET_KINDS.map((kind) => (
+        <button
+          key={kind}
+          type="button"
+          className={buttonClassName}
+          onClick={(e) => {
+            if (WIDGET_KIND_SPECS[kind].showsList) {
+              const r = e.currentTarget.getBoundingClientRect()
+              setListFlow({ kind, anchor: { x: r.left, y: r.bottom + 4 } })
+              return
+            }
+            add(kind, target)
+          }}
+        >
+          <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>
+          {widgetKindLabel(kind)}
+        </button>
+      ))}
+      {listFlow && (
+        <AddWidgetFlow kind={listFlow.kind} target={target} anchor={listFlow.anchor} onClose={() => setListFlow(null)} />
+      )}
+    </>
   )
 }

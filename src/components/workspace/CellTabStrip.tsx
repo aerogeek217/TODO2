@@ -4,8 +4,7 @@ import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-l
 import { getActiveTab } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useIsListDirty } from '../../stores/list-draft-store'
-import { KIND_LABEL } from '../../utils/slot-kind'
-import { useTabTitle } from './widget-hooks'
+import { tabTitle, useTabTitle } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type WorkspaceTabDragData } from './workspace-drag'
@@ -259,9 +258,8 @@ function OverflowMenu({ anchorRef, tabs, onPick, onClose }: {
 }) {
   const names = useListDefinitionStore((s) => s.listDefinitions)
   const entries = tabs.map((tab) => {
-    const label = tab.kind === 'lens'
-      ? (names.find((d) => d.id === tab.config.listDefinitionId)?.name ?? 'List')
-      : KIND_LABEL[tab.kind]
+    const listName = tab.kind === 'lens' ? names.find((d) => d.id === tab.config.listDefinitionId)?.name : undefined
+    const label = tabTitle(tab, listName)
     return { kind: 'item' as const, label, icon: <WidgetKindIcon kind={tab.kind} />, onSelect: () => onPick(tab.id) }
   })
   return <MenuPopover anchorRef={anchorRef} placement="bottom-end" entries={entries} label="More tabs" onClose={onClose} />

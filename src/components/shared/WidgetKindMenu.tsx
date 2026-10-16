@@ -1,17 +1,9 @@
 import { useMemo, type ReactNode } from 'react'
-import type { WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { bySortOrder } from '../../utils/sort-order'
 import { WidgetKindIcon } from './icons'
 import { MenuPopover, type MenuEntry, type MenuItemEntry, type MenuPanelSpec } from './MenuPopover'
-
-const PRIMARY_KINDS: { kind: WidgetKind; label: string }[] = [
-  { kind: 'lens', label: 'List' },
-  { kind: 'calendar', label: 'Calendar' },
-  { kind: 'notes', label: 'Notes' },
-  { kind: 'eisenhower', label: 'Eisenhower' },
-  { kind: 'dashboard', label: 'Dashboard' },
-]
 
 /** One choice of a {@link WidgetSetting}. */
 export interface WidgetSettingOption {
@@ -142,14 +134,14 @@ export function WidgetKindMenu({
   const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => (a.panel
     ? { kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, note: a.note, panel: a.panel }
     : { kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, onSelect: a.onSelect }))
-  const kinds: MenuItemEntry[] = PRIMARY_KINDS.map((k) => ({
+  const kinds: MenuItemEntry[] = WIDGET_KINDS.map((k) => ({
     kind: 'item',
-    label: k.label,
-    icon: <WidgetKindIcon kind={k.kind} />,
+    label: widgetKindLabel(k),
+    icon: <WidgetKindIcon kind={k} />,
     // Changing a widget: one of them is the current kind. Adding: plain actions.
     radio: currentKind != null,
-    checked: currentKind != null ? k.kind === currentKind : undefined,
-    onSelect: () => onChangeKind(k.kind),
+    checked: currentKind != null ? k === currentKind : undefined,
+    onSelect: () => onChangeKind(k),
   }))
 
   if (listFirst) {

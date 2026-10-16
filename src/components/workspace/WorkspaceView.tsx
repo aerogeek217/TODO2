@@ -1,47 +1,23 @@
-import { Fragment, useState, type CSSProperties } from 'react'
-import type { LayoutColumn, WidgetKind, WorkspaceLayout } from '../../models/workspace-layout'
+import { Fragment, type CSSProperties } from 'react'
+import type { LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { columnEdgeXs, EDGE_ZONE_GUTTER_PX } from '../../utils/workspace-drop'
 import { CELL_MIN_PX, COLUMN_MIN_PX } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
-import { ADDABLE_KINDS, kindLabel, useAddWidget } from './widget-hooks'
 import { WorkspaceDivider } from './WorkspaceDivider'
-import { AddWidgetFlow } from './AddWidgetFlow'
-import { WidgetKindIcon } from '../shared/icons'
+import { AddWidgetButtons } from './AddWidgetFlow'
 import { useTabDrag } from './workspace-drag'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
-  const add = useAddWidget()
-  const [listAnchor, setListAnchor] = useState<{ x: number; y: number } | null>(null)
   return (
     <div className={styles.emptyLayout}>
       <p className={styles.emptyTitle}>This layout is empty</p>
       <p className={styles.emptyHint}>Pick a widget to start the first column.</p>
       <div className={styles.tiles}>
-        {ADDABLE_KINDS.map((kind: WidgetKind) => (
-          <button
-            key={kind}
-            type="button"
-            className={styles.tile}
-            onClick={(e) => {
-              if (kind === 'lens') {
-                const r = e.currentTarget.getBoundingClientRect()
-                setListAnchor({ x: r.left, y: r.bottom + 4 })
-                return
-              }
-              add(kind, { kind: 'layout' })
-            }}
-          >
-            <span className={styles.tileIcon}><WidgetKindIcon kind={kind} size={16} /></span>
-            {kindLabel(kind)}
-          </button>
-        ))}
+        <AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={styles.tile} iconClassName={styles.tileIcon} iconSize={16} />
       </div>
       <p className={styles.emptyHint}>Or choose a saved layout from the picker above.</p>
-      {listAnchor && (
-        <AddWidgetFlow kind="lens" target={{ kind: 'layout' }} anchor={listAnchor} onClose={() => setListAnchor(null)} />
-      )}
     </div>
   )
 }

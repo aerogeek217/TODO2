@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import type { LayoutTab } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
@@ -27,8 +28,8 @@ interface WidgetBodyProps {
 
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
-/** The body of a cell's active tab, by widget kind. */
-export function WidgetBody({ tab, onResult, onAddListTile }: WidgetBodyProps) {
+/** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one). */
+export function WidgetBody({ tab, onResult, onAddListTile }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
       return <ListWidget tab={tab} onResult={onResult} />
