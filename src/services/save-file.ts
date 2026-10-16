@@ -30,8 +30,10 @@ export type SaveTextFileResult = 'saved' | 'downloaded' | 'cancelled'
 /**
  * Saves text to a user-chosen file: the File System Access save picker
  * (remembering the folder), falling back to an `<a download>` when the API is
- * missing or the picker fails for any reason other than the user cancelling.
- * Shared by Settings → Export and the task-archive "Export & delete" flows.
+ * missing or the picker fails for any reason other than the user cancelling
+ * (the failure is logged). The result says which happened: only `saved` is
+ * a file the app knows was written. Shared by Settings → Export, the
+ * task-archive "Export & delete" flow and the migration dialog's backup.
  */
 export async function saveTextFile(opts: SaveTextFileOptions): Promise<SaveTextFileResult> {
   const showSaveFilePicker = getSaveFilePicker()
@@ -50,7 +52,8 @@ export async function saveTextFile(opts: SaveTextFileOptions): Promise<SaveTextF
       return 'saved'
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return 'cancelled'
-      // Any other failure: fall through to the download fallback.
+      // Any other failure: say so, then fall back to a download.
+      console.warn('[save-file] the save picker failed; downloading instead', err)
     }
   }
 

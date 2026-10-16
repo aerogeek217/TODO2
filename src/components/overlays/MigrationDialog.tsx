@@ -5,8 +5,7 @@ import { exportCurrentDatabase } from '../../services/migration-check'
 import { OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
 import { buildExportData } from '../../data/export-data'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
-import { getSaveFilePicker } from '../../utils/file-picker'
-import { OBJECT_URL_REVOKE_MS } from '../../constants'
+import { saveTextFile } from '../../services/save-file'
 import styles from './MigrationDialog.module.css'
 
 interface SchemaUpgradeProps {
@@ -45,33 +44,14 @@ export function MigrationDialog(props: MigrationDialogProps) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
       const filename = `todo2-pre-migration-${timestamp}.json`
 
-      const showSaveFilePicker = getSaveFilePicker()
-      if (showSaveFilePicker) {
-        try {
-          const handle = await showSaveFilePicker({
-            suggestedName: filename,
-            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-          })
-          const writable = await handle.createWritable()
-          await writable.write(json)
-          await writable.close()
-          setExported(true)
-          return
-        } catch (err: unknown) {
-          if (err instanceof Error && err.name === 'AbortError') return
-        }
-      }
-
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
-      setExported(true)
+      const saved = await saveTextFile({
+        text: json,
+        suggestedName: filename,
+        description: 'JSON',
+        mimeType: 'application/json',
+        extension: '.json',
+      })
+      if (saved !== 'cancelled') setExported(true)
     } catch (err) {
       setExportError(err instanceof Error ? err.message : String(err))
     } finally {
