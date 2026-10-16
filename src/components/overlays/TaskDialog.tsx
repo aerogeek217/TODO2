@@ -173,52 +173,52 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
       data={{ 'task-dialog': '' }}
       panelRef={panelRef}
     >
-        <div className={styles.header}>
-          <DashGlyph name={payload.glyph} className={styles.glyph} />
-          <h2 id={titleId} className={styles.title}>{payload.title}</h2>
-          <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={hide}>×</button>
-        </div>
-        <p className={styles.description}>{payload.description}</p>
-        <div className={styles.body} aria-label="Tasks" role="group">
-          {count === 0 && <div className={styles.empty}>No tasks</div>}
-          {groups.map((g) => (g.label == null
-            ? <div key={g.key}>{rowsOf(g)}</div>
-            : (
-              <div key={g.key} role="group" aria-label={g.label} data-task-dialog-group={g.key}>
-                <div className={styles.groupHeader}>
-                  <i className={styles.groupDot} style={{ background: g.color ?? 'var(--color-text-muted)' }} />
-                  <span>{g.label}</span>
-                  <span className={styles.groupCount}>· {g.todoIds.length}</span>
-                </div>
-                {rowsOf(g)}
+      <div className={styles.header}>
+        <DashGlyph name={payload.glyph} className={styles.glyph} />
+        <h2 id={titleId} className={styles.title}>{payload.title}</h2>
+        <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
+        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={hide}>×</button>
+      </div>
+      <p className={styles.description}>{payload.description}</p>
+      <div className={styles.body} aria-label="Tasks" role="group">
+        {count === 0 && <div className={styles.empty}>No tasks</div>}
+        {groups.map((g) => (g.label == null
+          ? <div key={g.key}>{rowsOf(g)}</div>
+          : (
+            <div key={g.key} role="group" aria-label={g.label} data-task-dialog-group={g.key}>
+              <div className={styles.groupHeader}>
+                <i className={styles.groupDot} style={{ background: g.color ?? 'var(--color-text-muted)' }} />
+                <span>{g.label}</span>
+                <span className={styles.groupCount}>· {g.todoIds.length}</span>
               </div>
-            )))}
-        </div>
-        <div className={styles.footer}>
-          <button type="button" className={styles.ghostBtn} onClick={() => { void copy() }} disabled={count === 0}>
-            <CopyIcon />
-            {copied ? 'Copied' : 'Copy tasks'}
+              {rowsOf(g)}
+            </div>
+          )))}
+      </div>
+      <div className={styles.footer}>
+        <button type="button" className={styles.ghostBtn} onClick={() => { void copy() }} disabled={count === 0}>
+          <CopyIcon />
+          {copied ? 'Copied' : 'Copy tasks'}
+        </button>
+        {personId != null && (
+          <button
+            type="button"
+            className={styles.ghostBtn}
+            data-task-dialog-checkin=""
+            onClick={() => useUIStore.getState().openCheckinDialog([personId])}
+          >
+            <EnvelopeIcon size={12} />
+            Email check-in
           </button>
-          {personId != null && (
-            <button
-              type="button"
-              className={styles.ghostBtn}
-              data-task-dialog-checkin=""
-              onClick={() => useUIStore.getState().openCheckinDialog([personId])}
-            >
-              <EnvelopeIcon size={12} />
-              Email check-in
-            </button>
-          )}
-          <span className={styles.spacer} />
-          {tabTarget && (
-            <button type="button" className={styles.ghostBtn} onClick={openAsTab}>Open as tab</button>
-          )}
-          <button type="button" className={styles.closeTextBtn} onClick={hide}>
-            Close<kbd className={styles.kbd}>Esc</kbd>
-          </button>
-        </div>
+        )}
+        <span className={styles.spacer} />
+        {tabTarget && (
+          <button type="button" className={styles.ghostBtn} onClick={openAsTab}>Open as tab</button>
+        )}
+        <button type="button" className={styles.closeTextBtn} onClick={hide}>
+          Close<kbd className={styles.kbd}>Esc</kbd>
+        </button>
+      </div>
     </DialogFrame>
   )
 }

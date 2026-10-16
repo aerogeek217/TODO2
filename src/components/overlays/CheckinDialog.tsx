@@ -226,127 +226,127 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
         panelRef={panelRef}
       >
         <div className={styles.header}>
-          <h2 id={titleId} className={styles.title}>Email task check-ins</h2>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
+        <h2 id={titleId} className={styles.title}>Email task check-ins</h2>
+        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
         </div>
 
         <div className={styles.body}>
-          <section className={styles.group} aria-labelledby={`${titleId}-recipients`}>
-            <div id={`${titleId}-recipients`} className={styles.groupLabel}>Recipients · open tasks assigned to each</div>
-            {recipients.length === 0 && <div className={styles.empty}>Nobody has open tasks assigned.</div>}
-            {recipients.map((p) => {
-              const email = hasEmail(p)
-              const checked = isChecked(p)
-              const count = countFor(p, scope)
-              const sentAs = sent.get(p.id)
-              const inputId = `${titleId}-person-${p.id}`
-              return (
-                <div key={p.id} className={`${styles.row} ${email ? '' : styles.rowNoEmail}`} data-checkin-row={p.id}>
-                  <input
-                    id={inputId}
-                    type="checkbox"
-                    className={styles.checkbox}
-                    checked={checked}
-                    disabled={!email}
-                    onChange={() => toggle(p.id)}
-                  />
-                  <span className={styles.avatar} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} aria-hidden="true">
-                    {p.initials || p.name.slice(0, 2).toUpperCase()}
-                  </span>
-                  <label htmlFor={inputId} className={styles.who}>
-                    <span className={styles.name}>{p.name}</span>
-                    <span className={styles.email}>{email ? p.email : p.email ? 'Invalid email address' : 'No email address'}</span>
-                  </label>
-                  <span className={styles.count} data-checkin-count="">{tasksLabel(count)}</span>
-                  {!email && (
-                    <button type="button" className={styles.outlineBtn} aria-label={`${p.email ? 'Fix' : 'Add'} email for ${p.name}`} onClick={() => addEmail(p.id)}>
-                      {p.email ? 'Fix email' : 'Add email'}
-                    </button>
-                  )}
-                  {checked && (sentAs
-                    ? <span className={styles.sent}>{sentAs === 'opened' ? 'Opened ✓' : 'Downloaded ✓'}</span>
-                    : (
-                      <button
-                        type="button"
-                        className={styles.sendBtn}
-                        aria-label={`${sendLabel} for ${p.name}`}
-                        data-checkin-send={p.id}
-                        disabled={count === 0}
-                        title={count === 0 ? 'No open tasks for this choice' : undefined}
-                        onClick={() => { void send(p) }}
-                      >
-                        {sendLabel}
-                      </button>
-                    ))}
-                </div>
-              )
-            })}
-          </section>
-
-          <div className={styles.options}>
-            <div className={styles.group}>
-              <div className={styles.groupLabel}>Include</div>
-              <label className={styles.check}>
-                <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
-                Task notes
-              </label>
-              <label className={styles.check}>
-                <input type="checkbox" checked={includeOthers} onChange={(e) => setIncludeOthers(e.target.checked)} />
-                Other people on the task
-              </label>
-              <div className={styles.scopeField}>
-                <span id={`${titleId}-scope`} className={styles.scopeLabel}>Which tasks</span>
-                <button
-                  ref={scopeButtonRef}
-                  type="button"
-                  className={styles.scopeBtn}
-                  aria-haspopup="menu"
-                  aria-expanded={scopeMenuOpen}
-                  aria-labelledby={`${titleId}-scope ${titleId}-scope-value`}
-                  onClick={() => setScopeMenuOpen((o) => !o)}
-                >
-                  <span id={`${titleId}-scope-value`} className={styles.scopeValue}>{scopeLabel}</span>
-                  <ChevronDownIcon />
-                </button>
-              </div>
-            </div>
-            <div className={styles.group} role="radiogroup" aria-label="How to open it">
-              <div className={styles.groupLabel}>How to open it · saved in Settings</div>
-              {CHECKIN_OPEN_METHOD_OPTIONS.map((o) => (
-                <label key={o.method} className={styles.radio}>
-                  <input
-                    type="radio"
-                    name={`${titleId}-method`}
-                    value={o.method}
-                    checked={method === o.method}
-                    onChange={() => { void useSettingsStore.getState().setCheckinOpenMethod(o.method) }}
-                  />
-                  <span className={styles.radioText}>
-                    {o.label}
-                    <span className={styles.help}>{o.help}</span>
-                  </span>
+        <section className={styles.group} aria-labelledby={`${titleId}-recipients`}>
+          <div id={`${titleId}-recipients`} className={styles.groupLabel}>Recipients · open tasks assigned to each</div>
+          {recipients.length === 0 && <div className={styles.empty}>Nobody has open tasks assigned.</div>}
+          {recipients.map((p) => {
+            const email = hasEmail(p)
+            const checked = isChecked(p)
+            const count = countFor(p, scope)
+            const sentAs = sent.get(p.id)
+            const inputId = `${titleId}-person-${p.id}`
+            return (
+              <div key={p.id} className={`${styles.row} ${email ? '' : styles.rowNoEmail}`} data-checkin-row={p.id}>
+                <input
+                  id={inputId}
+                  type="checkbox"
+                  className={styles.checkbox}
+                  checked={checked}
+                  disabled={!email}
+                  onChange={() => toggle(p.id)}
+                />
+                <span className={styles.avatar} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} aria-hidden="true">
+                  {p.initials || p.name.slice(0, 2).toUpperCase()}
+                </span>
+                <label htmlFor={inputId} className={styles.who}>
+                  <span className={styles.name}>{p.name}</span>
+                  <span className={styles.email}>{email ? p.email : p.email ? 'Invalid email address' : 'No email address'}</span>
                 </label>
-              ))}
+                <span className={styles.count} data-checkin-count="">{tasksLabel(count)}</span>
+                {!email && (
+                  <button type="button" className={styles.outlineBtn} aria-label={`${p.email ? 'Fix' : 'Add'} email for ${p.name}`} onClick={() => addEmail(p.id)}>
+                    {p.email ? 'Fix email' : 'Add email'}
+                  </button>
+                )}
+                {checked && (sentAs
+                  ? <span className={styles.sent}>{sentAs === 'opened' ? 'Opened ✓' : 'Downloaded ✓'}</span>
+                  : (
+                    <button
+                      type="button"
+                      className={styles.sendBtn}
+                      aria-label={`${sendLabel} for ${p.name}`}
+                      data-checkin-send={p.id}
+                      disabled={count === 0}
+                      title={count === 0 ? 'No open tasks for this choice' : undefined}
+                      onClick={() => { void send(p) }}
+                    >
+                      {sendLabel}
+                    </button>
+                  ))}
+              </div>
+            )
+          })}
+        </section>
+
+        <div className={styles.options}>
+          <div className={styles.group}>
+            <div className={styles.groupLabel}>Include</div>
+            <label className={styles.check}>
+              <input type="checkbox" checked={includeNotes} onChange={(e) => setIncludeNotes(e.target.checked)} />
+              Task notes
+            </label>
+            <label className={styles.check}>
+              <input type="checkbox" checked={includeOthers} onChange={(e) => setIncludeOthers(e.target.checked)} />
+              Other people on the task
+            </label>
+            <div className={styles.scopeField}>
+              <span id={`${titleId}-scope`} className={styles.scopeLabel}>Which tasks</span>
+              <button
+                ref={scopeButtonRef}
+                type="button"
+                className={styles.scopeBtn}
+                aria-haspopup="menu"
+                aria-expanded={scopeMenuOpen}
+                aria-labelledby={`${titleId}-scope ${titleId}-scope-value`}
+                onClick={() => setScopeMenuOpen((o) => !o)}
+              >
+                <span id={`${titleId}-scope-value`} className={styles.scopeValue}>{scopeLabel}</span>
+                <ChevronDownIcon />
+              </button>
             </div>
           </div>
+          <div className={styles.group} role="radiogroup" aria-label="How to open it">
+            <div className={styles.groupLabel}>How to open it · saved in Settings</div>
+            {CHECKIN_OPEN_METHOD_OPTIONS.map((o) => (
+              <label key={o.method} className={styles.radio}>
+                <input
+                  type="radio"
+                  name={`${titleId}-method`}
+                  value={o.method}
+                  checked={method === o.method}
+                  onChange={() => { void useSettingsStore.getState().setCheckinOpenMethod(o.method) }}
+                />
+                <span className={styles.radioText}>
+                  {o.label}
+                  <span className={styles.help}>{o.help}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
         </div>
 
         <div className={styles.toastSlot} role="status" aria-live="polite">
-          {toast && (
-            <div className={`${styles.toast} ${toast.error ? styles.toastError : ''}`} data-checkin-toast="">
-              <span className={styles.toastDot} aria-hidden="true" />
-              <span>{toast.text}</span>
-            </div>
-          )}
+        {toast && (
+          <div className={`${styles.toast} ${toast.error ? styles.toastError : ''}`} data-checkin-toast="">
+            <span className={styles.toastDot} aria-hidden="true" />
+            <span>{toast.text}</span>
+          </div>
+        )}
         </div>
 
         <div className={styles.footer}>
-          <span className={styles.hint}>One message per person, opened one at a time.</span>
-          <button type="button" className={styles.linkBtn} onClick={openImport}>Paste a reply…</button>
-          <button type="button" className={styles.footerBtn} disabled={checkedPeople.length === 0} onClick={() => setPreviewOpen(true)}>
-            Preview email
-          </button>
-          <button type="button" className={styles.footerBtn} data-checkin-done="" onClick={close}>Done</button>
+        <span className={styles.hint}>One message per person, opened one at a time.</span>
+        <button type="button" className={styles.linkBtn} onClick={openImport}>Paste a reply…</button>
+        <button type="button" className={styles.footerBtn} disabled={checkedPeople.length === 0} onClick={() => setPreviewOpen(true)}>
+          Preview email
+        </button>
+        <button type="button" className={styles.footerBtn} data-checkin-done="" onClick={close}>Done</button>
         </div>
       </DialogFrame>
 

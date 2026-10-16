@@ -159,162 +159,162 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
       className={styles.dialog}
       data={{ 'customize-dashboard': tab.id }}
     >
-        <div className={styles.header}>
-          <h2 id={titleId} className={styles.title}>Customize dashboard</h2>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}><CloseIcon size={12} /></button>
+      <div className={styles.header}>
+        <h2 id={titleId} className={styles.title}>Customize dashboard</h2>
+        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}><CloseIcon size={12} /></button>
+      </div>
+      <p className={styles.sub}>
+        Changes show behind this dialog as you make them. They are saved with the layout, so the layout’s save icon lights up.
+      </p>
+      <div className={styles.columns}>
+        <div className={styles.column}>
+          <GroupHead label="Tiles" hint="Drag to reorder · 6 fit in a row" />
+          <SortableGroup
+            group="tile"
+            label="Tiles"
+            items={state.tileOrder}
+            nameOf={(id) => TILES[id].label}
+            onDraggingChange={setDragging}
+            onMove={(from, to) => {
+              const next = { ...state, tileOrder: moveItem(state.tileOrder, from, to) }
+              update(next, { tiles: tilesFor(next, shownTiles) })
+            }}
+            renderRow={(id) => (
+              <>
+                <label className={styles.check}>
+                  <input
+                    type="checkbox"
+                    checked={shownTiles.has(id)}
+                    onChange={() => patch({ tiles: tilesFor(state, toggled(shownTiles, id)) })}
+                  />
+                  <DashGlyph name={TILES[id].glyph} color={TILES[id].color} />
+                  <span className={styles.name}>{TILES[id].label}</span>
+                </label>
+                <span className={styles.hint}>{tileCatalogHint(id, { today, urgentRange })}</span>
+              </>
+            )}
+          />
+
+          <GroupHead label="List tiles" hint="Saved list count · its filters + screen filter" />
+          {listTiles.length === 0 && <p className={styles.empty}>No list tiles yet.</p>}
+          <SortableGroup
+            group="list"
+            label="List tiles"
+            items={listTiles}
+            nameOf={(id) => defById.get(id)?.name ?? 'List'}
+            onDraggingChange={setDragging}
+            onMove={(from, to) => patch({ listTiles: moveItem(listTiles, from, to) })}
+            renderRow={(id) => {
+              const def = defById.get(id)
+              const eligible = def ? isListTileEligible(def) : true
+              return (
+                <>
+                  <span className={styles.check}>
+                    <DashGlyph name="list" className={styles.listGlyph} />
+                    <span className={styles.name}>{def?.name ?? 'List'}</span>
+                  </span>
+                  <span className={styles.hint} title={eligible ? undefined : PROMPTED_LIST_TILE_NOTE}>
+                    {eligible ? hints.get(id) ?? '' : 'Asks for a value, so it isn’t shown'}
+                  </span>
+                  <button
+                    type="button"
+                    className={styles.remove}
+                    aria-label={`Remove ${def?.name ?? 'list'}`}
+                    title="Remove list tile"
+                    onClick={() => patch({ listTiles: listTiles.filter((x) => x !== id) })}
+                  >
+                    <CloseIcon size={10} />
+                  </button>
+                </>
+              )
+            }}
+          />
+          <button
+            ref={addListRef}
+            type="button"
+            className={styles.addList}
+            aria-haspopup="menu"
+            aria-expanded={addListOpen}
+            onClick={() => setAddListOpen((o) => !o)}
+          >
+            <DashGlyph name="plus" size={12} strokeWidth={2} />
+            Add a saved list
+            <DashGlyph name="chevron" size={12} />
+          </button>
+          {addListOpen && (
+            <MenuPopover
+              anchorRef={addListRef}
+              placement="right-start"
+              width={260}
+              label="Saved lists"
+              entries={addListEntries}
+              onClose={() => setAddListOpen(false)}
+            />
+          )}
         </div>
-        <p className={styles.sub}>
-          Changes show behind this dialog as you make them. They are saved with the layout, so the layout’s save icon lights up.
-        </p>
-        <div className={styles.columns}>
-          <div className={styles.column}>
-            <GroupHead label="Tiles" hint="Drag to reorder · 6 fit in a row" />
-            <SortableGroup
-              group="tile"
-              label="Tiles"
-              items={state.tileOrder}
-              nameOf={(id) => TILES[id].label}
-              onDraggingChange={setDragging}
-              onMove={(from, to) => {
-                const next = { ...state, tileOrder: moveItem(state.tileOrder, from, to) }
-                update(next, { tiles: tilesFor(next, shownTiles) })
-              }}
-              renderRow={(id) => (
+
+        <div className={styles.column}>
+          <GroupHead label="Sections" hint="Drag to reorder" />
+          <SortableGroup
+            group="section"
+            label="Sections"
+            items={state.sectionOrder}
+            nameOf={(id) => SECTION_META[id].title}
+            onDraggingChange={setDragging}
+            onMove={(from, to) => {
+              const next = { ...state, sectionOrder: moveItem(state.sectionOrder, from, to) }
+              update(next, { sections: sectionsFor(next, shownSections) })
+            }}
+            renderRow={(id) => {
+              const meta = SECTION_META[id]
+              const shown = shownSections.has(id)
+              const values = sectionOptionValues(state.options[id])
+              return (
                 <>
                   <label className={styles.check}>
                     <input
                       type="checkbox"
-                      checked={shownTiles.has(id)}
-                      onChange={() => patch({ tiles: tilesFor(state, toggled(shownTiles, id)) })}
+                      checked={shown}
+                      onChange={() => patch({ sections: sectionsFor(state, toggled(shownSections, id)) })}
                     />
-                    <DashGlyph name={TILES[id].glyph} color={TILES[id].color} />
-                    <span className={styles.name}>{TILES[id].label}</span>
+                    <DashGlyph name={meta.glyph} color={meta.glyphColor} />
+                    <span className={styles.name}>{meta.title}</span>
                   </label>
-                  <span className={styles.hint}>{tileCatalogHint(id, { today, urgentRange })}</span>
+                  {meta.options.includes('lookAhead') && (
+                    <OptionSelect
+                      label="Look ahead"
+                      disabled={!shown}
+                      choices={DASHBOARD_LOOK_AHEAD_CHOICES.map((n) => ({ key: String(n), label: `${n} days`, checked: values.lookAhead === n, onSelect: () => setOption(id, 'lookAhead', n) }))}
+                    />
+                  )}
+                  {meta.options.includes('range') && (
+                    <OptionSelect
+                      label="Range"
+                      disabled={!shown}
+                      choices={DASHBOARD_TREND_RANGES.map((r) => ({ key: r, label: trendRangeLabel(r).replace(/^Last /, ''), checked: values.range === r, onSelect: () => setOption(id, 'range', r) }))}
+                    />
+                  )}
+                  {meta.options.includes('showUnassigned') && (
+                    <OptionSelect
+                      label="Unassigned"
+                      disabled={!shown}
+                      choices={[true, false].map((v) => ({ key: String(v), label: v ? 'Shown' : 'Hidden', checked: values.showUnassigned === v, onSelect: () => setOption(id, 'showUnassigned', v) }))}
+                    />
+                  )}
                 </>
-              )}
-            />
-
-            <GroupHead label="List tiles" hint="Saved list count · its filters + screen filter" />
-            {listTiles.length === 0 && <p className={styles.empty}>No list tiles yet.</p>}
-            <SortableGroup
-              group="list"
-              label="List tiles"
-              items={listTiles}
-              nameOf={(id) => defById.get(id)?.name ?? 'List'}
-              onDraggingChange={setDragging}
-              onMove={(from, to) => patch({ listTiles: moveItem(listTiles, from, to) })}
-              renderRow={(id) => {
-                const def = defById.get(id)
-                const eligible = def ? isListTileEligible(def) : true
-                return (
-                  <>
-                    <span className={styles.check}>
-                      <DashGlyph name="list" className={styles.listGlyph} />
-                      <span className={styles.name}>{def?.name ?? 'List'}</span>
-                    </span>
-                    <span className={styles.hint} title={eligible ? undefined : PROMPTED_LIST_TILE_NOTE}>
-                      {eligible ? hints.get(id) ?? '' : 'Asks for a value, so it isn’t shown'}
-                    </span>
-                    <button
-                      type="button"
-                      className={styles.remove}
-                      aria-label={`Remove ${def?.name ?? 'list'}`}
-                      title="Remove list tile"
-                      onClick={() => patch({ listTiles: listTiles.filter((x) => x !== id) })}
-                    >
-                      <CloseIcon size={10} />
-                    </button>
-                  </>
-                )
-              }}
-            />
-            <button
-              ref={addListRef}
-              type="button"
-              className={styles.addList}
-              aria-haspopup="menu"
-              aria-expanded={addListOpen}
-              onClick={() => setAddListOpen((o) => !o)}
-            >
-              <DashGlyph name="plus" size={12} strokeWidth={2} />
-              Add a saved list
-              <DashGlyph name="chevron" size={12} />
-            </button>
-            {addListOpen && (
-              <MenuPopover
-                anchorRef={addListRef}
-                placement="right-start"
-                width={260}
-                label="Saved lists"
-                entries={addListEntries}
-                onClose={() => setAddListOpen(false)}
-              />
-            )}
-          </div>
-
-          <div className={styles.column}>
-            <GroupHead label="Sections" hint="Drag to reorder" />
-            <SortableGroup
-              group="section"
-              label="Sections"
-              items={state.sectionOrder}
-              nameOf={(id) => SECTION_META[id].title}
-              onDraggingChange={setDragging}
-              onMove={(from, to) => {
-                const next = { ...state, sectionOrder: moveItem(state.sectionOrder, from, to) }
-                update(next, { sections: sectionsFor(next, shownSections) })
-              }}
-              renderRow={(id) => {
-                const meta = SECTION_META[id]
-                const shown = shownSections.has(id)
-                const values = sectionOptionValues(state.options[id])
-                return (
-                  <>
-                    <label className={styles.check}>
-                      <input
-                        type="checkbox"
-                        checked={shown}
-                        onChange={() => patch({ sections: sectionsFor(state, toggled(shownSections, id)) })}
-                      />
-                      <DashGlyph name={meta.glyph} color={meta.glyphColor} />
-                      <span className={styles.name}>{meta.title}</span>
-                    </label>
-                    {meta.options.includes('lookAhead') && (
-                      <OptionSelect
-                        label="Look ahead"
-                        disabled={!shown}
-                        choices={DASHBOARD_LOOK_AHEAD_CHOICES.map((n) => ({ key: String(n), label: `${n} days`, checked: values.lookAhead === n, onSelect: () => setOption(id, 'lookAhead', n) }))}
-                      />
-                    )}
-                    {meta.options.includes('range') && (
-                      <OptionSelect
-                        label="Range"
-                        disabled={!shown}
-                        choices={DASHBOARD_TREND_RANGES.map((r) => ({ key: r, label: trendRangeLabel(r).replace(/^Last /, ''), checked: values.range === r, onSelect: () => setOption(id, 'range', r) }))}
-                      />
-                    )}
-                    {meta.options.includes('showUnassigned') && (
-                      <OptionSelect
-                        label="Unassigned"
-                        disabled={!shown}
-                        choices={[true, false].map((v) => ({ key: String(v), label: v ? 'Shown' : 'Hidden', checked: values.showUnassigned === v, onSelect: () => setOption(id, 'showUnassigned', v) }))}
-                      />
-                    )}
-                  </>
-                )
-              }}
-            />
-            <p className={styles.note}>
-              Sections fill the cell in this order, three to a row on a wide cell. A narrow cell shows them in one column.
-            </p>
-          </div>
+              )
+            }}
+          />
+          <p className={styles.note}>
+            Sections fill the cell in this order, three to a row on a wide cell. A narrow cell shows them in one column.
+          </p>
         </div>
-        <div className={styles.footer}>
-          <button type="button" className={styles.ghostBtn} onClick={reset}>Reset to default</button>
-          <span className={styles.spacer} />
-          <button type="button" className={styles.primaryBtn} onClick={onClose}>Done</button>
-        </div>
+      </div>
+      <div className={styles.footer}>
+        <button type="button" className={styles.ghostBtn} onClick={reset}>Reset to default</button>
+        <span className={styles.spacer} />
+        <button type="button" className={styles.primaryBtn} onClick={onClose}>Done</button>
+      </div>
     </DialogFrame>
   )
 }

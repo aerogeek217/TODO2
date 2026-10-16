@@ -54,38 +54,38 @@ function SettingsModalFrame() {
       className={styles.dialog}
       backdropClassName={styles.backdrop}
     >
-        <div className={styles.header}>
-          <h1 id={titleId} className={styles.title}>Settings</h1>
-          <kbd className={styles.kbd} aria-hidden="true">Esc</kbd>
-          <button type="button" className={styles.close} aria-label="Close settings" onClick={close}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        </div>
-        <div className={styles.body}>
-          <nav className={styles.nav} aria-label="Settings sections">
-            {SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                className={`${styles.navItem} ${id === section.id ? styles.navItemActive : ''}`}
-                aria-current={id === section.id ? 'true' : undefined}
-                onClick={() => setSection(id)}
-              >
-                <span className={styles.navIcon}><Icon /></span>
-                {label}
-              </button>
-            ))}
-          </nav>
-          <section className={styles.content} aria-labelledby={sectionTitleId}>
-            <h2 id={sectionTitleId} className={styles.sectionTitle}>{section.label}</h2>
-            <div className={styles.rule} />
-            <SettingsLayerContext.Provider value={registerLayer}>
-              <Body key={section.id} />
-            </SettingsLayerContext.Provider>
-          </section>
-        </div>
+      <div className={styles.header}>
+        <h1 id={titleId} className={styles.title}>Settings</h1>
+        <kbd className={styles.kbd} aria-hidden="true">Esc</kbd>
+        <button type="button" className={styles.close} aria-label="Close settings" onClick={close}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" />
+          </svg>
+        </button>
+      </div>
+      <div className={styles.body}>
+        <nav className={styles.nav} aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`${styles.navItem} ${id === section.id ? styles.navItemActive : ''}`}
+              aria-current={id === section.id ? 'true' : undefined}
+              onClick={() => setSection(id)}
+            >
+              <span className={styles.navIcon}><Icon /></span>
+              {label}
+            </button>
+          ))}
+        </nav>
+        <section className={styles.content} aria-labelledby={sectionTitleId}>
+          <h2 id={sectionTitleId} className={styles.sectionTitle}>{section.label}</h2>
+          <div className={styles.rule} />
+          <SettingsLayerContext.Provider value={registerLayer}>
+            <Body key={section.id} />
+          </SettingsLayerContext.Provider>
+        </section>
+      </div>
     </DialogFrame>
   )
 }

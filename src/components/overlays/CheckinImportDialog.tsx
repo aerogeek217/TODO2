@@ -169,73 +169,73 @@ function CheckinImportPanel() {
       data={{ 'checkin-import': '' }}
       panelRef={panelRef}
     >
-        <div className={styles.header}>
-          <h2 id={titleId} className={styles.title}>Import task update</h2>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
-        </div>
+      <div className={styles.header}>
+        <h2 id={titleId} className={styles.title}>Import task update</h2>
+        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
+      </div>
 
-        {reply && (
-          <ReplySummary
-            reply={reply}
-            person={person}
-            footerPerson={footerPerson}
-            people={people}
-            pickedPersonId={pickedPersonId}
-            onPick={setPickedPersonId}
-            onPasteAgain={pasteAgain}
-          />
+      {reply && (
+        <ReplySummary
+          reply={reply}
+          person={person}
+          footerPerson={footerPerson}
+          people={people}
+          pickedPersonId={pickedPersonId}
+          onPick={setPickedPersonId}
+          onPasteAgain={pasteAgain}
+        />
+      )}
+
+      <div className={styles.body}>
+        {!reply && (
+          <>
+            <textarea
+              ref={pasteRef}
+              className={styles.pasteTarget}
+              aria-label="Paste the reply here"
+              aria-describedby={`${titleId}-help`}
+              placeholder="Paste the reply here (Ctrl+V)"
+              value=""
+              onChange={() => {}}
+              onPaste={onPaste}
+              spellCheck={false}
+              data-checkin-paste=""
+            />
+            <p id={`${titleId}-help`} className={styles.help}>
+              Open the person’s reply to a check-in email, select all of it (Ctrl+A), copy it (Ctrl+C) and paste it here.
+              Nothing changes until you review the changes and apply them.
+            </p>
+            {error && <div className={styles.error} role="alert">{error}</div>}
+          </>
         )}
 
-        <div className={styles.body}>
-          {!reply && (
-            <>
-              <textarea
-                ref={pasteRef}
-                className={styles.pasteTarget}
-                aria-label="Paste the reply here"
-                aria-describedby={`${titleId}-help`}
-                placeholder="Paste the reply here (Ctrl+V)"
-                value=""
-                onChange={() => {}}
-                onPaste={onPaste}
-                spellCheck={false}
-                data-checkin-paste=""
-              />
-              <p id={`${titleId}-help`} className={styles.help}>
-                Open the person’s reply to a check-in email, select all of it (Ctrl+A), copy it (Ctrl+C) and paste it here.
-                Nothing changes until you review the changes and apply them.
-              </p>
-              {error && <div className={styles.error} role="alert">{error}</div>}
-            </>
-          )}
+        {reply && (
+          <ReplyChanges
+            reply={reply}
+            selected={selected}
+            onToggle={toggle}
+            recordFollowup={recordFollowup}
+            onRecordFollowup={setRecordFollowup}
+            followupId={`${titleId}-followup`}
+          />
+        )}
+        {applyError && <div className={styles.error} role="alert">{applyError}</div>}
+      </div>
 
-          {reply && (
-            <ReplyChanges
-              reply={reply}
-              selected={selected}
-              onToggle={toggle}
-              recordFollowup={recordFollowup}
-              onRecordFollowup={setRecordFollowup}
-              followupId={`${titleId}-followup`}
-            />
-          )}
-          {applyError && <div className={styles.error} role="alert">{applyError}</div>}
-        </div>
-
-        <div className={styles.footer}>
-          <span className={styles.hint}>You can undo this after applying.</span>
-          <button type="button" className={styles.footerBtn} onClick={close}>Cancel</button>
-          <button
-            type="button"
-            className={styles.applyBtn}
-            disabled={!reply || applyBlocked !== undefined || applying}
-            title={applyBlocked}
-            onClick={() => { void apply() }}
-            data-checkin-apply=""
-          >
-            {applyLabel}
-          </button>
-        </div>
+      <div className={styles.footer}>
+        <span className={styles.hint}>You can undo this after applying.</span>
+        <button type="button" className={styles.footerBtn} onClick={close}>Cancel</button>
+        <button
+          type="button"
+          className={styles.applyBtn}
+          disabled={!reply || applyBlocked !== undefined || applying}
+          title={applyBlocked}
+          onClick={() => { void apply() }}
+          data-checkin-apply=""
+        >
+          {applyLabel}
+        </button>
+      </div>
     </DialogFrame>
   )
 }
