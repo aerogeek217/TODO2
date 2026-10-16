@@ -11,7 +11,7 @@ import { isDeadlinePast, type WeekStart } from '../../utils/effective-date'
 import { isHot } from '../../utils/hot'
 import type { MarkerSettings } from '../../utils/markers'
 import { bySortOrder } from '../../utils/sort-order'
-import { applyRuntimeFilter, interpretMembership } from '../dashboard-lists'
+import { applyRuntimeFilter, matchesMembership } from '../build-list'
 
 /** How far ahead "Overdue + next 2 weeks" looks, in days from today. */
 export const CHECKIN_DUE_SOON_DAYS = 14
@@ -124,8 +124,7 @@ function scopeTest(
         today,
         { ...ctx.markerSettings, weekStartsOn: ctx.weekStartsOn },
       )
-      const listCtx = { today, weekStartsOn: ctx.weekStartsOn, evalPredicate }
-      return (t) => interpretMembership(membership, t, listCtx)
+      return (t) => matchesMembership(membership, t, evalPredicate)
     }
   }
 }

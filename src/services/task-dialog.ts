@@ -8,7 +8,7 @@ import type { TodoNameLookups } from '../utils/filter'
 import type { ListRanks } from '../utils/list-order'
 import type { MarkerSettings } from '../utils/markers'
 import { bySortOrder } from '../utils/sort-order'
-import { buildDashboardLists } from './dashboard-lists'
+import { buildList } from './build-list'
 import type { CopyTaskSection } from './task-copy'
 
 /**
@@ -107,7 +107,7 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
     case 'list': {
       const def = env.listDefinitions.find((d) => d.id === source.listDefinitionId)
       if (!def) return []
-      const [list] = buildDashboardLists([def], [...env.todos], {
+      const list = buildList(def, env.todos, {
         today: env.today,
         weekStartsOn: env.weekStartsOn,
         evalPredicate: createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env)),
@@ -115,9 +115,9 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
         assignedTagsMap: env.assignedTagsMap,
         people: env.people,
         statuses: env.statuses,
-        listRanks: env.listRanks,
+        ranks: env.listRanks.get(def.id) ?? new Map(),
       })
-      const sections = list?.sections ?? []
+      const sections = list.sections
       const grouped = !(sections.length === 1 && sections[0]?.key === 'all')
       return sections.map((s) => ({
         key: s.key,

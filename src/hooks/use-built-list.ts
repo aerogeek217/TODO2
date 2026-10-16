@@ -9,14 +9,14 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useListOrderStore, useListRanks } from '../stores/list-order-store'
-import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
+import { applyRuntimeFilter, buildList, type ListContents } from '../services/build-list'
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
 import { useFilterSettings } from './use-filter-settings'
 
 export interface BuiltList {
   /** The list's members and sections; `null` without a definition or while its prompt is unanswered. */
-  list: DashboardList | null
+  list: ListContents | null
   /**
    * Members by the list's own filter (and prompt picks) alone, before the
    * screen filter — the "total" a screen filter hides tasks from. Equals
@@ -42,7 +42,7 @@ const NO_BUILT: BuiltList = { list: null, baseCount: 0, runtimeFilterPending: fa
 /**
  * Runs a list definition over the loaded tasks: its predicate (plus prompt
  * picks, plus the screen filter when given — see `composeScreenFilter`)
- * through `buildDashboardLists`, with the shared name lookups so a
+ * through `buildList`, with the shared name lookups so a
  * predicate's search also hits person / status / tag names. Keeps tag
  * assignments loaded for the task set.
  *
@@ -95,10 +95,7 @@ export function useBuiltList(
     }
     const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
     const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today, markerSettings) : listOnly
-    const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
-      ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
-      : undefined
-    const [list] = buildDashboardLists([definition], todos, {
+    const list = buildList(definition, todos, {
       today,
       weekStartsOn,
       evalPredicate,
@@ -106,18 +103,18 @@ export function useBuiltList(
       assignedPeopleMap,
       people,
       statuses,
-      runtimeFilterValues,
-      listRanks: new Map([[definition.id, ranks]]),
+      runtimeFilterValue,
+      ranks,
     })
     const baseCount = screenFilter && mergedPredicate
       ? countMatching(todos, (t) => listOnly(mergedPredicate, t))
-      : (list?.todos.length ?? 0)
+      : list.todos.length
     const ownPredicate = definition.membership.predicate
     const orderCandidates = () => {
-      const shown = new Set((list?.todos ?? []).map((t) => t.id))
+      const shown = new Set(list.todos.map((t) => t.id))
       return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
     }
-    return { list: list ?? null, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates }
+    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates }
   }, [
     definition, todos, people, assignedPeopleMap,
     assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings,

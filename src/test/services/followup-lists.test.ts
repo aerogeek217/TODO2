@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
-import { buildDashboardLists, type DashboardListsContext } from '../../services/dashboard-lists'
+import { buildList, type ListBuildContext } from '../../services/build-list'
 import { buildListSections, listSortComparator } from '../../services/list-sections'
 import { partitionByGroup, type GroupingContext } from '../../utils/task-grouping'
 import { resolveCrossGroupMutation } from '../../utils/cross-group-drag'
@@ -94,14 +94,14 @@ describe('sort + group by next follow-up', () => {
   })
 
   it('list widgets use the same vocabulary and sort', () => {
-    const ctx: DashboardListsContext = { today, weekStartsOn: 1, evalPredicate: () => true }
+    const ctx: ListBuildContext = { today, weekStartsOn: 1, evalPredicate: () => true }
     const def: PersistedListDefinition = {
       id: 9, name: 'Follow-ups', sortOrder: 0, pinnedToDashboard: false,
       membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'followup', grouping: 'followup',
     }
-    const [list] = buildDashboardLists([def], all, ctx)
-    expect(list!.todos.map((t) => t.id)).toEqual([1, 2, 3, 4, 5])
-    expect(list!.sections.map((g) => [g.label, g.todos.map((t) => t.id)])).toEqual([
+    const list = buildList(def, all, ctx)
+    expect(list.todos.map((t) => t.id)).toEqual([1, 2, 3, 4, 5])
+    expect(list.sections.map((g) => [g.label, g.todos.map((t) => t.id)])).toEqual([
       ['Overdue', [1]],
       ['Today', [2]],
       ['This Week', [3]],

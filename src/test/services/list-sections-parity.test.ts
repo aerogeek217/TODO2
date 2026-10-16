@@ -11,7 +11,7 @@ import { type FilterCriteria, criteriaToPredicate, predicateToCriteria } from '.
 import { applyFilter, createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
 import { currentFilterSettings } from '../../stores/settings-store'
 import { emptyPredicate } from '../../models'
-import { applyRuntimeFilter, buildDashboardLists } from '../../services/dashboard-lists'
+import { applyRuntimeFilter, buildList } from '../../services/build-list'
 import { buildListSections, type ListSectionsContext, type Section } from '../../services/list-sections'
 import { makeTodo } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -19,7 +19,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 // The list page and list widgets must show the same sections for the same
 // list definition. Each path below mirrors its surface: the list page loads a
 // definition into the screen filter (ListView), widgets run it through
-// `buildDashboardLists` with the evaluator `ListDefinitionBody` uses.
+// `buildList` with the evaluator `ListDefinitionBody` uses.
 
 // Wed 14 Oct 2026; a Monday-first week ends Sun 18 Oct.
 const today = new Date(2026, 9, 14)
@@ -82,14 +82,14 @@ function widgetSections(d: PersistedListDefinition, pick: number[] | undefined, 
     statusesById: new Map(statuses.map((s) => [s.id!, s])),
   }
   const evalPredicate = screen ? createScreenComposedEvaluator(screen, lookups, today, currentFilterSettings()) : createPredicateEvaluator(lookups, today, currentFilterSettings())
-  const [list] = buildDashboardLists([d], todos, {
+  const list = buildList(d, todos, {
     ...ctx,
     people: [...people],
     statuses: [...statuses],
     evalPredicate,
-    runtimeFilterValues: d.runtimeFilter && pick ? new Map([[d.id, pick]]) : undefined,
+    runtimeFilterValue: d.runtimeFilter ? pick : undefined,
   })
-  return list!.sections
+  return list.sections
 }
 
 function listPageSections(d: PersistedListDefinition, pick: number[] | undefined): Section[] {

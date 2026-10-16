@@ -5,7 +5,7 @@ import { createPredicateEvaluator, createScreenComposedEvaluator } from '../../u
 import type { WeekStart } from '../../utils/effective-date'
 import type { TodoNameLookups } from '../../utils/filter'
 import type { MarkerSettings } from '../../utils/markers'
-import { interpretMembership } from '../dashboard-lists'
+import { matchesMembership } from '../build-list'
 
 /** A list tile's count: the list's members under the screen filter, of all its members. */
 export interface ListTileCount {
@@ -60,9 +60,9 @@ export function computeListTileCounts(
     let total = 0
     let shown = 0
     for (const t of todos) {
-      if (!interpretMembership(def.membership, t, { today, weekStartsOn, evalPredicate: listOnly })) continue
+      if (!matchesMembership(def.membership, t, listOnly)) continue
       total++
-      if (!composed || interpretMembership(def.membership, t, { today, weekStartsOn, evalPredicate: composed })) shown++
+      if (!composed || matchesMembership(def.membership, t, composed)) shown++
     }
     out.push({ id: def.id, name: def.name, shown, total })
   }

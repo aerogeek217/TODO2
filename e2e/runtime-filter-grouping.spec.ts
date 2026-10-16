@@ -9,7 +9,7 @@ import { seedTaskList } from './fixtures/workspace'
  *
  * JSDOM is unauthoritative: the picker's portaled panel rides
  * `usePopoverAnchor` (real-DOM `getBoundingClientRect`), and the pick flows
- * through `list-widget-store` → `useBuiltList` → `buildDashboardLists`.
+ * through `list-widget-store` → `useBuiltList` → `buildList`.
  */
 
 test.describe('Runtime filter × grouping (list widget)', () => {

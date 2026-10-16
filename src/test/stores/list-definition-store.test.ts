@@ -6,7 +6,7 @@ import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
-import { buildDashboardLists } from '../../services/dashboard-lists'
+import { buildList } from '../../services/build-list'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
 import { makeTodo, matchesFilterNow as matchesFilter } from '../helpers'
 
@@ -180,7 +180,7 @@ describe('Save-as-preset round-trip', () => {
       [2, [7]], [3, [99]],
     ])
 
-    const lists = buildDashboardLists([reloaded!], todos, {
+    const list = buildList(reloaded!, todos, {
       today: new Date('2026-04-18T00:00:00Z'),
       weekStartsOn: 1,
       evalPredicate: (predicate, todo) => {
@@ -189,8 +189,7 @@ describe('Save-as-preset round-trip', () => {
       },
     })
 
-    expect(lists).toHaveLength(1)
-    const ids = lists[0]!.todos.map(t => t.id).sort()
+    const ids = list.todos.map(t => t.id).sort()
     expect(ids).toEqual([2])  // only id=2 has person=7
   })
 

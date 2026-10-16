@@ -145,7 +145,7 @@ export function applyFilter(
 }
 
 /**
- * Membership evaluator for stored list predicates (`buildDashboardLists`'
+ * Membership evaluator for stored list predicates (`buildList`'s
  * `evalPredicate`). Converts each predicate to criteria once.
  */
 export function createPredicateEvaluator(
