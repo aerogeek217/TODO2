@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * Widget kinds removed in v52 (horizons ribbon, discipline scoreboard, snooze
@@ -13,10 +14,6 @@ export const V52_DROPPED_TABLES = ['floatingHorizons', 'floatingScoreboard', 'fl
 const REMOVED_SETTING_KEYS: ReadonlySet<string> = new Set(['horizonSlots', 'selectedHorizonDefId'])
 
 const RAIL_SIDES = ['left', 'right', 'top', 'bottom'] as const
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function isRemovedTab(tab: unknown): boolean {
   return isRecord(tab) && typeof tab.type === 'string' && REMOVED_KINDS.has(tab.type)

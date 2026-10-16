@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * v56 — workspace layouts. Seeds one layout, "Default", from what the canvas
@@ -42,10 +43,6 @@ const ID_MAX = 100
 const KINDS: ReadonlySet<string> = new Set(['lens', 'calendar', 'notes', 'taskboard', 'status'])
 
 type Obj = Record<string, unknown>
-
-function isRecord(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function isNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)

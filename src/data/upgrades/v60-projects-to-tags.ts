@@ -1,4 +1,6 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
+import { isId, nameKey, maxId } from './helpers'
 
 /**
  * v60 — projects become tags; the canvas and its floating widgets go.
@@ -48,24 +50,6 @@ export const V60_REMOVED_SETTING_KEYS = [
 const PROJECT_AXIS = 'project'
 
 type Obj = Record<string, unknown>
-
-function isRecord(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
-
-function isId(v: unknown): v is number {
-  return typeof v === 'number' && Number.isFinite(v)
-}
-
-function nameKey(name: string): string {
-  return name.trim().toLowerCase()
-}
-
-function maxId(rows: readonly unknown[] | undefined): number {
-  let max = 0
-  for (const row of rows ?? []) if (isRecord(row) && isId(row.id) && row.id > max) max = row.id
-  return max
-}
 
 interface TagsResult {
   tags: DataRow[] | undefined

@@ -1,4 +1,6 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
+import { isId, nameKey, maxId } from './helpers'
 
 /**
  * v55 — merge orgs into people. Frozen with this transform: the orange the
@@ -16,27 +18,9 @@ export const MIGRATED_ORG_PREFIX = 'Org: '
 /** Tables v55 drops (the Dexie block declares them `null`). */
 export const V55_DROPPED_TABLES = ['orgs', 'todoOrgs', 'personOrgs'] as const
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
-
-function isId(v: unknown): v is number {
-  return typeof v === 'number' && Number.isFinite(v)
-}
-
-function nameKey(name: string): string {
-  return name.trim().toLowerCase()
-}
-
 function initialsFor(name: string): string {
   const generated = name.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').toUpperCase().slice(0, 3)
   return generated || 'O'
-}
-
-function maxId(rows: DataRow[] | undefined): number {
-  let max = 0
-  for (const row of rows ?? []) if (isRecord(row) && isId(row.id) && row.id > max) max = row.id
-  return max
 }
 
 /** True when the person row has a usable color already. */

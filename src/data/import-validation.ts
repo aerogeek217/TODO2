@@ -18,7 +18,7 @@ const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quart
 
 function isOptRecurrenceRule(v: unknown): boolean {
   if (v === undefined || v === null) return true
-  if (!isObj(v)) return false
+  if (!isRecord(v)) return false
   if (typeof v.type !== 'string' || !VALID_RECURRENCE_TYPES.includes(v.type)) return false
   if ('originalDayOfMonth' in v && v.originalDayOfMonth !== undefined) {
     if (typeof v.originalDayOfMonth !== 'number' || v.originalDayOfMonth < 1 || v.originalDayOfMonth > 31) return false
@@ -30,12 +30,9 @@ import { DATA_TABLE_NAMES, type DataTableArrays, type DataTableName, type DataTa
 export { isValidCssColor } from '../utils/css'
 import { isValidCssColor } from '../utils/css'
 import { parseColorSettingKey } from '../models/theme-colors'
+import { isRecord } from '../utils/is-record'
 
 // --- Field helpers ---
-
-function isObj(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function isStr(v: unknown, maxLen: number): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= maxLen
@@ -100,7 +97,7 @@ function isOptDateLike(v: unknown): boolean {
 type CheckResult = true | string
 
 function checkFields(v: unknown, checks: Array<[string, boolean]>): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   for (const [field, ok] of checks) {
     if (!ok) return field
   }
@@ -112,7 +109,7 @@ function isOptColor(v: unknown): boolean {
 }
 
 function checkTodo(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['uid', isStr(v.uid, 200)],
     ['title', isStr(v.title, TITLE_MAX_CHARS)],
@@ -141,7 +138,7 @@ function isOptTriBool(v: unknown): boolean {
 }
 
 function isValidMembership(m: unknown): boolean {
-  if (!isObj(m) || typeof m.kind !== 'string') return false
+  if (!isRecord(m) || typeof m.kind !== 'string') return false
   if (!VALID_LIST_MEMBERSHIP_KINDS.includes(m.kind)) return false
   if (m.kind === 'custom') {
     return checkPredicateShape(m.predicate) === true
@@ -161,14 +158,14 @@ const VALID_RUNTIME_FILTER_FIELDS: readonly RuntimeFilterField[] = ['person', 's
 
 function isOptRuntimeFilter(v: unknown): boolean {
   if (v === undefined || v === null) return true
-  if (!isObj(v)) return false
+  if (!isRecord(v)) return false
   if (typeof v.field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(v.field)) return false
   if (!isOptStr(v.label, 100)) return false
   return true
 }
 
 function checkListDefinition(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
@@ -187,7 +184,7 @@ function isOptStatusIcon(v: unknown): boolean {
 }
 
 function checkStatus(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['color', isValidCssColor(v.color)],
@@ -197,7 +194,7 @@ function checkStatus(v: unknown): CheckResult {
 }
 
 function checkPerson(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['initials', isStr(v.initials, 4)],
@@ -208,7 +205,7 @@ function checkPerson(v: unknown): CheckResult {
 }
 
 function checkTag(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['color', isValidCssColor(v.color)],
@@ -216,7 +213,7 @@ function checkTag(v: unknown): CheckResult {
 }
 
 function checkTodoTag(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['todoId', isFiniteNum(v.todoId)],
     ['tagId', isFiniteNum(v.tagId)],
@@ -224,7 +221,7 @@ function checkTodoTag(v: unknown): CheckResult {
 }
 
 function checkListOrder(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['id', isOptNum(v.id)],
     ['listDefinitionId', isFiniteNum(v.listDefinitionId)],
@@ -234,7 +231,7 @@ function checkListOrder(v: unknown): CheckResult {
 }
 
 function checkTodoPerson(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['todoId', isFiniteNum(v.todoId)],
     ['personId', isFiniteNum(v.personId)],
@@ -242,7 +239,7 @@ function checkTodoPerson(v: unknown): CheckResult {
 }
 
 function checkNote(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['content', typeof v.content === 'string' && (v.content as string).length <= NOTES_MAX_CHARS],
     ['createdAt', isDateLike(v.createdAt)],
@@ -259,7 +256,7 @@ function isOptScalarValue(v: unknown): boolean {
 }
 
 function checkTodoEvent(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
     ['todoId', isFiniteNum(v.todoId)],
     ['type', typeof v.type === 'string' && (VALID_TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
@@ -270,7 +267,7 @@ function checkTodoEvent(v: unknown): CheckResult {
 }
 
 function checkLayout(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   const fields = checkFields(v, [
     ['id', isOptNum(v.id)],
     ['name', isStr(v.name, LAYOUT_NAME_MAX) && (v.name as string).trim().length > 0],
@@ -303,7 +300,7 @@ export function isKnownSettingKey(key: string): boolean {
 const UNRECOGNIZED_SETTING_KEY = 'key (unrecognized)'
 
 function checkSetting(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
+  if (!isRecord(v)) return 'not an object'
   if (!isStr(v.key, 100)) return 'key'
   if (typeof v.value !== 'string') return 'value'
   // Checked before the length cap so an unrecognized key is always reported
@@ -492,7 +489,7 @@ function pickTodoEvent(v: Raw): AllFields<TodoEvent> {
 }
 
 function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
-  if (!isObj(v)) return undefined
+  if (!isRecord(v)) return undefined
   const field = v.field
   if (typeof field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(field)) return undefined
   return compactRow<RuntimeFilterSpec>({
@@ -581,7 +578,7 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     check: checkListDefinition,
     pick: pickListDefinition,
     fixer: {
-      fixes: (row) => pickPredicate(isObj(row.membership) ? row.membership.predicate : undefined).fixes,
+      fixes: (row) => pickPredicate(isRecord(row.membership) ? row.membership.predicate : undefined).fixes,
       lead: (n) => `Fixed the filters of ${plural(n, 'list', 'lists')}`,
     },
   },
@@ -622,7 +619,7 @@ export const MAX_REPORTED_ROW_ERRORS = 10
  */
 export function rowFixes(table: DataTableName, row: unknown): string[] {
   const fixer = IMPORT_TABLES[table].fixer
-  return fixer && isObj(row) ? fixer.fixes(row) : []
+  return fixer && isRecord(row) ? fixer.fixes(row) : []
 }
 
 /**
@@ -638,8 +635,8 @@ const LABEL_MAX = 60
 
 /** Row label for messages: its title or name, quoted (shortened); empty when it has neither. */
 function rowLabel(row: unknown): string {
-  const text = isObj(row) && 'title' in row ? String(row.title) :
-               isObj(row) && 'name' in row ? String(row.name) : undefined
+  const text = isRecord(row) && 'title' in row ? String(row.title) :
+               isRecord(row) && 'name' in row ? String(row.name) : undefined
   if (text === undefined) return ''
   return `"${text.length > LABEL_MAX ? `${text.slice(0, LABEL_MAX)}…` : text}"`
 }
@@ -669,7 +666,7 @@ export interface ValidateImportOptions {
  * all failing rows (the first `MAX_REPORTED_ROW_ERRORS`, then a count).
  */
 export function validateImportData(data: unknown, options: ValidateImportOptions = {}): ValidateImportResult {
-  if (!isObj(data)) {
+  if (!isRecord(data)) {
     return { ok: false, error: 'Import data is not an object' }
   }
 
@@ -697,7 +694,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       const row: unknown = arr[i]
       const result = check(row)
       if (result === true) continue
-      if (key === 'settings' && result === UNRECOGNIZED_SETTING_KEY && isObj(row)) {
+      if (key === 'settings' && result === UNRECOGNIZED_SETTING_KEY && isRecord(row)) {
         droppedSettingIdx.add(i)
         droppedSettingKeys.push(String(row.key))
         continue
@@ -712,7 +709,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   if (Array.isArray(raw.todos)) {
     const firstIndexByUid = new Map<string, number>()
     raw.todos.forEach((row: unknown, i) => {
-      if (!isObj(row) || typeof row.uid !== 'string') return
+      if (!isRecord(row) || typeof row.uid !== 'string') return
       const first = firstIndexByUid.get(row.uid)
       if (first === undefined) {
         firstIndexByUid.set(row.uid, i)
@@ -727,7 +724,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   if (Array.isArray(raw.listOrders)) {
     const firstIndexByPair = new Map<string, number>()
     raw.listOrders.forEach((row: unknown, i) => {
-      if (!isObj(row)) return
+      if (!isRecord(row)) return
       const pair = `${String(row.listDefinitionId)}:${String(row.todoId)}`
       const first = firstIndexByPair.get(pair)
       if (first === undefined) {
@@ -756,7 +753,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
     if (!fixer || !Array.isArray(rows)) continue
     const fixed: string[] = []
     for (const row of rows) {
-      const fixes = isObj(row) ? fixer.fixes(row) : []
+      const fixes = isRecord(row) ? fixer.fixes(row) : []
       if (fixes.length > 0) fixed.push(`${rowLabel(row) || 'unnamed'} (${fixes.join(', ')})`)
     }
     if (fixed.length === 0) continue

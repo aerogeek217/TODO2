@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * v54 — remove hide-by-status. Statuses lose `hideByDefault`; stored list
@@ -9,10 +10,6 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  * statuses (no status filter, `showHiddenStatuses: false`) now shows them —
  * users narrow lists with explicit status filters instead.
  */
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function upgradeStatuses(rows: DataRow[] | undefined): DataRow[] | undefined {
   if (!Array.isArray(rows)) return rows

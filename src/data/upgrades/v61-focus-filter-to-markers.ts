@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * v61 — the Focus filter folds into the Markers filter.
@@ -21,10 +22,6 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  */
 
 type Obj = Record<string, unknown>
-
-function isRecord(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function rewritePredicate(p: unknown): { predicate: unknown; droppedNotInFocus: boolean } {
   if (!isRecord(p) || !('focus' in p)) return { predicate: p, droppedNotInFocus: false }

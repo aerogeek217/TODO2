@@ -1,4 +1,6 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
+import { maxId } from './helpers'
 
 /**
  * v59 — the taskboard becomes Focus.
@@ -34,18 +36,8 @@ export const V59_DROPPED_TABLES = ['taskboards', 'floatingTaskboards'] as const
 
 type Obj = Record<string, unknown>
 
-function isRecord(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
-
 function isNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
-}
-
-function maxId(rows: readonly unknown[] | undefined): number {
-  let max = 0
-  for (const row of rows ?? []) if (isRecord(row) && isNum(row.id) && row.id > max) max = row.id
-  return max
 }
 
 /** The Focus list's predicate (a complete `TodoPredicate`, frozen). */

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { createHash } from 'node:crypto'
 import fixture from '../fixtures/v49-export.json'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
 import { prepareImport } from '../../data/import-pipeline'
@@ -749,6 +750,47 @@ describe('v49 fixture → v62: the Default layout loses its status tabs', () => 
     const upgraded = fixtureAt(CURRENT_DB_VERSION)
     expect(upgradeDataSet(upgraded, 61, CURRENT_DB_VERSION)).toBe(upgraded)
   })
+})
+
+// ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
+/**
+ * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
+ * hex digits). The transforms up to v62 are frozen, so these never change:
+ * a shared helper or a refactor that changes any transform's output fails
+ * here. (A later version adds its own entry; never edit an existing one.)
+ *
+ * Recorded in America/Chicago: v53 turns precise scheduled dates into local
+ * midnights, so the output depends on the time zone. Elsewhere this check
+ * is skipped.
+ */
+const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
+  50: '59b8f9865081f2a6',
+  51: 'b54d81b11fbcf000',
+  52: '96dd5fd18009f5db',
+  53: 'b01566b2cb7c16d0',
+  54: '2d760f5ff449669a',
+  55: '74e19a1ec893baf4',
+  56: 'f40fd628325b9447',
+  57: 'd68ab53a3969e961',
+  58: 'd68ab53a3969e961',
+  59: '3be17224b306621d',
+  60: '5a9a472912b7f8f9',
+  61: '43c2476afe90c43e',
+  62: '7a756537e39297bf',
+}
+const DIGESTS_TIME_ZONE = 'America/Chicago'
+
+describe('v49 fixture → every version: frozen transforms give the recorded output', () => {
+  it.runIf(Intl.DateTimeFormat().resolvedOptions().timeZone === DIGESTS_TIME_ZONE)(
+    'the fixture upgraded to each version hashes to its recorded digest',
+    () => {
+      const digests: Record<number, string> = {}
+      for (const version of Object.keys(FROZEN_OUTPUT_DIGESTS).map(Number)) {
+        digests[version] = createHash('sha256').update(JSON.stringify(fixtureAt(version))).digest('hex').slice(0, 16)
+      }
+      expect(digests).toEqual(FROZEN_OUTPUT_DIGESTS)
+    },
+  )
 })
 
 // ── Long names and titles: imported whole, at every step ───────────────────────────────────────────

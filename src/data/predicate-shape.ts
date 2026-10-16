@@ -10,6 +10,7 @@ import {
   type RelativeDateToken,
   type TodoPredicate,
 } from '../models/filter-predicate'
+import { isRecord } from '../utils/is-record'
 
 /**
  * Shape check + reconstruction of a stored list predicate (`TodoPredicate`,
@@ -36,10 +37,6 @@ export const PREDICATE_ID_LIST_MAX = 100_001
 
 type Obj = Record<string, unknown>
 
-function isObj(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
-
 function isOptTriBool(v: unknown): boolean {
   return v === undefined || v === null || typeof v === 'boolean'
 }
@@ -50,7 +47,7 @@ function isDateLike(v: unknown): boolean {
 
 /** A valid stored anchor, rebuilt from its known keys; `undefined` when malformed. */
 function readAnchor(v: unknown): DateAnchor | undefined {
-  if (!isObj(v)) return undefined
+  if (!isRecord(v)) return undefined
   if (v.kind === 'fixed' && isDateLike(v.iso)) return { kind: 'fixed', iso: v.iso as string }
   if (v.kind === 'relative' && typeof v.token === 'string' && (RELATIVE_DATE_TOKENS as readonly string[]).includes(v.token)) {
     return { kind: 'relative', token: v.token as RelativeDateToken }
@@ -73,7 +70,7 @@ function isDateField(v: unknown): v is DateField {
  * text filter's length are not checked here: `pickPredicate` sanitises them.
  */
 export function checkPredicateShape(v: unknown): true | string {
-  if (!isObj(v)) return 'predicate'
+  if (!isRecord(v)) return 'predicate'
   if (typeof v.showCompleted !== 'boolean') return 'showCompleted'
   if (typeof v.searchText !== 'string') return 'searchText'
   if (typeof v.dateRangeIncludeNoDate !== 'boolean') return 'dateRangeIncludeNoDate'
@@ -100,7 +97,7 @@ function readIdList(v: unknown): number[] | null | undefined {
 function readMarkers(v: unknown): MarkersFilter | null | undefined {
   if (v === null) return null
   if (v === HOT_MARKERS) return HOT_MARKERS
-  if (!isObj(v)) return undefined
+  if (!isRecord(v)) return undefined
   const out: MarkerSet = {}
   for (const [k, val] of Object.entries(v)) {
     if (!(MARKER_KEYS as readonly string[]).includes(k) || val !== true) return undefined
@@ -123,8 +120,8 @@ export interface PickedPredicate {
  */
 export function pickPredicate(raw: unknown): PickedPredicate {
   const fixes: PredicateFix[] = []
-  const v: Obj = isObj(raw) ? raw : {}
-  if (!isObj(raw)) fixes.push('filters reset')
+  const v: Obj = isRecord(raw) ? raw : {}
+  if (!isRecord(raw)) fixes.push('filters reset')
 
   const ids = (value: unknown, what: string): number[] | null => {
     const list = readIdList(value)
@@ -134,7 +131,7 @@ export function pickPredicate(raw: unknown): PickedPredicate {
   }
   const core = <T>(ok: boolean, value: T, fallback: T, what: string): T => {
     if (ok) return value
-    if (isObj(raw)) fixes.push(`${what} reset`)
+    if (isRecord(raw)) fixes.push(`${what} reset`)
     return fallback
   }
 
@@ -149,7 +146,7 @@ export function pickPredicate(raw: unknown): PickedPredicate {
     if (isDateLike(value)) return { kind: 'fixed', iso: value as string }
     const a = readAnchor(value)
     if (a) return a
-    if (isObj(raw)) fixes.push(`${what} reset`)
+    if (isRecord(raw)) fixes.push(`${what} reset`)
     return null
   }
 

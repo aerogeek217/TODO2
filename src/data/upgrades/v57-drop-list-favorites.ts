@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * v57 — list favorites and saved prompt picks go.
@@ -14,10 +15,6 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  */
 
 type Obj = Record<string, unknown>
-
-function isRecord(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function upgradeListDefinitions(rows: DataRow[] | undefined): DataRow[] | undefined {
   if (!Array.isArray(rows)) return rows

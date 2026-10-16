@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * v53 — remove the scheduled date (`todos.scheduledDate`) and everything that
@@ -6,10 +7,6 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  * removed enum values and the removed settings keys are copied here so later
  * code changes can't alter what the upgrade does.
  */
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 /** A real `Date` from a `Date` / parseable string / epoch number, else `null`. */
 function toDate(v: unknown): Date | null {

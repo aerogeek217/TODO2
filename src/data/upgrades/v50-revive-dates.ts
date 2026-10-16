@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 import { reviveDate } from '../date-revive'
 
 /**
@@ -13,10 +14,6 @@ const V49_DATE_FIELDS: Readonly<Record<string, readonly string[]>> = {
   projects: ['createdAt'],
   notes: ['createdAt', 'modifiedAt'],
   taskboards: ['createdAt', 'updatedAt'],
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
 }
 
 /** `todos.scheduledDate`: `{kind:'date', value}` / `{kind:'fuzzy', token, setAt}`. */

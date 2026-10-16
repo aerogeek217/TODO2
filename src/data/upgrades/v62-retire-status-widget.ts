@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 
 /**
  * v62 — the Status widget is retired (its bar and legend live on as the
@@ -16,10 +17,6 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  */
 
 type Obj = Record<string, unknown>
-
-function isRecord(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function isStatusTab(tab: Obj): boolean {
   return tab.kind === 'status' && typeof tab.id === 'string'

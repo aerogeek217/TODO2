@@ -1,9 +1,6 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { isRecord } from '../../utils/is-record'
 import { newTodoUid } from '../../utils/todo-uid'
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 /** Epoch ms of a `Date` / parseable string, else `null`. */
 function toMs(v: unknown): number | null {

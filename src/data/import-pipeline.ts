@@ -2,6 +2,7 @@ import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from './database'
 import { upgradeDataSet, type DataRow, type DataSet } from './schema-upgrades'
 import { MAX_IMPORT_SIZE_BYTES, MAX_RECORDS_PER_TABLE, validateImportData, type ImportData } from './import-validation'
 import { detectUnsupportedImport, SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from './file-version'
+import { isRecord } from '../utils/is-record'
 
 export type PrepareImportFailure =
   | 'too-large'
@@ -55,10 +56,6 @@ export type PrepareImportResult =
       kind: 'full' | 'task-archive'
     }
   | { ok: false; reason: PrepareImportFailure; error: string }
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
 
 function readKind(raw: Record<string, unknown>): 'full' | 'task-archive' {
   return raw.kind === TASK_ARCHIVE_KIND ? 'task-archive' : 'full'

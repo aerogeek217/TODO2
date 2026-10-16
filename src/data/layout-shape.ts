@@ -10,6 +10,7 @@ import {
   type LensTabConfig,
 } from '../models/workspace-layout'
 import { normalizeDashboardConfig } from '../models/dashboard-config'
+import { isRecord } from '../utils/is-record'
 
 /**
  * Shape check + whitelist reconstruction for `WorkspaceLayout.columns`, the
@@ -29,10 +30,6 @@ const MAX_ID_LEN = 100
 
 type Obj = Record<string, unknown>
 
-function isObj(v: unknown): v is Obj {
-  return v !== null && typeof v === 'object' && !Array.isArray(v)
-}
-
 function isId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
 }
@@ -47,16 +44,16 @@ function isFiniteNum(v: unknown): v is number {
 
 function checkTabSettings(tab: Obj, path: string): true | string {
   const config = tab.config
-  if (!isObj(config)) return `${path}.config`
+  if (!isRecord(config)) return `${path}.config`
   const view = tab.viewState
-  if (view !== undefined && !isObj(view)) return `${path}.viewState`
+  if (view !== undefined && !isRecord(view)) return `${path}.viewState`
   switch (tab.kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
       return true
     case 'calendar': {
       const types = config.dateTypes
-      if (!isObj(types) || typeof types.due !== 'boolean' || typeof types.followup !== 'boolean' || (!types.due && !types.followup)) {
+      if (!isRecord(types) || typeof types.due !== 'boolean' || typeof types.followup !== 'boolean' || (!types.due && !types.followup)) {
         return `${path}.config.dateTypes`
       }
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
@@ -98,14 +95,14 @@ export function checkLayoutColumns(columns: unknown): true | string {
   for (let c = 0; c < columns.length; c++) {
     const col: unknown = columns[c]
     const cp = `columns[${c}]`
-    if (!isObj(col)) return cp
+    if (!isRecord(col)) return cp
     if (!isId(col.id) || !fresh(col.id)) return `${cp}.id`
     if (!isWeight(col.weight)) return `${cp}.weight`
     if (!Array.isArray(col.cells) || col.cells.length === 0) return `${cp}.cells`
     for (let k = 0; k < col.cells.length; k++) {
       const cell: unknown = col.cells[k]
       const kp = `${cp}.cells[${k}]`
-      if (!isObj(cell)) return kp
+      if (!isRecord(cell)) return kp
       if (!isId(cell.id) || !fresh(cell.id)) return `${kp}.id`
       if (!isWeight(cell.weight)) return `${kp}.weight`
       if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${kp}.activeTabId`
@@ -114,7 +111,7 @@ export function checkLayoutColumns(columns: unknown): true | string {
       for (let t = 0; t < cell.tabs.length; t++) {
         const tab: unknown = cell.tabs[t]
         const tp = `${kp}.tabs[${t}]`
-        if (!isObj(tab)) return tp
+        if (!isRecord(tab)) return tp
         if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
         if (!isWidgetKind(tab.kind)) return `${tp}.kind`
         const settings = checkTabSettings(tab, tp)
@@ -128,7 +125,7 @@ export function checkLayoutColumns(columns: unknown): true | string {
 function pickTab(raw: Obj): LayoutTab {
   const id = raw.id as string
   const config = raw.config as Obj
-  const view = isObj(raw.viewState) ? raw.viewState : undefined
+  const view = isRecord(raw.viewState) ? raw.viewState : undefined
   switch (raw.kind) {
     case 'lens': {
       const lensConfig: LensTabConfig = {}
