@@ -48,7 +48,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 ## Tools — Chrome DevTools MCP
 - A Chrome DevTools MCP server is wired up — tools appear as `mcp__chrome-devtools__*` (deferred; load schemas via `ToolSearch select:<name>` before first call). It drives a real Chromium instance: page nav, click/fill/drag, `take_snapshot`, `take_screenshot`, `evaluate_script`, `list_console_messages`, `list_network_requests`, performance + lighthouse + memory.
 - **Reach for it when JSDOM is not authoritative**: focus handoffs, drag-and-drop hit-testing (workspace tab drags, list widget rows, calendar day drops), popover anchor placement and viewport flips, ResizeObserver-driven layout, async-store-driven re-render timing, and any visual check vs. a design handoff.
-- **Workflow**: prototype the interaction in MCP against `npm run dev` (port 5180) to see what actually happens, then codify the regression in vitest (logic) or Playwright (real-browser flows — specs in `e2e/`, fixtures + trusted-mouse gestures in `e2e/fixtures/workspace.ts`). MCP is a diagnosis + spike tool, not the regression layer.
+- **Workflow**: prototype the interaction in MCP against `npm run dev` (port 5180) to see what actually happens, then codify the regression in vitest (logic) or Playwright (real-browser flows — specs in `e2e/`, fixtures in `e2e/fixtures/` — seeding + trusted-mouse `drag` in `workspace.ts`, stored rows in `db.ts`, geometry in `geometry.ts`). MCP is a diagnosis + spike tool, not the regression layer.
 - **Don't use it for**: pure logic / model / store / Dexie work — read the source. Don't substitute MCP for unit tests.
 
 ## Git Workflow
