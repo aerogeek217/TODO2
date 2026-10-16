@@ -2,15 +2,18 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * A list tab's menu (`WidgetKindMenu`): the "Change list" row opens an
- * in-place flyout by hover or ArrowRight, Escape closes the flyout back to the
- * menu, and a pick switches the tab's list. Plus the add-tab list picker,
- * which must stay inside the viewport when opened from a cell near the
- * bottom.
+ * A tab's menu (`WidgetKindMenu` on `MenuPopover`): the list tab's "Change
+ * list" submenu opens by hover or ArrowRight, Escape closes it back to the
+ * menu, and a pick switches the tab's list; Shift+F10 opens the menu under
+ * the tab and Esc gives the tab its focus back; the menu stays inside the
+ * window; the dashboard's Hot is › panel and the Eisenhower range submenu
+ * sit beside their items (flipped left near the right edge). Plus the
+ * add-tab list picker, which must stay inside the viewport when opened from a
+ * cell near the bottom.
  *
- * JSDOM is unauthoritative here — both menus portal to `document.body` and
- * place / clamp themselves from `getBoundingClientRect`; hover intent and the
- * flyout's leave-delay timer are order-sensitive in a real browser.
+ * JSDOM is unauthoritative here — the menus portal to `document.body` and are
+ * placed / clamped from `getBoundingClientRect`; hover and focus order are
+ * real-browser behaviour.
  */
 
 const twoLists: WorkspaceSeed = {
@@ -146,11 +149,10 @@ test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc ret
   await expect(tab).toBeFocused()
 })
 
-test('the tab menu opened near the bottom-right corner stays inside the window', async ({ page }) => {
+test('the tab menu opened at the window’s right edge stays inside the window', async ({ page }) => {
   await seedWorkspace(page, twoColumns)
   const vp = page.viewportSize()!
-  // Right-click at the window's bottom-right corner area over the dashboard body is not a tab — use the
-  // right-hand tab, then check the menu flips to fit when opened at a point near the edges.
+  // Right-click the right-hand tab at the window's right edge: the menu ends inside the window.
   const tab = wsTab(page, 'dashTab')
   const t = await rect(tab)
   await page.mouse.click(Math.min(t.x + t.width - 2, vp.width - 4), t.y + t.height / 2, { button: 'right' })
@@ -211,7 +213,7 @@ test('the Eisenhower range submenu: → opens it on the current value beside its
   const s = await rect(sub)
   const i = await rect(item)
   expect(s.x).toBeGreaterThanOrEqual(m.x + m.width)
-  // Its first choice (after the group label) sits below the item's top; the panel's top is 4px above the item.
+  // The submenu's top is 4px (its padding) above the item.
   expect(Math.abs(s.y + 4 - i.y)).toBeLessThanOrEqual(2)
   await page.keyboard.press('ArrowLeft')
   await expect(sub).toHaveCount(0)

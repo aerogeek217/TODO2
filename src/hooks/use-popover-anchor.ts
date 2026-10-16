@@ -92,7 +92,7 @@ export interface UsePopoverAnchorOptions {
   /**
    * Other elements that count as "inside" for outside-click detection. The
    * panel root is always inside; this is for nested flyouts (e.g.
-   * `WidgetKindMenu`'s Stats / Change-list submenus) and wrapper rows whose
+   * `MenuPopover`'s submenus and panels) and wrapper rows whose
    * children should not dismiss the popover (e.g. `RuntimeFilterPicker`'s
    * field row containing the chips + input).
    */
@@ -335,9 +335,9 @@ function besidePosition(
  * ) : null
  * ```
  *
- * Every anchored popover uses it (e.g. `RuntimeFilterPicker`,
- * `ListDefinitionPickerPopup`, `WidgetKindMenu`,
- * `ContextMenu`, `MenuPopover`) instead of its own positioning effects.
+ * Every anchored popover uses it (e.g. `MenuPopover` and its submenus,
+ * `AnchoredPicker`, `RuntimeFilterPicker`, `TooltipBubble`, the `@ # /`
+ * popups) instead of its own positioning effects.
  */
 export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAnchorResult {
   const {
