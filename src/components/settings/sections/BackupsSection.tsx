@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useFlashMessage } from '../../../hooks/use-flash-message'
-import { useFileOpsStore } from '../../../services/file-ops-store'
+import { useFileOpsStore } from '../../../stores/file-ops-store'
 import { legacyImportInfo } from '../../../services/data-files'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'

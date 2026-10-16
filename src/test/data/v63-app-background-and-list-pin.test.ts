@@ -6,7 +6,7 @@ import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-u
 import { prepareImport, prepareImportText } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
 import { backupRepository } from '../../data/backup-repository'
-import { useFileOpsStore } from '../../services/file-ops-store'
+import { useFileOpsStore } from '../../stores/file-ops-store'
 import { runAppendImport } from '../../services/append-import'
 import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo, resetDb, v62StoreSpecs } from '../helpers'

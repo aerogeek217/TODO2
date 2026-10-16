@@ -7,7 +7,7 @@ import { backupScheduler } from '../../../data/backup-scheduler'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useFileOpsStore } from '../../../services/file-ops-store'
+import { useFileOpsStore } from '../../../stores/file-ops-store'
 import type { PersistedTodoItem } from '../../../models'
 import { makeTodo, resetDb } from '../../helpers'
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useFlashMessage } from '../../../hooks/use-flash-message'
-import { useFileOpsStore } from '../../../services/file-ops-store'
+import { useFileOpsStore } from '../../../stores/file-ops-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { NO_BACKUP_NOTE } from '../../../stores/safety-snapshot'
 import type { AuditIssue } from '../../../data/audit'

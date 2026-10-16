@@ -33,7 +33,8 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 
 ## Code Conventions
 - Components in `src/components/`, route pages in `src/views/`
-- Data layer: repository pattern in `src/data/`, Zustand stores in `src/stores/`
+- Data layer: repository pattern in `src/data/`, Zustand stores in `src/stores/` — except `services/file-storage-store`, the React adapter over the `fileStorageService` singleton (the service imports stores, so the adapter in `stores/` would make a folder cycle)
+- Layers, lowest first: `models` / `utils` → `data` → `stores` → `services` → `hooks` → `components` → `views`. A module imports only from its own layer or lower — services orchestrate stores, never the reverse. `src/test/architecture/folder-cycles.test.ts` fails on any folder cycle
 - Models as TypeScript interfaces in `src/models/`
 - CSS custom properties for design tokens in `src/styles/tokens.css`
 - No class components — functional components with hooks only

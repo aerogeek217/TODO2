@@ -12,7 +12,7 @@ import { fileStorageService as svc } from '../../services/file-storage'
 // Wires the service's before / after import hooks, as the app does.
 import '../../services/file-storage-store'
 import { useNoteStore } from '../../stores/note-store'
-import { useFileOpsStore } from '../../services/file-ops-store'
+import { useFileOpsStore } from '../../stores/file-ops-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
 

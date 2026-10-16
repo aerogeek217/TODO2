@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { FileSyncBanner } from '../../../components/layout/FileSyncBanner'
-import { useFileOpsStore } from '../../../services/file-ops-store'
+import { useFileOpsStore } from '../../../stores/file-ops-store'
 import { useFileStorageStore } from '../../../services/file-storage-store'
 import { backupRepository } from '../../../data/backup-repository'
 import { db } from '../../../data/database'
