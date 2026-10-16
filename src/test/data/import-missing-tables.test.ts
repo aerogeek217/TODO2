@@ -104,6 +104,22 @@ describe('a v49 file missing some of its tables', () => {
     expect(tabs).toContainEqual(expect.objectContaining({ kind: 'lens', config: { listDefinitionId: focus!.id } }))
   })
 
+  it('a file without tasks or settings is still no TODO2 database: the padding never fills those two', () => {
+    const files = [
+      '{}',
+      JSON.stringify({ __schemaVersion: 49 }),
+      JSON.stringify({ __schemaVersion: 49, settings: fixture.settings }),
+      JSON.stringify({ __schemaVersion: 49, todos: fixture.todos }),
+      JSON.stringify({ __schemaVersion: 40, people: [] }),
+      JSON.stringify({ unrelated: [1, 2, 3] }),
+    ]
+    for (const text of files) {
+      const prepared = prepareImportText(text)
+      expect(prepared.ok, text).toBe(false)
+      if (!prepared.ok) expect(prepared.error).toContain('missing tasks or settings')
+    }
+  })
+
   it('a task archive is not padded: it stays a partial dataset', () => {
     const archive = JSON.stringify({ __schemaVersion: 49, kind: 'task-archive', todos: fixture.todos })
     const prepared = prepareImportText(archive, { purpose: 'append' })

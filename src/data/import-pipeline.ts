@@ -147,9 +147,13 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
   // of v49's tables is read as holding them empty, as the v49 build writes
   // them: the transforms key off a table's presence (v59 turns a rail's
   // taskboard tab into a Focus list tab only when `taskboards` is there), so
-  // a missing one could leave a shape no later version accepts.
+  // a missing one could leave a shape no later version accepts. Never
+  // `todos` / `settings`: they are what makes a file a TODO2 database (a
+  // full restore requires both), so `{}` or the wrong file stays rejected.
   if (kind === 'full' && fromVersion === 49) {
-    for (const table of V49_EXPORT_TABLES) if (!(table in tables)) tables[table] = []
+    for (const table of V49_EXPORT_TABLES) {
+      if (table !== 'todos' && table !== 'settings' && !(table in tables)) tables[table] = []
+    }
   }
 
   // The per-table record cap, checked before the transforms run (validation
