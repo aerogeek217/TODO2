@@ -268,3 +268,35 @@ describe('first load after deploying over a v49 build (no sync record)', () => {
     expect(write).not.toHaveBeenCalled()
   })
 })
+
+describe('a sync file missing some data tables still loads (missing tables arrive empty)', () => {
+  const v49RequiredOnly = JSON.stringify({ __schemaVersion: 49, savedAt: SAVED_AT, todos: fixture.todos, settings: fixture.settings })
+  const now = new Date().toISOString()
+  const currentPartial = JSON.stringify({
+    __schemaVersion: CURRENT_DB_VERSION,
+    savedAt: SAVED_AT,
+    todos: [{ id: 1, uid: 'u-1', title: 'From the file', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now }],
+    settings: [{ key: 'themeMode', value: 'dark' }],
+  })
+
+  it.each([
+    ['a v49 file with only todos + settings', v49RequiredOnly, fixture.todos.length],
+    ['a current file without tags, todoTags, layouts, listOrders, todoEvents, notes, …', currentPartial, 1],
+  ])('%s: "Use file" loads it', async (_label, text, taskCount) => {
+    setSyncState({ fileSavedAt: SAVED_AT, dirtySince: '2026-10-02T10:00:00.000Z' })
+    const { handle } = makeHandle(text)
+    mockLoadFileHandle.mockResolvedValue(handle)
+    svc.onConflict(async () => 'file')
+    svc.onConfirmFileUpgrade(async () => true)
+
+    await svc.initialize()
+
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.isConnected).toBe(true)
+    expect(await db.todos.count()).toBe(taskCount)
+    expect((await db.todos.toArray()).some((t) => t.title === BROWSER_TASK)).toBe(false)
+    expect(await db.tags.count()).toBe(0)
+    expect(await db.listOrders.count()).toBe(0)
+    expect(await db.layouts.count()).toBe(text === v49RequiredOnly ? 1 : 0)
+  })
+})
