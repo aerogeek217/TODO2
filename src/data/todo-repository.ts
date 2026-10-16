@@ -1,4 +1,5 @@
 import { db } from './database'
+import { nextSortOrder } from './create-repository'
 import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
 import { encodeDateValue } from './todo-event-repository'
 import { hasRecurrenceAnchor } from './recurrence-anchor'
@@ -118,15 +119,17 @@ export const todoRepository = {
   /**
    * Inserts a task. Mints a `uid` unless one is passed (only paths that keep
    * an imported task's identity pass one) and stamps `completedAt` on a row
-   * inserted already completed.
+   * inserted already completed. Without a `sortOrder` the task goes last:
+   * one past the highest stored, read in the same transaction.
    */
-  async insert(todo: NewTodoItem): Promise<number> {
-    const row: TodoItem = withoutUndefinedCompletedAt({
-      ...todo,
-      uid: todo.uid ?? newTodoUid(),
-      completedAt: todo.isCompleted ? (todo.completedAt ?? new Date()) : undefined,
-    })
+  async insert(todo: Omit<NewTodoItem, 'sortOrder'> & { sortOrder?: number }): Promise<number> {
     return db.transaction('rw', [db.todos, db.todoEvents], async () => {
+      const row: TodoItem = withoutUndefinedCompletedAt({
+        ...todo,
+        sortOrder: todo.sortOrder ?? await nextSortOrder(db.todos, 0),
+        uid: todo.uid ?? newTodoUid(),
+        completedAt: todo.isCompleted ? (todo.completedAt ?? new Date()) : undefined,
+      })
       const id = await db.todos.add(row) as number
       const createdAt = todo.createdAt instanceof Date
         ? todo.createdAt.toISOString()
@@ -144,16 +147,18 @@ export const todoRepository = {
 
   /**
    * Inserts several open tasks with their people and tags in one
-   * transaction (all or nothing), each with its `created` event. Returns the
+   * transaction (all or nothing), each with its `created` event, last and in
+   * input order (sort orders from one past the highest stored). Returns the
    * new ids in input order.
    */
   async insertManyWithAssignments(
-    items: readonly { todo: NewTodoItem; personIds: readonly number[]; tagIds: readonly number[] }[],
+    items: readonly { todo: Omit<NewTodoItem, 'sortOrder'>; personIds: readonly number[]; tagIds: readonly number[] }[],
   ): Promise<number[]> {
     return db.transaction('rw', [db.todos, db.todoEvents, db.todoPeople, db.todoTags], async () => {
       const ids: number[] = []
+      let sortOrder = await nextSortOrder(db.todos, 0)
       for (const { todo, personIds, tagIds } of items) {
-        const row: TodoItem = withoutUndefinedCompletedAt({ ...todo, uid: todo.uid ?? newTodoUid(), completedAt: undefined })
+        const row: TodoItem = withoutUndefinedCompletedAt({ ...todo, sortOrder: sortOrder++, uid: todo.uid ?? newTodoUid(), completedAt: undefined })
         const id = await db.todos.add(row) as number
         await db.todoEvents.add({
           todoId: id,

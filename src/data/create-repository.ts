@@ -49,3 +49,32 @@ export async function reorderBySortOrder<T extends { id?: number; sortOrder: num
     }
   })
 }
+
+/**
+ * The sort order a row added now takes: one past the highest stored, and at
+ * least `floor + 1`. Call it inside the insert's own rw transaction, so two
+ * adds that start together can't both read the same highest row.
+ */
+export async function nextSortOrder<T extends { sortOrder: number }>(
+  table: Table<T, number>,
+  floor: number,
+): Promise<number> {
+  const last = await table.orderBy('sortOrder').last()
+  return Math.max(floor, last?.sortOrder ?? floor) + 1
+}
+
+/**
+ * Inserts `entity` last: its `sortOrder` is `nextSortOrder(table, floor)`,
+ * read and written in one transaction. Returns the new id and sort order.
+ */
+export async function insertLast<T extends { id?: number; sortOrder: number }>(
+  table: Table<T, number>,
+  entity: Omit<T, 'id' | 'sortOrder'>,
+  floor: number,
+): Promise<{ id: number; sortOrder: number }> {
+  return table.db.transaction('rw', table, async () => {
+    const sortOrder = await nextSortOrder(table, floor)
+    const id = await table.add({ ...entity, sortOrder } as T)
+    return { id, sortOrder }
+  })
+}

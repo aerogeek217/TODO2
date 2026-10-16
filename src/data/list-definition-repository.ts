@@ -1,5 +1,5 @@
 import { db } from './database'
-import { createRepository, reorderBySortOrder } from './create-repository'
+import { createRepository, insertLast, reorderBySortOrder } from './create-repository'
 import type { ListDefinition, PersistedListDefinition } from '../models/list-definition'
 import { pickPredicate } from './predicate-shape'
 
@@ -20,6 +20,11 @@ export const listDefinitionRepository = {
   async getAll(): Promise<PersistedListDefinition[]> {
     const rows = await db.listDefinitions.orderBy('sortOrder').toArray()
     return (rows as PersistedListDefinition[]).map(withSafePredicate)
+  },
+
+  /** Adds a list after the others (sort order: one past the highest, from 0). */
+  async insertLast(def: Omit<ListDefinition, 'id' | 'sortOrder'>): Promise<{ id: number; sortOrder: number }> {
+    return insertLast(db.listDefinitions, def, -1)
   },
 
   async reorder(orderedIds: number[]): Promise<void> {

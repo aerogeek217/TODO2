@@ -202,16 +202,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   async add(title: string) {
     return mutate(async () => {
-      const { todos } = get()
-      const maxSort = todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
       const now = new Date()
       const defaultStatusId = useSettingsStore.getState().defaultStatusId
+      // Goes last (the repository picks the sort order in its transaction).
       const id = await todoRepository.insert({
         title,
         isCompleted: false,
         createdAt: now,
         modifiedAt: now,
-        sortOrder: maxSort + 1,
         nextFollowupAt: defaultNextFollowup(now),
         ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
@@ -232,9 +230,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async addMany(items, { description, snackbar = false }) {
     if (items.length === 0) return []
     return mutate(async () => {
-      const maxSort = get().todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
-      const rows = items.map((item, i) => ({ ...item, todo: { ...item.todo, sortOrder: maxSort + 1 + i } }))
-      const ids = await todoRepository.insertManyWithAssignments(rows)
+      const ids = await todoRepository.insertManyWithAssignments(items)
       const created = await todoRepository.getByIds(ids)
       const snapshots = ids.flatMap((id, i) => {
         const todo = created.find((t) => t.id === id)
@@ -681,13 +677,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return undefined
       const now = new Date()
-      const maxSort = get().todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
       const newId = await todoRepository.insert({
         title: todo.title,
         isCompleted: false,
         createdAt: now,
         modifiedAt: now,
-        sortOrder: maxSort + 1,
         dueDate: todo.dueDate,
         nextFollowupAt: todo.nextFollowupAt,
         notes: todo.notes,

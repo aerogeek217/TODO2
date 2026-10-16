@@ -47,10 +47,10 @@ export const useStatusStore = create<StatusState>((set, get) => {
       if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
         throw new Error(`Status "${name}" already exists`)
       }
-      const maxSort = statuses.reduce((max, s) => Math.max(max, s.sortOrder), 0)
-      const entry: Status = { name, color, sortOrder: maxSort + 1, icon }
-      const id = await statusRepository.insert(entry)
-      set({ statuses: [...get().statuses, { ...entry, id }] })
+      const entry = { name, color, icon }
+      // Goes last (the repository picks the sort order in its transaction).
+      const { id, sortOrder } = await statusRepository.insertLast(entry)
+      set({ statuses: [...get().statuses, { ...entry, sortOrder, id }] })
       return id
     })
   },

@@ -50,10 +50,6 @@ async function clearCheckinScopeFor(listDefinitionId: number): Promise<boolean> 
   return true
 }
 
-function nextSortOrder(defs: PersistedListDefinition[]): number {
-  return defs.reduce((max, d) => Math.max(max, d.sortOrder), -1) + 1
-}
-
 export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
   const defEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {
@@ -69,10 +65,8 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   async add({ name, membership, sort, grouping, pinnedToDashboard = true, maxTasks, limitMode }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
-    const { listDefinitions } = get()
-    const entry: ListDefinition = {
+    const entry: Omit<ListDefinition, 'sortOrder'> = {
       name: trimmed,
-      sortOrder: nextSortOrder(listDefinitions),
       pinnedToDashboard,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
       sort: sort ?? 'manual',
@@ -82,8 +76,9 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     }
     return mutate(
       async () => {
-        const id = await listDefinitionRepository.insert(entry)
-        set({ listDefinitions: [...get().listDefinitions, { ...entry, id }] })
+        // Goes last (the repository picks the sort order in its transaction).
+        const { id, sortOrder } = await listDefinitionRepository.insertLast(entry)
+        set({ listDefinitions: [...get().listDefinitions, { ...entry, sortOrder, id }] })
         return id
       },
       'Failed to add list',
@@ -106,14 +101,14 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
 
   remove(id) {
     return trackWrite(async () => {
-      const prev = get().listDefinitions
-      const def = prev.find(d => d.id === id)
+      const def = get().listDefinitions.find(d => d.id === id)
       if (!def) return
 
       const ranks = await listOrderRepository.getByList(id)
       await listDefinitionRepository.remove(id)
       useListOrderStore.getState().forgetList(id)
-      set({ listDefinitions: prev.filter(d => d.id !== id) })
+      // The lists as they are now: another write may have landed meanwhile.
+      set({ listDefinitions: get().listDefinitions.filter(d => d.id !== id) })
       const scopeCleared = await clearCheckinScopeFor(id)
 
       undoable(

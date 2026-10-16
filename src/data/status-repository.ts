@@ -1,11 +1,16 @@
 import { db } from './database'
 import type { Status } from '../models'
-import { createRepository, reorderBySortOrder } from './create-repository'
+import { createRepository, insertLast, reorderBySortOrder } from './create-repository'
 
 const base = createRepository<Status>(db.statuses, 'sortOrder')
 
 export const statusRepository = {
   ...base,
+
+  /** Adds a status after the others (sort order: one past the highest, at least 1). */
+  async insertLast(status: Omit<Status, 'id' | 'sortOrder'>): Promise<{ id: number; sortOrder: number }> {
+    return insertLast(db.statuses, status, 0)
+  },
 
   async delete(id: number): Promise<void> {
     await db.transaction('rw', [db.statuses, db.todos], async () => {
