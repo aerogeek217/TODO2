@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useId, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useId, useRef } from 'react'
 import { useUIStore } from '../../stores/ui-store'
 import { SETTINGS_SECTIONS, settingsSection } from './sections/settings-sections'
 import { SettingsLayerContext } from './sections/settings-layer'
+import { DialogFrame } from '../shared/Dialog'
 import styles from './SettingsModal.module.css'
-
-const FOCUSABLE =
-  'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
 /**
  * Desktop Settings: a large modal over the workspace, one section at a time
@@ -38,66 +35,25 @@ function SettingsModalFrame() {
   const close = useUIStore((s) => s.closeSettings)
   const titleId = useId()
   const sectionTitleId = useId()
-  const dialogRef = useRef<HTMLDivElement>(null)
   const layers = useRef(0)
   const registerLayer = useCallback((delta: 1 | -1) => { layers.current += delta }, [])
   const section = settingsSection(sectionId)
   const Body = section.Body
 
-  // Focus the frame on open (Tab then walks the section list); give focus
-  // back to the opener on close.
-  useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    dialogRef.current?.focus()
-    return () => {
-      if (previouslyFocused && document.body.contains(previouslyFocused)) previouslyFocused.focus()
-    }
-  }, [])
+  // A section's editor or dialog, or another overlay, owns Esc while open.
+  const escapeBelongsElsewhere = useCallback(() => layers.current > 0 || anotherLayerIsOpen(), [])
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (layers.current > 0 || anotherLayerIsOpen()) return
-      if (e.key === 'Escape') {
-        if (e.defaultPrevented) return
-        e.preventDefault()
-        close()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const dialog = dialogRef.current
-      if (!dialog) return
-      const focusables = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE))
-      const first = focusables.at(0)
-      const last = focusables.at(-1)
-      if (!first || !last) return
-      const active = document.activeElement as HTMLElement | null
-      if (e.shiftKey && (active === first || !dialog.contains(active))) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && (active === last || !dialog.contains(active))) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [close])
-
-  return createPortal(
-    <div
-      className={styles.overlay}
-      onClick={(e) => { if (e.target === e.currentTarget) close() }}
-      data-testid="settings-backdrop"
+  // Focus starts on the frame (Tab then walks the section list).
+  return (
+    <DialogFrame
+      onClose={close}
+      layer="overlay"
+      initialFocus="panel"
+      escapeBelongsElsewhere={escapeBelongsElsewhere}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      backdropClassName={styles.backdrop}
     >
-      <div
-        ref={dialogRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        data-shortcut-scope="none"
-      >
         <div className={styles.header}>
           <h1 id={titleId} className={styles.title}>Settings</h1>
           <kbd className={styles.kbd} aria-hidden="true">Esc</kbd>
@@ -130,8 +86,6 @@ function SettingsModalFrame() {
             </SettingsLayerContext.Provider>
           </section>
         </div>
-      </div>
-    </div>,
-    document.body,
+    </DialogFrame>
   )
 }

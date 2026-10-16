@@ -100,7 +100,7 @@ describe('TagEditor', () => {
     expect(deleteBtn).not.toBeNull()
     fireEvent.click(deleteBtn!)
 
-    await waitFor(() => expect(container.textContent).toMatch(/1 task currently tagged/i))
+    await waitFor(() => expect(document.body.textContent).toMatch(/1 task currently tagged/i))
 
     fireEvent.click(getByText('Delete'))
 

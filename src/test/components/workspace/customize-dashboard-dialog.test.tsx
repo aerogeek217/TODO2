@@ -183,8 +183,8 @@ describe('CustomizeDashboardDialog', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('keeps app shortcuts out (the dialog counts as a text field for them)', () => {
+  it('keeps app shortcuts out (a modal scope)', () => {
     setup()
-    expect(screen.getByRole('dialog').getAttribute('data-shortcut-scope')).toBe('none')
+    expect(screen.getByRole('dialog').getAttribute('data-shortcut-scope')).toBe('modal')
   })
 })

@@ -1,20 +1,8 @@
-/* The task dialog: a standard dialog listing the tasks behind a number. It sits at
- * the task editor's layer (and before it in the page) so the editor and the
- * rows' menus / popovers open above it. */
-
-.backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-overlay);
-}
+/* The task dialog: a standard dialog listing the tasks behind a number, on the
+ * overlay tier so the rows' menus / popovers and the editor (nested) open
+ * above it. */
 
 .dialog {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: var(--z-overlay);
   width: min(660px, calc(100vw - 32px));
   max-height: 80vh;
   display: flex;
@@ -30,10 +18,6 @@
 
 :global([data-theme="light"]) .dialog {
   background: var(--color-surface);
-}
-
-.dialog:focus {
-  outline: none;
 }
 
 .header {

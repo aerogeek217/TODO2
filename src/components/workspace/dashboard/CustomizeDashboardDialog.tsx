@@ -1,5 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   closestCenter,
   DndContext,
@@ -22,6 +21,7 @@ import {
   type DashboardTabConfig,
 } from '../../../models/dashboard-config'
 import type { DashboardTab, WorkspaceLayout } from '../../../models/workspace-layout'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useToday } from '../../../hooks/use-today'
 import { useSortableReorderHandler, useSortableRow } from '../../../hooks/use-sortable-row'
 import { isListTileEligible } from '../../../services/stats/list-tiles'
@@ -32,6 +32,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { bySortOrder } from '../../../utils/sort-order'
 import { findTab } from '../../../utils/workspace-layout-ops'
 import { DragHandle } from '../../shared/DragHandle'
+import { DialogFrame } from '../../shared/Dialog'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, CloseIcon } from '../icons'
 import { tileCatalogHint, trendRangeLabel } from './dashboard-copy'
@@ -96,7 +97,6 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
   const drafts = useListDraftStore((s) => s.drafts)
   const hints = useListTileHints()
   const titleId = useId()
-  const panelRef = useRef<HTMLDivElement>(null)
   const addListRef = useRef<HTMLButtonElement>(null)
   const [addListOpen, setAddListOpen] = useState(false)
 
@@ -124,47 +124,14 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
     update(next, { sections: sectionsFor(next, shownSections) })
   }
 
-  // Focus: the panel (or "Add a saved list") on open, back where it was on close.
+  // Opened from "+ Add list tile": "Add a saved list" takes the focus, in view.
+  const initialFocus = focusListTiles ? addListRef : 'panel'
   useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null
-    if (focusListTiles && addListRef.current) {
-      addListRef.current.scrollIntoView?.({ block: 'nearest' })
-      addListRef.current.focus()
-    } else {
-      panelRef.current?.focus()
-    }
-    return () => {
-      if (prev && document.body.contains(prev)) prev.focus()
-    }
+    if (focusListTiles) addListRef.current?.scrollIntoView?.({ block: 'nearest' })
   }, [focusListTiles])
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      // Esc during a keyboard reorder cancels the move, not the dialog.
-      if (dragging) return
-      e.preventDefault()
-      e.stopPropagation()
-      onClose()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [tabindex="0"]',
-    ) ?? [])
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
-  // Backdrop: a click that starts and ends on it closes.
-  const downOnBackdrop = useRef(false)
+  // Esc during a keyboard reorder cancels the move, not the dialog.
+  const draggingRef = useLatestRef(dragging)
+  const escapeBelongsElsewhere = useCallback(() => draggingRef.current, [draggingRef])
 
   const addListEntries: MenuEntry[] = defs.length === 0
     ? [{ kind: 'item', label: 'No saved lists yet', disabled: true }]
@@ -182,25 +149,16 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
       }
     })
 
-  return createPortal(
-    <>
-      <div
-        className={styles.backdrop}
-        onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
-        onClick={(e) => { if (downOnBackdrop.current && e.target === e.currentTarget) onClose() }}
-      />
-      <div
-        ref={panelRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        data-customize-dashboard={tab.id}
-        // App shortcuts treat the dialog like a text field (none fire behind it).
-        data-shortcut-scope="none"
-        onKeyDown={onKeyDown}
-      >
+  return (
+    <DialogFrame
+      onClose={onClose}
+      layer="overlay"
+      initialFocus={initialFocus}
+      escapeBelongsElsewhere={escapeBelongsElsewhere}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      data={{ 'customize-dashboard': tab.id }}
+    >
         <div className={styles.header}>
           <h2 id={titleId} className={styles.title}>Customize dashboard</h2>
           <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}><CloseIcon size={12} /></button>
@@ -357,9 +315,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
           <span className={styles.spacer} />
           <button type="button" className={styles.primaryBtn} onClick={onClose}>Done</button>
         </div>
-      </div>
-    </>,
-    document.body,
+    </DialogFrame>
   )
 }
 

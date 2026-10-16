@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useIsMobile } from '../../hooks/use-is-mobile'
-import { useLatestRef } from '../../hooks/use-latest-ref'
 import { copyTasksRich } from '../../services/task-copy'
 import {
   resolveTaskDialog,
@@ -24,6 +23,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { startOfToday } from '../../utils/date'
 import { findTab } from '../../utils/workspace-layout-ops'
+import { DialogFrame } from '../shared/Dialog'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { DashGlyph } from '../workspace/dashboard/glyphs'
@@ -112,15 +112,6 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
     [payload, workingLayout],
   )
 
-  // Focus: the panel on open, back where it was on close.
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null
-    panelRef.current?.focus()
-    return () => {
-      if (prev && document.body.contains(prev)) prev.focus()
-    }
-  }, [])
-
   // The editor closed: focus comes back here, so the next Esc closes the dialog.
   const editorWasOpen = useRef(false)
   useEffect(() => {
@@ -131,48 +122,6 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
       panelRef.current?.focus()
     }
   }, [editPopupMode])
-
-  // Esc with nothing focused (focus fell to the page) still closes it. A key
-  // the editor or a row handled never gets here (they stop it).
-  const hideRef = useLatestRef(hide)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      if (useUIStore.getState().editPopupMode) return
-      if (document.activeElement && document.activeElement !== document.body) return
-      hideRef.current()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [hideRef])
-
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // A modal: no key reaches the app's shortcuts or the widgets behind.
-    e.stopPropagation()
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      // The editor on top owns Esc while it's open.
-      if (!useUIStore.getState().editPopupMode) hide()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [tabindex="0"]',
-    ) ?? []).filter((el) => el.offsetParent !== null || el === document.activeElement)
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }, [hide])
-
-  // Backdrop: a click that starts and ends on it closes (not a text drag out of the panel).
-  const downOnBackdrop = useRef(false)
 
   const copy = async () => {
     const ok = await copyTasksRich(taskDialogCopySections(groups, todoById), {
@@ -213,22 +162,17 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
   })
 
   return (
-    <>
-      <div
-        className={styles.backdrop}
-        onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
-        onClick={(e) => { if (downOnBackdrop.current && e.target === e.currentTarget) hide() }}
-      />
-      <div
-        ref={panelRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        data-task-dialog=""
-        onKeyDown={onKeyDown}
-      >
+    <DialogFrame
+      onClose={hide}
+      layer="overlay"
+      initialFocus="panel"
+      // The editor on top owns Esc while it's open.
+      escapeBelongsElsewhere={editorIsOpen}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      data={{ 'task-dialog': '' }}
+      panelRef={panelRef}
+    >
         <div className={styles.header}>
           <DashGlyph name={payload.glyph} className={styles.glyph} />
           <h2 id={titleId} className={styles.title}>{payload.title}</h2>
@@ -275,10 +219,11 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
             Close<kbd className={styles.kbd}>Esc</kbd>
           </button>
         </div>
-      </div>
-    </>
+    </DialogFrame>
   )
 }
+
+const editorIsOpen = () => useUIStore.getState().editPopupMode != null
 
 function CopyIcon() {
   return (

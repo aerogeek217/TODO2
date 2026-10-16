@@ -1,20 +1,8 @@
 /* Customize dashboard: a standard dialog (800 wide, two columns) — tiles and list
- * tiles on the left, sections on the right. It sits at the task editor's
- * layer so its option menus and the saved-list menu open above it. */
-
-.backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-overlay);
-}
+ * tiles on the left, sections on the right. It sits on the overlay
+ * tier so its option menus and the saved-list menu open above it. */
 
 .dialog {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: var(--z-overlay);
   width: min(800px, calc(100vw - 32px));
   max-height: 86vh;
   display: flex;
@@ -30,10 +18,6 @@
 
 :global([data-theme="light"]) .dialog {
   background: var(--color-surface);
-}
-
-.dialog:focus {
-  outline: none;
 }
 
 .header {

@@ -57,6 +57,30 @@ describe('useKeyboardShortcuts — focus gating', () => {
     expect(openShortcutsModal).not.toHaveBeenCalled()
   })
 
+  it('fires Mod-K (allowed in text fields) inside [data-shortcut-scope="none"], but not inside a modal scope', () => {
+    const openPalette = vi.fn<() => void>()
+    renderHook(() => useKeyboardShortcuts({ ...options, openPalette }))
+    const make = (scope: string) => {
+      const wrapper = document.createElement('div')
+      wrapper.setAttribute('data-shortcut-scope', scope)
+      const input = document.createElement('input')
+      wrapper.appendChild(input)
+      document.body.appendChild(wrapper)
+      return input
+    }
+    const plain = make('none')
+    plain.focus()
+    dispatchKey(plain, 'k', { ctrlKey: true })
+    expect(openPalette).toHaveBeenCalledOnce()
+
+    const inModal = make('modal')
+    inModal.focus()
+    dispatchKey(inModal, 'k', { ctrlKey: true })
+    dispatchKey(inModal, '?')
+    expect(openPalette).toHaveBeenCalledOnce()
+    expect(openShortcutsModal).not.toHaveBeenCalled()
+  })
+
   it('does NOT fire `?` when focus is on a plain INPUT', () => {
     const input = document.createElement('input')
     document.body.appendChild(input)

@@ -29,6 +29,12 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
     const handleKeyDown = async (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
       const active = document.activeElement as HTMLElement | null
+      // Inside a modal dialog no app shortcut fires, not even the ones
+      // allowed in text fields (they'd act on the page behind it).
+      if (inModal(target) || inModal(active)) {
+        pendingChordRef.current = null
+        return
+      }
       const isInput = isTextField(target) || isTextField(active)
       const ctx: ShortcutCtx = { e, callbacks: cbRef.current }
 
@@ -75,6 +81,10 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [enabled, cbRef])
+}
+
+function inModal(el: HTMLElement | null): boolean {
+  return typeof el?.closest === 'function' && el.closest('[data-shortcut-scope="modal"]') !== null
 }
 
 function isTextField(el: HTMLElement | null): boolean {

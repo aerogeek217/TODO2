@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import type { ReactNode } from 'react'
+import { DialogFrame } from './Dialog'
 import styles from './ListEditorDialog.module.css'
 
 export interface ListEditorDialogList {
@@ -20,9 +20,9 @@ export interface ListEditorDialogProps {
 
 /**
  * "Edit list" dialog chrome: title, × close, the form, and a footer with
- * how many widgets show the list, Cancel (Esc) and Save list. Esc and the
- * scrim close it; an Esc meant for a popover open over it (a filter picker
- * or menu) is left to that popover.
+ * how many widgets show the list, Cancel (Esc) and Save list, on the shared
+ * dialog frame (`raised` tier). Esc and the scrim close it; an Esc meant for
+ * a popover open over it (a filter picker or menu) is left to that popover.
  */
 export function ListEditorDialog({
   open,
@@ -32,41 +32,16 @@ export function ListEditorDialog({
   onSave,
   children,
 }: ListEditorDialogProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      const target = e.target instanceof Element ? e.target : null
-      if (target && !dialogRef.current?.contains(target) && target.closest('[role="menu"], [role="dialog"]')) return
-      e.stopPropagation()
-      onClose()
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, onClose])
-
-  useEffect(() => {
-    if (open && dialogRef.current) {
-      dialogRef.current.focus()
-    }
-  }, [open])
-
   if (!open || !list) return null
 
-  return createPortal(
-    <>
-      <div className={styles.scrim} onClick={onClose} aria-hidden="true" />
-      <div
-        ref={dialogRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Edit list: ${list.name}`}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
+  return (
+    <DialogFrame
+      onClose={onClose}
+      layer="raised"
+      initialFocus="panel"
+      aria-label={`Edit list: ${list.name}`}
+      className={styles.dialog}
+    >
         <header className={styles.header}>
           <div className={styles.title}>
             <span className={styles.titleEyebrow}>Edit list</span>
@@ -102,8 +77,6 @@ export function ListEditorDialog({
             Save list
           </button>
         </footer>
-      </div>
-    </>,
-    document.body,
+    </DialogFrame>
   )
 }

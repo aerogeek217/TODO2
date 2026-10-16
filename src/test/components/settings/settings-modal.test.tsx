@@ -61,7 +61,9 @@ describe('SettingsModal', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(useUIStore.getState().settingsOpen).toBe(false)
     open()
-    fireEvent.click(screen.getByTestId('settings-backdrop'))
+    const backdrop = document.querySelector('[data-dialog-backdrop]')!
+    fireEvent.mouseDown(backdrop)
+    fireEvent.click(backdrop)
     expect(useUIStore.getState().settingsOpen).toBe(false)
   })
 

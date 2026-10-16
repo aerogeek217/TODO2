@@ -1,14 +1,8 @@
-/* The desktop Settings modal (a large standard dialog). No transform on the frame:
- * the editors a section opens are `position: fixed` and must stay relative
- * to the viewport. */
+/* The desktop Settings modal (a large standard dialog on the shared frame, which
+ * has no transform: the editors a section opens are `position: fixed` and
+ * must stay relative to the viewport). */
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.backdrop {
   background: var(--color-backdrop);
 }
 
@@ -25,10 +19,6 @@
 
 [data-theme="light"] .dialog {
   background: var(--color-surface);
-}
-
-.dialog:focus {
-  outline: none;
 }
 
 .header {

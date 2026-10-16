@@ -1,16 +1,4 @@
-.scrim {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-dialog-overlay);
-}
-
 .dialog {
-  position: fixed;
-  z-index: var(--z-dialog-overlay);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   width: min(560px, calc(100vw - 32px));
   max-height: calc(100vh - 80px);
 

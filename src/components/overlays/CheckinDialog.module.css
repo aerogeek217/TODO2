@@ -1,20 +1,8 @@
-/* The email check-in dialog: a standard dialog at the task dialog's layer (and
- * after it in the page, so it opens over it). The people editor, the preview
- * and the Which tasks menu stack above it. */
-
-.backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-overlay);
-}
+/* The email check-in dialog: a standard dialog on the task dialog's tier (opened
+ * from it, it comes later in the page, so over it). The people editor, the
+ * preview and the Which tasks menu stack above it. */
 
 .dialog {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: var(--z-overlay);
   width: min(700px, calc(100vw - 32px));
   max-height: 86vh;
   display: flex;
@@ -29,10 +17,6 @@
 
 :global([data-theme="light"]) .dialog {
   background: var(--color-surface);
-}
-
-.dialog:focus {
-  outline: none;
 }
 
 .header {

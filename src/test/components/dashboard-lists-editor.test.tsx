@@ -239,7 +239,7 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
     fireEvent.click(screen.getByText('⚙'))
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
 
-    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     // Outer Lists modal still rendered in the test container.
     expect(container.querySelector('[class*="backdrop"]')).not.toBeNull()
@@ -253,8 +253,9 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByText('⚙'))
-    const scrim = document.body.querySelector('[class*="scrim"]') as HTMLElement | null
-    expect(scrim).not.toBeNull()
+    const scrim = document.body.querySelector('[role="dialog"]')?.previousElementSibling ?? null
+    expect(scrim?.hasAttribute('data-dialog-backdrop')).toBe(true)
+    fireEvent.mouseDown(scrim!)
     fireEvent.click(scrim!)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
   })

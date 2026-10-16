@@ -38,7 +38,9 @@ export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName
         Keep browser data&hellip;
       </button>
       {confirming && (
-        <Dialog open onClose={() => setConfirming(false)} size="md" title="Overwrite the sync file?">
+        // In place: opened from the storage pill's popover, a dialog portaled out of
+        // it would count as an outside click and close the popover.
+        <Dialog open inline onClose={() => setConfirming(false)} size="md" title="Overwrite the sync file?">
           <DialogBody>
             Replace the contents of <strong>{fileName}</strong> with this browser&rsquo;s
             data? The file&rsquo;s current contents are saved

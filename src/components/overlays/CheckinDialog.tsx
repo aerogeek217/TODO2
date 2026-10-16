@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -27,7 +27,7 @@ import {
   type CheckinTaskScope,
 } from '../../utils/checkin-settings'
 import { PeopleEditor } from '../settings/PeopleEditor'
-import { Dialog } from '../shared/Dialog'
+import { Dialog, DialogFrame } from '../shared/Dialog'
 import { ChevronDownIcon } from '../workspace/icons'
 import { MenuPopover, type MenuEntry } from '../workspace/MenuPopover'
 import styles from './CheckinDialog.module.css'
@@ -124,55 +124,10 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
   }, [scope, selectCtx, today, assignedPeopleMap, assignedTagsMap, refOf, includeNotes, includeOthers])
   const buildPreview = useCallback((p: PersistedPerson) => buildEmail(p, new Date()).email, [buildEmail])
 
-  // Focus: the panel on open, back where it was on close.
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null
-    panelRef.current?.focus()
-    return () => {
-      if (prev && document.body.contains(prev)) prev.focus()
-    }
-  }, [])
+  // The people editor, the preview and the Which tasks menu own Esc while open.
+  const layerOpenRef = useLatestRef(emailEditorFor !== null || previewOpen || scopeMenuOpen)
+  const escapeBelongsElsewhere = useCallback(() => layerOpenRef.current, [layerOpenRef])
 
-  const layerOpen = emailEditorFor !== null || previewOpen || scopeMenuOpen
-  const layerOpenRef = useLatestRef(layerOpen)
-  const closeRef = useLatestRef(close)
-  // Esc with nothing focused (focus fell to the page, e.g. after the mail app
-  // opened) still closes it — and only it, not a dialog underneath — unless
-  // a layer on top (people editor, preview, menu) has it.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || layerOpenRef.current) return
-      if (document.activeElement && document.activeElement !== document.body) return
-      e.preventDefault()
-      closeRef.current()
-    }
-    document.addEventListener('keydown', onKey, true)
-    return () => document.removeEventListener('keydown', onKey, true)
-  }, [layerOpenRef, closeRef])
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    // A modal: no key reaches the app's shortcuts or the widgets behind.
-    e.stopPropagation()
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      if (!layerOpen) close()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), select:not([disabled])',
-    ) ?? []).filter((el) => el.offsetParent !== null || el === document.activeElement)
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
 
   /** After a send: the next row still to send, else Done. */
   const focusNext = () => {
@@ -258,25 +213,17 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
 
   const sendLabel = method === 'eml' ? 'Download .eml' : 'Copy & open'
 
-  // Backdrop: a click that starts and ends on it closes (not a text drag out of the panel).
-  const downOnBackdrop = useRef(false)
-
   return (
     <>
-      <div
-        className={styles.backdrop}
-        onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
-        onClick={(e) => { if (downOnBackdrop.current && e.target === e.currentTarget) close() }}
-      />
-      <div
-        ref={panelRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
+      <DialogFrame
+        onClose={close}
+        layer="overlay"
+        initialFocus="panel"
+        escapeBelongsElsewhere={escapeBelongsElsewhere}
         aria-labelledby={titleId}
-        tabIndex={-1}
-        data-checkin-dialog=""
-        onKeyDown={onKeyDown}
+        className={styles.dialog}
+        data={{ 'checkin-dialog': '' }}
+        panelRef={panelRef}
       >
         <div className={styles.header}>
           <h2 id={titleId} className={styles.title}>Email task check-ins</h2>
@@ -401,7 +348,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
           </button>
           <button type="button" className={styles.footerBtn} data-checkin-done="" onClick={close}>Done</button>
         </div>
-      </div>
+      </DialogFrame>
 
       {scopeMenuOpen && (
         <MenuPopover

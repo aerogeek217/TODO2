@@ -1,7 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
-import { useLatestRef } from '../../hooks/use-latest-ref'
 import {
   applyCheckinUpdates,
   checkinChangeKey,
@@ -20,6 +19,7 @@ import { advanceRecurring } from '../../services/recurrence'
 import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
+import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
@@ -104,52 +104,6 @@ function CheckinImportPanel() {
   const updates = useMemo(() => (reply ? selectedCheckinUpdates(reply.diff, selected) : []), [reply, selected])
   const selectedCount = updates.reduce((n, u) => n + u.changeCount, 0)
 
-  // Focus: the paste target on open, back where it was on close.
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null
-    pasteRef.current?.focus()
-    return () => {
-      if (prev && document.body.contains(prev)) prev.focus()
-    }
-  }, [])
-
-  const closeRef = useLatestRef(close)
-  // Esc with nothing focused (focus fell to the page) still closes it.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      if (document.activeElement && document.activeElement !== document.body) return
-      e.preventDefault()
-      closeRef.current()
-    }
-    document.addEventListener('keydown', onKey, true)
-    return () => document.removeEventListener('keydown', onKey, true)
-  }, [closeRef])
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    // A modal: no key reaches the app's shortcuts or the widgets behind.
-    e.stopPropagation()
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      close()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea',
-    ) ?? []).filter((el) => el.offsetParent !== null || el === document.activeElement)
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
   const read = (input: CheckinReplyInput) => {
     const result = readPaste(input)
     if ('error' in result) {
@@ -202,29 +156,19 @@ function CheckinImportPanel() {
     }
   }
 
-  // Backdrop: a click that starts and ends on it closes (not a text drag out of the panel).
-  const downOnBackdrop = useRef(false)
-
   const applyLabel = reply ? `Apply ${plural(selectedCount, 'change')}` : 'Apply changes'
   const applyBlocked = !reply ? undefined : !person ? 'Choose who replied first' : selectedCount === 0 ? 'Nothing is ticked' : undefined
 
   return (
-    <>
-      <div
-        className={styles.backdrop}
-        onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
-        onClick={(e) => { if (downOnBackdrop.current && e.target === e.currentTarget) close() }}
-      />
-      <div
-        ref={panelRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        data-checkin-import=""
-        onKeyDown={onKeyDown}
-      >
+    <DialogFrame
+      onClose={close}
+      layer="overlay"
+      initialFocus={pasteRef}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      data={{ 'checkin-import': '' }}
+      panelRef={panelRef}
+    >
         <div className={styles.header}>
           <h2 id={titleId} className={styles.title}>Import task update</h2>
           <button type="button" className={styles.closeBtn} aria-label="Close" onClick={close}>×</button>
@@ -292,8 +236,7 @@ function CheckinImportPanel() {
             {applyLabel}
           </button>
         </div>
-      </div>
-    </>
+    </DialogFrame>
   )
 }
 

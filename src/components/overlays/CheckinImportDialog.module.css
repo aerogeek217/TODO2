@@ -1,10 +1,5 @@
-/* The check-in reply import dialog: the check-in dialog's frame (backdrop,
- * panel, header, footer), opened over the workspace at the task dialog's
- * layer. */
-
-.backdrop {
-  composes: backdrop from './CheckinDialog.module.css';
-}
+/* The check-in reply import dialog: the check-in dialog's look (panel, header,
+ * footer), opened over the workspace on the task dialog's tier. */
 
 .dialog {
   composes: dialog from './CheckinDialog.module.css';
