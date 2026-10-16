@@ -3,6 +3,7 @@ import { listOrderRepository } from '../data/list-order-repository'
 import type { PersistedListOrder } from '../models/list-order'
 import type { ListRanks, RankWrite } from '../utils/list-order'
 import { readFresh, reportLoadFailure, trackWrite } from './store-helpers'
+import { registerModuleReset } from '../utils/module-reset'
 
 const NO_RANKS: ListRanks = new Map()
 
@@ -51,6 +52,7 @@ let inflight: Promise<void> | null = null
 export function resetListOrderLoad(): void {
   inflight = null
 }
+registerModuleReset(resetListOrderLoad)
 
 /** Awaits a rank write; false (logged) when it failed. */
 async function saveOrLog(write: Promise<void>): Promise<boolean> {

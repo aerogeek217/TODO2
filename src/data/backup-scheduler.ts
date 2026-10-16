@@ -1,6 +1,7 @@
 import { backupRepository } from './backup-repository'
 import type { BackupTrigger } from '../models'
 import { MS_PER_DAY } from '../utils/date'
+import { registerModuleReset } from '../utils/module-reset'
 
 const DEFAULT_INTERVAL_MS = MS_PER_DAY
 /** How often a running tab checks whether the automatic backup is due. */
@@ -148,6 +149,7 @@ class BackupScheduler {
 }
 
 export const backupScheduler = new BackupScheduler()
+registerModuleReset(() => backupScheduler.reset())
 
 // Stop the interval on Vite HMR dispose so a hot-reloaded module doesn't leak
 // a second timer per edit. No-op in production builds.

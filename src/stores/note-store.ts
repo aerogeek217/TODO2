@@ -3,6 +3,7 @@ import { noteRepository } from '../data'
 import type { PersistedNote } from '../models'
 import { reportLoadFailure } from './store-helpers'
 import { useUndoStore } from './undo-store'
+import { registerModuleReset } from '../utils/module-reset'
 
 /**
  * Single-row note store. Holds the one global "outside-tasks" note — shown in
@@ -79,6 +80,7 @@ export function resetNoteSaves(): void {
   editSeq = 0
   saveQueue = Promise.resolve()
 }
+registerModuleReset(resetNoteSaves)
 
 /** Saves the pending text, if any. Never rejects. */
 async function saveOnce(): Promise<void> {

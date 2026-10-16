@@ -9,6 +9,7 @@ import {
 import { useNoteStore } from '../stores/note-store'
 import { refreshAllStores } from '../stores/refresh-all'
 import type { UnsupportedImportInfo } from '../data/file-version'
+import { registerModuleReset } from '../utils/module-reset'
 
 /**
  * The answers the service is waiting for, one per kind of question. A new
@@ -31,6 +32,7 @@ export function resetFileStoragePrompts(): void {
   conflictResolve = null
   fileUpgradeResolve = null
 }
+registerModuleReset(resetFileStoragePrompts)
 
 interface FileStorageState extends FileStorageStatus {
   isSupported: boolean

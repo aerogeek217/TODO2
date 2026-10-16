@@ -30,6 +30,7 @@ import {
   type CheckinTaskScope,
 } from '../utils/checkin-settings'
 import { readFresh, trackWrite } from './store-helpers'
+import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -193,6 +194,7 @@ export function resetSettingsModuleState(): void {
   mediaQueryCleanup = null
   customizedColorKeys = { dark: new Set(), light: new Set() }
 }
+registerModuleReset(resetSettingsModuleState)
 
 function isValidThemeMode(v: unknown): v is ThemeMode {
   return v === 'light' || v === 'dark' || v === 'system'

@@ -15,6 +15,7 @@ import {
 } from './file-sync-state'
 import { browserMatchesFile, browserTaskCount } from './file-sync-compare'
 import { toDateInputValue } from '../utils/date'
+import { registerModuleReset } from '../utils/module-reset'
 
 /**
  * Why sync is paused. While paused the file is never written, no restore has
@@ -833,3 +834,4 @@ class FileStorageService {
 }
 
 export const fileStorageService = new FileStorageService()
+registerModuleReset(() => fileStorageService.reset())

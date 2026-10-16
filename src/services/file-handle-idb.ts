@@ -1,3 +1,5 @@
+import { registerModuleReset } from '../utils/module-reset'
+
 const DB_NAME = 'todo2-meta'
 const STORE_NAME = 'handles'
 const KEY = 'todo2-primary'
@@ -15,6 +17,7 @@ export function resetFileHandleCache(): void {
   cachedDB?.close()
   cachedDB = null
 }
+registerModuleReset(resetFileHandleCache)
 
 function openMetaDB(): Promise<IDBDatabase> {
   if (cachedDB) return Promise.resolve(cachedDB)

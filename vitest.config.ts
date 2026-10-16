@@ -6,7 +6,8 @@ import { configDefaults, defineConfig } from 'vitest/config'
 // CURRENT_DB_VERSION) into later files — these keep a fresh worker per file.
 // Every other file runs in a shared worker (isolate: false), which skips the
 // per-file jsdom + import cost; src/test/setup-shared.ts resets the shared
-// state at each file boundary.
+// state at each file boundary. In both projects src/test/setup.ts resets the
+// stores and module state before each test.
 const ISOLATED = readdirSync('src', { recursive: true, encoding: 'utf8' })
   .filter((f) => /\.test\.tsx?$/.test(f))
   .map((f) => `src/${f.replaceAll('\\', '/')}`)

@@ -22,6 +22,7 @@ import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
+import { registerModuleReset } from '../utils/module-reset'
 
 export type SetFn = (partial: Record<string, unknown>) => void
 
@@ -82,6 +83,7 @@ export async function readFresh<T>(fetcher: () => Promise<T>): Promise<T> {
 export function resetWriteTracking(): void {
   writesInFlight.clear()
 }
+registerModuleReset(resetWriteTracking)
 
 /**
  * A load failed: logs it and tells the user (the undo snackbar's notice), so
@@ -121,12 +123,16 @@ export function makeEnsureLoaded(
   isLoaded: () => boolean,
 ): () => Promise<void> {
   let inflight: Promise<void> | null = null
+  // A load dropped by the reset finishes on its own; the next call reads again.
+  registerModuleReset(() => { inflight = null })
   return () => {
     if (isLoaded()) return Promise.resolve()
-    inflight ??= load()
+    if (inflight) return inflight
+    const run: Promise<void> = load()
       .catch((e: unknown) => { console.error('Load failed:', e) })
-      .finally(() => { inflight = null })
-    return inflight
+      .finally(() => { if (inflight === run) inflight = null })
+    inflight = run
+    return run
   }
 }
 

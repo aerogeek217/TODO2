@@ -12,7 +12,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - Build (both): `npm run build` → runs `npm run lint` first (hard gate — any lint error or warning fails the build, incl. the GitHub Pages deploy), then `dist/index.html` (online, CDN fonts) + `dist/todo2.html` (offline, single file). Verify with this, not `tsc --noEmit`.
 - Build online only: `npm run build:online` (also lint-gated)
 - Build offline only: `npm run build:offline` (also lint-gated)
-- Test: `npm test` (vitest + JSDOM). Two projects: `isolated` (files that call `vi.mock`/`vi.doMock`, detected automatically — fresh worker per file) and `shared` (everything else, `isolate: false`; `src/test/setup-shared.ts` resets stores / db / DOM / storage / timers / stubs / spies at each file boundary).
+- Test: `npm test` (vitest + JSDOM). Two projects: `isolated` (files that call `vi.mock`/`vi.doMock`, detected automatically — fresh worker per file) and `shared` (everything else, `isolate: false`; `src/test/setup-shared.ts` resets db / DOM / storage / timers / stubs / spies at each file boundary). In both, `src/test/setup.ts` resets every store and all registered module state before each test — a module with state outside its store calls `registerModuleReset` (`utils/module-reset`).
 - Test affected only: `npx vitest related <changed src files> --run` — use while iterating; run the full `npm test` once before committing
 - Test watch: `npm run test:watch`
 - E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server). Single spec: `npx playwright test e2e/<name>.spec.ts`
