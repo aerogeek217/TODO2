@@ -217,10 +217,10 @@ describe('Save-as-preset round-trip', () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     await useListDefinitionStore.getState().load()
     const after = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)
-    expect(after).toBeDefined()
-    if (after!.membership.kind === 'custom') {
-      expect(after!.membership.predicate.personIds).toEqual([1, 2])
-      expect(after!.membership.predicate.showCompleted).toBe(true)
+    expect(after?.membership.kind).toBe('custom')
+    if (after?.membership.kind === 'custom') {
+      expect(after.membership.predicate.personIds).toEqual([1, 2])
+      expect(after.membership.predicate.showCompleted).toBe(true)
     }
   })
 })

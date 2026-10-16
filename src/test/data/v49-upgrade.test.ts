@@ -847,6 +847,8 @@ describe('v49 fixture → every version: frozen transforms give the recorded out
       digests[version] = createHash('sha256').update(JSON.stringify(fixtureAt(version))).digest('hex').slice(0, 16)
     }
     expect(digests).toEqual(FROZEN_OUTPUT_DIGESTS)
+    // A schema bump adds its digest (never edits the others).
+    expect(Math.max(...Object.keys(FROZEN_OUTPUT_DIGESTS).map(Number))).toBe(CURRENT_DB_VERSION)
   })
 })
 
