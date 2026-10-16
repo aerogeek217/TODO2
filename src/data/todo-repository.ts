@@ -225,6 +225,8 @@ export const todoRepository = {
   async complete(id: number, completed: boolean, completedAt?: Date, now: Date = new Date()): Promise<void> {
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const prior = await db.todos.get(id) as PersistedTodoItem | undefined
+      // Deleted meanwhile: no row to change, and no event (as `bulkUpdate`).
+      if (!prior) return
       await db.todos.update(id, withCompletedAt(prior, { isCompleted: completed, completedAt, modifiedAt: now }, now))
       const events = buildFieldChangeEvents(id, prior, { isCompleted: completed }, now.toISOString())
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])

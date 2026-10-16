@@ -34,6 +34,14 @@ describe('todoRepository', () => {
     expect(todo!.isCompleted).toBe(true)
   })
 
+  it('complete on a task deleted meanwhile writes nothing — no completed event for the trend', async () => {
+    const id = await todoRepository.insert(makeTodo())
+    await todoRepository.delete(id)
+    await todoRepository.complete(id, true)
+    expect(await db.todos.count()).toBe(0)
+    expect(await db.todoEvents.where('todoId').equals(id).count()).toBe(0)
+  })
+
   it('update writes the given fields', async () => {
     const id = await todoRepository.insert(makeTodo({ title: 'Original' }))
     await todoRepository.update(id, { title: 'Updated', notes: 'note body' })
