@@ -5,17 +5,12 @@ import { undoable } from '../services/undoable'
 import { useUndoStore } from './undo-store'
 import { advanceRecurring } from '../services/recurrence'
 import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
-import { useSettingsStore } from './settings-store'
+import { defaultNextFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
 import { resolveCompletedAt } from '../utils/completed-at'
-import { addFollowupInterval, formatFollowupDate } from '../utils/followup'
+import { formatFollowupDate } from '../utils/followup'
 import { fieldsOf, revertChanges, todoChanges } from '../utils/todo-changes'
-
-/** Next follow-up for a task created (or followed up) at `now`: today + the Settings default. */
-function defaultNextFollowup(now: Date): Date {
-  return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
-}
 
 /** A task to create with the people and tags it starts with (`addMany`). */
 export interface NewTaskWithAssignments {

@@ -5,7 +5,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { emptyPredicate } from '../../models'
 import { predicateToCriteria } from '../../utils/filter-criteria'
-import { getFilterDefaults, markerFlags, predicateToFilterDefaults, seedsMarkers } from '../../utils/filter-defaults'
+import { getFilterDefaults, markerFlags, predicateToFilterDefaults } from '../../utils/filter-defaults'
 import { defsEqual } from '../../utils/list-def-equal'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
@@ -141,11 +141,9 @@ describe('marker filter defaults and list equality', () => {
   it('a Markers filter makes new tasks start with those markers', () => {
     const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: { focus: true, urgent: true } }))
     expect(fd.markers).toEqual({ urgent: true, focus: true })
-    expect(seedsMarkers(fd)).toBe(true)
     expect(markerFlags(fd)).toEqual({ urgent: true, focus: true })
     const none = predicateToFilterDefaults(emptyPredicate())
     expect(none.markers).toBeUndefined()
-    expect(seedsMarkers(none)).toBe(false)
     expect(markerFlags(none)).toEqual({})
   })
 
@@ -153,7 +151,6 @@ describe('marker filter defaults and list equality', () => {
     const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: 'hot', personIds: [3] }))
     expect(fd.markers).toBeUndefined()
     expect(fd.personIds).toEqual([3])
-    expect(seedsMarkers(fd)).toBe(false)
     expect(markerFlags(fd)).toEqual({})
   })
 

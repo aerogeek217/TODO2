@@ -1,5 +1,4 @@
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
-import type { ResolvedInput } from '../services/nlp-resolver'
 import type { MarkerSet, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers } from './markers'
 
@@ -45,11 +44,6 @@ export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefin
   return out
 }
 
-/** Whether a filter's defaults seed any marker flag. */
-export function seedsMarkers(fd: Pick<FilterDefaults, 'markers'> | null | undefined): boolean {
-  return activeMarkers(fd?.markers).length > 0
-}
-
 /**
  * `fd` with its Urgent / Important seeds replaced by `flags` (an Eisenhower
  * quadrant's "+": Do → both, Schedule → Important, Delegate → Urgent, Drop →
@@ -72,25 +66,4 @@ export function withUrgentImportant(fd: FilterDefaults, flags: { urgent: boolean
  */
 export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
   return getFilterDefaults(predicateToCriteria(predicate))
-}
-
-/**
- * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/status fields; person defaults
- * apply only when the input names nobody (matched or new).
- * Tags merge: filter-default tag ids are appended to any user-typed `#tag`
- * slugs as a parallel `seedTagIds` channel — applied at submit by the
- * caller (resolved.tags stays string-typed).
- */
-export function supplementWithFilterDefaults(
-  resolved: ResolvedInput,
-  fd: FilterDefaults,
-): void {
-  // Any typed `@person` wins — including a new name, created on submit.
-  if (resolved.personIds.length === 0 && resolved.unmatchedPersons.length === 0) {
-    resolved.personIds = fd.personIds
-  }
-  if (resolved.statusId === undefined && fd.statusId !== undefined) {
-    resolved.statusId = fd.statusId
-  }
 }

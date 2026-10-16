@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, act, cleanup } from '@testing-library/react'
 import { db } from '../../data/database'
+import { todoRepository } from '../../data/todo-repository'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -44,7 +45,10 @@ beforeEach(async () => {
   useUndoStore.getState().clear()
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 interface Created {
   todo: PersistedTodoItem
@@ -246,5 +250,55 @@ describe('create a task — undo', () => {
       while (useUndoStore.getState().undoStack.length > 0) await useUndoStore.getState().undo()
       expect(await db.todos.get(todo.id)).toBeUndefined()
     }
+  })
+})
+
+describe('create a task — the editor', () => {
+  it('keeps the Progress typed in the new-task editor', async () => {
+    expect((await viaEditor({ title: 'A', progress: 'Half done' })).todo.progress).toBe('Half done')
+  })
+})
+
+describe('create a task — new people', () => {
+  it('a @name that matches nobody is created (initials, no colour) and assigned with the matched people', async () => {
+    const { resolved } = parseTaskInput('Call legal @Ann @"Marco Rossi"', usePersonStore.getState().people)
+    expect(resolved.unmatchedPersons).toEqual(['Marco Rossi'])
+    const id = await createQuickAddTask({ title: resolved.title, resolved }, NO_DEFAULTS)
+    const marco = (await db.people.toArray()).find((p) => p.name === 'Marco Rossi')
+    expect(marco).toMatchObject({ initials: 'MR' })
+    expect(marco?.color).toBeUndefined()
+    expect(usePersonStore.getState().assignedPeopleMap.get(id)?.map((p) => p.name).sort()).toEqual(['Ann', 'Marco Rossi'])
+  })
+
+  it('reuses a person added since the text was parsed, and makes one person of a name typed twice', async () => {
+    const { resolved } = parseTaskInput('Call @marco and @MARCO', usePersonStore.getState().people)
+    const marco = await usePersonStore.getState().add('Marco', 'M')
+    const id = await createQuickAddTask({ title: resolved.title, resolved }, NO_DEFAULTS)
+    expect(await db.people.where('name').equalsIgnoreCase('marco').count()).toBe(1)
+    expect((await db.todoPeople.where('todoId').equals(id).toArray()).map((j) => j.personId)).toEqual([marco])
+  })
+
+  it('no tag is created or assigned when the text names none', async () => {
+    const { todo } = await viaQuickAdd('A @Ann')
+    expect(await db.tags.count()).toBe(1) // just "work" from the setup
+    expect(await db.todoTags.where('todoId').equals(todo.id).count()).toBe(0)
+  })
+})
+
+describe('create a task — a failed write', () => {
+  it('the task stays as added, nobody and no tag is assigned, the user is told, and nothing rejects', async () => {
+    const update = vi.spyOn(todoRepository, 'update').mockRejectedValue(new Error('disk full'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    for (const make of [
+      () => viaQuickAdd('A @Ann #home /urgent'),
+      () => viaEditor({ title: 'B @Ann #home /urgent' }),
+    ]) {
+      const { todo, people, tags } = await make()
+      expect(todo.urgent).toBeUndefined()
+      expect([people, tags]).toEqual([[], []])
+      expect(useUndoStore.getState().snackbar?.description).toBe(`Couldn't save your change to "${todo.title}".`)
+    }
+    expect(update).toHaveBeenCalledTimes(2)
   })
 })

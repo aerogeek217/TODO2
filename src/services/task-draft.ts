@@ -1,15 +1,17 @@
-import type { NewTodoItem, Person, RecurrenceType, Status, Tag, TodoItem } from '../models'
+import type { NewTodoItem, Person, RecurrenceType, Status, Tag, TodoChanges, TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import { parseInput } from './natural-language-parser'
-import { resolveInput } from './nlp-resolver'
+import { resolveInput, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 
 /**
- * A task that doesn't exist yet: what a note line parses into, shown in the
- * convert preview and edited in the task editor's draft mode. Nothing is
- * stored until the drafts are created (`services/note-tasks`). People and
- * tags named with `@` / `#` that don't exist yet are kept by name and
- * created with the tasks.
+ * A task that doesn't exist yet — the one shape every way of creating a task
+ * goes through (Quick Add, the task editor, a note's lines), so they share
+ * one rule set: these builders say what the new task gets, `draftToTodo` /
+ * `draftChanges` turn it into stored fields, `services/create-task` stores
+ * it. A note's drafts are also shown in the convert preview and edited in
+ * the task editor's draft mode. People and tags named with `@` / `#` that
+ * don't exist yet are kept by name and created with the task.
  */
 export interface TaskDraft {
   /** The title, every recognised token removed. */
@@ -23,6 +25,8 @@ export interface TaskDraft {
   focus: boolean
   /** `undefined` = the Settings default; `null` = no next follow-up. */
   nextFollowupAt?: Date | null
+  /** Only the task editor's create mode sets it. */
+  lastFollowupAt?: Date
   personIds: number[]
   /** `@name`s that match nobody: created with the task. */
   newPeople: string[]
@@ -39,9 +43,26 @@ export interface DraftContext {
   tags: readonly Tag[]
   /** The screen filter's (or a list's) defaults for new tasks. */
   defaults?: FilterDefaults | null
-  /** Settings' default status — wins over a filter's status. */
+  /** Settings' default status. */
   defaultStatusId?: number | null
+  /**
+   * Which default wins when the text names no status: `settings` (the
+   * default — a note's lines, the editor) or `filter` (Quick Add, where a
+   * filter on one status has always set it, over Settings' default).
+   */
+  statusDefaultFirst?: 'settings' | 'filter'
   today?: Date
+}
+
+/** A new task's status: a typed `/status`, else the two defaults in `first` order. */
+export function newTaskStatus(
+  typed: number | undefined,
+  defaults: { settings: number | null | undefined; filter: number | null | undefined },
+  first: 'settings' | 'filter' = 'settings',
+): number | undefined {
+  if (typed !== undefined) return typed
+  const [a, b] = first === 'settings' ? [defaults.settings, defaults.filter] : [defaults.filter, defaults.settings]
+  return a ?? b ?? undefined
 }
 
 function union(a: readonly number[], b: readonly number[]): number[] {
@@ -67,22 +88,33 @@ function splitTags(names: readonly string[], tags: readonly Tag[]): { ids: numbe
 
 /**
  * Parses task text (Quick Add's grammar: `@person`, `#tag`, slash commands)
- * into a draft, then adds the new-task defaults the task editor's create
- * mode would: the filter's people when the text names nobody, its tags and
- * markers, and a status (typed `/status`, else Settings' default, else the
- * filter's).
+ * into a draft with the new-task defaults (`draftFromResolved`).
  */
 export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
-  const parsed = parseInput(text, ctx.today)
-  const resolved = resolveInput(parsed, [...ctx.people], [...ctx.statuses])
+  const resolved = resolveInput(parseInput(text, ctx.today), [...ctx.people], [...ctx.statuses])
+  return draftFromResolved(resolved, text.trim(), ctx)
+}
+
+/**
+ * Parsed task text into a draft, plus the defaults of where the task is
+ * added: the filter's people when the text names nobody, its tags and
+ * markers, and a status (typed `/status`, else Settings' default and the
+ * filter's, in `ctx.statusDefaultFirst` order). `fallbackTitle` is the
+ * title when the text is all tokens.
+ */
+export function draftFromResolved(resolved: ResolvedInput, fallbackTitle: string, ctx: DraftContext): TaskDraft {
   const fd = ctx.defaults ?? null
   const tags = splitTags(resolved.tags, ctx.tags)
   const namesSomeone = resolved.personIds.length > 0 || resolved.unmatchedPersons.length > 0
   return {
-    title: resolved.title || text.trim(),
+    title: resolved.title || fallbackTitle,
     ...(resolved.dueDate ? { dueDate: resolved.dueDate } : {}),
     ...(resolved.recurrence ? { recurrence: resolved.recurrence } : {}),
-    ...withStatus(resolved.statusId ?? ctx.defaultStatusId ?? fd?.statusId ?? undefined),
+    ...withStatus(newTaskStatus(
+      resolved.statusId,
+      { settings: ctx.defaultStatusId, filter: fd?.statusId },
+      ctx.statusDefaultFirst,
+    )),
     urgent: resolved.urgent === true || fd?.markers?.urgent === true,
     important: resolved.important === true || fd?.markers?.important === true,
     focus: resolved.focus === true || fd?.markers?.focus === true,
@@ -130,6 +162,7 @@ export function draftFromEditor(
     newPeople: resolved.unmatchedPersons,
     tagIds: union(assignments.tagIds, tags.ids),
     newTags: tags.missing,
+    ...(partial.lastFollowupAt ? { lastFollowupAt: partial.lastFollowupAt } : {}),
     ...(partial.notes ? { notes: partial.notes } : {}),
     ...(partial.progress ? { progress: partial.progress } : {}),
   }
@@ -162,12 +195,37 @@ export function draftToTodo(draft: TaskDraft, now: Date, defaultFollowup: Date):
     createdAt: now,
     modifiedAt: now,
     ...(nextFollowupAt ? { nextFollowupAt } : {}),
+    ...draftFields(draft),
+  }
+}
+
+/**
+ * What turns a task just added with the store's defaults (`todo-store.add`:
+ * title, Settings' default status and next follow-up) into the draft's
+ * task: the draft's fields, and its next follow-up when it chose one
+ * (`null` → none). A field the draft leaves unset keeps the added value.
+ */
+export function draftChanges(draft: TaskDraft): TodoChanges {
+  return {
+    ...draftFields(draft),
+    ...(draft.nextFollowupAt === undefined ? {} : { nextFollowupAt: draft.nextFollowupAt ?? undefined }),
+  }
+}
+
+/**
+ * The fields a draft sets on a new task, other than its title and next
+ * follow-up: a repeat only with a due date (it repeats from it), only true
+ * markers, only set values.
+ */
+function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt'> {
+  return {
     ...(draft.dueDate ? { dueDate: draft.dueDate } : {}),
     ...(draft.dueDate && draft.recurrence ? { recurrenceRule: makeRecurrenceRule(draft.recurrence, draft.dueDate) } : {}),
     ...withStatus(draft.statusId),
-    ...(draft.urgent ? { urgent: true } : {}),
-    ...(draft.important ? { important: true } : {}),
-    ...(draft.focus ? { focus: true } : {}),
+    ...(draft.urgent ? { urgent: true as const } : {}),
+    ...(draft.important ? { important: true as const } : {}),
+    ...(draft.focus ? { focus: true as const } : {}),
+    ...(draft.lastFollowupAt ? { lastFollowupAt: draft.lastFollowupAt } : {}),
     ...(draft.notes ? { notes: draft.notes } : {}),
     ...(draft.progress ? { progress: draft.progress } : {}),
   }

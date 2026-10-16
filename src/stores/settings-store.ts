@@ -8,6 +8,7 @@ import { DEFAULT_THEMED_COLORS, parseColorSettingKey } from '../models/theme-col
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
+  addFollowupInterval,
   formatFollowupInterval,
   parseFollowupInterval,
   type FollowupInterval,
@@ -441,4 +442,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 export function currentFilterSettings(): FilterSettings {
   const { urgentDueWithinDays, hotRule, weekStartsOn } = useSettingsStore.getState()
   return { urgentRange: urgentDueWithinDays, hotRule, weekStartsOn }
+}
+
+/**
+ * The next follow-up a task gets when it is created (or followed up) at
+ * `now`: the day `now` falls on + the Settings default interval.
+ */
+export function defaultNextFollowup(now: Date): Date {
+  return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
 }

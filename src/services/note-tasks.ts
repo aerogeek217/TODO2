@@ -1,8 +1,7 @@
 import { usePersonStore } from '../stores/person-store'
-import { useSettingsStore } from '../stores/settings-store'
+import { defaultNextFollowup } from '../stores/settings-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
-import { addFollowupInterval } from '../utils/followup'
 import { resolveTags, resolveUnmatchedPeople } from './nlp-resolver'
 import { draftToTodo, type TaskDraft } from './task-draft'
 
@@ -24,7 +23,7 @@ export async function createTasksFromDrafts(
 ): Promise<CreatedTask[]> {
   if (drafts.length === 0) return []
   const now = new Date()
-  const defaultFollowup = addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
+  const defaultFollowup = defaultNextFollowup(now)
   const items = []
   for (const draft of drafts) {
     const newPersonIds = draft.newPeople.length > 0

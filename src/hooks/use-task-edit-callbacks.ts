@@ -2,12 +2,9 @@ import { useCallback, useMemo } from 'react'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
-import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
 import type { TodoItem, TodoChanges } from '../models'
-import { parseTaskInput } from '../services/nlp-task-creator'
-import { resolveTags, resolveUnmatchedPeople } from '../services/nlp-resolver'
-import { makeRecurrenceRule } from '../services/recurrence'
+import { createEditorTask } from '../services/create-task'
 
 /** Return the IDs of other multi-selected tasks (excluding the primary edit target). */
 function getOtherSelectedIds(primaryId: number): number[] {
@@ -17,14 +14,13 @@ function getOtherSelectedIds(primaryId: number): number[] {
 }
 
 /**
- * Shared callbacks for TaskEditPopup wiring.
- * Encapsulates the ~70-line onCreate/onEdit pattern duplicated across views.
+ * Shared callbacks for TaskEditPopup wiring: create (`createEditorTask`),
+ * and the edit-mode callbacks that also apply to the other selected tasks.
  */
 export function useTaskEditCallbacks() {
-  const { todos, update: updateTodo, add: addTodo } = useTodoStore()
+  const { todos, update: updateTodo } = useTodoStore()
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
   const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
-  const { statuses } = useStatusStore()
   const { selectedTodoId, editPopupMode, openEditPopup, closeEditPopup } = useUIStore()
 
   const selectedTodo = useMemo(
@@ -33,60 +29,13 @@ export function useTaskEditCallbacks() {
   )
 
   const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds?: number[] }) => {
-    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, statuses)
-    const id = await addTodo(parsedTitle || partial.title!)
-    const todo = useTodoStore.getState().todos.find((t) => t.id === id)
-    if (todo) {
-      const followupTouched = 'nextFollowupAt' in partial || partial.lastFollowupAt !== undefined
-        || resolved.nextFollowupAt !== undefined || resolved.followupNone === true
-      const urgent = partial.urgent === true || resolved.urgent === true
-      const important = partial.important === true || resolved.important === true
-      const focus = partial.focus === true || resolved.focus === true
-      const hasMeta =
-        followupTouched ||
-        partial.dueDate !== undefined ||
-        partial.notes || partial.statusId !== undefined ||
-        resolved.dueDate !== undefined || resolved.recurrence ||
-        resolved.statusId !== undefined ||
-        partial.recurrenceRule ||
-        urgent || important || focus
-      if (hasMeta) {
-        const nextDeadline = partial.dueDate ?? resolved.dueDate ?? todo.dueDate
-        // The editor's Next field (passed when changed or cleared from the
-        // default) wins; otherwise a `/followup` in the title, else the default.
-        const nextFollowupAt = 'nextFollowupAt' in partial
-          ? partial.nextFollowupAt
-          : resolved.followupNone ? undefined : (resolved.nextFollowupAt ?? todo.nextFollowupAt)
-        await updateTodo(id, {
-          dueDate: nextDeadline,
-          statusId: resolved.statusId ?? partial.statusId ?? todo.statusId,
-          notes: partial.notes ?? todo.notes,
-          nextFollowupAt,
-          lastFollowupAt: partial.lastFollowupAt ?? todo.lastFollowupAt,
-          ...(focus ? { focus: true } : {}),
-          ...(urgent ? { urgent: true } : {}),
-          ...(important ? { important: true } : {}),
-          recurrenceRule: partial.recurrenceRule
-            ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
-        })
-      }
-    }
-    // `@name` tokens that matched nobody create the person (lookup-or-create).
-    const newPersonIds = resolved.unmatchedPersons.length > 0
-      ? await resolveUnmatchedPeople(resolved.unmatchedPersons, { personStore: usePersonStore.getState() })
-      : []
-    const allPersonIds = new Set([...resolved.personIds, ...newPersonIds, ...(assignments?.personIds ?? [])])
-    for (const personId of allPersonIds) await assignPerson(id, personId)
-    // Registry-side writes: resolve-or-create NLP tags + apply any pending ids
-    // picked in the popup's chip selector.
-    const nlpTagIds = resolved.tags.length > 0
-      ? await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
-      : []
-    const allTagIds = new Set<number>([...nlpTagIds, ...(assignments?.tagIds ?? [])])
-    for (const tagId of allTagIds) await useTagStore.getState().assignTag(id, tagId)
+    const id = await createEditorTask(partial, {
+      personIds: assignments?.personIds ?? [],
+      tagIds: assignments?.tagIds ?? [],
+    })
     useUIStore.getState().showRecentlyCreated(id)
     return id
-  }, [addTodo, updateTodo, assignPerson, people, statuses])
+  }, [])
 
   /**
    * Saves the editor's changes to the task, and applies the bulk-applicable

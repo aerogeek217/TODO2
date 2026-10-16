@@ -89,7 +89,8 @@ export type QuickAddDraft = ParsedTokens & {
    * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
   /** Resolver output (people / tags / status / dates / markers /
-   * recurrence) — fed straight into `applyNlpMetadata` on submit. */
+   * recurrence) — what `services/create-task.createQuickAddTask` creates the
+   * task from on submit. */
   resolved: ResolvedInput
 }
 
@@ -279,7 +280,7 @@ const EMPTY_RESOLVED: ResolvedInput = {
  * person / status stores. Pure helper — receives stores as args so the
  * component-level `useMemo` can deps-cache it cleanly. Returns the chip
  * shape (display), the underlying `ResolvedInput` (submit feeds it to
- * `applyNlpMetadata`) and the parse (token tints).
+ * `createQuickAddTask`) and the parse (token tints).
  */
 function runParse(
   raw: string,

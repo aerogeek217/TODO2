@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { getFilterDefaults, predicateToFilterDefaults, supplementWithFilterDefaults } from '../../utils/filter-defaults'
+import { getFilterDefaults, predicateToFilterDefaults } from '../../utils/filter-defaults'
 import type { FilterCriteria } from '../../utils/filter-criteria'
-import type { ResolvedInput } from '../../services/nlp-resolver'
 import type { TodoPredicate } from '../../models'
 
 function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
@@ -83,49 +82,6 @@ describe('getFilterDefaults', () => {
     expect(result.personIds).toHaveLength(2)
     expect(result.statusId).toBe(7)
     expect(result.tagIds).toHaveLength(2)
-  })
-})
-
-function makeResolved(overrides: Partial<ResolvedInput> = {}): ResolvedInput {
-  return {
-    title: 'test',
-    personIds: [],
-    unmatchedPersons: [],
-    tags: [],
-    unmatchedStatuses: [],
-    ...overrides,
-  }
-}
-
-describe('supplementWithFilterDefaults', () => {
-  it('fills empty people from filter defaults', () => {
-    const resolved = makeResolved()
-    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined })
-    expect(resolved.personIds).toEqual([1, 2])
-  })
-
-  it('does not overwrite NLP-resolved people', () => {
-    const resolved = makeResolved({ personIds: [99] })
-    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined })
-    expect(resolved.personIds).toEqual([99])
-  })
-
-  it('a typed new @name (created on submit) also wins over default people', () => {
-    const resolved = makeResolved({ unmatchedPersons: ['Marco'] })
-    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined })
-    expect(resolved.personIds).toEqual([])
-  })
-
-  it('fills undefined statusId from filter default', () => {
-    const resolved = makeResolved()
-    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4 })
-    expect(resolved.statusId).toBe(4)
-  })
-
-  it('does not overwrite NLP-resolved statusId', () => {
-    const resolved = makeResolved({ statusId: 99 })
-    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4 })
-    expect(resolved.statusId).toBe(99)
   })
 })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
-import { draftEditorTitle, draftFromEditor, draftFromText, draftToTodo, type TaskDraft } from '../../services/task-draft'
+import { draftChanges, draftEditorTitle, draftFromEditor, draftFromText, draftToTodo, newTaskStatus, type TaskDraft } from '../../services/task-draft'
 
 const TODAY = new Date(2026, 9, 10) // Sat 10 Oct 2026
 const people: Person[] = [
@@ -79,6 +79,25 @@ describe('draftFromText', () => {
     expect(draftFromText('x', { ...ctx, defaults }).statusId).toBe(7)
     expect(draftFromText('x', ctx).statusId).toBeUndefined()
   })
+
+  it('status with the filter first (Quick Add): typed /status, else the filter, else the Settings default', () => {
+    const defaults = { personIds: [], tagIds: [], statusId: 7 }
+    const filterFirst = { ...ctx, defaultStatusId: 8, statusDefaultFirst: 'filter' as const }
+    expect(draftFromText('x', { ...filterFirst, defaults }).statusId).toBe(7)
+    expect(draftFromText('x /status wait', { ...filterFirst, defaults }).statusId).toBe(8)
+    expect(draftFromText('x', filterFirst).statusId).toBe(8)
+  })
+})
+
+describe('newTaskStatus', () => {
+  it('a typed status, else the defaults in the given order; none → undefined', () => {
+    expect(newTaskStatus(3, { settings: 1, filter: 2 })).toBe(3)
+    expect(newTaskStatus(undefined, { settings: 1, filter: 2 })).toBe(1)
+    expect(newTaskStatus(undefined, { settings: 1, filter: 2 }, 'filter')).toBe(2)
+    expect(newTaskStatus(undefined, { settings: null, filter: 2 })).toBe(2)
+    expect(newTaskStatus(undefined, { settings: 1, filter: undefined }, 'filter')).toBe(1)
+    expect(newTaskStatus(undefined, { settings: null, filter: undefined })).toBeUndefined()
+  })
 })
 
 describe('draftFromEditor', () => {
@@ -140,5 +159,18 @@ describe('draftToTodo', () => {
   it('stores only true markers and set fields', () => {
     const row = draftToTodo({ ...base, urgent: true }, now, fallback)
     expect(row).toEqual({ title: 'T', isCompleted: false, createdAt: now, modifiedAt: now, nextFollowupAt: fallback, urgent: true })
+  })
+})
+
+describe('draftChanges', () => {
+  it('only what the draft sets; a chosen follow-up, or none (cleared)', () => {
+    expect(draftChanges(base)).toEqual({})
+    const due = new Date(2026, 9, 12)
+    expect(draftChanges({ ...base, dueDate: due, recurrence: 'monthly', statusId: 7, focus: true, progress: 'p' }))
+      .toEqual({ dueDate: due, recurrenceRule: { type: 'monthly', originalDayOfMonth: 12 }, statusId: 7, focus: true, progress: 'p' })
+    expect(draftChanges({ ...base, nextFollowupAt: null })).toEqual({ nextFollowupAt: undefined })
+    expect('nextFollowupAt' in draftChanges({ ...base, nextFollowupAt: null })).toBe(true)
+    const d = new Date(2026, 9, 24)
+    expect(draftChanges({ ...base, nextFollowupAt: d, lastFollowupAt: d })).toEqual({ nextFollowupAt: d, lastFollowupAt: d })
   })
 })
