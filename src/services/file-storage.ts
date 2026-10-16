@@ -78,9 +78,9 @@ type StatusListener = (status: FileStorageStatus) => void
 type AfterImportListener = () => Promise<void>
 /** Runs before the browser data is backed up and replaced; resolves to a release called after the reload. */
 type BeforeImportListener = () => Promise<() => void>
-type MigrationConfirmListener = (info: UnsupportedImportInfo) => Promise<boolean>
-type ConflictListener = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
-type FileUpgradeListener = (info: FileUpgradeInfo) => Promise<boolean>
+type MigrationConfirmHandler = (info: UnsupportedImportInfo) => Promise<boolean>
+type ConflictHandler = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
+type FileUpgradeHandler = (info: FileUpgradeInfo) => Promise<boolean>
 
 const FILE_TYPES = [{ description: 'TODO2 Database', accept: { 'application/json': ['.json'] } }]
 
@@ -148,6 +148,12 @@ async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
   return { ok: false, reason: 'read-error', error: replacedError }
 }
 
+/** Adds `listener` to `set`; returns its removal (a no-op once removed). */
+function subscribe<L>(set: Set<L>, listener: L): () => void {
+  set.add(listener)
+  return () => { set.delete(listener) }
+}
+
 function errorDetail(e: unknown): string {
   return e instanceof Error ? `: ${e.message}` : ''
 }
@@ -188,12 +194,12 @@ class FileStorageService {
   private hookCleanups: Array<() => void> = []
   /** Bumped on every tracked change; a save only clears dirty if unchanged. */
   private changeGen = 0
-  private listener: StatusListener | null = null
-  private afterImportListener: AfterImportListener | null = null
-  private beforeImportListener: BeforeImportListener | null = null
-  private migrationConfirmListener: MigrationConfirmListener | null = null
-  private conflictListener: ConflictListener | null = null
-  private fileUpgradeListener: FileUpgradeListener | null = null
+  private statusListeners = new Set<StatusListener>()
+  private afterImportListeners = new Set<AfterImportListener>()
+  private beforeImportListeners = new Set<BeforeImportListener>()
+  private migrationConfirmHandler: MigrationConfirmHandler | null = null
+  private conflictHandler: ConflictHandler | null = null
+  private fileUpgradeHandler: FileUpgradeHandler | null = null
   private _lastSavedAt: Date | null = null
   private _error: string | null = null
   private _needsPermission = false
@@ -214,40 +220,93 @@ class FileStorageService {
     }
   }
 
-  onStatusChange(listener: StatusListener) {
-    this.listener = listener
+  /**
+   * Calls `listener` with the new status on every change; returns its
+   * unsubscribe. Every subscriber gets every change.
+   */
+  onStatusChange(listener: StatusListener): () => void {
+    return subscribe(this.statusListeners, listener)
   }
 
-  onAfterImport(listener: AfterImportListener) {
-    this.afterImportListener = listener
+  /**
+   * `listener` runs after the file's data replaced the browser's (the stores
+   * reload there); returns its unsubscribe. Subscribers run in turn, each
+   * awaited; one that rejects doesn't stop the others, and the load then
+   * rejects with its error.
+   */
+  onAfterImport(listener: AfterImportListener): () => void {
+    return subscribe(this.afterImportListeners, listener)
   }
 
   /**
    * `listener` runs before the browser data is backed up and replaced by
    * the file's, and resolves to a release, called once the after-import
    * reload is done (or the load was cancelled or failed) — the note store
-   * saves its pending text and then holds its saves in between.
+   * saves its pending text and then holds its saves in between. Returns its
+   * unsubscribe; every subscriber runs, in turn.
    */
-  onBeforeImport(listener: BeforeImportListener) {
-    this.beforeImportListener = listener
+  onBeforeImport(listener: BeforeImportListener): () => void {
+    return subscribe(this.beforeImportListeners, listener)
   }
 
-  onConfirmMigration(listener: MigrationConfirmListener) {
-    this.migrationConfirmListener = listener
+  /**
+   * The one answer to "load a file below the supported version?" — a
+   * question has one asker, so a later handler replaces an earlier one.
+   * Returns the removal, which does nothing once replaced. Without a
+   * handler the answer is `false` (stay paused).
+   */
+  onConfirmMigration(handler: MigrationConfirmHandler): () => void {
+    this.migrationConfirmHandler = handler
+    return () => { if (this.migrationConfirmHandler === handler) this.migrationConfirmHandler = null }
   }
 
-  /** Without a listener a conflict resolves to `'cancel'` (stay paused). */
-  onConflict(listener: ConflictListener) {
-    this.conflictListener = listener
+  /** As `onConfirmMigration`, for a conflict; without a handler it resolves to `'cancel'` (stay paused). */
+  onConflict(handler: ConflictHandler): () => void {
+    this.conflictHandler = handler
+    return () => { if (this.conflictHandler === handler) this.conflictHandler = null }
   }
 
-  /** Without a listener an upgrade prompt resolves to `false` (stay paused). */
-  onConfirmFileUpgrade(listener: FileUpgradeListener) {
-    this.fileUpgradeListener = listener
+  /** As `onConfirmMigration`, for an upgrade prompt; without a handler it resolves to `false` (stay paused). */
+  onConfirmFileUpgrade(handler: FileUpgradeHandler): () => void {
+    this.fileUpgradeHandler = handler
+    return () => { if (this.fileUpgradeHandler === handler) this.fileUpgradeHandler = null }
   }
 
   private notify() {
-    this.listener?.(this.status)
+    const status = this.status
+    for (const listener of [...this.statusListeners]) {
+      try {
+        listener(status)
+      } catch (err) {
+        console.warn('[file-storage] a status listener failed', err)
+      }
+    }
+  }
+
+  /** Runs every before-import subscriber; resolves to one release for them all. */
+  private async holdForImport(): Promise<() => void> {
+    const releases: Array<() => void> = []
+    const releaseAll = () => { for (const release of releases.splice(0)) release() }
+    try {
+      for (const listener of [...this.beforeImportListeners]) releases.push(await listener())
+    } catch (err) {
+      releaseAll()
+      throw err
+    }
+    return releaseAll
+  }
+
+  /** Runs every after-import subscriber in turn; rethrows the first failure once all ran. */
+  private async afterImport(): Promise<void> {
+    let failure: { error: unknown } | null = null
+    for (const listener of [...this.afterImportListeners]) {
+      try {
+        await listener()
+      } catch (error) {
+        failure ??= { error }
+      }
+    }
+    if (failure) throw failure.error
   }
 
   async initialize(): Promise<void> {
@@ -471,8 +530,8 @@ class FileStorageService {
     const fileId = fileContentId(raw, lastModified)
 
     if (prepared.legacy) {
-      const confirmed = this.migrationConfirmListener
-        ? await this.migrationConfirmListener(prepared.legacy)
+      const confirmed = this.migrationConfirmHandler
+        ? await this.migrationConfirmHandler(prepared.legacy)
         : false
       if (!confirmed) {
         this.pause('legacy-cancelled', `${PAUSED_PREFIX} — the file is in an older format that needs your confirmation to load.`)
@@ -521,7 +580,7 @@ class FileStorageService {
           changedSinceLastSync: fileChanged,
         },
       }
-      const choice = this.conflictListener ? await this.conflictListener(info) : 'cancel'
+      const choice = this.conflictHandler ? await this.conflictHandler(info) : 'cancel'
       if (choice === 'cancel') {
         this.pause('conflict-cancelled', `${PAUSED_PREFIX} — this browser and ${handle.name} have different data. Choose which version to keep.`)
         return
@@ -535,8 +594,8 @@ class FileStorageService {
       // choice === 'file' — falls through to the load below (the dialog
       // already told the user an older file is saved back in this format).
     } else if (prepared.upgraded && !prepared.legacy) {
-      const ok = this.fileUpgradeListener
-        ? await this.fileUpgradeListener({
+      const ok = this.fileUpgradeHandler
+        ? await this.fileUpgradeHandler({
           fileName: handle.name,
           fromVersion: prepared.sourceVersion ?? CURRENT_DB_VERSION,
           toVersion: CURRENT_DB_VERSION,
@@ -599,7 +658,7 @@ class FileStorageService {
     // backup holds it), and note saves then wait until the stores have
     // reloaded — one landing after the restore would put this browser's
     // text over the file's note.
-    const release = await this.beforeImportListener?.()
+    const release = await this.holdForImport()
     try {
       if (browserHoldsFile) {
         await backupScheduler.snapshotBeforeDestructive().catch((err) => {
@@ -621,9 +680,9 @@ class FileStorageService {
       }
       this.changeGen++
       writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
-      await this.afterImportListener?.()
+      await this.afterImport()
     } finally {
-      release?.()
+      release()
     }
     // After the stores reload (which clears the snackbar): the result toast.
     if (noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)

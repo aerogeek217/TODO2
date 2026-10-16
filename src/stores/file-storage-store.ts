@@ -10,6 +10,11 @@ import { useNoteStore } from './note-store'
 import { refreshAllStores } from './refresh-all'
 import type { UnsupportedImportInfo } from '../data/file-version'
 
+/**
+ * The answers the service is waiting for, one per kind of question. A new
+ * question of a kind already waiting answers the old one as cancelled first,
+ * so its caller never hangs.
+ */
 let legacyImportResolve: ((confirmed: boolean) => void) | null = null
 let conflictResolve: ((choice: SyncConflictChoice) => void) | null = null
 let fileUpgradeResolve: ((confirmed: boolean) => void) | null = null
@@ -39,7 +44,7 @@ interface FileStorageState extends FileStorageStatus {
 }
 
 export const useFileStorageStore = create<FileStorageState>((set) => {
-  // Subscribe to service status changes
+  // Subscribed for the app's lifetime (the store is created once).
   fileStorageService.onStatusChange((status) => set(status))
   // Hold note saves while a file import replaces the data, then refresh
   // every Zustand store
@@ -48,18 +53,21 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
   // Handle legacy-import confirmation requests from the service
   fileStorageService.onConfirmMigration((info) => {
     return new Promise<boolean>((resolve) => {
+      legacyImportResolve?.(false)
       legacyImportResolve = resolve
       set({ pendingLegacyImport: info })
     })
   })
   fileStorageService.onConflict((info) => {
     return new Promise<SyncConflictChoice>((resolve) => {
+      conflictResolve?.('cancel')
       conflictResolve = resolve
       set({ pendingConflict: info })
     })
   })
   fileStorageService.onConfirmFileUpgrade((info) => {
     return new Promise<boolean>((resolve) => {
+      fileUpgradeResolve?.(false)
       fileUpgradeResolve = resolve
       set({ pendingFileUpgrade: info })
     })

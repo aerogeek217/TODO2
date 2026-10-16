@@ -809,6 +809,101 @@ describe('FileStorageService — status notifications', () => {
     await svc.initialize()
     expect(afterImport).toHaveBeenCalled()
   })
+
+  it('every status subscriber gets every change; an unsubscribed one gets no more', async () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const { svc } = await startWith()
+    svc.onStatusChange(first)
+    const unsubscribeSecond = svc.onStatusChange(second)
+    await svc.initialize()
+    expect(first.mock.calls.length).toBeGreaterThan(0)
+    expect(second.mock.calls).toEqual(first.mock.calls)
+
+    unsubscribeSecond()
+    unsubscribeSecond() // a second call is harmless
+    const before = second.mock.calls.length
+    await svc.disconnect()
+    expect(second).toHaveBeenCalledTimes(before)
+    expect(first.mock.calls.at(-1)![0].fileName).toBeNull()
+  })
+
+  it('a status subscriber that throws does not keep the others from hearing it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const later = vi.fn()
+    const { svc } = await startWith()
+    svc.onStatusChange(() => { throw new Error('boom') })
+    svc.onStatusChange(later)
+    await svc.initialize()
+    expect(later.mock.calls.at(-1)![0].isConnected).toBe(true)
+  })
+
+  it('every import subscriber runs: before-import holds are released after every after-import listener', async () => {
+    const order: string[] = []
+    const { svc } = await startWith()
+    svc.onBeforeImport(async () => { order.push('hold 1'); return () => order.push('release 1') })
+    svc.onBeforeImport(async () => { order.push('hold 2'); return () => order.push('release 2') })
+    svc.onAfterImport(async () => { order.push('after 1') })
+    svc.onAfterImport(async () => { order.push('after 2') })
+    mockRestoreFromImportData.mockImplementation(async () => { order.push('restore') })
+    await svc.initialize()
+    expect(order).toEqual(['hold 1', 'hold 2', 'restore', 'after 1', 'after 2', 'release 1', 'release 2'])
+  })
+
+  it('an after-import listener that fails does not stop the next one; the load rejects with its error', async () => {
+    const second = vi.fn().mockResolvedValue(undefined)
+    const release = vi.fn()
+    const { svc } = await startWith()
+    svc.onBeforeImport(async () => release)
+    svc.onAfterImport(async () => { throw new Error('reload failed') })
+    svc.onAfterImport(second)
+    await expect(svc.initialize()).rejects.toThrow('reload failed')
+    expect(second).toHaveBeenCalled()
+    expect(release).toHaveBeenCalledTimes(1)
+  })
+
+  it('a before-import hold that fails releases the holds already taken and nothing is replaced', async () => {
+    const release = vi.fn()
+    const { svc } = await startWith()
+    svc.onBeforeImport(async () => release)
+    svc.onBeforeImport(async () => { throw new Error('hold failed') })
+    await expect(svc.initialize()).rejects.toThrow('hold failed')
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+  })
+
+  it('unsubscribed import listeners no longer run', async () => {
+    const before = vi.fn().mockResolvedValue(() => {})
+    const after = vi.fn().mockResolvedValue(undefined)
+    const { svc } = await startWith()
+    svc.onBeforeImport(before)()
+    svc.onAfterImport(after)()
+    await svc.initialize()
+    expect(mockRestoreFromImportData).toHaveBeenCalled()
+    expect(before).not.toHaveBeenCalled()
+    expect(after).not.toHaveBeenCalled()
+  })
+
+  it('a question has one handler: a later one replaces it, and removing the replaced one changes nothing', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockBrowserTaskCount.mockResolvedValue(5)
+    const { svc } = await startWith()
+    const first = vi.fn().mockResolvedValue('file')
+    const second = vi.fn().mockResolvedValue('cancel')
+    const removeFirst = svc.onConflict(first)
+    const removeSecond = svc.onConflict(second)
+    removeFirst()
+    await svc.initialize()
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(svc.status.paused?.reason).toBe('conflict-cancelled')
+
+    // Without a handler a conflict stays paused (cancel).
+    removeSecond()
+    await svc.retry()
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(svc.status.paused?.reason).toBe('conflict-cancelled')
+  })
 })
 
 // ─── Browser backup before loading the file ───────────────────────────
