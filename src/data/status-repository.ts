@@ -1,6 +1,6 @@
 import { db } from './database'
 import type { Status } from '../models'
-import { createRepository } from './create-repository'
+import { createRepository, reorderBySortOrder } from './create-repository'
 
 const base = createRepository<Status>(db.statuses, 'sortOrder')
 
@@ -38,12 +38,6 @@ export const statusRepository = {
   },
 
   async reorder(orderedIds: number[]): Promise<void> {
-    await db.transaction('rw', db.statuses, async () => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        const id = orderedIds[i]
-        if (id == null) continue
-        await db.statuses.update(id, { sortOrder: i })
-      }
-    })
+    await reorderBySortOrder(db.statuses, orderedIds)
   },
 }

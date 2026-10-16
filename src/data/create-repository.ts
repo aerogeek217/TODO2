@@ -32,3 +32,20 @@ export function createRepository<T extends { id?: number }>(table: Table<T, numb
     },
   }
 }
+
+/**
+ * Gives each row in `orderedIds` its position as `sortOrder`, in one
+ * transaction (a missing id is skipped).
+ */
+export async function reorderBySortOrder<T extends { id?: number; sortOrder: number }>(
+  table: Table<T, number>,
+  orderedIds: readonly number[],
+): Promise<void> {
+  await table.db.transaction('rw', table, async () => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      const id = orderedIds[i]
+      if (id == null) continue
+      await table.update(id, (row) => { row.sortOrder = i })
+    }
+  })
+}
