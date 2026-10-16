@@ -2,10 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type {
   PersistedTodoItem, Person, Status, Tag, TodoPredicate,
 } from '../../models'
-import { TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES, type TodoSortBy } from '../../models'
-
-/** The sorts the list page offered. */
-const LIST_SORT_VALUES: readonly TodoSortBy[] = ['manual', 'name', 'deadline', 'followup', 'created']
+import { TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES } from '../../models'
 import type { PersistedListDefinition, RuntimeFilterSpec } from '../../models/list-definition'
 import { type FilterCriteria, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { applyFilter, createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
@@ -16,10 +13,11 @@ import { buildListSections, type ListSectionsContext, type Section } from '../..
 import { makeTodo } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
 
-// The list page and list widgets must show the same sections for the same
-// list definition. Each path below mirrors its surface: the list page loads a
-// definition into the screen filter (ListView), widgets run it through
-// `buildList` with the evaluator `ListDefinitionBody` uses.
+// A list widget runs its definition through `buildList` with the predicate
+// evaluator; the calendar, Eisenhower and dashboard widgets filter with the
+// screen filter (`applyFilter` over `FilterCriteria`). The same definition
+// must give the same sections either way: `filterPathSections` runs it as a
+// screen filter, then through the one section builder.
 
 // Wed 14 Oct 2026; a Monday-first week ends Sun 18 Oct.
 const today = new Date(2026, 9, 14)
@@ -92,11 +90,9 @@ function widgetSections(d: PersistedListDefinition, pick: number[] | undefined, 
   return list.sections
 }
 
-function listPageSections(d: PersistedListDefinition, pick: number[] | undefined): Section[] {
-  // Loading a definition: its predicate becomes the screen filter, its sort
-  // is kept when the page offers it (otherwise manual).
+function filterPathSections(d: PersistedListDefinition, pick: number[] | undefined): Section[] {
+  // The definition's predicate (with the prompt's picks) as a screen filter.
   const manualFilters = predicateToCriteria(d.membership.predicate)
-  const sortBy = LIST_SORT_VALUES.includes(d.sort) ? d.sort : 'manual'
   const spec = d.runtimeFilter ?? null
   const effective = !spec || pick == null || pick.length === 0
     ? manualFilters
@@ -106,7 +102,7 @@ function listPageSections(d: PersistedListDefinition, pick: number[] | undefined
     : applyFilter(effective, todos, assignedPeopleMap, statuses, today, assignedTagsMap, currentFilterSettings())
   return buildListSections(members, {
     groupBy: d.grouping,
-    sortBy,
+    sortBy: d.sort,
     restrictToPersonIds: effective.personIds ? [...effective.personIds] : null,
     restrictToTagIds: effective.tags ? [...effective.tags] : null,
   }, ctx)
@@ -146,7 +142,7 @@ beforeEach(() => {
   useSettingsStore.setState({ urgentDueWithinDays: 3 })
 })
 
-describe('list page and list widgets build the same sections', () => {
+describe('a list widget and the screen filter build the same sections', () => {
   for (const groupBy of TODO_GROUP_BY_VALUES) {
     for (const sortBy of TODO_SORT_BY_VALUES) {
       it(`group ${groupBy} × sort ${sortBy}`, () => {
@@ -154,7 +150,7 @@ describe('list page and list widgets build the same sections', () => {
           for (const [predicateName, predicate] of predicates) {
             const d = def({ grouping: groupBy, sort: sortBy, runtimeFilter, membership: { kind: 'custom', predicate } })
             expect(shape(widgetSections(d, pick)), `${runtimeName}, ${predicateName}`)
-              .toEqual(shape(listPageSections(d, pick)))
+              .toEqual(shape(filterPathSections(d, pick)))
           }
         }
       })
