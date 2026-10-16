@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useId, useLayoutEffect } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './ChipSelector.module.css'
+import { byName } from '../../utils/sort-order'
 
 export interface ChipItem {
   id: number
@@ -89,7 +90,7 @@ export function ChipSelector({
   }, [])
 
   const lowerQuery = query.toLowerCase().trim()
-  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name))
+  const sorted = [...items].sort(byName)
   const filtered = lowerQuery
     ? sorted.filter(item => item.name.toLowerCase().includes(lowerQuery))
     : sorted

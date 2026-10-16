@@ -7,6 +7,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import styles from './RuntimeFilterPicker.module.css'
+import { byName } from '../../../utils/sort-order'
 
 // All option lookups for this picker go through cached Zustand stores
 // (`usePersonStore`, `useStatusStore`, `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
@@ -75,7 +76,7 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
         for (const t of tags) if (t.id != null) base.push({ id: t.id, name: t.name })
         break
     }
-    return base.sort((a, b) => a.name.localeCompare(b.name))
+    return base.sort(byName)
   }, [spec.field, people, statuses, tags])
 
   const ids = value ?? NO_IDS

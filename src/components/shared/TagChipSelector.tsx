@@ -4,6 +4,7 @@ import type { Tag } from '../../models'
 import { ChipSelector } from './ChipSelector'
 import { PortalDropdown } from './PortalDropdown'
 import styles from './TagChipSelector.module.css'
+import { byName } from '../../utils/sort-order'
 
 interface TagChipSelectorProps {
   /** Tags currently assigned to this todo. Pre-resolved by the consumer. */
@@ -103,7 +104,7 @@ export function TagChipSelector({
           <div className={styles.dropdown}>
             <ChipSelector
               items={[...allTags]
-                .sort((a, b) => a.name.localeCompare(b.name))
+                .sort(byName)
                 .map((t) => ({ id: t.id!, name: t.name, color: t.color }))}
               selectedIds={assignedIds}
               onToggle={onToggle}

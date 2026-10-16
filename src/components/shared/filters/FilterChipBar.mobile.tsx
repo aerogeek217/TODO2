@@ -15,6 +15,7 @@ import {
   type EntityKey,
   type FilterChipBarProps,
 } from './FilterChipBar.shared'
+import { byName } from '../../../utils/sort-order'
 
 type MobileSection = EntityKey | 'toggles' | 'date'
 
@@ -93,7 +94,7 @@ function MobileEntityList({
       )}
       {entities
         .filter((e) => !searchText || e.name.toLowerCase().includes(searchText.toLowerCase()))
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .toSorted(byName)
         .map((e) => (
           <div key={e.id} className={sheet.entityItem} onClick={() => onToggle(e.id!)}>
             <span

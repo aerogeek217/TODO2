@@ -4,6 +4,7 @@
  * it was opened for come first, in the order given; the rest by name.
  */
 import type { PersistedPerson, Person, PersistedTodoItem } from '../../models'
+import { byName } from '../../utils/sort-order'
 
 /** How many open tasks each person has assigned (people with none are absent). */
 export function openTaskCounts(
@@ -39,6 +40,6 @@ export function checkinRecipients(
   const firstIds = new Set(first.map((p) => p.id))
   const rest = [...byId.values()]
     .filter((p) => !firstIds.has(p.id) && withOpenTasks.has(p.id))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort(byName)
   return [...first, ...rest]
 }

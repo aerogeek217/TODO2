@@ -5,6 +5,7 @@ import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person
 import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
+import { byName } from '../../utils/sort-order'
 
 interface TaskEditMetadataProps {
   // Due date + repeat
@@ -130,7 +131,7 @@ export function TaskEditMetadata({
           {openDropdown === 'tags' && (
             <div className={styles.chipDropdown}>
               <ChipSelector
-                items={allTags.toSorted((a, b) => a.name.localeCompare(b.name)).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
+                items={allTags.toSorted(byName).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
                 selectedIds={assignedTagIds}
                 onToggle={onToggleTag}
                 onCreate={onCreateTag}

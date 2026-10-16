@@ -7,6 +7,7 @@ import { ConfirmDialog } from '../shared/Dialog'
 import type { Person } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
+import { byName } from '../../utils/sort-order'
 
 interface PersonEditState {
   id: number
@@ -268,7 +269,7 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
             const filtered = q === ''
               ? people
               : people.filter((p) => p.name.toLowerCase().includes(q) || p.initials.toLowerCase().includes(q))
-            const sorted = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
+            const sorted = filtered.toSorted(byName)
 
             return (
               <>

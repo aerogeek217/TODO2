@@ -21,6 +21,7 @@ import {
   type SlashCommandSpec,
 } from './slash-commands'
 import { collapseWhitespace } from '../utils/text'
+import { byName } from '../utils/sort-order'
 
 /**
  * The autocomplete popup for task text, as pure functions over
@@ -118,7 +119,7 @@ export function personItems(people: readonly Person[]): AutocompleteItem[] {
 /** Tags as candidates, alphabetical (stored rows only). */
 export function tagItems(tags: readonly Tag[]): AutocompleteItem[] {
   return [...tags]
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort(byName)
     .flatMap((t) => (t.id === undefined ? [] : [{ id: t.id, name: t.name, color: t.color, kind: 'tag' as const }]))
 }
 

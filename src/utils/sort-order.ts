@@ -11,3 +11,10 @@ export const bySortOrder = <T extends { sortOrder: number; id?: number }>(
   a: T,
   b: T,
 ): number => (a.sortOrder - b.sortOrder) || ((a.id ?? 0) - (b.id ?? 0))
+
+/**
+ * Sort comparator for `name` (`localeCompare`, the browser's locale): how
+ * pickers, menus and lists of people / tags / statuses / commands are
+ * ordered alphabetically.
+ */
+export const byName = (a: { name: string }, b: { name: string }): number => a.name.localeCompare(b.name)

@@ -6,6 +6,7 @@ import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
 import { ConfirmDialog } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
+import { byName } from '../../utils/sort-order'
 
 interface EditState {
   id: number
@@ -119,7 +120,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const visible = useMemo(() => {
     const q = searchText.trim().toLowerCase()
     const filtered = q === '' ? tags : tags.filter((t) => t.name.toLowerCase().includes(q))
-    return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+    return [...filtered].sort(byName)
   }, [tags, searchText])
 
   const renderRow = (tag: Tag) => {

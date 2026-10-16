@@ -22,6 +22,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import styles from './CheckinImportDialog.module.css'
 import { collapseWhitespace } from '../../utils/text'
+import { byName } from '../../utils/sort-order'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 const sameName = (a: string, b: string) => collapseWhitespace(a).toLocaleLowerCase() === collapseWhitespace(b).toLocaleLowerCase()
@@ -312,7 +313,7 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
     `${plural(diff.changeCount, 'change')} found`,
     ...(diff.staleCount > 0 ? [`${plural(diff.staleCount, 'task')} changed since the email was sent`] : []),
   ].join(' · ')
-  const sortedPeople = useMemo(() => [...people].sort((a, b) => a.name.localeCompare(b.name)), [people])
+  const sortedPeople = useMemo(() => [...people].sort(byName), [people])
 
   return (
     <div className={styles.summary} data-checkin-summary="">

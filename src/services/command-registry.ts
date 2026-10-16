@@ -2,6 +2,7 @@ import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
 import { isValidEmail } from '../utils/person'
+import { byName } from '../utils/sort-order'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'tasks'
 
@@ -64,7 +65,7 @@ function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) 
       if (id == null || n === 0 || !isValidEmail(p.email ?? '')) return []
       return [{ id, name: p.name, n }]
     })
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort(byName)
     .map(({ id, name, n }): Command => ({
       id: `email-checkin-${id}`,
       name: `Email check-in: ${name}`,

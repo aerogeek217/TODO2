@@ -11,6 +11,7 @@ import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
+import { byName } from '../../../utils/sort-order'
 
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
@@ -103,7 +104,7 @@ export function EntityDropdownItems({
   const q = searchText.toLowerCase()
   const showNone = withNone && (!q || 'none'.includes(q))
   const filtered = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
-    .toSorted((a, b) => a.name.localeCompare(b.name))
+    .toSorted(byName)
   return (
     <>
       {showNone && (

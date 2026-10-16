@@ -65,6 +65,11 @@ type SortFields = Pick<TodoItem, 'dueDate' | 'isCompleted' | 'sortOrder'>
 /**
  * Order inside a quadrant: open before completed; then by due date (overdue
  * first, as the earliest), tasks without a due date last; ties by `sortOrder`.
+ *
+ * Not `compareTodosByDate('deadline')` (the lists' Due sort), which it
+ * resembles: a quadrant also sinks completed tasks (a list leaves that to its
+ * grouping / filter), compares the due dates as stored rather than by day,
+ * and keeps the input order on a `sortOrder` tie instead of ordering by id.
  */
 export function compareInQuadrant(a: SortFields, b: SortFields): number {
   if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1

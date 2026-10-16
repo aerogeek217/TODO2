@@ -4,6 +4,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { hasMarkers } from '../../../utils/markers'
+import { byName } from '../../../utils/sort-order'
 
 export type FilterChipDensity = 'desktop' | 'mobile'
 
@@ -77,7 +78,7 @@ export function narrowedPeople(
   if (personIds === null) return []
   const picked = people.flatMap((p) => (p.id != null && personIds.has(p.id) ? [{ id: p.id, name: p.name }] : []))
   if (picked.length === people.length) return []
-  return picked.sort((a, b) => a.name.localeCompare(b.name))
+  return picked.sort(byName)
 }
 
 export const cycleTri =(v: boolean | null): boolean | null =>
@@ -144,7 +145,7 @@ export function useFilterChipBarState(
   const statusIdsSet = useMemo(() => (p.statusIds ? new Set(p.statusIds) : null), [p.statusIds])
   const tagIdsSet = useMemo(() => (p.tags ? new Set(p.tags) : null), [p.tags])
 
-  const sortedTags = useMemo(() => [...tags].sort((a, b) => a.name.localeCompare(b.name)), [tags])
+  const sortedTags = useMemo(() => [...tags].sort(byName), [tags])
   const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
 
   const peopleActive = p.personIds !== null
