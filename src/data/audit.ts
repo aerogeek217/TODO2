@@ -287,93 +287,54 @@ export async function auditData(): Promise<AuditReport> {
 
   // --- Orphaned join rows ---
 
-  // Helper: build a sample for an orphan-join row, naming which FK is missing.
-  const joinSample = (row: Record<string, unknown>, checks: { field: string; valid: boolean }[]): AuditSample => {
-    const missing = checks.filter((c) => !c.valid).map((c) => c.field)
-    const note = missing
-      .map((f) => `${f} ${String(row[f])} not in ${joinTargetTable(f)}`)
-      .join(' • ')
-    return {
-      row: toSampleRow(row),
-      id: typeof row.id === 'number' ? (row.id as number) : undefined,
-      badFields: missing,
-      note,
-    }
-  }
-
-  const orphanedTodoPeople = todoPeople.filter(
-    (r) => !todoIds.has(r.todoId) || !personIds.has(r.personId),
-  )
-  if (orphanedTodoPeople.length > 0) {
+  /**
+   * One `delete` issue for the rows of `table` with a foreign key whose
+   * target is gone (`fks`: each column and the ids it may hold); nothing when
+   * every row is whole. Each sample names the missing targets.
+   */
+  const orphanJoinRows = <R extends { id?: number }>(
+    table: string,
+    description: string,
+    rows: readonly R[],
+    fks: ReadonlyArray<{ field: keyof R & string; ids: ReadonlySet<number> }>,
+  ): void => {
+    const missingOf = (row: R) => fks.filter(({ field, ids }) => !ids.has(row[field] as number)).map((fk) => fk.field)
+    const orphans = rows.filter((r) => missingOf(r).length > 0)
+    if (orphans.length === 0) return
     issues.push({
-      table: 'todoPeople',
-      description: 'Person assignments referencing deleted todos or people',
-      count: orphanedTodoPeople.length,
-      ids: orphanedTodoPeople.map((r) => r.id!),
+      table,
+      description,
+      count: orphans.length,
+      ids: orphans.map((r) => r.id!),
       fix: 'delete',
-      samples: orphanedTodoPeople.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'personId', valid: personIds.has(r.personId) },
-        ]),
-      ),
+      samples: orphans.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) => {
+        const row = r as unknown as Record<string, unknown>
+        const missing = missingOf(r)
+        return {
+          row: toSampleRow(row),
+          id: typeof row.id === 'number' ? row.id : undefined,
+          badFields: missing,
+          note: missing.map((f) => `${f} ${String(row[f])} not in ${joinTargetTable(f)}`).join(' • '),
+        }
+      }),
     })
   }
 
-  const orphanedTodoTags = todoTags.filter(
-    (r) => !todoIds.has(r.todoId) || !tagIds.has(r.tagId),
-  )
-  if (orphanedTodoTags.length > 0) {
-    issues.push({
-      table: 'todoTags',
-      description: 'Tag assignments referencing deleted todos or tags',
-      count: orphanedTodoTags.length,
-      ids: orphanedTodoTags.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedTodoTags.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'tagId', valid: tagIds.has(r.tagId) },
-        ]),
-      ),
-    })
-  }
-
-  const listDefinitionIds = new Set(listDefinitions.map((d) => d.id!))
-  const orphanedListOrders = listOrders.filter(
-    (r) => !todoIds.has(r.todoId) || !listDefinitionIds.has(r.listDefinitionId),
-  )
-  if (orphanedListOrders.length > 0) {
-    issues.push({
-      table: 'listOrders',
-      description: 'Manual list order entries referencing deleted todos or lists',
-      count: orphanedListOrders.length,
-      ids: orphanedListOrders.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedListOrders.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'listDefinitionId', valid: listDefinitionIds.has(r.listDefinitionId) },
-        ]),
-      ),
-    })
-  }
-
-  const orphanedTodoEvents = todoEvents.filter((r) => !todoIds.has(r.todoId))
-  if (orphanedTodoEvents.length > 0) {
-    issues.push({
-      table: 'todoEvents',
-      description: 'Event-log entries referencing deleted todos',
-      count: orphanedTodoEvents.length,
-      ids: orphanedTodoEvents.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedTodoEvents.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-        ]),
-      ),
-    })
-  }
+  orphanJoinRows('todoPeople', 'Person assignments referencing deleted todos or people', todoPeople, [
+    { field: 'todoId', ids: todoIds },
+    { field: 'personId', ids: personIds },
+  ])
+  orphanJoinRows('todoTags', 'Tag assignments referencing deleted todos or tags', todoTags, [
+    { field: 'todoId', ids: todoIds },
+    { field: 'tagId', ids: tagIds },
+  ])
+  orphanJoinRows('listOrders', 'Manual list order entries referencing deleted todos or lists', listOrders, [
+    { field: 'todoId', ids: todoIds },
+    { field: 'listDefinitionId', ids: new Set(listDefinitions.map((d) => d.id!)) },
+  ])
+  orphanJoinRows('todoEvents', 'Event-log entries referencing deleted todos', todoEvents, [
+    { field: 'todoId', ids: todoIds },
+  ])
 
   // Helper: sample a row whose single FK column points at a deleted entity.
   // The popup highlights the dangling field and notes the missing target.
