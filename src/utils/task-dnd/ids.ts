@@ -52,25 +52,6 @@ export function taskDragId(
   }
 }
 
-/** Known task-drag id prefixes. */
-const TASK_DRAG_PREFIXES: readonly string[] = [
-  'lw|',
-  'cw|',
-]
-
-/**
- * Cheap check: is this id any known task-drag id? Conservative — returns true
- * for any string starting with one of the known prefixes. Callers that need to
- * distinguish surfaces should decode further.
- *
- * Drop-target ids (`calday-…`, `eis-…`) are NOT task-drag ids.
- */
-export function isTaskDragId(id: string | number | null | undefined): boolean {
-  if (typeof id !== 'string') return false
-  for (const p of TASK_DRAG_PREFIXES) if (id.startsWith(p)) return true
-  return false
-}
-
 // ── Drop-target ids (task drop zones) ──────────────────────────────────────
 
 /**

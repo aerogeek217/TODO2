@@ -19,11 +19,9 @@ export interface CalendarEntry {
 export interface BuildEntriesOptions {
   assignedPeopleMap?: Map<number, Person[]>
   statuses?: readonly Status[]
-  /** Which dates to place. Default: due dates only. */
-  dateTypes?: CalendarDateTypes
+  /** Which dates to place. */
+  dateTypes: CalendarDateTypes
 }
-
-const DUE_ONLY: CalendarDateTypes = { due: true, followup: false }
 
 const KIND_ORDER: Record<CalendarDateType, number> = { due: 0, followup: 1 }
 
@@ -56,7 +54,7 @@ export function buildEntries(
   const firstDay = days[0]
   const lastDay = days[days.length - 1]
   if (!firstDay || !lastDay) return map
-  const types = options.dateTypes ?? DUE_ONLY
+  const types = options.dateTypes
   const rangeStart = startOfDay(firstDay)
   const rangeEnd = addDays(lastDay, 1)
   const inRange = (d: Date) => d.getTime() >= rangeStart.getTime() && d.getTime() < rangeEnd.getTime()

@@ -8,7 +8,6 @@ import type { PersistedTodoItem } from '../../../models'
 import {
   TASK_DRAG_KIND,
   taskDragId,
-  type TaskDragKind,
   type TaskSurfaceKey,
 } from '../../../utils/task-dnd'
 
@@ -20,8 +19,6 @@ interface SharedProps {
    * group the row shows in (see `taskDragId`). */
   scope?: string
   sectionKey?: string
-  /** Drag data `type`. Defaults to `TASK_DRAG_KIND.task`. */
-  kind?: TaskDragKind
   /** Extra fields merged into the drag data payload. `type` and `todo` are
    * always set by this component and override any same-named keys here. */
   extraData?: Record<string, unknown>
@@ -54,14 +51,13 @@ export function TaskDraggable({
   surface,
   scope,
   sectionKey,
-  kind,
   extraData,
   disabled,
   children,
 }: TaskDraggableProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: taskDragId(surface, todo.id, { scope, sectionKey }),
-    data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
+    data: { ...extraData, type: TASK_DRAG_KIND.task, todo },
     disabled,
   })
   return <>{children({ attributes, listeners, setNodeRef, isDragging })}</>

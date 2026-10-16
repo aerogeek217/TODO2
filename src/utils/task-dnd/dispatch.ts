@@ -63,24 +63,26 @@ function isDateType(v: unknown): v is CalendarDateType {
 }
 
 /**
- * Which date a calendar-day drop sets, from the drag payload and the day's
- * drop data:
+ * Which date a calendar-day drop sets, from the drag payload and the date
+ * types the target calendar shows (`dateTypes` on the day's drop data):
  * - a calendar entry (`calendarDateType` on the drag) moves its own date,
  *   whatever the target calendar shows;
- * - otherwise the date type the target shows (`dateTypes` on the day), or
- *   `'choose'` when it shows both;
- * - a day without `dateTypes` (calendars that only show due dates) sets the due date.
+ * - otherwise the date type the target shows, or `'choose'` when it shows both.
  */
 export function resolveCalendarDropType(
   activeData: Record<string, unknown> | null | undefined,
-  overData: Record<string, unknown> | null | undefined,
+  dateTypes: CalendarDateTypes,
 ): CalendarDateType | 'choose' {
   const own = activeData?.calendarDateType
   if (isDateType(own)) return own
-  const types = overData?.dateTypes as CalendarDateTypes | undefined
-  if (types?.due && types.followup) return 'choose'
-  if (types?.followup && !types.due) return 'followup'
-  return 'due'
+  if (dateTypes.due && dateTypes.followup) return 'choose'
+  return dateTypes.followup ? 'followup' : 'due'
+}
+
+function isDateTypes(v: unknown): v is CalendarDateTypes {
+  if (v == null || typeof v !== 'object') return false
+  const t = v as Record<string, unknown>
+  return typeof t.due === 'boolean' && typeof t.followup === 'boolean'
 }
 
 /** The viewport point a drag ended at (activator position + travel), when the activator was a pointer. */
@@ -117,8 +119,9 @@ export async function dispatchTaskDrop(
   // ── Calendar day drop → set a date ──
   if (overData?.type === TASK_DROP_KIND.calendarDay && deps.calendar) {
     const date = overData.date as Date | undefined
-    if (date instanceof Date) {
-      let type = resolveCalendarDropType(activeData, overData)
+    const dateTypes = overData.dateTypes
+    if (date instanceof Date && isDateTypes(dateTypes)) {
+      let type = resolveCalendarDropType(activeData, dateTypes)
       if (type === 'choose') {
         const chosen = deps.calendar.chooseType
           ? await deps.calendar.chooseType({

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   calendarDayDropId,
-  isTaskDragId,
+  eisenhowerQuadrantDropId,
   taskDragId,
   type TaskSurfaceKey,
 } from '../../../utils/task-dnd'
@@ -19,38 +19,30 @@ describe('taskDragId — per-surface id format', () => {
     const b = taskDragId('list-widget', 3, { scope: 't1', sectionKey: 'person-2' })
     const c = taskDragId('list-widget', 3, { scope: 't2', sectionKey: 'person-1' })
     expect(new Set([a, b, c]).size).toBe(3)
-    expect(isTaskDragId(a)).toBe(true)
     expect(() => taskDragId('list-widget', 3, { scope: 't1' })).toThrow()
   })
-})
 
-describe('isTaskDragId', () => {
-  it('accepts every surface id format', () => {
-    expect(isTaskDragId('lw|t1|all|1')).toBe(true)
-    expect(isTaskDragId('cw|t1|due|1')).toBe(true)
-  })
-
-  it('rejects drop-target ids', () => {
-    expect(isTaskDragId('calday-view-0')).toBe(false)
-  })
-
-  it('rejects non-string / null / number ids', () => {
-    expect(isTaskDragId(null)).toBe(false)
-    expect(isTaskDragId(undefined)).toBe(false)
-    expect(isTaskDragId(42)).toBe(false)
+  it('calendar-widget: one id per date type and per open day popover', () => {
+    const due = taskDragId('calendar-widget', 3, { scope: 't1', sectionKey: 'due' })
+    const followup = taskDragId('calendar-widget', 3, { scope: 't1', sectionKey: 'followup' })
+    const inPopover = taskDragId('calendar-widget', 3, { scope: 't1', sectionKey: 'pop-due' })
+    expect(new Set([due, followup, inPopover]).size).toBe(3)
+    expect(() => taskDragId('calendar-widget', 3, { sectionKey: 'due' })).toThrow()
   })
 })
 
 describe('drop-zone id helpers', () => {
   it('calendarDayDropId embeds scope + ms', () => {
-    expect(calendarDayDropId('view', 1700000000000)).toBe('calday-view-1700000000000')
-    expect(calendarDayDropId('strip-rail-left', 42)).toBe('calday-strip-rail-left-42')
+    expect(calendarDayDropId('ws-t1', 1700000000000)).toBe('calday-ws-t1-1700000000000')
   })
 
-  it('distinct scopes yield distinct ids for the same date', () => {
+  it('two calendar widgets yield distinct ids for the same date', () => {
     const dateMs = 1700000000000
-    const a = calendarDayDropId('view', dateMs)
-    const b = calendarDayDropId('rail-left', dateMs)
-    expect(a).not.toBe(b)
+    expect(calendarDayDropId('ws-t1', dateMs)).not.toBe(calendarDayDropId('ws-t2', dateMs))
+  })
+
+  it('eisenhowerQuadrantDropId embeds the widget and the quadrant', () => {
+    expect(eisenhowerQuadrantDropId('t1', 'do')).toBe('eis-t1-do')
+    expect(eisenhowerQuadrantDropId('t1', 'do')).not.toBe(eisenhowerQuadrantDropId('t2', 'do'))
   })
 })

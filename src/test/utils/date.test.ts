@@ -3,7 +3,6 @@ import {
   MS_PER_DAY,
   startOfDay,
   startOfToday,
-  isSameDay,
   formatDate,
   formatDateShort,
   formatRelativeTime,
@@ -57,37 +56,6 @@ describe('startOfToday', () => {
     expect(result.getHours()).toBe(0)
     expect(result.getMinutes()).toBe(0)
     expect(result.getSeconds()).toBe(0)
-  })
-})
-
-describe('isSameDay', () => {
-  it('returns true for dates on the same calendar day', () => {
-    const a = new Date(2024, 3, 10, 8, 0, 0)
-    const b = new Date(2024, 3, 10, 22, 59, 59)
-    expect(isSameDay(a, b)).toBe(true)
-  })
-
-  it('returns false for dates on different days', () => {
-    const a = new Date(2024, 3, 10)
-    const b = new Date(2024, 3, 11)
-    expect(isSameDay(a, b)).toBe(false)
-  })
-
-  it('returns false for same day different months', () => {
-    const a = new Date(2024, 3, 10)
-    const b = new Date(2024, 4, 10)
-    expect(isSameDay(a, b)).toBe(false)
-  })
-
-  it('returns false for same day different years', () => {
-    const a = new Date(2023, 3, 10)
-    const b = new Date(2024, 3, 10)
-    expect(isSameDay(a, b)).toBe(false)
-  })
-
-  it('returns true when comparing identical date objects', () => {
-    const a = new Date(2024, 0, 1)
-    expect(isSameDay(a, a)).toBe(true)
   })
 })
 

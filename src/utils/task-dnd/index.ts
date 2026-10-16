@@ -1,14 +1,11 @@
 export {
   TASK_DRAG_KIND,
   TASK_DROP_KIND,
-  isTaskDragKind,
-  type TaskDragKind,
   type TaskDropKind,
 } from './kinds'
 
 export {
   taskDragId,
-  isTaskDragId,
   calendarDayDropId,
   eisenhowerQuadrantDropId,
   type TaskSurfaceKey,
@@ -18,7 +15,6 @@ export {
 export {
   buildTaskCollision,
   type TaskCollisionRule,
-  type TaskCollisionAlgorithm,
   type CollisionActive,
 } from './collision'
 

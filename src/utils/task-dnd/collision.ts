@@ -1,50 +1,27 @@
 import {
-  closestCenter,
   pointerWithin,
-  rectIntersection,
   type CollisionDetection,
   type UniqueIdentifier,
 } from '@dnd-kit/core'
 import { dndLog } from '../debug-flags'
 
 /**
- * dnd-kit collision algorithms exposed by {@link buildTaskCollision}. The
- * choice between `pointerWithin` vs. `closestCenter` matters in dense
- * layouts — `pointerWithin` requires the pointer to be inside the droppable,
- * which drops that must land on a target (calendar days) rely
- * on. `closestCenter` always returns a hit for
- * row/card sortables as long as any eligible droppable exists.
- */
-export type TaskCollisionAlgorithm = 'pointerWithin' | 'closestCenter' | 'rectIntersection'
-
-const ALGORITHMS: Record<TaskCollisionAlgorithm, CollisionDetection> = {
-  pointerWithin,
-  closestCenter,
-  rectIntersection,
-}
-
-/**
  * A single rule in the per-context task-collision table. Each rule pairs a
  * "does this drag match?" predicate with an "accept these droppables?" filter.
- * The first matching rule wins; rules are evaluated top-to-bottom.
- *
- * Each rule names its own dnd-kit algorithm so one collision function can
- * host both pointer-based drops (calendar days) and
- * center-based drops (card reorder) without the caller threading context.
+ * The first matching rule wins; rules are evaluated top-to-bottom. Every
+ * task drop target (calendar days, Eisenhower quadrants) must be under the
+ * pointer, so the accepted droppables go through dnd-kit's `pointerWithin`.
  */
 export interface TaskCollisionRule {
   /**
    * Returns true when this rule applies to the current active drag. Consult
    * `active.id` for sortable-style active ids and `active.data.current?.type`
-   * for the `TASK_DRAG_KIND` family.
+   * for the drag's kind (`TASK_DRAG_KIND`, the workspace tab drag).
    */
   when: (active: CollisionActive) => boolean
 
   /** Returns true for droppable ids this rule accepts. */
   accept: (droppableId: UniqueIdentifier) => boolean
-
-  /** Which dnd-kit algorithm to run against the filtered droppables. */
-  algorithm: TaskCollisionAlgorithm
 }
 
 /**
@@ -62,18 +39,15 @@ export interface CollisionActive {
  * droppables a given drag can hit.
  *
  * Rules are checked in order; the first `when` that matches wins and the
- * others are skipped. When no rule matches, the returned detection falls back
- * to `fallback` (default `closestCenter`) with every droppable in scope.
+ * others are skipped. When no rule matches (or no drag is active), every
+ * droppable is in scope.
  */
-export function buildTaskCollision(
-  rules: readonly TaskCollisionRule[],
-  fallback: TaskCollisionAlgorithm = 'closestCenter',
-): CollisionDetection {
+export function buildTaskCollision(rules: readonly TaskCollisionRule[]): CollisionDetection {
   return (args) => {
     const active = args.active as unknown as CollisionActive | null
     if (!active) {
-      dndLog('collision.no-active.fallback', { algorithm: fallback })
-      return ALGORITHMS[fallback](args)
+      dndLog('collision.no-active.fallback', {})
+      return pointerWithin(args)
     }
 
     for (let i = 0; i < rules.length; i++) {
@@ -82,23 +56,21 @@ export function buildTaskCollision(
       const filtered = args.droppableContainers.filter((c) => rule.accept(c.id))
       dndLog('collision.rule-matched', {
         ruleIndex: i,
-        algorithm: rule.algorithm,
         activeId: active.id,
         activeType: active.data.current?.type ?? null,
         droppablesIn: args.droppableContainers.length,
         droppablesAccepted: filtered.length,
       })
-      return ALGORITHMS[rule.algorithm]({
+      return pointerWithin({
         ...args,
         droppableContainers: filtered,
       })
     }
     dndLog('collision.no-rule-matched.fallback', {
-      algorithm: fallback,
       activeId: active.id,
       activeType: active.data.current?.type ?? null,
       droppablesIn: args.droppableContainers.length,
     })
-    return ALGORITHMS[fallback](args)
+    return pointerWithin(args)
   }
 }

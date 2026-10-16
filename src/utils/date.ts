@@ -22,11 +22,6 @@ export function startOfToday(): Date {
   return startOfDay(new Date())
 }
 
-/** True if two dates fall on the same calendar day */
-export function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-}
-
 /** Format as "Mon DD, YYYY" */
 export function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('en-US', {

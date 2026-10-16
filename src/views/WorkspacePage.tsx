@@ -316,8 +316,7 @@ export function WorkspacePage() {
   // droppables; task drags match the widgets' droppables (calendar days,
   // Eisenhower quadrants) under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
-    { when: (active) => active.data.current?.type === WORKSPACE_TAB_DRAG, accept: () => false, algorithm: 'pointerWithin' },
-    { when: () => true, accept: () => true, algorithm: 'pointerWithin' },
+    { when: (active) => active.data.current?.type === WORKSPACE_TAB_DRAG, accept: () => false },
   ]), [])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {

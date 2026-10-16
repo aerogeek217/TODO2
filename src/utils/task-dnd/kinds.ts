@@ -8,8 +8,6 @@ export const TASK_DRAG_KIND = {
   task: 'task',
 } as const
 
-export type TaskDragKind = typeof TASK_DRAG_KIND[keyof typeof TASK_DRAG_KIND]
-
 /**
  * Canonical `data.type` strings for drop targets that accept task drags. These
  * are what live on `useDroppable`'s `data` field and what drop handlers read
@@ -27,8 +25,3 @@ export const TASK_DROP_KIND = {
 } as const
 
 export type TaskDropKind = typeof TASK_DROP_KIND[keyof typeof TASK_DROP_KIND]
-
-/** True when a `data.type` value marks a task-shaped drag payload. */
-export function isTaskDragKind(v: unknown): v is TaskDragKind {
-  return v === TASK_DRAG_KIND.task
-}
