@@ -63,7 +63,14 @@ export class Todo2Database extends Dexie {
   constructor() {
     super('todo2')
 
-    // v16: base schema — all tables (backward compat cutoff: 2026-04-10)
+    // v16 – v48: the store layouts of the versions below the supported floor
+    // (`OLDEST_SUPPORTED_DB_VERSION`, v49). Dexie needs every version that
+    // changed a store to open (and upgrade) an older database; the data
+    // upgrades those versions ran are gone, so a database older than the
+    // floor gets the migration warning first (`services/migration-check`).
+    // Each line names what the version changed, for the record.
+
+    // v16: the base schema (the oldest layout this build can open).
     this.version(16).stores({
       todos: '++id, projectId, canvasId, parentId, priority, isCompleted, isStarred, dueDate, sortOrder',
       projects: '++id, canvasId, sortOrder',
@@ -81,258 +88,116 @@ export class Todo2Database extends Dexie {
       savedViews: '++id, sortOrder',
       stickyNotes: '++id, canvasId',
     })
-
-    // v17: add initials field to orgs (no index change, field stored inline)
+    // v17: org initials (no store change).
     this.version(17).stores({})
-
-    // v18: add taskboardEntries table for ordered task queue
+    // v18: the taskboard entries table.
     this.version(18).stores({
       taskboardEntries: '++id, todoId, sortOrder',
     })
-
-    // v19: add statuses table and statusId index on todos
+    // v19: statuses + the `statusId` index.
     this.version(19).stores({
       statuses: '++id, sortOrder',
       todos: '++id, projectId, canvasId, parentId, priority, isCompleted, isStarred, dueDate, sortOrder, statusId',
     })
-
-    // v20: unify Status — drop isStarred index; seed Assigned/Followup statuses;
-    // fold isStarred/isAssigned into statusId; delete retired 'starred' list-inset preset.
+    // v20: starred / assigned folded into statuses; `isStarred` index dropped.
     this.version(20).stores({
       todos: '++id, projectId, canvasId, parentId, priority, isCompleted, dueDate, sortOrder, statusId',
       statuses: '++id, sortOrder',
       listInsets: '++id, canvasId',
       settings: 'key',
     })
-
-    // v21: unify scheduling — drop priority + isHardDeadline, add scheduledDate,
-    // seed listDefinitions (Today / Upcoming / Deadlines / Someday), and remove
-    // retired 'high-priority' / priority-attribute list insets.
+    // v21: priority dropped; list definitions added.
     this.version(21).stores({
       todos: '++id, projectId, canvasId, parentId, isCompleted, dueDate, sortOrder, statusId',
       listInsets: '++id, canvasId',
       listDefinitions: '++id, sortOrder',
     })
-
-    // v22: list-definitions builder DSL — add `pinnedToDashboard`, drop
-    // `seededKey`. No index change (both fields are stored inline).
+    // v22 – v24: list definition reshapes (no store change).
     this.version(22).stores({})
-
-    // v23: canvas list-inset unification — drop `preset` / `attributeFilter` /
-    // `name` on `ListInset`; each row gains `listDefinitionId` referencing a
-    // freshly-created (unpinned) `ListDefinition`.
     this.version(23).stores({})
-
-    // v24: horizon-ribbon reseed — retire the today/upcoming/deadlines/someday
-    // ListMembership kinds; clear listDefinitions and reseed with 5 horizon
-    // custom-predicate defs (ThisWeek / NextWeek / RestOfMonth / Later /
-    // Someday); write the `horizonSlots` setting mapping each horizon to the
-    // new def id. No users on this branch at the time of the migration, so
-    // clearing is acceptable.
     this.version(24).stores({})
-
-    // v25: add standalone `notes` table for the dashboard Markdown inbox.
-    // Shape matches multi-note semantics so a future multi-row UI doesn't
-    // require another schema bump.
+    // v25: the notes table.
     this.version(25).stores({
       notes: '++id, modifiedAt',
     })
-
-    // v26: sticky-notes → notes merge. Extend `notes` with optional canvas
-    // placement fields (canvasId, x, y, width, height, color); migrate every
-    // `stickyNotes` row into a matching `notes` row (title prepended as H1);
-    // drop the `stickyNotes` table. A note with canvasId != null is a
-    // canvas-pinned floating note; canvasId == null backs the dashboard
-    // Notes tile and rail slot.
+    // v26: sticky notes merged into notes.
     this.version(26).stores({
       notes: '++id, modifiedAt, canvasId',
       stickyNotes: null,
     })
-
-    // v27: add `floatingCalendars` table — backing store for rail calendar
-    // slots popped out to the canvas. No data
-    // migration; the table starts empty.
+    // v27: floating calendars.
     this.version(27).stores({
       floatingCalendars: '++id, canvasId',
     })
-
-    // v28: floating-notes refactor. Canvas floating notes are now placement-
-    // only widgets that render the single global note (same pattern as
-    // FloatingCalendar / ListInset). Every existing `notes` row with
-    // canvasId != null becomes a `floatingNotes` row (dropping content +
-    // color — only placement survives). The `notes` table retains only
-    // global rows (canvasId == null).
+    // v28: floating notes.
     this.version(28).stores({
       floatingNotes: '++id, canvasId',
     })
-
-    // v29: remove the tags feature entirely. For each todo with assigned tags,
-    // append " #tagname" to its title (preserving discoverability via the
-    // text-search predicate). Strip `tagIds` from any custom predicate stored
-    // inside `listDefinitions` and `savedViews`. Drop the `tags` and
-    // `todoTags` tables.
+    // v29: tags removed (v36 brought them back).
     this.version(29).stores({
       tags: null,
       todoTags: null,
     })
-
-    // v30: taskboard-as-instance. Taskboards are now reusable records (name +
-    // inline entries list) keyed by id; rail slots and floating canvas widgets
-    // reference a taskboard by id. The old `taskboardEntries` join table is
-    // collapsed into a single seeded "Default" taskboard. Adds a
-    // `floatingTaskboards` placement table (parallels floatingNotes /
-    // floatingCalendars) and tags any pre-existing rail taskboard slot with
-    // the seeded id.
+    // v30: taskboards as records + floating taskboards.
     this.version(30).stores({
       taskboardEntries: null,
       taskboards: '++id',
       floatingTaskboards: '++id, canvasId, taskboardId',
     })
-
-    // v31: drop `color` from `people`. Person color is now derived from the
-    // person's first assigned org (`personOrgs` join + `orgs.color`). Strips
-    // the key from every row; no data loss beyond the color itself. Idempotent
-    // on post-v31 rows (no-op when the key is already absent).
+    // v31, v32: person colour dropped; calendar orientation (no store change).
     this.version(31).stores({})
-
-    // v32: add optional `orientation` + `weekOffset` to calendar widgets
-    // (rail `Slot` rows stored inside `settings.canvasRails`, plus
-    // `floatingCalendars` rows). Both fields are stored inline and default to
-    // 'vertical' / 0 at read time; existing rows need no rewriting.
     this.version(32).stores({})
-
-    // v33: taskboard-as-singleton. Coalesce all
-    // `taskboards` rows into one (union entries, dedupe by `todoId`, keep
-    // first-seen sort order); drop `name` from the surviving row; strip
-    // `taskboardId` from every `floatingTaskboards` row and from every
-    // tab/slot inside `settings.canvasRails`; delete
-    // `settings.defaultTaskboardId`. Drop the `taskboardId` index on
-    // `floatingTaskboards`.
+    // v33: one taskboard; the `taskboardId` index dropped.
     this.version(33)
       .stores({
         floatingTaskboards: '++id, canvasId',
       })
-
-    // v34: flatten — remove parent-child hierarchy. Restate the todos schema
-    // string without `parentId` so Dexie drops the index; walk every row and
-    // delete the `parentId` key.
+    // v34: subtasks flattened; the `parentId` index dropped.
     this.version(34)
       .stores({
         todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId',
       })
-
-    // v35: tags re-introduced as an inline `tags?: string[]` field on
-    // `TodoItem`. No index (search hits the hot path), so the schema string is
-    // unchanged. Version bump + empty store object kept for auditability —
-    // existing rows need no rewriting (the field is optional and omitted when
-    // empty).
+    // v35: inline tags on tasks (no store change).
     this.version(35).stores({})
-
-    // v36: tags v2 — recreate the normalized `tags` + `todoTags` tables that
-    // v29 dropped. Seed the registry from existing inline `todo.tags` slugs
-    // (case-folded, first-seen canonical casing, `DEFAULT_ENTITY_COLOR`);
-    // emit `todoTags` join rows per todo; translate stored predicate/saved-
-    // view `tags: string[]` clauses to `tags: number[]` via the same slug→id
-    // lookup. Unknown names on stored predicates are dropped with a single
-    // console warning. The inline `todo.tags` field survives transiently
-    // until v37 removes it.
+    // v36: the tags and tag assignment tables again.
     this.version(36)
       .stores({
         tags: '++id, name',
         todoTags: '++id, todoId, tagId',
       })
-
-    // v37: tags v2 cutover — delete the transient inline `tags` key from every
-    // todo row. Schema string unchanged (the field was never indexed). The
-    // registry + `todoTags` joins seeded in v36 are now the sole source of
-    // truth for tag data.
+    // v37: inline tags removed (no store change).
     this.version(37)
       .stores({})
-
-    // v38: add `floatingHorizons` table — backing store for the horizon widget
-    // popped out to canvas. No data
-    // migration; the table starts empty. Mirrors the v27 floatingCalendars
-    // bump + v33 floatingTaskboards shape (placement-only; ribbon state lives
-    // in settings).
+    // v38: floating horizons.
     this.version(38).stores({
       floatingHorizons: '++id, canvasId',
     })
-
-    // v39: fold `savedViews` into `listDefinitions`. Every SavedView row
-    // becomes a `ListDefinition` with `favorited: true` + `pinnedToDashboard:
-    // false`, carrying over sort/grouping/filters/maxTasks/limitMode via the
-    // `savedViewToListDefinition` translator. Drops the `savedViews` table and
-    // backfills `favorited: false` on every pre-existing ListDefinition.
+    // v39: saved views folded into list definitions.
     this.version(39)
       .stores({
         savedViews: null,
       })
-
-    // v40: add optional `groupBy` + `groupOrder` to projects. Both fields
-    // are stored inline and neither is indexed, so the schema string is
-    // unchanged — version bump is for auditability. Existing rows need no
-    // rewriting (omitted fields are read as undefined).
+    // v40, v41: project grouping; runtime filter picks as arrays (no store change).
     this.version(40).stores({})
-
-    // v41: lift runtime-filter pick from scalar to array. Walks `listInsets`
-    // rows and rewrites `runtimeFilterValue: number` → `[number]`; walks
-    // `settings.canvasRails` JSON and lifts every tab's scalar
-    // `runtimeFilterValue` to a single-entry array. Idempotent — rows
-    // already in the array shape pass through unchanged.
     this.version(41).stores({})
-
-    // v42: add `todoEvents` history-log table. Append-only
-    // `{ todoId, type, fromValue, toValue, timestamp }`. Backfills `created`
-    // events for every existing todo at `createdAt`, and `completed` events
-    // at `completedAt` for any currently-completed rows. No `scheduled` /
-    // `deadline` / `status` /
-    // `reopened` history is synthesised — we don't have it.
+    // v42: the task history (`todoEvents`).
     this.version(42)
       .stores({
         todoEvents: '++id, todoId, type, timestamp',
       })
-
-    // v43: add `floatingStatus` table — placement-only backing store for the
-    // status stat widget. Mirrors v38
-    // floatingHorizons / v27 floatingCalendars; widget content is derived
-    // from todo + status state.
+    // v43 – v45: the floating status, scoreboard and snooze-graveyard widgets.
     this.version(43).stores({
       floatingStatus: '++id, canvasId',
     })
-
-    // v44: add `floatingScoreboard` table — placement-only backing store for
-    // the discipline scoreboard stat widget. Same shape as v43.
     this.version(44).stores({
       floatingScoreboard: '++id, canvasId',
     })
-
-    // v45: add `floatingSnoozeGraveyard` table — placement-only backing store
-    // for the snooze-graveyard stat widget. Same shape as v43.
     this.version(45).stores({
       floatingSnoozeGraveyard: '++id, canvasId',
     })
-
-    // v46: flatten `ListDefinition.sort` / `.grouping` from discriminated
-    // unions to flat `TodoSortBy` / `TodoGroupBy` literals. The former
-    // `{kind:'sortBy', by:X}` /
-    // `{kind:'sort-order'}` / `{kind:'effective-date-asc'}` etc. collapse to
-    // single strings; the former `{kind:'by-sortBy'}` "match the sort"
-    // semantic is converted to whichever flat literal the sort field now
-    // carries (or `'none'` when the sort is not a valid grouping field).
-    // Idempotent — rows already in the flat shape pass through unchanged.
+    // v46 – v48: list sort / grouping and runtime filter reshapes (no store change).
     this.version(46).stores({})
-
-    // v47: was a runtimeFilter discriminated-union migration that wrapped
-    // the legacy `{ field, label? }` as `{ kind: 'value', ... }`. Reverted
-    // before any user data depended on the new shape; v48 unwinds it. The
-    // version is preserved as an empty marker so users whose local DB had
-    // already advanced to v47 can still open without a Dexie version error.
     this.version(47).stores({})
-
-    // v48: unwind the v47 wrap. Flattens `{ kind: 'value', field, label? }`
-    // back to `{ field, label? }` and drops any experimental
-    // `{ kind: 'date-offset', ... }` rows (the offset capability now rides
-    // `DateAnchor` instead — see filter-predicate.ts). Idempotent.
     this.version(48).stores({})
 
     // v49: stamp `setAt: Date` onto every fuzzy `scheduledDate`. For each

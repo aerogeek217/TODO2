@@ -243,14 +243,13 @@ export const todoRepository = {
   async bulkDelete(ids: readonly number[]): Promise<TodoEvent[]> {
     if (ids.length === 0) return []
     return db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders], async () => {
-      const events = await db.todoEvents.where('todoId').anyOf([...ids]).sortBy('id')
-      for (const id of ids) {
-        await db.todoPeople.where('todoId').equals(id).delete()
-        await db.todoTags.where('todoId').equals(id).delete()
-        await db.todoEvents.where('todoId').equals(id).delete()
-        await db.listOrders.where('todoId').equals(id).delete()
-        await db.todos.delete(id)
-      }
+      const todoIds = [...ids]
+      const events = await db.todoEvents.where('todoId').anyOf(todoIds).sortBy('id')
+      await db.todoPeople.where('todoId').anyOf(todoIds).delete()
+      await db.todoTags.where('todoId').anyOf(todoIds).delete()
+      await db.todoEvents.where('todoId').anyOf(todoIds).delete()
+      await db.listOrders.where('todoId').anyOf(todoIds).delete()
+      await db.todos.bulkDelete(todoIds)
       return events
     })
   },

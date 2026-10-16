@@ -16,12 +16,6 @@ async function findConflictingTag(name: string, excludeId?: number): Promise<Tag
 export const tagRepository = {
   ...base,
 
-  async insert(tag: Omit<Tag, 'id'>): Promise<number> {
-    const conflict = await findConflictingTag(tag.name)
-    if (conflict) throw new Error(`A tag named "${tag.name}" already exists`)
-    return db.tags.add(tag as Tag)
-  },
-
   /**
    * Atomic lookup-or-insert. Wraps `findConflictingTag` + `db.tags.add` in a
    * single `rw` transaction on the `tags` table so two concurrent creates of
