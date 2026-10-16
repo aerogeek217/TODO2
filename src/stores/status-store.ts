@@ -43,12 +43,9 @@ export const useStatusStore = create<StatusState>((set, get) => {
 
   add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON) {
     return trackWrite(async () => {
-      const { statuses } = get()
-      if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
-        throw new Error(`Status "${name}" already exists`)
-      }
       const entry = { name, color, icon }
-      // Goes last (the repository picks the sort order in its transaction).
+      // Goes last; the repository picks the sort order and refuses a name
+      // already stored, both in its transaction.
       const { id, sortOrder } = await statusRepository.insertLast(entry)
       set({ statuses: [...get().statuses, { ...entry, sortOrder, id }] })
       return id

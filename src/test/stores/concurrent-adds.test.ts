@@ -1,6 +1,6 @@
 // Writes that start together must not act on a snapshot taken before the
-// other's await: concurrent adds each get their own sort order, and a list
-// delete keeps a list edited while it ran.
+// other's await: concurrent adds each get their own sort order, a status name
+// is added once, and a list delete keeps a list edited while it ran.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { listOrderRepository } from '../../data/list-order-repository'
@@ -73,6 +73,26 @@ describe('concurrent adds get distinct sort orders', () => {
     const stored = (await db.statuses.toArray()).map((s) => s.sortOrder).sort()
     expect(stored).toEqual([1, 2])
     expect(useStatusStore.getState().statuses.map((s) => s.sortOrder).sort()).toEqual([1, 2])
+  })
+})
+
+describe('concurrent adds of one status name', () => {
+  it('the second add of a name, started together, is refused: one status is stored', async () => {
+    const results = await Promise.allSettled([
+      useStatusStore.getState().add('Waiting'),
+      useStatusStore.getState().add('waiting'),
+    ])
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected'])
+    const rejected = results.find((r) => r.status === 'rejected')
+    expect(String(rejected?.reason)).toMatch(/Status "waiting" already exists/i)
+    expect((await db.statuses.toArray()).map((s) => s.name)).toHaveLength(1)
+    expect(useStatusStore.getState().statuses).toHaveLength(1)
+  })
+
+  it('a name stored but not loaded yet is refused too', async () => {
+    await db.statuses.add({ name: 'Blocked', color: '#888888', sortOrder: 1 })
+    await expect(useStatusStore.getState().add('BLOCKED')).rejects.toThrow(/already exists/)
+    expect(await db.statuses.count()).toBe(1)
   })
 })
 
