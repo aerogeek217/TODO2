@@ -279,16 +279,3 @@ export const todoRepository = {
   },
 }
 
-/**
- * Run a callback inside a Dexie rw transaction over
- * `todos + todoPeople + todoEvents`. Lets services (e.g.
- * nlp-task-creator) compose multi-table writes atomically without importing
- * `db` directly. `todoEvents` is included because nested
- * `todoRepository.update` opens its own sub-transaction that needs the
- * events table — Dexie rejects sub-transactions whose scope isn't a subset
- * of the parent.
- */
-export async function runNlpMetadataTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  return db.transaction('rw', [db.todos, db.todoPeople, db.todoEvents], fn)
-}
-

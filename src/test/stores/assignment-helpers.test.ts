@@ -7,7 +7,7 @@ interface E { id?: number; name: string }
  * Race regression — QuickAdd `@person` chip
  * not appearing on the new task row. The trigger is a TOCTOU between
  * `loadAssignments` (fired by `useEntityAssignmentsForTodos` when `todosVersion` bumps) and
- * `assignPerson` (fired from `createTaskFromDraft` immediately after
+ * `assignPerson` (fired immediately after
  * `todoStore.add`):
  *
  *   1. The workspace calls `loadAssignments([newId])`. It snapshots the map,
@@ -63,7 +63,7 @@ describe('createAssignmentActions.loadAssignments', () => {
     // Step 1: the workspace load fires for the new todo id 42.
     const loadPromise = ctx.actions.loadAssignments([42])
 
-    // Step 2: createTaskFromDraft-style assign fires before loadAssignments
+    // Step 2: an assign fired right after the create, before loadAssignments
     // resolves. The optimistic write happens synchronously inside
     // `optimistic(...)`, before `repo.assign` awaits.
     const assignPromise = ctx.actions.assign(42, 1)

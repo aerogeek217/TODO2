@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
-import { draftChanges, draftEditorTitle, draftFromEditor, draftFromText, draftToTodo, newTaskStatus, type TaskDraft } from '../../services/task-draft'
+import { draftEditorTitle, draftFromEditor, draftFromText, draftToTodo, newTaskStatus, type TaskDraft } from '../../services/task-draft'
 
 const TODAY = new Date(2026, 9, 10) // Sat 10 Oct 2026
 const people: Person[] = [
@@ -160,17 +160,11 @@ describe('draftToTodo', () => {
     const row = draftToTodo({ ...base, urgent: true }, now, fallback)
     expect(row).toEqual({ title: 'T', isCompleted: false, createdAt: now, modifiedAt: now, nextFollowupAt: fallback, urgent: true })
   })
-})
 
-describe('draftChanges', () => {
-  it('only what the draft sets; a chosen follow-up, or none (cleared)', () => {
-    expect(draftChanges(base)).toEqual({})
+  it('keeps the editor’s Last follow-up, notes and Progress; a repeat keeps its day of month', () => {
     const due = new Date(2026, 9, 12)
-    expect(draftChanges({ ...base, dueDate: due, recurrence: 'monthly', statusId: 7, focus: true, progress: 'p' }))
-      .toEqual({ dueDate: due, recurrenceRule: { type: 'monthly', originalDayOfMonth: 12 }, statusId: 7, focus: true, progress: 'p' })
-    expect(draftChanges({ ...base, nextFollowupAt: null })).toEqual({ nextFollowupAt: undefined })
-    expect('nextFollowupAt' in draftChanges({ ...base, nextFollowupAt: null })).toBe(true)
-    const d = new Date(2026, 9, 24)
-    expect(draftChanges({ ...base, nextFollowupAt: d, lastFollowupAt: d })).toEqual({ nextFollowupAt: d, lastFollowupAt: d })
+    const d = new Date(2026, 9, 1)
+    const row = draftToTodo({ ...base, dueDate: due, recurrence: 'monthly', statusId: 7, lastFollowupAt: d, notes: 'n', progress: 'p' }, now, fallback)
+    expect(row).toMatchObject({ dueDate: due, recurrenceRule: { type: 'monthly', originalDayOfMonth: 12 }, statusId: 7, lastFollowupAt: d, notes: 'n', progress: 'p' })
   })
 })

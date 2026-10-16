@@ -62,7 +62,8 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   onUpdate?: never
   onToggleComplete?: never
   onDelete?: never
-  onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], tagIds: number[] }) => Promise<number>
+  /** Resolves to the new task's id, or null when it couldn't be stored. */
+  onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], tagIds: number[] }) => Promise<number | null>
   /**
    * Starts from this draft (a converted note line) instead of Quick Add's
    * handoff and the screen filter's defaults; the draft already carries

@@ -83,8 +83,7 @@ export function createJoinOps<
  * @param linkIds The IDs to query for (e.g., todoIds)
  *
  * A snapshot read for the UI, always outside any open transaction
- * (`Dexie.ignoreTransaction`): store writes inside a transaction (the NLP
- * metadata one in `runNlpMetadataTransaction`) re-render React
+ * (`Dexie.ignoreTransaction`): store writes inside a transaction re-render React
  * synchronously, so effects that load assignments can start in that
  * transaction's zone, whose scope doesn't cover these tables.
  */

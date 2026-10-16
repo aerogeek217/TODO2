@@ -33,7 +33,7 @@ export function useTaskEditCallbacks() {
       personIds: assignments?.personIds ?? [],
       tagIds: assignments?.tagIds ?? [],
     })
-    useUIStore.getState().showRecentlyCreated(id)
+    if (id != null) useUIStore.getState().showRecentlyCreated(id)
     return id
   }, [])
 

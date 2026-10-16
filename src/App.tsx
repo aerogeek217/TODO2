@@ -109,7 +109,7 @@ function AppQuickAddBar() {
     const draft = useUIStore.getState().quickAddDraft
     const fd = draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters)
     const id = await createQuickAddTask(submitted, fd)
-    useUIStore.getState().showRecentlyCreated(id)
+    if (id != null) useUIStore.getState().showRecentlyCreated(id)
     close()
   }, [close])
 

@@ -56,7 +56,8 @@ interface Created {
   tags: string[]
 }
 
-async function created(id: number): Promise<Created> {
+async function created(id: number | null): Promise<Created> {
+  if (id == null) throw new Error('no task was created')
   const todo = useTodoStore.getState().todos.find((t) => t.id === id)
   if (!todo) throw new Error(`task ${id} not in the store`)
   const stored = await db.todos.get(id)
@@ -88,7 +89,7 @@ async function viaEditor(
   assignments?: { personIds: number[]; tagIds: number[] },
 ): Promise<Created> {
   const { result } = renderHook(() => useTaskEditCallbacks())
-  let id = 0
+  let id: number | null = null
   await act(async () => { id = await result.current.onCreate(partial, assignments) })
   return created(id)
 }
@@ -238,19 +239,50 @@ describe('create a task — undo', () => {
     expect(await db.todos.get(todo.id)).toBeUndefined()
   })
 
-  it('Quick Add and the editor: undoing every step removes the task', async () => {
-    for (const make of [
-      () => viaQuickAdd('A @Bob #home /urgent', { ...NO_DEFAULTS, tagIds: [ids.work], markers: { focus: true } }),
-      () => viaEditor({ title: 'B @Bob #home /urgent', notes: 'n' }, { personIds: [ids.ann], tagIds: [ids.work] }),
-    ]) {
+  /** Everything a created task is: its row (minus the edit stamp), joins and events. */
+  async function whole(id: number) {
+    const row = await db.todos.get(id)
+    const { modifiedAt: _stamp, ...rest } = row ?? ({} as Record<string, unknown>)
+    void _stamp
+    return {
+      row: row ? rest : null,
+      people: (await db.todoPeople.where('todoId').equals(id).toArray()).map((j) => j.personId).sort(),
+      tags: (await db.todoTags.where('todoId').equals(id).toArray()).map((j) => j.tagId).sort(),
+      events: (await db.todoEvents.where('todoId').equals(id).toArray()).map((e) => [e.id, e.type]),
+    }
+  }
+
+  for (const [name, make] of [
+    ['Quick Add', () => viaQuickAdd('Plan offsite @Bob @Zed #home #fresh /urgent /focus /due tomorrow /repeat monthly /followup 2w', { ...NO_DEFAULTS, tagIds: [ids.work] })],
+    ['the editor', () => viaEditor(
+      { title: 'Plan offsite @Zed #fresh /important', dueDate: day(11, 3), recurrenceRule: makeRecurrenceRule('monthly', day(11, 3)), urgent: true, notes: 'n', progress: 'p' },
+      { personIds: [ids.ann], tagIds: [ids.work] },
+    )],
+  ] as const) {
+    it(`${name}: one undo step removes the task with its people and tags; redo puts it back whole`, async () => {
       useUndoStore.getState().clear()
       const { todo } = await make()
-      const stack = useUndoStore.getState().undoStack
-      expect(stack[0]?.description).toBe(`Add "${todo.title}"`)
-      while (useUndoStore.getState().undoStack.length > 0) await useUndoStore.getState().undo()
-      expect(await db.todos.get(todo.id)).toBeUndefined()
-    }
-  })
+      const before = await whole(todo.id)
+      expect(before.people.length).toBeGreaterThan(1)
+      expect(before.tags.length).toBeGreaterThan(1)
+      expect(before.row).toMatchObject({ recurrenceRule: { type: 'monthly' } })
+      expect(before.events.map(([, type]) => type)).toContain('created')
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([`Add "${todo.title}"`])
+
+      await useUndoStore.getState().undo()
+      expect(await whole(todo.id)).toEqual({ row: null, people: [], tags: [], events: [] })
+      expect(useTodoStore.getState().todos.some((t) => t.id === todo.id)).toBe(false)
+      // People and tags created on the way stay (creating one is never undone).
+      expect(await db.people.where('name').equals('Zed').count()).toBe(1)
+      expect(await db.tags.where('name').equals('fresh').count()).toBe(1)
+
+      await useUndoStore.getState().redo()
+      expect(await whole(todo.id)).toEqual(before)
+      expect(useTodoStore.getState().todos.find((t) => t.id === todo.id)).toMatchObject({ title: todo.title, recurrenceRule: todo.recurrenceRule })
+      expect(usePersonStore.getState().assignedPeopleMap.get(todo.id)?.map((p) => p.id).sort()).toEqual(before.people)
+      expect(useTagStore.getState().assignedTagsMap.get(todo.id)?.map((t) => t.id).sort()).toEqual(before.tags)
+    })
+  }
 })
 
 describe('create a task — the editor', () => {
@@ -286,19 +318,22 @@ describe('create a task — new people', () => {
 })
 
 describe('create a task — a failed write', () => {
-  it('the task stays as added, nobody and no tag is assigned, the user is told, and nothing rejects', async () => {
-    const update = vi.spyOn(todoRepository, 'update').mockRejectedValue(new Error('disk full'))
+  it('nothing is created, the user is told, nothing rejects', async () => {
+    const insert = vi.spyOn(todoRepository, 'insertManyWithAssignments').mockRejectedValue(new Error('disk full'))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    for (const make of [
-      () => viaQuickAdd('A @Ann #home /urgent'),
-      () => viaEditor({ title: 'B @Ann #home /urgent' }),
-    ]) {
-      const { todo, people, tags } = await make()
-      expect(todo.urgent).toBeUndefined()
-      expect([people, tags]).toEqual([[], []])
-      expect(useUndoStore.getState().snackbar?.description).toBe(`Couldn't save your change to "${todo.title}".`)
-    }
-    expect(update).toHaveBeenCalledTimes(2)
+    const { resolved } = parseTaskInput('A @Ann #home /urgent', usePersonStore.getState().people, useStatusStore.getState().statuses)
+    expect(await createQuickAddTask({ title: resolved.title, resolved }, NO_DEFAULTS)).toBeNull()
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t add "A".')
+
+    const { result } = renderHook(() => useTaskEditCallbacks())
+    let id: number | null = 0
+    await act(async () => { id = await result.current.onCreate({ title: 'B' }, { personIds: [ids.ann], tagIds: [] }) })
+    expect(id).toBeNull()
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t add "B".')
+    expect(insert).toHaveBeenCalledTimes(2)
+    expect(await db.todos.count()).toBe(0)
+    expect(useTodoStore.getState().todos).toEqual([])
+    expect(useUndoStore.getState().undoStack).toEqual([])
   })
 })

@@ -178,3 +178,20 @@ test('Copy as rich text puts the note on the clipboard as HTML and as its Markdo
   expect(html).toContain('font-family: Calibri')
   expect(html).toContain('<strong>two</strong>')
 })
+
+test('a Quick Add task is one undo step: Ctrl+Z removes it in one press, Ctrl+Shift+Z brings it back whole', async ({ page }) => {
+  const { dialog, input } = await openQuickAdd(page)
+  await input.pressSequentially(`Plan offsite ${TOKENS}`)
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect.poll(() => readTask(page, 'Plan offsite')).not.toBeNull()
+  const created = await readTask(page, 'Plan offsite')
+  expect(created).toMatchObject({ urgent: true, recurrence: 'monthly', people: ['Ben Ortiz'], tags: ['fresh', 'planning'] })
+
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => readTask(page, 'Plan offsite')).toBeNull()
+
+  await page.keyboard.press('Control+Shift+z')
+  await expect.poll(() => readTask(page, 'Plan offsite')).toEqual(created)
+})

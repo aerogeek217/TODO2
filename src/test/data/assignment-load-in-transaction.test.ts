@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { runNlpMetadataTransaction } from '../../data/todo-repository'
 import { tagRepository } from '../../data/tag-repository'
 import { personRepository } from '../../data/person-repository'
 import { useTagStore } from '../../stores/tag-store'
@@ -8,12 +7,12 @@ import { usePersonStore } from '../../stores/person-store'
 
 /**
  * Assignment loads are snapshot reads for the UI. They can be started while
- * the NLP metadata transaction (todos / todoPeople / todoEvents) is open —
+ * a transaction over other tables (here todos / todoPeople / todoEvents) is open —
  * the store writes inside it re-render React synchronously, and effects such
  * as `useBuiltList`'s tag load run in that transaction's Dexie zone. They
  * must read outside it instead of failing on a table it doesn't cover.
  */
-describe('assignment loads started inside the NLP metadata transaction', () => {
+describe('assignment loads started inside a write transaction', () => {
   let todoId: number
   let tagId: number
   let personId: number
@@ -33,7 +32,7 @@ describe('assignment loads started inside the NLP metadata transaction', () => {
   // Like a React effect: started inside the transaction's zone, not awaited by it.
   async function startedInside<T>(load: () => Promise<T>): Promise<T> {
     let started: Promise<T> | undefined
-    await runNlpMetadataTransaction(async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoEvents], async () => {
       await db.todos.add({ id: 99, title: 'x', isCompleted: false, sortOrder: 0, uid: 'u99', createdAt: new Date(), modifiedAt: new Date() } as never)
       started = load()
     })

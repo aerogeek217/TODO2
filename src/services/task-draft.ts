@@ -7,9 +7,9 @@ import { makeRecurrenceRule } from './recurrence'
 /**
  * A task that doesn't exist yet — the one shape every way of creating a task
  * goes through (Quick Add, the task editor, a note's lines), so they share
- * one rule set: these builders say what the new task gets, `draftToTodo` /
- * `draftChanges` turn it into stored fields, `services/create-task` stores
- * it. A note's drafts are also shown in the convert preview and edited in
+ * one rule set: these builders say what the new task gets, `draftToTodo`
+ * turns it into the stored row, `services/note-tasks` stores it (one undo
+ * step). A note's drafts are also shown in the convert preview and edited in
  * the task editor's draft mode. People and tags named with `@` / `#` that
  * don't exist yet are kept by name and created with the task.
  */
@@ -200,24 +200,11 @@ export function draftToTodo(draft: TaskDraft, now: Date, defaultFollowup: Date):
 }
 
 /**
- * What turns a task just added with the store's defaults (`todo-store.add`:
- * title, Settings' default status and next follow-up) into the draft's
- * task: the draft's fields, and its next follow-up when it chose one
- * (`null` → none). A field the draft leaves unset keeps the added value.
- */
-export function draftChanges(draft: TaskDraft): TodoChanges {
-  return {
-    ...draftFields(draft),
-    ...(draft.nextFollowupAt === undefined ? {} : { nextFollowupAt: draft.nextFollowupAt ?? undefined }),
-  }
-}
-
-/**
  * The fields a draft sets on a new task, other than its title and next
  * follow-up: a repeat only with a due date (it repeats from it), only true
  * markers, only set values.
  */
-function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt'> {
+function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt' | 'title'> {
   return {
     ...(draft.dueDate ? { dueDate: draft.dueDate } : {}),
     ...(draft.dueDate && draft.recurrence ? { recurrenceRule: makeRecurrenceRule(draft.recurrence, draft.dueDate) } : {}),
