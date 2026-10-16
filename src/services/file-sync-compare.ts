@@ -1,4 +1,5 @@
-import { ALL_DATA_TABLES, db } from '../data/database'
+import { db } from '../data/database'
+import { DATA_TABLE_NAMES } from '../data/tables'
 import { prepareImport } from '../data/import-pipeline'
 import type { ImportData } from '../data/import-validation'
 import { buildExportData } from '../data/export-data'
@@ -27,7 +28,7 @@ function tableRows(data: ImportData, name: string): unknown[] {
 export function importDataEqual(a: ImportData, b: ImportData): boolean {
   const ja = JSON.parse(JSON.stringify(a)) as ImportData
   const jb = JSON.parse(JSON.stringify(b)) as ImportData
-  for (const { name } of ALL_DATA_TABLES) {
+  for (const name of DATA_TABLE_NAMES) {
     const ra = tableRows(ja, name).map(canonical).sort()
     const rb = tableRows(jb, name).map(canonical).sort()
     if (ra.length !== rb.length) return false

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { validateRow, rowFixes, IMPORT_ROW_PICKERS } from '../../data/import-validation'
+import { validateRow, rowFixes, IMPORT_TABLES } from '../../data/import-validation'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { emptyPredicate } from '../../stores/list-definition-store'
@@ -109,8 +109,8 @@ describe('markers in import validation', () => {
     expect(validateRow('todos', { ...todo, [field]: false })).toBe(true)
     expect(validateRow('todos', todo)).toBe(true)
     expect(validateRow('todos', { ...todo, [field]: 'yes' })).not.toBe(true)
-    expect(IMPORT_ROW_PICKERS.todos({ ...todo, [field]: true })[field]).toBe(true)
-    expect(IMPORT_ROW_PICKERS.todos({ ...todo, [field]: false })[field]).toBeUndefined()
+    expect(IMPORT_TABLES.todos.pick({ ...todo, [field]: true })[field]).toBe(true)
+    expect(IMPORT_TABLES.todos.pick({ ...todo, [field]: false })[field]).toBeUndefined()
   })
 
   it('accepts a Markers filter on a list predicate: known markers set to true; drops any other', () => {
@@ -126,7 +126,7 @@ describe('markers in import validation', () => {
     for (const bad of [{ focus: false }, { hot: true }, true, ['urgent']]) {
       expect(validateRow('listDefinitions', def(bad))).toBe(true)
       expect(rowFixes('listDefinitions', def(bad))).toEqual(['markers filter dropped'])
-      const picked = IMPORT_ROW_PICKERS.listDefinitions(def(bad))
+      const picked = IMPORT_TABLES.listDefinitions.pick(def(bad))
       expect(picked.membership.predicate.markers).toBeNull()
     }
   })

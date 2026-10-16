@@ -1,7 +1,8 @@
 import { db } from './database'
+import { readDataTables } from './export-data'
+import { DATA_TABLE_NAMES } from './tables'
 import {
   KNOWN_DB_TABLES,
-  KNOWN_TABLE_KEYS,
   validateRow,
   isKnownSettingKey,
   rowFixes,
@@ -157,23 +158,9 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const [
-    todos, people, statuses, tags,
-    todoPeople, todoTags, todoEvents,
-    settingsRows, listDefinitions, notes, listOrders,
-  ] = await Promise.all([
-    db.todos.toArray(),
-    db.people.toArray(),
-    db.statuses.toArray(),
-    db.tags.toArray(),
-    db.todoPeople.toArray(),
-    db.todoTags.toArray(),
-    db.todoEvents.toArray(),
-    db.settings.toArray(),
-    db.listDefinitions.toArray(),
-    db.notes.toArray(),
-    db.listOrders.toArray(),
-  ])
+  const tables = await readDataTables()
+  const { todos, people, statuses, tags, todoPeople, todoTags, todoEvents, listDefinitions, listOrders } = tables
+  const settingsRows = tables.settings
 
   // --- Unknown rows in known tables ---
   // Run validateRow over every row so a forced cross-floor load surfaces any
@@ -183,13 +170,9 @@ export async function auditData(): Promise<AuditReport> {
   // unknown-key pass for rows whose `key` isn't recognized, and the
   // invalid-value pass for rows whose `key` is fine but whose `value`
   // fails the per-key value validator (legacy shapes, stale formats).
-  const knownTableRows: Partial<Record<string, unknown[]>> = {
-    todos, people, tags, todoTags, todoPeople,
-    statuses, listDefinitions, notes, todoEvents, listOrders,
-  }
-  for (const tableKey of KNOWN_TABLE_KEYS) {
-    if (tableKey === 'settings') continue
-    const rows = knownTableRows[tableKey] ?? []
+  for (const tableKey of DATA_TABLE_NAMES) {
+    if (tableKey === 'settings' || tableKey === 'layouts') continue
+    const rows: readonly unknown[] = tables[tableKey]
     const badIds: number[] = []
     const badSamples: AuditSample[] = []
     const fixIds: number[] = []

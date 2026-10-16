@@ -1,60 +1,13 @@
-import type { Table } from 'dexie'
-import { db, ensureSeededStatuses } from './database'
+import { ALL_DATA_TABLES, DATA_TABLES, db, ensureSeededStatuses } from './database'
 import type { ImportData } from './import-validation'
 import { prepareImportText } from './import-pipeline'
+import { DATA_TABLE_NAMES, type DataTableName } from './tables'
 
-/**
- * Restricts to keys whose value type is an array. The bulk-add dispatch only
- * walks these keys; non-array fields (none today) wouldn't make sense.
- */
-type ImportArrayKey = keyof {
-  [K in keyof ImportData as Required<ImportData>[K] extends ReadonlyArray<unknown> ? K : never]: ImportData[K]
+/** Adds `data`'s rows of one table (none when it has none). */
+async function bulkAddRows<K extends DataTableName>(name: K, data: ImportData): Promise<void> {
+  const rows = data[name]
+  if (rows.length > 0) await DATA_TABLES[name].bulkAdd(rows)
 }
-
-type RowOf<K extends keyof ImportData> =
-  Required<ImportData>[K] extends ReadonlyArray<infer R> ? R : never
-
-interface BulkAddPair {
-  key: ImportArrayKey
-  table: Table
-  bulkAddIfPresent(data: ImportData): Promise<void>
-}
-
-/**
- * Binds a key from `ImportData` to its destination Dexie table at construction
- * time. The closure-captured `table` keeps its full generic shape so
- * `bulkAdd(rows)` typechecks without per-call-site casts.
- */
-function bulkAddPair<K extends ImportArrayKey & keyof ImportData>(
-  key: K,
-  table: Table<RowOf<K>>,
-): BulkAddPair {
-  return {
-    key,
-    table: table as unknown as Table,
-    async bulkAddIfPresent(data: ImportData) {
-      const rows = data[key] as ReadonlyArray<RowOf<K>> | undefined
-      if (rows && rows.length > 0) {
-        await table.bulkAdd(rows)
-      }
-    },
-  }
-}
-
-const TABLE_KEY_PAIRS: BulkAddPair[] = [
-  bulkAddPair('todos', db.todos),
-  bulkAddPair('people', db.people),
-  bulkAddPair('settings', db.settings),
-  bulkAddPair('todoPeople', db.todoPeople),
-  bulkAddPair('statuses', db.statuses),
-  bulkAddPair('listDefinitions', db.listDefinitions),
-  bulkAddPair('notes', db.notes),
-  bulkAddPair('tags', db.tags),
-  bulkAddPair('todoTags', db.todoTags),
-  bulkAddPair('todoEvents', db.todoEvents),
-  bulkAddPair('layouts', db.layouts),
-  bulkAddPair('listOrders', db.listOrders),
-]
 
 /**
  * Clear all data tables and bulk-add validated rows verbatim. After the
@@ -63,13 +16,10 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
  * none restores with none.
  */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
-  const tables = TABLE_KEY_PAIRS.map((p) => p.table)
-  await db.transaction('rw', tables, async () => {
-    for (const p of TABLE_KEY_PAIRS) await p.table.clear()
+  await db.transaction('rw', [...ALL_DATA_TABLES], async () => {
+    for (const table of ALL_DATA_TABLES) await table.clear()
 
-    for (const p of TABLE_KEY_PAIRS) {
-      await p.bulkAddIfPresent(v)
-    }
+    for (const name of DATA_TABLE_NAMES) await bulkAddRows(name, v)
 
     await ensureSeededStatuses(db.statuses, db.settings)
   })

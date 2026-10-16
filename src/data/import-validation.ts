@@ -1,9 +1,5 @@
 import type { TodoItem, Person, TodoPerson, RecurrenceRule, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
 import { isTodoSortBy, isTodoGroupBy } from '../models'
-
-export type ImportTag = Tag
-export type ImportTodoTag = TodoTag
-
 import type { ListDefinition, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
@@ -30,7 +26,7 @@ function isOptRecurrenceRule(v: unknown): boolean {
   return true
 }
 import type { SettingRow } from './database'
-
+import { DATA_TABLE_NAMES, type DataTableArrays, type DataTableName, type DataTableRows } from './tables'
 export { isValidCssColor } from '../utils/css'
 import { isValidCssColor } from '../utils/css'
 import { parseColorSettingKey } from '../models/theme-colors'
@@ -521,33 +517,11 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
   } satisfies AllFields<ListDefinition>
 }
 
-type ImportRow<K extends keyof ImportData> = NonNullable<ImportData[K]>[number]
-
-/**
- * Table → row picker. Each returns the row with **every** model field as a
- * key (absent optional fields as `undefined`, compacted away by
- * `validateImportData`), so `Object.keys(IMPORT_ROW_PICKERS[t](row))` is the
- * model's full field list — the round-trip test uses it to prove its seed
- * populates every field.
- */
-export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) => AllFields<ImportRow<K>> } = {
-  todos: pickTodo,
-  people: pickPerson,
-  tags: pickTag,
-  todoTags: pickTodoTag,
-  todoPeople: pickTodoPerson,
-  settings: pickSetting,
-  statuses: pickStatus,
-  listDefinitions: pickListDefinition,
-  notes: pickNote,
-  todoEvents: pickTodoEvent,
-  layouts: pickLayout,
-  listOrders: pickListOrder,
-}
+type ImportRow<K extends DataTableName> = DataTableRows[K]
 
 /** Picks + compacts every row of `rows` for table `key`. */
-function pickRows<K extends keyof ImportData>(key: K, rows: unknown): Array<ImportRow<K>> {
-  const pick = IMPORT_ROW_PICKERS[key] as (v: Raw) => AllFields<ImportRow<K>>
+function pickRows<K extends DataTableName>(key: K, rows: unknown): Array<ImportRow<K>> {
+  const pick = IMPORT_TABLES[key].pick
   return ((rows ?? []) as Raw[]).map((r) => compactRow<ImportRow<K>>(pick(r)))
 }
 
@@ -556,72 +530,24 @@ function pickRows<K extends keyof ImportData>(key: K, rows: unknown): Array<Impo
 export const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
 export const MAX_RECORDS_PER_TABLE = 100_000
 
-type TableValidator = { key: keyof ImportData; check: (v: unknown) => CheckResult }
+/** Validated, current-shape rows of every data table — what import restores. */
+export type ImportData = DataTableArrays
 
-const TABLE_VALIDATORS: TableValidator[] = [
-  { key: 'todos', check: checkTodo },
-  { key: 'people', check: checkPerson },
-  { key: 'tags', check: checkTag },
-  { key: 'todoTags', check: checkTodoTag },
-  { key: 'todoPeople', check: checkTodoPerson },
-  { key: 'settings', check: checkSetting },
-  { key: 'statuses', check: checkStatus },
-  { key: 'listDefinitions', check: checkListDefinition },
-  { key: 'notes', check: checkNote },
-  { key: 'todoEvents', check: checkTodoEvent },
-  { key: 'layouts', check: checkLayout },
-  { key: 'listOrders', check: checkListOrder },
-]
-
-const TABLE_VALIDATOR_BY_KEY: ReadonlyMap<keyof ImportData, (v: unknown) => CheckResult> =
-  new Map(TABLE_VALIDATORS.map((t) => [t.key, t.check]))
-
-export interface ImportData {
-  todos: TodoItem[]
-  people: Person[]
-  tags?: ImportTag[]
-  todoTags?: ImportTodoTag[]
-  todoPeople: TodoPerson[]
-  settings: SettingRow[]
-  statuses: Status[]
-  listDefinitions: ListDefinition[]
-  notes: Note[]
-  todoEvents: TodoEvent[]
-  layouts: WorkspaceLayout[]
-  listOrders: ListOrder[]
+/** Import's rules for one data table. */
+interface ImportTableRules<K extends DataTableName> {
+  /** `true` for a row import accepts, else the bad field. */
+  check: (v: unknown) => CheckResult
+  /**
+   * Rebuilds the row from the model's keys. Returns **every** model field as
+   * a key (absent optional fields as `undefined`, compacted away by
+   * `validateImportData`), so `Object.keys(pick(row))` is the model's full
+   * field list — the round-trip test uses it to prove its seed populates
+   * every field.
+   */
+  pick: (v: Raw) => AllFields<ImportRow<K>>
+  /** For tables whose valid rows can still carry a part import drops or changes. */
+  fixer?: RowFixer
 }
-
-/**
- * Canonical list of importable table keys. Drives the audit pass's per-table
- * row-validation walk (`unknown-row` issues) and is the inner set used to
- * derive `KNOWN_DB_TABLES`.
- */
-export const KNOWN_TABLE_KEYS: ReadonlyArray<keyof ImportData> =
-  TABLE_VALIDATORS.map((t) => t.key)
-
-/**
- * Superset of `KNOWN_TABLE_KEYS` that also includes Dexie-only tables which
- * do not round-trip through import/export (`backups`). The audit pass's
- * `unknown-table` check uses this to decide whether an existing IDB object
- * store is recognized at all.
- */
-export const KNOWN_DB_TABLES: ReadonlySet<string> =
-  new Set<string>([...KNOWN_TABLE_KEYS, 'backups'])
-
-/**
- * Single dispatcher around the per-table `check*` helpers, so the audit pass
- * (`unknown-row` detection) can validate every existing row without
- * duplicating the table registry. Returns `true` on a valid row, or a short
- * error string naming the bad field.
- */
-export function validateRow(table: keyof ImportData, row: unknown): true | string {
-  const check = TABLE_VALIDATOR_BY_KEY.get(table)
-  if (!check) return `unknown table: ${table}`
-  return check(row)
-}
-
-/** Max individual row errors spelled out in a validation failure message. */
-export const MAX_REPORTED_ROW_ERRORS = 10
 
 interface RowFixer {
   /** What the picker drops / changes in a valid row, in words; empty when nothing. */
@@ -633,28 +559,69 @@ interface RowFixer {
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 /**
- * Tables whose valid rows can still carry a malformed part that import
- * drops (or shortens) instead of failing the file — data the app may have
- * stored before it checked these parts.
+ * Per-table import rules, for every table of the registry (`tables.ts`).
+ * A `fixer` marks a table whose valid rows can still carry a malformed part
+ * that import drops (or shortens) instead of failing the file — data the app
+ * may have stored before it checked these parts.
  */
-const ROW_FIXERS: Partial<Record<keyof ImportData, RowFixer>> = {
+export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K> } = {
+  todos: { check: checkTodo, pick: pickTodo },
   people: {
-    fixes: (row) => (personEmail(row.email).dropped ? ['invalid email dropped'] : []),
-    lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
+    check: checkPerson,
+    pick: pickPerson,
+    fixer: {
+      fixes: (row) => (personEmail(row.email).dropped ? ['invalid email dropped'] : []),
+      lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
+    },
   },
+  settings: { check: checkSetting, pick: pickSetting },
+  todoPeople: { check: checkTodoPerson, pick: pickTodoPerson },
+  statuses: { check: checkStatus, pick: pickStatus },
   listDefinitions: {
-    fixes: (row) => pickPredicate(isObj(row.membership) ? row.membership.predicate : undefined).fixes,
-    lead: (n) => `Fixed the filters of ${plural(n, 'list', 'lists')}`,
+    check: checkListDefinition,
+    pick: pickListDefinition,
+    fixer: {
+      fixes: (row) => pickPredicate(isObj(row.membership) ? row.membership.predicate : undefined).fixes,
+      lead: (n) => `Fixed the filters of ${plural(n, 'list', 'lists')}`,
+    },
   },
+  notes: { check: checkNote, pick: pickNote },
+  tags: { check: checkTag, pick: pickTag },
+  todoTags: { check: checkTodoTag, pick: pickTodoTag },
+  todoEvents: { check: checkTodoEvent, pick: pickTodoEvent },
+  layouts: { check: checkLayout, pick: pickLayout },
+  listOrders: { check: checkListOrder, pick: pickListOrder },
 }
+
+/**
+ * Every IDB object store this build knows: the data tables plus the
+ * Dexie-only `backups`, which does not round-trip through import / export.
+ * The audit pass's `unknown-table` check uses this to decide whether an
+ * existing IDB object store is recognized at all.
+ */
+export const KNOWN_DB_TABLES: ReadonlySet<string> =
+  new Set<string>([...DATA_TABLE_NAMES, 'backups'])
+
+/**
+ * Single dispatcher around the per-table `check*` helpers, so the audit pass
+ * (`unknown-row` detection) can validate every existing row without
+ * duplicating the table registry. Returns `true` on a valid row, or a short
+ * error string naming the bad field.
+ */
+export function validateRow(table: DataTableName, row: unknown): true | string {
+  return IMPORT_TABLES[table].check(row)
+}
+
+/** Max individual row errors spelled out in a validation failure message. */
+export const MAX_REPORTED_ROW_ERRORS = 10
 
 /**
  * What import would drop or change in a row that passes `validateRow`, in
  * words (e.g. `people filter dropped`); empty when nothing. The audit uses
  * it to report rows already stored with such parts.
  */
-export function rowFixes(table: keyof ImportData, row: unknown): string[] {
-  const fixer = ROW_FIXERS[table]
+export function rowFixes(table: DataTableName, row: unknown): string[] {
+  const fixer = IMPORT_TABLES[table].fixer
   return fixer && isObj(row) ? fixer.fixes(row) : []
 }
 
@@ -662,9 +629,8 @@ export function rowFixes(table: keyof ImportData, row: unknown): string[] {
  * `row` as import stores it: rebuilt by the table's picker, so the parts
  * `rowFixes` names are dropped. For a row that passes `validateRow`.
  */
-export function sanitizeRow<K extends keyof ImportData>(table: K, row: unknown): ImportRow<K> {
-  const pick = IMPORT_ROW_PICKERS[table] as (v: Raw) => AllFields<ImportRow<K>>
-  return compactRow<ImportRow<K>>(pick(row as Raw))
+export function sanitizeRow<K extends DataTableName>(table: K, row: unknown): ImportRow<K> {
+  return compactRow<ImportRow<K>>(IMPORT_TABLES[table].pick(row as Raw))
 }
 
 /** Longest title / name a message quotes; longer ones end in `…`. */
@@ -717,7 +683,8 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   const droppedSettingKeys: string[] = []
   const droppedSettingIdx = new Set<number>()
 
-  for (const { key, check } of TABLE_VALIDATORS) {
+  for (const key of DATA_TABLE_NAMES) {
+    const { check } = IMPORT_TABLES[key]
     const arr = raw[key]
     if (arr === undefined || arr === null) continue
     if (!Array.isArray(arr)) {
@@ -783,9 +750,10 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   }
 
   const warnings: string[] = []
-  for (const [key, fixer] of Object.entries(ROW_FIXERS) as Array<[keyof ImportData, RowFixer]>) {
+  for (const key of DATA_TABLE_NAMES) {
+    const { fixer } = IMPORT_TABLES[key]
     const rows = raw[key]
-    if (!Array.isArray(rows)) continue
+    if (!fixer || !Array.isArray(rows)) continue
     const fixed: string[] = []
     for (const row of rows) {
       const fixes = isObj(row) ? fixer.fixes(row) : []
@@ -803,22 +771,8 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
   const settingRows = ((raw.settings ?? []) as Record<string, unknown>[])
     .filter((_, i) => !droppedSettingIdx.has(i))
 
-  return {
-    ok: true,
-    warnings,
-    data: {
-      todos: pickRows('todos', raw.todos),
-      people: pickRows('people', raw.people),
-      ...(Array.isArray(raw.tags) && raw.tags.length > 0 ? { tags: pickRows('tags', raw.tags) } : {}),
-      ...(Array.isArray(raw.todoTags) && raw.todoTags.length > 0 ? { todoTags: pickRows('todoTags', raw.todoTags) } : {}),
-      todoPeople: pickRows('todoPeople', raw.todoPeople),
-      settings: pickRows('settings', settingRows),
-      statuses: pickRows('statuses', raw.statuses),
-      listDefinitions: pickRows('listDefinitions', raw.listDefinitions),
-      notes: pickRows('notes', raw.notes),
-      todoEvents: pickRows('todoEvents', raw.todoEvents),
-      layouts: pickRows('layouts', raw.layouts),
-      listOrders: pickRows('listOrders', raw.listOrders),
-    },
-  }
+  const rows = Object.fromEntries(DATA_TABLE_NAMES.map((key) =>
+    [key, pickRows(key, key === 'settings' ? settingRows : raw[key])],
+  )) as ImportData
+  return { ok: true, warnings, data: rows }
 }

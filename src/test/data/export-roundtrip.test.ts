@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { Table } from 'dexie'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
-import { IMPORT_ROW_PICKERS, KNOWN_TABLE_KEYS, type ImportData } from '../../data/import-validation'
+import { IMPORT_TABLES, type ImportData } from '../../data/import-validation'
+import { DATA_TABLE_NAMES } from '../../data/tables'
 import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
@@ -186,7 +187,7 @@ function expectDatesAt(expected: unknown, actual: unknown, path: string) {
 async function writeSeed(seed: Seed) {
   await db.transaction('rw', [...ALL_DATA_TABLES], async () => {
     for (const t of ALL_DATA_TABLES) await t.clear()
-    for (const key of KNOWN_TABLE_KEYS) {
+    for (const key of DATA_TABLE_NAMES) {
       await tableByName(key).bulkAdd(seed[key])
     }
   })
@@ -199,11 +200,11 @@ beforeEach(async () => {
 describe('export → JSON → import round-trip', () => {
   it('the seed covers every data table and every field each picker carries', () => {
     const seed = buildSeed()
-    expect([...KNOWN_TABLE_KEYS].sort()).toEqual(ALL_DATA_TABLES.map((t) => t.name).sort())
-    for (const key of KNOWN_TABLE_KEYS) {
+    expect([...DATA_TABLE_NAMES].sort()).toEqual(ALL_DATA_TABLES.map((t) => t.name).sort())
+    for (const key of DATA_TABLE_NAMES) {
       const rows = seed[key] as Array<Record<string, unknown>>
       expect(rows.length, `seed.${key} is populated`).toBeGreaterThan(0)
-      const declared = Object.keys(IMPORT_ROW_PICKERS[key](rows[0]!))
+      const declared = Object.keys(IMPORT_TABLES[key].pick(rows[0]!))
       const covered = new Set(rows.flatMap((r) => Object.keys(r).filter((k) => r[k] !== undefined)))
       const missing = declared.filter((f) => !covered.has(f))
       expect(missing, `seed.${key} must populate every model field — add these to buildSeed()`).toEqual([])
@@ -245,7 +246,7 @@ describe('export → JSON → import round-trip', () => {
     await resetDb()
     await restoreFromImportData(prepared.data)
 
-    for (const key of KNOWN_TABLE_KEYS) {
+    for (const key of DATA_TABLE_NAMES) {
       const expected = sortRows(seed[key] as Array<Record<string, unknown>>)
       const actual = sortRows((await tableByName(key).toArray()) as Array<Record<string, unknown>>)
       expect(actual.map(rowId), `${key}: row ids`).toEqual(expected.map(rowId))

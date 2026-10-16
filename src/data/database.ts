@@ -5,6 +5,7 @@ import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { applySchemaUpgradeInTx } from './schema-upgrades'
+import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
 
 export interface SettingRow {
   key: string
@@ -521,6 +522,13 @@ export async function ensureSeededStatuses(
   return { assignedId }
 }
 
-/** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.people, db.settings, db.todoPeople, db.statuses, db.listDefinitions, db.notes, db.tags, db.todoTags, db.todoEvents, db.layouts, db.listOrders] as const
+/**
+ * The data tables (the registry in `tables.ts`) by name, typed by row.
+ * Assigning `db` here is the compile-time check that the Dexie class
+ * declares every registry table with the registry's row type.
+ */
+export const DATA_TABLES: { readonly [K in DataTableName]: Table<DataTableRows[K], K extends 'settings' ? string : number> } = db
+
+/** All data tables (excludes backups), in export order. Used for export, restore, and file-storage sync. */
+export const ALL_DATA_TABLES: readonly Table[] = DATA_TABLE_NAMES.map((name) => DATA_TABLES[name] as Table)
 
