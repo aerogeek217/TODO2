@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { useFlashMessage } from '../../../hooks/use-flash-message'
 import { useFileOpsStore } from '../../../services/file-ops-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { AuditIssue } from '../../../data/audit'
@@ -15,18 +16,13 @@ export function DataIntegritySection() {
   const cleanupCurrentAudit = useFileOpsStore((s) => s.cleanupCurrentAudit)
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [running, setRunning] = useState(false)
-  const [message, setMessage] = useState('')
+  const [message, flash] = useFlashMessage('')
   const [selectedIssue, setSelectedIssue] = useState<AuditIssue | null>(null)
-  const timer = useRef<number | null>(null)
   useStackedLayer(selectedIssue !== null)
-
-  useEffect(() => () => { if (timer.current != null) clearTimeout(timer.current) }, [])
 
   const runCleanup = async () => {
     const cleaned = await cleanupCurrentAudit()
-    setMessage(`Cleaned up ${cleaned} orphaned record${cleaned !== 1 ? 's' : ''}.`)
-    if (timer.current != null) clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setMessage(''), 4000)
+    flash(`Cleaned up ${cleaned} orphaned record${cleaned !== 1 ? 's' : ''}.`, 4000)
   }
 
   const secondary = `${styles.button} ${styles.buttonSecondary}`

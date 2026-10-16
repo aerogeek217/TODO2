@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
@@ -29,9 +29,12 @@ export function FilterSheet() {
   }, [isOpen])
 
   // Close sheet on route change
+  const shownPath = useRef(location.pathname)
   useEffect(() => {
+    if (shownPath.current === location.pathname) return
+    shownPath.current = location.pathname
     if (isOpen) closeSheet()
-  }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.pathname, isOpen, closeSheet])
 
   if (!isOpen) return null
 

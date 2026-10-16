@@ -27,7 +27,7 @@ import { dropDescription } from '../utils/eisenhower'
 import { startOfToday } from '../utils/date'
 import { useSettingsStore } from '../stores/settings-store'
 import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
-import { dropChangesLayout, dropTargetForHit, hitTestWorkspace } from '../utils/workspace-drop'
+import { dropChangesLayout, dropTargetForHit, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -35,7 +35,8 @@ import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
 import { ListOptionsHost } from '../components/workspace/list/ListOptionsHost'
-import { getUnsavedListIds, useUnsavedListIds } from '../stores/list-draft-store'
+import { getUnsavedListIds } from '../stores/list-draft-store'
+import { useUnsavedListIds } from '../hooks/use-list-draft'
 import { PlusIcon, WidgetKindIcon } from '../components/shared/icons'
 import {
   isWorkspaceTabDragData,
@@ -62,7 +63,6 @@ import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
 import overlayStyles from '../components/workspace/DragOverlayTask.module.css'
 import styles from './WorkspacePage.module.css'
 
-/** No drag sensors on mobile: layout editing and task drags are desktop-only there. */
 /**
  * A sensor that never starts a drag (it has no activators): phones use it
  * in place of the pointer sensor, since drags are off there. Swapping
@@ -129,7 +129,7 @@ function useTabDragState() {
       const cell = current.geometry.columns.flatMap((c) => c.cells).find((c) => c.id === hit.cellId)
       if (cell?.header) insertLeft = hit.lineX - cell.header.left
     }
-    if (JSON.stringify([hit, accepts, insertLeft]) === JSON.stringify([current.hit, current.accepts, current.insertLeft])) return
+    if (sameDropHit(hit, current.hit) && accepts === current.accepts && insertLeft === current.insertLeft) return
     setDrag({ ...current, hit, target, accepts, insertLeft })
   }, [setDrag])
 

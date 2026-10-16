@@ -5,6 +5,7 @@ import {
   dropChangesLayout,
   dropTargetForHit,
   hitTestWorkspace,
+  sameDropHit,
   type CellGeometry,
   type ColumnGeometry,
   type Rect,
@@ -191,5 +192,19 @@ describe('resizePair', () => {
     expect(evenPair(1, 3)).toEqual({ weightA: 2, weightB: 2 })
     expect(pairPercent(300, 100)).toBe(75)
     expect(pairPercent(0, 0)).toBe(50)
+  })
+})
+
+describe('sameDropHit', () => {
+  it('compares every field of the same kind; other kinds and null differ', () => {
+    expect(sameDropHit(null, null)).toBe(true)
+    expect(sameDropHit(null, { kind: 'empty-cell', cellId: 'a' })).toBe(false)
+    expect(sameDropHit({ kind: 'empty-cell', cellId: 'a' }, { kind: 'empty-cell', cellId: 'a' })).toBe(true)
+    expect(sameDropHit({ kind: 'empty-cell', cellId: 'a' }, { kind: 'cell-body', cellId: 'a', zone: 'top' })).toBe(false)
+    expect(sameDropHit({ kind: 'cell-body', cellId: 'a', zone: 'top' }, { kind: 'cell-body', cellId: 'a', zone: 'bottom' })).toBe(false)
+    expect(sameDropHit({ kind: 'column-edge', gutter: 1, x: 10 }, { kind: 'column-edge', gutter: 1, x: 10 })).toBe(true)
+    expect(sameDropHit({ kind: 'column-edge', gutter: 1, x: 10 }, { kind: 'column-edge', gutter: 1, x: 11 })).toBe(false)
+    expect(sameDropHit({ kind: 'tab-strip', cellId: 'a', index: 2, lineX: 40 }, { kind: 'tab-strip', cellId: 'a', index: 2, lineX: 40 })).toBe(true)
+    expect(sameDropHit({ kind: 'tab-strip', cellId: 'a', index: 2, lineX: 40 }, { kind: 'tab-strip', cellId: 'a', index: 3, lineX: 40 })).toBe(false)
   })
 })

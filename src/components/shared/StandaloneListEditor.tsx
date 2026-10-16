@@ -5,7 +5,8 @@ import { defsEqual } from '../../utils/list-def-equal'
 import { ListEditorBody } from './ListEditorBody'
 import { ListEditorDialog } from './ListEditorDialog'
 import { useListDefDraft } from '../../hooks/use-list-def-draft'
-import { useEffectiveListDefinition, useListDraftStore } from '../../stores/list-draft-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
+import { useEffectiveListDefinition } from '../../hooks/use-list-draft'
 import { useListWidgetCount } from '../../hooks/use-list-widget-count'
 
 /**

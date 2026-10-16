@@ -37,11 +37,9 @@
   --z-dialog: 1001;
   --z-dialog-overlay: 1002;
   --z-dialog-nested: 1003;
-  /* FilteredListPopup escape-hatch tier — sits above every in-document layer
-     because it portals to <body> and must overlay any host (popovers, modals,
-     drag overlays). Keep these as the only consumers. */
+  /* Escape-hatch tier for a popup portalled to <body> that must overlay any
+     host (popovers, dialogs, drag overlays) — the notes `@ # /` popup. */
   --z-portal-popup: 9998;
-  --z-portal-popup-flyout: 9999;
   /* Tooltips sit above everything, popups included. */
   --z-tooltip: 10000;
 
@@ -137,9 +135,9 @@
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(255, 255, 255, 0.06);
-  /* Solid background for WidgetHeader / FilteredListPopup chrome. Approximates
-     the prior `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
-     editor's color picker shows the actual rendered color. */
+  /* Solid background for the workspace cell headers (tab strips). Approximates
+     an `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
+     colour editor shows the actual rendered colour. */
   --color-header-bg: #1f2120;
 
   /* Task markers (shown before the title when set). */
@@ -294,7 +292,7 @@
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(0, 0, 0, 0.06);
-  /* Solid background for WidgetHeader / FilteredListPopup chrome. */
+  /* Solid background for the workspace cell headers (tab strips). */
   --color-header-bg: #f7fbfa;
 
   /* Task markers (shown before the title when set). */

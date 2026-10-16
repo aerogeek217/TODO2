@@ -8,7 +8,7 @@ export const NEUTRAL_PERSON_COLOR = '#9CA3AF'
 /** Window during which a second key in a chord shortcut counts (e.g. `g` then `w`). */
 export const CHORD_TIMEOUT_MS = 1000
 /** Click-then-edit delay used by inline editors to distinguish click from double-click. */
-export const INLINE_EDIT_BLUR_MS = 250
+export const INLINE_EDIT_CLICK_DELAY_MS = 250
 /** How long the undo snackbar stays visible after an undoable action. */
 export const UNDO_SNACKBAR_MS = 5000
 /** How long a notice in the snackbar (`useUndoStore.notify`, no Undo) stays visible. */

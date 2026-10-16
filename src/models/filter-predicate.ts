@@ -74,13 +74,11 @@ export const HOT_MARKERS = 'hot'
 export type MarkersFilter = typeof HOT_MARKERS | MarkerSet
 
 /**
- * Serializable predicate describing the live filter fields. Intentionally does
- * NOT include @deprecated legacy keys (`priorities`, `completedFilter`, etc.)
- * — those live only on `SavedViewFilters` for backward-compat.
+ * Serializable predicate describing the live filter fields.
  *
  * Shape is JSON-friendly: number arrays (not Sets), and `DateAnchor` for date
  * range (either a fixed ISO string or a relative token resolved at eval time).
- * Stored unchanged inside `ListDefinition.custom` and `SavedViewFilters`, then
+ * Stored unchanged inside a list definition's `membership.predicate`, then
  * converted to the runtime `FilterCriteria` shape at evaluation time.
  */
 export interface TodoPredicate {

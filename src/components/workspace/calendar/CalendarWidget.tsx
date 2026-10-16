@@ -2,6 +2,7 @@ import { useCallback, useContext, useMemo, useState, type ReactNode } from 'reac
 import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import {
   clampCalendarOffset,
+  toggleCalendarDateType,
   type CalendarDateType,
   type CalendarDateTypes,
   type CalendarTab,
@@ -547,9 +548,8 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   }, [tab.id, view])
 
   const toggleType = useCallback((type: CalendarDateType) => {
-    useWorkspaceStore.getState().patchTabConfig(tab.id, 'calendar', {
-      dateTypes: { ...dateTypes, [type]: !dateTypes[type] },
-    })
+    const next = toggleCalendarDateType(dateTypes, type)
+    if (next !== dateTypes) useWorkspaceStore.getState().patchTabConfig(tab.id, 'calendar', { dateTypes: next })
   }, [tab.id, dateTypes])
 
   const openMore = useCallback((day: Date, cell: HTMLElement) => {

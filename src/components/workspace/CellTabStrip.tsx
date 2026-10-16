@@ -3,7 +3,8 @@ import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
 import { getActiveTab } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useIsListDirty } from '../../stores/list-draft-store'
+import { useIsListDirty } from '../../hooks/use-list-draft'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { tabTitle, useTabTitle } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
@@ -152,6 +153,7 @@ export function CellTabStrip({
   const hidden = order.slice(Math.max(fitCount, 0))
 
   const tabKey = cell.tabs.map((t) => t.id).join('|')
+  const tabsRef = useLatestRef(cell.tabs)
   useEffect(() => {
     const container = containerRef.current
     if (!container || typeof ResizeObserver === 'undefined') return
@@ -159,7 +161,7 @@ export function CellTabStrip({
       const avail = container.clientWidth
       let used = 0
       let n = 0
-      for (const t of cell.tabs) {
+      for (const t of tabsRef.current) {
         const el = tabEls.current.get(t.id)
         // 2px flex gap between tabs
         const w = (el ? el.offsetWidth : 0) + (n > 0 ? 2 : 0)
@@ -173,8 +175,8 @@ export function CellTabStrip({
     ro.observe(container)
     for (const el of tabEls.current.values()) ro.observe(el)
     return () => ro.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-observe when the set of tabs changes
-  }, [tabKey])
+    // Re-observe when the set of tabs changes (the tabs are read through a ref).
+  }, [tabKey, tabsRef])
 
   const focusSibling = (fromId: string, delta: 1 | -1 | 'first' | 'last') => {
     const ids = order.map((t) => t.id)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { useFlashMessage } from '../../hooks/use-flash-message'
 import { useTodoStore } from '../../stores/todo-store'
 import { NotesBody, type NotesSource } from './notes/NotesBody'
 import { isNotesConvertOpen } from './notes/NotesConvert'
@@ -26,7 +27,7 @@ interface TaskNotePopoverProps {
  */
 export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, flashToast] = useFlashMessage<string | null>(null)
 
   const initialNotes = useMemo(() => {
     const t = useTodoStore.getState().todos.find(x => x.id === todoId)
@@ -81,10 +82,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     },
   }), [todoId])
 
-  const handleToast = useCallback((message: string) => {
-    setToast(message)
-    window.setTimeout(() => setToast(null), TOAST_VISIBLE_MS)
-  }, [])
+  const handleToast = useCallback((message: string) => flashToast(message, TOAST_VISIBLE_MS), [flashToast])
 
   return (
     <div

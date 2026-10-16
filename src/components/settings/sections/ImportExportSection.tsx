@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useFlashMessage } from '../../../hooks/use-flash-message'
 import { useFileOpsStore } from '../../../services/file-ops-store'
 import type { ImportData } from '../../../data/import-validation'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
@@ -33,7 +34,7 @@ const DOWNLOADED_MESSAGE_MS = 8000
 
 export function ImportExportSection() {
   const restoreFromImport = useFileOpsStore((s) => s.restoreFromImport)
-  const [message, setMessage] = useState('')
+  const [message, showMessage] = useFlashMessage('')
   /** Persistent: set when the last JSON export failed its re-import self-check. */
   const [exportWarning, setExportWarning] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
@@ -42,16 +43,7 @@ export function ImportExportSection() {
   const [appendBusy, setAppendBusy] = useState(false)
   const [appendError, setAppendError] = useState<string | null>(null)
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
-  const timer = useRef<number | null>(null)
   useStackedLayer(pendingAppend !== null || pendingMigration !== null)
-
-  useEffect(() => () => { if (timer.current != null) clearTimeout(timer.current) }, [])
-
-  const showMessage = (msg: string, ms: number) => {
-    setMessage(msg)
-    if (timer.current != null) clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setMessage(''), ms)
-  }
 
   const handleExport = async () => {
     const now = new Date()

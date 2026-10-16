@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { INLINE_EDIT_BLUR_MS } from '../constants'
+import { INLINE_EDIT_CLICK_DELAY_MS } from '../constants'
 
 /**
  * Encapsulates inline title editing logic for TaskRow.
@@ -54,7 +54,7 @@ export function useInlineEdit(
 
   /** Start editing after a 250ms delay (distinguishes click from double-click) */
   const scheduleEdit = useCallback(() => {
-    timerRef.current = window.setTimeout(() => setIsEditing(true), INLINE_EDIT_BLUR_MS)
+    timerRef.current = window.setTimeout(() => setIsEditing(true), INLINE_EDIT_CLICK_DELAY_MS)
   }, [])
 
   /** Cancel the scheduled edit (e.g. on double-click) */

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   createTab,
   isWidgetKind,
+  toggleCalendarDateType,
   WIDGET_KIND_SPECS,
   WIDGET_KINDS,
   widgetKindLabel,
@@ -53,5 +54,15 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('lens', 'a', { listDefinitionId: 4 }), undefined)).toBe('(Deleted list)')
     expect(tabTitle(createTab('lens', 'a'), undefined)).toBe('List')
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
+  })
+})
+
+describe('toggleCalendarDateType', () => {
+  it('switches a date type, but never the last one off', () => {
+    const both = { due: true, followup: true }
+    expect(toggleCalendarDateType(both, 'due')).toEqual({ due: false, followup: true })
+    const dueOnly = { due: true, followup: false }
+    expect(toggleCalendarDateType(dueOnly, 'followup')).toEqual({ due: true, followup: true })
+    expect(toggleCalendarDateType(dueOnly, 'due')).toBe(dueOnly)
   })
 })

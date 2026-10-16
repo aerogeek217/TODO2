@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useFlashMessage } from '../../../hooks/use-flash-message'
 import { useFileOpsStore } from '../../../services/file-ops-store'
 import { legacyImportInfo } from '../../../services/data-files'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
@@ -24,22 +25,16 @@ export function BackupsSection() {
   const deleteBackup = useFileOpsStore((s) => s.deleteBackup)
   const peekBackupData = useFileOpsStore((s) => s.peekBackupData)
   const restoreBackup = useFileOpsStore((s) => s.restoreBackup)
-  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
+  const [message, flash] = useFlashMessage<{ text: string; error?: boolean } | null>(null)
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
-  const timer = useRef<number | null>(null)
   useStackedLayer(pendingMigration !== null)
 
   useEffect(() => {
     void loadBackups()
   }, [loadBackups])
-  useEffect(() => () => { if (timer.current != null) clearTimeout(timer.current) }, [])
 
-  const showMessage = (text: string, ms: number, error = false) => {
-    setMessage({ text, error })
-    if (timer.current != null) clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setMessage(null), ms)
-  }
+  const showMessage = (text: string, ms: number, error = false) => flash({ text, error }, ms)
 
   const restore = async (id: number) => {
     setConfirmRestoreId(null)

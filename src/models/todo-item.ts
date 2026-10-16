@@ -37,8 +37,8 @@ export interface TodoItem {
   recurrenceRule?: RecurrenceRule
   /**
    * On the user's short list of tasks to work on now. Shown as a marker on
-   * the row; the "Focus" list (predicate `focus: true`, manual order) lists
-   * them. Absent = not in focus.
+   * the row; lists filter on it through the Markers filter (`markers.focus`;
+   * the "Focus" list made from the old taskboard is one). Absent = not in focus.
    */
   focus?: boolean
   /**

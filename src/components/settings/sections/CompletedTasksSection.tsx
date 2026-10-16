@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useFlashMessage } from '../../../hooks/use-flash-message'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { doneMessage, exportAndPurgeCompleted, keptMessage } from '../../../services/purge-completed'
@@ -42,11 +43,8 @@ export function CompletedTasksSection() {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState('')
-  const timer = useRef<number | null>(null)
+  const [message, flash] = useFlashMessage('')
   useStackedLayer(showCleanup)
-
-  useEffect(() => () => { if (timer.current != null) clearTimeout(timer.current) }, [])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -74,11 +72,7 @@ export function CompletedTasksSection() {
     setError(null)
   }, [])
 
-  const showMessage = (msg: string) => {
-    setMessage(msg)
-    if (timer.current != null) clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => setMessage(''), 5000)
-  }
+  const showMessage = (msg: string) => flash(msg, 5000)
 
   const handleDelete = async () => {
     if (matchCount === 0) return

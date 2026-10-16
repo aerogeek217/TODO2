@@ -62,6 +62,17 @@ export type WorkspaceDropHit =
   | { kind: 'cell-body'; cellId: string; zone: CellZone }
   | { kind: 'empty-cell'; cellId: string }
 
+/** Whether two hits are the same drop spot (every field equal). */
+export function sameDropHit(a: WorkspaceDropHit | null, b: WorkspaceDropHit | null): boolean {
+  if (a === null || b === null) return a === b
+  switch (a.kind) {
+    case 'column-edge': return b.kind === 'column-edge' && a.gutter === b.gutter && a.x === b.x
+    case 'tab-strip': return b.kind === 'tab-strip' && a.cellId === b.cellId && a.index === b.index && a.lineX === b.lineX
+    case 'cell-body': return b.kind === 'cell-body' && a.cellId === b.cellId && a.zone === b.zone
+    case 'empty-cell': return b.kind === 'empty-cell' && a.cellId === b.cellId
+  }
+}
+
 export interface Point {
   x: number
   y: number

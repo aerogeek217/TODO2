@@ -42,6 +42,15 @@ export interface CalendarDateTypes {
 /** One task date a calendar can show: the due date or the next follow-up. */
 export type CalendarDateType = keyof CalendarDateTypes
 
+/**
+ * `types` with `type` switched on / off — but a calendar always shows at
+ * least one date type: switching the last one off gives `types` back.
+ */
+export function toggleCalendarDateType(types: CalendarDateTypes, type: CalendarDateType): CalendarDateTypes {
+  const next = { ...types, [type]: !types[type] }
+  return next.due || next.followup ? next : types
+}
+
 export interface LensTabConfig {
   /** The list definition shown; absent = not picked yet. */
   listDefinitionId?: number
