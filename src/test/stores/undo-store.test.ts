@@ -347,3 +347,73 @@ describe('useUndoStore', () => {
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'action1' })
   })
 })
+
+describe('useUndoStore — an undo or redo that fails', () => {
+  beforeEach(() => {
+    useUndoStore.getState().clear()
+    useUndoStore.setState({ isPerformingUndoRedo: false })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    useUndoStore.getState().clear()
+    vi.restoreAllMocks()
+  })
+
+  function failingEntry(label: string, failing: 'undo' | 'redo') {
+    let fail = true
+    const run = vi.fn(async () => { if (fail) throw new Error('write failed') })
+    const ok = vi.fn()
+    return {
+      entry: { description: label, undo: failing === 'undo' ? run : ok, redo: failing === 'redo' ? run : ok },
+      run,
+      heal: () => { fail = false },
+    }
+  }
+
+  it('a failed undo stays on the undo stack, tells the user and does not reject', async () => {
+    const { entry, run, heal } = failingEntry('Delete "Milk"', 'undo')
+    useUndoStore.getState().push(entry)
+
+    await expect(useUndoStore.getState().undo()).resolves.toBeUndefined()
+    let state = useUndoStore.getState()
+    expect(state.undoStack).toEqual([entry])
+    expect(state.redoStack).toEqual([])
+    expect(state.isPerformingUndoRedo).toBe(false)
+    expect(state.snackbar).toEqual({ description: "Couldn't undo: Delete \"Milk\"", notice: true })
+
+    // The next try runs the same entry again and, once it works, moves it.
+    heal()
+    await useUndoStore.getState().undo()
+    state = useUndoStore.getState()
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(state.undoStack).toEqual([])
+    expect(state.redoStack).toEqual([entry])
+  })
+
+  it('a failed redo stays on the redo stack, tells the user and does not reject', async () => {
+    const { entry } = failingEntry('Add "Milk"', 'redo')
+    useUndoStore.getState().push(entry)
+    await useUndoStore.getState().undo()
+
+    await expect(useUndoStore.getState().redo()).resolves.toBeUndefined()
+    const state = useUndoStore.getState()
+    expect(state.redoStack).toEqual([entry])
+    expect(state.undoStack).toEqual([])
+    expect(state.isPerformingUndoRedo).toBe(false)
+    expect(state.snackbar).toEqual({ description: "Couldn't redo: Add \"Milk\"", notice: true })
+  })
+
+  it('a failed undo goes back where it was: an entry pushed meanwhile stays on top', async () => {
+    let fail!: () => void
+    const gate = new Promise<void>((r) => { fail = r })
+    const failing = { description: 'Slow', undo: vi.fn(async () => { await gate; throw new Error('write failed') }), redo: vi.fn() }
+    const later = { description: 'Later', undo: vi.fn(), redo: vi.fn() }
+    useUndoStore.getState().push(failing)
+    const undoing = useUndoStore.getState().undo()
+    useUndoStore.getState().push(later)
+    fail()
+    await undoing
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Slow', 'Later'])
+  })
+})

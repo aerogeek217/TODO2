@@ -9,6 +9,12 @@ export interface UndoEntry {
 
 const MAX_STACK_SIZE = 50
 
+/** `stack` with `entry` at `index` (or last, when the stack got shorter). */
+function insertAt(stack: UndoEntry[], index: number, entry: UndoEntry): UndoEntry[] {
+  const at = Math.min(index, stack.length)
+  return [...stack.slice(0, at), entry, ...stack.slice(at)]
+}
+
 interface UndoState {
   undoStack: UndoEntry[]
   redoStack: UndoEntry[]
@@ -19,7 +25,13 @@ interface UndoState {
   snackbarTimerId: ReturnType<typeof setTimeout> | null
 
   push: (entry: UndoEntry, showSnackbar?: boolean) => void
+  /**
+   * Undoes the newest entry and moves it to the redo stack. Never rejects:
+   * an entry whose undo throws stays where it was (the next undo tries it
+   * again) and the snackbar says it couldn't be undone.
+   */
   undo: () => Promise<void>
+  /** Redoes the newest undone entry; a failure is handled as in `undo`. */
   redo: () => Promise<void>
   /**
    * Mark the start of a compound operation. All entries pushed until
@@ -82,21 +94,27 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     const { undoStack, isPerformingUndoRedo } = get()
     if (undoStack.length === 0 || isPerformingUndoRedo) return
 
-    const entry = undoStack[undoStack.length - 1]
+    const index = undoStack.length - 1
+    const entry = undoStack[index]
     if (!entry) return
     set({
       undoStack: undoStack.slice(0, -1),
       isPerformingUndoRedo: true,
     })
 
+    let failed = false
     try {
       await entry.undo()
-    } finally {
-      const { redoStack } = get()
-      set({
-        redoStack: [...redoStack, entry],
-        isPerformingUndoRedo: false,
-      })
+    } catch (e) {
+      failed = true
+      console.error(`Undo failed: ${entry.description}`, e)
+    }
+    if (failed) {
+      // It didn't happen: back where it was, to try again.
+      set({ undoStack: insertAt(get().undoStack, index, entry), isPerformingUndoRedo: false })
+      get().notify(`Couldn't undo: ${entry.description}`)
+    } else {
+      set({ redoStack: [...get().redoStack, entry], isPerformingUndoRedo: false })
     }
   },
 
@@ -104,21 +122,26 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     const { redoStack, isPerformingUndoRedo } = get()
     if (redoStack.length === 0 || isPerformingUndoRedo) return
 
-    const entry = redoStack[redoStack.length - 1]
+    const index = redoStack.length - 1
+    const entry = redoStack[index]
     if (!entry) return
     set({
       redoStack: redoStack.slice(0, -1),
       isPerformingUndoRedo: true,
     })
 
+    let failed = false
     try {
       await entry.redo()
-    } finally {
-      const { undoStack } = get()
-      set({
-        undoStack: [...undoStack, entry],
-        isPerformingUndoRedo: false,
-      })
+    } catch (e) {
+      failed = true
+      console.error(`Redo failed: ${entry.description}`, e)
+    }
+    if (failed) {
+      set({ redoStack: insertAt(get().redoStack, index, entry), isPerformingUndoRedo: false })
+      get().notify(`Couldn't redo: ${entry.description}`)
+    } else {
+      set({ undoStack: [...get().undoStack, entry], isPerformingUndoRedo: false })
     }
   },
 
