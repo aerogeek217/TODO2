@@ -4,7 +4,7 @@ import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
 import type { FilterSettings } from '../utils/filter-match'
-import { DEFAULT_THEMED_COLORS, parseColorSettingKey } from '../models/theme-colors'
+import { DEFAULT_THEMED_COLORS, THEME_COLOR_VARS, parseColorSettingKey } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
@@ -105,19 +105,6 @@ function dimColor(hex: string): string {
   return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
 }
 
-/** CSS variable name for each ThemeColors key */
-const colorVarMap: Record<keyof ThemeColors, string> = {
-  accent: '--color-accent',
-  appBg: '--color-app-bg',
-  surface: '--color-surface',
-  border: '--color-border',
-  header: '--color-header-bg',
-  danger: '--color-danger',
-  warning: '--color-warning',
-  star: '--color-followup',
-  deadline: '--color-deadline',
-}
-
 interface CustomizedColorKeys {
   dark: Set<string>
   light: Set<string>
@@ -138,7 +125,7 @@ function applyThemeOverrides(
   const root = document.documentElement
   const colors = themed[resolvedTheme]
   const bag = customizedKeys[resolvedTheme]
-  for (const [key, varName] of Object.entries(colorVarMap)) {
+  for (const [key, varName] of Object.entries(THEME_COLOR_VARS)) {
     if (bag.has(key)) {
       root.style.setProperty(varName, colors[key as keyof ThemeColors])
     } else {
@@ -296,6 +283,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
     } catch (e) {
       console.error('Failed to load settings:', e)
+      // The page still gets a theme: the current (default) mode.
+      applyThemeMode(get().themeMode)
     }
   },
 

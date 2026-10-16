@@ -29,8 +29,7 @@ export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
   const { colors, setColor, resetColors } = useSettingsStore()
   // Editor binds to the resolved theme on mount; the Light/Dark toggle below
   // only switches which `colors[theme]` bag the inputs read/write — it does
-  // not change the user's actual theme preference (that lives in
-  // SettingsPage's theme-mode control).
+  // not change the user's theme (Settings → Appearance).
   const resolvedTheme = useResolvedTheme()
   const [workingTheme, setWorkingTheme] = useState<ThemeName>(resolvedTheme)
   const workingColors = colors[workingTheme]

@@ -3,36 +3,14 @@ import { render, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { ThemeColorsEditor } from '../../../components/settings/ThemeColorsEditor'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { db } from '../../../data/database'
+import { DEFAULT_THEMED_COLORS } from '../../../models/theme-colors'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useSettingsStore.setState({
     themeMode: 'dark',
-    colors: {
-      dark: {
-        accent: '#a2cfcb',
-        appBg: '#0e0e0e',
-        surface: '#191a1a',
-        border: '#302e2b',
-        header: '#1f2120',
-        danger: '#ee7d77',
-        warning: '#f5a623',
-        star: '#f5c842',
-        deadline: '#e86bf0',
-      },
-      light: {
-        accent: '#3a9e93',
-        appBg: '#f5f4f2',
-        surface: '#ffffff',
-        border: '#d9d5d0',
-        header: '#f7fbfa',
-        danger: '#d94a43',
-        warning: '#d08a12',
-        star: '#826600',
-        deadline: '#b838c0',
-      },
-    },
+    colors: { dark: { ...DEFAULT_THEMED_COLORS.dark }, light: { ...DEFAULT_THEMED_COLORS.light } },
   })
 })
 
@@ -58,12 +36,12 @@ describe('ThemeColorsEditor', () => {
   it('Light/Dark toggle binds the right working set', () => {
     const { getByRole, getAllByDisplayValue } = render(<ThemeColorsEditor onClose={() => {}} />)
     // Inputs reflect the dark bag.
-    expect(getAllByDisplayValue('#a2cfcb').length).toBeGreaterThan(0)
+    expect(getAllByDisplayValue(DEFAULT_THEMED_COLORS.dark.accent).length).toBeGreaterThan(0)
 
     fireEvent.click(getByRole('tab', { name: 'Light' }))
 
     // Inputs now reflect the light bag.
-    expect(getAllByDisplayValue('#3a9e93').length).toBeGreaterThan(0)
+    expect(getAllByDisplayValue(DEFAULT_THEMED_COLORS.light.accent).length).toBeGreaterThan(0)
   })
 
   it('reset button targets only the working theme', async () => {
@@ -76,7 +54,7 @@ describe('ThemeColorsEditor', () => {
     fireEvent.click(getByText(/reset dark to defaults/i))
 
     await waitFor(() => {
-      expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
+      expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
     })
     expect(useSettingsStore.getState().colors.light.accent).toBe('#0000ff')
   })

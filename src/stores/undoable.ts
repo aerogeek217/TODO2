@@ -1,8 +1,10 @@
 import { useUndoStore } from './undo-store'
 
 /**
- * Execute an action and register it as undoable.
- * Skips registration when the undo store is already performing an undo/redo.
+ * Registers an action the caller has already done as an undo step: `undoFn`
+ * undoes it, `doFn` redoes it (it is not run now). Skipped while the undo
+ * store is performing an undo / redo, so replaying an entry doesn't push a
+ * new one.
  */
 export function undoable(
   description: string,

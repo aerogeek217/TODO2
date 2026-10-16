@@ -10,14 +10,14 @@ interface CommandPaletteProps {
   onClose: () => void
 }
 
-const CATEGORY_ORDER: CommandCategory[] = ['navigation', 'task', 'bulk', 'filter', 'email', 'tasks']
+const CATEGORY_ORDER: CommandCategory[] = ['navigation', 'task', 'bulk', 'filter', 'email', 'search-results']
 const CATEGORY_LABELS: Record<CommandCategory, string> = {
   navigation: 'Navigation',
   task: 'Tasks',
   bulk: 'Bulk Actions',
   filter: 'Filters',
   email: 'Email',
-  tasks: 'Search Results',
+  'search-results': 'Search Results',
 }
 
 /** Max dynamic results (tasks) to show to avoid overwhelming the list */
@@ -92,7 +92,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   const results = useMemo(() => {
     if (!searchQuery) {
       // No query: show static commands only
-      return commands.filter((c) => c.category !== 'tasks')
+      return commands.filter((c) => c.category !== 'search-results')
     }
 
     // Static commands via fuzzy search
@@ -108,7 +108,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
     const commandResults: Command[] = []
     let taskCount = 0
     for (const item of items) {
-      if (item.category === 'tasks') {
+      if (item.category === 'search-results') {
         if (taskCount >= MAX_DYNAMIC_RESULTS) continue
         taskCount++
       }

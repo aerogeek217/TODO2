@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { DateField } from '../models/app-view'
+import type { WorkspaceLayout } from '../models/workspace-layout'
+import { useWorkspaceStore } from './workspace-store'
 
 /** Viewport point a popover hangs from, and which edge of it lines up. */
 export interface PopoverPoint {
@@ -54,13 +56,31 @@ interface ListWidgetState {
   closePopover: () => void
 }
 
+function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
+  for (const col of layout?.columns ?? []) for (const cell of col.cells) for (const tab of cell.tabs) into.add(tab.id)
+}
+
+/**
+ * `byTab` without the tabs that are in no layout any more (not in the
+ * working copy, not in a saved layout) — so closed tabs don't pile up over a
+ * session. Before the workspace is open nothing is dropped.
+ */
+function withoutGoneTabs<T>(byTab: Readonly<Record<string, T>>): Record<string, T> {
+  const { working, layouts } = useWorkspaceStore.getState()
+  if (!working) return { ...byTab }
+  const live = new Set<string>()
+  addTabIds(working, live)
+  for (const layout of layouts) addTabIds(layout, live)
+  return Object.fromEntries(Object.entries(byTab).filter(([tabId]) => live.has(tabId)))
+}
+
 export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
   picks: {},
   collapsed: {},
   popover: null,
 
   setPicks(tabId, ids) {
-    const next = { ...get().picks }
+    const next = withoutGoneTabs(get().picks)
     if (ids.length > 0) next[tabId] = [...ids]
     else delete next[tabId]
     set({ picks: next })
@@ -71,7 +91,7 @@ export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
     const keys = current.includes(sectionKey)
       ? current.filter((k) => k !== sectionKey)
       : [...current, sectionKey]
-    const next = { ...get().collapsed }
+    const next = withoutGoneTabs(get().collapsed)
     if (keys.length > 0) next[tabId] = keys
     else delete next[tabId]
     set({ collapsed: next })

@@ -181,7 +181,7 @@ describe('searchDynamicCommands — task search', () => {
     ]
     const ctx = makeContext({ getTodos: () => todos })
     const results = searchDynamicCommands('write', ctx)
-    expect(results.filter(c => c.category === 'tasks')).toHaveLength(2)
+    expect(results.filter(c => c.category === 'search-results')).toHaveLength(2)
   })
 
   it('searchDynamicCommands_withQuery_commandIdsMatchTodoIds', () => {
@@ -237,7 +237,7 @@ describe('createCommands — no dynamic commands', () => {
       getTodos: () => [makeTodo({ id: 1 })],
     })
     const commands = createCommands(ctx)
-    expect(commands.filter(c => c.category === 'tasks')).toHaveLength(0)
+    expect(commands.filter(c => c.category === 'search-results')).toHaveLength(0)
   })
 })
 

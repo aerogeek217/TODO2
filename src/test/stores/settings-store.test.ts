@@ -1,46 +1,30 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
+import { settingsRepository } from '../../data'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import type { HotRule } from '../../utils/hot'
-
-const DARK_DEFAULTS = {
-  accent: '#a2cfcb',
-  appBg: '#0e0e0e',
-  surface: '#191a1a',
-  border: '#302e2b',
-  header: '#1f2120',
-  danger: '#ee7d77',
-  warning: '#f5a623',
-  star: '#f5c842',
-  scheduled: '#7ec4bc',
-  deadline: '#e86bf0',
-} as const
-
-const LIGHT_DEFAULTS = {
-  accent: '#3a9e93',
-  appBg: '#f5f4f2',
-  surface: '#ffffff',
-  border: '#d9d5d0',
-  header: '#f7fbfa',
-  danger: '#d94a43',
-  warning: '#d08a12',
-  star: '#826600',
-  scheduled: '#3a9e93',
-  deadline: '#b838c0',
-} as const
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useSettingsStore.setState({
-    colors: { dark: { ...DARK_DEFAULTS }, light: { ...LIGHT_DEFAULTS } },
+    colors: { dark: { ...DEFAULT_THEMED_COLORS.dark }, light: { ...DEFAULT_THEMED_COLORS.light } },
     themeMode: 'dark',
     completedRetentionDays: null,
   })
 })
 
 describe('useSettingsStore', () => {
+  it('a failed load still sets the theme on the page (the default mode)', async () => {
+    document.documentElement.removeAttribute('data-theme')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'getAll').mockRejectedValueOnce(new Error('IndexedDB unavailable'))
+    await useSettingsStore.getState().load()
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(error).toHaveBeenCalled()
+  })
+
   it('load reads color.dark.<key> and color.light.<key> rows', async () => {
     await db.settings.put({ key: 'color.dark.accent', value: '#112233' })
     await db.settings.put({ key: 'color.light.appBg', value: '#fafafa' })
@@ -64,7 +48,7 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'color.dark.accent', value: 'not-a-color' })
     await db.settings.put({ key: 'color.light.danger', value: 'still-not' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // default
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent) // default
     expect(useSettingsStore.getState().colors.light.danger).toBe('#d94a43') // default
   })
 
@@ -85,14 +69,14 @@ describe('useSettingsStore', () => {
 
   it('setColor rejects invalid', async () => {
     await useSettingsStore.getState().setColor('dark', 'accent', 'not-valid')
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // unchanged
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent) // unchanged
   })
 
   it('resetColors(theme) restores one bag', async () => {
     await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
     await useSettingsStore.getState().setColor('light', 'accent', '#0000ff')
     await useSettingsStore.getState().resetColors('dark')
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
     expect(useSettingsStore.getState().colors.light.accent).toBe('#0000ff') // untouched
     expect(await db.settings.get('color.dark.accent')).toBeUndefined()
     expect((await db.settings.get('color.light.accent'))!.value).toBe('#0000ff')
@@ -102,8 +86,8 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
     await useSettingsStore.getState().setColor('light', 'accent', '#0000ff')
     await useSettingsStore.getState().resetColors()
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
-    expect(useSettingsStore.getState().colors.light.accent).toBe('#3a9e93')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
+    expect(useSettingsStore.getState().colors.light.accent).toBe(DEFAULT_THEMED_COLORS.light.accent)
   })
 
   it('setThemeMode flips which override bag drives inline styles', async () => {

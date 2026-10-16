@@ -8,6 +8,11 @@ import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBu
 import { defaultNextFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
+import { personRepository } from '../data/person-repository'
+import { tagRepository } from '../data/tag-repository'
+import { takeSafetySnapshot } from './safety-snapshot'
+import { usePersonStore } from './person-store'
+import { useTagStore } from './tag-store'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { formatFollowupDate } from '../utils/followup'
 import { fieldsOf, revertChanges, todoChanges } from '../utils/todo-changes'
@@ -38,12 +43,6 @@ export type PurgeOutcome =
 /** A bulk delete of more tasks than this is backed up first. */
 export const BULK_DELETE_SNAPSHOT_MIN = 5
 
-/** The backup gate before a destructive write (`services/safety-snapshot`). */
-async function takeSafetySnapshot(operation: string) {
-  const { takeSafetySnapshot: take } = await import('./safety-snapshot')
-  return take(operation)
-}
-
 const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
 
 /** The stored form of a flag: only `true` is kept. */
@@ -53,8 +52,6 @@ function flagValue(on: boolean): true | undefined {
 
 /** Reloads the people / tag assignment caches for every loaded task. */
 async function reloadAssignments(todoIds: number[]): Promise<void> {
-  const { usePersonStore } = await import('./person-store')
-  const { useTagStore } = await import('./tag-store')
   await usePersonStore.getState().loadAssignments(todoIds)
   await useTagStore.getState().loadAssignments(todoIds)
 }
@@ -705,18 +702,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
       }
       // Copy assignments at repo level (bypasses store undo registration)
       const { personIds, tagIds } = await captureAssignments(id)
-      const { personRepository } = await import('../data/person-repository')
       for (const pid of personIds) await personRepository.assignPerson(newId, pid)
-      const { tagRepository } = await import('../data/tag-repository')
       for (const tid of tagIds) await tagRepository.assignTag(newId, tid)
       // Refresh assignment caches for the new task
       const todoIds = get().todos.map(t => t.id)
       if (personIds.length > 0) {
-        const { usePersonStore } = await import('./person-store')
         await usePersonStore.getState().loadAssignments(todoIds)
       }
       if (tagIds.length > 0) {
-        const { useTagStore } = await import('./tag-store')
         await useTagStore.getState().loadAssignments(todoIds)
       }
       let removedEvents: TodoEvent[] = []

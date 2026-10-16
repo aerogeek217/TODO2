@@ -26,8 +26,8 @@ export function normalizeTag(raw: unknown): string | null {
 /**
  * Thrown when `useTagStore.add` is called while the registry is at the
  * configured ceiling (`settings.maxTags`). The message is phrased for direct
- * user surfacing; `nlp-resolver.resolveTags` catches and logs it so a single
- * runaway `#tag` input can't break the whole task-create flow.
+ * user surfacing; `nlp-resolver.resolveTags` catches it and shows it in the
+ * snackbar, so a `#tag` past the limit doesn't stop the task being created.
  */
 export class TagLimitError extends Error {
   constructor(message: string) {

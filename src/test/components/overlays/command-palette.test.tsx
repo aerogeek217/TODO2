@@ -112,7 +112,7 @@ describe('CommandPalette', () => {
 
     it('passes the whole query to the task search, whatever the number of words', () => {
       const onSearchDynamic = vi.fn((q: string): Command[] => [
-        { id: 'task-7', name: `Task for ${q}`, category: 'tasks', action: vi.fn() },
+        { id: 'task-7', name: `Task for ${q}`, category: 'search-results', action: vi.fn() },
       ])
       render(<CommandPalette commands={realCommands()} onSearchDynamic={onSearchDynamic} onClose={vi.fn()} />)
       type('quarterly report')

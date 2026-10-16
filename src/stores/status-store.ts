@@ -6,6 +6,7 @@ import { loadFresh, optimistic, makeEnsureLoaded, trackWrite } from './store-hel
 import { useTodoStore } from './todo-store'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from './undoable'
+import { useSettingsStore } from './settings-store'
 import { bySortOrder } from '../utils/sort-order'
 
 interface StatusState {
@@ -74,7 +75,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
       const status = get().statuses.find(s => s.id === id)
       // Capture affected todos and default setting before deletion
       const affectedTodoIds = await statusRepository.getTodoIdsForStatus(id)
-      const { useSettingsStore } = await import('./settings-store')
       const settingsState = useSettingsStore.getState()
       const wasDefault = settingsState.defaultStatusId === id
       const wasSeededAssigned = settingsState.seededAssignedStatusId === id
@@ -84,7 +84,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
 
       // Update in-memory todo store
       if (affectedTodoIds.length > 0) {
-        const { useTodoStore } = await import('./todo-store')
         useTodoStore.setState({
           todos: useTodoStore.getState().todos.map(t =>
             affectedTodoIds.includes(t.id) ? { ...t, statusId: undefined } : t
@@ -115,7 +114,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
             }
             await get().load()
             // Reload todo store to reflect restored statusIds
-            const { useTodoStore } = await import('./todo-store')
             await useTodoStore.getState().loadAll()
           },
           true,

@@ -2,6 +2,7 @@ import type { Person, RecurrenceType, Status, Tag } from '../models'
 import { removeSpans, type CommandProblem, type ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { TagLimitError } from '../utils/tags'
+import { useUndoStore } from '../stores/undo-store'
 
 export interface ResolvedInput {
   /** The task title: the text without its recognised tokens. An unknown
@@ -118,10 +119,10 @@ export async function resolveTags(
         createdByLower.set(lower, id)
       } catch (e) {
         if (e instanceof TagLimitError) {
-          // Surface the user-readable message; once the ceiling is hit,
-          // every subsequent create would rethrow, so stop early and return
-          // whatever ids resolved successfully.
-          console.error(e.message)
+          // The task is still created, without the tags past the limit: say
+          // so. Once the ceiling is hit every later create would throw too,
+          // so stop and return the ids resolved so far.
+          useUndoStore.getState().notify(e.message)
           break
         }
         throw e

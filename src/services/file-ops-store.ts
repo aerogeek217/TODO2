@@ -68,7 +68,10 @@ interface FileOpsState {
   dismissSnapshotWarning: () => void
 }
 
-export const useFileOpsStore = create<FileOpsState>((set, get) => ({
+export const useFileOpsStore = create<FileOpsState>((set, get) => {
+  /** The latest `loadBackups` call: an older read that resolves later is dropped. */
+  let latestBackupsLoad = 0
+  return {
   backups: [],
   auditReport: null,
   snapshotWarning: null,
@@ -76,7 +79,9 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   dismissSnapshotWarning: () => set({ snapshotWarning: null }),
 
   loadBackups: async () => {
-    set({ backups: await backupRepository.listSnapshots() })
+    const run = ++latestBackupsLoad
+    const backups = await backupRepository.listSnapshots()
+    if (run === latestBackupsLoad) set({ backups })
   },
 
   createBackup: async () => {
@@ -139,7 +144,8 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
       return { status: 'done', noBackup: snapshot === 'without-backup' }
     })
   },
-}))
+  }
+})
 
 // Backup warnings (see `backupRepository.reportSnapshotWarning`) land in the
 // store so `FileSyncBanner` can surface them.

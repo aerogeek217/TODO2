@@ -3,8 +3,12 @@ import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
 import { isValidEmail } from '../utils/person'
 import { byName } from '../utils/sort-order'
+import { useUndoStore } from '../stores/undo-store'
+import { useUIStore } from '../stores/ui-store'
+import { useTodoStore } from '../stores/todo-store'
 
-export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'tasks'
+/** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
+export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
 
 export interface Command {
   id: string
@@ -97,19 +101,12 @@ export function createCommands(ctx: CommandContext): Command[] {
 
     // Task actions
     { id: 'new-task', name: 'New Task', shortcut: cmdSpace, category: 'task', action: ctx.openQuickAdd },
-    { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: async () => {
-      const { useUndoStore } = await import('../stores/undo-store')
-      useUndoStore.getState().undo()
-    }},
-    { id: 'redo', name: 'Redo', shortcut: cmdShiftZ, category: 'task', action: async () => {
-      const { useUndoStore } = await import('../stores/undo-store')
-      useUndoStore.getState().redo()
-    }},
-    { id: 'select-all', name: 'Select All Tasks', shortcut: cmdA, category: 'task', action: async () => {
+    { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: () => { void useUndoStore.getState().undo() } },
+    { id: 'redo', name: 'Redo', shortcut: cmdShiftZ, category: 'task', action: () => { void useUndoStore.getState().redo() } },
+    { id: 'select-all', name: 'Select All Tasks', shortcut: cmdA, category: 'task', action: () => {
       const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
       if (rows.length > 0) {
         const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
-        const { useUIStore } = await import('../stores/ui-store')
         useUIStore.getState().selectAll(todoIds)
       }
     }},
@@ -142,7 +139,6 @@ export function createCommands(ctx: CommandContext): Command[] {
         const ids = ctx.getSelectedIds()
         const onlyId = ids[0]
         if (ids.length === 1 && onlyId != null) {
-          const { useTodoStore } = await import('../stores/todo-store')
           await useTodoStore.getState().duplicate(onlyId)
         }
       },
@@ -195,7 +191,7 @@ export function searchDynamicCommands(query: string, ctx: CommandContext): Comma
       results.push({
         id: `task-${todo.id}`,
         name: todo.title,
-        category: 'tasks',
+        category: 'search-results',
         action: () => ctx.focusTask(todo.id),
       })
     }

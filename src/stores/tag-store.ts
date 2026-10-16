@@ -135,6 +135,7 @@ export const useTagStore = create<TagState>((set, get) => {
             async () => {
               await tagRepository.restoreWithJoins(tag, joins)
               await get().load()
+              // Imported here: todo-store imports this store, so a static import back would be a cycle.
               const { useTodoStore } = await import('./todo-store')
               const todoIds = useTodoStore.getState().todos.map((t) => t.id)
               await get().loadAssignments(todoIds)

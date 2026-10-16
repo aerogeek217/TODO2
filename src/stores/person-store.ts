@@ -132,6 +132,7 @@ export const usePersonStore = create<PersonState>((set, get) => {
             async () => {
               await personRepository.restoreWithJoins(person, joins)
               await get().load()
+              // Imported here: todo-store imports this store, so a static import back would be a cycle.
               const { useTodoStore } = await import('./todo-store')
               const todoIds = useTodoStore.getState().todos.map(t => t.id)
               await get().loadAssignments(todoIds)
