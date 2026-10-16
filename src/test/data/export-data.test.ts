@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { buildExportData, selfCheckExportJson } from '../../data/export-data'
 import { buildMarkdownExport } from '../../services/markdown-export'
+import { buildTasksPlain } from '../../services/task-copy'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
 import { resetDb, makeTodo, makePerson } from '../helpers'
@@ -201,6 +202,25 @@ describe('buildMarkdownExport', () => {
     ])
     // One flat list: no section headings, and no details section without details.
     expect(lines.filter((l) => l.startsWith('#'))).toEqual(['# TODOs'])
+  })
+
+  it('a line is the rich-copy task line (without people); a status without an icon is not named', async () => {
+    await db.statuses.add({ id: 3, name: 'Waiting', color: '#888888', sortOrder: 0, icon: 'clock' } as any)
+    await db.statuses.add({ id: 4, name: 'Plain', color: '#888888', sortOrder: 1 } as any)
+    const followup = new Date(2026, 10, 2)
+    await db.todos.add(makeTodo({ id: 1, title: 'A', sortOrder: 1, statusId: 3, dueDate: new Date(2026, 9, 16), nextFollowupAt: followup }))
+    await db.todos.add(makeTodo({ id: 2, title: 'B', sortOrder: 2, statusId: 4 }))
+    await db.people.add(makePerson({ id: 1, name: 'Ann' }))
+    await db.todoPeople.add({ todoId: 1, personId: 1 })
+
+    const md = await buildMarkdownExport()
+    const todos = await db.todos.orderBy('sortOrder').toArray()
+    const plain = buildTasksPlain([{ todos }], {
+      assignedPeopleMap: new Map(),
+      statusMap: new Map([[3, { id: 3, name: 'Waiting', color: '#888888', sortOrder: 0 }]]),
+    })
+    expect(md.split('\n').filter((l) => l.startsWith('- ['))).toEqual(plain.split('\n').map((l) => `- ${l}`))
+    expect(plain).toContain('(follow-up ')
   })
 
   it('adds a details section with the people, tags and notes of each task that has them', async () => {

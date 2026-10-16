@@ -24,12 +24,40 @@ export interface CopyTaskContext {
   today?: Date
 }
 
-interface TodoDetails {
-  check: string
+/**
+ * One task as text, the parts rich copy and the Markdown export share:
+ * `[ ] title [Status] (due …) (follow-up …)`; each part after the title
+ * starts with its space, or is empty.
+ */
+export interface TaskLineParts {
+  check: '[ ]' | '[x]'
   title: string
   statusStr: string
   deadline: string
   followup: string
+}
+
+/** `status` is the task's status to name (none → no `[Status]`); `today` places the follow-up label. */
+export function taskLineParts(
+  todo: Pick<PersistedTodoItem, 'isCompleted' | 'title' | 'dueDate' | 'nextFollowupAt'>,
+  status: Pick<Status, 'name'> | undefined,
+  today: Date,
+): TaskLineParts {
+  return {
+    check: todo.isCompleted ? '[x]' : '[ ]',
+    title: todo.title,
+    statusStr: status ? ` [${status.name}]` : '',
+    deadline: todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : '',
+    followup: todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : '',
+  }
+}
+
+/** `[ ] title [Status] (due …) (follow-up …)`. */
+export function formatTaskLine(p: TaskLineParts): string {
+  return `${p.check} ${p.title}${p.statusStr}${p.deadline}${p.followup}`
+}
+
+interface TodoDetails extends TaskLineParts {
   peopleStr: string
 }
 
@@ -38,18 +66,14 @@ function todoDetails(
   ctx: CopyTaskContext,
   today: Date,
 ): TodoDetails {
-  const check = todo.isCompleted ? '[x]' : '[ ]'
   const status = todo.statusId ? ctx.statusMap.get(todo.statusId) : undefined
-  const statusStr = status ? ` [${status.name}]` : ''
-  const deadline = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
-  const followup = todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : ''
   const people = ctx.assignedPeopleMap.get(todo.id) ?? []
   const peopleStr = people.length > 0 ? ` @${people.map((p) => p.name).join(', @')}` : ''
-  return { check, title: todo.title, statusStr, deadline, followup, peopleStr }
+  return { ...taskLineParts(todo, status, today), peopleStr }
 }
 
 function renderPlainLine(d: TodoDetails): string {
-  return `${d.check} ${d.title}${d.statusStr}${d.deadline}${d.followup}${d.peopleStr}`
+  return `${formatTaskLine(d)}${d.peopleStr}`
 }
 
 function renderHtmlItem(d: TodoDetails): string {
@@ -86,7 +110,6 @@ export function buildTasksHtml(sections: CopyTaskSection[], ctx: CopyTaskContext
   return parts.join('\n')
 }
 
-/** Wraps copied HTML in the body font Office / mail clients paste nicely. */
 /** Copy the rendered task list to the clipboard as rich HTML + plain text. Returns true on success. */
 export async function copyTasksRich(
   sections: CopyTaskSection[],

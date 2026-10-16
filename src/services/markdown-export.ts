@@ -1,8 +1,8 @@
 import { buildExportData } from '../data/export-data'
 import type { PersistedTodoItem } from '../models'
 import { bySortOrder } from '../utils/sort-order'
-import { formatFollowupDate } from '../utils/followup'
 import { startOfToday } from '../utils/date'
+import { formatTaskLine, taskLineParts } from './task-copy'
 
 /**
  * Builds a markdown representation of all tasks (in manual order).
@@ -34,13 +34,12 @@ export async function buildMarkdownExport(): Promise<string> {
   const details: string[] = []
   const today = startOfToday()
 
+  // The task line rich copy uses, as a Markdown list item. Unlike rich
+  // copy, the export has always named only statuses with an icon; people
+  // and tags go to the details section below instead of the line.
   const formatTodoLine = (todo: PersistedTodoItem) => {
-    const check = todo.isCompleted ? '[x]' : '[ ]'
-    const deadline = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
-    const followup = todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : ''
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
-    const statusStr = status?.icon ? ` [${status.name}]` : ''
-    return `- ${check} ${todo.title}${statusStr}${deadline}${followup}`
+    return `- ${formatTaskLine(taskLineParts(todo, status?.icon ? status : undefined, today))}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {
