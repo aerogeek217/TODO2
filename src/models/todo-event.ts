@@ -31,6 +31,3 @@ export interface TodoEvent {
   /** ISO timestamp. */
   timestamp: string
 }
-
-/** TodoEvent after persistence — id is always defined. */
-export type PersistedTodoEvent = TodoEvent & { id: number }

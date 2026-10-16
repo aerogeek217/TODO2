@@ -27,7 +27,6 @@ function isOptRecurrenceRule(v: unknown): boolean {
 }
 import type { SettingRow } from './database'
 import { DATA_TABLE_NAMES, type DataTableArrays, type DataTableName, type DataTableRows } from './tables'
-export { isValidCssColor } from '../utils/css'
 import { isValidCssColor } from '../utils/css'
 import { parseColorSettingKey } from '../models/theme-colors'
 import { isRecord } from '../utils/is-record'

@@ -37,13 +37,6 @@ export const personRepository = {
 
   // --- todoPeople join queries ---
 
-  async getAssignedPeople(todoId: number): Promise<Person[]> {
-    const links = await db.todoPeople.where('todoId').equals(todoId).toArray()
-    const personIds = links.map((l) => l.personId)
-    if (personIds.length === 0) return []
-    return db.people.where('id').anyOf(personIds).toArray()
-  },
-
   async getAssignedPeopleForTodos(todoIds: number[]): Promise<Map<number, Person[]>> {
     return buildAssignmentMap(db.todoPeople, db.people, 'todoId', 'personId', todoIds)
   },

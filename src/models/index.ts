@@ -27,7 +27,7 @@ export {
   MARKER_KEYS,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'
-export { type TodoEvent, type PersistedTodoEvent, type TodoEventType } from './todo-event'
+export { type TodoEvent, type TodoEventType } from './todo-event'
 export { type Status, type PersistedStatus, type StatusIconKey, STATUS_ICON_KEYS, DEFAULT_STATUS_ICON } from './status'
 export {
   type ListDefinition,

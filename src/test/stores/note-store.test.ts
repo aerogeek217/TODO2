@@ -27,7 +27,7 @@ const contentInStore = () => {
   const { notes, activeId } = useNoteStore.getState()
   return notes.get(activeId!)!.content
 }
-const contentInDb = async () => (await noteRepository.getById(useNoteStore.getState().activeId!))!.content
+const contentInDb = async () => (await db.notes.get(useNoteStore.getState().activeId!))!.content
 
 describe('useNoteStore', () => {
   describe('load', () => {
@@ -38,7 +38,7 @@ describe('useNoteStore', () => {
       expect(state.notes.size).toBe(1)
       expect(state.notes.get(state.activeId!)!.content).toBe('')
 
-      const rows = await noteRepository.getAll()
+      const rows = await db.notes.toArray()
       expect(rows).toHaveLength(1)
     })
 
@@ -63,7 +63,7 @@ describe('useNoteStore', () => {
 
       // Persistence is debounced 500ms; before the debounce fires the repo still holds ''.
       await useNoteStore.getState().flush()
-      const persisted = await noteRepository.getById(id)
+      const persisted = await db.notes.get(id)
       expect(persisted!.content).toBe('draft-1')
       expect(useNoteStore.getState().lastSavedAt).toBeInstanceOf(Date)
     })
@@ -89,7 +89,7 @@ describe('useNoteStore', () => {
       await vi.waitFor(() => expect(updateSpy).toHaveBeenCalled())
       await updateSpy.mock.results[0]?.value
       expect(updateSpy).toHaveBeenCalledTimes(1)
-      const persisted = await noteRepository.getById(id)
+      const persisted = await db.notes.get(id)
       expect(persisted!.content).toBe('three')
     })
   })
@@ -102,7 +102,7 @@ describe('useNoteStore', () => {
       useNoteStore.getState().setContent(id, 'pending')
       await useNoteStore.getState().flush()
 
-      const persisted = await noteRepository.getById(id)
+      const persisted = await db.notes.get(id)
       expect(persisted!.content).toBe('pending')
     })
   })

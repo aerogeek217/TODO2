@@ -8,23 +8,6 @@ import type { TodoEvent, TodoEventType } from '../models'
  * and task archives.
  */
 export const todoEventRepository = {
-  async add(event: Omit<TodoEvent, 'id'>): Promise<number> {
-    return db.todoEvents.add(event as TodoEvent)
-  },
-
-  async bulkAdd(events: Omit<TodoEvent, 'id'>[]): Promise<void> {
-    if (events.length === 0) return
-    await db.todoEvents.bulkAdd(events as TodoEvent[])
-  },
-
-  async byTodo(todoId: number): Promise<TodoEvent[]> {
-    return db.todoEvents.where('todoId').equals(todoId).toArray()
-  },
-
-  async getAll(): Promise<TodoEvent[]> {
-    return db.todoEvents.toArray()
-  },
-
   /**
    * Events at or after `from` (one indexed range read on `timestamp`),
    * optionally only of `types`.
@@ -55,10 +38,6 @@ export const todoEventRepository = {
       table.hook('updating').unsubscribe(notify)
       table.hook('deleting').unsubscribe(notify)
     }
-  },
-
-  async deleteByTodo(todoId: number): Promise<void> {
-    await db.todoEvents.where('todoId').equals(todoId).delete()
   },
 }
 

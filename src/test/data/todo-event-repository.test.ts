@@ -7,34 +7,19 @@ import {
 } from '../../data/todo-event-repository'
 import { makeTodo } from '../helpers'
 
+/** The events recorded for a task. */
+const eventsOf = (todoId: number) => db.todoEvents.where('todoId').equals(todoId).toArray()
+
 beforeEach(async () => {
   await db.delete()
   await db.open()
-})
-
-describe('todoEventRepository — write/read round-trip', () => {
-  it('add + byTodo + getAll round-trip', async () => {
-    const id = await todoEventRepository.add({
-      todoId: 1, type: 'created', fromValue: null, toValue: null,
-      timestamp: new Date('2026-04-26T10:00:00Z').toISOString(),
-    })
-    expect(id).toBeGreaterThan(0)
-
-    const byTodo = await todoEventRepository.byTodo(1)
-    expect(byTodo).toHaveLength(1)
-    expect(byTodo[0]!.type).toBe('created')
-
-    const all = await todoEventRepository.getAll()
-    expect(all).toHaveLength(1)
-  })
-
 })
 
 describe('todoRepository — emit on insert / update / complete', () => {
   it('emits a single created event on insert', async () => {
     const ts = new Date('2026-04-25T12:00:00Z')
     const id = await todoRepository.insert(makeTodo({ title: 'a', createdAt: ts, modifiedAt: ts }))
-    const events = await todoEventRepository.byTodo(id)
+    const events = await eventsOf(id)
     expect(events).toHaveLength(1)
     expect(events[0]!.type).toBe('created')
     expect(events[0]!.timestamp).toBe(ts.toISOString())
@@ -44,19 +29,19 @@ describe('todoRepository — emit on insert / update / complete', () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.update(id, { nextFollowupAt: new Date('2026-05-01T00:00:00Z') })
 
-    const events = await todoEventRepository.byTodo(id)
+    const events = await eventsOf(id)
     expect(events.map((e) => e.type)).toEqual(['created'])
   })
 
   it('update is idempotent — re-writing tracked fields with their values emits nothing', async () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z') })
-    const before = await todoEventRepository.byTodo(id)
+    const before = await eventsOf(id)
 
     // The same due date again, plus an untracked field.
     await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z'), title: 'rename only' })
 
-    const after = await todoEventRepository.byTodo(id)
+    const after = await eventsOf(id)
     expect(after.length).toBe(before.length)
   })
 
@@ -64,7 +49,7 @@ describe('todoRepository — emit on insert / update / complete', () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.update(id, { dueDate: new Date('2026-06-01T00:00:00Z') })
 
-    const deadline = (await todoEventRepository.byTodo(id)).filter((e) => e.type === 'deadline')
+    const deadline = (await eventsOf(id)).filter((e) => e.type === 'deadline')
     expect(deadline).toHaveLength(1)
     expect(deadline[0]!.toValue).toBe('2026-06-01T00:00:00.000Z')
   })
@@ -73,7 +58,7 @@ describe('todoRepository — emit on insert / update / complete', () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.update(id, { statusId: 7 })
 
-    const status = (await todoEventRepository.byTodo(id)).filter((e) => e.type === 'status')
+    const status = (await eventsOf(id)).filter((e) => e.type === 'status')
     expect(status).toHaveLength(1)
     expect(status[0]!.fromValue).toBeNull()
     expect(status[0]!.toValue).toBe(7)
@@ -82,19 +67,19 @@ describe('todoRepository — emit on insert / update / complete', () => {
   it('complete emits completed on false→true and reopened on true→false', async () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.complete(id, true)
-    let events = await todoEventRepository.byTodo(id)
+    let events = await eventsOf(id)
     expect(events.some((e) => e.type === 'completed')).toBe(true)
 
     await todoRepository.complete(id, false)
-    events = await todoEventRepository.byTodo(id)
+    events = await eventsOf(id)
     expect(events.some((e) => e.type === 'reopened')).toBe(true)
   })
 
   it('complete is idempotent — re-completing emits no event', async () => {
     const id = await todoRepository.insert(makeTodo({ isCompleted: true }))
-    const before = await todoEventRepository.byTodo(id)
+    const before = await eventsOf(id)
     await todoRepository.complete(id, true)
-    const after = await todoEventRepository.byTodo(id)
+    const after = await eventsOf(id)
     expect(after.length).toBe(before.length)
   })
 
@@ -107,9 +92,9 @@ describe('todoRepository — emit on insert / update / complete', () => {
       { todoId: id2, changes: { isCompleted: true } },
     ])
 
-    const ev1 = await todoEventRepository.byTodo(id1)
+    const ev1 = await eventsOf(id1)
     expect(ev1.some((e) => e.type === 'status' && e.toValue === 2)).toBe(true)
-    const ev2 = await todoEventRepository.byTodo(id2)
+    const ev2 = await eventsOf(id2)
     expect(ev2.some((e) => e.type === 'completed')).toBe(true)
   })
 })
@@ -118,11 +103,11 @@ describe('todoRepository — cascade delete', () => {
   it('delete wipes every event for the todo', async () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z') })
-    expect((await todoEventRepository.byTodo(id)).length).toBeGreaterThan(1)
+    expect((await eventsOf(id)).length).toBeGreaterThan(1)
 
     await todoRepository.delete(id)
 
-    expect(await todoEventRepository.byTodo(id)).toHaveLength(0)
+    expect(await eventsOf(id)).toHaveLength(0)
     // The events table itself only loses rows for this todo.
     expect(await db.todoEvents.count()).toBe(0)
   })
@@ -134,10 +119,10 @@ describe('todoRepository — cascade delete', () => {
 
     await todoRepository.bulkDelete([id1, id2])
 
-    expect(await todoEventRepository.byTodo(id1)).toHaveLength(0)
-    expect(await todoEventRepository.byTodo(id2)).toHaveLength(0)
+    expect(await eventsOf(id1)).toHaveLength(0)
+    expect(await eventsOf(id2)).toHaveLength(0)
     // Survivor keeps its created event.
-    expect(await todoEventRepository.byTodo(id3)).toHaveLength(1)
+    expect(await eventsOf(id3)).toHaveLength(1)
   })
 })
 
@@ -152,7 +137,7 @@ describe('encode helpers', () => {
 
 describe('todoEventRepository — since / onChange', () => {
   it('since returns events at or after `from`, optionally of some types only', async () => {
-    await todoEventRepository.bulkAdd([
+    await db.todoEvents.bulkAdd([
       { todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-04-01T00:00:00.000Z' },
       { todoId: 1, type: 'status', fromValue: null, toValue: 2, timestamp: '2026-04-10T00:00:00.000Z' },
       { todoId: 2, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-04-10T00:00:00.000Z' },

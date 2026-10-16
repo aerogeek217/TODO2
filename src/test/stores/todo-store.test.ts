@@ -258,7 +258,7 @@ describe('todoStore', () => {
     const tagIds = ((await tagRepository.getAssignedTagsForTodos([newId!])).get(newId!) ?? []).map((t) => t.id).sort()
     expect(tagIds).toEqual([tagA, tagB].sort())
     expect(useTagStore.getState().assignedTagsMap.get(newId!)?.map((t) => t.name).sort()).toEqual(['Project: Alpha', 'urgent'])
-    expect((await personRepository.getAssignedPeople(newId!)).map((p) => p.id)).toEqual([personId])
+    expect(((await personRepository.getAssignedPeopleForTodos([newId!])).get(newId!) ?? []).map((p) => p.id)).toEqual([personId])
     // The original keeps its own assignments.
     expect(((await tagRepository.getAssignedTagsForTodos([id])).get(id) ?? []).length).toBe(2)
   })

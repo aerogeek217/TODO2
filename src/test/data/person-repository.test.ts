@@ -58,7 +58,7 @@ describe('personRepository', () => {
     await personRepository.assignPerson(todoId, p1)
     await personRepository.assignPerson(todoId, p2)
 
-    const people = await personRepository.getAssignedPeople(todoId)
+    const people = (await personRepository.getAssignedPeopleForTodos([todoId])).get(todoId) ?? []
     expect(people).toHaveLength(2)
     expect(people.map(p => p.name).sort()).toEqual(['Alice', 'Bob'])
   })
@@ -85,7 +85,7 @@ describe('personRepository', () => {
 
     await personRepository.assignPerson(todoId, personId)
     await personRepository.unassignPerson(todoId, personId)
-    const people = await personRepository.getAssignedPeople(todoId)
+    const people = (await personRepository.getAssignedPeopleForTodos([todoId])).get(todoId) ?? []
     expect(people).toHaveLength(0)
   })
 

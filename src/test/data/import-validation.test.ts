@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { validateImportData, isValidCssColor, isKnownSettingKey } from '../../data/import-validation'
+import { validateImportData, isKnownSettingKey } from '../../data/import-validation'
+import { isValidCssColor } from '../../utils/css'
 
 const now = new Date().toISOString()
 
