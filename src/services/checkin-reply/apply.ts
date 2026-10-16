@@ -68,7 +68,8 @@ export function checkinAppliedMessage(changeCount: number, personName: string): 
  * the undo snackbar): completions first, then each task's progress / notes,
  * then — when `recordFollowup` — "Followed up" on every updated task.
  * Returns the number of changes applied. A failed write stops there; what
- * was written before it stays and is still one undo entry.
+ * was written before it stays and is still one undo entry, named for the
+ * changes that went in (N counts only those).
  */
 export async function applyCheckinUpdates(
   updates: readonly CheckinTaskUpdate[],
@@ -77,12 +78,17 @@ export async function applyCheckinUpdates(
   const changeCount = updates.reduce((n, u) => n + u.changeCount, 0)
   if (changeCount === 0) return 0
   const undo = useUndoStore.getState()
+  // Counted as each write lands, so a failure part-way says how many went in.
+  let applied = 0
   undo.beginGroup()
   try {
     const completeIds = updates.filter((u) => u.complete).map((u) => u.todoId)
     // The same path as completing tasks in the app (a repeating task moves
     // to its next due date instead).
-    if (completeIds.length > 0) await useTodoStore.getState().bulkSetCompleted(completeIds, true)
+    if (completeIds.length > 0) {
+      await useTodoStore.getState().bulkSetCompleted(completeIds, true)
+      applied += completeIds.length
+    }
 
     for (const u of updates) {
       if (u.progress === undefined && u.notes === undefined) continue
@@ -91,11 +97,12 @@ export async function applyCheckinUpdates(
         ...(u.notes !== undefined ? { notes: u.notes === '' ? undefined : u.notes } : {}),
       })
       if (!saved) throw new Error(`Couldn't save the reply's changes to task ${u.todoId}`)
+      applied += u.changeCount - (u.complete ? 1 : 0)
     }
 
     if (options.recordFollowup) await useTodoStore.getState().markFollowedUp(updates.map((u) => u.todoId))
   } finally {
-    useUndoStore.getState().endGroup(checkinAppliedMessage(changeCount, options.personName), true)
+    useUndoStore.getState().endGroup(checkinAppliedMessage(applied, options.personName), true)
   }
-  return changeCount
+  return applied
 }

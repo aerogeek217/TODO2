@@ -196,6 +196,8 @@ describe('applyCheckinUpdates', () => {
 
     await expect(applyCheckinUpdates(updates, { recordFollowup: true, personName: 'Marcus Chen' })).rejects.toThrow()
     expect((await row(1)).lastFollowupAt).toEqual(before.lastFollowupAt)
+    // Only the completion (written first) went in: the undo entry says 1, not 3.
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe(checkinAppliedMessage(1, 'Marcus Chen'))
     vi.restoreAllMocks()
   })
 })
