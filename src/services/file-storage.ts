@@ -592,6 +592,29 @@ class FileStorageService {
       }
     }
 
+    // Note text typed just before is saved first, so the comparison below
+    // sees it (it is a browser change the file doesn't have) and any backup
+    // holds it; note saves then wait until the decision is carried out — a
+    // save landing after a load would put this browser's text over the
+    // file's note. Text typed meanwhile is saved on release unless the
+    // reload replaced the notes.
+    const release = await this.holdForImport()
+    try {
+      await this.decide(handle, text, raw, prepared, fileId, lastModified)
+    } finally {
+      release()
+    }
+  }
+
+  /** The load decision for a read, prepared file (`loadFromFile`, inside its note hold). */
+  private async decide(
+    handle: FileSystemFileHandle,
+    text: string,
+    raw: Record<string, unknown>,
+    prepared: Extract<ReturnType<typeof prepareImport>, { ok: true }>,
+    fileId: string,
+    lastModified: number,
+  ): Promise<void> {
     const state = readFileSyncState()
     const hasRecord = state.fileSavedAt !== null
     const fileChanged = hasRecord ? state.fileSavedAt !== fileId : null
@@ -714,36 +737,28 @@ class FileStorageService {
   private async applyFileData(data: ImportData, fileId: string, browserHoldsFile: boolean): Promise<boolean> {
     const name = this.handle?.name ?? 'the sync file'
     let noBackup = false
-    // Before the backup: note text typed just before is saved (so the
-    // backup holds it), and note saves then wait until the stores have
-    // reloaded — one landing after the restore would put this browser's
-    // text over the file's note.
-    const release = await this.holdForImport()
-    try {
-      if (browserHoldsFile) {
-        await backupScheduler.snapshotBeforeDestructive().catch((err) => {
-          console.warn('[file-storage] snapshot before reloading the unchanged file failed', err)
-        })
-      } else {
-        const snapshot = await takeSafetySnapshot(`loading ${name} over this browser's data`)
-        if (snapshot === 'cancelled') {
-          this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
-          return false
-        }
-        noBackup = snapshot === 'without-backup'
+    // Called inside `loadFromFile`'s note hold: typed text is already saved.
+    if (browserHoldsFile) {
+      await backupScheduler.snapshotBeforeDestructive().catch((err) => {
+        console.warn('[file-storage] snapshot before reloading the unchanged file failed', err)
+      })
+    } else {
+      const snapshot = await takeSafetySnapshot(`loading ${name} over this browser's data`)
+      if (snapshot === 'cancelled') {
+        this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
+        return false
       }
-      this.suppressSync = true
-      try {
-        await restoreFromImportData(data)
-      } finally {
-        this.suppressSync = false
-      }
-      this.changeGen++
-      writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
-      await this.afterImport()
-    } finally {
-      release()
+      noBackup = snapshot === 'without-backup'
     }
+    this.suppressSync = true
+    try {
+      await restoreFromImportData(data)
+    } finally {
+      this.suppressSync = false
+    }
+    this.changeGen++
+    writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
+    await this.afterImport()
     // After the stores reload (which clears the snackbar): the result toast.
     if (noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
     return true

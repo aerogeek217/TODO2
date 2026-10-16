@@ -13,7 +13,7 @@ import { fileStorageService as svc } from '../../services/file-storage'
 import '../../services/file-storage-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useFileOpsStore } from '../../stores/file-ops-store'
-import { resetDb } from '../helpers'
+import { makeTodo, resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
 
 const mockLoadFileHandle = vi.fn()
@@ -226,5 +226,33 @@ describe('note text typed just before a data replace (its save not run yet)', ()
 
     expect(await noteText(id)).toBe('typed just before the cleanup')
     expect(useNoteStore.getState().notes.get(id)?.content).toBe('typed just before the cleanup')
+  })
+})
+
+describe('note text typed just before a sync file load whose data matches the browser', () => {
+  it('counts as a browser change: the load asks instead of replacing the text silently', async () => {
+    const id = await setNoteText('same on both sides')
+    await db.todos.add(makeTodo({ id: undefined, title: 'A task' }))
+    const fileText = JSON.stringify({ ...(await buildExportData()), savedAt: SAVED_AT })
+    // No sync record: the sides are compared — identical but for the typed text.
+    mockLoadFileHandle.mockResolvedValue({
+      kind: 'file',
+      name: 'todo2-data.json',
+      getFile: vi.fn().mockImplementation(async () => new File([fileText], 'todo2-data.json', { type: 'application/json', lastModified: 1_000 })),
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      createWritable: vi.fn().mockResolvedValue({ write: vi.fn(), close: vi.fn(), abort: vi.fn() }),
+      isSameEntry: vi.fn(),
+    })
+    vi.stubGlobal('showOpenFilePicker', vi.fn())
+    const asked = vi.fn(async () => 'cancel' as const)
+    svc.onConflict(asked)
+    await typedJustBefore('typed just before the load')
+
+    await svc.initialize()
+
+    expect(asked).toHaveBeenCalledTimes(1)
+    expect(svc.status.paused?.reason).toBe('conflict-cancelled')
+    expect(await noteText(id)).toBe('typed just before the load')
   })
 })
