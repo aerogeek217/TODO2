@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { useRef, useState } from 'react'
+import { StrictMode, useRef, useState } from 'react'
 import { MenuPopover, type MenuEntry } from '../../../components/workspace/MenuPopover'
 
 afterEach(cleanup)
@@ -116,5 +116,113 @@ describe('MenuPopover — the popover menu', () => {
     } finally {
       document.removeEventListener('keydown', outer)
     }
+  })
+})
+
+describe('MenuPopover — panels, radio choices, footnotes, focus owner', () => {
+  const panelItem = (onButton = vi.fn()): MenuEntry => item('Rule', {
+    onSelect: undefined,
+    note: 'U+I',
+    panel: {
+      label: 'Rule panel',
+      width: 300,
+      render: () => <div><button type="button" onClick={onButton}>First</button><button type="button">Second</button></div>,
+    },
+  })
+
+  it('hover opens a panel without focus; hovering a plain item closes it again', () => {
+    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={[item('Plain'), panelItem()]} />)
+    const row = screen.getByRole('menuitem', { name: /Rule/ })
+    expect(row).toHaveAttribute('aria-haspopup', 'dialog')
+    fireEvent.pointerEnter(row)
+    const panel = screen.getByRole('dialog', { name: 'Rule panel' })
+    expect(panel.style.width).toBe('300px')
+    expect(panel).toHaveAttribute('data-shortcut-scope', 'none')
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'First' }))
+    fireEvent.pointerEnter(screen.getByRole('menuitem', { name: 'Plain' }))
+    expect(screen.queryByRole('dialog', { name: 'Rule panel' })).toBeNull()
+  })
+
+  it('a click opens it pinned with the focus inside: plain items don’t close it, its controls don’t close the menu', () => {
+    const onClose = vi.fn()
+    const onButton = vi.fn()
+    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={onClose} entries={[item('Plain'), panelItem(onButton)]} />)
+    fireEvent.click(screen.getByRole('menuitem', { name: /Rule/ }), { detail: 1 })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'First' }))
+    fireEvent.pointerEnter(screen.getByRole('menuitem', { name: 'Plain' }))
+    expect(screen.getByRole('dialog', { name: 'Rule panel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'First' }))
+    expect(onButton).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    // Tab cycles inside the panel.
+    act(() => { screen.getByRole('button', { name: 'Second' }).focus() })
+    fireEvent.keyDown(document.activeElement!, { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'First' }))
+  })
+
+  it('Esc or ← in the panel closes only it, back on its item; a mousedown inside is not outside', () => {
+    const onClose = vi.fn()
+    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={onClose} entries={[panelItem()]} />)
+    const row = screen.getByRole('menuitem', { name: /Rule/ })
+    act(() => { row.focus() })
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'First' }))
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Second' }))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Rule panel' })).toBeNull()
+    expect(document.activeElement).toBe(row)
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    expect(screen.queryByRole('dialog', { name: 'Rule panel' })).toBeNull()
+    expect(document.activeElement).toBe(row)
+  })
+
+  it('radio choices with a leading circle and a footnote; → focuses the checked one', () => {
+    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={[
+      item('Range', {
+        onSelect: undefined,
+        note: '3 days',
+        children: [
+          { kind: 'label', text: 'Pick a range' },
+          item('Off', { radio: true, indicator: 'radio', checked: false }),
+          item('3 days', { radio: true, indicator: 'radio', checked: true, note: 'by Tue' }),
+          { kind: 'separator' },
+          { kind: 'note', text: 'Overdue counts too.' },
+        ],
+      }),
+    ]} />)
+    const row = screen.getByRole('menuitem', { name: /Range/ })
+    act(() => { row.focus() })
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    const sub = screen.getByRole('menu', { name: 'Range' })
+    expect(sub).toHaveTextContent('Overdue counts too.')
+    const checked = screen.getByRole('menuitemradio', { name: /3 days/ })
+    expect(document.activeElement).toBe(checked)
+    expect(checked).toHaveAttribute('aria-checked', 'true')
+    // The circle shows the choice, not the trailing check.
+    expect(checked.querySelector('svg')).toBeNull()
+  })
+
+  it('a menu at the pointer gives Esc focus back to what had it before, after a re-run of its mount effect', () => {
+    function AtPointer() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Opener</button>
+          {open && <MenuPopover point={{ x: 0, y: 0 }} entries={[item('Alpha')]} label="p" onClose={() => setOpen(false)} />}
+        </>
+      )
+    }
+    render(<StrictMode><AtPointer /></StrictMode>)
+    const opener = screen.getByRole('button', { name: 'Opener' })
+    act(() => { opener.focus() })
+    fireEvent.click(opener)
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Alpha' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(opener)
   })
 })
