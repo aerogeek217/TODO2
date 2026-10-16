@@ -3,7 +3,7 @@ import type { UnsupportedDBInfo } from '../../services/migration-check'
 import type { UnsupportedImportInfo } from '../../data/file-version'
 import { exportCurrentDatabase } from '../../services/migration-check'
 import { OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
-import { buildExportData } from '../../data/export-data'
+import { buildJsonExport, exportFileTimestamp } from '../../services/data-files'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { downloadedMessage, saveTextFile } from '../../services/save-file'
 import styles from './MigrationDialog.module.css'
@@ -38,11 +38,10 @@ export function MigrationDialog(props: MigrationDialogProps) {
       if (props.mode === 'schema-upgrade') {
         json = await exportCurrentDatabase(props.info.currentVersion)
       } else {
-        const data = await buildExportData()
-        json = JSON.stringify({ ...data, exportedAt: new Date().toISOString() }, null, 2)
+        json = await buildJsonExport()
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+      const timestamp = exportFileTimestamp()
       const filename = `todo2-pre-migration-${timestamp}.json`
 
       const saved = await saveTextFile({

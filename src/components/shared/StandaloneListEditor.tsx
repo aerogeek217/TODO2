@@ -6,7 +6,7 @@ import { ListEditorBody } from './ListEditorBody'
 import { ListEditorDialog } from './ListEditorDialog'
 import { useListDefDraft } from '../../hooks/use-list-def-draft'
 import { useEffectiveListDefinition, useListDraftStore } from '../../stores/list-draft-store'
-import { useListWidgetCount } from '../workspace/widget-hooks'
+import { useListWidgetCount } from '../../hooks/use-list-widget-count'
 
 /**
  * The "Edit list…" dialog opened from a list widget's tab menu or options

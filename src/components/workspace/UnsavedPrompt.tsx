@@ -4,7 +4,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { UnsavedChangesDialog } from './LayoutDialogs'
-import { countListWidgets } from './widget-hooks'
+import { countListWidgets } from '../../hooks/use-list-widget-count'
 import styles from './LayoutDialogs.module.css'
 
 interface UnsavedPromptProps {

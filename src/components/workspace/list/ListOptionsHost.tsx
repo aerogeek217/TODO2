@@ -16,7 +16,7 @@ import {
   SORT_LABEL,
 } from '../../../utils/list-options'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
-import { useListWidgetCount } from '../widget-hooks'
+import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { LinkIcon, PlusIcon } from '../../shared/icons'
 import { PredicateFieldPicker } from './PredicateFieldPicker'
 import { ADD_FILTER_ITEMS } from './filter-menu'

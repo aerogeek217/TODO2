@@ -1,6 +1,6 @@
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
-import { useListWidgetCount } from '../widget-hooks'
+import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { SaveIcon } from '../../shared/icons'
 
 /**

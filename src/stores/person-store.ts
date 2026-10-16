@@ -27,6 +27,8 @@ interface PersonState {
   /** Replaces the person row; `email` is stored trimmed and dropped when empty. */
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
+  /** How many tasks (any, loaded or not) the person is assigned to — read from the database, for the delete confirm. */
+  countTasks: (personId: number) => Promise<number>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assignPerson: (todoId: number, personId: number) => Promise<void>
   unassignPerson: (todoId: number, personId: number) => Promise<void>
@@ -102,6 +104,10 @@ export const usePersonStore = create<PersonState>((set, get) => {
         () => { if (prev && get().people.find((p) => p.id === person.id) === applied) put(prev) },
         'Failed to update person',
       )
+    },
+
+    countTasks(personId: number) {
+      return personRepository.getTodoCountForPerson(personId)
     },
 
     remove(id: number) {

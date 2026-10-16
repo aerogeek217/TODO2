@@ -1,7 +1,7 @@
 import { widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useWorkspaceStore, type WorkspaceState } from '../../stores/workspace-store'
-import { countListTabs, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -28,27 +28,4 @@ export function useAddWidget() {
   const addWidget = useWorkspaceStore((s) => s.addWidget)
   return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number) =>
     addWidget(kind, target, listDefinitionId != null ? { listDefinitionId } : undefined)
-}
-
-/**
- * How many list widgets show list `listDefinitionId` across every layout: the
- * open layout as edited, the others as saved. Tabs in `exceptTabIds` (of the
- * open layout) are not counted.
- */
-export function countListWidgets(
-  state: Pick<WorkspaceState, 'working' | 'layouts'>,
-  listDefinitionId: number,
-  exceptTabIds?: ReadonlySet<string>,
-): number {
-  const { working, layouts } = state
-  let n = working ? countListTabs(working, listDefinitionId, exceptTabIds) : 0
-  for (const layout of layouts) {
-    if (layout.id !== working?.id) n += countListTabs(layout, listDefinitionId)
-  }
-  return n
-}
-
-/** `countListWidgets` for a list, kept current. */
-export function useListWidgetCount(listDefinitionId: number | undefined): number {
-  return useWorkspaceStore((s) => (listDefinitionId != null ? countListWidgets(s, listDefinitionId) : 0))
 }

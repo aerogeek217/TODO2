@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFileOpsStore } from '../../../stores/file-ops-store'
-import { MAX_IMPORT_SIZE_BYTES } from '../../../data/import-validation'
 import type { ImportData } from '../../../data/import-validation'
-import { prepareImportText } from '../../../data/import-pipeline'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
-import { buildExportData, selfCheckExportJson } from '../../../data/export-data'
+import { buildJsonExport, exportFileTimestamp, exportImportProblem, readImportFile } from '../../../services/data-files'
 import { buildMarkdownExport } from '../../../services/markdown-export'
 import { saveLastPickerHandle } from '../../../services/file-handle-idb'
 import { getOpenFilePicker } from '../../../utils/file-picker'
@@ -56,15 +54,13 @@ export function ImportExportSection() {
   }
 
   const handleExport = async () => {
-    const tables = await buildExportData()
     const now = new Date()
-    const data = { ...tables, exportedAt: now.toISOString() }
-    const json = JSON.stringify(data, null, 2)
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+    const json = await buildJsonExport(now)
+    const timestamp = exportFileTimestamp(now)
 
     // Self-check: the file is saved regardless, but if it would not import
     // back, say so persistently (until dismissed / the next export).
-    const problem = selfCheckExportJson(json)
+    const problem = exportImportProblem(json)
     if (problem) console.warn(`[export] export would not re-import: ${problem}`)
     setExportWarning(problem)
 
@@ -118,11 +114,11 @@ export function ImportExportSection() {
 
   const doImport = async (file: File) => {
     try {
-      if (file.size > MAX_IMPORT_SIZE_BYTES) {
+      const result = await readImportFile(file)
+      if (!result.ok && result.reason === 'file-too-large') {
         showMessage('Import failed — file too large (50 MB max).', 3000)
         return
       }
-      const result = prepareImportText(await file.text())
       if (!result.ok) {
         showMessage(`Import failed — ${result.error}`, result.reason === 'invalid' ? 10000 : 5000)
         return
@@ -146,11 +142,11 @@ export function ImportExportSection() {
   /** "Import tasks (append)…": prepare, then open the duplicate picker. */
   const doAppendImport = async (file: File) => {
     try {
-      if (file.size > MAX_IMPORT_SIZE_BYTES) {
+      const result = await readImportFile(file, { purpose: 'append' })
+      if (!result.ok && result.reason === 'file-too-large') {
         showMessage('Import failed — file too large (50 MB max).', 3000)
         return
       }
-      const result = prepareImportText(await file.text(), { purpose: 'append' })
       if (!result.ok) {
         showMessage(`Import failed — ${result.error}`, result.reason === 'invalid' ? 10000 : 5000)
         return

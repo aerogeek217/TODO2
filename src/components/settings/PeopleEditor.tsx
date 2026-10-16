@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { usePersonStore } from '../../stores/person-store'
-import { personRepository } from '../../data'
 import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
 import { ColorInput } from '../shared/ColorInput'
 import { ConfirmDialog } from '../shared/Dialog'
@@ -188,7 +187,7 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
   const startDeletePerson = async (id: number) => {
     clearState()
     setDeleteId(id)
-    const count = await personRepository.getTodoCountForPerson(id)
+    const count = await usePersonStore.getState().countTasks(id)
     setDeleteCount(count)
   }
 

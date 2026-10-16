@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFileOpsStore } from '../../../stores/file-ops-store'
-import { prepareImportText } from '../../../data/import-pipeline'
+import { legacyImportInfo } from '../../../services/data-files'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
 import { BYTES_PER_KB } from '../../../constants'
@@ -54,9 +54,9 @@ export function BackupsSection() {
     }
     // Same pipeline as the restore itself; checked up front so a below-floor
     // snapshot prompts first.
-    const prepared = prepareImportText(data)
-    if (prepared.ok && prepared.legacy) {
-      setPendingMigration({ info: prepared.legacy, action: runRestore })
+    const legacy = legacyImportInfo(data)
+    if (legacy) {
+      setPendingMigration({ info: legacy, action: runRestore })
       return
     }
     await runRestore()
