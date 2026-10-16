@@ -65,8 +65,10 @@ export async function createEditorTask(
  * same `created` event (`todo-store.addMany`, as a note's lines are
  * created). People and tags named but not existing yet are created first
  * (lookup-or-create; like every create of a person or tag, not undone).
- * Returns the id, or null when the task couldn't be stored — nothing is
- * created then, the snackbar says so, and this never rejects.
+ * Returns the id, or null when the task couldn't be stored — the task
+ * wasn't created then (people / tags it named may already have been), the
+ * snackbar says so, and this never rejects. Once the insert has committed
+ * the result is the id: `addMany` reports no failure after its commit.
  */
 export async function createTaskFromDraft(draft: TaskDraft): Promise<number | null> {
   try {

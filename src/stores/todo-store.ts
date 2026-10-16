@@ -225,22 +225,33 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async addMany(items, { description, snackbar = false }) {
     if (items.length === 0) return []
     return mutate(async () => {
-      const ids = await todoRepository.insertManyWithAssignments(items)
-      const created = await todoRepository.getByIds(ids)
-      const snapshots = ids.flatMap((id, i) => {
-        const todo = created.find((t) => t.id === id)
+      // The one step that can fail: once its transaction has committed the
+      // tasks exist, so nothing after it may turn this into a reported
+      // failure (a create surface stays open on failure, and a retry would
+      // add the tasks twice). The rows come back from the insert itself.
+      const created = await todoRepository.insertManyWithAssignments(items)
+      const ids = created.map((t) => t.id)
+      const snapshots = created.flatMap((todo, i) => {
         const item = items[i]
-        return todo && item ? [{ todo, personIds: [...item.personIds], tagIds: [...item.tagIds] }] : []
+        return item ? [{ todo, personIds: [...item.personIds], tagIds: [...item.tagIds] }] : []
       })
-      const put = async () => {
+      const show = () => {
         const present = new Set(get().todos.map((t) => t.id))
         set({
           todos: [...get().todos, ...snapshots.map((s) => s.todo).filter((t) => !present.has(t.id))],
           todosVersion: get().todosVersion + 1,
         })
+      }
+      const put = async () => {
+        show()
         await reloadAssignments(get().todos.map((t) => t.id))
       }
-      await put()
+      show()
+      // Best effort: a failed cache reload leaves rows without their chips
+      // until the next load, never an "add failed" for tasks that exist.
+      await reloadAssignments(get().todos.map((t) => t.id)).catch((e: unknown) => {
+        console.warn('[todo-store] reloading assignments after adding tasks failed', e)
+      })
       let removedEvents: TodoEvent[] = []
       undoable(
         description,

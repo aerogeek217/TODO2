@@ -148,13 +148,14 @@ export const todoRepository = {
    * Inserts several open tasks with their people and tags in one
    * transaction (all or nothing), each with its `created` event, last and in
    * input order (sort orders from one past the highest stored). Returns the
-   * new ids in input order.
+   * stored rows, with their new ids, in input order — so a caller needs no
+   * second read (which could fail after the tasks already exist).
    */
   async insertManyWithAssignments(
     items: readonly { todo: Omit<NewTodoItem, 'sortOrder'>; personIds: readonly number[]; tagIds: readonly number[] }[],
-  ): Promise<number[]> {
+  ): Promise<PersistedTodoItem[]> {
     return db.transaction('rw', [db.todos, db.todoEvents, db.todoPeople, db.todoTags], async () => {
-      const ids: number[] = []
+      const rows: PersistedTodoItem[] = []
       let sortOrder = await nextSortOrder(db.todos, 0)
       for (const { todo, personIds, tagIds } of items) {
         const row: TodoItem = withoutUndefinedCompletedAt({ ...todo, sortOrder: sortOrder++, uid: todo.uid ?? newTodoUid(), completedAt: undefined })
@@ -168,9 +169,9 @@ export const todoRepository = {
         } as TodoEvent)
         for (const personId of new Set(personIds)) await db.todoPeople.add({ todoId: id, personId })
         for (const tagId of new Set(tagIds)) await db.todoTags.add({ todoId: id, tagId })
-        ids.push(id)
+        rows.push({ ...row, id })
       }
-      return ids
+      return rows
     })
   },
 
