@@ -14,8 +14,8 @@ function stubPlatform(platform: string) {
 describe('KeyboardShortcutsModal', () => {
   it('renders ⌘-prefixed labels on Mac and never spells redo as ⌘⇧Z', () => {
     stubPlatform('MacIntel')
-    const { container } = render(<KeyboardShortcutsModal onClose={vi.fn()} />)
-    const text = container.textContent ?? ''
+    render(<KeyboardShortcutsModal onClose={vi.fn()} />)
+    const text = document.body.textContent ?? ''
 
     expect(text).toContain('⌘Space')
     expect(text).toContain('⌘K')
@@ -28,8 +28,8 @@ describe('KeyboardShortcutsModal', () => {
 
   it('renders Ctrl+ prefixed labels on Windows and never spells redo as Ctrl+Shift+Z', () => {
     stubPlatform('Win32')
-    const { container } = render(<KeyboardShortcutsModal onClose={vi.fn()} />)
-    const text = container.textContent ?? ''
+    render(<KeyboardShortcutsModal onClose={vi.fn()} />)
+    const text = document.body.textContent ?? ''
 
     expect(text).toContain('Ctrl+Space')
     expect(text).toContain('Ctrl+K')

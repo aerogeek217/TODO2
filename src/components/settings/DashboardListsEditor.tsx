@@ -25,6 +25,7 @@ import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import { useListDefDraft } from '../../hooks/use-list-def-draft'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
 import local from './DashboardListsEditor.module.css'
 
 interface Props {
@@ -165,7 +166,8 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
   }
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveAdd()
-    if (e.key === 'Escape') { setAdding(false); setError('') }
+    // The row's own Esc (cancel the add): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); setAdding(false); setError('') }
   }
 
   const confirmDelete = async () => {
@@ -181,13 +183,7 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={handleModalClose} />
-      <div className={`${styles.modal} ${local.modalWide}`}>
-        <div className={styles.header}>
-          <div className={styles.title}>Lists</div>
-          <button className={styles.closeBtn} onClick={handleModalClose}>&times;</button>
-        </div>
-
+      <EditorModal title="Lists" onClose={handleModalClose} className={local.modalWide}>
         <div className={styles.list}>
           {sorted.length === 0 && !adding && (
             <div className={styles.empty}>No lists yet</div>
@@ -229,7 +225,7 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add List</button>
         )}
-      </div>
+      </EditorModal>
       {deleteId != null && (() => {
         const def = listDefinitions.find((d) => d.id === deleteId)
         if (!def) return null

@@ -27,15 +27,15 @@ async function renderEditor() {
   return utils
 }
 
-function hexInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>('input[type="text"][maxlength="7"]')
+function hexInput(root: HTMLElement): HTMLInputElement {
+  const input = root.querySelector<HTMLInputElement>('input[type="text"][maxlength="7"]')
   if (!input) throw new Error('hex input not found')
   return input
 }
 
 describe('PeopleEditor', () => {
   it('adds a person without a color by default (neutral swatch)', async () => {
-    const { getByPlaceholderText, getByText, findByText, container } = await renderEditor()
+    const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     fireEvent.click(getByText('+ Add Person'))
     fireEvent.change(getByPlaceholderText('Name'), { target: { value: 'Org: Acme' } })
     fireEvent.click(getByText('Add'))
@@ -44,16 +44,16 @@ describe('PeopleEditor', () => {
     const [person] = usePersonStore.getState().people
     expect(person).toMatchObject({ name: 'Org: Acme', initials: 'OA' })
     expect('color' in person!).toBe(false)
-    const swatch = container.querySelector<HTMLElement>('[class*="colorSwatch"]')
+    const swatch = document.body.querySelector<HTMLElement>('[class*="colorSwatch"]')
     expect(swatch?.style.background).toBe('rgb(156, 163, 175)') // NEUTRAL_PERSON_COLOR
     expect(NEUTRAL_PERSON_COLOR).toBe('#9CA3AF')
   })
 
   it('adds a person with a picked color', async () => {
-    const { getByPlaceholderText, getByText, findByText, container } = await renderEditor()
+    const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     fireEvent.click(getByText('+ Add Person'))
     fireEvent.change(getByPlaceholderText('Name'), { target: { value: 'Ann Lee' } })
-    fireEvent.change(hexInput(container), { target: { value: '#f28c4e' } })
+    fireEvent.change(hexInput(document.body), { target: { value: '#f28c4e' } })
     fireEvent.click(getByText('Add'))
 
     await findByText('Ann Lee')
@@ -63,11 +63,11 @@ describe('PeopleEditor', () => {
 
   it('edits and then removes a person color', async () => {
     await usePersonStore.getState().add('Ann Lee', 'AL')
-    const { getByText, findByText, getByLabelText, queryByLabelText, container } = await renderEditor()
+    const { getByText, findByText, getByLabelText, queryByLabelText } = await renderEditor()
 
     fireEvent.click(await findByText('Ann Lee'))
     expect(queryByLabelText('Remove color')).toBeNull()
-    fireEvent.change(hexInput(container), { target: { value: '#123456' } })
+    fireEvent.change(hexInput(document.body), { target: { value: '#123456' } })
     fireEvent.click(getByText('Save'))
     await waitFor(() => expect(usePersonStore.getState().people[0]?.color).toBe('#123456'))
 

@@ -1,18 +1,6 @@
 /* Notes → tasks: the convert preview dialog and its draft rows. */
 
-.backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-canvas-draw);
-}
-
 .dialog {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: var(--z-dialog);
   width: min(560px, calc(100vw - 32px));
   max-height: 80vh;
   display: flex;
@@ -25,10 +13,6 @@
 
 :global([data-theme="light"]) .dialog {
   background: var(--color-surface);
-}
-
-.dialog:focus {
-  outline: none;
 }
 
 .header {

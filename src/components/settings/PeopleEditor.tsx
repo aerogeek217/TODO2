@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../shared/Dialog'
 import type { Person } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
 import { byName } from '../../utils/sort-order'
 
 interface PersonEditState {
@@ -199,7 +200,8 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
 
   const handleKeyDown = (save: () => void, cancel: () => void) => (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') save()
-    if (e.key === 'Escape') cancel()
+    // The row's own Esc (cancel the edit): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); cancel() }
   }
 
   // --- Person row ---
@@ -247,13 +249,7 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>People</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
+      <EditorModal title="People" onClose={onClose}>
         <input
           type="text"
           className={styles.searchInput}
@@ -309,7 +305,7 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
             <button className={styles.addBtn} onClick={startAddPerson}>+ Add Person</button>
           )}
         </div>
-      </div>
+      </EditorModal>
       {deleteId != null && (() => {
         const target = people.find((p) => p.id === deleteId)
         if (!target) return null

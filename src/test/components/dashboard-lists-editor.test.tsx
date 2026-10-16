@@ -5,6 +5,9 @@ import { DashboardListsEditor } from '../../components/settings/DashboardListsEd
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
+
+/** The Edit list dialog (over the Lists modal), if open. */
+const listEditor = () => document.body.querySelector('[aria-label^="Edit list"]')
 import type { PersistedListDefinition } from '../../models'
 
 vi.mock('../../data/list-definition-repository', () => ({
@@ -36,7 +39,7 @@ describe('DashboardListsEditor — list rows', () => {
   afterEach(() => { cleanup() })
 
   it('shows all defs, the add button, and per-row delete', () => {
-    const { getByText, container } = render(
+    const { getByText } = render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
@@ -44,17 +47,18 @@ describe('DashboardListsEditor — list rows', () => {
     expect(getByText('Lists')).toBeInTheDocument()
     expect(getByText(/\+ Add List/i)).toBeInTheDocument()
     expect(getByText('Unpinned extra')).toBeInTheDocument()
-    expect(container.querySelector('[class*="actions"]')).not.toBeNull()
+    expect(document.body.querySelector('[class*="actions"]')).not.toBeNull()
   })
 
   it('calls onClose when the backdrop is clicked', () => {
     const onClose = vi.fn()
-    const { container } = render(
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={onClose} />
       </MemoryRouter>,
     )
-    const backdrop = container.querySelector('[class*="backdrop"]')!
+    const backdrop = document.body.querySelector('[data-dialog-backdrop]')!
+    fireEvent.mouseDown(backdrop)
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalled()
   })
@@ -142,7 +146,7 @@ describe('DashboardListsEditor — initialSelectedId', () => {
     )
     // Exactly one editor dialog exists, portaled to document.body, labelled
     // for Gamma (id 3).
-    const dialogs = document.body.querySelectorAll('[role="dialog"]')
+    const dialogs = document.body.querySelectorAll('[aria-label^="Edit list"]')
     expect(dialogs.length).toBe(1)
     const aria = dialogs[0]!.getAttribute('aria-label') ?? ''
     expect(aria.startsWith('Edit list')).toBe(true)
@@ -220,29 +224,29 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
     )
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(listEditor()).toBeNull()
     fireEvent.click(screen.getByText('⚙'))
-    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(listEditor()).not.toBeNull()
 
     // Dialog × is the only element labelled "Close" (Lists modal's × has no aria-label).
     fireEvent.click(screen.getByLabelText('Close'))
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(listEditor()).toBeNull()
   })
 
   it('Esc closes the editor only — Lists modal stays mounted', () => {
     const onClose = vi.fn()
-    const { container } = render(
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={onClose} />
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByText('⚙'))
-    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(listEditor()).not.toBeNull()
 
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    // Outer Lists modal still rendered in the test container.
-    expect(container.querySelector('[class*="backdrop"]')).not.toBeNull()
+    expect(listEditor()).toBeNull()
+    // The Lists modal underneath stays.
+    expect(screen.getByRole('dialog', { name: 'Lists' })).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -253,11 +257,11 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
       </MemoryRouter>,
     )
     fireEvent.click(screen.getByText('⚙'))
-    const scrim = document.body.querySelector('[role="dialog"]')?.previousElementSibling ?? null
+    const scrim = listEditor()?.previousElementSibling ?? null
     expect(scrim?.hasAttribute('data-dialog-backdrop')).toBe(true)
     fireEvent.mouseDown(scrim!)
     fireEvent.click(scrim!)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(listEditor()).toBeNull()
   })
 
   it('routes a dirty close through showBulkConfirmation', () => {
@@ -283,6 +287,6 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     expect(showSpy).toHaveBeenCalled()
     // Editor still mounted — confirm flow is gating the close.
-    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(listEditor()).not.toBeNull()
   })
 })

@@ -6,6 +6,7 @@ import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
 import { ConfirmDialog } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
 import { byName } from '../../utils/sort-order'
 
 interface EditState {
@@ -109,12 +110,13 @@ export function TagEditor({ onClose }: TagEditorProps) {
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveEdit()
-    if (e.key === 'Escape') { setEditing(null); setNameError('') }
+    // The row's own Esc (cancel the edit): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); setEditing(null); setNameError('') }
   }
 
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveAdd()
-    if (e.key === 'Escape') { setAdding(false); setNameError('') }
+    if (e.key === 'Escape') { e.preventDefault(); setAdding(false); setNameError('') }
   }
 
   const visible = useMemo(() => {
@@ -162,13 +164,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>Tags</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
+      <EditorModal title="Tags" onClose={onClose}>
         <input
           type="text"
           className={styles.searchInput}
@@ -208,7 +204,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add Tag</button>
         )}
-      </div>
+      </EditorModal>
       {deleteId != null && (() => {
         const target = tags.find((t) => t.id === deleteId)
         if (!target) return null

@@ -24,6 +24,7 @@ import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import { bySortOrder } from '../../utils/sort-order'
+import { EditorModal } from './EditorModal'
 import styles from './EntityEditor.module.css'
 
 interface EditState {
@@ -44,6 +45,8 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
     anchor: { kind: 'ref', ref: triggerRef },
     open,
     onClose: () => setOpen(false),
+    // Esc closes the picker only, not the editor around it.
+    consumeEscape: true,
   })
 
   return (
@@ -174,12 +177,13 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveEdit()
-    if (e.key === 'Escape') setEditing(null)
+    // The row's own Esc (cancel the edit): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); setEditing(null) }
   }
 
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveAdd()
-    if (e.key === 'Escape') setAdding(false)
+    if (e.key === 'Escape') { e.preventDefault(); setAdding(false) }
   }
 
   const sorted = useMemo(
@@ -202,13 +206,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>Statuses</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
+      <EditorModal title="Statuses" onClose={onClose}>
         <input
           type="text"
           className={styles.searchInput}
@@ -286,7 +284,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add Status</button>
         )}
-      </div>
+      </EditorModal>
       {deleteId != null && (() => {
         const target = statuses.find((s) => s.id === deleteId)
         if (!target) return null

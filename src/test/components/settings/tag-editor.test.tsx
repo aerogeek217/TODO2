@@ -55,14 +55,14 @@ describe('TagEditor', () => {
   it('rejects a case-insensitive duplicate name with an inline error', async () => {
     await useTagStore.getState().add('urgent')
 
-    const { getByPlaceholderText, getByText, findByText, container } = await renderEditor()
+    const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     await findByText('urgent')
 
     fireEvent.click(getByText('+ Add Tag'))
     fireEvent.change(getByPlaceholderText('Tag name'), { target: { value: 'URGENT' } })
     fireEvent.click(getByText('Add'))
 
-    await waitFor(() => expect(container.textContent).toMatch(/already exists/i))
+    await waitFor(() => expect(document.body.textContent).toMatch(/already exists/i))
     expect(useTagStore.getState().tags).toHaveLength(1)
   })
 
@@ -93,10 +93,10 @@ describe('TagEditor', () => {
     await useTodoStore.getState().loadAll()
     await useTagStore.getState().loadAssignments([todoId])
 
-    const { container, getByText, findByText } = await renderEditor()
+    const { getByText, findByText } = await renderEditor()
     await findByText('urgent')
 
-    const deleteBtn = container.querySelector('[title="Delete"]') as HTMLButtonElement | null
+    const deleteBtn = document.body.querySelector('[title="Delete"]') as HTMLButtonElement | null
     expect(deleteBtn).not.toBeNull()
     fireEvent.click(deleteBtn!)
 

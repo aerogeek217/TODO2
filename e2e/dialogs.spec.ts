@@ -57,12 +57,12 @@ async function expectFocusTrapped(page: Page, dialog: Locator) {
     const items = Array.from(panel.querySelectorAll<HTMLElement>(sel)).filter((el) => el.getClientRects().length > 0)
     panel.querySelectorAll('[data-e2e-end]').forEach((el) => el.removeAttribute('data-e2e-end'))
     items.at(0)?.setAttribute('data-e2e-end', 'first')
-    items.at(-1)?.setAttribute('data-e2e-end', 'last')
+    items.at(-1)?.setAttribute('data-e2e-end', items.length === 1 ? 'first last' : 'last')
     return items.length
   })
-  expect(count).toBeGreaterThan(1)
-  const first = dialog.locator('[data-e2e-end="first"]')
-  const last = dialog.locator('[data-e2e-end="last"]')
+  expect(count).toBeGreaterThan(0)
+  const first = dialog.locator('[data-e2e-end~="first"]')
+  const last = dialog.locator('[data-e2e-end~="last"]')
   await last.focus()
   await page.keyboard.press('Tab')
   await expect(first).toBeFocused()
@@ -96,6 +96,8 @@ interface Contract {
   inside: Locator
   /** Where focus lands on open. */
   initialFocus: Locator
+  /** Where focus goes back on close, when not the trigger (it kept the focus where it was). */
+  focusReturnsTo?: Locator
 }
 
 /** The panel sits in the middle of the window (the frame centres it without a transform). */
@@ -114,7 +116,7 @@ async function checkContract(page: Page, c: Contract) {
   await expectFocusTrapped(page, c.dialog)
   await page.keyboard.press('Escape')
   await expect(c.dialog).toBeHidden()
-  await expect(c.trigger).toBeFocused()
+  await expect(c.focusReturnsTo ?? c.trigger).toBeFocused()
 
   await c.open()
   await blurAll(page)
@@ -126,7 +128,7 @@ async function checkContract(page: Page, c: Contract) {
   await expect(c.dialog).toBeVisible()
   await pressBackdrop(page)
   await expect(c.dialog).toBeHidden()
-  await expect(c.trigger).toBeFocused()
+  await expect(c.focusReturnsTo ?? c.trigger).toBeFocused()
 }
 
 /** The person dialog from a list row's avatar (right-click), as the app opens it. */
@@ -202,7 +204,7 @@ test('check-in dialog over the task dialog: contract; focus back to Email check-
   await expect(taskDialog(page)).toBeHidden()
 })
 
-test('check-in → the email editor owns Esc; after it closes, Esc closes the check-in dialog', async ({ page }) => {
+test('check-in → the email editor: Esc cancels its edit, then closes it (focused or not); the check-in dialog stays', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await openPersonDialog(page, 'Call the plumber', 'Ben Ortiz')
   await taskDialog(page).locator('[data-task-dialog-checkin]').click()
@@ -212,19 +214,22 @@ test('check-in → the email editor owns Esc; after it closes, Esc closes the ch
   await expect(email).toBeFocused()
 
   // Esc in the field cancels the edit, nothing else.
+  const people = page.getByRole('dialog', { name: 'People' })
   await page.keyboard.press('Escape')
   await expect(email).toHaveCount(0)
+  await expect(people).toBeVisible()
   await expect(dialog).toBeVisible()
-  // The editor is still open: Esc with nothing focused is still its.
+  // The editor is the top dialog: Esc with nothing focused closes it, only it.
   await blurAll(page)
   await page.keyboard.press('Escape')
+  await expect(people).toBeHidden()
   await expect(dialog).toBeVisible()
-  const peopleSearch = page.getByPlaceholder('Search people...')
-  await expect(peopleSearch).toBeVisible()
 
-  // The editor's own × (the first in its panel; rows' delete buttons follow).
-  await peopleSearch.locator('xpath=..').getByRole('button', { name: '×' }).first().click()
-  await expect(peopleSearch).toHaveCount(0)
+  // Again from its ×; focus comes back to the check-in dialog, whose Esc closes it.
+  await dialog.getByRole('button', { name: 'Add email for Ben Ortiz' }).click()
+  await expect(people).toBeVisible()
+  await people.getByRole('button', { name: '×' }).first().click()
+  await expect(people).toBeHidden()
   await expect.poll(() => focusInside(dialog)).toBe(true)
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
@@ -281,7 +286,7 @@ test('Customize dashboard: contract; Esc during a keyboard reorder cancels the m
   await expect(dialog).toBeHidden()
 })
 
-test('Settings: contract; the people editor owns Esc, focused or not', async ({ page }) => {
+test('Settings: contract; Esc over it closes the people editor only, focused or not', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
   const trigger = page.getByRole('button', { name: 'Settings', exact: true })
@@ -297,15 +302,23 @@ test('Settings: contract; the people editor owns Esc, focused or not', async ({ 
   })
 
   const settings = await openSettings(page, 'People, statuses & tags')
+  const people = page.getByRole('dialog', { name: 'People' })
+  for (const unfocused of [false, true]) {
+    await settings.getByRole('button', { name: 'Manage people…' }).click()
+    await expect(people).toBeVisible()
+    if (unfocused) await blurAll(page)
+    await page.keyboard.press('Escape')
+    await expect(people).toBeHidden()
+    await expect(settings).toBeVisible()
+  }
+  // An inline edit's Esc cancels the edit, not the editor.
   await settings.getByRole('button', { name: 'Manage people…' }).click()
-  const search = page.getByPlaceholder('Search people...')
-  await search.focus()
+  await people.getByText('Alice Chen', { exact: true }).click()
+  const name = people.getByPlaceholder('Name')
+  await expect(name).toBeFocused()
   await page.keyboard.press('Escape')
-  await expect(settings).toBeVisible()
-  await blurAll(page)
-  await page.keyboard.press('Escape')
-  await expect(settings).toBeVisible()
-  await expect(search).toBeVisible()
+  await expect(name).toHaveCount(0)
+  await expect(people).toBeVisible()
 })
 
 test('list editor over the lists editor in Settings: contract; Esc closes only it', async ({ page }) => {
@@ -392,4 +405,125 @@ test('a modal keeps app shortcuts out: Ctrl+F and Ctrl+K do nothing inside Setti
   await expect(settings).toBeHidden()
   await page.keyboard.press('Control+k')
   await expect(page.getByPlaceholder(/Search tasks, commands/)).toBeVisible()
+})
+
+/** The Settings editors and the notes → tasks preview: the frame's contract, and their stacks. */
+test.describe('editor modals', () => {
+  const editors = [
+    { button: 'Manage people…', title: 'People' },
+    { button: 'Manage statuses…', title: 'Statuses' },
+    { button: 'Manage tags…', title: 'Tags' },
+    { button: 'Manage lists…', title: 'Lists' },
+  ]
+  for (const { button, title } of editors) {
+    test(`${title}: Esc, focus trap and return, backdrop press; Settings stays`, async ({ page }) => {
+      await seedWorkspace(page, SEED)
+      const settings = await openSettings(page, 'People, statuses & tags')
+      const dialog = page.getByRole('dialog', { name: title, exact: true })
+      const trigger = settings.getByRole('button', { name: button })
+      await checkContract(page, {
+        dialog,
+        open: async () => {
+          await trigger.click()
+          await expect(dialog).toBeVisible()
+        },
+        trigger,
+        inside: dialog.getByText(title, { exact: true }).first(),
+        initialFocus: dialog.getByRole('button', { name: '×' }).first(),
+      })
+      await expect(settings).toBeVisible()
+    })
+  }
+
+  test('Theme colors and Quick-Add syntax: Esc, focus trap and return, backdrop press', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    for (const [section, button, title] of [
+      ['Appearance', 'Customize colors…', /^Theme Colors/],
+      ['Keyboard shortcuts', 'Show syntax…', 'Quick-Add Syntax'],
+    ] as const) {
+      const settings = await openSettings(page, section)
+      const dialog = page.getByRole('dialog', { name: title })
+      const trigger = settings.getByRole('button', { name: button })
+      await checkContract(page, {
+        dialog,
+        open: async () => {
+          await trigger.click()
+          await expect(dialog).toBeVisible()
+        },
+        trigger,
+        inside: dialog.getByText(title).first(),
+        initialFocus: dialog.getByRole('button', { name: '×' }).first(),
+      })
+      await expect(settings).toBeVisible()
+    }
+  })
+
+  test('Keyboard shortcuts (?): Esc, focus trap and return, backdrop press', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    const dialog = page.getByRole('dialog', { name: 'Keyboard Shortcuts' })
+    const trigger = page.getByRole('button', { name: 'New task' })
+    await checkContract(page, {
+      dialog,
+      open: async () => {
+        await trigger.focus()
+        await page.keyboard.press('?')
+        await expect(dialog).toBeVisible()
+      },
+      trigger,
+      inside: dialog.getByText('Keyboard Shortcuts', { exact: true }),
+      initialFocus: dialog.getByRole('button', { name: '×' }),
+    })
+  })
+
+  test('Lists: a dirty list editor asks first; Esc on that confirm keeps the editor', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    const settings = await openSettings(page, 'People, statuses & tags')
+    await settings.getByRole('button', { name: 'Manage lists…' }).click()
+    const lists = page.getByRole('dialog', { name: 'Lists', exact: true })
+    await lists.getByTitle('Edit list').first().click()
+    const editor = page.getByRole('dialog', { name: 'Edit list: Team' })
+    await editor.getByRole('textbox').first().fill('Team (renamed)')
+    await page.keyboard.press('Escape')
+    const confirm = page.getByRole('dialog', { name: /Discard/ })
+    await expect(confirm).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(confirm).toBeHidden()
+    await expect(editor).toBeVisible()
+    await expect(lists).toBeVisible()
+    await expect(settings).toBeVisible()
+  })
+
+  test('notes → tasks preview: Esc, focus trap and return, backdrop press; its draft editor owns Esc', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] }] }] }],
+    })
+    const note = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
+    await note.click()
+    await page.keyboard.insertText('- First line\n- Second line')
+    await expect(note.locator('.cm-line')).toHaveCount(2)
+    const trigger = page.getByRole('button', { name: 'Convert 2 bullet lines to tasks' })
+    const dialog = page.getByRole('dialog', { name: 'Convert to tasks' })
+    await checkContract(page, {
+      dialog,
+      open: async () => {
+        await trigger.click()
+        await expect(dialog).toBeVisible()
+      },
+      trigger,
+      inside: dialog.getByRole('heading', { name: 'Convert to tasks' }),
+      initialFocus: dialog.locator('[data-draft-row]').first(),
+      // Convert keeps the note focused (and its selection): focus goes back there.
+      focusReturnsTo: note,
+    })
+    // A draft opens the editor on top; Esc closes only the editor.
+    await trigger.click()
+    await dialog.locator('[data-draft-row]').first().press('Enter')
+    const title = page.getByRole('textbox', { name: /^New task/ })
+    await expect(title).toBeVisible()
+    for (let i = 0; i < 3 && await title.isVisible(); i++) await page.keyboard.press('Escape')
+    await expect(title).toHaveCount(0)
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+  })
 })

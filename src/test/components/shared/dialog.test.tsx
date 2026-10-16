@@ -266,6 +266,47 @@ describe('DialogFrame stacking', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('runs the dialog’s own keys first; a key it claims is not the frame’s', () => {
+    const onClose = vi.fn()
+    const seen: string[] = []
+    render(
+      <DialogFrame onClose={onClose} aria-label="D" onKeyDown={(e) => { seen.push(e.key); if (e.key === 'Escape') e.preventDefault() }}>
+        <button>B</button>
+      </DialogFrame>
+    )
+    fireEvent.keyDown(screen.getByRole('button', { name: 'B' }), { key: 'Escape' })
+    expect(seen).toEqual(['Escape'])
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('stopKeys keeps every key from the tree it was opened from', () => {
+    const outer = vi.fn()
+    const { rerender } = render(
+      <div onKeyDown={outer}>
+        <DialogFrame onClose={() => {}} aria-label="D"><button>B</button></DialogFrame>
+      </div>
+    )
+    fireEvent.keyDown(screen.getByRole('button', { name: 'B' }), { key: 'a' })
+    expect(outer).toHaveBeenCalledTimes(1)
+    rerender(
+      <div onKeyDown={outer}>
+        <DialogFrame onClose={() => {}} aria-label="D" stopKeys><button>B</button></DialogFrame>
+      </div>
+    )
+    fireEvent.keyDown(screen.getByRole('button', { name: 'B' }), { key: 'a' })
+    expect(outer).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves the focus with a control inside that took it on mount (autoFocus)', () => {
+    render(
+      <DialogFrame onClose={() => {}} aria-label="D">
+        <button>First</button>
+        <input aria-label="Auto" autoFocus />
+      </DialogFrame>
+    )
+    expect(document.activeElement).toBe(screen.getByLabelText('Auto'))
+  })
+
   it('initialFocus="panel" focuses the panel itself', () => {
     render(
       <DialogFrame onClose={() => {}} initialFocus="panel" aria-label="D">

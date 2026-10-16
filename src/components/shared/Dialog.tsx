@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -49,6 +49,15 @@ export interface DialogFrameProps {
   data?: Record<string, string>
   /** The panel element, for callers that move focus inside it. */
   panelRef?: RefObject<HTMLDivElement | null>
+  /** The dialog's own keys (list navigation, shortcuts), before the frame's Esc / Tab; `preventDefault` claims a key. */
+  onKeyDown?: (e: ReactKeyboardEvent<HTMLDivElement>) => void
+  /**
+   * No key leaves the panel through the React tree it was opened from. Only
+   * for a dialog opened from inside a surface with its own key handling (the
+   * notes → tasks preview inside the task editor); it also hides the keys
+   * from `document` listeners such as dnd-kit's keyboard sensor.
+   */
+  stopKeys?: boolean
 }
 
 const FOCUSABLE =
@@ -110,6 +119,8 @@ export function DialogFrame({
   'aria-label': label,
   data,
   panelRef: outerPanelRef,
+  onKeyDown: ownKeyDown,
+  stopKeys = false,
 }: DialogFrameProps) {
   const ownPanelRef = useRef<HTMLDivElement | null>(null)
   const panelRef = outerPanelRef ?? ownPanelRef
@@ -117,12 +128,15 @@ export function DialogFrame({
   const elsewhereRef = useLatestRef(escapeBelongsElsewhere)
   const initialFocusRef = useLatestRef(initialFocus)
   const downOnBackdrop = useRef(false)
+  // What had the focus when the dialog opened — read before its content
+  // mounts, since an `autoFocus` control inside takes the focus first.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null)
 
-  // Focus moves in on open and goes back where it was on close.
+  // Focus moves in on open (unless a control inside already took it) and
+  // goes back to the opener once the dialog is gone.
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
     const panel = panelRef.current
-    if (panel) {
+    if (panel && !panel.contains(document.activeElement)) {
       const target = initialFocusRef.current
       const el = target === 'panel' ? panel
         : target === 'first' ? focusables(panel)[0] ?? panel
@@ -130,9 +144,11 @@ export function DialogFrame({
       el.focus()
     }
     return () => {
-      if (previous && previous !== document.body && document.body.contains(previous)) previous.focus()
+      // Still in the page: a re-run (React's StrictMode), not a close.
+      if (panel?.isConnected) return
+      if (opener && opener !== document.body && document.body.contains(opener)) opener.focus()
     }
-  }, [initialFocusRef, panelRef])
+  }, [initialFocusRef, panelRef, opener])
 
   // Keys with nothing focused: Esc closes the topmost dialog, Tab comes back in.
   // Bubble phase, so popovers (capture phase) and the panel's own handler come first.
@@ -158,11 +174,14 @@ export function DialogFrame({
   }, [elsewhereRef, onCloseRef, panelRef])
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (stopKeys) e.stopPropagation()
     const panel = panelRef.current
     // Keys from a layer portaled out of the panel (a menu, a picker) are that layer's.
     if (!panel || !(e.target instanceof Node) || !panel.contains(e.target)) return
+    ownKeyDown?.(e)
+    if (e.nativeEvent.defaultPrevented) return
     if (e.key === 'Escape') {
-      if (e.nativeEvent.defaultPrevented || elsewhereRef.current?.()) return
+      if (elsewhereRef.current?.()) return
       e.preventDefault()
       e.stopPropagation()
       onCloseRef.current()

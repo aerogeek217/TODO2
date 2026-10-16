@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
 import settingsStyles from './modal-chrome.module.css'
 
 interface NlpSyntaxRow {
@@ -59,30 +60,22 @@ interface NlpSyntaxModalProps {
 
 export function NlpSyntaxModal({ onClose }: NlpSyntaxModalProps) {
   return (
-    <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>Quick-Add Syntax</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
-        <div className={styles.list}>
-          {SECTIONS.map((section) => (
-            <div key={section.label}>
-              <div className={settingsStyles.shortcutCategory}>{section.label}</div>
-              <div className={settingsStyles.shortcutGrid}>
-                {section.rows.map((row, idx) => (
-                  <Fragment key={`${section.label}-${idx}`}>
-                    <span className={settingsStyles.syntaxKey}>{row.syntax}</span>
-                    <span className={settingsStyles.syntaxDesc}>{row.description}</span>
-                  </Fragment>
-                ))}
-              </div>
+    <EditorModal title="Quick-Add Syntax" onClose={onClose}>
+      <div className={styles.list}>
+        {SECTIONS.map((section) => (
+          <div key={section.label}>
+            <div className={settingsStyles.shortcutCategory}>{section.label}</div>
+            <div className={settingsStyles.shortcutGrid}>
+              {section.rows.map((row, idx) => (
+                <Fragment key={`${section.label}-${idx}`}>
+                  <span className={settingsStyles.syntaxKey}>{row.syntax}</span>
+                  <span className={settingsStyles.syntaxDesc}>{row.description}</span>
+                </Fragment>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
-    </>
+    </EditorModal>
   )
 }

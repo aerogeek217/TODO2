@@ -102,7 +102,7 @@
   background: var(--color-surface-high);
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
-  z-index: var(--z-canvas-draw);
+  z-index: var(--z-popover);
   padding: 4px;
 }
 

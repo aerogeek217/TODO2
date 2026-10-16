@@ -9,6 +9,7 @@ import { CalendarIcon } from '../CommandIcons'
 import { FollowupFlagIcon } from '../FollowupIcons'
 import { StatusIcon } from '../StatusIcon'
 import { TaskMarkers } from '../TaskMarkers'
+import { DialogFrame } from '../Dialog'
 import styles from './NotesConvert.module.css'
 
 export interface PreviewRow {
@@ -195,14 +196,8 @@ export function NotesConvertPreview({
     return null
   }
 
+  // The list's keys; Esc, Tab and the backdrop are the frame's.
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // A modal: no key reaches the app's shortcuts or the surface below.
-    e.stopPropagation()
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-      return
-    }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault()
       if (canCreate) onCreate()
@@ -226,61 +221,47 @@ export function NotesConvertPreview({
     }
   }
 
-  // Keep Tab inside the dialog.
-  const trapTab = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab') return
-    const items = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('[tabindex="0"], button:not([disabled]):not([tabindex="-1"])') ?? [])
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-  }
-
   return (
-    <>
-      <div className={styles.backdrop} onClick={onCancel} />
-      <div
-        ref={dialogRef}
-        className={styles.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        onKeyDown={(e) => { trapTab(e); handleKeyDown(e) }}
-      >
-        <div className={styles.header}>
-          <h2 id={titleId} className={styles.dialogTitle}>Convert to tasks</h2>
-          <span className={styles.countBadge}>{plural(rows.length, 'draft', 'drafts')}</span>
-          <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onCancel}>×</button>
-        </div>
-        <p className={styles.subline}>{sourceName} · not saved yet · click a draft to edit it</p>
-        <ul className={styles.list} aria-label="Drafts">
-          {rows.length === 0 && <li className={styles.empty}>No drafts left</li>}
-          {rows.map((row) => (
-            <DraftRowItem
-              key={row.key}
-              row={row}
-              lookups={lookups}
-              onEdit={() => onEdit(row.key)}
-              onRemove={() => onRemove(row.key)}
-              rowRef={(el) => {
-                if (el) rowEls.current.set(row.key, el)
-                else rowEls.current.delete(row.key)
-              }}
-            />
-          ))}
-        </ul>
-        <div className={styles.footer}>
-          <span className={styles.footerNote}>{notes.join(' · ')}</span>
-          <button type="button" className={styles.cancelBtn} onClick={onCancel}>
-            Cancel <kbd className={styles.kbd}>Esc</kbd>
-          </button>
-          <button type="button" className={styles.createBtn} disabled={!canCreate} onClick={onCreate}>
-            Create {plural(rows.length, 'task', 'tasks')}
-          </button>
-        </div>
+    <DialogFrame
+      onClose={onCancel}
+      aria-labelledby={titleId}
+      className={styles.dialog}
+      panelRef={dialogRef}
+      onKeyDown={handleKeyDown}
+      // Opened from inside a notes surface (the task editor's notes): its keys stay here.
+      stopKeys
+    >
+      <div className={styles.header}>
+        <h2 id={titleId} className={styles.dialogTitle}>Convert to tasks</h2>
+        <span className={styles.countBadge}>{plural(rows.length, 'draft', 'drafts')}</span>
+        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onCancel}>×</button>
       </div>
-    </>
+      <p className={styles.subline}>{sourceName} · not saved yet · click a draft to edit it</p>
+      <ul className={styles.list} aria-label="Drafts">
+        {rows.length === 0 && <li className={styles.empty}>No drafts left</li>}
+        {rows.map((row) => (
+          <DraftRowItem
+            key={row.key}
+            row={row}
+            lookups={lookups}
+            onEdit={() => onEdit(row.key)}
+            onRemove={() => onRemove(row.key)}
+            rowRef={(el) => {
+              if (el) rowEls.current.set(row.key, el)
+              else rowEls.current.delete(row.key)
+            }}
+          />
+        ))}
+      </ul>
+      <div className={styles.footer}>
+        <span className={styles.footerNote}>{notes.join(' · ')}</span>
+        <button type="button" className={styles.cancelBtn} onClick={onCancel}>
+          Cancel <kbd className={styles.kbd}>Esc</kbd>
+        </button>
+        <button type="button" className={styles.createBtn} disabled={!canCreate} onClick={onCreate}>
+          Create {plural(rows.length, 'task', 'tasks')}
+        </button>
+      </div>
+    </DialogFrame>
   )
 }

@@ -1,4 +1,5 @@
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
 import { ShortcutList } from './ShortcutList'
 
 interface KeyboardShortcutsModalProps {
@@ -7,18 +8,10 @@ interface KeyboardShortcutsModalProps {
 
 export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps) {
   return (
-    <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>Keyboard Shortcuts</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
-        <div className={styles.list}>
-          <ShortcutList />
-        </div>
+    <EditorModal title="Keyboard Shortcuts" onClose={onClose}>
+      <div className={styles.list}>
+        <ShortcutList />
       </div>
-    </>
+    </EditorModal>
   )
 }
