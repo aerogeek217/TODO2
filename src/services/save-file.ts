@@ -62,6 +62,15 @@ export async function saveTextFile(opts: SaveTextFileOptions): Promise<SaveTextF
 }
 
 /**
+ * What to tell the user after a plain download (`saveTextFile` → `downloaded`,
+ * or `downloadTextFile`): the app can't tell where — or whether — the browser
+ * saved it.
+ */
+export function downloadedMessage(fileName: string): string {
+  return `Downloaded ${fileName} — check your Downloads folder.`
+}
+
+/**
  * Hands `text` to the browser as a download named `fileName` (a temporary
  * `<a download>`): no picker, so it works once per click for several files.
  */

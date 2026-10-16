@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { saveTextFile } from '../../services/save-file'
+import { downloadedMessage, saveTextFile } from '../../services/save-file'
 
 /** A DOMException as browsers make it (jsdom's doesn't extend Error). */
 const domError = (name: string) => Object.assign(new Error(name), { name })
@@ -57,5 +57,11 @@ describe('saveTextFile', () => {
     vi.stubGlobal('showSaveFilePicker', undefined)
     expect(await saveTextFile(opts)).toBe('downloaded')
     expect(clicked).toEqual(['a.json'])
+  })
+})
+
+describe('downloadedMessage', () => {
+  it('names the file and where to look', () => {
+    expect(downloadedMessage('a.json')).toBe('Downloaded a.json — check your Downloads folder.')
   })
 })

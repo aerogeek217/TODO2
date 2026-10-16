@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { exportAndPurgeCompleted, keptMessage } from '../../../services/purge-completed'
+import { doneMessage, exportAndPurgeCompleted, keptMessage } from '../../../services/purge-completed'
 import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
 import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../../../utils/completed-at'
 import { SettingRow } from './SettingRow'
@@ -120,7 +120,7 @@ export function CompletedTasksSection() {
         return
       }
       closeCleanup()
-      showMessage(`Saved ${plural(result.deleted, 'task')} to ${result.fileName} and deleted them.${result.noBackup ? ` ${NO_BACKUP_NOTE}` : ''}`)
+      showMessage(`${doneMessage(result)}${result.noBackup ? ` ${NO_BACKUP_NOTE}` : ''}`)
     } catch (err) {
       setError(`Nothing was deleted — ${err instanceof Error ? err.message : String(err)}`)
     } finally {

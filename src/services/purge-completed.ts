@@ -87,6 +87,18 @@ export async function exportAndPurgeCompleted(ids: readonly number[]): Promise<E
   return { status: 'done', deleted: outcome.deleted, saved, fileName, noBackup: outcome.noBackup }
 }
 
+/**
+ * What Export & delete says when it's done: the archive saved through the
+ * save dialog, or handed over as a plain download (the user confirmed it
+ * saved before anything was deleted).
+ */
+export function doneMessage(result: Extract<ExportAndPurgeResult, { status: 'done' }>): string {
+  const count = plural(result.deleted, 'task')
+  return result.saved === 'saved'
+    ? `Saved ${count} to ${result.fileName} and deleted them.`
+    : `Downloaded ${result.fileName} (${count}) and deleted them — the file is in your Downloads folder.`
+}
+
 /** What the purge dialogs say when Export & delete saved a file but deleted nothing. */
 export function keptMessage(result: Extract<ExportAndPurgeResult, { status: 'kept' }>): string {
   return result.reason === 'unconfirmed'

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
 
-// Force the download fallback (no File System Access API in this test).
+// No File System Access API (the download fallback) unless a test sets a save picker.
+const picker = vi.hoisted(() => ({ save: null as null | ((opts: unknown) => Promise<unknown>) }))
 vi.mock('../../../utils/file-picker', () => ({
-  getSaveFilePicker: () => null,
+  getSaveFilePicker: () => picker.save,
   getOpenFilePicker: () => null,
 }))
 
@@ -23,6 +24,7 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  picker.save = null
 })
 
 async function clickExport() {
@@ -56,4 +58,49 @@ describe('Settings → Import / Export — Export JSON self-check', () => {
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled())
     expect(screen.queryByTestId('export-self-check-warning')).toBeNull()
   })
+})
+
+describe('Settings → Import / Export — what an export says', () => {
+  const pickerSaving = () => {
+    picker.save = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) })
+  }
+  const pickerCancelled = () => {
+    const cancel = vi.fn(async () => { throw Object.assign(new Error('cancel'), { name: 'AbortError' }) })
+    picker.save = cancel
+    return cancel
+  }
+
+  for (const [button, savedText, fileName] of [
+    ['Export JSON', 'Exported!', /^todo2-backup-.+\.json$/],
+    ['Export Markdown', 'Markdown exported!', /^todos-\d{4}-\d{2}-\d{2}\.md$/],
+  ] as const) {
+    it(`${button}: a plain download names the file and points to the Downloads folder`, async () => {
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: button }))
+      const message = await screen.findByText(/^Downloaded .+ — check your Downloads folder\.$/)
+      const name = /^Downloaded (.+) — check/.exec(message.textContent ?? '')?.[1] ?? ''
+      expect(name).toMatch(fileName)
+      expect(screen.queryByText(savedText)).toBeNull()
+    })
+
+    it(`${button}: saved through the save dialog says "${savedText}"`, async () => {
+      pickerSaving()
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: button }))
+      expect(await screen.findByText(savedText)).toBeTruthy()
+      expect(screen.queryByText(/Downloaded/)).toBeNull()
+      expect(URL.createObjectURL).not.toHaveBeenCalled()
+    })
+
+    it(`${button}: cancelling the save dialog says nothing`, async () => {
+      const cancel = pickerCancelled()
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: button }))
+      await waitFor(() => expect(cancel).toHaveBeenCalled())
+      await act(async () => {})
+      expect(URL.createObjectURL).not.toHaveBeenCalled()
+      expect(screen.queryByText(savedText)).toBeNull()
+      expect(screen.queryByText(/Downloaded/)).toBeNull()
+    })
+  }
 })

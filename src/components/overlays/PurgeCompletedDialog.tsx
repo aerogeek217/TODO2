@@ -3,7 +3,7 @@ import type { PersistedTodoItem } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { NO_BACKUP_NOTE } from '../../services/safety-snapshot'
-import { exportAndPurgeCompleted, keptMessage } from '../../services/purge-completed'
+import { doneMessage, exportAndPurgeCompleted, keptMessage } from '../../services/purge-completed'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import buttons from './FileSyncDialogs.module.css'
 import styles from './TaskArchiveDialogs.module.css'
@@ -54,7 +54,7 @@ export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }
         return
       }
       if (result.noBackup) {
-        useUndoStore.getState().notify(`Saved ${plural(result.deleted, 'task')} to ${result.fileName} and deleted them. ${NO_BACKUP_NOTE}`)
+        useUndoStore.getState().notify(`${doneMessage(result)} ${NO_BACKUP_NOTE}`)
       }
       onDone()
     } catch (err) {

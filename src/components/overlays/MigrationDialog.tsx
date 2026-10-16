@@ -5,7 +5,7 @@ import { exportCurrentDatabase } from '../../services/migration-check'
 import { OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
 import { buildExportData } from '../../data/export-data'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
-import { saveTextFile } from '../../services/save-file'
+import { downloadedMessage, saveTextFile } from '../../services/save-file'
 import styles from './MigrationDialog.module.css'
 
 interface SchemaUpgradeProps {
@@ -25,7 +25,8 @@ type MigrationDialogProps = SchemaUpgradeProps | LegacyImportProps
 
 export function MigrationDialog(props: MigrationDialogProps) {
   const [exporting, setExporting] = useState(false)
-  const [exported, setExported] = useState(false)
+  /** How the backup went out: through the save dialog, or as a plain download (to `fileName`). */
+  const [exported, setExported] = useState<{ how: 'saved' | 'downloaded'; fileName: string } | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
   const [cancelled, setCancelled] = useState(false)
 
@@ -51,7 +52,7 @@ export function MigrationDialog(props: MigrationDialogProps) {
         mimeType: 'application/json',
         extension: '.json',
       })
-      if (saved !== 'cancelled') setExported(true)
+      if (saved !== 'cancelled') setExported({ how: saved, fileName: filename })
     } catch (err) {
       setExportError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -115,8 +116,9 @@ export function MigrationDialog(props: MigrationDialogProps) {
           onClick={handleExport}
           disabled={exporting}
         >
-          {exporting ? 'Exporting...' : exported ? 'Exported!' : 'Export backup'}
+          {exporting ? 'Exporting...' : exported?.how === 'saved' ? 'Exported!' : exported ? 'Downloaded' : 'Export backup'}
         </button>
+        {exported?.how === 'downloaded' && <div className={styles.exportHint} role="status">{downloadedMessage(exported.fileName)}</div>}
         {exportError && <div className={styles.exportError}>{exportError}</div>}
       </div>
       <DialogActions>

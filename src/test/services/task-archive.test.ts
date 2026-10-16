@@ -4,7 +4,7 @@ import { todoRepository } from '../../data/todo-repository'
 import { TASK_ARCHIVE_KIND, prepareImportText } from '../../data/import-pipeline'
 import { appendImportTasks } from '../../data/append-import'
 import { buildTaskArchive, selfCheckTaskArchiveJson, taskArchiveFileName } from '../../services/task-archive'
-import { exportAndPurgeCompleted, listExpiredCompleted } from '../../services/purge-completed'
+import { doneMessage, exportAndPurgeCompleted, listExpiredCompleted } from '../../services/purge-completed'
 import { saveTextFile } from '../../services/save-file'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -191,6 +191,13 @@ describe('exportAndPurgeCompleted', () => {
     useUIStore.getState().answerConfirmation(true)
     expect(await pending).toMatchObject({ status: 'done', deleted: 1, saved: 'downloaded', noBackup: false })
     expect(await db.todos.get(s.oldBare)).toBeUndefined()
+  })
+
+  it('the done message says where the archive went: saved through the dialog, or downloaded', () => {
+    const done = { status: 'done', deleted: 2, fileName: 'todo2-archive-x.json', noBackup: false } as const
+    expect(doneMessage({ ...done, saved: 'saved' })).toBe('Saved 2 tasks to todo2-archive-x.json and deleted them.')
+    expect(doneMessage({ ...done, saved: 'downloaded', deleted: 1 }))
+      .toBe('Downloaded todo2-archive-x.json (1 task) and deleted them — the file is in your Downloads folder.')
   })
 
   it('a picker save needs no confirmation', async () => {

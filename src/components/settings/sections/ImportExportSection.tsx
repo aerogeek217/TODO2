@@ -9,7 +9,7 @@ import { buildExportData, selfCheckExportJson } from '../../../data/export-data'
 import { buildMarkdownExport } from '../../../services/markdown-export'
 import { saveLastPickerHandle } from '../../../services/file-handle-idb'
 import { getOpenFilePicker } from '../../../utils/file-picker'
-import { getPickerStartIn, saveTextFile } from '../../../services/save-file'
+import { downloadedMessage, getPickerStartIn, saveTextFile } from '../../../services/save-file'
 import { findAppendDuplicatesInDb, runAppendImport, type AppendCandidate, type AppendChoice } from '../../../services/append-import'
 import { AppendImportDialog } from '../../overlays/AppendImportDialog'
 import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
@@ -30,6 +30,9 @@ interface PendingAppend {
  * Export JSON (with a re-import self-check) / Markdown, Import JSON (full
  * restore) and Import tasks (append — the duplicate picker).
  */
+/** A plain download's message stays long enough to read the file name. */
+const DOWNLOADED_MESSAGE_MS = 8000
+
 export function ImportExportSection() {
   const restoreFromImport = useFileOpsStore((s) => s.restoreFromImport)
   const [message, setMessage] = useState('')
@@ -65,15 +68,17 @@ export function ImportExportSection() {
     if (problem) console.warn(`[export] export would not re-import: ${problem}`)
     setExportWarning(problem)
 
+    const fileName = `todo2-backup-${timestamp}.json`
     const saved = await saveTextFile({
       text: json,
-      suggestedName: `todo2-backup-${timestamp}.json`,
+      suggestedName: fileName,
       description: 'JSON',
       mimeType: 'application/json',
       extension: '.json',
     })
     if (saved === 'cancelled') return
-    showMessage('Exported!', 2000)
+    if (saved === 'downloaded') showMessage(downloadedMessage(fileName), DOWNLOADED_MESSAGE_MS)
+    else showMessage('Exported!', 2000)
   }
 
   /** Open a JSON file via the picker, or the hidden `<input>` fallback. */
@@ -192,15 +197,17 @@ export function ImportExportSection() {
 
   const handleExportMarkdown = async () => {
     const md = await buildMarkdownExport()
+    const fileName = `todos-${new Date().toISOString().split('T')[0]}.md`
     const saved = await saveTextFile({
       text: md,
-      suggestedName: `todos-${new Date().toISOString().split('T')[0]}.md`,
+      suggestedName: fileName,
       description: 'Markdown',
       mimeType: 'text/markdown',
       extension: '.md',
     })
     if (saved === 'cancelled') return
-    showMessage('Markdown exported!', 2000)
+    if (saved === 'downloaded') showMessage(downloadedMessage(fileName), DOWNLOADED_MESSAGE_MS)
+    else showMessage('Markdown exported!', 2000)
   }
 
   const secondary = `${styles.button} ${styles.buttonSecondary}`

@@ -9,6 +9,7 @@ import { checkinRecipients } from '../../services/checkin-email/recipients'
 import { createTaskRefLookup } from '../../services/checkin-email/ref'
 import { checkinTaskCount, selectCheckinTasks, type CheckinSelectContext } from '../../services/checkin-email/select'
 import { sendCheckinEmail } from '../../services/checkin-email/send'
+import { checkinEmlFileName } from '../../services/checkin-email/handoff'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -201,7 +202,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
     setToast({
       text: result === 'opened'
         ? `Opened a message to ${p.name}. The body is on your clipboard: paste it with Ctrl+V.`
-        : `Downloaded the draft for ${p.name}. Open the .eml file to review and send.`,
+        : `Downloaded the draft for ${p.name} (${checkinEmlFileName(p.name, sentAt)}) — open it from your Downloads folder to review and send.`,
     })
     // Sending counts as a follow-up on every task in the email (one undo entry).
     void useTodoStore.getState().markFollowedUp(taskIds)
