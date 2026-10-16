@@ -20,7 +20,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
-import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
+import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignments-for-todos'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import { dropDescription } from '../utils/eisenhower'
@@ -89,10 +89,11 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform, 
 /**
  * Loads everything the workspace's widgets read, whatever route the app was
  * opened on: all tasks, people, tags, statuses, saved lists — and the people / tag assignments of the
- * loaded tasks, so chips and person / tag groups render on a cold load.
+ * loaded tasks, so chips and person / tag groups render on a cold load. It
+ * doesn't subscribe to the tasks themselves, so a task edit doesn't re-render
+ * the page.
  */
 function useWorkspaceData(): void {
-  const todos = useTodoStore((s) => s.todos)
   useEffect(() => {
     void useTodoStore.getState().loadAll()
     void usePersonStore.getState().ensureLoaded()
@@ -100,7 +101,7 @@ function useWorkspaceData(): void {
     void useStatusStore.getState().ensureLoaded()
     void useListDefinitionStore.getState().ensureLoaded()
   }, [])
-  useEntityAssignmentsForTodos(todos)
+  useEntityAssignmentsForLoadedTodos()
 }
 
 /**

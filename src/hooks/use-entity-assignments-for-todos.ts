@@ -1,31 +1,28 @@
 import { useEffect } from 'react'
-import type { PersistedTodoItem } from '../models'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 
 /**
- * Load people / tag assignment joins for a visible todo set. Used by
- * surfaces that read `assignedPeopleMap` / `assignedTagsMap` (the
- * workspace) so each isn't repeating the same load `useEffect`.
+ * Loads the people / tag assignment joins of every loaded task, so the
+ * workspace's chips and person / tag groups render on a cold load
+ * (`assignedPeopleMap` / `assignedTagsMap`).
  *
- * Identity-stable dep: re-running on raw `todos` identity would re-fire on
- * every attribute edit (a single field flip recreates the array reference).
- * `todosVersion` is bumped only on add / remove / bulk-remove / restore /
- * purge — i.e. when the *set of ids* actually changes — so gating on
- * `${length}:${version}` pins the join load to real composition changes.
+ * It subscribes only to the task count and `todosVersion` — bumped on add /
+ * remove / bulk-remove / restore / purge, i.e. when the *set of ids*
+ * changes — never to the `todos` array itself, so an edit to a task re-runs
+ * neither the load nor the component that calls this.
  */
-export function useEntityAssignmentsForTodos(todos: PersistedTodoItem[]): void {
+export function useEntityAssignmentsForLoadedTodos(): void {
+  const count = useTodoStore((s) => s.todos.length)
   const todosVersion = useTodoStore((s) => s.todosVersion)
   const loadPeopleAssignments = usePersonStore((s) => s.loadAssignments)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
 
-  const todoIdsKey = `${todos.length}:${todosVersion}`
   useEffect(() => {
-    if (todos.length === 0) return
-    const ids = todos.map((t) => t.id)
-    loadPeopleAssignments(ids)
-    loadTagAssignments(ids)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todoIdsKey, loadPeopleAssignments, loadTagAssignments])
+    if (count === 0) return
+    const ids = useTodoStore.getState().todos.map((t) => t.id)
+    void loadPeopleAssignments(ids)
+    void loadTagAssignments(ids)
+  }, [count, todosVersion, loadPeopleAssignments, loadTagAssignments])
 }
