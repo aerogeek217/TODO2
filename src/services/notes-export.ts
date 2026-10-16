@@ -126,14 +126,17 @@ export function mdToHtml(md: string): string {
       continue
     }
 
-    const h = line.match(/^(#{1,3})\s+(.+)$/)
+    // The line patterns use the `s` flag: a `\r` / U+2028 left inside a line
+    // (imported notes keep them) would otherwise stop `.+`, and `(.+)$`
+    // then retried every split of the space run before it — quadratic.
+    const h = line.match(/^(#{1,3})\s+(.+)$/s)
     if (h && h[1] != null && h[2] != null) {
       closeList()
       out.push(`<h${h[1].length}>${inlineMd(h[2])}</h${h[1].length}>`)
       continue
     }
 
-    const chk = line.match(/^-\s*\[( |x|X)\]\s+(.+)$/)
+    const chk = line.match(/^-\s*\[( |x|X)\]\s+(.+)$/s)
     if (chk && chk[1] != null && chk[2] != null) {
       if (!inList) {
         out.push('<ul>')
@@ -144,7 +147,7 @@ export function mdToHtml(md: string): string {
       continue
     }
 
-    const bul = line.match(/^[-*]\s+(.+)$/)
+    const bul = line.match(/^[-*]\s+(.+)$/s)
     if (bul && bul[1] != null) {
       if (!inList) {
         out.push('<ul>')

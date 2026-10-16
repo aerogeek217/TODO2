@@ -332,6 +332,19 @@ describe('notes-export on long pathological lines', () => {
     within(1000, () => expect(htmlToMarkdown(`<pre>${'\n'.repeat(N)}x</pre>`)).toContain('x'))
   })
 
+  it('mdToHtml: a heading / checkbox / bullet line with a long space run before a mid-line line break', () => {
+    // `.` stops at `\r` / U+2028, so `(.+)$` failed after every split of the
+    // space run (quadratic). Imported notes keep those characters.
+    for (const sep of ['\r', '\u2028']) {
+      const pad = ' '.repeat(N)
+      within(1000, () => {
+        expect(mdToHtml(`# ${pad}a${sep}b`)).toBe(`<h1>a${sep}b</h1>`)
+        expect(mdToHtml(`- [x] ${pad}a${sep}b`)).toBe(`<ul>\n<li>☑ a${sep}b</li>\n</ul>`)
+        expect(mdToHtml(`- ${pad}a${sep}b`)).toBe(`<ul>\n<li>a${sep}b</li>\n</ul>`)
+      })
+    }
+  })
+
   it('mdToHtml still links and trims as before', () => {
     expect(mdToHtml('see [docs](https://x.com/a&b)   ')).toBe('<p>see <a href="https://x.com/a&amp;b">docs</a></p>')
     expect(mdToHtml('[[a](u)')).toBe('<p><a href="u">[a</a></p>')

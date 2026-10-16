@@ -72,10 +72,49 @@ function draftContext(): DraftContext {
 /** The note's name for the preview: its first line when that's a heading. */
 export function noteNameOf(text: string): string | null {
   const first = text.split('\n').find((l) => l.trim() !== '')
-  const heading = first ? /^\s*#{1,6}\s+(.+?)\s*#*\s*$/.exec(first) : null
-  const name = heading?.[1]?.trim()
+  const name = first === undefined ? undefined : headingText(first)?.trim()
   if (!name) return null
   return name.length > 40 ? `${name.slice(0, 39)}…` : name
+}
+
+const SPACE = /\s/
+const LINE_BREAK = /[\n\r\u2028\u2029]/
+
+/**
+ * What `/^\s*#{1,6}\s+(.+?)\s*#*\s*$/` captures from `line`, in linear time
+ * (the regex backtracked cubically on a long space run — a note is
+ * untrusted text when it was imported or synced).
+ */
+function headingText(line: string): string | null {
+  const n = line.length
+  const isSpace = (k: number) => SPACE.test(line.charAt(k))
+  let i = 0
+  while (i < n && isSpace(i)) i++
+  const hashes = i
+  while (i < n && line.charAt(i) === '#') i++
+  if (i - hashes < 1 || i - hashes > 6) return null
+  // The `\s+` run after the hashes: the capture starts at its end, or —
+  // backing off — one character earlier each time.
+  let w = i
+  while (w < n && isSpace(w)) w++
+  if (w === i) return null
+  // Where the longest trailing `\s*#*\s*` starts: the capture (lazy) ends
+  // there, or after its first character if it would be empty.
+  let t = n
+  while (t > i && isSpace(t - 1)) t--
+  while (t > i && line.charAt(t - 1) === '#') t--
+  while (t > i && isSpace(t - 1)) t--
+  for (let c = w; c > i; c--) {
+    if (c >= n) continue
+    if (t > c + 1) {
+      // `.` stops at a line break; an earlier start has the same end, so
+      // it holds the same break too.
+      const captured = line.slice(c, t)
+      return LINE_BREAK.test(captured) ? null : captured
+    }
+    if (!LINE_BREAK.test(line.charAt(c))) return line.charAt(c)
+  }
+  return null
 }
 
 function plural(n: number, one: string, many: string): string {
