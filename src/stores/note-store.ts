@@ -51,15 +51,14 @@ interface NoteState {
    */
   discardPending: () => void
   /**
-   * Call before replacing the data (import, backup restore, sync file load,
-   * audit cleanup) writes the notes table: drops unsaved text, waits for a
-   * save already started (it lands before the replace, which then
-   * overwrites it) and holds every later save until the returned `release`
-   * is called — call it once the stores have reloaded (or the replace
-   * failed). A held save can't land after the replace. Text typed during
-   * the hold is saved on release unless the reload dropped it. Never
-   * rejects; waits only on note saves, never on a store load or a tracked
-   * write.
+   * Call before a data replace (import, backup restore, sync file load,
+   * audit cleanup) takes its backup: saves the text typed so far (so the
+   * backup holds it; if that save fails the text is dropped), then holds
+   * every later save until the returned `release` is called — call it once
+   * the stores have reloaded, or the replace was cancelled or failed. No
+   * save lands after the replace. Text typed during the hold is saved on
+   * release unless the reload dropped it. Never rejects; waits only on note
+   * saves, never on a store load or a tracked write.
    */
   holdForDataReplace: () => Promise<() => void>
 }
@@ -169,7 +168,10 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   async holdForDataReplace() {
+    // Text typed just before: saved now, so the replace's backup has it.
+    if (get().replaceHolds === 0) await get().flush()
     set({ replaceHolds: get().replaceHolds + 1 })
+    // Unsaved now: the save failed, or it was typed while that save ran.
     get().discardPending()
     // `saveOnce` never rejects, and a queued save that starts now skips.
     await saveQueue

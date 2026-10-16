@@ -97,12 +97,32 @@ async function storedNotes(page: Page): Promise<string[]> {
   }), DB_NAME)
 }
 
+
 interface NoteHoldWindow {
   __noteSaveStarted?: boolean
   __releaseNoteSave?: () => void
+  __noteHoldAsked?: boolean
 }
 
-test('a note save started before a backup restore does not land after it', async ({ page }) => {
+/** The notes held by the newest pre-op backup (the one a restore takes first). */
+async function preOpBackupNotes(page: Page): Promise<string[]> {
+  return page.evaluate(async (db) => new Promise<string[]>((resolve, reject) => {
+    const req = indexedDB.open(db)
+    req.onsuccess = () => {
+      const r = req.result.transaction(['backups'], 'readonly').objectStore('backups').getAll()
+      r.onsuccess = () => {
+        req.result.close()
+        const preOp = (r.result as Array<{ trigger: string; data: string }>).filter((b) => b.trigger === 'pre-destructive')
+        const newest = preOp.at(-1)
+        resolve(newest ? (JSON.parse(newest.data) as { notes: Array<{ content: string }> }).notes.map((n) => n.content) : [])
+      }
+      r.onerror = () => reject(r.error)
+    }
+    req.onerror = () => reject(req.error)
+  }), DB_NAME)
+}
+
+test('note text saving when a backup restore starts goes into its pre-op backup, not over the restored note', async ({ page }) => {
   await seedWorkspace(page, {
     layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] }] }] }],
   })
@@ -114,20 +134,29 @@ test('a note save started before a backup restore does not land after it', async
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  // Hold the next note save's database write (the app's own module instance).
+  // Hold the next note save's database write, and note when a replace asks
+  // the note store to hold its saves (the app's own module instances).
   await page.evaluate(async () => {
-    const mod = (await import(/* @vite-ignore */ '/src/data/note-repository.ts')) as {
+    const repo = (await import(/* @vite-ignore */ '/src/data/note-repository.ts')) as {
       noteRepository: { saveContent: (...args: unknown[]) => Promise<boolean> }
     }
+    const notes = (await import(/* @vite-ignore */ '/src/stores/note-store.ts')) as {
+      useNoteStore: {
+        getState(): { holdForDataReplace?: () => Promise<() => void> }
+        setState(patch: Record<string, unknown>): void
+      }
+    }
     const w = window as unknown as NoteHoldWindow
-    const write = mod.noteRepository.saveContent.bind(mod.noteRepository)
+    const write = repo.noteRepository.saveContent.bind(repo.noteRepository)
     const gate = new Promise<void>((resolve) => { w.__releaseNoteSave = resolve })
-    mod.noteRepository.saveContent = async (...args: unknown[]) => {
-      mod.noteRepository.saveContent = write
+    repo.noteRepository.saveContent = async (...args: unknown[]) => {
+      repo.noteRepository.saveContent = write
       w.__noteSaveStarted = true
       await gate
       return write(...args)
     }
+    const hold = notes.useNoteStore.getState().holdForDataReplace
+    if (hold) notes.useNoteStore.setState({ holdForDataReplace: () => { w.__noteHoldAsked = true; return hold() } })
   })
   await editor.click()
   await page.keyboard.press('End')
@@ -140,16 +169,14 @@ test('a note save started before a backup restore does not land after it', async
   await manual.getByRole('button', { name: 'Confirm' }).click()
   const restored = settings.getByText('Restored successfully! The data it replaced was backed up first.')
   // The restore is under way: done already, or waiting for the held save.
-  await expect.poll(async () => await restored.isVisible() || await page.evaluate(async () => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/note-store.ts')) as {
-      useNoteStore: { getState(): { replaceHolds?: number } }
-    }
-    return (mod.useNoteStore.getState().replaceHolds ?? 0) > 0
-  })).toBe(true)
+  await expect.poll(async () => await restored.isVisible()
+    || await page.evaluate(() => (window as unknown as NoteHoldWindow).__noteHoldAsked === true)).toBe(true)
   await page.evaluate(() => { (window as unknown as NoteHoldWindow).__releaseNoteSave?.() })
   await expect(restored).toBeVisible()
   await page.keyboard.press('Escape')
 
   await expect(editor).toHaveText('in the backup')
   await expect.poll(() => storedNotes(page)).toEqual(['in the backup'])
+  // The text that was saving is in the backup the restore took first.
+  expect(await preOpBackupNotes(page)).toEqual(['in the backup typed later'])
 })

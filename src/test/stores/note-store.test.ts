@@ -264,24 +264,25 @@ describe('useNoteStore', () => {
 })
 
 describe('useNoteStore.holdForDataReplace', () => {
-  it('drops unsaved text, and no save starts while it holds', async () => {
+  it('saves the text typed before it, and no save starts while it holds', async () => {
     await useNoteStore.getState().load()
     const id = useNoteStore.getState().activeId!
     useNoteStore.getState().setContent(id, 'typed before')
     const release = await useNoteStore.getState().holdForDataReplace()
     expect(useNoteStore.getState().pending).toBeNull()
+    expect(await contentInDb()).toBe('typed before')
 
     // Typed during the replace: stays pending, not written.
     useNoteStore.getState().setContent(id, 'typed during')
     await useNoteStore.getState().flush()
-    expect(await contentInDb()).toBe('')
+    expect(await contentInDb()).toBe('typed before')
     expect(useNoteStore.getState().pending?.content).toBe('typed during')
 
     // The reload drops it (as `refreshAllStores` does); release writes nothing.
     useNoteStore.getState().discardPending()
     release()
     await useNoteStore.getState().flush()
-    expect(await contentInDb()).toBe('')
+    expect(await contentInDb()).toBe('typed before')
     expect(useNoteStore.getState().replaceHolds).toBe(0)
   })
 
@@ -295,5 +296,24 @@ describe('useNoteStore.holdForDataReplace', () => {
     await useNoteStore.getState().flush()
     expect(await contentInDb()).toBe('typed during')
     expect(useNoteStore.getState().replaceHolds).toBe(0)
+  })
+})
+
+describe('useNoteStore.holdForDataReplace when the save before it fails', () => {
+  it('drops the text (the replace goes ahead) and says the save failed', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await useNoteStore.getState().load()
+    const id = useNoteStore.getState().activeId!
+    useNoteStore.getState().setContent(id, 'typed before')
+    vi.spyOn(noteRepository, 'saveContent').mockRejectedValueOnce(new Error('disk full'))
+
+    const release = await useNoteStore.getState().holdForDataReplace()
+
+    expect(useNoteStore.getState().pending).toBeNull()
+    expect(await contentInDb()).toBe('')
+    expect(useUndoStore.getState().snackbar?.description).toMatch(/^Couldn't save your notes/)
+    release()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('')
   })
 })

@@ -12,16 +12,15 @@ import { useNoteStore } from './note-store'
 export type { BackupSummary, AuditReport }
 
 /**
- * Runs a write that replaces data, then reloads every store — with note
- * saves held throughout (`holdForDataReplace`), so text typed before the
- * replace can't be saved over the new notes.
+ * Runs a data replace — its backup, its write, then the reload of every
+ * store — with note saves held throughout (`holdForDataReplace`): text typed
+ * just before is saved first, so the backup holds it, and no save can land
+ * over the new notes.
  */
-async function replaceData<T>(write: () => Promise<T>): Promise<T> {
+async function withNotesHeld<T>(replace: () => Promise<T>): Promise<T> {
   const release = await useNoteStore.getState().holdForDataReplace()
   try {
-    const result = await write()
-    await refreshAllStores()
-    return result
+    return await replace()
   } finally {
     release()
   }
@@ -102,11 +101,15 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
     if (!backup) return { status: 'error', error: 'Backup not found' }
     const prepared = prepareImportText(backup.data)
     if (!prepared.ok) return { status: 'error', error: prepared.error }
-    const snapshot = await takeSafetySnapshot('restoring the backup')
-    if (snapshot === 'cancelled') return { status: 'cancelled' }
-    await replaceData(() => restoreFromImportData(prepared.data))
-    await get().loadBackups()
-    return { status: 'done', noBackup: snapshot === 'without-backup' }
+    const outcome = await withNotesHeld(async (): Promise<RestoreOutcome> => {
+      const snapshot = await takeSafetySnapshot('restoring the backup')
+      if (snapshot === 'cancelled') return { status: 'cancelled' }
+      await restoreFromImportData(prepared.data)
+      await refreshAllStores()
+      return { status: 'done', noBackup: snapshot === 'without-backup' }
+    })
+    if (outcome.status === 'done') await get().loadBackups()
+    return outcome
   },
 
   runAudit: async () => {
@@ -118,16 +121,23 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   cleanupCurrentAudit: async () => {
     const report = get().auditReport
     if (!report) return 0
-    const cleaned = await replaceData(() => cleanupIssues(report.issues))
+    const cleaned = await withNotesHeld(async () => {
+      const count = await cleanupIssues(report.issues)
+      await refreshAllStores()
+      return count
+    })
     set({ auditReport: null })
     return cleaned
   },
 
   restoreFromImport: async (data) => {
-    const snapshot = await takeSafetySnapshot('importing the file')
-    if (snapshot === 'cancelled') return { status: 'cancelled' }
-    await replaceData(() => restoreFromImportData(data))
-    return { status: 'done', noBackup: snapshot === 'without-backup' }
+    return withNotesHeld(async (): Promise<ImportOutcome> => {
+      const snapshot = await takeSafetySnapshot('importing the file')
+      if (snapshot === 'cancelled') return { status: 'cancelled' }
+      await restoreFromImportData(data)
+      await refreshAllStores()
+      return { status: 'done', noBackup: snapshot === 'without-backup' }
+    })
   },
 }))
 

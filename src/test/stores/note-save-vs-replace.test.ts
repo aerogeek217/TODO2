@@ -79,16 +79,57 @@ async function typedSaveInFlight(text: string) {
 
 /**
  * Lets the held save finish once the replace is under way: it has written
- * the notes table, or it is waiting for the save.
+ * the notes table, or it has asked the note store to hold its saves (and
+ * is waiting for this one). Call before starting the replace.
  */
-async function releaseWhenReplaceStarts(release: () => void) {
+function releaseWhenReplaceStarts(release: () => void): () => Promise<void> {
   let notesRewritten = false
   const onCreating = () => { notesRewritten = true }
   db.notes.hook('creating').subscribe(onCreating)
   unsubscribe = () => db.notes.hook('creating').unsubscribe(onCreating)
-  await vi.waitFor(() => expect(notesRewritten || useNoteStore.getState().replaceHolds > 0).toBe(true))
-  release()
+  let holdAsked = false
+  const hold = useNoteStore.getState().holdForDataReplace as (() => Promise<() => void>) | undefined
+  if (hold) useNoteStore.setState({ holdForDataReplace: () => { holdAsked = true; return hold() } })
+  return async () => {
+    await vi.waitFor(() => expect(notesRewritten || holdAsked).toBe(true))
+    release()
+  }
 }
+
+/** The notes the newest pre-op backup holds. */
+async function preOpBackupNotes(): Promise<string[]> {
+  const preOp = (await db.backups.toArray()).filter((b) => b.trigger === 'pre-destructive')
+  const newest = preOp.at(-1)
+  if (!newest) return []
+  return (JSON.parse(newest.data) as { notes: Array<{ content: string }> }).notes.map((n) => n.content)
+}
+
+/** Types `text` into the loaded note; its debounced save hasn't run yet. */
+async function typedJustBefore(text: string) {
+  await useNoteStore.getState().load()
+  useNoteStore.getState().setContent(useNoteStore.getState().activeId!, text)
+}
+
+/**
+ * Attaches a sync file holding `fileText` while the browser has changes the
+ * file doesn't: loading asks first, and the answer is "Use file".
+ */
+function attachSyncFileOverBrowserChanges(fileText: string, savedAt: string) {
+  localStorage.setItem(FILE_SYNC_STATE_KEY, JSON.stringify({ fileSavedAt: savedAt, dirtySince: '2026-10-02T10:00:00.000Z' }))
+  mockLoadFileHandle.mockResolvedValue({
+    kind: 'file',
+    name: 'todo2-data.json',
+    getFile: vi.fn().mockImplementation(async () => new File([fileText], 'todo2-data.json', { type: 'application/json', lastModified: 1_000 })),
+    queryPermission: vi.fn().mockResolvedValue('granted'),
+    requestPermission: vi.fn().mockResolvedValue('granted'),
+    createWritable: vi.fn().mockResolvedValue({ write: vi.fn(), close: vi.fn(), abort: vi.fn() }),
+    isSameEntry: vi.fn(),
+  })
+  vi.stubGlobal('showOpenFilePicker', vi.fn())
+  svc.onConflict(async () => 'file')
+}
+
+const SAVED_AT = '2026-10-01T10:00:00.000Z'
 
 describe('a note save started before a data replace', () => {
   it('backup restore: the restored note stays', async () => {
@@ -97,8 +138,9 @@ describe('a note save started before a data replace', () => {
     await setNoteText('before')
     const { release, saving } = await typedSaveInFlight('typed before the restore')
 
+    const releaseLater = releaseWhenReplaceStarts(release)
     const restoring = useFileOpsStore.getState().restoreBackup(backupId)
-    await releaseWhenReplaceStarts(release)
+    await releaseLater()
     expect(await restoring).toEqual({ status: 'done', noBackup: false })
     await saving
 
@@ -112,8 +154,9 @@ describe('a note save started before a data replace', () => {
     await setNoteText('before')
     const { release, saving } = await typedSaveInFlight('typed before the import')
 
+    const releaseLater = releaseWhenReplaceStarts(release)
     const importing = useFileOpsStore.getState().restoreFromImport(data as never)
-    await releaseWhenReplaceStarts(release)
+    await releaseLater()
     expect(await importing).toEqual({ status: 'done', noBackup: false })
     await saving
 
@@ -122,29 +165,69 @@ describe('a note save started before a data replace', () => {
 
   it('sync file loaded over browser changes ("Use file"): the file\'s note stays', async () => {
     const id = await setNoteText('from the sync file')
-    const savedAt = '2026-10-01T10:00:00.000Z'
-    const fileText = JSON.stringify({ ...(await buildExportData()), savedAt })
+    const fileText = JSON.stringify({ ...(await buildExportData()), savedAt: SAVED_AT })
     await setNoteText('before')
-    // The browser has changes the file doesn't: loading asks first.
-    localStorage.setItem(FILE_SYNC_STATE_KEY, JSON.stringify({ fileSavedAt: savedAt, dirtySince: '2026-10-02T10:00:00.000Z' }))
-    mockLoadFileHandle.mockResolvedValue({
-      kind: 'file',
-      name: 'todo2-data.json',
-      getFile: vi.fn().mockImplementation(async () => new File([fileText], 'todo2-data.json', { type: 'application/json', lastModified: 1_000 })),
-      queryPermission: vi.fn().mockResolvedValue('granted'),
-      requestPermission: vi.fn().mockResolvedValue('granted'),
-      createWritable: vi.fn().mockResolvedValue({ write: vi.fn(), close: vi.fn(), abort: vi.fn() }),
-      isSameEntry: vi.fn(),
-    })
-    vi.stubGlobal('showOpenFilePicker', vi.fn())
-    svc.onConflict(async () => 'file')
+    attachSyncFileOverBrowserChanges(fileText, SAVED_AT)
     const { release, saving } = await typedSaveInFlight('typed before the load')
 
+    const releaseLater = releaseWhenReplaceStarts(release)
     const loading = svc.initialize()
-    await releaseWhenReplaceStarts(release)
+    await releaseLater()
     await loading
     await saving
 
     expect(await noteText(id)).toBe('from the sync file')
+  })
+})
+
+describe('note text typed just before a data replace (its save not run yet)', () => {
+  it('backup restore: the text is in the pre-op backup; the restored note shows the backup', async () => {
+    const id = await setNoteText('from the backup')
+    const backupId = await backupRepository.createSnapshot('manual')
+    await setNoteText('before')
+    await typedJustBefore('typed just before the restore')
+
+    expect(await useFileOpsStore.getState().restoreBackup(backupId)).toEqual({ status: 'done', noBackup: false })
+
+    expect(await preOpBackupNotes()).toEqual(['typed just before the restore'])
+    expect(await noteText(id)).toBe('from the backup')
+    expect(useNoteStore.getState().notes.get(id)?.content).toBe('from the backup')
+    expect(useNoteStore.getState().pending).toBeNull()
+  })
+
+  it('import: the text is in the pre-op backup; the note shows the file', async () => {
+    const id = await setNoteText('from the file')
+    const data = await buildExportData()
+    await setNoteText('before')
+    await typedJustBefore('typed just before the import')
+
+    expect(await useFileOpsStore.getState().restoreFromImport(data as never)).toEqual({ status: 'done', noBackup: false })
+
+    expect(await preOpBackupNotes()).toEqual(['typed just before the import'])
+    expect(await noteText(id)).toBe('from the file')
+  })
+
+  it('sync file "Use file": the text is in the pre-op backup; the note shows the file', async () => {
+    const id = await setNoteText('from the sync file')
+    const fileText = JSON.stringify({ ...(await buildExportData()), savedAt: SAVED_AT })
+    await setNoteText('before')
+    attachSyncFileOverBrowserChanges(fileText, SAVED_AT)
+    await typedJustBefore('typed just before the load')
+
+    await svc.initialize()
+
+    expect(await preOpBackupNotes()).toEqual(['typed just before the load'])
+    expect(await noteText(id)).toBe('from the sync file')
+  })
+
+  it('audit cleanup (notes untouched): the text is saved, not dropped', async () => {
+    const id = await setNoteText('before')
+    await typedJustBefore('typed just before the cleanup')
+    useFileOpsStore.setState({ auditReport: { issues: [] } as never })
+
+    await useFileOpsStore.getState().cleanupCurrentAudit()
+
+    expect(await noteText(id)).toBe('typed just before the cleanup')
+    expect(useNoteStore.getState().notes.get(id)?.content).toBe('typed just before the cleanup')
   })
 })
