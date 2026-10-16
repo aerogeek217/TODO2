@@ -2,6 +2,7 @@ import { usePersonStore } from '../stores/person-store'
 import { defaultNextFollowup } from '../stores/settings-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useUndoStore } from '../stores/undo-store'
 import { resolveTags, resolveUnmatchedPeople } from './nlp-resolver'
 import { draftToTodo, type TaskDraft } from './task-draft'
 
@@ -24,13 +25,16 @@ export async function createTasksFromDrafts(
   if (drafts.length === 0) return []
   const now = new Date()
   const defaultFollowup = defaultNextFollowup(now)
+  // The tag limit's notice, said with (or after) this step's own snackbar,
+  // which would otherwise replace it.
+  let limitNotice: string | null = null
   const items = []
   for (const draft of drafts) {
     const newPersonIds = draft.newPeople.length > 0
       ? await resolveUnmatchedPeople(draft.newPeople, { personStore: usePersonStore.getState() })
       : []
     const newTagIds = draft.newTags.length > 0
-      ? await resolveTags(draft.newTags, { tagStore: useTagStore.getState() })
+      ? await resolveTags(draft.newTags, { tagStore: useTagStore.getState(), onLimit: (m) => { limitNotice = m } })
       : []
     items.push({
       todo: draftToTodo(draft, now, defaultFollowup),
@@ -38,6 +42,10 @@ export async function createTasksFromDrafts(
       tagIds: [...new Set([...draft.tagIds, ...newTagIds])],
     })
   }
-  const ids = await useTodoStore.getState().addMany(items, options)
+  const ids = await useTodoStore.getState().addMany(items, {
+    ...options,
+    description: limitNotice && options.snackbar ? `${options.description}. ${limitNotice}` : options.description,
+  })
+  if (limitNotice && !options.snackbar) useUndoStore.getState().notify(limitNotice)
   return ids.map((id, i) => ({ id, title: drafts[i]?.title ?? '' }))
 }

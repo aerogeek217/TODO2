@@ -93,11 +93,14 @@ export interface TagStoreLike {
  * Look up each parsed `#foo` name in the tag registry (case-insensitive) and
  * assign the existing tag; for misses, create a new tag with
  * `DEFAULT_ENTITY_COLOR` and use the new id. Returns ids in input order,
- * deduped. Empty / whitespace-only names are skipped.
+ * deduped. Empty / whitespace-only names are skipped. When the tag limit
+ * stops it, `ctx.onLimit` gets the message (default: the snackbar notice) —
+ * a caller whose own undo step comes next passes one, since that step's
+ * snackbar would replace the notice.
  */
 export async function resolveTags(
   names: readonly string[],
-  ctx: { tagStore: TagStoreLike },
+  ctx: { tagStore: TagStoreLike; onLimit?: (message: string) => void },
 ): Promise<number[]> {
   const ids: number[] = []
   const seen = new Set<number>()
@@ -122,7 +125,8 @@ export async function resolveTags(
           // The task is still created, without the tags past the limit: say
           // so. Once the ceiling is hit every later create would throw too,
           // so stop and return the ids resolved so far.
-          useUndoStore.getState().notify(e.message)
+          if (ctx.onLimit) ctx.onLimit(e.message)
+          else useUndoStore.getState().notify(e.message)
           break
         }
         throw e
