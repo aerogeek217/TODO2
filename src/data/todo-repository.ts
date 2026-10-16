@@ -2,7 +2,6 @@ import { db } from './database'
 import { nextSortOrder } from './create-repository'
 import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
 import { encodeDateValue } from './todo-event-repository'
-import { hasRecurrenceAnchor } from './recurrence-anchor'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { newTodoUid } from '../utils/todo-uid'
 
@@ -33,7 +32,7 @@ function withoutUndefinedCompletedAt<T extends Partial<TodoItem>>(row: T): T {
 
 /**
  * Repository-level invariant: a `recurrenceRule` is only meaningful when the
- * row has a due date to advance (`recurrenceAnchor` would return non-null).
+ * row has a due date to advance from.
  * When a write produces a merged row with a rule but no anchor — e.g. a bulk
  * `bulkSetDeadline(null)` clears the due date — splice
  * `recurrenceRule: undefined` into the patch so the rule is dropped on disk.
@@ -45,7 +44,7 @@ function dropOrphanedRule<T extends Partial<TodoItem>>(
   changes: T,
 ): T {
   if (!merged.recurrenceRule) return changes
-  if (hasRecurrenceAnchor(merged)) return changes
+  if (merged.dueDate != null) return changes
   return { ...changes, recurrenceRule: undefined }
 }
 

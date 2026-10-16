@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule, recurrenceAnchor, advanceRecurring } from '../../services/recurrence'
+import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule, advanceRecurring } from '../../services/recurrence'
 import type { RecurrenceRule } from '../../models/recurrence'
 import type { TodoItem } from '../../models/todo-item'
 
@@ -205,18 +205,6 @@ describe('makeRecurrenceRule', () => {
   it('no due date: does not set originalDayOfMonth', () => {
     const rule = makeRecurrenceRule('monthly', null)
     expect(rule).toEqual({ type: 'monthly' })
-  })
-})
-
-describe('recurrenceAnchor', () => {
-  it('anchors on the due date', () => {
-    const result = recurrenceAnchor({ dueDate: localDate(2026, 1, 15) })
-    expect(fmt(result!.date)).toBe('2026-01-15')
-  })
-
-  it('returns null without a due date (a follow-up date is not an anchor)', () => {
-    expect(recurrenceAnchor({})).toBeNull()
-    expect(recurrenceAnchor({ nextFollowupAt: localDate(2026, 1, 15) } as Partial<TodoItem>)).toBeNull()
   })
 })
 

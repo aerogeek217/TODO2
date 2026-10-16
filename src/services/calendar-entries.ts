@@ -1,7 +1,7 @@
 import type { PersistedTodoItem, Person, Status } from '../models'
 import type { CalendarDateType, CalendarDateTypes } from '../models/workspace-layout'
 import { addDays, startOfDay } from '../utils/date'
-import { generateRecurringInstances, recurrenceAnchor } from './recurrence'
+import { generateRecurringInstances } from './recurrence'
 
 export interface CalendarEntry {
   todo: PersistedTodoItem
@@ -89,16 +89,14 @@ export function buildEntries(
     if (types.due) {
       const primary = t.dueDate ? startOfDay(new Date(t.dueDate)) : null
       if (primary && inRange(primary)) push(t, 'due', primary, false, `task-${t.id}`)
-      if (t.recurrenceRule) {
-        const anchor = recurrenceAnchor(t)
-        if (anchor) {
-          const instances = generateRecurringInstances(anchor.date, t.recurrenceRule, rangeStart, rangeEnd)
-          const primaryKey = primary ? dayKey(primary) : null
-          for (const inst of instances) {
-            const ik = dayKey(inst)
-            if (ik === primaryKey) continue
-            push(t, 'due', inst, true, `recurring-${t.id}-${ik}`)
-          }
+      // A rule repeats from the due date; without one it has nothing to repeat.
+      if (t.recurrenceRule && t.dueDate != null) {
+        const instances = generateRecurringInstances(new Date(t.dueDate), t.recurrenceRule, rangeStart, rangeEnd)
+        const primaryKey = primary ? dayKey(primary) : null
+        for (const inst of instances) {
+          const ik = dayKey(inst)
+          if (ik === primaryKey) continue
+          push(t, 'due', inst, true, `recurring-${t.id}-${ik}`)
         }
       }
     }

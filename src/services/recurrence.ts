@@ -88,24 +88,15 @@ export function computeNextDueDate(currentDueDate: Date, rule: RecurrenceRule): 
 }
 
 /**
- * The date a task's recurrence rule advances from: its `dueDate`. Returns
- * null when the task has no due date (the rule has nothing to advance).
- */
-export function recurrenceAnchor(t: Pick<TodoItem, 'dueDate'>): { date: Date } | null {
-  return t.dueDate ? { date: new Date(t.dueDate) } : null
-}
-
-/**
- * The next due date for a recurring task's next occurrence. Returns null
- * when the task has no rule or no due date.
+ * The next due date for a recurring task's next occurrence: its rule
+ * advances from the due date. Returns null when the task has no rule or no
+ * due date (the rule has nothing to advance).
  */
 export function advanceRecurring(
   t: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>,
 ): { dueDate: Date } | null {
-  if (!t.recurrenceRule) return null
-  const anchor = recurrenceAnchor(t)
-  if (!anchor) return null
-  return { dueDate: computeNextDueDate(anchor.date, t.recurrenceRule) }
+  if (!t.recurrenceRule || t.dueDate == null) return null
+  return { dueDate: computeNextDueDate(new Date(t.dueDate), t.recurrenceRule) }
 }
 
 /**

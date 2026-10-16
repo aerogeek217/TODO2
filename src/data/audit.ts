@@ -8,7 +8,6 @@ import {
   rowFixes,
   sanitizeRow,
 } from './import-validation'
-import { hasRecurrenceAnchor } from './recurrence-anchor'
 
 export interface AuditSample {
   /** The full offending record. JSON-serialised verbatim in the detail popup. */
@@ -404,16 +403,15 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   // --- Orphaned recurrence rules: rule set, but no due date to advance.
-  // `recurrenceAnchor` (services/recurrence.ts) returns null without a
-  // `dueDate`, so `advanceRecurring` short-circuits
-  // and the rule never fires — the row carries dead data on disk. The
+  // A rule advances from the `dueDate`; without one `advanceRecurring`
+  // (services/recurrence.ts) short-circuits and the rule never fires — the row carries dead data on disk. The
   // repository invariant (`todoRepository.update` / `bulkUpdate`) catches
   // this on every new write; this audit pass catches legacy rows that
   // pre-date the invariant or were written by a path that bypassed the
   // repository (e.g. raw `db.todos.update` somewhere). `clear-field` cleanup
   // strips `recurrenceRule`, leaving the rest of the row intact.
   const orphanedRecurrence = todos.filter(
-    (t) => t.recurrenceRule != null && !hasRecurrenceAnchor(t),
+    (t) => t.recurrenceRule != null && t.dueDate == null,
   )
   if (orphanedRecurrence.length > 0) {
     issues.push({

@@ -555,8 +555,8 @@ describe('unknown-table audit', () => {
 })
 
 // --- Orphan-recurrence-rule audit: a `recurrenceRule` is dead weight on a row
-// that has no due date because `recurrenceAnchor` returns null and
-// `advanceRecurring` short-circuits. The repository invariant
+// that has no due date because a rule advances from the due date and
+// `advanceRecurring` short-circuits without one. The repository invariant
 // (`todoRepository.update` / `bulkUpdate`) drops the rule on new writes; this
 // audit pass detects + cleans rows that pre-date the invariant or were written
 // by a path that bypassed the repository.
