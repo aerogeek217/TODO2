@@ -598,6 +598,22 @@ describe('FileStorageService — file backup before rewrite', () => {
     expectBackupFailurePaused(bad.svc, bad.writable)
   })
 
+  it('confirmed upgrade whose rewrite of the file fails: sync pauses and says so (not "on" over an old file)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith(older)
+    writable.write.mockRejectedValue(new Error('disk full'))
+    svc.onConfirmFileUpgrade(async () => true)
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('write-failed')
+    expect(svc.status.paused?.message).toContain('could not be written')
+    // Paused: a later edit doesn't write over the old file either.
+    const writes = writable.write.mock.calls.length
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(writable.write).toHaveBeenCalledTimes(writes)
+  })
+
   it('"Use browser data" / "Keep browser data" over an older file keep its copy outside the pruned pool', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
     const a = await startWith(older)

@@ -29,6 +29,7 @@ export type SyncPauseReason =
   | 'upgrade-cancelled'
   | 'legacy-cancelled'
   | 'backup-failed'
+  | 'write-failed'
 
 export interface SyncPause {
   reason: SyncPauseReason
@@ -658,9 +659,13 @@ class FileStorageService {
     const browserHoldsFile = identical
       || (!prepared.upgraded && hasRecord && !dirty && fileChanged === false)
     if (!(await this.applyFileData(prepared.data, fileId, browserHoldsFile))) return
-    if (prepared.upgraded) {
-      // Older file, upgrade confirmed: write it back at CURRENT_DB_VERSION.
-      await this.saveToFile({ force: true })
+    if (prepared.upgraded && !(await this.saveToFile({ force: true }))) {
+      // Older file, upgrade confirmed, but writing it back at
+      // CURRENT_DB_VERSION failed: the browser holds the upgraded data and
+      // the file is still the old one (its raw copy is in Backups). Pause —
+      // Retry asks again and rewrites it.
+      this.pause('write-failed', `${PAUSED_PREFIX} — ${handle.name} could not be written in the new format, so it still holds the older version. Retry, or free up disk space first.`)
+      return
     }
     this.syncEnabled = true
     this.notify()
