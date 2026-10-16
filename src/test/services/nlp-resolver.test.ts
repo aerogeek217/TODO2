@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { resolveInput, resolveTags, resolveUnmatchedPeople, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
-import { TagLimitError } from '../../stores/tag-store'
+import { TagLimitError } from '../../utils/tags'
 import type { Person, Status, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 

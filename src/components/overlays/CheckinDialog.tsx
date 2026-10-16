@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { useMarkerSettings } from '../../hooks/use-marker-settings'
+import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { useToday } from '../../hooks/use-today'
 import { buildCheckinEmail, type CheckinEmail } from '../../services/checkin-email/build'
 import { checkinRecipients } from '../../services/checkin-email/recipients'
@@ -87,7 +87,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const scopeSetting = useSettingsStore((s) => s.checkinTaskScope)
   const method = useSettingsStore((s) => s.checkinOpenMethod)
-  const markerSettings = useMarkerSettings()
+  const markerSettings = useFilterSettings()
   const today = useToday()
 
   const titleId = useId()

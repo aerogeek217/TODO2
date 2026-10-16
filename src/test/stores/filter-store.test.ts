@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useFilterStore, matchesFilter, applyFilter, countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { PersistedTodoItem } from '../../models'
-import { makeTodo, patchScreenFilter } from '../helpers'
+import { applyFilterNow as applyFilter, makeTodo, matchesFilterNow as matchesFilter, patchScreenFilter } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
@@ -421,7 +422,7 @@ describe('useFilterStore', () => {
 
 describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
   it('converts Sets to arrays and DateAnchor round-trips', async () => {
-    const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
+    const { criteriaToPredicate, predicateToCriteria } = await import('../../utils/filter-criteria')
     const original = {
       showCompleted: true,
       personIds: new Set([5, 10]),
@@ -454,7 +455,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
   })
 
   it('tags round-trip as Set ↔ array; missing field reads back as null', async () => {
-    const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
+    const { criteriaToPredicate, predicateToCriteria } = await import('../../utils/filter-criteria')
     const original = {
       showCompleted: false,
       personIds: null,
@@ -483,7 +484,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
   })
 
   it('legacy ISO-string dateRangeStart auto-upgrades to fixed anchor', async () => {
-    const { predicateToCriteria } = await import('../../stores/filter-store')
+    const { predicateToCriteria } = await import('../../utils/filter-criteria')
     const legacy = {
       showCompleted: false,
       personIds: null,

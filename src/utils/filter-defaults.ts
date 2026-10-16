@@ -1,5 +1,4 @@
-import type { FilterCriteria } from '../stores/filter-store'
-import { predicateToCriteria } from '../stores/filter-store'
+import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import type { ResolvedInput } from '../services/nlp-resolver'
 import type { MarkerSet, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers } from './markers'

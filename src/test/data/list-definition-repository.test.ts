@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
 import type { ListDefinition } from '../../models/list-definition'
-import { emptyPredicate } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 
 beforeEach(async () => {
   await db.delete()

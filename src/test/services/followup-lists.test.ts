@@ -1,20 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  useFilterStore,
-  matchesFilter,
-  criteriaToPredicate,
-  predicateToCriteria,
-} from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { buildDashboardLists, type DashboardListsContext } from '../../services/dashboard-lists'
 import { buildListSections, listSortComparator } from '../../services/list-sections'
 import { partitionByGroup, type GroupingContext } from '../../utils/task-grouping'
 import { resolveCrossGroupMutation } from '../../utils/cross-group-drag'
 import { defsEqual } from '../../utils/list-def-equal'
 import { validateRow } from '../../data/import-validation'
-import { emptyPredicate } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import type { PersistedTodoItem } from '../../models'
-import { makeTodo, patchScreenFilter } from '../helpers'
+import { makeTodo, matchesFilterNow as matchesFilter, patchScreenFilter } from '../helpers'
 
 // Wed 14 Oct 2026 (Monday-first week ends Sun 18 Oct).
 const today = new Date(2026, 9, 14)

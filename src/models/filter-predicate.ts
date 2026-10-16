@@ -117,3 +117,21 @@ export interface TodoPredicate {
    */
   tags?: number[] | null
 }
+
+/** Empty predicate — matches every open task (completed tasks need `showCompleted`). */
+export function emptyPredicate(): TodoPredicate {
+  return {
+    showCompleted: false,
+    personIds: null,
+    statusIds: null,
+    searchText: '',
+    dateField: 'deadline',
+    dateRangeStart: null,
+    dateRangeEnd: null,
+    dateRangeIncludeNoDate: false,
+    hasDeadline: null,
+    hasFollowup: null,
+    markers: null,
+    tags: null,
+  }
+}

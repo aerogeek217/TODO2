@@ -7,15 +7,10 @@ import { TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES, type TodoSortBy } from '../.
 /** The sorts the list page offered. */
 const LIST_SORT_VALUES: readonly TodoSortBy[] = ['manual', 'name', 'deadline', 'followup', 'created']
 import type { PersistedListDefinition, RuntimeFilterSpec } from '../../models/list-definition'
-import {
-  applyFilter,
-  createPredicateEvaluator,
-  createScreenComposedEvaluator,
-  type FilterCriteria,
-  criteriaToPredicate,
-  predicateToCriteria,
-} from '../../stores/filter-store'
-import { emptyPredicate } from '../../stores/list-definition-store'
+import { type FilterCriteria, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
+import { applyFilter, createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
+import { currentFilterSettings } from '../../stores/settings-store'
+import { emptyPredicate } from '../../models'
 import { applyRuntimeFilter, buildDashboardLists } from '../../services/dashboard-lists'
 import { buildListSections, type ListSectionsContext, type Section } from '../../services/list-sections'
 import { makeTodo } from '../helpers'
@@ -86,7 +81,7 @@ function widgetSections(d: PersistedListDefinition, pick: number[] | undefined, 
     assignedTagsMap,
     statusesById: new Map(statuses.map((s) => [s.id!, s])),
   }
-  const evalPredicate = screen ? createScreenComposedEvaluator(screen, lookups, today) : createPredicateEvaluator(lookups, today)
+  const evalPredicate = screen ? createScreenComposedEvaluator(screen, lookups, today, currentFilterSettings()) : createPredicateEvaluator(lookups, today, currentFilterSettings())
   const [list] = buildDashboardLists([d], todos, {
     ...ctx,
     people: [...people],
@@ -108,7 +103,7 @@ function listPageSections(d: PersistedListDefinition, pick: number[] | undefined
     : predicateToCriteria(applyRuntimeFilter(criteriaToPredicate(manualFilters), spec, pick))
   const members = spec && pick == null
     ? []
-    : applyFilter(effective, todos, assignedPeopleMap, statuses, today, assignedTagsMap)
+    : applyFilter(effective, todos, assignedPeopleMap, statuses, today, assignedTagsMap, currentFilterSettings())
   return buildListSections(members, {
     groupBy: d.grouping,
     sortBy,

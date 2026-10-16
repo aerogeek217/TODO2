@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { useTagStore, TagLimitError } from '../../stores/tag-store'
+import { useTagStore } from '../../stores/tag-store'
+import { TagLimitError } from '../../utils/tags'
 import { useSettingsStore } from '../../stores/settings-store'
 
 beforeEach(async () => {

@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { MARKER_KEYS, type DateAnchor, type MarkersFilter } from '../../../models'
 import type { DateField } from '../../../models/app-view'
-import { fixedAnchor } from '../../../stores/filter-store'
+import { fixedAnchor } from '../../../utils/filter-criteria'
 import { startOfToday } from '../../../utils/date'
 import { DATE_FIELD_LABELS } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'

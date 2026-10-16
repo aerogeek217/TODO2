@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup } from '@testing-library/react'
 import { ListDefinitionPickerPopup } from '../../components/overlays/ListDefinitionPickerPopup'
-import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): PersistedListDefinition {

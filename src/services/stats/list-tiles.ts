@@ -1,10 +1,7 @@
 import type { PersistedTodoItem } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import {
-  createPredicateEvaluator,
-  createScreenComposedEvaluator,
-  type FilterCriteria,
-} from '../../stores/filter-store'
+import type { FilterCriteria } from '../../utils/filter-criteria'
+import { createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
 import type { WeekStart } from '../../utils/effective-date'
 import type { TodoNameLookups } from '../../utils/filter'
 import type { MarkerSettings } from '../../utils/markers'
@@ -54,8 +51,9 @@ export function computeListTileCounts(
   opts: ListTileOptions,
 ): ListTileCount[] {
   const { screen, lookups, today, weekStartsOn, markerSettings } = opts
-  const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
-  const composed = screen ? createScreenComposedEvaluator(screen, lookups, today, markerSettings) : null
+  const settings = { ...markerSettings, weekStartsOn }
+  const listOnly = createPredicateEvaluator(lookups, today, settings)
+  const composed = screen ? createScreenComposedEvaluator(screen, lookups, today, settings) : null
   const out: ListTileCount[] = []
   for (const def of definitions) {
     if (!isListTileEligible(def)) continue

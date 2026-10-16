@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent } from '@testing-library/react'
 import { ListEditorBody } from '../../../components/shared/ListEditorBody'
-import { emptyPredicate } from '../../../stores/list-definition-store'
+import { emptyPredicate } from '../../../models'
 import { useStatusStore } from '../../../stores/status-store'
 import type { PersistedListDefinition } from '../../../models'
 

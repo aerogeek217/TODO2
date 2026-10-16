@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyFilter, type FilterCriteria } from '../../../stores/filter-store'
+import type { FilterCriteria } from '../../../utils/filter-criteria'
+import { applyFilter } from '../../../utils/filter-match'
 import { computeTiles } from '../../../services/stats/tiles'
 import { computeListTileCounts } from '../../../services/stats/list-tiles'
 import { computeFollowupGroups } from '../../../services/stats/followup-groups'
@@ -14,7 +15,7 @@ import {
   SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
 } from '../../fixtures/dashboard-sample'
 
-const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, hotRule: SAMPLE_CTX.hotRule }
+const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, hotRule: SAMPLE_CTX.hotRule, weekStartsOn: SAMPLE_CTX.weekStartsOn }
 const lookups = {
   assignedPeopleMap: ASSIGNED_PEOPLE,
   assignedTagsMap: ASSIGNED_TAGS,

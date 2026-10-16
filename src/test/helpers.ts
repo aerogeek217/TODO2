@@ -1,5 +1,9 @@
-import type { PersistedTodoItem, Person } from '../models'
-import type { FilterCriteria } from '../stores/filter-store'
+import type { PersistedTodoItem, Person, Status, Tag, TodoItem } from '../models'
+import type { FilterCriteria } from '../utils/filter-criteria'
+import { applyFilter, matchesFilter, type FilterSettings } from '../utils/filter-match'
+import type { TextMatchContext } from '../utils/filter'
+import { startOfToday } from '../utils/date'
+import { currentFilterSettings } from '../stores/settings-store'
 import { db } from '../data/database'
 import { useFilterStore } from '../stores/filter-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -49,6 +53,32 @@ export const emptyFilterCriteria: FilterCriteria = {
   hasDeadline: null,
   hasFollowup: null,
   tags: null,
+}
+
+/** `matchesFilter` with today and the store's current settings filled in when omitted. */
+export function matchesFilterNow(
+  filters: FilterCriteria,
+  todo: TodoItem,
+  assignedPersonIds?: number[],
+  today: Date = startOfToday(),
+  searchCtx?: TextMatchContext,
+  assignedTagIds?: number[],
+  settings: FilterSettings = currentFilterSettings(),
+): boolean {
+  return matchesFilter(filters, todo, assignedPersonIds, today, searchCtx, assignedTagIds, settings)
+}
+
+/** `applyFilter` with today and the store's current settings filled in when omitted. */
+export function applyFilterNow(
+  filters: FilterCriteria,
+  todos: PersistedTodoItem[],
+  assignedPeopleMap?: Map<number, Person[]>,
+  statuses?: Status[],
+  today: Date = startOfToday(),
+  assignedTagsMap?: Map<number, Tag[]>,
+  settings: FilterSettings = currentFilterSettings(),
+): PersistedTodoItem[] {
+  return applyFilter(filters, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings)
 }
 
 /** Sets some fields of the screen filter, keeping the rest. */

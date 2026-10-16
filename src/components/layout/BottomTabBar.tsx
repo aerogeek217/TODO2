@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router'
-import { countActiveFilters, useFilterStore } from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { countActiveFilters } from '../../utils/filter-criteria'
 import { useUIStore } from '../../stores/ui-store'
 import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
 import styles from './BottomTabBar.module.css'

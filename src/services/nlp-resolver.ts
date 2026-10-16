@@ -1,7 +1,7 @@
 import type { Person, RecurrenceType, Status, Tag } from '../models'
 import { removeSpans, type CommandProblem, type ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { TagLimitError } from '../stores/tag-store'
+import { TagLimitError } from '../utils/tags'
 
 export interface ResolvedInput {
   /** The task title: the text without its recognised tokens. An unknown

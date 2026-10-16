@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import { draftListIds, getUnsavedListIds, useListDraftStore } from '../../stores/list-draft-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { resetDb } from '../helpers'

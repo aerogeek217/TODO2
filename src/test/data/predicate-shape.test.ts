@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { checkPredicateShape, pickPredicate, PREDICATE_ID_LIST_MAX, PREDICATE_SEARCH_TEXT_MAX } from '../../data/predicate-shape'
-import { emptyPredicate } from '../../stores/list-definition-store'
-import { criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
+import { emptyPredicate } from '../../models'
+import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models/filter-predicate'
 
 /** The empty predicate without its optional fields (as stored before they existed). */

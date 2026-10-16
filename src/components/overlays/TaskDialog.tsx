@@ -10,12 +10,12 @@ import {
   type TaskDialogPayload,
   type TaskDialogRowGroup,
 } from '../../services/task-dialog'
-import { currentMarkerSettings, useFilterStore } from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useSettingsStore } from '../../stores/settings-store'
+import { currentFilterSettings, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -39,7 +39,7 @@ function currentEnv(): TaskDialogEnv {
     todos: useTodoStore.getState().todos,
     today: startOfToday(),
     weekStartsOn: useSettingsStore.getState().weekStartsOn,
-    markerSettings: currentMarkerSettings(),
+    markerSettings: currentFilterSettings(),
     assignedPeopleMap: people.assignedPeopleMap,
     assignedTagsMap: tags.assignedTagsMap,
     people: people.people,

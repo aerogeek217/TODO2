@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, Person, Status } from '../../models'
-import type { FilterCriteria } from '../../stores/filter-store'
+import type { FilterCriteria } from '../../utils/filter-criteria'
 import { compareTodosByDate, type TodoDateField, type WeekStart } from '../../utils/effective-date'
 import type { HotRule } from '../../utils/hot'
 import type { UrgentDueWithinDays } from '../../utils/urgency'

@@ -6,7 +6,7 @@ import { useStatusStore } from '../../../../stores/status-store'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useUIStore } from '../../../../stores/ui-store'
 import { useTagStore } from '../../../../stores/tag-store'
-import { emptyPredicate } from '../../../../stores/list-definition-store'
+import { emptyPredicate } from '../../../../models'
 import { makePerson } from '../../../helpers'
 
 function seedStores() {

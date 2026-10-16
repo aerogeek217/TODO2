@@ -7,19 +7,7 @@ import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded, trackWr
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 import { useSettingsStore } from './settings-store'
-
-/**
- * Thrown when `useTagStore.add` is called while the registry is at the
- * configured ceiling (`settings.maxTags`). The message is phrased for direct
- * user surfacing; `nlp-resolver.resolveTags` catches and logs it so a single
- * runaway `#tag` input can't break the whole task-create flow.
- */
-export class TagLimitError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TagLimitError'
-  }
-}
+import { TagLimitError } from '../utils/tags'
 
 interface TagState {
   tags: Tag[]

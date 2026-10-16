@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router'
-import {
-  useFilterStore,
-  criteriaToPredicate,
-  predicateToCriteria,
-} from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'

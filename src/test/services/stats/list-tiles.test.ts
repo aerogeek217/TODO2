@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { TodoPredicate } from '../../../models'
-import type { FilterCriteria } from '../../../stores/filter-store'
+import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { computeListTileCounts, isListTileEligible } from '../../../services/stats/list-tiles'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { emptyFilterCriteria, makePerson, makeTodo } from '../../helpers'

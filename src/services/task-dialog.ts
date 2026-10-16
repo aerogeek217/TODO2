@@ -1,11 +1,7 @@
-import type { PersistedTodoItem, Person, Status, Tag, TodoPredicate } from '../models'
+import { emptyPredicate, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import {
-  createPredicateEvaluator,
-  createScreenComposedEvaluator,
-  type FilterCriteria,
-} from '../stores/filter-store'
-import { emptyPredicate } from '../stores/list-definition-store'
+import type { FilterCriteria } from '../utils/filter-criteria'
+import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
 import type { DashGlyphName } from '../utils/dash-glyphs'
 import type { WeekStart } from '../utils/effective-date'
 import type { TodoNameLookups } from '../utils/filter'
@@ -90,6 +86,10 @@ function lookupsOf(env: TaskDialogEnv): TodoNameLookups {
   }
 }
 
+function filterSettingsOf(env: TaskDialogEnv): FilterSettings {
+  return { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
+}
+
 /** The rows a source stands for, as headings of task ids in display order. */
 export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv): TaskDialogRowGroup[] {
   switch (source.kind) {
@@ -100,7 +100,7 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
         .filter((g) => g.todoIds.length > 0)
         .map((g) => ({ key: g.key, label: g.label, ...(g.color ? { color: g.color } : {}), todoIds: [...g.todoIds] }))
     case 'predicate': {
-      const matches = createPredicateEvaluator(lookupsOf(env), env.today, env.markerSettings)
+      const matches = createPredicateEvaluator(lookupsOf(env), env.today, filterSettingsOf(env))
       const todoIds = env.todos.filter((t) => matches(source.predicate, t)).sort(bySortOrder).map((t) => t.id)
       return [{ key: 'all', label: null, todoIds }]
     }
@@ -110,7 +110,7 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
       const [list] = buildDashboardLists([def], [...env.todos], {
         today: env.today,
         weekStartsOn: env.weekStartsOn,
-        evalPredicate: createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, env.markerSettings),
+        evalPredicate: createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env)),
         assignedPeopleMap: env.assignedPeopleMap,
         assignedTagsMap: env.assignedTagsMap,
         people: env.people,

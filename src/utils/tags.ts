@@ -22,3 +22,16 @@ export function normalizeTag(raw: unknown): string | null {
   if (!TAG_SLUG_RE.test(trimmed)) return null
   return trimmed
 }
+
+/**
+ * Thrown when `useTagStore.add` is called while the registry is at the
+ * configured ceiling (`settings.maxTags`). The message is phrased for direct
+ * user surfacing; `nlp-resolver.resolveTags` catches and logs it so a single
+ * runaway `#tag` input can't break the whole task-create flow.
+ */
+export class TagLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'TagLimitError'
+  }
+}

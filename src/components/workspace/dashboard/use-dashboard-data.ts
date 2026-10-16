@@ -6,7 +6,7 @@ import {
   type DashboardTabConfig,
   type DashboardTrendRange,
 } from '../../../models/dashboard-config'
-import { useMarkerSettings } from '../../../hooks/use-marker-settings'
+import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import { useToday } from '../../../hooks/use-today'
 import { useTrendEvents } from '../../../hooks/use-trend-events'
 import { computeFollowupGroups, type FollowupGroups } from '../../../services/stats/followup-groups'
@@ -17,7 +17,9 @@ import { statsFilter, type StatsContext } from '../../../services/stats/stats-co
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../../../services/stats/status-breakdown'
 import { computeTiles, type TileStats } from '../../../services/stats/tiles'
 import { computeTrend, type TrendStats } from '../../../services/stats/trend'
-import { applyFilter, countActiveFilters, useFilterStore } from '../../../stores/filter-store'
+import { useFilterStore } from '../../../stores/filter-store'
+import { countActiveFilters } from '../../../utils/filter-criteria'
+import { applyFilter } from '../../../utils/filter-match'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -68,7 +70,7 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const screen = useFilterStore((s) => s.filters)
-  const markerSettings = useMarkerSettings()
+  const markerSettings = useFilterSettings()
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
 

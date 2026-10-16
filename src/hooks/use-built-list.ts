@@ -1,11 +1,8 @@
 import { useEffect, useMemo } from 'react'
 import type { PersistedTodoItem, TodoPredicate } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import {
-  createPredicateEvaluator,
-  createScreenComposedEvaluator,
-  type FilterCriteria,
-} from '../stores/filter-store'
+import type { FilterCriteria } from '../utils/filter-criteria'
+import { createPredicateEvaluator, createScreenComposedEvaluator } from '../utils/filter-match'
 import { useStatusStore } from '../stores/status-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
@@ -15,7 +12,7 @@ import { useListOrderStore, useListRanks } from '../stores/list-order-store'
 import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
-import { useMarkerSettings } from './use-marker-settings'
+import { useFilterSettings } from './use-filter-settings'
 
 export interface BuiltList {
   /** The list's members and sections; `null` without a definition or while its prompt is unanswered. */
@@ -65,7 +62,7 @@ export function useBuiltList(
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // Markers clauses (Urgent by date, Hot) read these settings.
-  const markerSettings = useMarkerSettings()
+  const markerSettings = useFilterSettings()
   // Date-sensitive predicates roll at midnight.
   const today = useToday()
   const ranks = useListRanks(definition?.id)

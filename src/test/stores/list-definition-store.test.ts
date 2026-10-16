@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
-import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { criteriaToPredicate, predicateToCriteria, matchesFilter } from '../../stores/filter-store'
+import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { buildDashboardLists } from '../../services/dashboard-lists'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
-import { makeTodo } from '../helpers'
+import { makeTodo, matchesFilterNow as matchesFilter } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()

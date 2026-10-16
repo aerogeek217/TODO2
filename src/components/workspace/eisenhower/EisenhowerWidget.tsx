@@ -10,9 +10,11 @@ import {
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useToday } from '../../../hooks/use-today'
-import { useMarkerSettings } from '../../../hooks/use-marker-settings'
+import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import { useTooltip } from '../../../hooks/use-tooltip'
-import { applyFilter, countActiveFilters, useFilterStore } from '../../../stores/filter-store'
+import { useFilterStore } from '../../../stores/filter-store'
+import { countActiveFilters } from '../../../utils/filter-criteria'
+import { applyFilter } from '../../../utils/filter-match'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -376,7 +378,7 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const screen = useFilterStore((s) => s.filters)
-  const markerSettings = useMarkerSettings()
+  const markerSettings = useFilterSettings()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const inScope = useUIStore((s) => s.selectionScope === tab.id)
   useScopedSelectionRelease(tab.id)

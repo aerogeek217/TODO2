@@ -25,6 +25,7 @@ export {
   type MarkerSet,
   HOT_MARKERS,
   MARKER_KEYS,
+  emptyPredicate,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'
 export { type TodoEvent, type TodoEventType } from './todo-event'

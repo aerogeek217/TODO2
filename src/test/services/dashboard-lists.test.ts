@@ -8,8 +8,8 @@ import {
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
 import type { Person, PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { emptyPredicate } from '../../stores/list-definition-store'
-import { makeTodo } from '../helpers'
+import { emptyPredicate } from '../../models'
+import { makeTodo, matchesFilterNow as matchesFilter } from '../helpers'
 
 const today = startOfDay(new Date('2026-04-13T12:00:00'))
 
@@ -84,7 +84,7 @@ describe('buildDashboardLists — predicate tags clause', () => {
   const SOON_ID = 20
 
   const evalViaMatches = async (assigned: Map<number, number[]>) => {
-    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const { predicateToCriteria } = await import('../../utils/filter-criteria')
     return (p: TodoPredicate, t: PersistedTodoItem) =>
       matchesFilter(
         predicateToCriteria(p), t,
@@ -274,7 +274,7 @@ describe('buildDashboardLists — runtime filter', () => {
     // widgets use). Picking Alice via a runtime person filter
     // includes her task and excludes both another person's task and an
     // unassigned one.
-    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const { predicateToCriteria } = await import('../../utils/filter-criteria')
     const ALICE = 1
     const BOB = 2
     const assignedPersonIds = new Map<number, number[]>([
@@ -625,7 +625,7 @@ describe('buildDashboardLists — restrict-mode grouping', () => {
     // T1 is assigned to Alice + Charlie. Filter restricts to [Alice]; only
     // the Alice section is emitted — Charlie's assignment doesn't leak into
     // a section of its own.
-    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const { predicateToCriteria } = await import('../../utils/filter-criteria')
     const assignedPersonIds = new Map<number, number[]>([[101, [ALICE.id!, CHARLIE.id!]]])
     const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) =>
       matchesFilter(predicateToCriteria(p), t, assignedPersonIds.get(t.id) ?? [])
@@ -654,7 +654,7 @@ describe('buildDashboardLists — restrict-mode grouping', () => {
     // #later bucket must NOT emit. The untagged bucket is also suppressed
     // in restrict mode (no axis-less tasks survive a non-empty tags clause
     // anyway, but the suppression is explicit so a rogue task can't sneak in).
-    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const { predicateToCriteria } = await import('../../utils/filter-criteria')
     const assignedTagsMap = new Map<number, Tag[]>([[101, [URGENT, LATER]]])
     const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
       const criteria = predicateToCriteria(p)

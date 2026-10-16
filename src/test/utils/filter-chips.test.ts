@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
-import { emptyPredicate } from '../../stores/list-definition-store'
-import { predicateToCriteria } from '../../stores/filter-store'
+import { emptyPredicate } from '../../models'
+import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
   clearChipField,
   describeAnchor,

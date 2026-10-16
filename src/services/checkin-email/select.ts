@@ -4,7 +4,7 @@
  */
 import type { Person, PersistedTodoItem, Status, Tag } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { createPredicateEvaluator } from '../../stores/filter-store'
+import { createPredicateEvaluator } from '../../utils/filter-match'
 import { resolveCheckinTaskScope, type CheckinTaskScope } from '../../utils/checkin-settings'
 import { addDays, startOfDay } from '../../utils/date'
 import { isDeadlinePast, type WeekStart } from '../../utils/effective-date'
@@ -122,7 +122,7 @@ function scopeTest(
           statusesById: new Map((ctx.statuses ?? []).flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
         },
         today,
-        ctx.markerSettings,
+        { ...ctx.markerSettings, weekStartsOn: ctx.weekStartsOn },
       )
       const listCtx = { today, weekStartsOn: ctx.weekStartsOn, evalPredicate }
       return (t) => interpretMembership(membership, t, listCtx)

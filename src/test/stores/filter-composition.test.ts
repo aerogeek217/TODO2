@@ -1,16 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
-import {
-  composeScreenFilter,
-  createScreenComposedEvaluator,
-  matchesComposedFilter,
-  predicateToCriteria,
-  type FilterCriteria,
-} from '../../stores/filter-store'
-import { emptyPredicate } from '../../stores/list-definition-store'
+import { composeScreenFilter, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
+import { createScreenComposedEvaluator, matchesComposedFilter } from '../../utils/filter-match'
+import { emptyPredicate } from '../../models'
 import type { TodoNameLookups } from '../../utils/filter'
 import { makeTodo } from '../helpers'
-import { useSettingsStore } from '../../stores/settings-store'
+import { currentFilterSettings, useSettingsStore } from '../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 // The screen (top-bar) filter composed with a list's own filter: narrowing
@@ -49,12 +44,12 @@ const none = (): FilterCriteria => predicateToCriteria(emptyPredicate())
 const crit = (patch: Partial<FilterCriteria>): FilterCriteria => ({ ...none(), ...patch })
 
 function ids(screen: FilterCriteria, list: FilterCriteria): number[] {
-  return todos.filter((t) => matchesComposedFilter(screen, list, t, lookups, today)).map((t) => t.id)
+  return todos.filter((t) => matchesComposedFilter(screen, list, t, lookups, today, currentFilterSettings())).map((t) => t.id)
 }
 
 /** Same as `ids`, through the evaluator list widgets use (stored predicate). */
 function evaluatorIds(screen: FilterCriteria, list: FilterCriteria): number[] {
-  const evaluate = createScreenComposedEvaluator(screen, lookups, today)
+  const evaluate = createScreenComposedEvaluator(screen, lookups, today, currentFilterSettings())
   const predicate = {
     ...emptyPredicate(),
     showCompleted: list.showCompleted,

@@ -7,7 +7,7 @@ import type {
   ListSort,
   PersistedListDefinition,
 } from '../models/list-definition'
-import type { TodoPredicate } from '../models'
+import { emptyPredicate } from '../models'
 import { loadWithState, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { undoable } from '../services/undoable'
 import { bySortOrder } from '../utils/sort-order'
@@ -38,24 +38,6 @@ interface ListDefinitionState {
   update: (def: PersistedListDefinition) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
-}
-
-/** Empty predicate — matches every open task (completed tasks need `showCompleted`). */
-export function emptyPredicate(): TodoPredicate {
-  return {
-    showCompleted: false,
-    personIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'deadline',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasDeadline: null,
-    hasFollowup: null,
-    markers: null,
-    tags: null,
-  }
 }
 
 /**

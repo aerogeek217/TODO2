@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import Dexie from 'dexie'
 import { db } from '../../data/database'
 import { auditData, cleanupIssues, MAX_SAMPLES_PER_ISSUE } from '../../data/audit'
-import { emptyPredicate } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import { makeTodo } from '../helpers'
 
 beforeEach(async () => {

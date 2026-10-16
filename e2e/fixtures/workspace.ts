@@ -90,7 +90,7 @@ export interface WorkspaceSeed {
   }>
 }
 
-/** Mirrors `emptyPredicate()` in the list-definition store. */
+/** Mirrors `emptyPredicate()` in `models/filter-predicate`. */
 export function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,

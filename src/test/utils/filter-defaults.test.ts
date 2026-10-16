@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getFilterDefaults, predicateToFilterDefaults, supplementWithFilterDefaults } from '../../utils/filter-defaults'
-import type { FilterCriteria } from '../../stores/filter-store'
+import type { FilterCriteria } from '../../utils/filter-criteria'
 import type { ResolvedInput } from '../../services/nlp-resolver'
 import type { TodoPredicate } from '../../models'
 

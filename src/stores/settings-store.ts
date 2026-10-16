@@ -3,6 +3,7 @@ import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
+import type { FilterSettings } from '../utils/filter-match'
 import { DEFAULT_THEMED_COLORS, parseColorSettingKey } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import {
@@ -420,3 +421,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 }))
+
+/**
+ * The settings filters are evaluated with (urgent range, Hot rule, week
+ * start), as they are now. A memoized caller uses `useFilterSettings`
+ * instead, so a settings change re-runs it.
+ */
+export function currentFilterSettings(): FilterSettings {
+  const { urgentDueWithinDays, hotRule, weekStartsOn } = useSettingsStore.getState()
+  return { urgentRange: urgentDueWithinDays, hotRule, weekStartsOn }
+}

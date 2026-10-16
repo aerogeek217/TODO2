@@ -8,7 +8,8 @@ import {
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
-import { TagLimitError, useTagStore } from '../../../stores/tag-store'
+import { useTagStore } from '../../../stores/tag-store'
+import { TagLimitError } from '../../../utils/tags'
 import type { NotesNlpConfig } from './notes-nlp'
 
 /** `build(list)`, recomputed only when the list itself changes. */
