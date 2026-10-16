@@ -5,7 +5,7 @@
  */
 import { toDateInputValue } from '../../utils/date'
 import { isValidEmail } from '../../utils/person'
-import { writeRichClipboard } from '../task-copy'
+import { writeRichClipboard } from '../rich-clipboard'
 import { collapseWhitespace } from '../../utils/text'
 
 /**

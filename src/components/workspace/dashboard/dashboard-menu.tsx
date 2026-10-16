@@ -1,5 +1,5 @@
 import { useSettingsStore } from '../../../stores/settings-store'
-import { wrapClipboardHtml, writeRichClipboard } from '../../../services/task-copy'
+import { wrapClipboardHtml, writeRichClipboard } from '../../../services/rich-clipboard'
 import { HotRuleEditor } from '../../settings/HotRuleEditor'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
 import { hotRuleShort } from './dashboard-copy'

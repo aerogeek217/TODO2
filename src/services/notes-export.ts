@@ -7,6 +7,7 @@
 
 import { escapeHtml, unescapeHtml } from '../utils/html'
 import { replaceMarkdownLinks } from '../utils/markdown-links'
+import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
 
 const MAX_HEADING_LEN = 60
 const MIN_HEADING_UPPERCASE_COUNT = 3
@@ -276,22 +277,5 @@ function walkNode(node: Node): string {
  */
 export async function copyNotesRich(plain: string): Promise<boolean> {
   const md = normalizeToMarkdown(plain)
-  const html = `<div style="font-family: Calibri, 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.45;">${mdToHtml(md)}</div>`
-  try {
-    const ClipItem = (globalThis as unknown as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem
-    if (!ClipItem) throw new Error('ClipboardItem unsupported')
-    const item = new ClipItem({
-      'text/html': new Blob([html], { type: 'text/html' }),
-      'text/plain': new Blob([md], { type: 'text/plain' }),
-    })
-    await navigator.clipboard.write([item])
-    return true
-  } catch {
-    try {
-      await navigator.clipboard.writeText(md)
-      return true
-    } catch {
-      return false
-    }
-  }
+  return writeRichClipboard(wrapClipboardHtml(mdToHtml(md)), md)
 }

@@ -1,8 +1,7 @@
 /**
  * Rich-text export of a flat todo list for clipboard paste into
- * OneNote / Word / Gmail. Mirrors `copyNotesRich` in
- * `services/notes-export.ts` — writes both `text/html` and `text/plain`
- * through `ClipboardItem`, falls back to plain-text `writeText`.
+ * OneNote / Word / Gmail — `text/html` and `text/plain` through
+ * `services/rich-clipboard`, like the notes' rich copy.
  *
  * The helper renders what it's given: callers pre-filter (e.g. completed
  * tasks) and pre-group. A single flat list is a one-section call
@@ -12,6 +11,7 @@ import type { PersistedTodoItem, Person, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
 import { escapeHtml } from '../utils/html'
+import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
 
 export interface CopyTaskSection {
   label?: string
@@ -87,35 +87,6 @@ export function buildTasksHtml(sections: CopyTaskSection[], ctx: CopyTaskContext
 }
 
 /** Wraps copied HTML in the body font Office / mail clients paste nicely. */
-export function wrapClipboardHtml(body: string): string {
-  return `<div style="font-family: Calibri, 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.45;">${body}</div>`
-}
-
-/**
- * Writes rich HTML + plain text to the clipboard. Returns true on success.
- * Falls back to plain-text-only when `ClipboardItem` is unavailable or
- * rejects (older browsers, insecure contexts).
- */
-export async function writeRichClipboard(html: string, plain: string): Promise<boolean> {
-  try {
-    const ClipItem = (globalThis as unknown as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem
-    if (!ClipItem) throw new Error('ClipboardItem unsupported')
-    const item = new ClipItem({
-      'text/html': new Blob([html], { type: 'text/html' }),
-      'text/plain': new Blob([plain], { type: 'text/plain' }),
-    })
-    await navigator.clipboard.write([item])
-    return true
-  } catch {
-    try {
-      await navigator.clipboard.writeText(plain)
-      return true
-    } catch {
-      return false
-    }
-  }
-}
-
 /** Copy the rendered task list to the clipboard as rich HTML + plain text. Returns true on success. */
 export async function copyTasksRich(
   sections: CopyTaskSection[],
