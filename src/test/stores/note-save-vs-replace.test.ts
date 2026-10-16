@@ -13,9 +13,8 @@ import { fileStorageService as svc } from '../../services/file-storage'
 import '../../services/file-storage-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useFileOpsStore } from '../../services/file-ops-store'
-import { useUIStore } from '../../stores/ui-store'
-import { useTodoStore } from '../../stores/todo-store'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 const mockLoadFileHandle = vi.fn()
 vi.mock('../../services/file-handle-idb', () => ({
@@ -29,9 +28,7 @@ let unsubscribe: (() => void) | null = null
 beforeEach(async () => {
   await resetDb()
   localStorage.clear()
-  for (const store of [useNoteStore, useFileOpsStore, useUIStore, useTodoStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
 })
 
 afterEach(async () => {

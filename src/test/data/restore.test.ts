@@ -33,11 +33,11 @@ describe('restoreFromImportData', () => {
   describe('clears existing data', () => {
     it('replaces existing todos with imported rows', async () => {
       await db.todos.bulkAdd([
-        { title: 'Old Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+        { uid: 'u-old', title: 'Old Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
       ])
       const newData = makeImportData({
         todos: [
-          { id: 10, title: 'New Task', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
+          { id: 10, uid: 'u10', title: 'New Task', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
         ],
       })
 
@@ -117,7 +117,7 @@ describe('restoreFromImportData', () => {
     it('persists todoPeople join rows', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL' }],
         todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
@@ -131,7 +131,7 @@ describe('restoreFromImportData', () => {
     it('persists tag tables', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         tags: [{ id: 7, name: 'urgent', color: '#123456' }],
         todoTags: [{ id: 1, todoId: 1, tagId: 7 }],
@@ -153,7 +153,7 @@ describe('restoreFromImportData', () => {
     it('clears existing tag tables before restore', async () => {
       await db.tags.add({ name: 'stale', color: '#abcdef' })
       const data = makeImportData({
-        todos: [{ id: 1, title: 't', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now }],
+        todos: [{ id: 1, uid: 'u1', title: 't', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now }],
         tags: [{ id: 1, name: 'fresh', color: '#112233' }],
       })
 
@@ -242,7 +242,7 @@ describe('restoreFromImportData', () => {
       const data = makeImportData({
         layouts: [{ id: 1, name: 'Restored', columns: [], createdAt: now, modifiedAt: now }],
         todos: [
-          { id: 1, title: 'Restored Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Restored Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
       })
 
@@ -263,7 +263,7 @@ describe('restoreFromImportData', () => {
       const data = makeImportData({
         statuses: [{ id: 50, name: 'Custom', color: '#abc123', sortOrder: 0 }],
         todos: [
-          { id: 1, title: 'Has status', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
+          { id: 1, uid: 'u1', title: 'Has status', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
         ],
       })
 
@@ -334,8 +334,8 @@ describe('restoreFromImportData', () => {
     it('a second restore over the same data produces the same database', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Task A', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
-          { id: 2, title: 'Task B', isCompleted: true, sortOrder: 1, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Task A', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 2, uid: 'u2', title: 'Task B', isCompleted: true, sortOrder: 1, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL' }],
         todoPeople: [{ id: 1, todoId: 1, personId: 1 }],

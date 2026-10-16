@@ -12,6 +12,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 const due = new Date(2026, 5, 15)
 
@@ -26,7 +27,7 @@ const inDb = async (id: number) => (await todoRepository.getById(id))!
 beforeEach(async () => {
   HTMLInputElement.prototype.showPicker = vi.fn()
   await resetDb()
-  for (const store of [useTodoStore, useUIStore, useStatusStore]) store.setState(store.getInitialState(), true)
+  resetStores()
   useUndoStore.getState().clear()
 })
 

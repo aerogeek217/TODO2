@@ -3,7 +3,7 @@ import { render, fireEvent, screen, cleanup, waitFor } from '@testing-library/re
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
 import { useUIStore } from '../../../stores/ui-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import type { ListDefinition } from '../../../models'
+import type { PersistedListDefinition } from '../../../models'
 
 afterEach(cleanup)
 
@@ -398,12 +398,11 @@ describe('WidgetKindMenu — Change list submenu', () => {
   beforeEach(() => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        { id: 2, name: 'Second', sortOrder: 1 } as ListDefinition,
-        { id: 1, name: 'First', sortOrder: 0 } as ListDefinition,
+        { id: 2, name: 'Second', sortOrder: 1 } as PersistedListDefinition,
+        { id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition,
       ],
     })
   })
-  afterEach(() => useListDefinitionStore.setState(useListDefinitionStore.getInitialState(), true))
 
   it('→ opens the saved lists in their order with the focus on the first; a pick runs and closes the menu', () => {
     const pick = vi.fn()

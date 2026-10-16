@@ -23,7 +23,7 @@ describe('auditData', () => {
     await db.todoPeople.add({ todoId, personId })
     const listDefinitionId = await db.listDefinitions.add({
       name: 'Focus', sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), focus: true } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { focus: true } } },
     })
     await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
 

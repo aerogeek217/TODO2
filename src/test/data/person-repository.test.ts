@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { personRepository } from '../../data/person-repository'
 import { captureJoinRows } from '../../data/join-helpers'
+import { newTodoUid } from '../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
@@ -37,7 +38,7 @@ describe('personRepository', () => {
   it('delete removes person AND todoPeople join entries', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, personId)
@@ -52,7 +53,7 @@ describe('personRepository', () => {
     const p1 = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const p2 = await personRepository.insert({ name: 'Bob', initials: 'B' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, p1)
@@ -66,7 +67,7 @@ describe('personRepository', () => {
   it('assignPerson creates link; idempotent on duplicate', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -79,7 +80,7 @@ describe('personRepository', () => {
   it('unassignPerson removes link', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -93,7 +94,7 @@ describe('personRepository', () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#f28c4e' })
     const person = (await personRepository.getById(personId))!
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, personId)

@@ -225,7 +225,7 @@ function clickTitle(key: string, mods: { shiftKey?: boolean; ctrlKey?: boolean }
 function press(key: string, shiftKey = false) {
   const e = new KeyboardEvent('keydown', { key, shiftKey, cancelable: true })
   const binding = SINGLE_BINDINGS.find((b) => b.chord.key === key.toLowerCase())!
-  const ctx: ShortcutCtx = { e, callbacks: { openPalette: () => {}, closePalette: () => {}, navigate: () => {} } }
+  const ctx: ShortcutCtx = { e, callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }
   act(() => { void binding.handler(ctx) })
 }
 
@@ -279,7 +279,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useUIStore.getState().selectionCursorKey).toBe('person-2|2')
     expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([2, 3])
     const selectAll = SINGLE_BINDINGS.find((b) => b.chord.key === 'a' && b.chord.mod)!
-    act(() => { void selectAll.handler({ e: new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }), callbacks: { openPalette: () => {}, closePalette: () => {}, navigate: () => {} } }) })
+    act(() => { void selectAll.handler({ e: new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }), callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }) })
     expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
   })
 

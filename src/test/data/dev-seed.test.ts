@@ -185,7 +185,7 @@ describe('dev seed → prepareImport → restore', () => {
     const boardIds = rows(seed, 'taskboards').flatMap((b) => (b.entries as Array<{ todoId: number }>).map((e) => e.todoId))
     expect(boardIds.length).toBeGreaterThan(0)
     const todos = await db.todos.toArray()
-    expect(todos.filter((t) => t.focus).map((t) => t.id).sort((a, b) => a - b)).toEqual([...boardIds].sort((a, b) => a - b))
+    expect(todos.filter((t) => t.focus).map((t) => t.id ?? 0).sort((a, b) => a - b)).toEqual([...boardIds].sort((a, b) => a - b))
     const focus = (await db.listDefinitions.toArray()).find((l) => l.name === 'Focus')!
     expect(focus).toMatchObject({ sort: 'manual', grouping: 'none' })
     expect(focus.membership.predicate.markers).toEqual({ focus: true })

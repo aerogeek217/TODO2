@@ -202,7 +202,7 @@ describe('export → JSON → import round-trip', () => {
     const seed = buildSeed()
     expect([...DATA_TABLE_NAMES].sort()).toEqual(ALL_DATA_TABLES.map((t) => t.name).sort())
     for (const key of DATA_TABLE_NAMES) {
-      const rows = seed[key] as Array<Record<string, unknown>>
+      const rows = seed[key] as unknown as Array<Record<string, unknown>>
       expect(rows.length, `seed.${key} is populated`).toBeGreaterThan(0)
       const declared = Object.keys(IMPORT_TABLES[key].pick(rows[0]!))
       const covered = new Set(rows.flatMap((r) => Object.keys(r).filter((k) => r[k] !== undefined)))
@@ -247,7 +247,7 @@ describe('export → JSON → import round-trip', () => {
     await restoreFromImportData(prepared.data)
 
     for (const key of DATA_TABLE_NAMES) {
-      const expected = sortRows(seed[key] as Array<Record<string, unknown>>)
+      const expected = sortRows(seed[key] as unknown as Array<Record<string, unknown>>)
       const actual = sortRows((await tableByName(key).toArray()) as Array<Record<string, unknown>>)
       expect(actual.map(rowId), `${key}: row ids`).toEqual(expected.map(rowId))
       expected.forEach((exp, i) => {

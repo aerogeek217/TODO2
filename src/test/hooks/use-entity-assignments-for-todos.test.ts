@@ -6,12 +6,14 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { makeTodo } from '../helpers'
 
-let loadPeopleAssignments: ReturnType<typeof vi.fn>
-let loadTagAssignments: ReturnType<typeof vi.fn>
+type LoadAssignments = ReturnType<typeof usePersonStore.getState>['loadAssignments']
+
+let loadPeopleAssignments: ReturnType<typeof vi.fn<LoadAssignments>>
+let loadTagAssignments: ReturnType<typeof vi.fn<LoadAssignments>>
 
 beforeEach(() => {
-  loadPeopleAssignments = vi.fn().mockResolvedValue(undefined)
-  loadTagAssignments = vi.fn().mockResolvedValue(undefined)
+  loadPeopleAssignments = vi.fn<LoadAssignments>().mockResolvedValue(undefined)
+  loadTagAssignments = vi.fn<LoadAssignments>().mockResolvedValue(undefined)
   usePersonStore.setState({ loadAssignments: loadPeopleAssignments })
   useTagStore.setState({ loadAssignments: loadTagAssignments })
   useTodoStore.setState({ todos: [], todosVersion: 1 })

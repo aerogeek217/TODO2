@@ -4,19 +4,15 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
-import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { computeTrend } from '../../services/stats/trend'
 import { startOfToday } from '../../utils/date'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 beforeEach(async () => {
   await resetDb()
-  for (const store of [useTodoStore, usePersonStore, useTagStore, useListOrderStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
   useUndoStore.getState().clear()
 })
 

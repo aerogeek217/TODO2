@@ -68,7 +68,7 @@ describe('useTaskEditCallbacks — create', () => {
   it('an @name that matches nobody creates the person and assigns it', async () => {
     const { result } = renderHook(() => useTaskEditCallbacks())
     let id = 0
-    await act(async () => { id = await result.current.onCreate({ title: 'Call legal @Marco' }) })
+    await act(async () => { id = (await result.current.onCreate({ title: 'Call legal @Marco' })) ?? -1 })
 
     const people = await db.people.toArray()
     expect(people.map((p) => p.name)).toEqual(['Marco'])
@@ -80,7 +80,7 @@ describe('useTaskEditCallbacks — create', () => {
   it('slash commands typed in the editor title set the task’s fields', async () => {
     const { result } = renderHook(() => useTaskEditCallbacks())
     let id = 0
-    await act(async () => { id = await result.current.onCreate({ title: 'Renew /urgent /focus /due 10/30 /followup none' }) })
+    await act(async () => { id = (await result.current.onCreate({ title: 'Renew /urgent /focus /due 10/30 /followup none' })) ?? -1 })
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)!
     expect(todo.title).toBe('Renew')
     expect(todo.urgent).toBe(true)
@@ -94,7 +94,7 @@ describe('useTaskEditCallbacks — create', () => {
     const { result } = renderHook(() => useTaskEditCallbacks())
     let id = 0
     await act(async () => {
-      id = await result.current.onCreate({ title: 'Renew /followup none', nextFollowupAt: day(2027, 1, 1) })
+      id = (await result.current.onCreate({ title: 'Renew /followup none', nextFollowupAt: day(2027, 1, 1) })) ?? -1
     })
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt).toEqual(day(2027, 1, 1))
   })
@@ -102,7 +102,7 @@ describe('useTaskEditCallbacks — create', () => {
   it('without /followup a new task keeps the default next follow-up', async () => {
     const { result } = renderHook(() => useTaskEditCallbacks())
     let id = 0
-    await act(async () => { id = await result.current.onCreate({ title: 'Plain' }) })
+    await act(async () => { id = (await result.current.onCreate({ title: 'Plain' })) ?? -1 })
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt).toBeInstanceOf(Date)
   })
 

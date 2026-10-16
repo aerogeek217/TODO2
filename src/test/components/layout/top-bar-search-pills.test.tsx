@@ -62,8 +62,6 @@ describe('TopBar search-result pill bar', () => {
         dueDate: new Date('2099-02-01'),
         statusId: 5,
       })],
-      loading: false,
-      error: null,
     })
 
     renderBar()
@@ -87,8 +85,6 @@ describe('TopBar search-result pill bar', () => {
     useStatusStore.setState({ statuses: [inProgress] })
     useTodoStore.setState({
       todos: [makeTodo({ id: 42, title: 'Click target', statusId: 5 })],
-      loading: false,
-      error: null,
     })
     useUIStore.setState({ selectedTodoId: null, editPopupMode: null } as never)
 
@@ -127,8 +123,6 @@ describe('TopBar search-result pill bar', () => {
   it('renders no pill bar for a bare todo with no people/status/dates', async () => {
     useTodoStore.setState({
       todos: [makeTodo({ id: 1, title: 'plain todo' })],
-      loading: false,
-      error: null,
     })
 
     renderBar()

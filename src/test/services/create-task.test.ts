@@ -8,7 +8,6 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useUIStore } from '../../stores/ui-store'
 import { useTaskEditCallbacks } from '../../hooks/use-task-edit-callbacks'
 import { createQuickAddTask } from '../../services/create-task'
 import { createTasksFromDrafts } from '../../services/note-tasks'
@@ -19,6 +18,7 @@ import { addFollowupInterval, DEFAULT_FOLLOWUP_INTERVAL } from '../../utils/foll
 import { addDays, startOfToday } from '../../utils/date'
 import type { FilterDefaults } from '../../utils/filter-defaults'
 import type { PersistedTodoItem, TodoItem } from '../../models'
+import { resetStores } from '../store-tracking'
 
 // The three ways a task is created — Quick Add, a note's drafts, and the
 // task editor's create mode — side by side: the same text gives the same
@@ -31,9 +31,7 @@ let ids: { ann: number; bob: number; waiting: number; doing: number; work: numbe
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  for (const store of [useTodoStore, useSettingsStore, usePersonStore, useTagStore, useStatusStore, useUIStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
   useUndoStore.getState().clear()
   ids = {
     ann: await usePersonStore.getState().add('Ann', 'A'),
@@ -193,7 +191,7 @@ describe('create a task — due date and repeat', () => {
 
 describe('create a task — markers, people, tags', () => {
   it('typed markers and a filter’s markers both apply', async () => {
-    const fd = { ...NO_DEFAULTS, markers: { focus: true } }
+    const fd: FilterDefaults = { ...NO_DEFAULTS, markers: { focus: true } }
     for (const make of [viaQuickAdd, viaDrafts]) {
       const { todo } = await make('A /urgent', fd)
       expect([todo.urgent, todo.important, todo.focus]).toEqual([true, undefined, true])
@@ -296,6 +294,7 @@ describe('create a task — new people', () => {
     const { resolved } = parseTaskInput('Call legal @Ann @"Marco Rossi"', usePersonStore.getState().people)
     expect(resolved.unmatchedPersons).toEqual(['Marco Rossi'])
     const id = await createQuickAddTask({ title: resolved.title, resolved }, NO_DEFAULTS)
+    if (id == null) throw new Error('not created')
     const marco = (await db.people.toArray()).find((p) => p.name === 'Marco Rossi')
     expect(marco).toMatchObject({ initials: 'MR' })
     expect(marco?.color).toBeUndefined()
@@ -306,6 +305,7 @@ describe('create a task — new people', () => {
     const { resolved } = parseTaskInput('Call @marco and @MARCO', usePersonStore.getState().people)
     const marco = await usePersonStore.getState().add('Marco', 'M')
     const id = await createQuickAddTask({ title: resolved.title, resolved }, NO_DEFAULTS)
+    if (id == null) throw new Error('not created')
     expect(await db.people.where('name').equalsIgnoreCase('marco').count()).toBe(1)
     expect((await db.todoPeople.where('todoId').equals(id).toArray()).map((j) => j.personId)).toEqual([marco])
   })

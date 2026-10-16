@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { usePersonStore } from '../../stores/person-store'
+import { newTodoUid } from '../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
@@ -10,7 +11,7 @@ beforeEach(async () => {
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, isCompleted: false,
+    uid: newTodoUid(), title, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }

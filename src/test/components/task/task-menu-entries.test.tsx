@@ -33,7 +33,7 @@ function build(todo: PersistedTodoItem, opts: { targets?: PersistedTodoItem[]; h
 }
 
 const shape = (entries: readonly MenuEntry[]) => entries.map((e) =>
-  e.kind === 'separator' ? '--' : e.kind === 'label' ? `[${e.text}]` : e.label)
+  e.kind === 'separator' ? '--' : e.kind === 'label' ? `[${e.text}]` : e.kind === 'note' ? `(${e.text})` : e.label)
 
 function item(entries: readonly MenuEntry[], label: string): MenuItemEntry {
   const hit = entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)

@@ -7,16 +7,13 @@ import { listOrderRepository } from '../../data/list-order-repository'
 import { useTodoStore } from '../../stores/todo-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useListOrderStore } from '../../stores/list-order-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 beforeEach(async () => {
   await resetDb()
-  for (const store of [useTodoStore, useStatusStore, useListDefinitionStore, useListOrderStore, useSettingsStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
   useUndoStore.getState().clear()
 })
 

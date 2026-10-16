@@ -4,6 +4,7 @@ import { TagEditor } from '../../../components/settings/TagEditor'
 import { db } from '../../../data/database'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { newTodoUid } from '../../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
@@ -35,7 +36,7 @@ async function renderEditor() {
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, isCompleted: false,
+    uid: newTodoUid(), title, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }

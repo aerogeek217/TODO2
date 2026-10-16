@@ -13,15 +13,14 @@ import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
+import { resetStores } from '../store-tracking'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   // A fresh database reuses ids (todo 1, person 1, …): drop the caches an
   // earlier test filled so they can't describe this test's rows.
-  for (const store of [useTodoStore, usePersonStore, useTagStore, useNoteStore, useUIStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
 })
 
 describe('refreshAllStores', () => {
@@ -110,7 +109,7 @@ describe('refreshAllStores', () => {
 
   it('clears the selection, the open editor and the Quick Add draft (their ids may now name other tasks)', async () => {
     const ui = useUIStore.getState()
-    ui.setScopedSelection('tab-1', { ids: [1, 2], anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
+    ui.setScopedSelection('tab-1', { ids: new Set([1, 2]), anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
     ui.openEditPopup(1)
     ui.setQuickAddDraft({ rawTitle: 'half typed', defaults: { personIds: [3], statusId: null, tagIds: [], markers: {} } as never })
 

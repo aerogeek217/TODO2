@@ -610,9 +610,9 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection)
   })
 
   it('tag analog — filter narrows visible tag sections, drops other tags', () => {
-    const x: Tag = { id: 1, name: 'x' }
-    const y: Tag = { id: 2, name: 'y' }
-    const z: Tag = { id: 3, name: 'z' }
+    const x: Tag = { id: 1, name: 'x', color: '#888' }
+    const y: Tag = { id: 2, name: 'y', color: '#888' }
+    const z: Tag = { id: 3, name: 'z', color: '#888' }
     const todos = [makeTodo({ id: 10 })]
     const ctx = makeCtx({ assignedTagsMap: new Map([[10, [x, y, z]]]) })
     const result = partitionByGroup(todos, 'tag', ctx, undefined, ['tag-1'])

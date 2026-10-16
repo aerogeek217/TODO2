@@ -24,6 +24,7 @@ import { useListOrderStore } from '../../stores/list-order-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 interface Gate {
   /** Resolves once the held read has its (pre-edit) result. */
@@ -63,9 +64,7 @@ async function addTodo(title: string): Promise<number> {
 
 beforeEach(async () => {
   await resetDb()
-  for (const store of [useTodoStore, useTagStore, usePersonStore, useStatusStore, useListDefinitionStore, useListOrderStore, useSettingsStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
   useUndoStore.getState().clear()
 })
 

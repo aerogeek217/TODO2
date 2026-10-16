@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
+import type { HotRule } from '../../utils/hot'
 
 const DARK_DEFAULTS = {
   accent: '#a2cfcb',
@@ -175,7 +176,7 @@ describe('useSettingsStore', () => {
   })
 
   it('hotRule defaults to (Urgent AND Important) OR Focus, saves normalized, and ignores junk on load', async () => {
-    const DEFAULT = [{ urgent: true, important: true }, { focus: true }]
+    const DEFAULT: HotRule = [{ urgent: true, important: true }, { focus: true }]
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
 

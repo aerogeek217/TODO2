@@ -19,7 +19,7 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
       parserOptions: {
-        project: ['./tsconfig.app.json', './tsconfig.node.json', './tsconfig.e2e.json'],
+        project: ['./tsconfig.app.json', './tsconfig.node.json', './tsconfig.test.json', './tsconfig.e2e.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -29,11 +29,6 @@ export default defineConfig([
   },
   {
     files: ['src/test/**/*.{ts,tsx}'],
-    languageOptions: {
-      parserOptions: {
-        project: null,
-      },
-    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
     },

@@ -19,7 +19,6 @@ beforeEach(async () => {
         danger: '#ee7d77',
         warning: '#f5a623',
         star: '#f5c842',
-        scheduled: '#7ec4bc',
         deadline: '#e86bf0',
       },
       light: {
@@ -31,7 +30,6 @@ beforeEach(async () => {
         danger: '#d94a43',
         warning: '#d08a12',
         star: '#826600',
-        scheduled: '#3a9e93',
         deadline: '#b838c0',
       },
     },
@@ -46,7 +44,7 @@ afterEach(() => {
     '--color-accent', '--color-canvas-bg', '--color-surface',
     '--color-border', '--color-header-bg',
     '--color-danger', '--color-warning', '--color-followup',
-    '--color-scheduled', '--color-deadline', '--color-accent-dim',
+    '--color-deadline', '--color-accent-dim',
   ]) root.style.removeProperty(v)
 })
 

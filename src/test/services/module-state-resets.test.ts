@@ -49,7 +49,7 @@ describe('note saves', () => {
   it('drops a scheduled save', async () => {
     vi.useFakeTimers()
     const save = vi.spyOn(noteRepository, 'saveContent').mockResolvedValue(true)
-    useNoteStore.setState({ notes: new Map([[1, { id: 1, content: '', modifiedAt: new Date(0) }]]) })
+    useNoteStore.setState({ notes: new Map([[1, { id: 1, content: '', createdAt: new Date(0), modifiedAt: new Date(0) }]]) })
     useNoteStore.getState().setContent(1, 'typed')
     resetModuleState()
     await vi.advanceTimersByTimeAsync(5000)
@@ -62,7 +62,7 @@ describe('note saves', () => {
     const save = vi.spyOn(noteRepository, 'saveContent')
       .mockImplementationOnce(() => new Promise((r) => { finish = () => r(true) }))
       .mockResolvedValue(true)
-    useNoteStore.setState({ notes: new Map([[1, { id: 1, content: '', modifiedAt: new Date(0) }]]) })
+    useNoteStore.setState({ notes: new Map([[1, { id: 1, content: '', createdAt: new Date(0), modifiedAt: new Date(0) }]]) })
     useNoteStore.getState().setContent(1, 'first')
     const stuck = useNoteStore.getState().flush()
     resetModuleState()

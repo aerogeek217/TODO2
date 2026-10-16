@@ -4,7 +4,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useScopedSelectionRelease } from '../../hooks/use-scoped-selection-release'
 
 const select = (scope: string, ids: number[]) =>
-  useUIStore.getState().setScopedSelection(scope, { ids, anchorKey: null, cursorKey: null, cursorTodoId: ids[0] ?? null })
+  useUIStore.getState().setScopedSelection(scope, { ids: new Set(ids), anchorKey: `${scope}:${ids[0]}`, cursorKey: `${scope}:${ids[0]}`, cursorTodoId: ids[0] ?? 0 })
 
 beforeEach(() => {
   useUIStore.setState(useUIStore.getInitialState(), true)

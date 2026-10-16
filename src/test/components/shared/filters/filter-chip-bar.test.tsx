@@ -13,21 +13,17 @@ function seedStores() {
   usePersonStore.setState({
     people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
     assignedPeopleMap: new Map(),
-  } as never)
+  })
   useStatusStore.setState({
     statuses: [{ id: 1, name: 'Active', color: '#888', sortOrder: 1, icon: 'circle' }],
-    loading: false,
-    error: null,
-  } as never)
+  })
   useTagStore.setState({
     tags: [
       { id: 10, name: 'urgent', color: '#f00' },
       { id: 20, name: 'soon', color: '#0f0' },
     ],
     assignedTagsMap: new Map(),
-    loading: false,
-    error: null,
-  } as never)
+  })
 }
 
 describe('FilterChipBar — primitive', () => {

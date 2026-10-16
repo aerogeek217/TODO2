@@ -40,7 +40,7 @@ describe('useUIStore', () => {
   })
 
   it('showTaskDialog opens the dialog and clears the selection; hideTaskDialog closes it', () => {
-    useUIStore.getState().setScopedSelection('tab', { ids: [1, 2], anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
+    useUIStore.getState().setScopedSelection('tab', { ids: new Set([1, 2]), anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
     const payload = { title: 'Hot tasks', glyph: 'hot', description: 'd', source: { kind: 'todos', todoIds: [1] } } as const
     useUIStore.getState().showTaskDialog(payload)
     const state = useUIStore.getState()

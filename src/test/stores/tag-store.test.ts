@@ -3,6 +3,7 @@ import { db } from '../../data/database'
 import { useTagStore } from '../../stores/tag-store'
 import { TagLimitError } from '../../utils/tags'
 import { useSettingsStore } from '../../stores/settings-store'
+import { newTodoUid } from '../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
@@ -13,7 +14,7 @@ beforeEach(async () => {
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, isCompleted: false,
+    uid: newTodoUid(), title, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }

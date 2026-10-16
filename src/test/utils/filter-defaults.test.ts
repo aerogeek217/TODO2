@@ -15,7 +15,7 @@ function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
     dateRangeIncludeNoDate: false,
     hasDeadline: null,
     hasFollowup: null,
-    focus: null,
+    markers: null,
     tags: null,
     ...overrides,
   }

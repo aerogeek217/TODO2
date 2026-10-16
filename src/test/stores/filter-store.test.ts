@@ -255,7 +255,7 @@ describe('useFilterStore', () => {
       useSettingsStore.setState({ hotRule: [{ important: true }] })
       expect(shown()).toEqual([true, false, true, false])
       // A caller's own settings win over the store's.
-      expect(matchesFilter(f(), focused, undefined, today, undefined, undefined, { urgentRange: 3, hotRule: [{ focus: true }] })).toBe(true)
+      expect(matchesFilter(f(), focused, undefined, today, undefined, undefined, { urgentRange: 3, hotRule: [{ focus: true }], weekStartsOn: 0 })).toBe(true)
       const predicate = criteriaToPredicate(f())
       expect(predicate.markers).toBe('hot')
       expect(predicateToCriteria(predicate).markers).toBe('hot')
@@ -434,6 +434,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       dateRangeIncludeNoDate: true,
       hasDeadline: null,
       hasFollowup: true,
+      markers: null,
       tags: null,
     }
 
@@ -466,6 +467,8 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       dateRangeEnd: null,
       dateRangeIncludeNoDate: false,
       hasDeadline: null,
+      hasFollowup: null,
+      markers: null,
       tags: new Set([10, 20]),
     }
     const serialized = criteriaToPredicate(original)

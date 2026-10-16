@@ -36,7 +36,7 @@ const statuses: Status[] = [
 ]
 
 const work: Tag = { id: 1, name: 'work', color: '#36c' }
-const home: Tag = { id: 2, name: 'home' }
+const home: Tag = { id: 2, name: 'home', color: '#c84' }
 // Projects are tags named `Project: <name>`.
 const alpha: Tag = { id: 3, name: 'Project: Alpha', color: '#7a5' }
 const beta: Tag = { id: 4, name: 'Project: Beta', color: '#a57' }

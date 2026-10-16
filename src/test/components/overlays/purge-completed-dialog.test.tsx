@@ -42,7 +42,7 @@ describe('PurgeCompletedDialog — Delete when the backup fails', () => {
         <UndoSnackbar />
       </>,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
     act(() => useUIStore.getState().answerConfirmation(true))
 
@@ -57,7 +57,7 @@ describe('PurgeCompletedDialog — Delete when the backup fails', () => {
     vi.spyOn(backupScheduler, 'snapshotBeforeDestructive').mockRejectedValue(new DOMException('full', 'QuotaExceededError'))
     const onDone = vi.fn()
     render(<PurgeCompletedDialog tasks={[await oldDone()]} retentionDays={30} onDone={onDone} onDismiss={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
     act(() => useUIStore.getState().answerConfirmation(false))
 
@@ -70,7 +70,7 @@ describe('PurgeCompletedDialog — Delete when the backup fails', () => {
   it('with a backup, Delete shows no notice', async () => {
     const onDone = vi.fn()
     render(<PurgeCompletedDialog tasks={[await oldDone()]} retentionDays={30} onDone={onDone} onDismiss={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(onDone).toHaveBeenCalled())
     expect(useUndoStore.getState().snackbar).toBeNull()
   })

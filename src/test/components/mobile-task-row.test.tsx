@@ -197,8 +197,6 @@ describe('MobileTaskRow', () => {
             { id: 2, name: 'beta', color: '#222' },
           ]],
         ]),
-        loading: false,
-        error: null,
       })
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
       expect(screen.getByText('#alpha')).toBeInTheDocument()
@@ -209,8 +207,6 @@ describe('MobileTaskRow', () => {
       useTagStore.setState({
         tags: [{ id: 1, name: 'alpha', color: '#111' }],
         assignedTagsMap: new Map(),
-        loading: false,
-        error: null,
       })
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.getByLabelText('Add tag')).toBeInTheDocument()

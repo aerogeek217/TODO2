@@ -4,6 +4,7 @@ import { resolveTags } from '../../services/nlp-resolver'
 import { useTagStore } from '../../stores/tag-store'
 import { db } from '../../data/database'
 import type { Person } from '../../models'
+import { newTodoUid } from '../../utils/todo-uid'
 
 const people: Person[] = [
   { id: 1, name: 'Alice Smith', initials: 'AS' },
@@ -60,7 +61,7 @@ describe('NLP → tag registry end-to-end', () => {
 
   async function addTodo(title = 'Task'): Promise<number> {
     return (await db.todos.add({
-      title, isCompleted: false,
+      uid: newTodoUid(), title, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
   }

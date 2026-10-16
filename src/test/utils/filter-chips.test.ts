@@ -14,7 +14,7 @@ import {
 import { choicesWith, listOptionsSummary } from '../../utils/list-options'
 
 const people: Person[] = [{ id: 1, name: 'Alice', initials: 'A' }, { id: 2, name: 'Bob', initials: 'B' }, { id: 3, name: 'Cy', initials: 'C' }]
-const tags: Tag[] = [{ id: 1, name: 'q4' }, { id: 2, name: 'home' }]
+const tags: Tag[] = [{ id: 1, name: 'q4', color: '#36c' }, { id: 2, name: 'home', color: '#c84' }]
 const statuses: Status[] = [{ id: 1, name: 'Waiting', color: '#aa0', sortOrder: 0 }]
 const names: FilterChipNames = { people, tags, statuses }
 

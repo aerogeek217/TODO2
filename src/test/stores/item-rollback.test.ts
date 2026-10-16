@@ -13,6 +13,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 interface Held {
   /** Rejects the held write. */
@@ -32,9 +33,7 @@ function holdNextWriteToFail<T extends object>(target: T, key: keyof T & string)
 
 beforeEach(async () => {
   await resetDb()
-  for (const store of [usePersonStore, useTagStore, useStatusStore, useListDefinitionStore]) {
-    store.setState(store.getInitialState(), true)
-  }
+  resetStores()
   useUndoStore.getState().clear()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })

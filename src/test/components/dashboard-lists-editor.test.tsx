@@ -202,19 +202,12 @@ describe('DashboardListsEditor — draft dirty-gating', () => {
 })
 
 describe('DashboardListsEditor — modal-on-modal contract', () => {
-  let originalShowBulk: ReturnType<typeof useUIStore.getState>['showBulkConfirmation']
-  let originalSetFavorited: ReturnType<typeof useListDefinitionStore.getState>['setFavorited']
-
   beforeEach(() => {
     useListDefinitionStore.setState({
       listDefinitions: [makeDef({ id: 1, name: 'Alpha' })],
     })
-    originalShowBulk = useUIStore.getState().showBulkConfirmation
-    originalSetFavorited = useListDefinitionStore.getState().setFavorited
   })
   afterEach(() => {
-    useUIStore.setState({ showBulkConfirmation: originalShowBulk } as never)
-    useListDefinitionStore.setState({ setFavorited: originalSetFavorited } as never)
     cleanup()
   })
 

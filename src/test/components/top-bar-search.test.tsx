@@ -40,8 +40,6 @@ describe('TopBar grouped search', () => {
         makeTodo({ id: 2, title: 'random', notes: 'remember to buy bread' }),
         makeTodo({ id: 3, title: 'buy stamps', notes: 'for the letters' }),
       ],
-      loading: false,
-      error: null,
     })
 
     renderBar()
@@ -69,8 +67,6 @@ describe('TopBar grouped search', () => {
   it('"Show all" expansion resets when the query changes', async () => {
     useTodoStore.setState({
       todos: Array.from({ length: 7 }, (_, i) => makeTodo({ id: i + 1, title: `task ${i + 1}`, notes: '' })),
-      loading: false,
-      error: null,
     })
     renderBar()
     const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
@@ -95,8 +91,6 @@ describe('TopBar grouped search', () => {
   it('does not show the listbox when no results match', async () => {
     useTodoStore.setState({
       todos: [makeTodo({ id: 1, title: 'hello' })],
-      loading: false,
-      error: null,
     })
     renderBar()
     const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
@@ -119,8 +113,6 @@ describe('TopBar grouped search', () => {
         [1, [urgent]],
         [2, [today, urgent]],
       ]),
-      loading: false,
-      error: null,
     })
     useTodoStore.setState({
       todos: [
@@ -128,8 +120,6 @@ describe('TopBar grouped search', () => {
         makeTodo({ id: 2, title: 'pick up keys' }),
         makeTodo({ id: 3, title: 'unrelated' }),
       ],
-      loading: false,
-      error: null,
     })
 
     renderBar()
@@ -165,13 +155,9 @@ describe('TopBar grouped search', () => {
     useTagStore.setState({
       tags: [urgent],
       assignedTagsMap: new Map([[1, [urgent]]]),
-      loading: false,
-      error: null,
     })
     useTodoStore.setState({
       todos: [makeTodo({ id: 1, title: 'review budget' })],
-      loading: false,
-      error: null,
     })
 
     renderBar()

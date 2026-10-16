@@ -106,8 +106,6 @@ describe('TopBar search right-click — dropdown survival', () => {
   function seedAndOpenResults() {
     useTodoStore.setState({
       todos: [makeTodo({ id: 1, title: 'buy milk' })],
-      loading: false,
-      error: null,
     })
     render(
       <MemoryRouter initialEntries={['/']}>

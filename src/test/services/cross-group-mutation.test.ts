@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { dispatchCrossGroupMutation } from '../../services/cross-group-mutation'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -12,12 +12,6 @@ function stubStores() {
   useTagStore.setState({ assignTag: rec('assignTag'), unassignTag: rec('unassignTag') })
   return calls
 }
-
-afterEach(() => {
-  for (const store of [useTodoStore, usePersonStore, useTagStore] as const) {
-    store.setState(store.getInitialState(), true)
-  }
-})
 
 describe('dispatchCrossGroupMutation', () => {
   it('sets (or clears) the status', async () => {

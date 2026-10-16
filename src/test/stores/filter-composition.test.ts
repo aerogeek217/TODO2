@@ -16,8 +16,8 @@ const day = (m: number, d: number) => new Date(2026, m - 1, d)
 
 const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
 const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
-const work: Tag = { id: 1, name: 'work' }
-const home: Tag = { id: 2, name: 'home' }
+const work: Tag = { id: 1, name: 'work', color: '#36c' }
+const home: Tag = { id: 2, name: 'home', color: '#c84' }
 const doing: Status = { id: 1, name: 'Doing', color: '#0a0', sortOrder: 0 }
 const waiting: Status = { id: 2, name: 'Waiting', color: '#aa0', sortOrder: 1 }
 

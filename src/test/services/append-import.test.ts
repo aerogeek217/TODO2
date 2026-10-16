@@ -319,6 +319,7 @@ describe('runAppendImport', () => {
     if (!prepared.ok) throw new Error(prepared.error)
 
     const result = await runAppendImport(prepared.data, new Map())
+    if (result.status !== 'done') throw new Error('append import cancelled')
     const id = result.todoIds[0]!
     expect((await db.todos.get(id))).toMatchObject({ uid: 'r-1', title: 'No project' })
     expect(useTodoStore.getState().todos.some((t) => t.id === id)).toBe(true)

@@ -6,6 +6,7 @@ import { TaskNotePopover } from '../../components/task/TaskNotePopover'
 import { useTodoStore } from '../../stores/todo-store'
 import { useNoteStore } from '../../stores/note-store'
 import { makeTodo } from '../helpers'
+import { EditorView } from '@codemirror/view'
 
 beforeEach(async () => {
   await db.delete()
@@ -85,7 +86,7 @@ describe('TaskNotePopover', () => {
 
   it('persists edits to the todo-store through the source adapter', async () => {
     seedTodo('')
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue()
+    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
     const anchor = createRef<HTMLButtonElement>()
     render(
       <>
@@ -96,23 +97,15 @@ describe('TaskNotePopover', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    // Simulate a keystroke by dispatching a transaction into CodeMirror.
-    // CM6's contenteditable doesn't participate in React's fireEvent.change path;
-    // easiest way to assert source.set wiring is via a paste event.
-    const content = document.querySelector('.cm-content') as HTMLElement
-    expect(content).toBeTruthy()
-    // Focus + type 'X' by dispatching an input event into CM's contenteditable.
-    await act(async () => {
-      content.focus()
-      document.execCommand?.('insertText', false, 'X')
-    })
-    // Either path may have written through the source; assert update saw the payload.
-    const calls = updateSpy.mock.calls
-    // If jsdom's execCommand is unavailable, skip the assertion gracefully.
-    if (calls.length > 0) {
-      const last = calls[calls.length - 1]![0]
-      expect(last.id).toBe(100)
-      expect(last.notes).toBeTruthy()
-    }
+    // CodeMirror's contenteditable doesn't take React's input events: type
+    // through the editor's own view.
+    const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)
+    if (!view) throw new Error('no editor')
+    act(() => view.dispatch({ changes: { from: 0, insert: 'X' } }))
+    expect(updateSpy).toHaveBeenLastCalledWith(100, { notes: 'X' })
+
+    // Clearing the text clears the notes field.
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length } }))
+    expect(updateSpy).toHaveBeenLastCalledWith(100, { notes: undefined })
   })
 })

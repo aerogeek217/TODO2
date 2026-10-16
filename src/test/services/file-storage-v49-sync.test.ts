@@ -60,7 +60,7 @@ function setSyncState(state: { fileSavedAt: string | null; dirtySince: string | 
 async function seedBrowser() {
   const now = new Date()
   await db.settings.put({ key: 'themeMode', value: 'light' })
-  await db.todos.add({ title: BROWSER_TASK, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now })
+  await db.todos.add({ uid: 'browser-task', title: BROWSER_TASK, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now })
 }
 
 async function fileBackups() {
@@ -164,7 +164,7 @@ describe('v49 sync file opened by a post-v49 build (CURRENT ≥ 50)', () => {
  * 200-character import limit, a long title, and notes past the old 50k limit
  * (the v49 editors never capped them). A deep copy — the fixture is frozen.
  */
-function productionV49Data(): Record<string, unknown> {
+function productionV49Data(): Record<string, Array<Record<string, unknown>>> {
   const data = JSON.parse(JSON.stringify(fixture)) as Record<string, Array<Record<string, unknown>>>
   const long = (prefix: string, length: number) => `${prefix} `.padEnd(length, 'x')
   data.people![0]!.name = long('Long person', 260)

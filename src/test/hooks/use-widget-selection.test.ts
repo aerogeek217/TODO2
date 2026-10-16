@@ -54,7 +54,7 @@ describe('useWidgetSelection', () => {
     act(() => result.current.clearOnEmptySpace(clickOn(body, widget), body))
     expect(ids()).toEqual([])
 
-    act(() => useUIStore.getState().setScopedSelection('tab-b', { ids: [2], anchorKey: null, cursorKey: null, cursorTodoId: 2 }))
+    act(() => useUIStore.getState().setScopedSelection('tab-b', { ids: new Set([2]), anchorKey: 'tab-b:2', cursorKey: 'tab-b:2', cursorTodoId: 2 }))
     act(() => result.current.clearOnEmptySpace(clickOn(widget, widget)))
     expect(ids()).toEqual([2])
   })

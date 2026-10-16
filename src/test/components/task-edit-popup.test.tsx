@@ -173,7 +173,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toContain(1)
       expect(assignments.personIds).toContain(2)
     })
@@ -199,7 +199,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toContain(50)
     })
 
@@ -282,7 +282,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [partial, assignments] = onCreate.mock.calls[0]
+      const [partial, assignments] = onCreate.mock.calls[0]!
       expect(partial.title).toBe('Tagged task')
       expect(assignments.tagIds).toEqual([1])
     })
@@ -304,7 +304,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.tagIds).toEqual([])
     })
 
@@ -329,7 +329,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.tagIds).toContain(50)
     })
 
@@ -352,7 +352,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.tagIds).toEqual([])
     })
   })

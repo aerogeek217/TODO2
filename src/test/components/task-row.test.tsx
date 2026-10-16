@@ -383,8 +383,6 @@ describe('TaskRow', () => {
             { id: 2, name: 'beta', color: '#222' },
           ]],
         ]),
-        loading: false,
-        error: null,
       })
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
       expect(screen.getByText('#alpha')).toBeInTheDocument()
@@ -396,8 +394,6 @@ describe('TaskRow', () => {
       useTagStore.setState({
         tags: [{ id: 1, name: 'alpha', color: '#111' }],
         assignedTagsMap: new Map(),
-        loading: false,
-        error: null,
       })
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.getByLabelText('Add tag')).toBeInTheDocument()
@@ -411,8 +407,6 @@ describe('TaskRow', () => {
           { id: 2, name: 'beta', color: '#222' },
         ],
         assignedTagsMap: new Map([[1, [{ id: 1, name: 'alpha', color: '#111' }]]]),
-        loading: false,
-        error: null,
       })
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       fireEvent.click(screen.getByText('#alpha'))
@@ -428,8 +422,6 @@ describe('TaskRow', () => {
           { id: 2, name: 'beta', color: '#222' },
         ],
         assignedTagsMap: new Map([[1, [{ id: 1, name: 'alpha', color: '#111' }]]]),
-        loading: false,
-        error: null,
       })
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       fireEvent.click(screen.getByText('#alpha'))
@@ -442,8 +434,6 @@ describe('TaskRow', () => {
       useTagStore.setState({
         tags: [],
         assignedTagsMap: new Map(),
-        loading: false,
-        error: null,
       })
       render(<TaskRow todo={makeTodo({ id: 1 })} ghost />)
       expect(screen.queryByLabelText('Add tag')).not.toBeInTheDocument()

@@ -22,10 +22,9 @@ describe('resolveCrossGroupMutation', () => {
       expect(resolveCrossGroupMutation('people', 'person-1', undefined, 10)).toBeNull()
     })
 
-    it('returns null for all date dimensions, even on cross-bucket drags', () => {
-      expect(resolveCrossGroupMutation('date', 'today', 'later', 10)).toBeNull()
-      expect(resolveCrossGroupMutation('scheduled', 'overdue', 'week', 10)).toBeNull()
+    it('returns null for both date dimensions, even on cross-bucket drags', () => {
       expect(resolveCrossGroupMutation('deadline', 'today', 'overdue', 10)).toBeNull()
+      expect(resolveCrossGroupMutation('followup', 'overdue', 'week', 10)).toBeNull()
     })
 
     it('returns null when target key has the wrong shape for status', () => {

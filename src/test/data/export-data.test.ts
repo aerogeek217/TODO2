@@ -5,6 +5,7 @@ import { buildTasksPlain } from '../../services/task-copy'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
 import { resetDb, makeTodo, makePerson } from '../helpers'
+import type { PersistedTodoItem } from '../../models'
 
 beforeEach(async () => {
   await resetDb()
@@ -214,7 +215,7 @@ describe('buildMarkdownExport', () => {
     await db.todoPeople.add({ todoId: 1, personId: 1 })
 
     const md = await buildMarkdownExport()
-    const todos = await db.todos.orderBy('sortOrder').toArray()
+    const todos = (await db.todos.orderBy('sortOrder').toArray()) as PersistedTodoItem[]
     const plain = buildTasksPlain([{ todos }], {
       assignedPeopleMap: new Map(),
       statusMap: new Map([[3, { id: 3, name: 'Waiting', color: '#888888', sortOrder: 0 }]]),

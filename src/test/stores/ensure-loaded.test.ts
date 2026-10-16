@@ -14,6 +14,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void
@@ -21,11 +22,9 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve }
 }
 
-const STORES = [useTodoStore, usePersonStore, useTagStore, useStatusStore, useListDefinitionStore, useListOrderStore]
-
 beforeEach(async () => {
   await resetDb()
-  for (const store of STORES) store.setState(store.getInitialState(), true)
+  resetStores()
   useUndoStore.getState().clear()
   useUndoStore.getState().dismissSnackbar()
   vi.spyOn(console, 'error').mockImplementation(() => {})
