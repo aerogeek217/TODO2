@@ -222,6 +222,8 @@ class FileStorageService {
   private hookCleanups: Array<() => void> = []
   /** Bumped on every tracked change; a save only clears dirty if unchanged. */
   private changeGen = 0
+  /** Bumped by every load; an older load still running stops at its next await. */
+  private loadGen = 0
   /** When the written text was last run back through the import, and what that said. */
   private lastLoadBackCheck: { at: number; problem: string | null } | null = null
   private statusListeners = new Set<StatusListener>()
@@ -355,6 +357,7 @@ class FileStorageService {
     this.pendingSave = false
     this.changeGen = 0
     this.lastLoadBackCheck = null
+    this.loadGen++
     this._lastSavedAt = null
     this._error = null
     this._needsPermission = false
@@ -452,6 +455,8 @@ class FileStorageService {
   }
 
   async disconnect(): Promise<void> {
+    // A load still running for this file stops at its next await.
+    this.loadGen++
     this.stopSync()
     this.removeTracking()
     this.handle = null
@@ -528,13 +533,19 @@ class FileStorageService {
   private async loadFromFile(): Promise<void> {
     const handle = this.handle
     if (!handle) return
+    // A newer load (Retry, another attach, StrictMode's second init) makes
+    // this one stale: from its next await on it stops without changing
+    // anything — the newer one decides. (The store answers a question this
+    // one is still waiting on as cancelled.)
+    const gen = ++this.loadGen
     this.stopSync()
     this._paused = null
     // A save that was already running finishes before the file is read.
     await this.whenIdle()
-    if (this.handle !== handle) return
+    if (this.handle !== handle || gen !== this.loadGen) return
 
     const read = await readFileText(handle)
+    if (gen !== this.loadGen) return
     if (!read.ok) {
       if (read.reason === 'too-large') {
         this.pause('too-large', `${PAUSED_PREFIX} — the file is too large (50 MB max).`)
@@ -586,6 +597,7 @@ class FileStorageService {
       const confirmed = this.migrationConfirmHandler
         ? await this.migrationConfirmHandler(prepared.legacy)
         : false
+      if (gen !== this.loadGen) return
       if (!confirmed) {
         this.pause('legacy-cancelled', `${PAUSED_PREFIX} — the file is in an older format that needs your confirmation to load.`)
         return
@@ -600,7 +612,7 @@ class FileStorageService {
     // reload replaced the notes.
     const release = await this.holdForImport()
     try {
-      await this.decide(handle, text, raw, prepared, fileId, lastModified)
+      if (gen === this.loadGen) await this.decide(gen, handle, text, raw, prepared, fileId, lastModified)
     } finally {
       release()
     }
@@ -608,6 +620,7 @@ class FileStorageService {
 
   /** The load decision for a read, prepared file (`loadFromFile`, inside its note hold). */
   private async decide(
+    gen: number,
     handle: FileSystemFileHandle,
     text: string,
     raw: Record<string, unknown>,
@@ -637,6 +650,7 @@ class FileStorageService {
       if (hasRecord && dirty) conflictReason = 'browser-changes'
       else if (!hasRecord && (await browserTaskCount()) > 0) conflictReason = 'no-sync-record'
     }
+    if (gen !== this.loadGen) return
 
     if (conflictReason) {
       const info: SyncConflictInfo = {
@@ -657,6 +671,7 @@ class FileStorageService {
         },
       }
       const choice = this.conflictHandler ? await this.conflictHandler(info) : 'cancel'
+      if (gen !== this.loadGen) return
       if (choice === 'cancel') {
         this.pause('conflict-cancelled', `${PAUSED_PREFIX} — this browser and ${handle.name} have different data. Choose which version to keep.`)
         return
@@ -677,6 +692,7 @@ class FileStorageService {
           toVersion: CURRENT_DB_VERSION,
         })
         : false
+      if (gen !== this.loadGen) return
       if (!ok) {
         this.pause('upgrade-cancelled', `${PAUSED_PREFIX} — ${handle.name} was saved by an older version of TODO2 and needs to be upgraded before syncing.`)
         return

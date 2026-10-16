@@ -1223,3 +1223,35 @@ describe('FileStorageService — reading a file that another write replaces', ()
     expectUntouched(writable)
   })
 })
+
+// ─── Two loads at once ────────────────────────────────────────────────
+// A second load (Retry, StrictMode's double init) while the first waits on
+// a question: the newer one decides; the older one stops without touching
+// the state (the store answers its question as cancelled).
+
+describe('FileStorageService — a load superseded by a newer one', () => {
+  it('the older load, answered "cancel" late, does not pause what the newer one resumed', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const { svc } = await startWith()
+    let answerFirst!: () => void
+    const firstAnswered = new Promise<void>((r) => { answerFirst = r })
+    let asked = 0
+    svc.onConflict(async () => {
+      asked++
+      if (asked === 1) {
+        await firstAnswered
+        return 'cancel'
+      }
+      return 'file'
+    })
+    const first = svc.initialize()
+    for (let i = 0; i < 100 && asked < 1; i++) await vi.advanceTimersByTimeAsync(1)
+    expect(asked).toBe(1)
+    await svc.retry()
+    expect(svc.status.paused).toBeNull()
+    answerFirst()
+    await first
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.isConnected).toBe(true)
+  })
+})
