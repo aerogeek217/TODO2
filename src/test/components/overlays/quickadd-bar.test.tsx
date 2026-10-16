@@ -541,6 +541,34 @@ describe('QuickAddBar — submit', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('a submit that rejects keeps the bar open, and the next Enter tries again', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const onClose = vi.fn()
+    const onSubmit = vi.fn<(d: QuickAddDraft) => Promise<boolean>>().mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(true)
+    render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
+    changeInput('Retry me')
+    await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+    expect(onClose).not.toHaveBeenCalled()
+    expect(getInput()).toHaveValue('Retry me')
+    await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+    expect(onSubmit).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
+  })
+
+  it('a submit that finishes after the bar was closed and opened again does not close the new one', async () => {
+    let finish!: (ok: boolean) => void
+    const onSubmit = vi.fn(() => new Promise<boolean>((r) => { finish = r }))
+    const onClose = vi.fn()
+    const { rerender } = render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
+    changeInput('Slow')
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    rerender(<QuickAddBar open={false} onClose={onClose} onSubmit={onSubmit} />)
+    rerender(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
+    await act(async () => { finish(true) })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('a plain (void) submit closes the bar at once', () => {
     const onClose = vi.fn()
     render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)

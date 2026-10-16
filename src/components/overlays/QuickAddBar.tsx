@@ -512,6 +512,12 @@ export function QuickAddBar({
 
   // A submit in flight: a second Enter waits for it.
   const submittingRef = useRef(false)
+  // Bumped each time the bar closes: a submit that settles after that
+  // belongs to an earlier opening and must not close the bar shown now.
+  const openingRef = useRef(0)
+  useEffect(() => {
+    if (!open) openingRef.current++
+  }, [open])
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -532,10 +538,16 @@ export function QuickAddBar({
         return
       }
       submittingRef.current = true
-      void result.then((created) => {
-        submittingRef.current = false
-        if (created) onClose()
-      })
+      const opening = openingRef.current
+      void result
+        .then((created) => {
+          if (created && openingRef.current === opening) onClose()
+        })
+        .catch((err: unknown) => {
+          // The bar stays open with the text; Enter tries again.
+          console.warn('[quick-add] the task could not be created', err)
+        })
+        .finally(() => { submittingRef.current = false })
     }
   }
 
