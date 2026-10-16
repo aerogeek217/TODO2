@@ -6,7 +6,7 @@ import { FollowupFlagIcon } from '../FollowupIcons'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
 import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, toggleHot, toggleMarker } from '../../../utils/markers'
-import sheet from '../../overlays/FilterSheet.module.css'
+import sheet from './FilterChipBarMobile.module.css'
 import {
   cycleTri,
   triIcon,
