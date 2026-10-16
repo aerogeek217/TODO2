@@ -258,20 +258,6 @@ describe('useUndoStore', () => {
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'compound' })
   })
 
-  // 15. canUndo/canRedo report based on stack contents
-  it('canUndo returns true when undoStack has entries', () => {
-    expect(useUndoStore.getState().canUndo()).toBe(false)
-    useUndoStore.getState().push(makeEntry('x'))
-    expect(useUndoStore.getState().canUndo()).toBe(true)
-  })
-
-  it('canRedo returns true when redoStack has entries', async () => {
-    expect(useUndoStore.getState().canRedo()).toBe(false)
-    useUndoStore.getState().push(makeEntry('x'))
-    await useUndoStore.getState().undo()
-    expect(useUndoStore.getState().canRedo()).toBe(true)
-  })
-
   // 16. dismissSnackbar clears snackbar and timer
   it('dismissSnackbar clears snackbar and cancels timer', () => {
     useUndoStore.getState().push(makeEntry('action'), true)

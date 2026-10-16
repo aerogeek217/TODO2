@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useFilterStore, matchesFilter, applyFilter, countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
 import type { PersistedTodoItem } from '../../models'
-import { makeTodo } from '../helpers'
+import { makeTodo, patchScreenFilter } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
@@ -94,16 +94,16 @@ describe('useFilterStore', () => {
   })
 
   it('setDateField changes the date field', () => {
-    useFilterStore.getState().setDateField('created')
+    patchScreenFilter({ dateField: 'created' })
     expect(useFilterStore.getState().filters.dateField).toBe('created')
 
-    useFilterStore.getState().setDateField('modified')
+    patchScreenFilter({ dateField: 'modified' })
     expect(useFilterStore.getState().filters.dateField).toBe('modified')
 
-    useFilterStore.getState().setDateField('followup')
+    patchScreenFilter({ dateField: 'followup' })
     expect(useFilterStore.getState().filters.dateField).toBe('followup')
 
-    useFilterStore.getState().setDateField('deadline')
+    patchScreenFilter({ dateField: 'deadline' })
     expect(useFilterStore.getState().filters.dateField).toBe('deadline')
   })
 
@@ -117,7 +117,7 @@ describe('useFilterStore', () => {
   })
 
   it('date range filters by createdAt when dateField is created', () => {
-    useFilterStore.getState().setDateField('created')
+    patchScreenFilter({ dateField: 'created' })
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
 
     expect(matchesFilter(f(), makeTodo({ id: 1, createdAt: new Date('2025-03-15') }))).toBe(true)
@@ -125,7 +125,7 @@ describe('useFilterStore', () => {
   })
 
   it('date range filters by modifiedAt when dateField is modified', () => {
-    useFilterStore.getState().setDateField('modified')
+    patchScreenFilter({ dateField: 'modified' })
     useFilterStore.getState().setDateRange(new Date('2025-06-01'), new Date('2025-06-30'))
 
     expect(matchesFilter(f(), makeTodo({ id: 1, modifiedAt: new Date('2025-06-15') }))).toBe(true)
@@ -133,7 +133,7 @@ describe('useFilterStore', () => {
   })
 
   it('date range filters by dueDate when dateField is deadline', () => {
-    useFilterStore.getState().setDateField('deadline')
+    patchScreenFilter({ dateField: 'deadline' })
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
 
     expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
@@ -144,30 +144,30 @@ describe('useFilterStore', () => {
 
   it('includeNoDate keeps tasks without a due date when dateField is deadline', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-    useFilterStore.getState().setDateRangeIncludeNoDate(true)
+    patchScreenFilter({ dateRangeIncludeNoDate: true })
 
     expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
     expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
   })
 
   it('includeNoDate has no effect on other date fields', () => {
-    useFilterStore.getState().setDateField('followup')
+    patchScreenFilter({ dateField: 'followup' })
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-    useFilterStore.getState().setDateRangeIncludeNoDate(true)
+    patchScreenFilter({ dateRangeIncludeNoDate: true })
 
     expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(false)
   })
 
   describe('hasDeadline / hasFollowup presence filters', () => {
     it('hasDeadline=true keeps only tasks with a due date', () => {
-      useFilterStore.getState().setHasDeadline(true)
+      patchScreenFilter({ hasDeadline: true })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
     })
 
     it('hasDeadline=false keeps only tasks without a due date', () => {
-      useFilterStore.getState().setHasDeadline(false)
+      patchScreenFilter({ hasDeadline: false })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
@@ -180,8 +180,8 @@ describe('useFilterStore', () => {
     })
 
     it('hasDeadline and hasFollowup compose with AND', () => {
-      useFilterStore.getState().setHasDeadline(true)
-      useFilterStore.getState().setHasFollowup(true)
+      patchScreenFilter({ hasDeadline: true })
+      patchScreenFilter({ hasFollowup: true })
       // Only the task with both should pass
       expect(matchesFilter(f(), makeTodo({
         id: 1,
@@ -208,14 +208,14 @@ describe('useFilterStore', () => {
       const plain = makeTodo({ id: 4 })
       expect(f().markers).toBeNull()
       for (const t of [focused, important, both, plain]) expect(matchesFilter(f(), t, undefined, today)).toBe(true)
-      useFilterStore.getState().setMarkers({ focus: true })
+      patchScreenFilter({ markers: { focus: true } })
       expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, false, true, false])
-      useFilterStore.getState().setMarkers({ focus: true, important: true })
+      patchScreenFilter({ markers: { focus: true, important: true } })
       expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([false, false, true, false])
     })
 
     it('Urgent means effective urgent: the flag, or due within the range (overdue included)', () => {
-      useFilterStore.getState().setMarkers({ urgent: true })
+      patchScreenFilter({ markers: { urgent: true } })
       const flagged = makeTodo({ id: 1, urgent: true })
       const overdue = makeTodo({ id: 2, dueDate: day(-2) })
       const edge = makeTodo({ id: 3, dueDate: day(3) })
@@ -230,18 +230,18 @@ describe('useFilterStore', () => {
     })
 
     it('counts as one active filter, clears with clearAll, and an emptied set is no filter', () => {
-      useFilterStore.getState().setMarkers({ urgent: true, focus: true })
+      patchScreenFilter({ markers: { urgent: true, focus: true } })
       expect(useFilterStore.getState().isActive).toBe(true)
       expect(countActiveFilters(f())).toBe(1)
       useFilterStore.getState().clearAll()
       expect(f().markers).toBeNull()
-      useFilterStore.getState().setMarkers({})
-      expect(f().markers).toBeNull()
+      patchScreenFilter({ markers: {} })
+      expect(countActiveFilters(f())).toBe(0)
       expect(useFilterStore.getState().isActive).toBe(false)
     })
 
     it('Hot keeps the tasks the Settings rule makes hot, and is one active filter', () => {
-      useFilterStore.getState().setMarkers('hot')
+      patchScreenFilter({ markers: 'hot' })
       expect(f().markers).toBe('hot')
       expect(countActiveFilters(f())).toBe(1)
       const urgentImportant = makeTodo({ id: 1, important: true, dueDate: day(1) })
@@ -261,7 +261,7 @@ describe('useFilterStore', () => {
     })
 
     it('round-trips through the predicate; a predicate without it reads as null', () => {
-      useFilterStore.getState().setMarkers({ important: true })
+      patchScreenFilter({ markers: { important: true } })
       const predicate = criteriaToPredicate(f())
       expect(predicate.markers).toEqual({ important: true })
       expect(predicateToCriteria(predicate).markers).toEqual({ important: true })
@@ -275,10 +275,7 @@ describe('useFilterStore', () => {
     it('relative end-of-week resolves to the configured weekStartsOn boundary', () => {
       // Wednesday 2026-04-15 → Monday-first week ends Sunday 2026-04-19.
       const today = new Date('2026-04-15T12:00:00')
-      useFilterStore.getState().setDateRangeAnchors(
-        null,
-        { kind: 'relative', token: 'end-of-week' },
-      )
+      patchScreenFilter({ dateRangeStart: null, dateRangeEnd: { kind: 'relative', token: 'end-of-week' } })
 
       // Task due Sunday (2026-04-19) passes; task due next Monday (2026-04-20) fails.
       expect(matchesFilter(f(), makeTodo({
@@ -294,10 +291,7 @@ describe('useFilterStore', () => {
 
     it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
       const today = new Date('2026-04-15T12:00:00')
-      useFilterStore.getState().setDateRangeAnchors(
-        { kind: 'relative', token: 'tomorrow' },
-        null,
-      )
+      patchScreenFilter({ dateRangeStart: { kind: 'relative', token: 'tomorrow' }, dateRangeEnd: null })
       // Today-due task excluded (before tomorrow); tomorrow-due passes.
       expect(matchesFilter(f(), makeTodo({
         id: 1,
@@ -311,24 +305,24 @@ describe('useFilterStore', () => {
     })
 
     it('fixed anchor behaves like the legacy ISO-string range', () => {
-      useFilterStore.getState().setDateRangeAnchors(
-        { kind: 'fixed', iso: '2025-03-01' },
-        { kind: 'fixed', iso: '2025-03-31' },
-      )
+      patchScreenFilter({
+        dateRangeStart: { kind: 'fixed', iso: '2025-03-01' },
+        dateRangeEnd: { kind: 'fixed', iso: '2025-03-31' },
+      })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
     })
   })
 
   it('clearAll resets dateField to deadline', () => {
-    useFilterStore.getState().setDateField('modified')
+    patchScreenFilter({ dateField: 'modified' })
     useFilterStore.getState().clearAll()
     expect(useFilterStore.getState().filters.dateField).toBe('deadline')
   })
 
   it('clearAll resets hasDeadline / hasFollowup to null', () => {
-    useFilterStore.getState().setHasFollowup(true)
-    useFilterStore.getState().setHasDeadline(false)
+    patchScreenFilter({ hasFollowup: true })
+    patchScreenFilter({ hasDeadline: false })
     expect(useFilterStore.getState().isActive).toBe(true)
     useFilterStore.getState().clearAll()
     expect(useFilterStore.getState().filters.hasFollowup).toBeNull()
@@ -517,8 +511,8 @@ describe('countActiveFilters', () => {
     const s = useFilterStore.getState()
     s.setSearchText('plumber')
     s.setShowCompleted(true)
-    s.setHasDeadline(true)
-    s.setHasFollowup(false)
+    patchScreenFilter({ hasDeadline: true })
+    patchScreenFilter({ hasFollowup: false })
     expect(countActiveFilters(useFilterStore.getState().filters)).toBe(3)
     expect(useFilterStore.getState().isActive).toBe(true)
   })

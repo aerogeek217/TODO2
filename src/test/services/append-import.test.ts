@@ -323,7 +323,7 @@ describe('runAppendImport', () => {
     expect((await db.todos.get(id))).toMatchObject({ uid: 'r-1', title: 'No project' })
     expect(useTodoStore.getState().todos.some((t) => t.id === id)).toBe(true)
     expect(usePersonStore.getState().people.map((p) => p.name)).toContain('Eve')
-    expect(usePersonStore.getState().getAssignedPeople(id).map((p) => p.name)).toEqual(['Eve'])
+    expect((usePersonStore.getState().assignedPeopleMap.get(id) ?? []).map((p) => p.name)).toEqual(['Eve'])
     expect(useTagStore.getState().tags.map((t) => t.name)).toEqual(['Project: Home'])
     expect((useTagStore.getState().assignedTagsMap.get(id) ?? []).map((t) => t.name)).toEqual(['Project: Home'])
     expect((await db.backups.toArray()).some((b) => b.trigger === 'pre-destructive')).toBe(true)

@@ -160,7 +160,7 @@ describe('purgeCompleted (expired selection) keys on completedAt', () => {
     const id = await useTodoStore.getState().add('Done in summer')
     await todoRepository.complete(id, true, daysAgo(60))
     // A reorder / normalization bumps modifiedAt — the old purge clock.
-    await todoRepository.reorder(id, 5)
+    await db.todos.update(id, { sortOrder: 5, modifiedAt: new Date() })
     await useTodoStore.getState().loadAll()
     expect(Date.now() - new Date(inStore(id).modifiedAt).getTime()).toBeLessThan(60_000)
 

@@ -6,7 +6,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
-import { makePerson, makeTodo, resetDb } from '../helpers'
+import { makePerson, makeTodo, patchScreenFilter, resetDb } from '../helpers'
 import type { Person, Tag, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
@@ -443,7 +443,7 @@ describe('TaskEditPopup', () => {
     })
 
     it('create mode: a Markers screen filter starts those toggles on', () => {
-      useFilterStore.getState().setMarkers({ focus: true, important: true })
+      patchScreenFilter({ markers: { focus: true, important: true } })
       renderCreateMode()
       expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: 'Important' })).toHaveAttribute('aria-pressed', 'true')

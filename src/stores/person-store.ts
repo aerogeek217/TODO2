@@ -34,7 +34,6 @@ interface PersonState {
   unassignPerson: (todoId: number, personId: number) => Promise<void>
   bulkAssignPerson: (todoIds: number[], personId: number) => Promise<void>
   bulkUnassignPerson: (todoIds: number[], personId: number) => Promise<void>
-  getAssignedPeople: (todoId: number) => Person[]
 }
 
 export const usePersonStore = create<PersonState>((set, get) => {
@@ -146,9 +145,5 @@ export const usePersonStore = create<PersonState>((set, get) => {
     unassignPerson: assignment.unassign,
     bulkAssignPerson: assignment.bulkAssign,
     bulkUnassignPerson: assignment.bulkUnassign,
-
-    getAssignedPeople(todoId: number) {
-      return get().assignedPeopleMap.get(todoId) ?? []
-    },
   }
 })

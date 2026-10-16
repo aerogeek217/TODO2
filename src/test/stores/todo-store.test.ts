@@ -36,7 +36,8 @@ describe('todoStore', () => {
 
   it('add places the new todo after the highest sortOrder', async () => {
     const id1 = await useTodoStore.getState().add('First')
-    await useTodoStore.getState().reorder(id1, 41)
+    await db.todos.update(id1, { sortOrder: 41 })
+    await useTodoStore.getState().loadAll()
     const id2 = await useTodoStore.getState().add('Second')
     expect(useTodoStore.getState().todos.find((t) => t.id === id2)!.sortOrder).toBe(42)
   })
@@ -66,12 +67,6 @@ describe('todoStore', () => {
 
     await useTodoStore.getState().loadAll()
     expect(useTodoStore.getState().todos.map((t) => t.title).sort()).toEqual(['One', 'Two'])
-  })
-
-  it('reorder updates sortOrder', async () => {
-    const id = await useTodoStore.getState().add('Task')
-    await useTodoStore.getState().reorder(id, 99)
-    expect(useTodoStore.getState().todos[0]!.sortOrder).toBe(99)
   })
 
   it('bulkSetCompleted marks multiple todos completed', async () => {
@@ -179,16 +174,15 @@ describe('todoStore', () => {
     // Dashboard/ListView memoize assignment-load effects on
     // `${todos.length}:${todosVersion}`, so the bump contract is load-bearing:
     // add / remove / bulkRemove / restore / purge should tick the counter,
-    // update / toggleComplete / reorder / bulk-field setters should not.
+    // update / toggleComplete / bulk-field setters should not.
     const v0 = useTodoStore.getState().todosVersion
     const id1 = await useTodoStore.getState().add('Task 1')
     const vAfterAdd = useTodoStore.getState().todosVersion
     expect(vAfterAdd).toBeGreaterThan(v0)
 
-    // Field edits (update + toggleComplete + reorder + bulkSet*) keep the
+    // Field edits (update + toggleComplete + bulkSet*) keep the
     // version pinned — those don't change the id-set.
     await useTodoStore.getState().toggleComplete(id1)
-    await useTodoStore.getState().reorder(id1, 99)
     await useTodoStore.getState().bulkSetStatus([id1], undefined)
     expect(useTodoStore.getState().todosVersion).toBe(vAfterAdd)
 

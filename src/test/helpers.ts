@@ -51,6 +51,12 @@ export const emptyFilterCriteria: FilterCriteria = {
   tags: null,
 }
 
+/** Sets some fields of the screen filter, keeping the rest. */
+export function patchScreenFilter(patch: Partial<FilterCriteria>): void {
+  const store = useFilterStore.getState()
+  store.setAllFilters({ ...store.filters, ...patch })
+}
+
 /** Reset filter store to its empty state. Wraps the store's clearAll() for grep-ability. */
 export function clearFilterStore(): void {
   useFilterStore.getState().clearAll()

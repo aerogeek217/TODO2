@@ -72,14 +72,8 @@ interface FilterState {
   setPersonIds: (personIds: Set<number> | null) => void
   setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
-  setDateField: (field: DateField) => void
-  /** Convenience API: wraps Date endpoints as `{kind:'fixed', iso}` anchors. Prefer `setDateRangeAnchors` for relative tokens. */
+  /** Wraps Date endpoints as `{kind:'fixed', iso}` anchors. */
   setDateRange: (start: Date | null, end: Date | null) => void
-  setDateRangeAnchors: (start: DateAnchor | null, end: DateAnchor | null) => void
-  setDateRangeIncludeNoDate: (include: boolean) => void
-  setHasDeadline: (value: boolean | null) => void
-  setHasFollowup: (value: boolean | null) => void
-  setMarkers: (value: MarkersFilter | null) => void
   setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
@@ -406,36 +400,12 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...get().filters, searchText })
   },
 
-  setDateField(dateField: DateField) {
-    commit(set, { ...get().filters, dateField })
-  },
-
   setDateRange(start: Date | null, end: Date | null) {
     commit(set, {
       ...get().filters,
       dateRangeStart: start ? fixedAnchor(start) : null,
       dateRangeEnd: end ? fixedAnchor(end) : null,
     })
-  },
-
-  setDateRangeAnchors(dateRangeStart: DateAnchor | null, dateRangeEnd: DateAnchor | null) {
-    commit(set, { ...get().filters, dateRangeStart, dateRangeEnd })
-  },
-
-  setDateRangeIncludeNoDate(dateRangeIncludeNoDate: boolean) {
-    commit(set, { ...get().filters, dateRangeIncludeNoDate })
-  },
-
-  setHasDeadline(hasDeadline: boolean | null) {
-    commit(set, { ...get().filters, hasDeadline })
-  },
-
-  setHasFollowup(hasFollowup: boolean | null) {
-    commit(set, { ...get().filters, hasFollowup })
-  },
-
-  setMarkers(markers: MarkersFilter | null) {
-    commit(set, { ...get().filters, markers: normalizeMarkers(markers) })
   },
 
   setTags(tags: Set<number> | null) {

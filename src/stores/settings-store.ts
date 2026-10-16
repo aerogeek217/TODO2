@@ -70,7 +70,6 @@ interface SettingsState {
   resetColors: (theme?: ThemeName) => Promise<void>
   setThemeMode: (mode: ThemeMode) => Promise<void>
   setDefaultStatusId: (id: number | null) => Promise<void>
-  setQuickStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
@@ -338,17 +337,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
       }
       set({ defaultStatusId: id })
-    })
-  },
-
-  setQuickStatusId(id: number | null) {
-    return trackWrite(async () => {
-      if (id == null) {
-        await settingsRepository.delete(SETTING_KEYS.quickStatusId)
-      } else {
-        await settingsRepository.put(SETTING_KEYS.quickStatusId, String(id))
-      }
-      set({ quickStatusId: id })
     })
   },
 

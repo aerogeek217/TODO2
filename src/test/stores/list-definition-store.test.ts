@@ -85,24 +85,6 @@ describe('useListDefinitionStore mutations', () => {
     expect(sorted.map(d => d.sortOrder)).toEqual([0, 1, 2])
   })
 
-  it('rename updates name and persists', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Old' })
-    await useListDefinitionStore.getState().rename(id, 'New')
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.name).toBe('New')
-
-    const row = await listDefinitionRepository.getById(id)
-    expect(row?.name).toBe('New')
-  })
-
-  it('setPinned toggles pinnedToDashboard', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'X' })
-    await useListDefinitionStore.getState().setPinned(id, false)
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.pinnedToDashboard).toBe(false)
-
-    const row = await listDefinitionRepository.getById(id)
-    expect(row?.pinnedToDashboard).toBe(false)
-  })
-
   it('remove deletes and supports undo', async () => {
     const id = await useListDefinitionStore.getState().add({ name: 'Going away' })
     await useListDefinitionStore.getState().remove(id)
@@ -148,19 +130,6 @@ describe('useListDefinitionStore mutations', () => {
     expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'hot' })
   })
 
-  it('clone duplicates with a unique name', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Base' })
-    const clonedId = await useListDefinitionStore.getState().clone(id)
-    expect(clonedId).toBeGreaterThan(0)
-    const names = useListDefinitionStore.getState().listDefinitions.map(d => d.name).sort()
-    expect(names).toEqual(['Base', 'Base copy'])
-
-    // Second clone gets "Base copy 2"
-    await useListDefinitionStore.getState().clone(id)
-    const namesAfter = useListDefinitionStore.getState().listDefinitions.map(d => d.name).sort()
-    expect(namesAfter).toContain('Base copy 2')
-  })
-
   it('reorder swaps sortOrder and persists', async () => {
     const a = await useListDefinitionStore.getState().add({ name: 'A' })
     const b = await useListDefinitionStore.getState().add({ name: 'B' })
@@ -177,13 +146,6 @@ describe('useListDefinitionStore mutations', () => {
     await useListDefinitionStore.getState().load()
     const reloaded = useListDefinitionStore.getState().listDefinitions.map(d => d.id)
     expect(reloaded).toEqual([b, c, a])
-  })
-
-  it('rename rejects empty name', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Keep' })
-    await expect(
-      useListDefinitionStore.getState().rename(id, '   '),
-    ).rejects.toThrow(/Name is required/)
   })
 })
 

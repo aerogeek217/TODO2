@@ -36,10 +36,7 @@ interface ListDefinitionState {
   ensureLoaded: () => Promise<void>
   add: (input: AddInput) => Promise<number>
   update: (def: PersistedListDefinition) => Promise<void>
-  rename: (id: number, name: string) => Promise<void>
-  setPinned: (id: number, pinned: boolean) => Promise<void>
   remove: (id: number) => Promise<void>
-  clone: (id: number) => Promise<number | undefined>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
 }
 
@@ -127,20 +124,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     )
   },
 
-  async rename(id, name) {
-    const trimmed = name.trim()
-    if (!trimmed) throw new Error('Name is required')
-    const def = get().listDefinitions.find(d => d.id === id)
-    if (!def || def.name === trimmed) return
-    await get().update({ ...def, name: trimmed })
-  },
-
-  async setPinned(id, pinned) {
-    const def = get().listDefinitions.find(d => d.id === id)
-    if (!def || def.pinnedToDashboard === pinned) return
-    await get().update({ ...def, pinnedToDashboard: pinned })
-  },
-
   remove(id) {
     return trackWrite(async () => {
       const prev = get().listDefinitions
@@ -168,27 +151,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
         },
         true,
       )
-    })
-  },
-
-  async clone(id) {
-    const src = get().listDefinitions.find(d => d.id === id)
-    if (!src) return undefined
-    const defs = get().listDefinitions
-    let candidate = `${src.name} copy`
-    let n = 2
-    const lower = new Set(defs.map(d => d.name.toLowerCase()))
-    while (lower.has(candidate.toLowerCase())) {
-      candidate = `${src.name} copy ${n++}`
-    }
-    return get().add({
-      name: candidate,
-      membership: src.membership,
-      sort: src.sort,
-      grouping: src.grouping,
-      pinnedToDashboard: src.pinnedToDashboard,
-      ...(src.maxTasks != null ? { maxTasks: src.maxTasks } : {}),
-      ...(src.limitMode != null ? { limitMode: src.limitMode } : {}),
     })
   },
 

@@ -9,7 +9,7 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { EisenhowerTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
-import { clearFilterStore, makePerson, makeTodo, resetEntityStores } from '../../helpers'
+import { clearFilterStore, makePerson, makeTodo, patchScreenFilter, resetEntityStores } from '../../helpers'
 
 const TODAY = new Date(2026, 9, 10, 10) // Sat 10 Oct 2026
 const day = (n: number) => new Date(2026, 9, 10 + n)
@@ -134,7 +134,7 @@ describe('EisenhowerWidget', () => {
     setup()
     act(() => {
       useFilterStore.getState().setPersonIds(new Set([9]))
-      useFilterStore.getState().setMarkers({ focus: true, urgent: true })
+      patchScreenFilter({ markers: { focus: true, urgent: true } })
     })
     fireEvent.click(within(quadrant('schedule')).getByRole('button', { name: 'Add task to Schedule' }))
     expect(useUIStore.getState().quickAddOpen).toBe(true)

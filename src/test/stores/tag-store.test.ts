@@ -173,16 +173,6 @@ describe('useTagStore', () => {
     expect(await db.todoTags.count()).toBe(0)
   })
 
-  it('getAssignedTags returns tags for a todoId, empty array if none', async () => {
-    const tagId = await useTagStore.getState().add('urgent')
-    const todoId = await addTodo()
-    await useTagStore.getState().loadAssignments([todoId])
-    await useTagStore.getState().assignTag(todoId, tagId)
-
-    expect(useTagStore.getState().getAssignedTags(todoId)).toHaveLength(1)
-    expect(useTagStore.getState().getAssignedTags(99999)).toEqual([])
-  })
-
   it('assignment map survives a tag-store reload (round-trip via DB)', async () => {
     const tagId = await useTagStore.getState().add('urgent')
     const todoId = await addTodo()

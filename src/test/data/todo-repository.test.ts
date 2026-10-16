@@ -106,14 +106,6 @@ describe('todoRepository', () => {
     expect(await db.todoTags.count()).toBe(0)
     expect(await db.tags.count()).toBe(1)
   })
-
-  it('reorder updates sortOrder', async () => {
-    const id = await todoRepository.insert(makeTodo({ sortOrder: 1 }))
-    await todoRepository.reorder(id, 5)
-
-    const todo = await todoRepository.getById(id)
-    expect(todo!.sortOrder).toBe(5)
-  })
 })
 
 describe('todoRepository — orphan-rule cleanup on write', () => {

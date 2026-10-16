@@ -46,7 +46,7 @@ describe('setMarkerFlags', () => {
 
   it('does nothing for tasks that are gone', async () => {
     await useTodoStore.getState().setMarkerFlags([{ todoId: 999, urgent: true }], 'x')
-    expect(useUndoStore.getState().canUndo()).toBe(false)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 })
 

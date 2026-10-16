@@ -37,8 +37,6 @@ interface UndoState {
   notify: (description: string) => void
   dismissSnackbar: () => void
   clear: () => void
-  canUndo: () => boolean
-  canRedo: () => boolean
 }
 
 export const useUndoStore = create<UndoState>((set, get) => ({
@@ -199,13 +197,5 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     const { snackbarTimerId } = get()
     if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
     set({ undoStack: [], redoStack: [], groupStartIndex: null, snackbar: null, snackbarTimerId: null })
-  },
-
-  canUndo() {
-    return get().undoStack.length > 0
-  },
-
-  canRedo() {
-    return get().redoStack.length > 0
   },
 }))

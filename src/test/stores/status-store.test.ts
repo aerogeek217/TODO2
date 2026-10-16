@@ -154,7 +154,7 @@ describe('useStatusStore', () => {
 
       await useStatusStore.getState().remove(id)
 
-      expect(useUndoStore.getState().canUndo()).toBe(true)
+      expect(useUndoStore.getState().undoStack.length).toBeGreaterThan(0)
     })
   })
 

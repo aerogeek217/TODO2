@@ -242,10 +242,6 @@ export const todoRepository = {
     })
   },
 
-  async reorder(id: number, newSortOrder: number): Promise<void> {
-    await db.todos.update(id, { sortOrder: newSortOrder, modifiedAt: new Date() })
-  },
-
   async bulkUpdate(mutations: Array<{ todoId: number; changes: Partial<TodoItem> }>): Promise<void> {
     if (mutations.length === 0) return
     const now = new Date()

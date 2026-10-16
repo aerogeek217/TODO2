@@ -57,7 +57,6 @@ interface UIState {
   selectedTodoIds: Set<number>
   selectionAnchorId: number | null
   selectionFocusId: number | null
-  focusedTodoId: number | null
   /**
    * The list widget (tab id) the selection belongs to, or `null` for a
    * selection made on another surface. Selection lives in one widget at a
@@ -155,11 +154,8 @@ interface UIState {
   /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
   checkinImportOpen: boolean
 
-  selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
-  toggleSelectTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
-  setFocusedTodo: (id: number | null) => void
   setHoveredTodoId: (id: number | null) => void
   selectAll: (ids: number[]) => void
   /** Sets a list widget's selection (computed by `nextScopedSelection`). */
@@ -210,7 +206,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   selectedTodoIds: new Set<number>(),
   selectionAnchorId: null,
   selectionFocusId: null,
-  focusedTodoId: null,
   selectionScope: null,
   selectionAnchorKey: null,
   selectionCursorKey: null,
@@ -232,44 +227,26 @@ export const useUIStore = create<UIState>((set, get) => ({
   checkinDialog: null,
   checkinImportOpen: false,
 
-  selectTodo(id: number | null) {
-    set({ selectedTodoId: id })
-  },
-
   selectOneTodo(id: number) {
-    set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
-  },
-
-  toggleSelectTodo(id: number) {
-    const next = new Set(get().selectedTodoIds)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-    set({ selectedTodoIds: next, selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
+    set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   rangeSelectTodo(id: number, orderedIds: number[]) {
     const anchor = get().selectionAnchorId
     if (anchor == null) {
-      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
+      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
       return
     }
     const anchorIdx = orderedIds.indexOf(anchor)
     const targetIdx = orderedIds.indexOf(id)
     if (anchorIdx === -1 || targetIdx === -1) {
-      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
+      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
       return
     }
     const start = Math.min(anchorIdx, targetIdx)
     const end = Math.max(anchorIdx, targetIdx)
     const rangeIds = orderedIds.slice(start, end + 1)
-    set({ selectedTodoIds: new Set(rangeIds), selectionFocusId: id, focusedTodoId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
-  },
-
-  setFocusedTodo(id: number | null) {
-    set({ focusedTodoId: id })
+    set({ selectedTodoIds: new Set(rangeIds), selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   setHoveredTodoId(id: number | null) {
@@ -279,7 +256,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   selectAll(ids: number[]) {
     if (ids.length === 0) return
-    set({ selectedTodoIds: new Set(ids), selectionAnchorId: ids[0], selectionFocusId: ids[ids.length - 1], focusedTodoId: ids[0], selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
+    set({ selectedTodoIds: new Set(ids), selectionAnchorId: ids[0], selectionFocusId: ids[ids.length - 1], selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   setScopedSelection(scope, { ids, anchorKey, cursorKey, cursorTodoId }) {
@@ -290,12 +267,11 @@ export const useUIStore = create<UIState>((set, get) => ({
       selectionCursorKey: cursorKey,
       selectionAnchorId: cursorTodoId,
       selectionFocusId: cursorTodoId,
-      focusedTodoId: cursorTodoId,
     })
   },
 
   clearSelection() {
-    set({ selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null, focusedTodoId: null, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
+    set({ selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   showBulkConfirmation(action, ids, options) {
@@ -338,7 +314,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   showTaskDialog(payload) {
     set({
       taskDialog: payload,
-      selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null, focusedTodoId: null,
+      selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null,
       selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null,
     })
   },

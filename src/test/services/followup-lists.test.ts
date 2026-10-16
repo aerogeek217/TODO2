@@ -14,7 +14,7 @@ import { validateRow } from '../../data/import-validation'
 import { emptyPredicate } from '../../stores/list-definition-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import type { PersistedTodoItem } from '../../models'
-import { makeTodo } from '../helpers'
+import { makeTodo, patchScreenFilter } from '../helpers'
 
 // Wed 14 Oct 2026 (Monday-first week ends Sun 18 Oct).
 const today = new Date(2026, 9, 14)
@@ -36,24 +36,24 @@ describe('filter: hasFollowup + dateField followup', () => {
 
   it('tri-state presence: null = all, true = with, false = without', () => {
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today))).toHaveLength(5)
-    useFilterStore.getState().setHasFollowup(true)
+    patchScreenFilter({ hasFollowup: true })
     expect(useFilterStore.getState().isActive).toBe(true)
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today)).map((t) => t.id))
       .toEqual([4, 3, 1, 2])
-    useFilterStore.getState().setHasFollowup(false)
+    patchScreenFilter({ hasFollowup: false })
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today)).map((t) => t.id))
       .toEqual([5])
   })
 
   it('date range on the next follow-up', () => {
-    useFilterStore.getState().setDateField('followup')
+    patchScreenFilter({ dateField: 'followup' })
     useFilterStore.getState().setDateRange(day(10, 14), day(10, 18))
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today)).map((t) => t.id))
       .toEqual([3, 2])
   })
 
   it('round-trips through the stored predicate; predicates without the key read as no filter', () => {
-    useFilterStore.getState().setHasFollowup(false)
+    patchScreenFilter({ hasFollowup: false })
     const p = criteriaToPredicate(f())
     expect(p.hasFollowup).toBe(false)
     expect(predicateToCriteria(p).hasFollowup).toBe(false)

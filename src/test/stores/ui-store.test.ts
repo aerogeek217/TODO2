@@ -7,7 +7,6 @@ beforeEach(() => {
     selectedTodoIds: new Set(),
     selectionAnchorId: null,
     selectionFocusId: null,
-    focusedTodoId: null,
     editPopupMode: null,
     bulkConfirmation: null,
     taskDialog: null,
@@ -52,26 +51,12 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().taskDialog).toBeNull()
   })
 
-  it('selectOneTodo sets selectedTodoIds to {id} and sets anchor/focus/focusedTodoId', () => {
+  it('selectOneTodo sets selectedTodoIds to {id} and sets anchor/focus', () => {
     useUIStore.getState().selectOneTodo(5)
     const state = useUIStore.getState()
     expect(state.selectedTodoIds).toEqual(new Set([5]))
     expect(state.selectionAnchorId).toBe(5)
     expect(state.selectionFocusId).toBe(5)
-    expect(state.focusedTodoId).toBe(5)
-  })
-
-  it('toggleSelectTodo adds id and removes if present', () => {
-    useUIStore.getState().toggleSelectTodo(1)
-    expect(useUIStore.getState().selectedTodoIds.has(1)).toBe(true)
-
-    useUIStore.getState().toggleSelectTodo(2)
-    expect(useUIStore.getState().selectedTodoIds.has(1)).toBe(true)
-    expect(useUIStore.getState().selectedTodoIds.has(2)).toBe(true)
-
-    useUIStore.getState().toggleSelectTodo(1)
-    expect(useUIStore.getState().selectedTodoIds.has(1)).toBe(false)
-    expect(useUIStore.getState().selectedTodoIds.has(2)).toBe(true)
   })
 
   it('rangeSelectTodo selects range from anchor to target', () => {
@@ -107,7 +92,6 @@ describe('useUIStore', () => {
     expect(state.selectedTodoIds.size).toBe(0)
     expect(state.selectionAnchorId).toBeNull()
     expect(state.selectionFocusId).toBeNull()
-    expect(state.focusedTodoId).toBeNull()
   })
 
   it('showBulkConfirmation and clearBulkConfirmation', () => {

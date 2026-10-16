@@ -71,7 +71,7 @@ interface TodoState {
    * (add / remove / bulkRemove / restore / purge). Callers that previously
    * derived cache keys via `todos.map(t => t.id).sort().join(',')` can use
    * `${todos.length}:${todosVersion}` instead — O(1) and stable.
-   * Not bumped on pure-field edits (update, toggleComplete, reorder,
+   * Not bumped on pure-field edits (update, toggleComplete,
    * bulkSetStatus/Deadline) because those keep the same
    * ids.
    */
@@ -137,7 +137,6 @@ interface TodoState {
    * selection, which a cancel keeps.
    */
   bulkRemove: (ids: number[], opts?: { beforeDelete?: () => void }) => Promise<void>
-  reorder: (id: number, newSortOrder: number) => Promise<void>
   /**
    * Deletes the given completed tasks (snapshot first, `takeSafetySnapshot`).
    * Never called without the user's say-so: the launch prompt and Settings
@@ -685,32 +684,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
         true,
       )
     }, 'Failed to delete tasks')
-  },
-
-  async reorder(id: number, newSortOrder: number) {
-    const todo = get().todos.find((t) => t.id === id)
-    if (!todo) return
-    const prevSortOrder = todo.sortOrder
-    return optimistic(
-      set,
-      () => set({
-        todos: get().todos.map((t) =>
-          t.id === id ? { ...t, sortOrder: newSortOrder } : t
-        ),
-      }),
-      () => todoRepository.reorder(id, newSortOrder),
-      () => set({
-        todos: get().todos.map((t) =>
-          t.id === id ? { ...t, sortOrder: prevSortOrder } : t
-        ),
-      }),
-      'Failed to reorder task',
-      {
-        description: 'Reorder task',
-        redo: () => get().reorder(id, newSortOrder),
-        undo: () => get().reorder(id, prevSortOrder),
-      },
-    )
   },
 
   async duplicate(id: number) {

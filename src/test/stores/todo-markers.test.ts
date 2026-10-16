@@ -40,7 +40,7 @@ describe('bulkSetFocus', () => {
 
   it('does nothing for an empty id list', async () => {
     await useTodoStore.getState().bulkSetFocus([], true)
-    expect(useUndoStore.getState().canUndo()).toBe(false)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 })
 
@@ -66,7 +66,7 @@ describe('bulkSetUrgent / bulkSetImportant', () => {
   it('does nothing for an empty id list', async () => {
     await useTodoStore.getState().bulkSetUrgent([], true)
     await useTodoStore.getState().bulkSetImportant([], true)
-    expect(useUndoStore.getState().canUndo()).toBe(false)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 })
 
