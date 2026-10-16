@@ -4,6 +4,7 @@ import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useEffectiveListDefinition, useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -140,11 +141,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const total = list?.todos.length ?? 0
   const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
 
-  const onResultRef = useRef(onResult)
-  useEffect(() => { onResultRef.current = onResult }, [onResult])
+  const onResultRef = useLatestRef(onResult)
   useEffect(() => {
     onResultRef.current?.({ countLabel, sections: displaySections })
-  }, [countLabel, displaySections])
+  }, [countLabel, displaySections, onResultRef])
 
   const predicate = definition.membership.predicate
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
