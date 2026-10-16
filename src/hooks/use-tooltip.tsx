@@ -58,19 +58,6 @@ export function useTooltip(text: string | null | undefined, opts: { shortcut?: s
 
   useEffect(() => cancel, [cancel])
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') hide() }
-    document.addEventListener('keydown', onKey, true)
-    window.addEventListener('scroll', hide, true)
-    window.addEventListener('resize', hide)
-    return () => {
-      document.removeEventListener('keydown', onKey, true)
-      window.removeEventListener('scroll', hide, true)
-      window.removeEventListener('resize', hide)
-    }
-  }, [open, hide])
-
   if (!text) return { triggerProps: {}, tooltip: null }
 
   const triggerProps: TooltipTriggerProps = {
@@ -91,6 +78,7 @@ export function useTooltip(text: string | null | undefined, opts: { shortcut?: s
   }
   return {
     triggerProps,
-    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} /> : null,
+    // Escape, a scroll or a resize closes it (the bubble's `usePopoverAnchor`).
+    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} onClose={hide} /> : null,
   }
 }
