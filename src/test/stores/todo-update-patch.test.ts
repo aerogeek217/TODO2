@@ -43,7 +43,7 @@ describe('useTodoStore.update(id, changes) writes only the changed fields', () =
 
     await useTodoStore.getState().update(id, { title: 'Renamed' })
 
-    expect(spy).toHaveBeenCalledWith(id, { title: 'Renamed' })
+    expect(spy).toHaveBeenCalledWith(id, { title: 'Renamed' }, expect.any(Date))
     expect((await inDb(id)).title).toBe('Renamed')
   })
 

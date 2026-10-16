@@ -56,7 +56,7 @@ describe('TaskEditPopup with concurrent changes to its task', () => {
     })
     await act(async () => { fireEvent.blur(titleInput()) })
 
-    expect(save).toHaveBeenCalledWith(id, { title: 'New title' })
+    expect(save).toHaveBeenCalledWith(id, { title: 'New title' }, expect.any(Date))
     await vi.waitFor(async () => expect((await inDb(id)).title).toBe('New title'))
     expect(await inDb(id)).toMatchObject({ statusId, dueDate: due })
     expect(useTodoStore.getState().todos.find((t) => t.id === id)).toMatchObject({ title: 'New title', statusId, dueDate: due })

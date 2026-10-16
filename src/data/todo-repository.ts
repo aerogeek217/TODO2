@@ -211,18 +211,19 @@ export const todoRepository = {
    * Writes `changes` to one task — only those fields, so a concurrent write
    * to its other fields survives. A field set to `undefined` is removed. No-op
    * when the task doesn't exist (a save racing a delete doesn't bring it back).
+   * `now` stamps `modifiedAt` (the caller's timestamp, so its copy matches).
    */
-  async update(id: number, changes: Partial<TodoItem>): Promise<void> {
-    await todoRepository.bulkUpdate([{ todoId: id, changes }])
+  async update(id: number, changes: Partial<TodoItem>, now: Date = new Date()): Promise<void> {
+    await todoRepository.bulkUpdate([{ todoId: id, changes }], now)
   },
 
   /**
    * Completes / reopens a task, keeping `completedAt` in step (set on
    * completion, cleared on reopen). `completedAt` overrides the completion
    * time — undo passes the original one back when it re-completes a task.
+   * `now` stamps `modifiedAt` (the caller's timestamp, so its copy matches).
    */
-  async complete(id: number, completed: boolean, completedAt?: Date): Promise<void> {
-    const now = new Date()
+  async complete(id: number, completed: boolean, completedAt?: Date, now: Date = new Date()): Promise<void> {
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const prior = await db.todos.get(id) as PersistedTodoItem | undefined
       await db.todos.update(id, withCompletedAt(prior, { isCompleted: completed, completedAt, modifiedAt: now }, now))
@@ -255,9 +256,14 @@ export const todoRepository = {
     })
   },
 
-  async bulkUpdate(mutations: Array<{ todoId: number; changes: Partial<TodoItem> }>): Promise<void> {
+  /**
+   * Writes each mutation's fields to its task in one transaction, with their
+   * events. `modifiedAt` is `now` (the caller's timestamp, so its copy
+   * matches), or the mutation's own `modifiedAt` when it carries one (an undo
+   * putting the earlier value back).
+   */
+  async bulkUpdate(mutations: Array<{ todoId: number; changes: Partial<TodoItem> }>, now: Date = new Date()): Promise<void> {
     if (mutations.length === 0) return
-    const now = new Date()
     const ts = now.toISOString()
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const events: Omit<TodoEvent, 'id'>[] = []
@@ -266,7 +272,7 @@ export const todoRepository = {
         if (!prior) continue
         const merged = { ...prior, ...changes }
         const cleaned = withCompletedAt(prior, dropOrphanedRule(merged, changes), now)
-        await db.todos.update(todoId, { ...cleaned, modifiedAt: now })
+        await db.todos.update(todoId, { ...cleaned, modifiedAt: changes.modifiedAt ?? now })
         events.push(...buildFieldChangeEvents(todoId, prior, cleaned, ts))
       }
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])

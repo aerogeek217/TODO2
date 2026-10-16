@@ -248,17 +248,18 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
     .filter((t) => ids.includes(t.id))
     .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   const idSet = new Set(ids)
+  // One timestamp for the store and the database write.
+  const now = new Date()
 
   await optimistic(
     () => {
-      const now = new Date()
       set({
         todos: get().todos.map((t) =>
           idSet.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
         ),
       })
     },
-    () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } }))),
+    () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } })), now),
     () => {
       const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
       set({
@@ -273,12 +274,13 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
       description: label,
       redo: () => bulkUpdateField(ids, field, value, label, get, set, opts),
       undo: async () => {
-        const mutations = prevValues
-          .filter((s) => s.prev !== value)
-          .map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } }))
+        // Rows the edit changed get their value and modifiedAt back, in the
+        // database and the store alike; the others are left as they are.
+        const changed = prevValues.filter((s) => s.prev !== value)
+        const mutations = changed.map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } }))
         if (mutations.length > 0) {
           await todoRepository.bulkUpdate(mutations)
-          const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
+          const prevMap = new Map(changed.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
           set({
             todos: get().todos.map((t) => {
               const saved = prevMap.get(t.id)
