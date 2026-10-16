@@ -10,6 +10,7 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { CalendarTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { dayKey } from '../../../utils/date'
 
 const TODAY = new Date(2026, 9, 14, 10) // Wed 14 Oct 2026
 const day = (d: number, m = 9) => new Date(2026, m, d)
@@ -42,7 +43,7 @@ function setup(tab: CalendarTab = calendarTab()) {
 }
 
 const workingTab = () => useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0] as CalendarTab
-const dayCell = (d: Date) => document.querySelector<HTMLElement>(`[data-day="${d.toISOString()}"]`)
+const dayCell = (d: Date) => document.querySelector<HTMLElement>(`[data-day="${dayKey(d)}"]`)
 const label = () => screen.getByTestId('calendar-range-label').textContent
 
 beforeEach(() => {
@@ -73,7 +74,7 @@ describe('CalendarWidget', () => {
     setup()
     expect(label()).toBe('October 2026')
     expect(document.querySelectorAll('[data-day]')).toHaveLength(42)
-    expect(document.querySelector('[data-day]')?.getAttribute('data-day')).toBe(day(28, 8).toISOString())
+    expect(document.querySelector('[data-day]')?.getAttribute('data-day')).toBe(dayKey(day(28, 8)))
     expect(within(dayCell(day(16))!).getByText('Both dates').closest('[data-cal-entry]')?.getAttribute('data-cal-entry')).toBe('due')
     expect(within(dayCell(day(20))!).getByText('Both dates').closest('[data-cal-entry]')?.getAttribute('data-cal-entry')).toBe('followup')
     // Completed tasks show only with "Show completed".
@@ -109,7 +110,7 @@ describe('CalendarWidget', () => {
   it('weeks follow the week-start setting', () => {
     useSettingsStore.setState({ weekStartsOn: 0 })
     setup()
-    expect(document.querySelector('[data-day]')?.getAttribute('data-day')).toBe(day(27, 8).toISOString())
+    expect(document.querySelector('[data-day]')?.getAttribute('data-day')).toBe(dayKey(day(27, 8)))
   })
 
   it('date-type toggles are layout config (unsaved); the last one on stays on', () => {

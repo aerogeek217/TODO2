@@ -23,7 +23,6 @@ import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import {
   buildEntries,
   dayDots,
-  dayKey,
   dayOverdueWash,
   type CalendarEntry,
 } from '../../../services/calendar-entries'
@@ -39,6 +38,7 @@ import {
   weekRowsFit,
   weekdayLabels,
 } from '../../../utils/calendar-grid'
+import { dayKey } from '../../../utils/date'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TodayIcon, WidgetKindIcon } from '../icons'

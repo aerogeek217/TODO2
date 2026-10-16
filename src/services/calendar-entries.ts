@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, Person, Status } from '../models'
 import type { CalendarDateType, CalendarDateTypes } from '../models/workspace-layout'
-import { addDays, startOfDay } from '../utils/date'
+import { addDays, dayKey, startOfDay } from '../utils/date'
 import { generateRecurringInstances } from './recurrence'
 
 export interface CalendarEntry {
@@ -24,10 +24,6 @@ export interface BuildEntriesOptions {
 }
 
 const DUE_ONLY: CalendarDateTypes = { due: true, followup: false }
-
-export function dayKey(d: Date): string {
-  return startOfDay(d).toISOString()
-}
 
 const KIND_ORDER: Record<CalendarDateType, number> = { due: 0, followup: 1 }
 

@@ -6,7 +6,7 @@ import {
   dayOverdueWash,
   isEntryOverdue,
 } from '../../services/calendar-entries'
-import { startOfDay, MS_PER_DAY } from '../../utils/date'
+import { dayKey, startOfDay, MS_PER_DAY } from '../../utils/date'
 import { makeTodo } from '../helpers'
 
 const today = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
@@ -18,7 +18,7 @@ describe('buildEntries (shared)', () => {
   it('places a todo on its due day', () => {
     const t = makeTodo({ id: 1, dueDate: today })
     const map = buildEntries([t], days, {})
-    const entries = map.get(today.toISOString()) ?? []
+    const entries = map.get(dayKey(today)) ?? []
     expect(entries.map((e) => e.todo.id)).toEqual([1])
     expect(entries[0]!.isVirtual).toBe(false)
   })
@@ -26,7 +26,7 @@ describe('buildEntries (shared)', () => {
   it('places a due date with a time of day on that day', () => {
     const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 12 * 60 * 60 * 1000) })
     const map = buildEntries([t], days, {})
-    expect((map.get(today.toISOString()) ?? []).map((e) => e.todo.id)).toEqual([1])
+    expect((map.get(dayKey(today)) ?? []).map((e) => e.todo.id)).toEqual([1])
   })
 
   it('does not place a todo that only has a next follow-up', () => {
@@ -47,7 +47,7 @@ describe('buildEntries (shared)', () => {
     const b = makeTodo({ id: 2, dueDate: today, sortOrder: 10 })
     const c = makeTodo({ id: 3, dueDate: today, sortOrder: 20 })
     for (const input of [[a, b, c], [c, a, b]]) {
-      const entries = buildEntries(input, days, {}).get(today.toISOString()) ?? []
+      const entries = buildEntries(input, days, {}).get(dayKey(today)) ?? []
       expect(entries.map((e) => e.todo.id)).toEqual([2, 3, 1])
     }
   })
@@ -56,9 +56,9 @@ describe('buildEntries (shared)', () => {
     const start = days[0]!
     const t = makeTodo({ id: 1, dueDate: start, recurrenceRule: { type: 'daily' } })
     const map = buildEntries([t], days, {})
-    expect(map.get(start.toISOString())?.[0]?.isVirtual).toBe(false)
+    expect(map.get(dayKey(start))?.[0]?.isVirtual).toBe(false)
     for (const d of days.slice(1)) {
-      const [entry] = map.get(d.toISOString()) ?? []
+      const [entry] = map.get(dayKey(d)) ?? []
       expect(entry?.isVirtual, d.toDateString()).toBe(true)
       expect(entry?.todo.id).toBe(1)
     }
@@ -77,7 +77,7 @@ describe('buildEntries — date types', () => {
   it('places a task once per shown date type, due before follow-up on a shared day', () => {
     const t = makeTodo({ id: 1, dueDate: today, nextFollowupAt: today, sortOrder: 5 })
     const u = makeTodo({ id: 2, nextFollowupAt: today, sortOrder: 1 })
-    const entries = buildEntries([u, t], days, { dateTypes: both }).get(today.toISOString()) ?? []
+    const entries = buildEntries([u, t], days, { dateTypes: both }).get(dayKey(today)) ?? []
     expect(entries.map((e) => [e.todo.id, e.kind])).toEqual([[1, 'due'], [2, 'followup'], [1, 'followup']])
     expect(new Set(entries.map((e) => e.key)).size).toBe(3)
   })
@@ -90,7 +90,7 @@ describe('buildEntries — date types', () => {
 
   it('entries carry their day at midnight', () => {
     const t = makeTodo({ id: 1, nextFollowupAt: new Date(today.getTime() + 15 * 3_600_000) })
-    const [entry] = buildEntries([t], days, { dateTypes: both }).get(today.toISOString()) ?? []
+    const [entry] = buildEntries([t], days, { dateTypes: both }).get(dayKey(today)) ?? []
     expect(entry?.day.getTime()).toBe(today.getTime())
   })
 })
@@ -99,7 +99,7 @@ describe('entry state, overdue washes and dots', () => {
   const yesterday = days[2]!
   const tomorrow = days[4]!
   const entriesOn = (d: Date, todos: Parameters<typeof buildEntries>[0]) =>
-    buildEntries(todos, days, { dateTypes: both }).get(d.toISOString()) ?? []
+    buildEntries(todos, days, { dateTypes: both }).get(dayKey(d)) ?? []
 
   it('states: due / due today / overdue due / follow-up / overdue follow-up', () => {
     const [future] = entriesOn(tomorrow, [makeTodo({ id: 1, dueDate: tomorrow })])

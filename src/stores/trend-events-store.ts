@@ -3,6 +3,7 @@ import { todoEventRepository } from '../data/todo-event-repository'
 import type { TodoEvent } from '../models'
 import { TREND_EVENT_TYPES, trendWindow, type TrendRange } from '../services/stats/trend'
 import type { WeekStart } from '../utils/effective-date'
+import { dayKey } from '../utils/date'
 
 /**
  * The `todoEvents` the dashboard trend reads, cached per (range, day): one
@@ -26,11 +27,6 @@ interface TrendEventsState {
   /** Reads the window's events unless the entry is fresh or already loading. */
   load: (range: TrendRange, today: Date, weekStartsOn: WeekStart) => Promise<void>
   invalidate: () => void
-}
-
-/** Local `YYYY-MM-DD` of `d`. */
-function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 /** The cache key of a trend window. */

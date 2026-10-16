@@ -69,12 +69,15 @@ export function formatRelativeTime(date: Date): string {
   return `${days}d ago`
 }
 
-/** Format a Date as "YYYY-MM-DD" for <input type="date"> */
-export function toDateInputValue(date: Date | undefined): string {
-  if (!date) return ''
-  const d = new Date(date)
+/** The local calendar day of `d` as a key: `YYYY-MM-DD` (any time of that day gives the same key). */
+export function dayKey(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/** Format a Date as "YYYY-MM-DD" for <input type="date"> */
+export function toDateInputValue(date: Date | undefined): string {
+  return date ? dayKey(new Date(date)) : ''
 }

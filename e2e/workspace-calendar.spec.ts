@@ -24,11 +24,12 @@ function layoutWith(calendar: Omit<WsTabSeed, 'id' | 'kind'>, opts: { listWeight
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 const calendar = (page: Page) => page.locator('[data-calendar-widget="calTab"]')
 
-/** The `data-day` key (midnight ISO, in the page's time zone) of today + `n` days. */
+/** The `data-day` key (local `YYYY-MM-DD`, in the page's time zone) of today + `n` days. */
 async function dayKey(page: Page, n: number): Promise<string> {
   return page.evaluate((n) => {
     const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + n).toISOString()
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + n)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }, n)
 }
 
