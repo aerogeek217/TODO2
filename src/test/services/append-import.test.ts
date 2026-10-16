@@ -7,6 +7,7 @@ import { appendImportTasks } from '../../data/append-import'
 import { buildTaskArchive } from '../../services/task-archive'
 import { defaultAppendChoices, findAppendDuplicates, runAppendImport } from '../../services/append-import'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
+import { buildExportData, selfCheckExportJson } from '../../data/export-data'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -222,6 +223,28 @@ describe('appendImportTasks — person emails', () => {
     expect(result.created.people).toEqual(['Bob'])
     expect(await db.people.get(target)).toEqual({ id: target, name: 'alice', initials: 'A' })
     expect(await db.people.where('name').equals('Bob').first()).toMatchObject({ initials: 'BO', email: 'bob@source.example' })
+  })
+})
+
+describe('appendImportTasks — blank names', () => {
+  it('a person / tag / status named only spaces is created as named, so every export still imports', async () => {
+    const now = new Date().toISOString()
+    const data = prepareAppend(JSON.stringify({
+      [SCHEMA_VERSION_KEY]: 63,
+      kind: TASK_ARCHIVE_KIND,
+      todos: [{ id: 1, uid: 'blank-1', title: 'Task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 1, statusId: 1 }],
+      people: [{ id: 1, name: '   ', initials: 'X' }],
+      todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
+      tags: [{ id: 1, name: '  ', color: '#112233' }],
+      todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
+      statuses: [{ id: 1, name: ' ', color: '#445566', sortOrder: 1 }],
+    }))
+    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])))
+    expect(result.todoIds).toHaveLength(1)
+    expect((await db.people.toArray()).map((p) => p.name)).toEqual(['   '])
+    expect((await db.tags.toArray()).map((t) => t.name)).toEqual(['  '])
+    expect((await db.statuses.toArray()).map((s) => s.name)).toEqual([' '])
+    expect(selfCheckExportJson(JSON.stringify(await buildExportData()))).toBeNull()
   })
 })
 

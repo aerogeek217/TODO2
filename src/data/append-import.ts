@@ -22,6 +22,15 @@ export function nameKey(name: string): string {
   return name.trim().toLowerCase()
 }
 
+/**
+ * The name a created entity is stored under: trimmed — unless that leaves
+ * nothing, since an empty name is one no import accepts (every later
+ * export, backup and the sync file would then be refused).
+ */
+function storedName(name: string): string {
+  return name.trim() || name
+}
+
 function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]): Map<string, number> {
   const out = new Map<string, number>()
   for (const r of rows) {
@@ -87,12 +96,12 @@ export async function appendImportTasks(
       if (!row) return undefined
       let id = peopleByName.get(nameKey(row.name))
       if (id == null) {
-        const person: Person = { name: row.name.trim(), initials: row.initials }
+        const person: Person = { name: storedName(row.name), initials: row.initials }
         if (row.color != null) person.color = row.color
         if (row.email != null) person.email = row.email
         id = await db.people.add(person) as number
         peopleByName.set(nameKey(row.name), id)
-        created.people.push(row.name.trim())
+        created.people.push(storedName(row.name))
       }
       personMap.set(incomingId, id)
       return id
@@ -104,9 +113,9 @@ export async function appendImportTasks(
       if (!row) return undefined
       let id = tagsByName.get(nameKey(row.name))
       if (id == null) {
-        id = await db.tags.add({ name: row.name.trim(), color: row.color } as Tag) as number
+        id = await db.tags.add({ name: storedName(row.name), color: row.color } as Tag) as number
         tagsByName.set(nameKey(row.name), id)
-        created.tags.push(row.name.trim())
+        created.tags.push(storedName(row.name))
       }
       tagMap.set(incomingId, id)
       return id
@@ -119,7 +128,7 @@ export async function appendImportTasks(
       if (!row) return undefined
       let id = statusesByName.get(nameKey(row.name))
       if (id == null) {
-        const status: Status = { name: row.name.trim(), color: row.color, sortOrder: nextStatusSort++ }
+        const status: Status = { name: storedName(row.name), color: row.color, sortOrder: nextStatusSort++ }
         if (row.icon != null) status.icon = row.icon
         id = await db.statuses.add(status) as number
         statusesByName.set(nameKey(row.name), id)
