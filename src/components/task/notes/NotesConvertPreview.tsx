@@ -230,6 +230,9 @@ export function NotesConvertPreview({
       onKeyDown={handleKeyDown}
       // Opened from inside a notes surface (the task editor's notes): its keys stay here.
       stopKeys
+      // The draft editor on top isn't an `aria-modal` dialog: while it is
+      // open, an Esc with nothing focused is its, not the preview's.
+      escapeBelongsElsewhere={() => editing}
     >
       <div className={styles.header}>
         <h2 id={titleId} className={styles.dialogTitle}>Convert to tasks</h2>
