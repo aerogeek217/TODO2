@@ -32,6 +32,7 @@ import { CHECKIN_LABELS, CHECKIN_META_LABELS, CHECKIN_SECTION_LABELS, CHECKIN_SI
 import { TASK_REF_LENGTH } from '../checkin-email/ref'
 import { escapeHtml } from '../../utils/html'
 import { sanitizeHref } from '../notes-export'
+import { collapseWhitespace } from '../../utils/text'
 
 /** Largest paste read (HTML + plain text, in UTF-16 code units). */
 export const CHECKIN_REPLY_MAX_CHARS = 2 * 1024 * 1024
@@ -92,11 +93,6 @@ interface Footer {
 
 // ── Shared text helpers ─────────────────────────────────────────────────
 
-/** Collapses every whitespace run (incl. no-break spaces and tabs) to one space and trims. */
-function collapse(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
-}
-
 /** Longer lines are never task / label / footer lines (keeps every regex cheap). */
 const MAX_STRUCTURE_LINE = 2000
 
@@ -142,7 +138,7 @@ const LABEL_WORDS = FIELD_ORDER.map((f) => FIELD_LABELS[f]).join('|')
 const LABEL_LINE = new RegExp(`^(${LABEL_WORDS})(?:\\s*:\\s*|\\t\\s*|\\s*$)(.*)$`, 'is')
 
 function fieldOfLabel(text: string): Field | null {
-  const label = collapse(text).replace(/\s*:$/, '').toLowerCase()
+  const label = collapseWhitespace(text).replace(/\s*:$/, '').toLowerCase()
   return FIELD_ORDER.find((f) => FIELD_LABELS[f] === label) ?? null
 }
 
@@ -159,7 +155,7 @@ const BOX_NOT_DONE = new Set(['no', 'n'])
  */
 export function isCompletedMarked(value: string): boolean {
   // The box is a few characters; a long value is read by its start (keeps the regexes cheap).
-  const text = collapse(value.slice(0, 200).replace(/\[[^\]\s]+(?:\s+[^\]\s]+)+\]/g, ' '))
+  const text = collapseWhitespace(value.slice(0, 200).replace(/\[[^\]\s]+(?:\s+[^\]\s]+)+\]/g, ' '))
   const box = /\[\s*([^\s\]]*)\s*\]/.exec(text)
   if (box) {
     const inner = (box[1] ?? '').toLowerCase()
@@ -216,7 +212,7 @@ function blockText(root: Node): string {
 }
 
 function cellText(cell: Element | undefined): string {
-  return cell ? collapse(cell.textContent ?? '') : ''
+  return cell ? collapseWhitespace(cell.textContent ?? '') : ''
 }
 
 function isUpdateTable(table: HTMLTableElement): boolean {
@@ -233,10 +229,10 @@ function taskOfRow(tr: HTMLTableRowElement): { ref: string; title?: string } | n
   if (last === undefined || last.length > MAX_STRUCTURE_LINE) return null
   const cellRef = REF_CELL.exec(last)
   if (cellRef?.[1]) {
-    const title = collapse(texts.slice(0, refIdx).join(' ')).replace(/^\d+\.\s*/, '')
+    const title = collapseWhitespace(texts.slice(0, refIdx).join(' ')).replace(/^\d+\.\s*/, '')
     return { ref: cellRef[1].toLowerCase(), ...(title ? { title } : {}) }
   }
-  const joined = collapse(texts.join(' '))
+  const joined = collapseWhitespace(texts.join(' '))
   if (joined.length > MAX_STRUCTURE_LINE) return null
   const whole = TASK_LINE.exec(joined)
   if (whole?.[3]) return { ref: whole[3].toLowerCase(), ...(whole[2] ? { title: whole[2] } : {}) }
@@ -278,7 +274,7 @@ function cleanNotesCell(cell: Element): string {
   // Word list paragraphs: the bullet / number lives in an `mso-list:Ignore` span.
   for (const span of Array.from(clone.querySelectorAll('span')).filter(isListIgnoreSpan)) {
     if (!clone.contains(span)) continue
-    const marker = collapse(span.textContent ?? '')
+    const marker = collapseWhitespace(span.textContent ?? '')
     const para = span.closest('p, li')
     span.remove()
     if (para?.tagName.toLowerCase() === 'p') {
@@ -313,7 +309,7 @@ function readUpdateTable(table: HTMLTableElement, block: CheckinReplyBlock): voi
     let valueText: string | undefined
     if (!field && cells.length === 1) {
       // Label and value in one cell: `Progress: …`.
-      const m = LABEL_LINE.exec(collapse(labelCell.textContent ?? ''))
+      const m = LABEL_LINE.exec(collapseWhitespace(labelCell.textContent ?? ''))
       field = m?.[1] ? fieldOfLabel(m[1]) : null
       valueCell = undefined
       valueText = m?.[2] ?? ''
@@ -322,7 +318,7 @@ function readUpdateTable(table: HTMLTableElement, block: CheckinReplyBlock): voi
     seen.add(field)
     const text = valueText ?? cellText(valueCell)
     if (field === 'completed') block.completed = isCompletedMarked(text)
-    else if (field === 'progress') block.progress = collapse(text)
+    else if (field === 'progress') block.progress = collapseWhitespace(text)
     else block.notesHtml = valueCell ? cleanNotesCell(valueCell) : escapeHtml(text)
   }
 }
@@ -333,11 +329,11 @@ function findHtmlFooter(doc: Document): { footer: Footer; node: Node | null } | 
   while (walker.nextNode()) {
     const text = walker.currentNode.textContent ?? ''
     if (!/check-in for/i.test(text)) continue
-    const footer = matchFooter(collapse(text))
+    const footer = matchFooter(collapseWhitespace(text))
     if (footer) return { footer, node: walker.currentNode }
   }
   for (const line of blockText(doc.body).split('\n')) {
-    const footer = matchFooter(collapse(line))
+    const footer = matchFooter(collapseWhitespace(line))
     if (footer) return { footer, node: null }
   }
   return null
@@ -404,21 +400,21 @@ function trimBlankEnds(lines: string[]): string[] {
 
 /** A task line at `lines[i]`, possibly wrapped onto the next non-blank line; `next` = the first line after it. */
 function taskLineAt(lines: readonly string[], i: number): { ref: string; title: string; next: number } | null {
-  const text = collapse(lines[i] ?? '')
+  const text = collapseWhitespace(lines[i] ?? '')
   if (text.length > MAX_STRUCTURE_LINE) return null
   const one = /\bref\b/i.test(text) ? TASK_LINE.exec(text) : null
   if (one?.[3]) return { ref: one[3].toLowerCase(), title: one[2] ?? '', next: i + 1 }
   if (!NUMBERED.test(text)) return null
   const title = text.replace(/^\d+\.\s*/, '')
   // `4. A long title that wraps` / `onto here  Ref 9e8d7c6b` on the next line.
-  const nextText = collapse(lines[i + 1] ?? '')
+  const nextText = collapseWhitespace(lines[i + 1] ?? '')
   if (nextText !== '') {
     if (nextText.length > MAX_STRUCTURE_LINE || NUMBERED.test(nextText)) return null
     const tail = REF_TAIL.exec(nextText)
-    return tail?.[2] ? { ref: tail[2].toLowerCase(), title: collapse(`${title} ${tail[1] ?? ''}`), next: i + 2 } : null
+    return tail?.[2] ? { ref: tail[2].toLowerCase(), title: collapseWhitespace(`${title} ${tail[1] ?? ''}`), next: i + 2 } : null
   }
   // The Ref cell on its own line, after a blank one (a table converted to text).
-  const cellText = collapse(lines[i + 2] ?? '')
+  const cellText = collapseWhitespace(lines[i + 2] ?? '')
   const cell = cellText.length <= MAX_STRUCTURE_LINE ? REF_CELL.exec(cellText) : null
   return cell?.[1] ? { ref: cell[1].toLowerCase(), title, next: i + 3 } : null
 }
@@ -427,7 +423,7 @@ const META_LINE = new RegExp(`^(?:${Object.values(CHECKIN_META_LABELS).join('|')
 
 /** A blank line, a task's meta line or a title line left without its Ref. */
 function isHeadingResidue(line: string): boolean {
-  const text = collapse(line)
+  const text = collapseWhitespace(line)
   return text === '' || (text.length <= MAX_STRUCTURE_LINE && (META_LINE.test(text) || NUMBERED.test(text)))
 }
 
@@ -459,13 +455,13 @@ function parsePlain(plain: string): FlavourResult {
   const setValue = (f: Field, value: string) => {
     if (!block) return
     if (f === 'completed') block.completed = isCompletedMarked(value)
-    else if (f === 'progress') block.progress = collapse(value)
+    else if (f === 'progress') block.progress = collapseWhitespace(value)
   }
 
   let i = 0
   while (i < lines.length) {
     const line = lines[i] ?? ''
-    const text = collapse(line)
+    const text = collapseWhitespace(line)
     const lower = text.toLowerCase()
 
     // The footer ends the newest email; anything below is an older one quoted in the thread.
@@ -530,7 +526,7 @@ function parsePlain(plain: string): FlavourResult {
       continue
     }
     if (progressOpen && block) {
-      if (text) block.progress = collapse(`${block.progress ?? ''} ${text}`)
+      if (text) block.progress = collapseWhitespace(`${block.progress ?? ''} ${text}`)
       else progressOpen = false
     }
   }

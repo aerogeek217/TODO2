@@ -27,6 +27,7 @@ import { replaceMarkdownLinks } from '../../utils/markdown-links'
 import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
+import { collapseWhitespace } from '../../utils/text'
 
 /** Progress is one line of at most this many characters (as in the task editor). */
 export const CHECKIN_PROGRESS_MAX = 500
@@ -107,10 +108,6 @@ export interface CheckinDiffContext {
 
 // ── Notes lines ─────────────────────────────────────────────────────────
 
-function collapse(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
-}
-
 /** Checkbox glyphs `mdToHtml` prints (and mail clients keep) back to Markdown. */
 function fixCheckbox(line: string): string {
   return line
@@ -123,7 +120,7 @@ function fixCheckbox(line: string): string {
  * (Word's plain text) as `- `, checkbox glyphs as `- [ ]` / `- [x]`.
  */
 function replyLine(line: string): string {
-  return fixCheckbox(collapse(line).replace(/^[•·▪◦]\s+/, '- '))
+  return fixCheckbox(collapseWhitespace(line).replace(/^[•·▪◦]\s+/, '- '))
 }
 
 /**
@@ -132,13 +129,13 @@ function replyLine(line: string): string {
  * collapsed; a checkbox keeps its state (`[ ] ` / `[x] `).
  */
 export function notesLineKey(markdownLine: string): string {
-  let s = collapse(markdownLine)
+  let s = collapseWhitespace(markdownLine)
   s = s.replace(/^#{1,6}\s+/, '')
   s = s.replace(/^[-*+•·▪◦]\s+/, '')
   s = s.replace(/^(?:\[\s?\]|☐)\s*/, '[ ] ').replace(/^(?:\[[xX✓✔]\]|[☑☒])\s*/, '[x] ')
   s = replaceMarkdownLinks(s, (text) => text, true)
   s = s.replace(/\*\*|__|[*`]/g, '')
-  return collapse(s)
+  return collapseWhitespace(s)
 }
 
 /** Separates stored lines in one `htmlToMarkdown` pass (invisible separators + a word: never in real notes). */
@@ -152,10 +149,10 @@ const LINE_MARK = `${INVISIBLE_SEPARATOR.repeat(2)}line${INVISIBLE_SEPARATOR.rep
  * batch comes back misaligned.
  */
 function roundTrip(lines: readonly string[]): string[] {
-  const one = (line: string) => collapse(htmlToMarkdown(mdToHtml(line)))
+  const one = (line: string) => collapseWhitespace(htmlToMarkdown(mdToHtml(line)))
   if (lines.length < 2) return lines.map(one)
   const html = lines.map(mdToHtml).join(`<p>${LINE_MARK}</p>`)
-  const parts = htmlToMarkdown(html).split(LINE_MARK).map(collapse)
+  const parts = htmlToMarkdown(html).split(LINE_MARK).map(collapseWhitespace)
   return parts.length === lines.length ? parts : lines.map(one)
 }
 
@@ -288,7 +285,7 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
 
 /** The reply's Progress as the task would store it: one line, capped. */
 export function replyProgress(value: string): string {
-  return collapse(value).slice(0, CHECKIN_PROGRESS_MAX).trim()
+  return collapseWhitespace(value).slice(0, CHECKIN_PROGRESS_MAX).trim()
 }
 
 /** Whether the task was modified on a later (local) day than `sentDate`. */
@@ -304,7 +301,7 @@ function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock, stale: 
   if (block.progress !== undefined) {
     const to = replyProgress(block.progress)
     const from = todo.progress ?? ''
-    if (to !== '' && to !== collapse(from)) changes.push({ field: 'progress', from, to, defaultSelected: ticked })
+    if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: ticked })
   }
   const notes = diffNotes(todo.notes ?? '', replyNotesLines(block))
   if (notes) changes.push({ ...notes, defaultSelected: notes.defaultSelected && ticked })

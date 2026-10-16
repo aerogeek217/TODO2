@@ -24,6 +24,7 @@ import { escapeHtml } from '../../utils/html'
 import { mdToHtml } from '../notes-export'
 import { taskRef } from './ref'
 import type { CheckinSections } from './select'
+import { collapseWhitespace } from '../../utils/text'
 
 export interface CheckinEmailContext {
   /** Today (only the day is used): overdue days and "Today" labels. */
@@ -85,7 +86,7 @@ export const CHECKIN_SIGN_OFF = 'Thanks,'
 
 /** `Check-in for <name> · sent <YYYY-MM-DD>` — the footer line a reply reader parses. */
 export function checkinFooterLine(personName: string, sentAt: Date): string {
-  return `Check-in for ${oneLine(personName)} · sent ${toDateInputValue(sentAt)}`
+  return `Check-in for ${collapseWhitespace(personName)} · sent ${toDateInputValue(sentAt)}`
 }
 
 /** `Task check-in: 3 open tasks` / `Task check-in: 1 open task`. */
@@ -98,14 +99,9 @@ export function checkinSubject(taskCount: number): string {
  * when the first word is a prefix ending in a colon (`Org: Northwind`).
  */
 export function checkinFirstName(name: string): string {
-  const full = oneLine(name)
+  const full = collapseWhitespace(name)
   const first = full.split(' ')[0] ?? ''
   return first === '' || first.endsWith(':') ? full : first
-}
-
-/** Collapses every run of whitespace (line breaks, tabs) to one space and trims. */
-function oneLine(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
 }
 
 /** `Thu, Oct 8` (`, 2027` when not this year), or `Today`. */
@@ -152,10 +148,10 @@ function metaItems(
   }
   if (todo.nextFollowupAt) items.push({ label: CHECKIN_META_LABELS.nextFollowup, value: formatEmailDay(todo.nextFollowupAt, ctx.today) })
   const tags = ctx.assignedTagsMap?.get(todo.id) ?? []
-  if (tags.length > 0) items.push({ label: CHECKIN_META_LABELS.tags, value: tags.map((t) => `#${oneLine(t.name)}`).join('  ') })
+  if (tags.length > 0) items.push({ label: CHECKIN_META_LABELS.tags, value: tags.map((t) => `#${collapseWhitespace(t.name)}`).join('  ') })
   if (opts.includeOthers) {
     const others = (ctx.assignedPeopleMap.get(todo.id) ?? []).filter((p) => p.id !== person.id)
-    if (others.length > 0) items.push({ label: CHECKIN_META_LABELS.alsoAssigned, value: others.map((p) => oneLine(p.name)).join(', ') })
+    if (others.length > 0) items.push({ label: CHECKIN_META_LABELS.alsoAssigned, value: others.map((p) => collapseWhitespace(p.name)).join(', ') })
   }
   return items
 }
@@ -176,10 +172,10 @@ function sectionViews(
   let num = 0
   const view = (todo: PersistedTodoItem): TaskView => ({
     num: ++num,
-    title: oneLine(todo.title),
+    title: collapseWhitespace(todo.title),
     ref: refOf(todo.uid),
     meta: metaItems(todo, person, ctx, opts),
-    progress: oneLine(todo.progress ?? ''),
+    progress: collapseWhitespace(todo.progress ?? ''),
     notes: (todo.notes ?? '').replace(/\r\n?/g, '\n').trimEnd(),
   })
   const out: SectionView[] = []

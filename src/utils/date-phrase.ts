@@ -1,4 +1,5 @@
 import { addDays, startOfDay } from './date'
+import { collapseWhitespace } from './text'
 
 /**
  * The app's relative date words: `today`, `tomorrow` / `tmr`, `yesterday`,
@@ -55,7 +56,7 @@ export function parseNumericDate(text: string, today: Date): Date | null {
  * or null when it isn't one. Case-insensitive; inner whitespace may repeat.
  */
 export function parseDatePhrase(text: string, today: Date): Date | null {
-  const lower = text.toLowerCase().trim().replace(/\s+/g, ' ')
+  const lower = collapseWhitespace(text.toLowerCase())
   if (!lower) return null
   const base = startOfDay(today)
   if (lower === 'today') return base

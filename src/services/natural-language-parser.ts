@@ -8,6 +8,7 @@ import {
   takesArgument,
   type SlashCommandName,
 } from './slash-commands'
+import { collapseWhitespace } from '../utils/text'
 
 /**
  * Task-text parser. Only explicit tokens set metadata:
@@ -172,7 +173,7 @@ export function removeSpans(text: string, spans: readonly { start: number; end: 
   for (const s of [...spans].sort((a, b) => b.start - a.start)) {
     out = out.slice(0, s.start) + out.slice(s.end)
   }
-  return out.replace(/\s+/g, ' ').trim()
+  return collapseWhitespace(out)
 }
 
 export function parseInput(input: string, today: Date = new Date()): ParsedInput {

@@ -20,6 +20,7 @@ import {
   type SlashCommandName,
   type SlashCommandSpec,
 } from './slash-commands'
+import { collapseWhitespace } from '../utils/text'
 
 /**
  * The autocomplete popup for task text, as pure functions over
@@ -195,7 +196,7 @@ const isPrefixOf = (part: string, words: readonly string[]) =>
  * with the grammar hint instead of an error.
  */
 export function isPartialDateArgument(text: string, command: 'due' | 'followup'): boolean {
-  const t = text.trim().toLowerCase().replace(/\s+/g, ' ')
+  const t = collapseWhitespace(text.toLowerCase())
   if (!t) return true
   if (isPrefixOf(t, command === 'followup' ? [...KEYWORDS, 'none'] : KEYWORDS)) return true
   if (t === 'next' || t === 'in') return true

@@ -21,10 +21,10 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import styles from './CheckinImportDialog.module.css'
+import { collapseWhitespace } from '../../utils/text'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-const collapse = (s: string) => s.replace(/\s+/g, ' ').trim()
-const sameName = (a: string, b: string) => collapse(a).toLocaleLowerCase() === collapse(b).toLocaleLowerCase()
+const sameName = (a: string, b: string) => collapseWhitespace(a).toLocaleLowerCase() === collapseWhitespace(b).toLocaleLowerCase()
 
 const FIELD_LABEL: Record<CheckinChange['field'], string> = {
   completed: 'Completed',

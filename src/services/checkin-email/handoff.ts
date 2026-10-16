@@ -6,6 +6,7 @@
 import { toDateInputValue } from '../../utils/date'
 import { isValidEmail } from '../../utils/person'
 import { writeRichClipboard } from '../task-copy'
+import { collapseWhitespace } from '../../utils/text'
 
 /**
  * `s` without control characters (CR, LF, tab and the rest of C0, DEL):
@@ -208,6 +209,6 @@ const UNSAFE_FILE_CHARS = /[\\/:*?"<>|]/g
 
 /** `Check-in - <name> - <YYYY-MM-DD>.eml`; characters a file name can't hold become spaces. */
 export function checkinEmlFileName(personName: string, sentAt: Date): string {
-  const name = stripControls(personName).replace(UNSAFE_FILE_CHARS, ' ').replace(/\s+/g, ' ').trim() || 'person'
+  const name = collapseWhitespace(stripControls(personName).replace(UNSAFE_FILE_CHARS, ' ')) || 'person'
   return `Check-in - ${name} - ${toDateInputValue(sentAt)}.eml`
 }

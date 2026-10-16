@@ -23,6 +23,7 @@ import { CloseIcon, FunnelIcon, PlusIcon, SearchIcon } from '../workspace/icons'
 import { useMediaQuery } from '../../hooks/use-media-query'
 import { formatShortcut } from '../../utils/platform'
 import styles from './TopBar.module.css'
+import { collapseWhitespace } from '../../utils/text'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
@@ -140,7 +141,7 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
       >
         <span className={styles.miniListTitle}>{todo.title}</span>
         {field === 'notes' && todo.notes && (
-          <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
+          <span className={styles.miniListMatchSnippet}>{collapseWhitespace(todo.notes)}</span>
         )}
         <SearchResultPills todo={todo} ctx={pillCtx} />
       </button>
