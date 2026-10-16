@@ -8,7 +8,7 @@ import { exportAndPurgeCompleted, listExpiredCompleted } from '../../services/pu
 import { saveTextFile } from '../../services/save-file'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { SCHEMA_VERSION_KEY } from '../../services/migration-check'
+import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { resetDb } from '../helpers'
 
 vi.mock('../../services/save-file', () => ({ saveTextFile: vi.fn() }))

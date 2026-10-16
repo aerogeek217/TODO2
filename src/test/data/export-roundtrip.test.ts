@@ -5,7 +5,7 @@ import { IMPORT_ROW_PICKERS, KNOWN_TABLE_KEYS, type ImportData } from '../../dat
 import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
-import { buildExportData } from '../../services/export-import'
+import { buildExportData } from '../../data/export-data'
 import type { TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { makeTodo, resetDb } from '../helpers'

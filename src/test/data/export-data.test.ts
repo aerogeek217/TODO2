@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { buildExportData, buildMarkdownExport, selfCheckExportJson } from '../../services/export-import'
+import { buildExportData, selfCheckExportJson } from '../../data/export-data'
+import { buildMarkdownExport } from '../../services/markdown-export'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
 import { resetDb, makeTodo, makePerson } from '../helpers'

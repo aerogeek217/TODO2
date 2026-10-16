@@ -7,7 +7,7 @@ import {
   type FileUpgradeInfo,
 } from '../services/file-storage'
 import { refreshAllStores } from './refresh-all'
-import type { UnsupportedImportInfo } from '../services/migration-check'
+import type { UnsupportedImportInfo } from '../data/file-version'
 
 let legacyImportResolve: ((confirmed: boolean) => void) | null = null
 let conflictResolve: ((choice: SyncConflictChoice) => void) | null = null

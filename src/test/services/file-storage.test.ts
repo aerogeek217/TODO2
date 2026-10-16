@@ -29,7 +29,7 @@ vi.mock('../../data/restore', () => ({
 
 const mockBuildExportData = vi.fn().mockResolvedValue({ todos: [], projects: [] })
 
-vi.mock('../../services/export-import', () => ({
+vi.mock('../../data/export-data', () => ({
   buildExportData: (...args: unknown[]) => mockBuildExportData(...args),
 }))
 

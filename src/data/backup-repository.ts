@@ -1,5 +1,5 @@
 import { db } from './database'
-import { buildExportData, selfCheckExportJson } from '../services/export-import'
+import { buildExportData, selfCheckExportJson } from './export-data'
 import type { Backup, BackupTrigger } from '../models'
 
 export interface BackupSummary {

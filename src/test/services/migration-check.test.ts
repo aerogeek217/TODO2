@@ -1,10 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import {
-  checkUnsupportedOldDB,
-  detectUnsupportedImport,
-  exportCurrentDatabase,
-  SCHEMA_VERSION_KEY,
-} from '../../services/migration-check'
+import { checkUnsupportedOldDB, exportCurrentDatabase } from '../../services/migration-check'
+import { detectUnsupportedImport, SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 
 function createRawDb(version: number, setup?: (db: IDBDatabase) => void): Promise<void> {

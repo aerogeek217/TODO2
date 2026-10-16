@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { prepareImport, prepareImportText, TASK_ARCHIVE_KIND } from '../../data/import-pipeline'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
-import { SCHEMA_VERSION_KEY } from '../../services/migration-check'
+import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 
 const now = new Date().toISOString()
 

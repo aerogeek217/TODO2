@@ -1,7 +1,7 @@
 import { ALL_DATA_TABLES, db } from '../data/database'
 import { prepareImport } from '../data/import-pipeline'
 import type { ImportData } from '../data/import-validation'
-import { buildExportData } from './export-import'
+import { buildExportData } from '../data/export-data'
 
 /** JSON with object keys sorted recursively — key order never matters. */
 function canonical(value: unknown): string {

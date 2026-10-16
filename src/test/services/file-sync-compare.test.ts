@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { buildExportData } from '../../services/export-import'
+import { buildExportData } from '../../data/export-data'
 import { prepareImport } from '../../data/import-pipeline'
 import { browserMatchesFile, browserTaskCount, importDataEqual } from '../../services/file-sync-compare'
 import { readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId, FILE_SYNC_STATE_KEY } from '../../services/file-sync-state'

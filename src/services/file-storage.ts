@@ -5,11 +5,11 @@ import type { ImportData } from '../data/import-validation'
 import { prepareImport } from '../data/import-pipeline'
 import type { PrepareImportFailure } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
-import { buildExportData } from './export-import'
+import { buildExportData } from '../data/export-data'
 import { backupScheduler } from './backup-scheduler'
 import { NO_BACKUP_NOTE, takeSafetySnapshot } from './safety-snapshot'
 import { useUndoStore } from '../stores/undo-store'
-import type { UnsupportedImportInfo } from './migration-check'
+import type { UnsupportedImportInfo } from '../data/file-version'
 import {
   readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId,
 } from './file-sync-state'

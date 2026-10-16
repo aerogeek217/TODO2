@@ -1,6 +1,6 @@
 import { CURRENT_DB_VERSION, db } from '../data/database'
 import { prepareImportText, TASK_ARCHIVE_KIND } from '../data/import-pipeline'
-import { SCHEMA_VERSION_KEY } from './migration-check'
+import { SCHEMA_VERSION_KEY } from '../data/file-version'
 import type {
   TodoItem, TodoPerson, TodoTag, TodoEvent, Person, Tag, Status,
 } from '../models'

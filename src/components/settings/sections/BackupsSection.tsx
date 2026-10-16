@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFileOpsStore } from '../../../stores/file-ops-store'
 import { prepareImportText } from '../../../data/import-pipeline'
-import type { UnsupportedImportInfo } from '../../../services/migration-check'
+import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
 import { BYTES_PER_KB } from '../../../constants'
 import type { BackupTrigger } from '../../../models'
