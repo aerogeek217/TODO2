@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedTaskList } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
-import { readStore } from './fixtures/db'
+import { afterTransactionsOn, readStore } from './fixtures/db'
 
 /**
  * Slash commands in Quick Add: the `/` menu (open, filter, keys, argument
@@ -198,8 +198,9 @@ test.describe('Quick Add metadata write', () => {
     const row = taskRowByTitle(page, 'Ship it')
     await expect(row.getByText('#ops')).toBeVisible()
     await expect(row.getByText('DK')).toBeVisible()
-    // Let the assignment loads the write triggered settle.
-    await page.waitForTimeout(500)
+    // The assignment loads the new row triggered (its chips are showing) have
+    // finished: no error comes after this.
+    await afterTransactionsOn(page, ['todoPeople', 'todoTags'])
     expect(errors).toEqual([])
   })
 })

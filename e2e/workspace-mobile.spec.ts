@@ -45,9 +45,10 @@ async function pagerState(page: Page): Promise<{ scrollLeft: number; page: numbe
 
 /**
  * A horizontal touch swipe from trusted CDP touch events, so the browser
- * scrolls and snaps natively. A negative dx moves the finger left. The finger
- * rests before lifting: headless Chromium never ends a flick (released while
- * still moving), so it would never snap.
+ * scrolls and snaps natively. A negative dx moves the finger left. The events
+ * carry their own timestamps — a move every 16 ms, then the finger rests
+ * 200 ms before lifting (headless Chromium never ends a flick, released while
+ * still moving, so it would never snap) — instead of real waits between them.
  */
 async function swipe(page: Page, dx: number): Promise<void> {
   const b = await box(pager(page))
@@ -55,13 +56,13 @@ async function swipe(page: Page, dx: number): Promise<void> {
   const x0 = dx < 0 ? b.x + b.width * 0.85 : b.x + b.width * 0.15
   const cdp = await page.context().newCDPSession(page)
   const steps = 10
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] })
+  // Seconds since the epoch, ending now: the gesture already happened.
+  const start = Date.now() / 1000 - (steps * 0.016 + 0.2)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }], timestamp: start })
   for (let i = 1; i <= steps; i++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + (dx * i) / steps, y }] })
-    await page.waitForTimeout(16)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + (dx * i) / steps, y }], timestamp: start + i * 0.016 })
   }
-  await page.waitForTimeout(200)
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: start + steps * 0.016 + 0.2 })
   await cdp.detach()
 }
 

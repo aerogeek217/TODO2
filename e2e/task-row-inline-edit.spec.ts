@@ -53,9 +53,9 @@ async function startEditing(page: Page, title: string): Promise<{ id: number; in
   const idAttr = await taskRowByTitle(page, title).locator('[data-todo-id]').first().getAttribute('data-todo-id')
   const id = Number(idAttr)
   await selectTaskRowByTitle(page, title)
-  // Stay outside the double-click window — a dblclick opens the detail popup
-  // and cancels the scheduled edit.
-  await page.waitForTimeout(600)
+  // Selected first: a click on a selected title schedules the edit. (Two
+  // separate clicks are never a double-click, which would open the editor.)
+  await expect(taskRowByTitle(page, title)).toHaveAttribute('data-selected', 'true')
   await selectTaskRowByTitle(page, title)
   const row = page.locator(`[data-todo-id="${id}"]`)
   const input = row.locator('input[maxlength="500"]')
@@ -111,8 +111,7 @@ test.describe('TaskRow inline title edit', () => {
     await clickOutside(page, wsListWidget(page, TASK_LIST_TAB))
     await expect(input).toHaveCount(0)
     await expect(taskRowByTitle(page, 'renamed elsewhere')).toBeVisible()
-    // Give any (wrong) blur-save a chance to land before asserting it didn't.
-    await page.waitForTimeout(300)
+    // A blur save writes the store at once (optimistic), so a wrong one would show here.
     expect(await storeTitle(page, id)).toBe('renamed elsewhere')
     await page.reload()
     await expect(taskRowByTitle(page, 'renamed elsewhere')).toBeVisible()

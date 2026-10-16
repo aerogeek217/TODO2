@@ -138,7 +138,8 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   await page.keyboard.press('Enter')
   await expect.poll(async () => ((await dumpDb(page)).todos as Array<{ title: string }>).map((t) => t.title))
     .toContain('Edit while paused')
-  await page.waitForTimeout(1200) // > sync debounce
+  // The read waits for any save running or scheduled (`whenIdle`), so a
+  // save the paused edit wrongly scheduled would land before it.
   expect(await readSyncFile(page)).toBe('{ not json')
   // …and the edit is recorded as unsynced for the next conflict check.
   const state = await page.evaluate(() => localStorage.getItem('todo2-file-sync-state'))

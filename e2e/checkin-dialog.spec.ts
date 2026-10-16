@@ -96,9 +96,10 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout
   expect(await anchors(page)).toEqual([
     { href: 'mailto:ada@example.com?subject=Task%20check-in%3A%202%20open%20tasks', target: '_blank', download: '' },
   ])
-  await page.waitForTimeout(300)
-  expect(dialogs).toEqual([])
+  // The page is the same one (a reload would have dropped `__alive`); this
+  // round trip also delivers any dialog the click opened before it.
   expect(await page.evaluate(() => (window as unknown as { __alive?: boolean }).__alive)).toBe(true)
+  expect(dialogs).toEqual([])
   await expect(page).toHaveURL(/#\/$/)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
 
