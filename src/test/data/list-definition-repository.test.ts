@@ -13,7 +13,6 @@ function makeDef(overrides: Partial<ListDefinition> = {}): ListDefinition {
   return {
     name: 'Custom',
     sortOrder: 0,
-    pinnedToDashboard: true,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'deadline',
     grouping: 'none',

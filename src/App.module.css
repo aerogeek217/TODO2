@@ -35,7 +35,7 @@
   height: 36px;
   border-radius: 10px;
   background: var(--color-accent);
-  color: var(--color-canvas-bg);
+  color: var(--color-app-bg);
   border: none;
   padding: 0;
   display: flex;

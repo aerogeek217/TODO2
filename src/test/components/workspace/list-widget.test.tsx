@@ -26,7 +26,7 @@ const bob: Person = { id: 2, name: 'Bob', initials: 'BO' }
 
 function def(over: Partial<PersistedListDefinition> = {}, predicate: Partial<TodoPredicate> = {}): PersistedListDefinition {
   return {
-    id: 7, name: 'Team', sortOrder: 0, pinnedToDashboard: false,
+    id: 7, name: 'Team', sortOrder: 0, 
     membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
     sort: 'manual', grouping: 'none',
     ...over,

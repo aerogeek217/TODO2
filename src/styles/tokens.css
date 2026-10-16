@@ -125,7 +125,7 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-canvas-bg: #111110;
+  --color-app-bg: #111110;
   --color-surface: #1a1918;
   --color-surface-high: #211f1e;
   --color-surface-bright: #2d2b29;
@@ -282,7 +282,7 @@
   color-scheme: light;
 
   /* Backgrounds */
-  --color-canvas-bg: #f5f4f2;
+  --color-app-bg: #f5f4f2;
   --color-surface: #ffffff;
   --color-surface-high: #f0efed;
   --color-surface-bright: #e5e3e0;
@@ -441,7 +441,7 @@ body {
   font-family: var(--font-family);
   font-size: var(--font-size-task);
   color: var(--color-text-primary);
-  background: var(--color-canvas-bg);
+  background: var(--color-app-bg);
   line-height: 1.5;
 }
 

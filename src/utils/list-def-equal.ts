@@ -42,7 +42,6 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
 export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
   // Ignore `sortOrder` (reorder is saved independently).
   if (a.name !== b.name) return false
-  if (a.pinnedToDashboard !== b.pinnedToDashboard) return false
   if ((a.maxTasks ?? null) !== (b.maxTasks ?? null)) return false
   if ((a.limitMode ?? 'hard') !== (b.limitMode ?? 'hard')) return false
   if (JSON.stringify(a.sort) !== JSON.stringify(b.sort)) return false

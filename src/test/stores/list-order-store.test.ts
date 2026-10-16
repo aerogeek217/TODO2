@@ -14,7 +14,7 @@ async function addTodo(title: string): Promise<number> {
 
 async function addList(name: string): Promise<number> {
   return db.listDefinitions.add({
-    name, sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
+    name, sortOrder: 0, sort: 'manual', grouping: 'none',
     membership: { kind: 'custom', predicate: emptyPredicate() },
   })
 }

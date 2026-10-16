@@ -838,7 +838,10 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     { key: 'canvasRails', value: JSON.stringify(rails) },
     { key: 'canvasViewport', value: JSON.stringify({ x: 380, y: 60, zoom: 0.55 }) },
     { key: 'color.dark.accent', value: '#4f8cff' },
+    // The app background (named after the canvas until v63) at the theme's own value.
+    { key: 'color.dark.canvasBg', value: '#111110' },
     { key: 'color.dark.scheduled', value: '#7ec4bc' },
+    { key: 'color.light.canvasBg', value: '#f5f4f2' },
     { key: 'completedRetentionDays', value: '30' },
     { key: 'defaultProjectGroupBy', value: 'status' },
     { key: 'defaultProjectId', value: '1' },

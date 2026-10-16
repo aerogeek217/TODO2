@@ -10,7 +10,7 @@
  */
 export interface ThemeColors {
   accent: string
-  canvasBg: string
+  appBg: string
   surface: string
   border: string
   header: string
@@ -30,7 +30,7 @@ export type ThemeName = 'dark' | 'light'
 export const DEFAULT_THEMED_COLORS: ThemedColors = {
   dark: {
     accent: '#a2cfcb',
-    canvasBg: '#0e0e0e',
+    appBg: '#0e0e0e',
     surface: '#191a1a',
     border: '#302e2b',
     header: '#1f2120',
@@ -41,7 +41,7 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
   },
   light: {
     accent: '#3a9e93',
-    canvasBg: '#f5f4f2',
+    appBg: '#f5f4f2',
     surface: '#ffffff',
     border: '#d9d5d0',
     header: '#f7fbfa',

@@ -19,7 +19,7 @@ const basePredicate: TodoPredicate = {
 
 function list(id: number, predicate: Partial<TodoPredicate>, extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
   return {
-    id, name: `List ${id}`, sortOrder: id, sort: 'manual', grouping: 'none', pinnedToDashboard: true,
+    id, name: `List ${id}`, sortOrder: id, sort: 'manual', grouping: 'none', 
     membership: { kind: 'custom', predicate: { ...basePredicate, ...predicate } },
     ...extra,
   }

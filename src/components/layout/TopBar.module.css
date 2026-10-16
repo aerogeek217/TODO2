@@ -8,7 +8,7 @@
   gap: 4px;
   height: var(--topbar-height);
   padding: 0 8px;
-  background: var(--color-canvas-bg);
+  background: var(--color-app-bg);
   border-bottom: 1px solid var(--color-border-muted);
   flex-shrink: 0;
   min-width: 0;

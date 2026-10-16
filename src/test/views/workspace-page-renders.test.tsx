@@ -32,7 +32,7 @@ describe('WorkspacePage renders', () => {
   it('a task edit re-renders the list row, not the page', async () => {
     const now = new Date()
     const listDefinitionId = await db.listDefinitions.add({
-      name: 'Tasks', sortOrder: 1, pinnedToDashboard: false,
+      name: 'Tasks', sortOrder: 1, 
       membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none',
     })
     const todoId = await db.todos.add({ uid: 'u1', title: 'First title', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 1 })

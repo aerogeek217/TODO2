@@ -11,7 +11,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> = {}): PersistedLis
     membership: { kind: 'custom', predicate: {} },
     sort: 'manual',
     grouping: 'none',
-    pinnedToDashboard: false,
     ...overrides,
   } as PersistedListDefinition
 }
@@ -32,12 +31,11 @@ describe('reconcileListDefDraft', () => {
     expect(reconcileListDefDraft(makeDef(), up)).toBe(up)
   })
 
-  it('keeps dirty edits but forwards pin / sortOrder', () => {
+  it('keeps dirty edits but forwards sortOrder', () => {
     const draft = makeDef({ name: 'Edited' })
-    const up = makeDef({ pinnedToDashboard: true, sortOrder: 5 })
+    const up = makeDef({ sortOrder: 5 })
     expect(reconcileListDefDraft(draft, up)).toEqual({
       ...draft,
-      pinnedToDashboard: true,
       sortOrder: 5,
     })
   })

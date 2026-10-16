@@ -42,7 +42,7 @@
 
 .buttonDanger:hover:not(:disabled) {
   background: var(--color-danger);
-  color: var(--color-canvas-bg);
+  color: var(--color-app-bg);
 }
 
 .buttonDanger:disabled {

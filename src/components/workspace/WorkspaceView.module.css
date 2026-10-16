@@ -5,7 +5,7 @@
   min-width: 0;
   height: 100%;
   padding: var(--workspace-gutter);
-  background: var(--color-canvas-bg);
+  background: var(--color-app-bg);
   overflow-x: auto;
   overflow-y: hidden;
   box-sizing: border-box;

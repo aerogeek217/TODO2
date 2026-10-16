@@ -9,7 +9,7 @@ import editorStyles from './ThemeColorsEditor.module.css'
 
 const colorLabels: Record<keyof ThemeColors, string> = {
   accent: 'Accent',
-  canvasBg: 'Canvas Background',
+  appBg: 'App background',
   surface: 'Surface',
   border: 'Border',
   header: 'Header',

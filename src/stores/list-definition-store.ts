@@ -20,7 +20,6 @@ interface AddInput {
   membership?: ListMembership
   sort?: ListSort
   grouping?: ListGrouping
-  pinnedToDashboard?: boolean
   maxTasks?: number
   limitMode?: 'hard' | 'scroll'
 }
@@ -62,12 +61,11 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
   ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, grouping, pinnedToDashboard = true, maxTasks, limitMode }) {
+  async add({ name, membership, sort, grouping, maxTasks, limitMode }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
     const entry: Omit<ListDefinition, 'sortOrder'> = {
       name: trimmed,
-      pinnedToDashboard,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
       sort: sort ?? 'manual',
       grouping: grouping ?? 'none',

@@ -5,7 +5,7 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-  background: var(--color-canvas-bg);
+  background: var(--color-app-bg);
 }
 
 .loading {

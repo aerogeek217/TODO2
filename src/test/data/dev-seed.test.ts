@@ -177,6 +177,11 @@ describe('dev seed → prepareImport → restore', () => {
     const northwind = lists.find((l) => l.name === 'Northwind')!
     expect('projectIds' in northwind.membership.predicate).toBe(false)
     expect(northwind.membership.predicate.tags).toEqual([projectTag.get(3)])
+
+    // v63: no list keeps the pin; the canvas background colours are the app background's.
+    for (const l of lists) expect('pinnedToDashboard' in l, l.name).toBe(false)
+    const colours = Object.fromEntries((await db.settings.toArray()).filter((s) => s.key.startsWith('color.')).map((s) => [s.key, s.value]))
+    expect(colours).toEqual({ 'color.dark.accent': '#4f8cff', 'color.dark.appBg': '#111110', 'color.light.appBg': '#f5f4f2' })
   })
 
   it('turns the taskboard into in-focus tasks in the Focus list, in board order', async () => {

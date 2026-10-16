@@ -5,8 +5,8 @@ import { defsEqual } from '../utils/list-def-equal'
 /**
  * Next draft when the upstream (persisted) def changes under an open editor.
  * A clean draft — or one for a different def — adopts upstream. A dirty draft
- * keeps the user's in-flight edits but forwards the externally-managed fields
- * (pin, sortOrder) so a reorder doesn't get reverted on Save.
+ * keeps the user's in-flight edits but forwards the externally-managed
+ * `sortOrder` so a reorder doesn't get reverted on Save.
  */
 export function reconcileListDefDraft(
   prev: PersistedListDefinition | null,
@@ -15,11 +15,7 @@ export function reconcileListDefDraft(
   if (!upstream) return null
   if (!prev || prev.id !== upstream.id) return upstream
   if (defsEqual(prev, upstream)) return upstream
-  return {
-    ...prev,
-    pinnedToDashboard: upstream.pinnedToDashboard,
-    sortOrder: upstream.sortOrder,
-  }
+  return { ...prev, sortOrder: upstream.sortOrder }
 }
 
 /**

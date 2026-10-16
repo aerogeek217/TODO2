@@ -31,7 +31,6 @@ function customDef(overrides: Partial<PersistedListDefinition> = {}): PersistedL
     id: 1,
     name: 'List',
     sortOrder: 0,
-    pinnedToDashboard: true,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'deadline',
     grouping: 'none',

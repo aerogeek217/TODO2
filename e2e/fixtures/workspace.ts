@@ -166,7 +166,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         membership: { kind: 'custom', predicate },
         sort: def.sort ?? 'manual',
         grouping: def.grouping ?? 'none',
-        pinnedToDashboard: false,
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.maxTasks != null ? { maxTasks: def.maxTasks } : {}),
         ...(def.limitMode ? { limitMode: def.limitMode } : {}),

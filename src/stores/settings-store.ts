@@ -108,7 +108,7 @@ function dimColor(hex: string): string {
 /** CSS variable name for each ThemeColors key */
 const colorVarMap: Record<keyof ThemeColors, string> = {
   accent: '--color-accent',
-  canvasBg: '--color-canvas-bg',
+  appBg: '--color-app-bg',
   surface: '--color-surface',
   border: '--color-border',
   header: '--color-header-bg',

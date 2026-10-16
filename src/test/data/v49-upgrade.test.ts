@@ -146,7 +146,7 @@ describe('v49 fixture → prepareImport → restore', () => {
     // v57 drops the favorites flag.
     expect(defs.every((d) => !('favorited' in d))).toBe(true)
     expect(defs[2]).toMatchObject({
-      pinnedToDashboard: false, maxTasks: 25, limitMode: 'scroll',
+      maxTasks: 25, limitMode: 'scroll',
       runtimeFilter: { field: 'person', label: 'Who' }, sort: 'deadline', grouping: 'people',
     })
     expect(defs[3]!.membership.predicate.dateRangeEnd).toEqual({ kind: 'offset', days: 30 })
@@ -602,8 +602,10 @@ describe('v49 fixture → v59: taskboard tasks are in focus, in a manually order
     await importFixture()
     const focus = await db.listDefinitions.get(FOCUS_LIST_ID)
     expect(focus).toMatchObject({
-      id: FOCUS_LIST_ID, name: 'Focus', sortOrder: 4, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+      id: FOCUS_LIST_ID, name: 'Focus', sortOrder: 4, sort: 'manual', grouping: 'none',
     })
+    // v59 created it pinned; v63 drops the pin with every other list's.
+    expect(fixtureAt(62).listDefinitions!.find((d) => d.id === FOCUS_LIST_ID)).toMatchObject({ pinnedToDashboard: true })
     // v61 turned its focus filter into the Markers filter.
     expect(focus!.membership.predicate).toMatchObject({ markers: { focus: true }, showCompleted: false, personIds: null, tags: null, hasFollowup: null })
     const ranks = (await db.listOrders.toArray()).map((r) => [r.listDefinitionId, r.todoId, r.rank])
@@ -752,10 +754,60 @@ describe('v49 fixture → v62: the Default layout loses its status tabs', () => 
   })
 })
 
+describe('v49 fixture → v63: lists lose the pin; the app background colour is renamed', () => {
+  /** The fixture with the canvas background overridden in both themes (it has no such row of its own). */
+  function withCanvasBackground(): Record<string, unknown> {
+    const raw = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+    raw.settings = [
+      ...(raw.settings as unknown[]),
+      { key: 'color.dark.canvasBg', value: '#202830' },
+      { key: 'color.light.canvasBg', value: '#fdf6e3' },
+    ]
+    return raw
+  }
+
+  it('the fixture lists carry the pin up to v62', () => {
+    const at62 = fixtureAt(62).listDefinitions!
+    expect(at62.length).toBeGreaterThan(0)
+    expect(at62.every((d) => typeof d.pinnedToDashboard === 'boolean')).toBe(true)
+  })
+
+  it('no stored list keeps pinnedToDashboard; the lists are otherwise as at v62', async () => {
+    await importFixture()
+    const defs = await db.listDefinitions.orderBy('id').toArray()
+    expect(defs.some((d) => 'pinnedToDashboard' in d)).toBe(false)
+    const at62 = fixtureAt(62).listDefinitions!.map((d) => {
+      const rest = { ...d }
+      delete rest.pinnedToDashboard
+      return rest
+    })
+    expect(fixtureAt(63).listDefinitions).toEqual(at62)
+  })
+
+  it('canvasBg overrides of both themes become appBg with the same value; the other colours are untouched', async () => {
+    const prepared = prepareImport(withCanvasBackground())
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.warnings).toEqual([])
+    await restoreFromImportData(prepared.data)
+    const colours = Object.fromEntries((await db.settings.toArray()).filter((s) => s.key.startsWith('color.')).map((s) => [s.key, s.value]))
+    expect(colours).toEqual({
+      'color.dark.accent': '#4f8cff',
+      'color.light.accent': '#1a5fd0',
+      'color.dark.appBg': '#202830',
+      'color.light.appBg': '#fdf6e3',
+    })
+  })
+
+  it('upgrading the v63 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 62, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
 // ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
 /**
  * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
- * hex digits). The transforms up to v62 are frozen, so these never change:
+ * hex digits). The transforms up to v63 are frozen, so these never change:
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
@@ -777,6 +829,7 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   60: '5a9a472912b7f8f9',
   61: '43c2476afe90c43e',
   62: '7a756537e39297bf',
+  63: '13816223c358d095',
 }
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 

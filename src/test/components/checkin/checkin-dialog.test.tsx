@@ -41,7 +41,7 @@ const predicate: TodoPredicate = {
   hasFollowup: null, markers: null, tags: null,
 }
 const REVIEWS: PersistedListDefinition = {
-  id: 7, name: 'Reviews', sortOrder: 1, sort: 'name', grouping: 'none', pinnedToDashboard: false,
+  id: 7, name: 'Reviews', sortOrder: 1, sort: 'name', grouping: 'none', 
   membership: { kind: 'custom', predicate },
 }
 

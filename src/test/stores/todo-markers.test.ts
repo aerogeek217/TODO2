@@ -115,7 +115,7 @@ describe('markers in import validation', () => {
 
   it('accepts a Markers filter on a list predicate: known markers set to true; drops any other', () => {
     const def = (markers: unknown) => ({
-      id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
+      id: 1, name: 'L', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers } },
     })
     expect(validateRow('listDefinitions', def({ focus: true }))).toBe(true)
@@ -156,7 +156,7 @@ describe('marker filter defaults and list equality', () => {
 
   it('list-definition equality sees markers (absent == null == {}), not their order', () => {
     const base: PersistedListDefinition = {
-      id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
+      id: 1, name: 'L', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: emptyPredicate() },
     }
     const legacyPredicate = { ...emptyPredicate() }

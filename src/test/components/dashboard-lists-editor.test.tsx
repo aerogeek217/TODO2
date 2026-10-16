@@ -18,7 +18,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
   return {
     name: `List ${overrides.id}`,
     sortOrder: overrides.id,
-    pinnedToDashboard: true,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
     grouping: 'none',

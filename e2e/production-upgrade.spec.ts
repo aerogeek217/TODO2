@@ -16,7 +16,9 @@ import { readSyncFile as readFile } from './fixtures/sync-file'
  * code path: Dexie's upgrade at open, then the sync-file load decision.
  *
  * The data is the frozen v49 fixture (orgs, projects, a taskboard, a canvas,
- * floating widgets), with names, a title and notes past the old import limits.
+ * floating widgets), with names, a title and notes past the old import limits,
+ * and the app background colour overridden in both themes (stored under its
+ * old `canvasBg` name).
  */
 
 const SYNC_FILE = 'e2e-production-sync.json'
@@ -69,6 +71,9 @@ const LONG = {
   note: long('Workspace note', 120_000),
 }
 
+/** The app background overrides, as the v49 build stored them. */
+const APP_BACKGROUND = { dark: '#203040', light: '#fdf6e3' }
+
 /** The frozen v49 fixture's tables, with the long values (a deep copy). */
 function productionTables(): Tables {
   const path = fileURLToPath(new URL('../src/test/fixtures/v49-export.json', import.meta.url))
@@ -89,6 +94,10 @@ function productionTables(): Tables {
   first('todos').title = LONG.title
   first('todos').notes = LONG.notes
   first('notes').content = LONG.note
+  tables.settings!.push(
+    { key: 'color.dark.canvasBg', value: APP_BACKGROUND.dark },
+    { key: 'color.light.canvasBg', value: APP_BACKGROUND.light },
+  )
   return tables
 }
 
@@ -191,15 +200,16 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   // In-sync sides get the upgrade prompt — not "Browser data and sync file differ".
   const upgrade = page.getByRole('dialog', { name: 'Upgrade sync file?' })
   await expect(upgrade).toBeVisible()
-  await expect(upgrade).toContainText(`${SYNC_FILE} was saved by an older version of TODO2 (schema v49)`)
-  await expect(upgrade).toContainText('A copy of the file as it is now is saved first')
-  await expect(page.getByRole('dialog', { name: 'Browser data and sync file differ' })).toHaveCount(0)
-
-  // The browser database was upgraded at open; the file is untouched so far.
   const { CURRENT_DB_VERSION, ALL_DATA_TABLES } = await page.evaluate(async (url) => {
     const mod = (await import(/* @vite-ignore */ url)) as { CURRENT_DB_VERSION: number; ALL_DATA_TABLES: Array<{ name: string }> }
     return { CURRENT_DB_VERSION: mod.CURRENT_DB_VERSION, ALL_DATA_TABLES: mod.ALL_DATA_TABLES.map((t) => ({ name: t.name })) }
   }, '/src/data/database.ts')
+  await expect(upgrade).toContainText(`${SYNC_FILE} was saved by an older version of TODO2 (schema v49)`)
+  await expect(upgrade).toContainText(`save it back in the v${CURRENT_DB_VERSION} format`)
+  await expect(upgrade).toContainText('A copy of the file as it is now is saved first')
+  await expect(page.getByRole('dialog', { name: 'Browser data and sync file differ' })).toHaveCount(0)
+
+  // The browser database was upgraded at open; the file is untouched so far.
   const dataTables = ALL_DATA_TABLES.map((t) => t.name)
   const upgradedAtOpen = await dumpDb(page)
   expect(upgradedAtOpen.version).toBe(CURRENT_DB_VERSION * 10)
@@ -251,6 +261,12 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   expect(upgraded.stores.notes!.map((n) => n.content)).toContain(LONG.note)
   for (const t of upgraded.stores.todos!) expect(typeof t.uid, `todo ${String(t.id)} uid`).toBe('string')
   expect(upgraded.stores.layouts).toHaveLength(1)
+  // The app background overrides kept their colours under the new name.
+  const colours = Object.fromEntries((upgraded.stores.settings ?? []).filter((r) => String(r.key).startsWith('color.')).map((r) => [r.key, r.value]))
+  expect(colours).toEqual({
+    'color.dark.accent': '#4f8cff', 'color.light.accent': '#1a5fd0',
+    'color.dark.appBg': APP_BACKGROUND.dark, 'color.light.appBg': APP_BACKGROUND.light,
+  })
 
   // Sync resumes: a real edit reaches the file.
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
@@ -271,6 +287,8 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   await purge.getByRole('button', { name: 'Not now' }).click()
   await expect(page.getByTestId('storage-pill')).toHaveText(SYNC_FILE)
   await expect(page.getByTestId('file-sync-paused')).toHaveCount(0)
+  // The dark override paints the app (the fixture's theme is dark).
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(32, 48, 64)')
   const final = await dumpDb(page)
   expect(tableRows(JSON.parse(await readSyncFile(page)) as Tables, dataTables)).toEqual(tableRows(final.stores, dataTables))
 })

@@ -66,7 +66,7 @@ const ctx: ListSectionsContext = {
 
 function def(over: Partial<PersistedListDefinition>): PersistedListDefinition {
   return {
-    id: 1, name: 'List', sortOrder: 0, pinnedToDashboard: false,
+    id: 1, name: 'List', sortOrder: 0, 
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual', grouping: 'none',
     ...over,

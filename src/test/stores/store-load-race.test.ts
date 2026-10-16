@@ -173,7 +173,7 @@ describe('load vs. edit', () => {
 
   it('a list edit made during load survives the load', async () => {
     const id = await db.listDefinitions.add({
-      name: 'Old', sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
+      name: 'Old', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: emptyPredicate() },
     })
     await useListDefinitionStore.getState().load()

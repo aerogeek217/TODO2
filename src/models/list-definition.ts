@@ -49,8 +49,6 @@ export interface ListDefinition {
   membership: ListMembership
   sort: ListSort
   grouping: ListGrouping
-  /** When true, the list appears as a Dashboard card. Default true on migration from pre-v22. */
-  pinnedToDashboard: boolean
   /** Optional cap on the number of visible tasks. Undefined = unlimited. */
   maxTasks?: number
   /** How `maxTasks` is enforced. Defaults to `'hard'` when omitted. */

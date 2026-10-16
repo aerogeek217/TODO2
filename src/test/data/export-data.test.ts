@@ -135,7 +135,6 @@ describe('export → restore round-trip', () => {
       },
       sort: 'manual',
       grouping: 'none',
-      pinnedToDashboard: true,
     } as any)
     await db.notes.add({ content: 'hello', createdAt: now, modifiedAt: now } as any)
     const tagId = await db.tags.add({ name: 'urgent', color: '#f00' }) as number

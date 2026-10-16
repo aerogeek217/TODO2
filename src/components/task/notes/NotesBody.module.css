@@ -3,7 +3,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--color-canvas-bg);
+  background: var(--color-app-bg);
 }
 
 :global([data-theme="light"]) .body {

@@ -436,7 +436,7 @@ describe('validateImportData', () => {
     const predicate = { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false }
     const result = validateImportData(validData({
       listDefinitions: [{
-        id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+        id: 1, name: 'L', sortOrder: 0, sort: 'manual', grouping: 'none',
         membership: { kind: 'custom', predicate: { ...predicate, stray: 1 }, legacy: 'x' },
       }],
     }))
@@ -492,7 +492,7 @@ describe('validateImportData', () => {
       tags: [makeTag({ name: long })],
       statuses: [{ id: 1, name: long, color: '#00ff00', sortOrder: 0 }],
       listDefinitions: [{
-        id: 1, name: long, sortOrder: 0, pinnedToDashboard: true,
+        id: 1, name: long, sortOrder: 0, 
         membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false } },
         sort: 'manual', grouping: 'none',
       }],
@@ -524,7 +524,7 @@ describe('validateImportData', () => {
   it('listDefinition with followup sort + none grouping passes validation', () => {
     const result = validateImportData(validData({
       listDefinitions: [{
-        id: 1, name: 'Follow-ups', sortOrder: 0, pinnedToDashboard: true,
+        id: 1, name: 'Follow-ups', sortOrder: 0, 
         membership: {
           kind: 'custom',
           predicate: {
@@ -552,7 +552,7 @@ describe('validateImportData', () => {
     const { dateField, ...defPatch } = patch as { dateField?: string; sort?: string; grouping?: string }
     const result = validateImportData(validData({
       listDefinitions: [{
-        id: 1, name: 'Old', sortOrder: 0, pinnedToDashboard: true,
+        id: 1, name: 'Old', sortOrder: 0, 
         membership: {
           kind: 'custom',
           predicate: {
@@ -572,7 +572,7 @@ describe('validateImportData', () => {
   describe('Markers filter and Hot rule', () => {
     function listWithMarkers(markers: unknown) {
       return {
-        id: 1, name: 'List', sortOrder: 0, pinnedToDashboard: false,
+        id: 1, name: 'List', sortOrder: 0, 
         membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, markers } },
         sort: 'manual', grouping: 'none',
       }
@@ -625,7 +625,7 @@ describe('validateImportData', () => {
   describe('list predicates: malformed filters are dropped with a warning, not rejected', () => {
     function list(id: number, name: string, predicate: Record<string, unknown>) {
       return {
-        id, name, sortOrder: id, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
+        id, name, sortOrder: id, sort: 'manual', grouping: 'none',
         membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, ...predicate } },
       }
     }
@@ -668,7 +668,7 @@ describe('validateImportData', () => {
   describe('listDefinition.runtimeFilter validation', () => {
     function makeListDef(overrides: Record<string, unknown> = {}) {
       return {
-        id: 1, name: 'List', sortOrder: 0, pinnedToDashboard: true,
+        id: 1, name: 'List', sortOrder: 0, 
         membership: {
           kind: 'custom',
           predicate: {
@@ -799,8 +799,8 @@ describe('validateImportData — Date revival', () => {
 describe('isKnownSettingKey — theme colour rows', () => {
   it('knows color.<dark|light>.<theme colour> only', () => {
     expect(isKnownSettingKey('color.dark.accent')).toBe(true)
-    expect(isKnownSettingKey('color.light.canvasBg')).toBe(true)
-    for (const key of ['color.dark.constructor', 'color.dark.__proto__', 'color.light.toString', 'color.dark.priorityHigh', 'color.sepia.accent', 'color.dark', 'color.dark.accent.x']) {
+    expect(isKnownSettingKey('color.light.appBg')).toBe(true)
+    for (const key of ['color.dark.constructor', 'color.dark.__proto__', 'color.light.toString', 'color.dark.priorityHigh', 'color.dark.canvasBg', 'color.sepia.accent', 'color.dark', 'color.dark.accent.x']) {
       expect(isKnownSettingKey(key), key).toBe(false)
     }
   })

@@ -28,14 +28,12 @@ describe('useListDefinitionStore load', () => {
   it('load reads rows ordered by sortOrder', async () => {
     await listDefinitionRepository.insert({
       name: 'B', sortOrder: 2,
-      pinnedToDashboard: true,
       membership: { kind: 'custom', predicate: emptyPredicate() },
       sort: 'deadline',
       grouping: 'deadline',
     })
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
-      pinnedToDashboard: true,
       membership: { kind: 'custom', predicate: emptyPredicate() },
       sort: 'deadline',
       grouping: 'none',
@@ -57,7 +55,6 @@ describe('useListDefinitionStore mutations', () => {
       id,
       name: 'My list',
       sortOrder: 0,
-      pinnedToDashboard: true,
       membership: { kind: 'custom' },
       sort: 'manual',
       grouping: 'none',
@@ -155,7 +152,6 @@ describe('Save-as-preset round-trip', () => {
       membership: { kind: 'custom', predicate },
       sort: 'deadline',
       grouping: 'deadline',
-      pinnedToDashboard: true,
     })
 
     // Reload from DB to confirm persistence (no in-memory shortcut).

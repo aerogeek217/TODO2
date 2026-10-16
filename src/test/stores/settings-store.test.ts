@@ -6,7 +6,7 @@ import type { HotRule } from '../../utils/hot'
 
 const DARK_DEFAULTS = {
   accent: '#a2cfcb',
-  canvasBg: '#0e0e0e',
+  appBg: '#0e0e0e',
   surface: '#191a1a',
   border: '#302e2b',
   header: '#1f2120',
@@ -19,7 +19,7 @@ const DARK_DEFAULTS = {
 
 const LIGHT_DEFAULTS = {
   accent: '#3a9e93',
-  canvasBg: '#f5f4f2',
+  appBg: '#f5f4f2',
   surface: '#ffffff',
   border: '#d9d5d0',
   header: '#f7fbfa',
@@ -43,10 +43,10 @@ beforeEach(async () => {
 describe('useSettingsStore', () => {
   it('load reads color.dark.<key> and color.light.<key> rows', async () => {
     await db.settings.put({ key: 'color.dark.accent', value: '#112233' })
-    await db.settings.put({ key: 'color.light.canvasBg', value: '#fafafa' })
+    await db.settings.put({ key: 'color.light.appBg', value: '#fafafa' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().colors.dark.accent).toBe('#112233')
-    expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#fafafa')
+    expect(useSettingsStore.getState().colors.light.appBg).toBe('#fafafa')
   })
 
   it('load ignores colour rows whose name is not a theme colour (no prototype keys)', async () => {
@@ -78,9 +78,9 @@ describe('useSettingsStore', () => {
   })
 
   it('setColor: dark write does not leak into light bag', async () => {
-    await useSettingsStore.getState().setColor('dark', 'canvasBg', '#222222')
-    expect(useSettingsStore.getState().colors.dark.canvasBg).toBe('#222222')
-    expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#f5f4f2')
+    await useSettingsStore.getState().setColor('dark', 'appBg', '#222222')
+    expect(useSettingsStore.getState().colors.dark.appBg).toBe('#222222')
+    expect(useSettingsStore.getState().colors.light.appBg).toBe('#f5f4f2')
   })
 
   it('setColor rejects invalid', async () => {
@@ -107,14 +107,14 @@ describe('useSettingsStore', () => {
   })
 
   it('setThemeMode flips which override bag drives inline styles', async () => {
-    // Customize both bags to distinct values, then verify the inline canvas-bg
+    // Customize both bags to distinct values, then verify the inline app-bg
     // override flips with the resolved theme.
-    await useSettingsStore.getState().setColor('dark', 'canvasBg', '#aabbcc')
-    await useSettingsStore.getState().setColor('light', 'canvasBg', '#ddeeff')
+    await useSettingsStore.getState().setColor('dark', 'appBg', '#aabbcc')
+    await useSettingsStore.getState().setColor('light', 'appBg', '#ddeeff')
     await useSettingsStore.getState().setThemeMode('dark')
-    expect(document.documentElement.style.getPropertyValue('--color-canvas-bg')).toBe('#aabbcc')
+    expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#aabbcc')
     await useSettingsStore.getState().setThemeMode('light')
-    expect(document.documentElement.style.getPropertyValue('--color-canvas-bg')).toBe('#ddeeff')
+    expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#ddeeff')
   })
 
   it('setCompletedRetentionDays validates range', async () => {

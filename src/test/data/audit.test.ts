@@ -22,7 +22,7 @@ describe('auditData', () => {
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
     await db.todoPeople.add({ todoId, personId })
     const listDefinitionId = await db.listDefinitions.add({
-      name: 'Focus', sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+      name: 'Focus', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { focus: true } } },
     })
     await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
@@ -312,7 +312,7 @@ describe('unknown-row audit', () => {
 // checked it): reported, and cleanup rewrites them the way import stores them.
 describe('sanitisable-row audit', () => {
   const list = (name: string, predicate: Record<string, unknown>) => ({
-    name, sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+    name, sortOrder: 0, sort: 'manual', grouping: 'none',
     membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
   })
 

@@ -70,7 +70,7 @@ describe('restoreFromImportData', () => {
       await db.todoPeople.add({ todoId: 1, personId: 1 })
       await db.statuses.add({ id: 1, name: 'Old Status', color: '#aabbcc', sortOrder: 0 })
       await db.listDefinitions.add({
-        id: 1, name: 'Old List', sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+        id: 1, name: 'Old List', sortOrder: 0, sort: 'manual', grouping: 'none',
         membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false } as never },
       })
       await db.notes.add({ content: 'old', createdAt: now, modifiedAt: now })

@@ -9,7 +9,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
   return {
     name: `List ${overrides.id}`,
     sortOrder: overrides.id,
-    pinnedToDashboard: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
     grouping: 'none',
@@ -24,18 +23,18 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('ListDefinitionPickerPopup', () => {
-  it('renders every list definition (pinned and unpinned alike)', () => {
+  it('renders every list definition', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Pinned one', pinnedToDashboard: true }),
-        makeDef({ id: 2, name: 'Unpinned one', pinnedToDashboard: false }),
+        makeDef({ id: 1, name: 'First list' }),
+        makeDef({ id: 2, name: 'Second list' }),
       ],
     })
     const { getByText } = render(
       <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
-    expect(getByText('Pinned one')).toBeInTheDocument()
-    expect(getByText('Unpinned one')).toBeInTheDocument()
+    expect(getByText('First list')).toBeInTheDocument()
+    expect(getByText('Second list')).toBeInTheDocument()
   })
 
   it('shows the "Add list" header and "Add" action label', () => {
@@ -49,7 +48,7 @@ describe('ListDefinitionPickerPopup', () => {
 
   it('clicking an item calls onSelect with the def id and closes', () => {
     useListDefinitionStore.setState({
-      listDefinitions: [makeDef({ id: 7, name: 'Target', pinnedToDashboard: false })],
+      listDefinitions: [makeDef({ id: 7, name: 'Target' })],
     })
     const onSelect = vi.fn()
     const onClose = vi.fn()
@@ -61,8 +60,6 @@ describe('ListDefinitionPickerPopup', () => {
 
     expect(onSelect).toHaveBeenCalledWith(7)
     expect(onClose).toHaveBeenCalled()
-    // The def should NOT have been pinned as a side-effect.
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.pinnedToDashboard).toBe(false)
   })
 
   it('renders empty state when there are no defs', () => {

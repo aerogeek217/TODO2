@@ -88,6 +88,8 @@ function buildSeed(): Seed {
       { key: 'maxTags', value: '20' },
       { key: 'color.dark.accent', value: '#4f8cff' },
       { key: 'color.light.accent', value: '#1a5fd0' },
+      { key: 'color.dark.appBg', value: '#202830' },
+      { key: 'color.light.appBg', value: '#fdf6e3' },
       { key: 'activeLayoutId', value: '2' },
     ],
     statuses: [
@@ -97,11 +99,11 @@ function buildSeed(): Seed {
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, markers: 'hot' } },
-      sort: 'followup', grouping: 'followup', pinnedToDashboard: false,
+      sort: 'followup', grouping: 'followup', 
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
-      sort: 'deadline', grouping: 'people', pinnedToDashboard: false,
+      sort: 'deadline', grouping: 'people', 
       maxTasks: 25, limitMode: 'scroll', runtimeFilter: { field: 'person', label: 'Who' },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
