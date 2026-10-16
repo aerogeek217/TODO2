@@ -1,4 +1,4 @@
-import { backupRepository } from '../data/backup-repository'
+import { backupRepository } from './backup-repository'
 import type { BackupTrigger } from '../models'
 import { MS_PER_DAY } from '../utils/date'
 

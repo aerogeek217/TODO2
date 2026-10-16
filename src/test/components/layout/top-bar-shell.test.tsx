@@ -8,7 +8,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { useFileStorageStore } from '../../../stores/file-storage-store'
+import { useFileStorageStore } from '../../../services/file-storage-store'
 
 function renderBar() {
   return render(

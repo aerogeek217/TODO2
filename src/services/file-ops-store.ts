@@ -4,10 +4,10 @@ import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { restoreFromImportData } from '../data/restore'
 import { prepareImportText } from '../data/import-pipeline'
 import type { ImportData } from '../data/import-validation'
-import { takeSafetySnapshot } from '../services/safety-snapshot'
-import { backupScheduler } from '../services/backup-scheduler'
-import { refreshAllStores } from './refresh-all'
-import { useNoteStore } from './note-store'
+import { takeSafetySnapshot } from '../stores/safety-snapshot'
+import { backupScheduler } from '../data/backup-scheduler'
+import { refreshAllStores } from '../stores/refresh-all'
+import { useNoteStore } from '../stores/note-store'
 
 export type { BackupSummary, AuditReport }
 

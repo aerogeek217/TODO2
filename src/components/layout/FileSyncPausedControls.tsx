@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useFileStorageStore } from '../../stores/file-storage-store'
+import { useFileStorageStore } from '../../services/file-storage-store'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import dialogStyles from '../overlays/FileSyncDialogs.module.css'
 

@@ -36,7 +36,7 @@ vi.mock('../../data/export-data', () => ({
 const mockSnapshotBeforeDestructive = vi.fn().mockResolvedValue(undefined)
 const mockSnapshotFileBeforeOverwrite = vi.fn().mockResolvedValue(undefined)
 
-vi.mock('../../services/backup-scheduler', () => ({
+vi.mock('../../data/backup-scheduler', () => ({
   backupScheduler: {
     snapshotBeforeDestructive: (...args: unknown[]) => mockSnapshotBeforeDestructive(...args),
     snapshotFileBeforeOverwrite: (...args: unknown[]) => mockSnapshotFileBeforeOverwrite(...args),

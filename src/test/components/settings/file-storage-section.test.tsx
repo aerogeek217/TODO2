@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { FileStorageSection } from '../../../components/settings/sections/FileStorageSection'
-import { useFileStorageStore } from '../../../stores/file-storage-store'
+import { useFileStorageStore } from '../../../services/file-storage-store'
 
 beforeEach(() => {
   useFileStorageStore.setState({

@@ -10,7 +10,7 @@ vi.mock('../../data/backup-repository', () => ({
   },
 }))
 
-import { AUTO_BACKUP_FAILED_WARNING, BACKUPS_KEPT, backupScheduler } from '../../services/backup-scheduler'
+import { AUTO_BACKUP_FAILED_WARNING, BACKUPS_KEPT, backupScheduler } from '../../data/backup-scheduler'
 import { backupRepository } from '../../data/backup-repository'
 
 const mockCreateSnapshot = vi.mocked(backupRepository.createSnapshot)

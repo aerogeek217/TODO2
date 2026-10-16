@@ -1,5 +1,5 @@
-import { useFileStorageStore } from '../../stores/file-storage-store'
-import { useFileOpsStore } from '../../stores/file-ops-store'
+import { useFileStorageStore } from '../../services/file-storage-store'
+import { useFileOpsStore } from '../../services/file-ops-store'
 import { FileSyncPausedControls } from './FileSyncPausedControls'
 import type { SyncWarning } from './sync-status'
 import styles from './FileSyncBanner.module.css'

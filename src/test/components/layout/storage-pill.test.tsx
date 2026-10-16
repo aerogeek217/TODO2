@@ -3,8 +3,8 @@ import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { StoragePill } from '../../../components/layout/StoragePill'
 import { FileSyncBanner } from '../../../components/layout/FileSyncBanner'
 import { removeLegacySyncKeys, storagePillState, type StoragePillInput } from '../../../components/layout/sync-status'
-import { useFileStorageStore } from '../../../stores/file-storage-store'
-import { useFileOpsStore } from '../../../stores/file-ops-store'
+import { useFileStorageStore } from '../../../services/file-storage-store'
+import { useFileOpsStore } from '../../../services/file-ops-store'
 import { useUIStore } from '../../../stores/ui-store'
 
 const base: StoragePillInput = {

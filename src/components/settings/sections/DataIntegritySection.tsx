@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useFileOpsStore } from '../../../stores/file-ops-store'
+import { useFileOpsStore } from '../../../services/file-ops-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { AuditIssue } from '../../../data/audit'
 import { AuditIssueDetailDialog } from '../../overlays/AuditIssueDetailDialog'

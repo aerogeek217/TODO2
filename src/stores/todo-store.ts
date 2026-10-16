@@ -40,7 +40,7 @@ export const BULK_DELETE_SNAPSHOT_MIN = 5
 
 /** The backup gate before a destructive write (`services/safety-snapshot`). */
 async function takeSafetySnapshot(operation: string) {
-  const { takeSafetySnapshot: take } = await import('../services/safety-snapshot')
+  const { takeSafetySnapshot: take } = await import('./safety-snapshot')
   return take(operation)
 }
 

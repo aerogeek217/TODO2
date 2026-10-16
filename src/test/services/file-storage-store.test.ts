@@ -24,7 +24,7 @@ vi.mock('../../services/file-storage', () => ({
   },
 }))
 
-const { useFileStorageStore, resetFileStoragePrompts } = await import('../../stores/file-storage-store')
+const { useFileStorageStore, resetFileStoragePrompts } = await import('../../services/file-storage-store')
 
 const conflictInfo = (fileName: string) => ({ fileName }) as SyncConflictInfo
 const upgradeInfo: FileUpgradeInfo = { fileName: 'a.json', fromVersion: 49, toVersion: 62 }

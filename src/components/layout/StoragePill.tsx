@@ -1,6 +1,6 @@
 import { useCallback, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useFileStorageStore } from '../../stores/file-storage-store'
+import { useFileStorageStore } from '../../services/file-storage-store'
 import { useUIStore, type SettingsSectionId } from '../../stores/ui-store'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { formatRelativeTime } from '../../utils/date'

@@ -1,4 +1,4 @@
-import { useFileStorageStore } from '../../../stores/file-storage-store'
+import { useFileStorageStore } from '../../../services/file-storage-store'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { FileSyncPausedControls } from '../../layout/FileSyncPausedControls'
 import { SettingRow } from './SettingRow'

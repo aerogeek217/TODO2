@@ -3,11 +3,11 @@ import { render, screen, fireEvent, cleanup, waitFor, act } from '@testing-libra
 import { PurgeCompletedDialog } from '../../../components/overlays/PurgeCompletedDialog'
 import { UndoSnackbar } from '../../../components/overlays/UndoSnackbar'
 import { db } from '../../../data/database'
-import { backupScheduler } from '../../../services/backup-scheduler'
+import { backupScheduler } from '../../../data/backup-scheduler'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useFileOpsStore } from '../../../stores/file-ops-store'
+import { useFileOpsStore } from '../../../services/file-ops-store'
 import type { PersistedTodoItem } from '../../../models'
 import { makeTodo, resetDb } from '../../helpers'
 

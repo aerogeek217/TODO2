@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { useFileOpsStore } from '../../../stores/file-ops-store'
+import { useFileOpsStore } from '../../../services/file-ops-store'
 import { legacyImportInfo } from '../../../services/data-files'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
 import { BYTES_PER_KB } from '../../../constants'
 import type { BackupTrigger } from '../../../models'
-import { NO_BACKUP_NOTE } from '../../../services/safety-snapshot'
+import { NO_BACKUP_NOTE } from '../../../stores/safety-snapshot'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
 

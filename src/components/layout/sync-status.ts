@@ -1,5 +1,5 @@
-import { useFileStorageStore } from '../../stores/file-storage-store'
-import { useFileOpsStore } from '../../stores/file-ops-store'
+import { useFileStorageStore } from '../../services/file-storage-store'
+import { useFileOpsStore } from '../../services/file-ops-store'
 
 /** What the storage pill says, from the file storage status. */
 export type StoragePillKind = 'local' | 'syncing' | 'paused' | 'error'

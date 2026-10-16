@@ -1,6 +1,6 @@
 import { backupRepository } from '../data/backup-repository'
-import { useUIStore } from '../stores/ui-store'
-import { backupScheduler } from './backup-scheduler'
+import { useUIStore } from './ui-store'
+import { backupScheduler } from '../data/backup-scheduler'
 
 /**
  * `taken` — the backup snapshot is stored; `without-backup` — it failed and

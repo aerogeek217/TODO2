@@ -5,9 +5,9 @@ import {
   type SyncConflictInfo,
   type SyncConflictChoice,
   type FileUpgradeInfo,
-} from '../services/file-storage'
-import { useNoteStore } from './note-store'
-import { refreshAllStores } from './refresh-all'
+} from './file-storage'
+import { useNoteStore } from '../stores/note-store'
+import { refreshAllStores } from '../stores/refresh-all'
 import type { UnsupportedImportInfo } from '../data/file-version'
 
 /**

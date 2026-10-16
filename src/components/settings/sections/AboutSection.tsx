@@ -1,4 +1,4 @@
-import { useFileStorageStore } from '../../../stores/file-storage-store'
+import { useFileStorageStore } from '../../../services/file-storage-store'
 import styles from './sections.module.css'
 
 /** What the app is and where the data lives. */

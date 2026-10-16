@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { SyncConflictDialog } from '../../../components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from '../../../components/overlays/FileUpgradeDialog'
 import { FileSyncBanner } from '../../../components/layout/FileSyncBanner'
-import { useFileStorageStore } from '../../../stores/file-storage-store'
+import { useFileStorageStore } from '../../../services/file-storage-store'
 import type { SyncConflictInfo } from '../../../services/file-storage'
 
 afterEach(() => cleanup())
