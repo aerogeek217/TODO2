@@ -54,9 +54,9 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
   const [selection, setSelection] = useState<{ from: number; to: number }>({ from: 0, to: 0 })
   const [copying, setCopying] = useState(false)
   const viewRef = useRef<EditorView | null>(null)
-  // `@ # /` popup + tints over the live stores (read once by the editor).
   const toastRef = useLatestRef(onConvertToast)
-  const nlp = useMemo(() => storeNotesNlpConfig((message) => toastRef.current?.(message)), [toastRef])
+  // `@ # /` popup + tints over the live stores (read once by the editor).
+  const nlp = useMemo(() => storeNotesNlpConfig(), [])
 
   useEffect(() => {
     // Only auto-seed the global note when not bound to an external source.
@@ -153,6 +153,7 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
         placeholder={placeholder ?? 'Jot notes here…'}
         viewRef={viewRef}
         nlp={nlp}
+        onNlpError={onConvertToast}
       />
       {notesConvert.layer}
     </div>

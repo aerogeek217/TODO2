@@ -39,8 +39,12 @@ export interface NotesNlpConfig {
   sources: () => AutocompleteSources
   /** People and statuses for the tints (an unknown `@name` / `/status` tints differently). */
   resolverData: () => { people: Person[]; statuses: Status[] }
-  /** A create row was picked: create the person (`@`) or tag (`#`) now. */
-  onCreate: (trigger: '@' | '#', name: string) => void
+  /**
+   * A create row was picked: create the person (`@`) or tag (`#`) now. A
+   * rejection's message is meant for the user (`NotesEditor` shows it
+   * through `onNlpError`).
+   */
+  onCreate: (trigger: '@' | '#', name: string) => Promise<void>
   /** Calls `listener` whenever the sources change; returns the unsubscribe. */
   subscribe?: (listener: () => void) => () => void
 }
@@ -121,7 +125,7 @@ export function pickNotesPopupRow(view: EditorView, row: AutocompleteRow): boole
     userEvent: 'input.complete',
     scrollIntoView: true,
   })
-  if (row.kind === 'create') config.onCreate(row.trigger, row.name)
+  if (row.kind === 'create') void config.onCreate(row.trigger, row.name)
   return true
 }
 

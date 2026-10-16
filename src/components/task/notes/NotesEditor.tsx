@@ -7,6 +7,7 @@ import { htmlToMarkdown } from '../../../services/notes-export'
 import { notesNlp, notesPopupField, type NotesNlpConfig, type NotesPopupState } from './notes-nlp'
 import { NotesNlpPopup } from './NotesNlpPopup'
 import { convertHighlight } from './notes-convert-highlight'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesEditor.module.css'
 
 interface NotesEditorProps {
@@ -29,6 +30,8 @@ interface NotesEditorProps {
    * when the editor is created.
    */
   nlp?: NotesNlpConfig
+  /** Shown to the user when the `nlp` popup's create row fails (e.g. the tag limit). */
+  onNlpError?: (message: string) => void
 }
 
 /**
@@ -49,22 +52,21 @@ export function NotesEditor({
   placeholder,
   viewRef: externalViewRef,
   nlp,
+  onNlpError,
 }: NotesEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  const onChangeRef = useRef(onChange)
-  const onLineChangeRef = useRef(onLineChange)
-  const onSelectionChangeRef = useRef(onSelectionChange)
-  const extraKeymapRef = useRef(extraKeymap)
+  const onChangeRef = useLatestRef(onChange)
+  const onLineChangeRef = useLatestRef(onLineChange)
+  const onSelectionChangeRef = useLatestRef(onSelectionChange)
+  const extraKeymapRef = useLatestRef(extraKeymap)
+  const onNlpErrorRef = useLatestRef(onNlpError)
+  // The text the parent last saw: the editor's own changes (listener) and the
+  // parent's (the value sync effect, before it applies them) write it, so an
+  // applied `value` is never reported back as a change.
   const valueRef = useRef(value)
   const keymapCompartment = useRef(new Compartment())
   const [popup, setPopup] = useState<{ editor: EditorView; state: NotesPopupState } | null>(null)
-
-  onChangeRef.current = onChange
-  onLineChangeRef.current = onLineChange
-  onSelectionChangeRef.current = onSelectionChange
-  extraKeymapRef.current = extraKeymap
-  valueRef.current = value
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -103,7 +105,14 @@ export function NotesEditor({
         EditorView.lineWrapping,
         pasteHandler,
         keymapCompartment.current.of(buildKeymap()),
-        nlp ? notesNlp(nlp) : [],
+        nlp
+          ? notesNlp({
+            ...nlp,
+            onCreate: (trigger, name) => nlp.onCreate(trigger, name).catch((err: unknown) => {
+              onNlpErrorRef.current?.(err instanceof Error ? err.message : String(err))
+            }),
+          })
+          : [],
         convertHighlight,
         EditorView.updateListener.of((update) => {
           const nextPopup = update.state.field(notesPopupField, false) ?? null
@@ -148,21 +157,21 @@ export function NotesEditor({
     if (!view) return
     const current = view.state.doc.toString()
     if (current !== value) {
+      valueRef.current = value
       view.dispatch({
         changes: { from: 0, to: current.length, insert: value },
       })
-      valueRef.current = value
     }
   }, [value])
 
-  // Re-apply keymap when extraKeymap contents change (shallow compare on length + keys).
+  // Re-apply the keymap when `extraKeymap` changes.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     view.dispatch({
       effects: keymapCompartment.current.reconfigure(
         keymap.of([
-          ...extraKeymapRef.current,
+          ...extraKeymap,
           ...defaultKeymap,
           ...historyKeymap,
         ]),

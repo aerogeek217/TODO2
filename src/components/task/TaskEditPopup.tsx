@@ -331,8 +331,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (e.key === 'Escape') titleRef.current?.blur()
   }
 
-  const onUpdateRef = useRef(isEdit ? props.onUpdate : undefined)
-  onUpdateRef.current = isEdit ? props.onUpdate : undefined
+  const onUpdateRef = useLatestRef(isEdit ? props.onUpdate : undefined)
 
   const notesSource = useMemo<NotesSource>(() => ({
     get: () => notesRef.current,
@@ -341,7 +340,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       setNotes(next)
       onUpdateRef.current?.({ notes: next ? next : undefined })
     },
-  }), [])
+  }), [onUpdateRef])
 
   const handleDeadlineChange = (next: Date | null) => {
     setDeadline(next)

@@ -1,8 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { createRef } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { NotesEditor } from '../../../components/task/notes/NotesEditor'
+import type { NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
+import { personItems, statusItems, tagItems } from '../../../services/nlp-autocomplete'
 
 afterEach(cleanup)
 
@@ -119,5 +121,88 @@ describe('NotesEditor — click-to-focus below content', () => {
     // elsewhere based on click coords, so assert the specific "handler ran"
     // signature (caret === doc.length) is absent.
     expect(view.state.selection.main.head).not.toBe(view.state.doc.length)
+  })
+})
+
+describe('NotesEditor — the `@ # /` popup', () => {
+  // JSDOM has no layout for Ranges; the open popup measures the caret with them.
+  const range = Range.prototype as { getClientRects?: unknown; getBoundingClientRect?: unknown }
+  beforeEach(() => {
+    range.getClientRects = () => [] as unknown as DOMRectList
+    range.getBoundingClientRect = () => new DOMRect()
+  })
+  afterEach(() => {
+    delete range.getClientRects
+    delete range.getBoundingClientRect
+  })
+
+  function nlpConfig(onCreate: NotesNlpConfig['onCreate']): NotesNlpConfig {
+    return {
+      sources: () => ({
+        people: personItems([]),
+        tags: tagItems([]),
+        statuses: statusItems([]),
+        commands: true,
+        followupDefault: { count: 1, unit: 'm' },
+        today: new Date(2026, 9, 10),
+      }),
+      resolverData: () => ({ people: [], statuses: [] }),
+      onCreate,
+    }
+  }
+
+  /** Types `text` at the caret, then picks the popup's row with Enter. */
+  function typeAndPick(view: EditorView, text: string) {
+    for (const ch of text) {
+      const at = view.state.selection.main.head
+      view.dispatch({ changes: { from: at, insert: ch }, selection: { anchor: at + 1 }, userEvent: 'input.type' })
+    }
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+  }
+
+  it('a create row that fails reports its message through onNlpError', async () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const onCreate = vi.fn(() => Promise.reject(new Error('You can have at most 50 tags.')))
+    const onNlpError = vi.fn()
+    render(<NotesEditor value="- Plan " onChange={() => {}} viewRef={viewRef} nlp={nlpConfig(onCreate)} onNlpError={onNlpError} />)
+    const view = viewRef.current!
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    typeAndPick(view, '#launch')
+    expect(onCreate).toHaveBeenCalledWith('#', 'launch')
+    await vi.waitFor(() => expect(onNlpError).toHaveBeenCalledWith('You can have at most 50 tags.'))
+  })
+
+  it('reports to the latest onNlpError (the editor is built once)', async () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const onCreate = vi.fn(() => Promise.reject(new Error('nope')))
+    const first = vi.fn()
+    const latest = vi.fn()
+    const { rerender } = render(<NotesEditor value="" onChange={() => {}} viewRef={viewRef} nlp={nlpConfig(onCreate)} onNlpError={first} />)
+    rerender(<NotesEditor value="" onChange={() => {}} viewRef={viewRef} nlp={nlpConfig(onCreate)} onNlpError={latest} />)
+    typeAndPick(viewRef.current!, '@Marco')
+    await vi.waitFor(() => expect(latest).toHaveBeenCalledWith('nope'))
+    expect(first).not.toHaveBeenCalled()
+  })
+})
+
+describe('NotesEditor — value and callbacks', () => {
+  it('a new value from the parent replaces the text without being reported back', () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const onChange = vi.fn()
+    const { rerender } = render(<NotesEditor value="one" onChange={onChange} viewRef={viewRef} />)
+    rerender(<NotesEditor value="two" onChange={onChange} viewRef={viewRef} />)
+    expect(viewRef.current!.state.doc.toString()).toBe('two')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('reports an edit to the latest onChange', () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const first = vi.fn()
+    const latest = vi.fn()
+    const { rerender } = render(<NotesEditor value="" onChange={first} viewRef={viewRef} />)
+    rerender(<NotesEditor value="" onChange={latest} viewRef={viewRef} />)
+    viewRef.current!.dispatch({ changes: { from: 0, insert: 'x' } })
+    expect(latest).toHaveBeenCalledWith('x')
+    expect(first).not.toHaveBeenCalled()
   })
 })

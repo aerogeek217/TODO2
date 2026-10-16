@@ -28,10 +28,10 @@ function memoBy<T, R>(build: (list: readonly T[]) => R): (list: readonly T[]) =>
 /**
  * The notes autocomplete over the live stores: people / tags / statuses and
  * the default follow-up as candidates; a picked create row creates the person
- * (`getOrCreate`) or tag (`add`, lookup-or-create) straight away. `onError`
- * gets a user-facing message when that fails (e.g. the tag limit).
+ * (`getOrCreate`) or tag (`add`, lookup-or-create) straight away; when that
+ * fails (e.g. the tag limit) it rejects with a user-facing message.
  */
-export function storeNotesNlpConfig(onError?: (message: string) => void): NotesNlpConfig {
+export function storeNotesNlpConfig(): NotesNlpConfig {
   const people = memoBy<Person, AutocompleteItem[]>(personItems)
   const tags = memoBy<Tag, AutocompleteItem[]>(tagItems)
   const statuses = memoBy<Status, AutocompleteItem[]>(statusItems)
@@ -48,13 +48,12 @@ export function storeNotesNlpConfig(onError?: (message: string) => void): NotesN
       people: usePersonStore.getState().people,
       statuses: useStatusStore.getState().statuses,
     }),
-    onCreate: (trigger, name) => {
-      const created = trigger === '@'
-        ? usePersonStore.getState().getOrCreate(name)
-        : useTagStore.getState().add(name)
-      created.catch((err: unknown) => {
-        onError?.(err instanceof TagLimitError ? err.message : `Couldn't create ${trigger}${name}`)
-      })
+    onCreate: async (trigger, name) => {
+      try {
+        await (trigger === '@' ? usePersonStore.getState().getOrCreate(name) : useTagStore.getState().add(name))
+      } catch (err: unknown) {
+        throw new Error(err instanceof TagLimitError ? err.message : `Couldn't create ${trigger}${name}`, { cause: err })
+      }
     },
     subscribe: (listener) => {
       const unsubs = [

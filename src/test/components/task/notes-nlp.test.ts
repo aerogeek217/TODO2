@@ -28,7 +28,7 @@ afterEach(() => {
 function setup(doc = '', people: Person[] = PEOPLE) {
   const listeners = new Set<() => void>()
   const state = { people }
-  const onCreate = vi.fn()
+  const onCreate = vi.fn(async () => {})
   const config: NotesNlpConfig = {
     sources: () => ({
       people: personItems(state.people),
