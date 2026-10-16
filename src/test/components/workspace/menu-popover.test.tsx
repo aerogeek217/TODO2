@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { StrictMode, useRef, useState } from 'react'
-import { MenuPopover, type MenuEntry } from '../../../components/workspace/MenuPopover'
+import { MenuPopover, type MenuEntry } from '../../../components/shared/MenuPopover'
 
 afterEach(cleanup)
 

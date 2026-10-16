@@ -17,7 +17,7 @@ import { ADDABLE_KINDS, countListWidgets, kindLabel, useAddWidget, useTabTitle }
 import { SaveListButton } from './list/SaveListButton'
 import { pointBelow } from './list/popover-point'
 import { UnsavedPrompt } from './UnsavedPrompt'
-import { MenuPopover, type MenuEntry } from './MenuPopover'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
   ChevronDownIcon,
   ChevronUpIcon,
@@ -28,7 +28,7 @@ import {
   SplitBelowIcon,
   SplitRightIcon,
   WidgetKindIcon,
-} from './icons'
+} from '../shared/icons'
 import { useTabDrag } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from '../../../components/task/task-menu-entries'
-import type { MenuEntry, MenuItemEntry } from '../../../components/workspace/MenuPopover'
+import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import type { PersistedTodoItem } from '../../../models'
 import { makeTodo } from '../../helpers'
 

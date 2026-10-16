@@ -7,7 +7,7 @@ import { WorkspaceCell } from './WorkspaceCell'
 import { ADDABLE_KINDS, kindLabel, useAddWidget } from './widget-hooks'
 import { WorkspaceDivider } from './WorkspaceDivider'
 import { AddWidgetFlow } from './AddWidgetFlow'
-import { WidgetKindIcon } from './icons'
+import { WidgetKindIcon } from '../shared/icons'
 import { useTabDrag } from './workspace-drag'
 import styles from './WorkspaceView.module.css'
 

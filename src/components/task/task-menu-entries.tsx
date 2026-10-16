@@ -8,8 +8,8 @@ import {
   isFollowedUpToday,
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../utils/followup'
-import type { MenuEntry } from '../workspace/MenuPopover'
-import { CheckCircleIcon, CloseIcon, FlagIcon, HashIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../workspace/icons'
+import type { MenuEntry } from '../shared/MenuPopover'
+import { CheckCircleIcon, CloseIcon, FlagIcon, HashIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
 import { FollowedUpIcon } from '../shared/FollowupIcons'
 import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
 import { StatusIcon } from '../shared/StatusIcon'

@@ -28,8 +28,8 @@ import {
 } from '../../utils/checkin-settings'
 import { PeopleEditor } from '../settings/PeopleEditor'
 import { Dialog, DialogFrame } from '../shared/Dialog'
-import { ChevronDownIcon } from '../workspace/icons'
-import { MenuPopover, type MenuEntry } from '../workspace/MenuPopover'
+import { ChevronDownIcon } from '../shared/icons'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import styles from './CheckinDialog.module.css'
 
 type SentAs = 'opened' | 'downloaded'

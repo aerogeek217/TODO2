@@ -2,8 +2,8 @@ import { useMemo } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { CalendarDateType } from '../../../models/workspace-layout'
 import { dayLabel, shortDayLabel } from '../../../utils/calendar-grid'
-import { MenuPopover, type MenuEntry } from '../MenuPopover'
-import { FlagIcon, WidgetKindIcon } from '../icons'
+import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
+import { FlagIcon, WidgetKindIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
 
 interface CalendarDropChooserProps {

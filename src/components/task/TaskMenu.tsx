@@ -4,7 +4,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useToday } from '../../hooks/use-today'
-import { MenuPopover } from '../workspace/MenuPopover'
+import { MenuPopover } from '../shared/MenuPopover'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from './task-menu-entries'
 
 /**

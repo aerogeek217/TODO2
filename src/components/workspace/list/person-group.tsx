@@ -2,8 +2,8 @@ import type { TodoGroupBy } from '../../../models/todo-sort-group'
 import type { Section } from '../../../services/list-sections'
 import { personTaskDialog } from '../../../services/task-dialog'
 import { useUIStore } from '../../../stores/ui-store'
-import { AtIcon, EnvelopeIcon } from '../icons'
-import type { MenuEntry } from '../MenuPopover'
+import { AtIcon, EnvelopeIcon } from '../../shared/icons'
+import type { MenuEntry } from '../../shared/MenuPopover'
 
 /** The person a People group stands for. */
 export interface GroupPerson {

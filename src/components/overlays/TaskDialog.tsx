@@ -27,7 +27,7 @@ import { DialogFrame } from '../shared/Dialog'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { DashGlyph } from '../workspace/dashboard/glyphs'
-import { EnvelopeIcon } from '../workspace/icons'
+import { EnvelopeIcon } from '../shared/icons'
 import styles from './TaskDialog.module.css'
 
 /** The stores as they are now: what a source is resolved with when the dialog opens. */

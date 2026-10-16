@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { MenuPopover, type MenuEntry } from './MenuPopover'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useUnsavedListIds } from '../../stores/list-draft-store'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { UnsavedPrompt } from './UnsavedPrompt'
-import { ChevronDownIcon, CopyIcon, LayoutIcon, PencilIcon, RevertIcon, SaveIcon, TrashIcon } from './icons'
+import { ChevronDownIcon, CopyIcon, LayoutIcon, PencilIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
 
 type Pending =

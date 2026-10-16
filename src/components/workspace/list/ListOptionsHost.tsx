@@ -15,9 +15,9 @@ import {
   PROMPT_LABEL,
   SORT_LABEL,
 } from '../../../utils/list-options'
-import { MenuPopover, type MenuEntry } from '../MenuPopover'
+import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { useListWidgetCount } from '../widget-hooks'
-import { LinkIcon, PlusIcon } from '../icons'
+import { LinkIcon, PlusIcon } from '../../shared/icons'
 import { PredicateFieldPicker } from './PredicateFieldPicker'
 import { ADD_FILTER_ITEMS } from './filter-menu'
 import { pointBelow } from './popover-point'

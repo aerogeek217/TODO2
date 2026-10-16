@@ -36,7 +36,7 @@ import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
 import { ListOptionsHost } from '../components/workspace/list/ListOptionsHost'
 import { getUnsavedListIds, useUnsavedListIds } from '../stores/list-draft-store'
-import { PlusIcon, WidgetKindIcon } from '../components/workspace/icons'
+import { PlusIcon, WidgetKindIcon } from '../components/shared/icons'
 import {
   isWorkspaceTabDragData,
   TabDragContext,

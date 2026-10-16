@@ -18,7 +18,7 @@ import {
   HashIcon,
   StatusRingIcon,
   WidgetKindIcon,
-} from '../../workspace/icons'
+} from '../icons'
 import { DateRangePanelBody, EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import {
   narrowedPeople,

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTooltip } from '../../../hooks/use-tooltip'
-import { EnvelopeIcon } from '../icons'
+import { EnvelopeIcon } from '../../shared/icons'
 import { openPersonCheckin, type GroupPerson } from './person-group'
 import styles from './ListWidget.module.css'
 

@@ -2,7 +2,7 @@ import type { DashboardTileId } from '../../../models/dashboard-config'
 import type { DashGlyphName } from '../../../utils/dash-glyphs'
 import { tileDescription } from './dashboard-copy'
 import type { DashboardDrill } from './types'
-import type { DashboardData } from './use-dashboard-data'
+import type { DashboardData } from '../../../hooks/use-dashboard-data'
 
 /** A built-in tile's look and its task dialog's title. */
 export interface TileDef {

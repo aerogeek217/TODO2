@@ -1,7 +1,7 @@
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetCount } from '../widget-hooks'
-import { SaveIcon } from '../icons'
+import { SaveIcon } from '../../shared/icons'
 
 /**
  * A cell header's save button for a list with unsaved edits. The edits belong

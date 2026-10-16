@@ -41,7 +41,7 @@ import {
 import { dayKey } from '../../../utils/date'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
-import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TodayIcon, WidgetKindIcon } from '../icons'
+import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TodayIcon, WidgetKindIcon } from '../../shared/icons'
 import { CalendarEntryButton, type CalendarEntrySize } from './CalendarEntryButton'
 import { CalendarDayPopover } from './CalendarDayPopover'
 import {
@@ -50,7 +50,7 @@ import {
   PendingCalendarDropContext,
   type CalendarEntryDragData,
 } from './calendar-drag'
-import { useElementSize } from './use-element-size'
+import { useElementSize } from '../../../hooks/use-element-size'
 import styles from './CalendarWidget.module.css'
 
 /** Width assumed before the widget is measured. */

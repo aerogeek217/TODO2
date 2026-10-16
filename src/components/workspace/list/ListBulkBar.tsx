@@ -15,8 +15,8 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useToday } from '../../../hooks/use-today'
 import { isFollowedUpToday } from '../../../utils/followup'
 import { followedUpMenuEntry, markerMenuEntries } from '../../task/task-menu-entries'
-import { MenuPopover } from '../MenuPopover'
-import { AtIcon, CheckIcon, CloseIcon, HashIcon, MoreIcon, TrashIcon } from '../icons'
+import { MenuPopover } from '../../shared/MenuPopover'
+import { AtIcon, CheckIcon, CloseIcon, HashIcon, MoreIcon, TrashIcon } from '../../shared/icons'
 import styles from './ListWidget.module.css'
 
 type OpenPicker = 'people' | 'tags' | 'followup' | 'more' | null

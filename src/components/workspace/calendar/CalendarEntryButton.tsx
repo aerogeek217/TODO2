@@ -4,7 +4,7 @@ import { calendarEntryState, type CalendarEntry } from '../../../services/calend
 import { calendarEntryTitle } from './calendar-entry-title'
 import { AvatarStack } from '../../shared/AvatarStack'
 import { TaskPillStatus } from '../../shared/TaskPillBar'
-import { FlagIcon, RepeatIcon, WidgetKindIcon } from '../icons'
+import { FlagIcon, RepeatIcon, WidgetKindIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
 
 /** Entry sizes: `sm` month cells, `md` week / day list / day popover, `touch` mobile day list. */

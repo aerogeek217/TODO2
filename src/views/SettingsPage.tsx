@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { SettingsSectionId } from '../stores/ui-store'
 import { SETTINGS_SECTIONS, settingsSection } from '../components/settings/sections/settings-sections'
-import { ChevronLeftIcon, ChevronRightIcon } from '../components/workspace/icons'
+import { ChevronLeftIcon, ChevronRightIcon } from '../components/shared/icons'
 import styles from './SettingsPage.module.css'
 
 const MOBILE_SECTIONS = SETTINGS_SECTIONS.filter((s) => s.mobile)

@@ -2,8 +2,8 @@ import { useMemo, type ReactNode } from 'react'
 import type { WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { bySortOrder } from '../../utils/sort-order'
-import { WidgetKindIcon } from '../workspace/icons'
-import { MenuPopover, type MenuEntry, type MenuItemEntry, type MenuPanelSpec } from '../workspace/MenuPopover'
+import { WidgetKindIcon } from './icons'
+import { MenuPopover, type MenuEntry, type MenuItemEntry, type MenuPanelSpec } from './MenuPopover'
 
 const PRIMARY_KINDS: { kind: WidgetKind; label: string }[] = [
   { kind: 'lens', label: 'List' },

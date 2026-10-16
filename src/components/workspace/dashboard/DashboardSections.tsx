@@ -12,7 +12,7 @@ import { rowKey } from '../../../utils/scoped-selection'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { ListWidgetRow } from '../list/ListWidgetRow'
-import { useElementSize } from '../calendar/use-element-size'
+import { useElementSize } from '../../../hooks/use-element-size'
 import {
   countOf, hotRuleInWords, nextDayDialogWords, nextDayLabels, signed, sinceLabel, trendBucketDialogWords, trendBucketLabel,
   trendRangeLabel, trendRangeWords,
@@ -20,7 +20,7 @@ import {
 import { tileDrill } from './dashboard-tiles'
 import { DashGlyph } from './glyphs'
 import { SECTION_META, type DashboardSectionMeta } from './section-meta'
-import type { DashboardData } from './use-dashboard-data'
+import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import styles from './DashboardWidget.module.css'
 

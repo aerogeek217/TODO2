@@ -33,8 +33,8 @@ import { bySortOrder } from '../../../utils/sort-order'
 import { findTab } from '../../../utils/workspace-layout-ops'
 import { DragHandle } from '../../shared/DragHandle'
 import { DialogFrame } from '../../shared/Dialog'
-import { MenuPopover, type MenuEntry } from '../MenuPopover'
-import { ChevronDownIcon, CloseIcon } from '../icons'
+import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
+import { ChevronDownIcon, CloseIcon } from '../../shared/icons'
 import { tileCatalogHint, trendRangeLabel } from './dashboard-copy'
 import {
   customizeStateFrom,

@@ -4,7 +4,7 @@ import { useDndMonitor } from '@dnd-kit/core'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { CalendarEntry } from '../../../services/calendar-entries'
 import { dayLabel } from '../../../utils/calendar-grid'
-import { CloseIcon } from '../icons'
+import { CloseIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
 
 interface CalendarDayPopoverProps {
