@@ -3,6 +3,7 @@ import {
   dragRow,
   readListDefinitions,
   readListOrders,
+  releaseDrag,
   seedWorkspace,
   wsCell,
   wsListWidget,
@@ -79,6 +80,22 @@ test('reordering a manual list saves at once and survives a reload', async ({ pa
   const after = await readListOrders(page)
   const changed = after.filter((r) => before.find((b) => b.todoId === r.todoId)?.rank !== r.rank)
   expect(changed).toHaveLength(1)
+})
+
+test('a row moved to its spot in one quick motion and let go lands there', async ({ page }) => {
+  await seedWorkspace(page, seed({ name: 'Order' }))
+  await expect.poll(() => titles(page)).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
+
+  // One pointer move both starts the drag (past the 5px activation) and
+  // reaches the landing spot; nothing moves after it before the release.
+  const box = await row(page, 'Delta').boundingBox()
+  if (!box) throw new Error('no box')
+  const x = box.x + 10
+  await page.mouse.move(x, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(x, await above(row(page, 'Bravo')))
+  await releaseDrag(page)
+  await expect.poll(() => titles(page)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
 })
 
 test('dragging in a sorted list asks to switch to manual order', async ({ page }) => {

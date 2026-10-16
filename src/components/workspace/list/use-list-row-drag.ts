@@ -41,12 +41,39 @@ export function useListRowDrag({ tabId, scrollRef, canCross, onDrop }: UseListRo
   const [drag, setDragState] = useState<ListRowDragState | null>(null)
   const dragRef = useRef<ListRowDragState | null>(null)
   const geomRef = useRef<ListGeometry | null>(null)
+  /** Removes the drag's `pointermove` listener; set while one of this widget's rows is dragged. */
+  const stopFollowingRef = useRef<(() => void) | null>(null)
   const onDropRef = useLatestRef(onDrop)
   const canCrossRef = useLatestRef(canCross)
 
   const setDrag = (next: ListRowDragState | null) => {
     dragRef.current = next
     setDragState(next)
+  }
+
+  const endDrag = () => {
+    stopFollowingRef.current?.()
+    stopFollowingRef.current = null
+    geomRef.current = null
+    setDrag(null)
+  }
+
+  /** Follows the pointer to the landing spot, from the drag's first move on. */
+  const followPointer = () => {
+    const onMove = (e: PointerEvent) => {
+      const current = dragRef.current
+      const scrollEl = scrollRef.current
+      const geom = geomRef.current
+      if (!current || !scrollEl || !geom) return
+      const r = scrollEl.getBoundingClientRect()
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+      const target = inside ? listRowDropTarget(geom, contentY(scrollEl, e.clientY), current.source, canCrossRef.current) : null
+      const prev = current.target
+      if (prev === target || (prev && target && prev.sectionKey === target.sectionKey && prev.index === target.index && prev.cross === target.cross)) return
+      setDrag({ ...current, target })
+    }
+    window.addEventListener('pointermove', onMove)
+    stopFollowingRef.current = () => window.removeEventListener('pointermove', onMove)
   }
 
   useDndMonitor({
@@ -62,39 +89,25 @@ export function useListRowDrag({ tabId, scrollRef, canCross, onDrop }: UseListRo
         source: { key: data.rowKey, todoId: data.todo.id, sectionKey: data.sectionKey, index: Math.max(0, index) },
         target: null,
       })
+      // Attached here, not in an effect after the render: the pointer may
+      // reach its landing spot and stop before an effect would run.
+      stopFollowingRef.current?.()
+      followPointer()
     },
     onDragEnd() {
       const current = dragRef.current
       if (!current) return
-      setDrag(null)
-      geomRef.current = null
+      endDrag()
       if (current.target) onDropRef.current(current.source, current.target)
     },
     onDragCancel() {
       if (!dragRef.current) return
-      setDrag(null)
-      geomRef.current = null
+      endDrag()
     },
   })
 
-  const active = drag != null
-  useEffect(() => {
-    if (!active) return
-    const onMove = (e: PointerEvent) => {
-      const current = dragRef.current
-      const scrollEl = scrollRef.current
-      const geom = geomRef.current
-      if (!current || !scrollEl || !geom) return
-      const r = scrollEl.getBoundingClientRect()
-      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
-      const target = inside ? listRowDropTarget(geom, contentY(scrollEl, e.clientY), current.source, canCrossRef.current) : null
-      const prev = current.target
-      if (prev === target || (prev && target && prev.sectionKey === target.sectionKey && prev.index === target.index && prev.cross === target.cross)) return
-      setDrag({ ...current, target })
-    }
-    window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
-  }, [active, scrollRef, canCrossRef])
+  // The widget unmounted mid-drag: stop following the pointer.
+  useEffect(() => () => stopFollowingRef.current?.(), [])
 
   return drag
 }
