@@ -8,9 +8,8 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import type { TileStats } from '../../../services/stats/tiles'
 import { useUIStore } from '../../../stores/ui-store'
-import { nextScopedSelection, readScopeRows } from '../../../utils/scoped-selection'
+import { readScopeRows } from '../../../utils/scoped-selection'
 import { ListBulkBar } from '../list/ListBulkBar'
-import type { ListRowSelectMods } from '../list/ListWidgetRow'
 import { useElementSize } from '../calendar/use-element-size'
 import { countOf, tileSubLine, withScreenNote } from './dashboard-copy'
 import { TILES, tileDrill } from './dashboard-tiles'
@@ -22,7 +21,7 @@ import { useListTileHints } from './use-list-tile-hints'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from './use-dashboard-data'
 import styles from './DashboardWidget.module.css'
-import { useScopedSelectionRelease } from '../../../hooks/use-scoped-selection-release'
+import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 
 /** What the widget reports to its cell: the tab count and the counts for "Copy summary". */
 export interface DashboardResult {
@@ -161,16 +160,17 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   ))
   const isMobile = useIsMobile()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const inScope = useUIStore((s) => s.selectionScope === tab.id)
-  useScopedSelectionRelease(tab.id)
-  const selectedIds = useUIStore((s) => s.selectedTodoIds)
-  const cursorKey = useUIStore((s) => (s.selectionScope === tab.id ? s.selectionCursorKey : null))
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const setRootRef = useCallback((el: HTMLDivElement | null) => {
     rootRef.current = el
     sizeRef(el)
   }, [sizeRef])
+  // Rows sit in sections of their own: read them from the page at click time.
+  const { inScope, selectedIds, cursorKey, onSelect, clearOnEmptySpace } = useWidgetSelection(
+    tab.id,
+    () => (rootRef.current ? readScopeRows(rootRef.current) : []),
+  )
 
   const countLabel = countOf(data.tiles.shown.open.ids.length, data.tiles.total.open.ids.length)
   const summary = useMemo(
@@ -181,20 +181,6 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   useEffect(() => {
     onResultRef.current?.({ countLabel, summary })
   }, [countLabel, summary, onResultRef])
-
-  const onSelect = useCallback((key: string, _todoId: number, mods: ListRowSelectMods) => {
-    const root = rootRef.current
-    if (!root) return
-    const ui = useUIStore.getState()
-    const next = nextScopedSelection(
-      { scope: ui.selectionScope, ids: ui.selectedTodoIds, anchorKey: ui.selectionAnchorKey },
-      tab.id,
-      readScopeRows(root),
-      key,
-      mods.shift ? 'range' : mods.ctrl ? 'toggle' : 'one',
-    )
-    if (next) ui.setScopedSelection(tab.id, next)
-  }, [tab.id])
 
   const rows: DashboardRowKit = { tabId: tab.id, isMobile, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup }
 
@@ -233,10 +219,8 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
       data-dashboard={tab.id}
       data-layout={wide ? 'grid' : 'column'}
       data-selection-scope={isMobile ? undefined : tab.id}
-      onClick={(e) => {
-        // A click on empty space clears this widget's selection.
-        if (inScope && e.target === e.currentTarget) useUIStore.getState().clearSelection()
-      }}
+      // A click on empty space clears this widget's selection.
+      onClick={clearOnEmptySpace}
     >
       {config.tiles.length > 0 && (
         <div className={styles.tiles} aria-label="Tiles" role="group" data-tile-rows={tileRows}>

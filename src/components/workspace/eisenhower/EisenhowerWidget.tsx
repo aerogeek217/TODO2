@@ -34,7 +34,7 @@ import {
   type QuadrantDropResult,
 } from '../../../utils/eisenhower'
 import { getFilterDefaults, withUrgentImportant } from '../../../utils/filter-defaults'
-import { nextScopedSelection, rowKey, type ScopedRow } from '../../../utils/scoped-selection'
+import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { eisenhowerQuadrantDropId, TASK_DROP_KIND } from '../../../utils/task-dnd'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
@@ -46,7 +46,7 @@ import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../
 import { dragTasks } from './eisenhower-drag'
 import tooltipStyles from '../../shared/Tooltip.module.css'
 import styles from './EisenhowerWidget.module.css'
-import { useScopedSelectionRelease } from '../../../hooks/use-scoped-selection-release'
+import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -380,10 +380,6 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   const screen = useFilterStore((s) => s.filters)
   const markerSettings = useFilterSettings()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const inScope = useUIStore((s) => s.selectionScope === tab.id)
-  useScopedSelectionRelease(tab.id)
-  const selectedIds = useUIStore((s) => s.selectedTodoIds)
-  const cursorKey = useUIStore((s) => (s.selectionScope === tab.id ? s.selectionCursorKey : null))
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const setRootRef = useCallback((el: HTMLDivElement | null) => {
@@ -428,18 +424,7 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
       stacked && collapsed.has(q) ? [] : quadrants[q].map((t) => ({ key: rowKey(q, t.id), todoId: t.id }))),
     [quadrants, stacked, collapsed],
   )
-  const rowsRef = useLatestRef(rows)
-  const onSelect = useCallback((key: string, _todoId: number, mods: ListRowSelectMods) => {
-    const ui = useUIStore.getState()
-    const next = nextScopedSelection(
-      { scope: ui.selectionScope, ids: ui.selectedTodoIds, anchorKey: ui.selectionAnchorKey },
-      tab.id,
-      rowsRef.current,
-      key,
-      mods.shift ? 'range' : mods.ctrl ? 'toggle' : 'one',
-    )
-    if (next) ui.setScopedSelection(tab.id, next)
-  }, [tab.id, rowsRef])
+  const { inScope, selectedIds, cursorKey, onSelect, clearOnEmptySpace } = useWidgetSelection(tab.id, () => rows)
 
   const toggle = (q: EisenhowerQuadrant, collapse: boolean) => {
     const next = EISENHOWER_QUADRANTS.filter((x) => (x === q ? collapse : collapsed.has(x)))
@@ -464,10 +449,8 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
       data-layout={stacked ? 'stacked' : 'grid'}
       data-dragging={drag ? 'true' : undefined}
       data-selection-scope={isMobile ? undefined : tab.id}
-      onClick={(e) => {
-        // A click on empty space clears this widget's selection.
-        if (inScope && e.target === e.currentTarget) useUIStore.getState().clearSelection()
-      }}
+      // A click on empty space clears this widget's selection.
+      onClick={clearOnEmptySpace}
     >
       {EISENHOWER_QUADRANTS.map((q) => (
         <Quadrant

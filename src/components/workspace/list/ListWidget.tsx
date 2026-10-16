@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem, Person } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
-import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useEffectiveListDefinition, useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -26,7 +25,7 @@ import {
 } from '../../../utils/filter-chips'
 import { listOptionsSummary, PROMPT_LABEL, SORT_LABEL } from '../../../utils/list-options'
 import { manualOrderComparator, planMove, seedRanks, type MoveTarget, type RankWrite } from '../../../utils/list-order'
-import { nextScopedSelection, rowKey, type ScopedRow } from '../../../utils/scoped-selection'
+import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import {
   dispatchCrossGroupMutation,
   resolveCrossGroupMutation,
@@ -41,7 +40,7 @@ import { ChevronDownIcon, FunnelIcon, PlusIcon, SortIcon } from '../icons'
 import { pointBelow } from './popover-point'
 import { PredicateChips } from './PredicateChips'
 import { useChipNames } from './filter-menu'
-import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from './ListWidgetRow'
+import { ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
 import { MenuPopover } from '../MenuPopover'
 import { PersonGroupHeader } from './PersonGroupHeader'
@@ -50,7 +49,7 @@ import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers } from '../../../utils/markers'
 import styles from './ListWidget.module.css'
-import { useScopedSelectionRelease } from '../../../hooks/use-scoped-selection-release'
+import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -117,10 +116,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const screenActive = useFilterStore((s) => s.isActive)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const inScope = useUIStore((s) => s.selectionScope === tab.id)
-  useScopedSelectionRelease(tab.id)
-  const selectedIds = useUIStore((s) => s.selectedTodoIds)
-  const cursorKey = useUIStore((s) => (s.selectionScope === tab.id ? s.selectionCursorKey : null))
   const ranks = useListRanks(definition.id)
   const names = useChipNames()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -177,18 +172,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     ),
     [displaySections, collapsedKeys, grouped],
   )
-  const rowsRef = useLatestRef(rows)
-  const onRowSelect = useCallback((key: string, _todoId: number, mods: ListRowSelectMods) => {
-    const ui = useUIStore.getState()
-    const next = nextScopedSelection(
-      { scope: ui.selectionScope, ids: ui.selectedTodoIds, anchorKey: ui.selectionAnchorKey },
-      tab.id,
-      rowsRef.current,
-      key,
-      mods.shift ? 'range' : mods.ctrl ? 'toggle' : 'one',
-    )
-    if (next) ui.setScopedSelection(tab.id, next)
-  }, [tab.id, rowsRef])
+  const { inScope, selectedIds, cursorKey, onSelect: onRowSelect, clearOnEmptySpace } = useWidgetSelection(tab.id, () => rows)
 
   // ── Drag: reorder (manual / switch to manual) and cross-group reassign ──
   const listId = definition.id
@@ -413,12 +397,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       <div
         ref={scrollRef}
         className={styles.scroll}
-        onClick={(e) => {
-          // A click on empty space clears this widget's selection.
-          if (inScope && (e.target === e.currentTarget || e.target === bodyRef.current)) {
-            useUIStore.getState().clearSelection()
-          }
-        }}
+        // A click on empty space clears this widget's selection.
+        onClick={(e) => clearOnEmptySpace(e, bodyRef.current)}
       >
         {body}
       </div>
