@@ -687,6 +687,10 @@ class FileStorageService {
     // below-floor confirm, conflict "Use file" with an older file) lands
     // here: back up the raw text BEFORE anything changes on either side.
     if (prepared.upgraded && !(await this.backupFileText(text, true))) return
+    // A current-version file the import trimmed (parts dropped with a
+    // warning): the first sync write would rewrite it without them, so its
+    // raw text is backed up first too.
+    if (!prepared.upgraded && prepared.warnings.length > 0 && !(await this.backupFileText(text, false))) return
 
     // The browser already holds this file's data (same content — after the
     // file's upgrade, if it needed one — or clean and synced with this very

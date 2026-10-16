@@ -636,6 +636,25 @@ describe('FileStorageService — file backup before rewrite', () => {
     expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(older), { olderVersion: true })
   })
 
+  it('a current-version file the import trimmed (warnings): its raw text is backed up before sync rewrites it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mockValidateImportData.mockReturnValue({ ok: true, data: validImportData, warnings: ['Ignored 1 unrecognized setting: color.dark.old'] })
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(svc.status.isConnected).toBe(true)
+    // …and a failed backup leaves the file untouched (paused), as for every rewrite.
+    vi.resetModules()
+    mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
+    mockRestoreFromImportData.mockClear()
+    const bad = await startWith()
+    await bad.svc.initialize()
+    expect(bad.svc.status.paused?.reason).toBe('backup-failed')
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    void writable
+  })
+
   it('conflict "Use file" at the current version: no rewrite, so no file backup needed', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
