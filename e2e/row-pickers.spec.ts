@@ -272,3 +272,57 @@ test.describe('mobile row people picker', () => {
     await expect(panel).toHaveCount(0)
   })
 })
+
+/**
+ * Both rows open the same pickers through one hook: the menu's Assign people…
+ * and Add tag…, the follow-up flag and the notes icon do the same on the
+ * desktop and the phone row.
+ */
+for (const phone of [false, true]) {
+  test.describe(phone ? 'phone row pickers' : 'desktop row pickers', () => {
+    if (phone) test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+    test('Assign people…, Add tag…, the follow-up flag and the notes icon', async ({ page }) => {
+      await seedWorkspace(page, {
+        listDefinitions: [{ name: 'Tasks' }],
+        people: ['Alice'],
+        tags: ['home'],
+        tasks: [{ title: 'Pay the bill', notes: 'Account 42' }],
+        layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] }] }],
+      })
+      const row = page.locator('[data-todo-id]').filter({ hasText: 'Pay the bill' })
+      await expect(row).toBeVisible()
+      const openMenu = () => (phone ? row.dispatchEvent('contextmenu') : row.click({ button: 'right' }))
+
+      await openMenu()
+      await page.getByRole('menuitem', { name: 'Assign people…' }).click()
+      await expect(picker(page)).toBeVisible()
+      await picker(page).getByText('Alice', { exact: true }).click()
+      await expect(row.getByTitle('Alice')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(picker(page)).toHaveCount(0)
+
+      await openMenu()
+      await page.getByRole('menuitem', { name: 'Add tag…' }).click()
+      await expect(picker(page)).toBeVisible()
+      await picker(page).getByText('home', { exact: true }).click()
+      await expect(row.getByText('#home')).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(picker(page)).toHaveCount(0)
+
+      const flag = row.getByRole('button', { name: 'Set follow-up' })
+      if (!phone) await row.hover()
+      await flag.click()
+      await expect(page.getByRole('dialog', { name: 'Follow-up' })).toBeVisible()
+      await expect(flag).toHaveAttribute('aria-expanded', 'true')
+      await flag.click()
+      await expect(page.getByRole('dialog', { name: 'Follow-up' })).toHaveCount(0)
+
+      const notesIcon = row.getByRole('button', { name: 'Edit notes' })
+      await notesIcon.click()
+      await expect(page.getByRole('dialog', { name: 'Task notes' })).toContainText('Account 42')
+      await notesIcon.click()
+      await expect(page.getByRole('dialog', { name: 'Task notes' })).toHaveCount(0)
+    })
+  })
+}

@@ -5,7 +5,7 @@ import { AnchoredPicker } from './AnchoredPicker'
 import styles from './TagChipSelector.module.css'
 import { byName } from '../../utils/sort-order'
 
-interface TagChipSelectorProps {
+export interface TagChipSelectorProps {
   /** Tags currently assigned to this todo. Pre-resolved by the consumer. */
   assignedTags: readonly Tag[]
   /** Full tag registry — populates the lookup-or-create dropdown. */

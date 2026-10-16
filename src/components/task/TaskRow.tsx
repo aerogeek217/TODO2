@@ -1,36 +1,29 @@
 import { useRef, useState, useCallback, useMemo, memo } from 'react'
-import { createPortal } from 'react-dom'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
-import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
-import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { TaskPillPeople, TaskPillDates, TaskPillFollowup, TaskPillStatus } from '../shared/TaskPillBar'
-import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { TaskMenu } from './TaskMenu'
-import type { TaskMenuHandlers } from './task-menu-entries'
 import { MoreIcon } from '../workspace/icons'
-import { TaskNotePopover } from './TaskNotePopover'
 import { TaskMarkers } from '../shared/TaskMarkers'
 import { personTaskDialog } from '../../services/task-dialog'
+import { useTaskRowPickers } from './use-task-row-pickers'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
   isSelected?: boolean
+  /** The drag overlay's copy of the row: no triggers or pickers, no hover sync. */
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
@@ -41,25 +34,19 @@ export const TaskRow = memo(function TaskRow({
   onSelect, onOpenDetail,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   /** The task menu: from the ⋯ button, or at the pointer (right-click). */
   const [menu, setMenu] = useState<{ kind: 'button' } | { kind: 'point'; x: number; y: number } | null>(null)
-  const [tagPickerOpen, setTagPickerOpen] = useState(false)
-  const [showNotesPopover, setShowNotesPopover] = useState(false)
-  /** Follow-up popover, anchored to the pill or the empty-slot flag. */
-  const [followupPopover, setFollowupPopover] = useState<{ kind: 'slot' } | null>(null)
-  const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const moreRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
-  const peopleRef = useRef<HTMLDivElement>(null)
-  const deadlineInputRef = useRef<HTMLInputElement>(null)
-  const notesIconRef = useRef<HTMLButtonElement>(null)
 
-  // Read entity lists from stores
-  const allPeople = usePersonStore((s) => s.people)
-  const allTags = useTagStore((s) => s.tags)
-  const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
-  const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
+  const {
+    bulk, handleToggleComplete, tagSelectorProps, peopleOpen, togglePeople, peopleRef, followupOpen, toggleFollowup,
+    followupAnchorRef, toggleNotes, notesIconRef, deadlineInputRef, openDeadlinePicker, onDeadlineInputChange,
+    menuHandlers, panels,
+  } = useTaskRowPickers({
+    todo, assignedPeople, ghost, onOpenDetail, peoplePickerClassName: styles.chipDropdown,
+  })
+
   const statuses = useStatusStore((s) => s.statuses)
   const status = useMemo(() => {
     if (!todo.statusId) return undefined
@@ -68,12 +55,6 @@ export const TaskRow = memo(function TaskRow({
 
   // Cross-surface hover highlighting
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
-
-
-  // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
-  const {
-    bulk, handleToggleComplete, handleSetMarker, handleDelete,
-  } = useTaskRowActions({ todo })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
@@ -88,69 +69,11 @@ export const TaskRow = memo(function TaskRow({
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const hasPeople = !!assignedPeople && assignedPeople.length > 0
 
-  // Click-outside handlers
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [])
-  const closeFollowup = useCallback(() => setFollowupPopover(null), [])
-  const toggleFollowupFromSlot = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setFollowupPopover((v) => (v ? null : { kind: 'slot' }))
-  }, [])
-
-  const openDeadlinePicker = useCallback(() => {
-    setTimeout(() => {
-      try { deadlineInputRef.current?.showPicker?.() } catch { deadlineInputRef.current?.focus() }
-    }, 0)
-  }, [])
-  const handleDeadlineInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value
-    bulk.setDeadline(todo.id, raw ? new Date(raw + 'T00:00:00') : null)
-  }, [bulk, todo.id])
-
-  const togglePerson = (id: number) => {
-    if (ghost) return
-    const isAssigned = assignedPeople?.some((p) => p.id === id)
-    if (isAssigned) bulk.quickUnassignPerson(todo.id, id)
-    else bulk.quickAssignPerson(todo.id, id)
-  }
-
-  const handleCreatePerson = async (name: string) => {
-    if (ghost) return
-    const id = await usePersonStore.getState().getOrCreate(name)
-    bulk.quickAssignPerson(todo.id, id)
-  }
-
-  const toggleTag = useCallback((tagId: number) => {
-    if (ghost) return
-    if (assignedTags.some((t) => t.id === tagId)) bulk.quickUnassignTag(todo.id, tagId)
-    else bulk.quickAssignTag(todo.id, tagId)
-  }, [ghost, assignedTags, bulk, todo.id])
-
-  const handleCreateTag = useCallback(async (name: string) => {
-    if (ghost) return
-    const id = await useTagStore.getState().add(name)
-    bulk.quickAssignTag(todo.id, id)
-  }, [ghost, bulk, todo.id])
-
-  // Ghost rows render no pickers, so their menu leaves the picker items out.
-  const menuHandlers: TaskMenuHandlers = {
-    onOpen: onOpenDetail ? () => onOpenDetail(todo.id) : undefined,
-    onToggleComplete: handleToggleComplete,
-    onSetDueDate: ghost ? undefined : openDeadlinePicker,
-    onSetFollowup: (d) => bulk.setFollowup(todo.id, d),
-    onPickFollowup: ghost ? undefined : () => setFollowupPopover({ kind: 'slot' }),
-    onFollowedUp: () => bulk.markFollowedUp(todo.id),
-    onAssignPeople: ghost ? undefined : () => setOpenDropdown('people'),
-    onAddTag: ghost ? undefined : () => setTagPickerOpen(true),
-    onSetMarker: handleSetMarker,
-    onDelete: handleDelete,
-  }
-
-  const assignedPeopleIds = useMemo(() => new Set((assignedPeople ?? []).map(p => p.id!)), [assignedPeople])
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${showStatusMenu || openDropdown || tagPickerOpen ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${showStatusMenu || peopleOpen || tagSelectorProps.open ? styles.rowDropdownOpen : ''}`}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
@@ -230,31 +153,15 @@ export const TaskRow = memo(function TaskRow({
           className={styles.notesIndicator}
           title="Edit notes"
           aria-label="Edit notes"
-          onClick={(e) => { e.stopPropagation(); setShowNotesPopover(v => !v) }}
+          onClick={toggleNotes}
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-            <path d="M9.5 1.5V5H13" />
-            <path d="M5 8h6M5 11h4" />
-          </svg>
+          <NotesGlyph />
         </button>
       )}
       {todo.notes && ghost && (
         <span className={styles.notesIndicator} title="Has notes">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-            <path d="M9.5 1.5V5H13" />
-            <path d="M5 8h6M5 11h4" />
-          </svg>
+          <NotesGlyph />
         </span>
-      )}
-      {showNotesPopover && !ghost && createPortal(
-        <TaskNotePopover
-          todoId={todo.id}
-          anchorRef={notesIconRef}
-          onClose={() => setShowNotesPopover(false)}
-        />,
-        document.body,
       )}
 
       {/* Progress label with visual bar */}
@@ -282,16 +189,7 @@ export const TaskRow = memo(function TaskRow({
 
       {/* Slot 1 — tags. Populated chips render; empty `#` trigger is
           hover-revealed via the `[class*="tagChipEmpty"]` rule. */}
-      {!ghost && (
-        <TagChipSelector
-          assignedTags={assignedTags}
-          allTags={allTags}
-          onToggle={toggleTag}
-          onCreate={handleCreateTag}
-          open={tagPickerOpen}
-          onOpenChange={setTagPickerOpen}
-        />
-      )}
+      {!ghost && <TagChipSelector {...tagSelectorProps} />}
 
       {/* Slot 2 — people. Populated avatars or hover-revealed `@`
           trigger; either way `peopleRef` anchors the popover. */}
@@ -299,7 +197,7 @@ export const TaskRow = memo(function TaskRow({
         <TaskPillPeople
           people={assignedPeople ?? []}
           anchorRef={peopleRef}
-          onPeopleClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
+          onPeopleClick={togglePeople}
           onPersonContextMenu={(e, person) => {
             e.preventDefault()
             e.stopPropagation()
@@ -310,7 +208,7 @@ export const TaskRow = memo(function TaskRow({
         <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
           <button
             className={styles.chipTrigger}
-            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
+            onClick={(e) => { e.stopPropagation(); togglePeople() }}
           >
             @
           </button>
@@ -336,7 +234,7 @@ export const TaskRow = memo(function TaskRow({
             type="date"
             className={styles.hiddenDateInput}
             value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-            onChange={handleDeadlineInputChange}
+            onChange={onDeadlineInputChange}
           />
         </>
       ) : (
@@ -346,7 +244,7 @@ export const TaskRow = memo(function TaskRow({
             type="date"
             className={styles.hiddenDateInput}
             value=""
-            onChange={handleDeadlineInputChange}
+            onChange={onDeadlineInputChange}
           />
           <button
             type="button"
@@ -368,20 +266,20 @@ export const TaskRow = memo(function TaskRow({
           todo={todo}
           today={today}
           anchorRef={followupAnchorRef}
-          open={followupPopover !== null}
-          onFollowupClick={toggleFollowupFromSlot}
+          open={followupOpen}
+          onFollowupClick={toggleFollowup}
           onFollowupClear={() => bulk.setFollowup(todo.id, null)}
         />
       ) : (
         <button
           ref={followupAnchorRef}
           type="button"
-          className={`${styles.followupTrigger} ${followupPopover ? styles.followupTriggerOpen : ''}`}
-          onClick={toggleFollowupFromSlot}
+          className={`${styles.followupTrigger} ${followupOpen ? styles.followupTriggerOpen : ''}`}
+          onClick={toggleFollowup}
           aria-label="Set follow-up"
           title="Set follow-up"
           aria-haspopup="dialog"
-          aria-expanded={followupPopover !== null}
+          aria-expanded={followupOpen}
         >
           <FollowupFlagIcon />
         </button>
@@ -416,32 +314,8 @@ export const TaskRow = memo(function TaskRow({
         </button>
       )}
 
-      {/* Portaled people chip selector — anchored to peopleRef. */}
-      {!ghost && openDropdown === 'people' && (
-        <AnchoredPicker anchorRef={peopleRef} onClose={closeDropdown}>
-          <div className={styles.chipDropdown}>
-            <ChipSelector
-              items={personPickerItems(allPeople)}
-              selectedIds={assignedPeopleIds}
-              onToggle={togglePerson}
-              onCreate={handleCreatePerson}
-              onClose={closeDropdown}
-              avatars
-              placeholder={PERSON_PICKER_PLACEHOLDER}
-            />
-          </div>
-        </AnchoredPicker>
-      )}
-
-      {followupPopover && !ghost && (
-        <FollowupPopover
-          todo={todo}
-          anchor={{ kind: 'ref', ref: followupAnchorRef }}
-          onClose={closeFollowup}
-          onSetNext={(d) => bulk.setFollowup(todo.id, d)}
-          onFollowedUp={() => bulk.markFollowedUp(todo.id)}
-        />
-      )}
+      {/* The people picker, the follow-up popover and the notes popover. */}
+      {panels}
 
       {/* Portaled status menu — anchored to statusRef (TaskPillBar's status wrapper). */}
       {!ghost && showStatusMenu && (
@@ -481,3 +355,13 @@ export const TaskRow = memo(function TaskRow({
     </div>
   )
 })
+
+function NotesGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
+      <path d="M9.5 1.5V5H13" />
+      <path d="M5 8h6M5 11h4" />
+    </svg>
+  )
+}

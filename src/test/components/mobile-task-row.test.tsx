@@ -217,31 +217,6 @@ describe('MobileTaskRow', () => {
     })
   })
 
-  // ── Ghost mode ────────────────────────────────────────────────────
-  //
-  // Ghost rows used to be inert (checkbox / right-click no-op'd). A ghosted
-  // task is still a real task — same checkbox + same context menu as a
-  // non-ghost row. Visual dim is the only signal that the task is filtered
-  // out (data-ghosted attribute drives the CSS rule).
-
-  describe('ghost mode', () => {
-    it('marks the row with data-ghosted', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      expect(getRow().getAttribute('data-ghosted')).toBe('')
-    })
-
-    it('does not mark a non-ghost row with data-ghosted', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(getRow().getAttribute('data-ghosted')).toBeNull()
-    })
-
-    it('checkbox toggles complete (ghost is interactive)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle complete' }))
-      expect(mockToggleComplete).toHaveBeenCalledWith(1)
-    })
-  })
-
   // ── Parity with the desktop row ───────────────────────────────────
   //
   // Mobile gains chip taps, a notes-icon trigger, and an `onContextMenu`
@@ -302,16 +277,6 @@ describe('MobileTaskRow', () => {
       expect(mockRemove).toHaveBeenCalledWith(7)
     })
 
-    it('opens the same context menu in ghost mode (parity with non-ghost rows)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} ghost />)
-      act(() => {
-        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
-      })
-      expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
-    })
-
     afterEach(() => {
       vi.restoreAllMocks()
       useUIStore.getState().clearBulkConfirmation?.()
@@ -327,14 +292,11 @@ describe('MobileTaskRow', () => {
       expect(flag).toHaveAttribute('aria-expanded', 'true')
     })
 
-    it('rows with other metadata show the flag too, but not when a follow-up is set or the row is a ghost', () => {
+    it('rows with other metadata show the flag too, but not when a follow-up is set', () => {
       const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
       expect(screen.getByRole('button', { name: 'Set follow-up' })).toBeInTheDocument()
       unmount()
-      const second = render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
-      expect(screen.queryByRole('button', { name: 'Set follow-up' })).toBeNull()
-      second.unmount()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} ghost />)
+      render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
       expect(screen.queryByRole('button', { name: 'Set follow-up' })).toBeNull()
     })
   })
