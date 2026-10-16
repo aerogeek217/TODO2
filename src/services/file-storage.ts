@@ -5,7 +5,7 @@ import type { ImportData } from '../data/import-validation'
 import { prepareImport } from '../data/import-pipeline'
 import type { PrepareImportFailure } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
-import { buildExportData } from '../data/export-data'
+import { buildExportData, selfCheckExportJson } from '../data/export-data'
 import { backupScheduler } from '../data/backup-scheduler'
 import { NO_BACKUP_NOTE, takeSafetySnapshot } from '../stores/safety-snapshot'
 import { useUndoStore } from '../stores/undo-store'
@@ -132,6 +132,15 @@ function isOlderVersionText(text: string): boolean {
   }
 }
 
+/** How often (at most) a debounced save runs its text back through the import. */
+const SELF_CHECK_EVERY_MS = 60_000
+
+/** The UTF-8 size of `text`, counted only when it could be over the cap (a UTF-16 unit is ≤ 3 bytes). */
+function utf8Length(text: string): number {
+  if (text.length * 3 <= MAX_IMPORT_SIZE_BYTES) return text.length
+  return new TextEncoder().encode(text).length
+}
+
 function isNamedError(e: unknown, name: string): boolean {
   return e instanceof Error && e.name === name
 }
@@ -213,6 +222,8 @@ class FileStorageService {
   private hookCleanups: Array<() => void> = []
   /** Bumped on every tracked change; a save only clears dirty if unchanged. */
   private changeGen = 0
+  /** When the written text was last run back through the import, and what that said. */
+  private lastLoadBackCheck: { at: number; problem: string | null } | null = null
   private statusListeners = new Set<StatusListener>()
   private afterImportListeners = new Set<AfterImportListener>()
   private beforeImportListeners = new Set<BeforeImportListener>()
@@ -343,6 +354,7 @@ class FileStorageService {
     this.saveInFlight = null
     this.pendingSave = false
     this.changeGen = 0
+    this.lastLoadBackCheck = null
     this._lastSavedAt = null
     this._error = null
     this._needsPermission = false
@@ -758,7 +770,7 @@ class FileStorageService {
       return this.saveToFile(opts, handle)
     }
 
-    const run = this.writeFile(handle)
+    const run = this.writeFile(handle, opts.force === true)
     this.saveInFlight = run
     try {
       return await run
@@ -772,16 +784,20 @@ class FileStorageService {
     }
   }
 
-  private async writeFile(handle: FileSystemFileHandle): Promise<boolean> {
+  private async writeFile(handle: FileSystemFileHandle, forced: boolean): Promise<boolean> {
     const gen = this.changeGen
     try {
       const tables = await buildExportData()
       const savedAt = new Date().toISOString()
       const data = { ...tables, savedAt }
+      const text = JSON.stringify(data, null, 2)
+      // As an export: written regardless (it is this browser's data), but a
+      // file the next load would refuse is said now, not at that load.
+      const problem = this.loadBackProblem(text, forced)
 
       const writable = await handle.createWritable()
       try {
-        await writable.write(JSON.stringify(data, null, 2))
+        await writable.write(text)
         await writable.close()
       } catch (writeErr) {
         await writable.abort().catch((abortErr: unknown) => {
@@ -800,7 +816,7 @@ class FileStorageService {
         dirtySince: gen === this.changeGen ? null : prev.dirtySince,
       })
       this._lastSavedAt = new Date()
-      this._error = null
+      this._error = problem ? `Saved, but the sync file would not load back: ${problem}` : null
       this.notify()
       return true
     } catch (err) {
@@ -811,6 +827,24 @@ class FileStorageService {
       }
       return false
     }
+  }
+
+  /**
+   * Why `text` would not load back as the sync file, or null. The size is
+   * checked on every write (cheap); the full self-check (the import pipeline,
+   * as an export runs it) on a forced write and otherwise at most once a
+   * minute — debounced saves can come every half second while typing.
+   */
+  private loadBackProblem(text: string, forced: boolean): string | null {
+    if (utf8Length(text) > MAX_IMPORT_SIZE_BYTES) {
+      return `it is over the ${Math.round(MAX_IMPORT_SIZE_BYTES / (1024 * 1024))} MB a file may have to load`
+    }
+    const last = this.lastLoadBackCheck
+    if (!forced && last && Date.now() - last.at < SELF_CHECK_EVERY_MS) return last.problem
+    const problem = selfCheckExportJson(text)
+    if (problem) console.warn(`[file-storage] the sync file would not load back: ${problem}`)
+    this.lastLoadBackCheck = { at: Date.now(), problem }
+    return problem
   }
 
   private scheduleSave() {

@@ -29,8 +29,11 @@ vi.mock('../../data/restore', () => ({
 
 const mockBuildExportData = vi.fn().mockResolvedValue({ todos: [], projects: [] })
 
+const mockSelfCheckExportJson = vi.fn<(json: string) => string | null>(() => null)
+
 vi.mock('../../data/export-data', () => ({
   buildExportData: (...args: unknown[]) => mockBuildExportData(...args),
+  selfCheckExportJson: (json: string) => mockSelfCheckExportJson(json),
 }))
 
 const mockSnapshotBeforeDestructive = vi.fn().mockResolvedValue(undefined)
@@ -168,6 +171,7 @@ beforeEach(() => {
   mockValidateImportData.mockReset().mockReturnValue({ ok: true, data: validImportData, warnings: [] })
   mockRestoreFromImportData.mockReset().mockResolvedValue(undefined)
   mockBuildExportData.mockReset().mockResolvedValue({ todos: [], projects: [] })
+  mockSelfCheckExportJson.mockReset().mockReturnValue(null)
   mockSnapshotBeforeDestructive.mockReset().mockResolvedValue(undefined)
   mockSnapshotFileBeforeOverwrite.mockReset().mockResolvedValue(undefined)
   mockBrowserMatchesFile.mockReset().mockResolvedValue(false)
@@ -684,6 +688,30 @@ describe('FileStorageService — change tracking', () => {
     expect(state.dirtySince).toBeNull()
     const written = JSON.parse(writable.write.mock.calls[0]![0] as string)
     expect(state.fileSavedAt).toBe(written.savedAt)
+  })
+
+  it('a written file that would not load back says so (and is still written); checked again at most once a minute', async () => {
+    mockSelfCheckExportJson.mockReturnValue('Invalid "todos" record at index 0')
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status.error).toBe('Saved, but the sync file would not load back: Invalid "todos" record at index 0')
+    expect(mockSelfCheckExportJson).toHaveBeenCalledTimes(1)
+
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writable.write).toHaveBeenCalledTimes(2)
+    expect(mockSelfCheckExportJson).toHaveBeenCalledTimes(1)
+    expect(svc.status.error).toContain('would not load back')
+
+    mockSelfCheckExportJson.mockReturnValue(null)
+    await vi.advanceTimersByTimeAsync(60_000)
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(mockSelfCheckExportJson).toHaveBeenCalledTimes(2)
+    expect(svc.status.error).toBeNull()
   })
 
   it('a failed save keeps the browser dirty', async () => {
