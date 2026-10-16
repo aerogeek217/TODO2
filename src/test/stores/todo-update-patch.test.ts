@@ -132,13 +132,33 @@ describe('useTodoStore.update(id, changes) writes only the changed fields', () =
     })
 
     const edit = useTodoStore.getState().update(id, { title: 'New title' })
-    const rejected = expect(edit).rejects.toThrow('DB error')
     await useTodoStore.getState().bulkSetFocus([id], true)
     fail.resolve()
-    await rejected
+    expect(await edit).toBe(false)
 
     expect(inStore(id)).toMatchObject({ title: 'Old title', focus: true })
     expect(await inDb(id)).toMatchObject({ title: 'Old title', focus: true })
+  })
+
+  it('a failed write never rejects: it rolls back, says so and adds no undo step', async () => {
+    const id = await addTodo('Milk')
+    await useTodoStore.getState().loadAll()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(todoRepository, 'update').mockRejectedValueOnce(new Error('DB error'))
+
+    await expect(useTodoStore.getState().update(id, { title: 'Oat milk' })).resolves.toBe(false)
+
+    expect(inStore(id).title).toBe('Milk')
+    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't save your change to \"Milk\".", notice: true })
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+  })
+
+  it('resolves true for a saved edit and for one that changes nothing', async () => {
+    const id = await addTodo('Milk')
+    await useTodoStore.getState().loadAll()
+    expect(await useTodoStore.getState().update(id, { title: 'Oat milk' })).toBe(true)
+    expect(await useTodoStore.getState().update(id, { title: 'Oat milk' })).toBe(true)
+    expect(useUndoStore.getState().snackbar).toBeNull()
   })
 
   it('completing through update stamps completedAt once, in the store and the database', async () => {

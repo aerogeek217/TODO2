@@ -185,4 +185,17 @@ describe('applyCheckinUpdates', () => {
     expect(await applyCheckinUpdates([], { recordFollowup: true, personName: 'M' })).toBe(0)
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
+
+  it('a task edit that fails stops the apply there (rejects, no follow-up recorded)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { todoRepository } = await import('../../../data')
+    vi.spyOn(todoRepository, 'update').mockRejectedValueOnce(new Error('DB error'))
+    const diff = fixtureDiff()
+    const updates = selectedCheckinUpdates(diff, defaultCheckinSelection(diff))
+    const before = await row(1)
+
+    await expect(applyCheckinUpdates(updates, { recordFollowup: true, personName: 'Marcus Chen' })).rejects.toThrow()
+    expect((await row(1)).lastFollowupAt).toEqual(before.lastFollowupAt)
+    vi.restoreAllMocks()
+  })
 })

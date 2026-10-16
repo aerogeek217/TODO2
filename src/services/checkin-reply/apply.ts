@@ -86,10 +86,11 @@ export async function applyCheckinUpdates(
 
     for (const u of updates) {
       if (u.progress === undefined && u.notes === undefined) continue
-      await useTodoStore.getState().update(u.todoId, {
+      const saved = await useTodoStore.getState().update(u.todoId, {
         ...(u.progress !== undefined ? { progress: u.progress } : {}),
         ...(u.notes !== undefined ? { notes: u.notes === '' ? undefined : u.notes } : {}),
       })
+      if (!saved) throw new Error(`Couldn't save the reply's changes to task ${u.todoId}`)
     }
 
     if (options.recordFollowup) await useTodoStore.getState().markFollowedUp(updates.map((u) => u.todoId))

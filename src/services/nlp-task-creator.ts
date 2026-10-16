@@ -37,7 +37,8 @@ export async function applyNlpMetadata(
   todoId: number,
   resolved: ResolvedInput,
   getTodo: (id: number) => PersistedTodoItem | undefined,
-  updateTodo: (id: number, changes: TodoChanges) => Promise<void>,
+  /** `useTodoStore.update`: resolves `false` when the write failed. */
+  updateTodo: (id: number, changes: TodoChanges) => Promise<boolean>,
   assignPerson: (todoId: number, personId: number) => Promise<void>,
 ): Promise<void> {
   const hasUpdates =
@@ -77,7 +78,9 @@ export async function applyNlpMetadata(
           // `/followup` replaces the default next follow-up; `none` drops it.
           if (resolved.followupNone) changes.nextFollowupAt = undefined
           else if (resolved.nextFollowupAt !== undefined) changes.nextFollowupAt = resolved.nextFollowupAt
-          await updateTodo(todoId, changes)
+          // A failed write (already rolled back and reported) aborts the
+          // transaction, so the people aren't assigned either.
+          if (await updateTodo(todoId, changes) === false) throw new Error(`Couldn't save task ${todoId}`)
         }
       }
 

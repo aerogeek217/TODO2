@@ -298,7 +298,7 @@ describe('todoStore', () => {
       // Act
       await expect(
         useTodoStore.getState().update(original.id, { title: 'Changed title' })
-      ).rejects.toThrow('DB error')
+      ).resolves.toBe(false)
 
       // Assert
       const todo = useTodoStore.getState().todos.find((t) => t.id === id)

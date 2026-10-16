@@ -95,9 +95,10 @@ interface TodoState {
    * Saves an edit to a task: `changes` holds just the fields the caller
    * changed, and only those are written (fields that already hold the value
    * are skipped). One undo step; undo restores only those fields. No change
-   * → no write and no undo step.
+   * → no write and no undo step. Never rejects: a failed write is rolled
+   * back, the snackbar says so, and it resolves `false` (otherwise `true`).
    */
-  update: (id: number, changes: TodoChanges) => Promise<void>
+  update: (id: number, changes: TodoChanges) => Promise<boolean>
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
@@ -266,14 +267,21 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   async update(id: number, changes: TodoChanges) {
     const prev = get().todos.find((t) => t.id === id)
-    if (!prev) return
+    if (!prev) return true
     // Resolve completedAt once and hand the same value to the repository, so
     // the store and the DB never hold two independently minted timestamps.
     const patch = changes.isCompleted === undefined ? changes : {
       ...changes,
       completedAt: resolveCompletedAt(prev, { isCompleted: changes.isCompleted, completedAt: changes.completedAt }, new Date()),
     }
-    return patchTodo(id, patch, `Edit "${changes.title ?? prev.title}"`)
+    try {
+      await patchTodo(id, patch, `Edit "${changes.title ?? prev.title}"`)
+      return true
+    } catch {
+      // Rolled back and logged by `patchTodo`; most callers fire and forget.
+      useUndoStore.getState().notify(`Couldn't save your change to "${prev.title}".`)
+      return false
+    }
   },
 
   async toggleComplete(id: number) {
