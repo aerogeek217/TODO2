@@ -529,8 +529,9 @@ describe('FileStorageService — older sync files', () => {
 // nothing written, browser untouched.
 
 describe('FileStorageService — file backup before rewrite', () => {
+  /** Every caller here rewrites an older file: its copy goes outside the pruned pool. */
   function expectBackupFirst(text: string, writable: ReturnType<typeof makeWritable>) {
-    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(text)
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(text, { olderVersion: true })
     const backupAt = mockSnapshotFileBeforeOverwrite.mock.invocationCallOrder[0]!
     expect(backupAt).toBeLessThan(writable.write.mock.invocationCallOrder[0]!)
     const restoreAt = mockRestoreFromImportData.mock.invocationCallOrder[0]
@@ -595,6 +596,24 @@ describe('FileStorageService — file backup before rewrite', () => {
     bad.svc.onConflict(async () => 'file')
     await bad.svc.initialize()
     expectBackupFailurePaused(bad.svc, bad.writable)
+  })
+
+  it('"Use browser data" / "Keep browser data" over an older file keep its copy outside the pruned pool', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const a = await startWith(older)
+    a.svc.onConflict(async () => 'browser')
+    await a.svc.initialize()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(older), { olderVersion: true })
+
+    vi.resetModules()
+    mockSnapshotFileBeforeOverwrite.mockClear()
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const b = await startWith(older)
+    b.svc.onConfirmFileUpgrade(async () => false)
+    await b.svc.initialize()
+    expect(b.svc.status.paused?.reason).toBe('upgrade-cancelled')
+    await b.svc.overwriteFileWithBrowser()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(older), { olderVersion: true })
   })
 
   it('conflict "Use file" at the current version: no rewrite, so no file backup needed', async () => {

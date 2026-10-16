@@ -18,6 +18,9 @@ export const BACKUPS_KEPT: Readonly<Record<BackupTrigger, number>> = {
   manual: 10,
   // The sync file's text can be as large as the import cap (50 MB).
   'sync-file': 5,
+  // A file at an older schema version: the only copy of what that build
+  // wrote, kept until the user deletes it (one per text — see below).
+  'sync-file-original': Infinity,
 }
 
 /** Shown when an automatic backup can't be stored (e.g. browser storage is full). */
@@ -103,10 +106,18 @@ class BackupScheduler {
 
   /**
    * Saves a sync file's current text as a backup before the file is
-   * overwritten or rewritten (Settings → Backups can restore it).
+   * overwritten or rewritten (Settings → Backups can restore it). The text
+   * of a file at an older schema version (`olderVersion`) goes outside the
+   * newest-5 pool, so later overwrites never push it out; the same text
+   * again (a retried upgrade) is not stored twice.
    */
-  async snapshotFileBeforeOverwrite(fileText: string): Promise<void> {
-    // Throws if the backup can't be stored — callers must not overwrite then.
+  async snapshotFileBeforeOverwrite(fileText: string, opts: { olderVersion?: boolean } = {}): Promise<void> {
+    if (opts.olderVersion) {
+      if (await backupRepository.newestSnapshotDataIs('sync-file-original', fileText)) return
+      // Throws if the backup can't be stored — callers must not overwrite then.
+      await backupRepository.createSnapshotFromJson(fileText, 'sync-file-original')
+      return
+    }
     await backupRepository.createSnapshotFromJson(fileText, 'sync-file')
     await prune('sync-file')
   }

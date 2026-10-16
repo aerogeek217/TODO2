@@ -15,6 +15,7 @@ const TRIGGER_LABEL: Record<BackupTrigger, string> = {
   manual: 'manual',
   'pre-destructive': 'pre-op',
   'sync-file': 'sync file',
+  'sync-file-original': 'sync file, older version',
 }
 
 /** Automatic and manual snapshots of the database: restore, delete, create. */
@@ -66,7 +67,7 @@ export function BackupsSection() {
           {backups.map((b) => (
             <div key={b.id} className={styles.backupRow} data-trigger={b.trigger}>
               <span className={styles.backupTime}>{new Date(b.createdAt).toLocaleString()}</span>
-              <span className={`${styles.backupBadge}${b.trigger === 'pre-destructive' || b.trigger === 'sync-file' ? ` ${styles.backupBadgeDestructive}` : ''}`}>
+              <span className={`${styles.backupBadge}${b.trigger === 'pre-destructive' || b.trigger === 'sync-file' || b.trigger === 'sync-file-original' ? ` ${styles.backupBadgeDestructive}` : ''}`}>
                 {TRIGGER_LABEL[b.trigger]}
               </span>
               <span className={styles.backupSize}>

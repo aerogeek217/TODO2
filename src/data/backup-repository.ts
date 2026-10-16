@@ -115,6 +115,14 @@ async function newestSnapshotAt(trigger: BackupTrigger): Promise<Date | null> {
   })
 }
 
+/** Whether the newest backup made by `trigger` holds exactly `data` (reads that one row). */
+async function newestSnapshotDataIs(trigger: BackupTrigger, data: string): Promise<boolean> {
+  const ids = (await db.backups.where('trigger').equals(trigger).primaryKeys()) as number[]
+  if (ids.length === 0) return false
+  const newest = await db.backups.get(Math.max(...ids))
+  return newest?.data === data
+}
+
 export const backupRepository = {
   onSnapshotWarning,
   reportSnapshotWarning,
@@ -125,4 +133,5 @@ export const backupRepository = {
   deleteSnapshot,
   pruneSnapshots,
   newestSnapshotAt,
+  newestSnapshotDataIs,
 }

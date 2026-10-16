@@ -9,7 +9,7 @@ import { buildExportData } from '../data/export-data'
 import { backupScheduler } from '../data/backup-scheduler'
 import { NO_BACKUP_NOTE, takeSafetySnapshot } from '../stores/safety-snapshot'
 import { useUndoStore } from '../stores/undo-store'
-import type { UnsupportedImportInfo } from '../data/file-version'
+import { SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from '../data/file-version'
 import {
   readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId,
 } from './file-sync-state'
@@ -113,6 +113,23 @@ type FileRead =
 
 /** Reads of a file that keeps being replaced while it is read, before giving up. */
 const READ_ATTEMPTS = 3
+
+/**
+ * Whether a sync file's text is a TODO2 file at an older schema version (or
+ * from before version markers) — its raw copy is then the only copy of
+ * what that build wrote. Unreadable text counts as not older.
+ */
+function isOlderVersionText(text: string): boolean {
+  try {
+    const raw: unknown = JSON.parse(text)
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+    const version = (raw as Record<string, unknown>)[SCHEMA_VERSION_KEY]
+    if (typeof version === 'number') return version < CURRENT_DB_VERSION
+    return Array.isArray((raw as Record<string, unknown>).todos)
+  } catch {
+    return false
+  }
+}
 
 function isNamedError(e: unknown, name: string): boolean {
   return e instanceof Error && e.name === name
@@ -451,7 +468,7 @@ class FileStorageService {
       this.pause('backup-failed', `${PAUSED_PREFIX} — ${handle.name} ${why} and was left untouched. Disconnect and create a new file to keep syncing.`)
       return
     }
-    if (!(await this.backupFileText(read.text))) return
+    if (!(await this.backupFileText(read.text, isOlderVersionText(read.text)))) return
     if (await this.saveToFile({ force: true })) {
       this._paused = null
       this.syncEnabled = true
@@ -609,7 +626,7 @@ class FileStorageService {
         return
       }
       if (choice === 'browser') {
-        if (!(await this.backupFileText(text))) return
+        if (!(await this.backupFileText(text, prepared.upgraded))) return
         if (await this.saveToFile({ force: true })) this.syncEnabled = true
         this.notify()
         return
@@ -633,7 +650,7 @@ class FileStorageService {
     // Every path that rewrites the file at a newer schema (confirmed upgrade,
     // below-floor confirm, conflict "Use file" with an older file) lands
     // here: back up the raw text BEFORE anything changes on either side.
-    if (prepared.upgraded && !(await this.backupFileText(text))) return
+    if (prepared.upgraded && !(await this.backupFileText(text, true))) return
 
     // The browser already holds this file's data (same content — after the
     // file's upgrade, if it needed one — or clean and synced with this very
@@ -653,11 +670,14 @@ class FileStorageService {
    * Back up the sync file's raw text (Settings → Backups) before it is
    * overwritten or rewritten at another schema version. On failure nothing is
    * written: sync pauses and this returns false. Empty text needs no backup.
+   * A file at an older schema version (`olderVersion`) is kept outside the
+   * pruned pool, so the copy of what an older build wrote is never pushed out.
    */
-  private async backupFileText(text: string): Promise<boolean> {
+  private async backupFileText(text: string, olderVersion: boolean): Promise<boolean> {
     if (!text.trim()) return true
     try {
-      await backupScheduler.snapshotFileBeforeOverwrite(text)
+      if (olderVersion) await backupScheduler.snapshotFileBeforeOverwrite(text, { olderVersion: true })
+      else await backupScheduler.snapshotFileBeforeOverwrite(text)
       return true
     } catch (err) {
       console.warn('[file-storage] could not back up the file before rewriting it', err)
