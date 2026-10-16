@@ -1,4 +1,4 @@
-import type { TodoItem, Person, TodoPerson, RecurrenceRule, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
+import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
 import { isTodoSortBy, isTodoGroupBy } from '../models'
 import type { ListDefinition, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
@@ -379,6 +379,18 @@ type Raw = Record<string, unknown>
 const optNum = (v: unknown): number | undefined => (v != null ? v as number : undefined)
 const optStr = (v: unknown): string | undefined => (v != null ? v as string : undefined)
 
+/**
+ * A task's repeat rule rebuilt from its known keys (`checkTodo` vetted the
+ * type and day of month); stray keys go, as at the row level.
+ */
+function pickRecurrenceRule(v: unknown): RecurrenceRule | undefined {
+  if (!isRecord(v)) return undefined
+  return compactRow<RecurrenceRule>({
+    type: v.type as RecurrenceType,
+    originalDayOfMonth: typeof v.originalDayOfMonth === 'number' ? v.originalDayOfMonth : undefined,
+  } satisfies AllFields<RecurrenceRule>)
+}
+
 function pickTodo(v: Raw): AllFields<TodoItem> {
   return {
     id: optNum(v.id), uid: v.uid as string, title: v.title as string,
@@ -390,7 +402,7 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     dueDate: toOptDate(v.dueDate),
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
-    recurrenceRule: v.recurrenceRule != null ? v.recurrenceRule as RecurrenceRule : undefined,
+    recurrenceRule: pickRecurrenceRule(v.recurrenceRule),
     // Only `true` is stored; `false` / absent both mean "not in focus".
     focus: v.focus === true ? true : undefined,
     urgent: v.urgent === true ? true : undefined,

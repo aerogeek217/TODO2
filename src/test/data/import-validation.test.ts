@@ -413,6 +413,40 @@ describe('validateImportData', () => {
     expect(invalidResult.ok).toBe(false)
   })
 
+  it('rebuilds a recurrenceRule from its known keys, dropping stray ones', () => {
+    const result = validateImportData(validData({
+      todos: [
+        makeTodo({ id: 1, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
+        makeTodo({ id: 2, recurrenceRule: { type: 'weekly', legacy: true } }),
+        makeTodo({ id: 3, recurrenceRule: null }),
+      ],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.warnings).toEqual([])
+    expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([
+      { type: 'monthly', originalDayOfMonth: 31 },
+      { type: 'weekly' },
+      undefined,
+    ])
+    expect('recurrenceRule' in result.data.todos[2]!).toBe(false)
+  })
+
+  it('rebuilds a list membership from its known keys, dropping stray ones', () => {
+    const predicate = { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false }
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+        membership: { kind: 'custom', predicate: { ...predicate, stray: 1 }, legacy: 'x' },
+      }],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.warnings).toEqual([])
+    expect(result.data.listDefinitions[0]!.membership).toEqual({
+      kind: 'custom',
+      predicate: { ...predicate, personIds: null, statusIds: null, dateField: 'deadline', dateRangeStart: null, dateRangeEnd: null, hasDeadline: null },
+    })
+  })
+
   it('drops a stray scheduledDate on a todo (field no longer exists)', () => {
     const result = validateImportData(validData({
       todos: [makeTodo({ scheduledDate: { kind: 'date', value: new Date(2026, 4, 1) } })],
