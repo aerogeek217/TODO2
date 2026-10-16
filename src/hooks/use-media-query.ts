@@ -19,7 +19,11 @@ function mediaQuery(query: string): MediaQueryList {
   return list
 }
 
-/** Whether `query` matches the viewport now; re-renders when that changes. */
+/**
+ * Whether `query` matches the viewport now; re-renders when that changes.
+ * The one `matchMedia` subscription for components (`useIsMobile`,
+ * `useResolvedTheme` and the top bar's narrow-window fold build on it).
+ */
 export function useMediaQuery(query: string): boolean {
   const subscribe = useCallback((callback: () => void) => {
     const mq = mediaQuery(query)
