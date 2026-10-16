@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { listOrderRepository } from '../data/list-order-repository'
 import type { PersistedListOrder } from '../models/list-order'
 import type { ListRanks, RankWrite } from '../utils/list-order'
-import { readFresh, reportLoadFailure, trackWrite } from './store-helpers'
+import { loadFresh, trackWrite } from './store-helpers'
 import { registerModuleReset } from '../utils/module-reset'
 
 const NO_RANKS: ListRanks = new Map()
@@ -80,8 +80,10 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
     loaded: false,
 
     async load() {
-      const rows = await readFresh(() => listOrderRepository.getAll())
-      set({ ranks: group(rows), loaded: true })
+      // Never rejects (a refresh of every store, a failed save's reload and
+      // drag handlers wait on it): a failed read is reported, ranks kept.
+      const rows = await loadFresh(() => listOrderRepository.getAll(), 'the manual task order')
+      if (rows) set({ ranks: group(rows), loaded: true })
     },
 
     ensureLoaded() {
@@ -89,7 +91,6 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
       // A failed load leaves `loaded` false: reported, and retried next time.
       if (inflight) return inflight
       const run: Promise<void> = get().load()
-        .catch((e: unknown) => { reportLoadFailure('the manual task order', e) })
         .finally(() => { if (inflight === run) inflight = null })
       inflight = run
       return run

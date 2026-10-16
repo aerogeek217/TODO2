@@ -73,3 +73,21 @@ describe('list-order-store', () => {
     expect(useListOrderStore.getState().ranks.get(list)?.get(a)).toBe(2)
   })
 })
+
+describe('list-order-store reads that fail', () => {
+  it('load never rejects: reported, ranks kept, a refresh of every store still completes', async () => {
+    const { vi } = await import('vitest')
+    const { listOrderRepository } = await import('../../data/list-order-repository')
+    const { refreshAllStores } = await import('../../stores/refresh-all')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const spy = vi.spyOn(listOrderRepository, 'getAll').mockRejectedValue(new Error('read failed'))
+    try {
+      await expect(useListOrderStore.getState().load()).resolves.toBeUndefined()
+      expect(useListOrderStore.getState().loaded).toBe(false)
+      await expect(refreshAllStores()).resolves.toBeUndefined()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+})
