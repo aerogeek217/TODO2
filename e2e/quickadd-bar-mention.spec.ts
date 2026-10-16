@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedTaskList } from './fixtures/workspace'
+import { readStore, readStores } from './fixtures/db'
 
 /**
  * `@`-mention picker in QuickAddBar: substring-matches people, writes the
@@ -23,65 +24,14 @@ const TARGET_NAME = 'Org: Acme'
 const OTHER_NAME = 'Org: Globex'
 
 async function readPersonIdByName(page: Page, name: string): Promise<number | null> {
-  return await page.evaluate(async (target) => {
-    return await new Promise<number | null>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => {
-        const idb = req.result
-        const all = idb.transaction(['people'], 'readonly').objectStore('people').getAll()
-        all.onsuccess = () => {
-          const rows = all.result as Array<{ id: number; name: string }>
-          resolve(rows.find((r) => r.name === target)?.id ?? null)
-          idb.close()
-        }
-        all.onerror = () => { idb.close(); reject(all.error) }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, name)
+  return (await readStore<{ id: number; name: string }>(page, 'people')).find((r) => r.name === name)?.id ?? null
 }
 
-async function readTodoPeopleForTitle(
-  page: Page,
-  title: string,
-): Promise<Array<{ todoId: number; personId: number }>> {
-  return await page.evaluate(async (target) => {
-    return await new Promise<Array<{ todoId: number; personId: number }>>(
-      (resolve, reject) => {
-        const req = indexedDB.open('todo2')
-        req.onsuccess = () => {
-          const idb = req.result
-          const tx = idb.transaction(['todos', 'todoPeople'], 'readonly')
-          const todos = tx.objectStore('todos').getAll()
-          const joins = tx.objectStore('todoPeople').getAll()
-          let todoId: number | null = null
-          let allJoins: Array<{ todoId: number; personId: number }> = []
-          let pending = 2
-          const finish = () => {
-            if (--pending !== 0) return
-            const matched = todoId == null
-              ? []
-              : allJoins.filter((row) => row.todoId === todoId)
-            idb.close()
-            resolve(matched)
-          }
-          todos.onsuccess = () => {
-            const rows = todos.result as Array<{ id: number; title: string }>
-            const found = rows.find((r) => r.title === target)
-            if (found) todoId = found.id
-            finish()
-          }
-          todos.onerror = () => { idb.close(); reject(todos.error) }
-          joins.onsuccess = () => {
-            allJoins = joins.result as Array<{ todoId: number; personId: number }>
-            finish()
-          }
-          joins.onerror = () => { idb.close(); reject(joins.error) }
-        }
-        req.onerror = () => reject(req.error)
-      },
-    )
-  }, title)
+async function readTodoPeopleForTitle(page: Page, title: string): Promise<Array<{ todoId: number; personId: number }>> {
+  const { todos, todoPeople } = await readStores(page, ['todos', 'todoPeople'])
+  const todo = todos?.find((r) => r.title === title)
+  if (!todo) return []
+  return (todoPeople ?? []).filter((j) => j.todoId === todo.id) as Array<{ todoId: number; personId: number }>
 }
 
 test.describe('QuickAddBar @ mention picker', () => {

@@ -10,6 +10,8 @@ import {
   wsTab,
   type WorkspaceSeed,
 } from './fixtures/workspace'
+import { rowTitles } from './fixtures/seed'
+import { box } from './fixtures/geometry'
 
 /**
  * List widget rows: selection (click / Shift / Ctrl, arrow keys, bulk bar),
@@ -39,10 +41,8 @@ function rows(page: Page): Locator {
   return wsListWidget(page, 't1').locator('[data-row-key]')
 }
 
-async function titles(page: Page): Promise<string[]> {
-  return rows(page).evaluateAll(
-    (els) => els.map((el) => el.querySelector('[data-todo-id] span[title]')?.getAttribute('title') ?? ''),
-  )
+function titles(page: Page): Promise<string[]> {
+  return rowTitles(wsListWidget(page, 't1'))
 }
 
 function row(page: Page, title: string, group?: string): Locator {
@@ -52,9 +52,7 @@ function row(page: Page, title: string, group?: string): Locator {
 
 /** Viewport y just inside the top of `target` (lands before it). */
 async function above(target: Locator): Promise<number> {
-  const box = await target.boundingBox()
-  if (!box) throw new Error('no box')
-  return box.y + 4
+  return (await box(target)).y + 4
 }
 
 test('reordering a manual list saves at once and survives a reload', async ({ page }) => {
@@ -88,10 +86,9 @@ test('a row moved to its spot in one quick motion and let go lands there', async
 
   // One pointer move both starts the drag (past the 5px activation) and
   // reaches the landing spot; nothing moves after it before the release.
-  const box = await row(page, 'Delta').boundingBox()
-  if (!box) throw new Error('no box')
-  const x = box.x + 10
-  await page.mouse.move(x, box.y + box.height / 2)
+  const b = await box(row(page, 'Delta'))
+  const x = b.x + 10
+  await page.mouse.move(x, b.y + b.height / 2)
   await page.mouse.down()
   await page.mouse.move(x, await above(row(page, 'Bravo')))
   await releaseDrag(page)

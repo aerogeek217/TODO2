@@ -90,7 +90,7 @@ test.describe('desktop', () => {
       }],
     })
     await page.evaluate(async () => {
-      const mod = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts')) as {
+      const mod = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
         useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }>; remove: (id: number) => Promise<void> } }
       }
       const s = mod.useListDefinitionStore.getState()

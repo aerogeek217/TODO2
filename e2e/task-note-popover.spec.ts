@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { box, expectInsideViewport } from './fixtures/geometry'
 
 /**
  * The row notes popover is placed by `usePopoverAnchor`: it keeps inside the
@@ -31,22 +32,6 @@ async function seedRightColumnList(page: Page, tasks: Parameters<typeof seedWork
   const widget = wsListWidget(page, 'tasks')
   await widget.waitFor({ state: 'visible' })
   return widget
-}
-
-async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('no bounding box')
-  return b
-}
-
-async function expectInsideViewport(page: Page, popover: Locator): Promise<void> {
-  const vp = page.viewportSize()
-  if (!vp) throw new Error('no viewport')
-  const p = await box(popover)
-  expect(p.x).toBeGreaterThanOrEqual(MARGIN - 0.5)
-  expect(p.y).toBeGreaterThanOrEqual(MARGIN - 0.5)
-  expect(p.x + p.width).toBeLessThanOrEqual(vp.width - MARGIN + 0.5)
-  expect(p.y + p.height).toBeLessThanOrEqual(vp.height - MARGIN + 0.5)
 }
 
 test.describe('row notes popover placement', () => {

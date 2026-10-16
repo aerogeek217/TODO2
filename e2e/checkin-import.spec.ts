@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * The check-in reply import in a real browser: a reply pasted as a real
@@ -44,28 +45,13 @@ interface TaskRow { title: string; isCompleted: boolean; progress?: string; note
 
 /** Every task row, straight from IndexedDB, by title. */
 async function readTasks(page: Page): Promise<Record<string, TaskRow>> {
-  const rows = await page.evaluate(async () => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    try {
-      return await new Promise<TaskRow[]>((resolve, reject) => {
-        const req = idb.transaction('todos').objectStore('todos').getAll()
-        req.onsuccess = () => resolve((req.result as Array<TaskRow & { lastFollowupAt?: Date }>).map((t) => ({
-          title: t.title,
-          isCompleted: t.isCompleted,
-          ...(t.progress !== undefined ? { progress: t.progress } : {}),
-          ...(t.notes !== undefined ? { notes: t.notes } : {}),
-          ...(t.lastFollowupAt ? { lastFollowupAt: new Date(t.lastFollowupAt).toISOString() } : {}),
-        })))
-        req.onerror = () => reject(req.error)
-      })
-    } finally {
-      idb.close()
-    }
-  })
+  const rows = (await readStore<Omit<TaskRow, 'lastFollowupAt'> & { lastFollowupAt?: Date }>(page, 'todos')).map((t) => ({
+    title: t.title,
+    isCompleted: t.isCompleted,
+    ...(t.progress !== undefined ? { progress: t.progress } : {}),
+    ...(t.notes !== undefined ? { notes: t.notes } : {}),
+    ...(t.lastFollowupAt ? { lastFollowupAt: t.lastFollowupAt.toISOString() } : {}),
+  }))
   return Object.fromEntries(rows.map((r) => [r.title, r]))
 }
 

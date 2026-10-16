@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedTaskList } from './fixtures/workspace'
+import { box } from './fixtures/geometry'
 
 /**
  * Quick Add's `@ # /` popup is placed by `usePopoverAnchor` against the
@@ -9,12 +10,6 @@ import { seedTaskList } from './fixtures/workspace'
  */
 
 const MARGIN = 8
-
-async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('no bounding box')
-  return b
-}
 
 async function openQuickAdd(page: Page): Promise<Locator> {
   await seedTaskList(page, { people: [{ name: 'Alice Smith', initials: 'AS' }] })

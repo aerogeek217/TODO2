@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * The email check-in dialog in a real browser: Copy & open puts the email
@@ -34,25 +35,9 @@ const seed: WorkspaceSeed = {
 interface TaskRow { title: string; uid: string; lastFollowupAt?: string }
 
 /** Every task row, straight from IndexedDB. */
-function readTasks(page: Page): Promise<TaskRow[]> {
-  return page.evaluate(async () => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    try {
-      return await new Promise<TaskRow[]>((resolve, reject) => {
-        const req = idb.transaction('todos').objectStore('todos').getAll()
-        req.onsuccess = () => resolve((req.result as Array<{ title: string; uid: string; lastFollowupAt?: Date }>).map((t) => ({
-          title: t.title, uid: t.uid, ...(t.lastFollowupAt ? { lastFollowupAt: new Date(t.lastFollowupAt).toISOString() } : {}),
-        })))
-        req.onerror = () => reject(req.error)
-      })
-    } finally {
-      idb.close()
-    }
-  })
+async function readTasks(page: Page): Promise<TaskRow[]> {
+  const rows = await readStore<{ title: string; uid: string; lastFollowupAt?: Date }>(page, 'todos')
+  return rows.map((t) => ({ title: t.title, uid: t.uid, ...(t.lastFollowupAt ? { lastFollowupAt: t.lastFollowupAt.toISOString() } : {}) }))
 }
 
 const refOf = (uid: string) => uid.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8)

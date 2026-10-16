@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * The shared dialog frame's contract, per dialog, in a real browser (focus
@@ -246,7 +247,7 @@ test('check-in import: Esc, focus trap and return, backdrop press', async ({ pag
     open: async () => {
       await trigger.focus()
       await page.evaluate(async () => {
-        const mod = (await import(/* @vite-ignore */ '/src/stores/ui-store.ts')) as {
+        const mod = (await import(/* @vite-ignore */ '/src/stores/ui-store.ts' as string)) as {
           useUIStore: { getState: () => { openCheckinImport: () => void } }
         }
         mod.useUIStore.getState().openCheckinImport()
@@ -359,15 +360,7 @@ test('“Continue without a backup?” over the append-import dialog: Esc, focus
   }, FILE)
   await seedWorkspace(page, SEED)
   // The startup backup is in before backups start failing.
-  await expect.poll(() => page.evaluate(() => new Promise<number>((resolve, reject) => {
-    const req = indexedDB.open('todo2')
-    req.onsuccess = () => {
-      const r = req.result.transaction('backups').objectStore('backups').count()
-      r.onsuccess = () => { req.result.close(); resolve(r.result) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }))).toBeGreaterThan(0)
+  await expect.poll(async () => (await readStore(page, 'backups')).length).toBeGreaterThan(0)
 
   const settings = await openSettings(page, 'Import / Export')
   await settings.getByRole('button', { name: 'Export JSON' }).click()

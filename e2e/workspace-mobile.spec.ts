@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed } from './fixtures/workspace'
+import { box } from './fixtures/geometry'
 
 /**
  * The workspace on a phone: one column per screen width, swiped sideways with
@@ -49,10 +50,9 @@ async function pagerState(page: Page): Promise<{ scrollLeft: number; page: numbe
  * still moving), so it would never snap.
  */
 async function swipe(page: Page, dx: number): Promise<void> {
-  const box = await pager(page).boundingBox()
-  if (!box) throw new Error('no pager')
-  const y = box.y + box.height / 2
-  const x0 = dx < 0 ? box.x + box.width * 0.85 : box.x + box.width * 0.15
+  const b = await box(pager(page))
+  const y = b.y + b.height / 2
+  const x0 = dx < 0 ? b.x + b.width * 0.85 : b.x + b.width * 0.15
   const cdp = await page.context().newCDPSession(page)
   const steps = 10
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] })

@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { box, pointIn } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
 
 /**
  * Eisenhower widget in a real browser: rows dragged between quadrants and in
@@ -38,37 +40,15 @@ const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').f
 const listRow = (page: Page, title: string) => row(wsCell(page, 'a1'), title)
 
 async function readFlags(page: Page, title: string): Promise<{ urgent?: boolean; important?: boolean }> {
-  return page.evaluate(async (title) => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    const rows = await new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
-      const r = idb.transaction('todos').objectStore('todos').getAll()
-      r.onsuccess = () => resolve(r.result as Array<Record<string, unknown>>)
-      r.onerror = () => reject(r.error)
-    })
-    idb.close()
-    const t = rows.find((x) => x.title === title)
-    if (!t) throw new Error(`no task "${title}"`)
-    return { ...(t.urgent !== undefined ? { urgent: t.urgent as boolean } : {}), ...(t.important !== undefined ? { important: t.important as boolean } : {}) }
-  }, title)
+  const t = (await readStore<{ title: string; urgent?: boolean; important?: boolean }>(page, 'todos')).find((x) => x.title === title)
+  if (!t) throw new Error(`no task "${title}"`)
+  return { ...(t.urgent !== undefined ? { urgent: t.urgent } : {}), ...(t.important !== undefined ? { important: t.important } : {}) }
 }
 
 /** Drags `from` (grabbed near its left edge) onto `to` at `at` (fractions of its box), checking `during` before letting go. */
 async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => Promise<void>, at = { x: 0.5, y: 0.6 }): Promise<void> {
-  const a = await from.boundingBox()
-  const b = await to.boundingBox()
-  if (!a || !b) throw new Error('dragOnto: no geometry')
-  const x0 = a.x + 12
-  const y0 = a.y + a.height / 2
-  await page.mouse.move(x0, y0)
-  await page.mouse.down()
-  await page.mouse.move(x0 + 8, y0 + 8, { steps: 2 })
-  await page.mouse.move(b.x + b.width * at.x, b.y + b.height * at.y, { steps: 14 })
-  if (during) await during()
-  await releaseDrag(page)
+  const a = await box(from)
+  await drag(page, { x: a.x + 12, y: a.y + a.height / 2 }, await pointIn(to, at.x, at.y), { during })
 }
 
 test.describe('dragging between quadrants', () => {

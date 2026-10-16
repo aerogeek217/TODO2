@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace } from './fixtures/workspace'
+import { readStore, readStores, type Row } from './fixtures/db'
 
 /**
  * Creating a task in a real browser, the three ways: Quick Add, a note's
@@ -34,55 +35,30 @@ interface StoredTask {
 
 /** The stored task with this title (dates as local `Y-M-D`), with its people and tag names. */
 async function readTask(page: Page, title: string): Promise<StoredTask | null> {
-  return await page.evaluate(async (target) => await new Promise<StoredTask | null>((resolve, reject) => {
-    const req = indexedDB.open('todo2')
-    req.onsuccess = () => {
-      const idb = req.result
-      const tx = idb.transaction(['todos', 'todoPeople', 'people', 'todoTags', 'tags'], 'readonly')
-      const get = (name: string) => tx.objectStore(name).getAll()
-      const [todos, todoPeople, people, todoTags, tags] = ['todos', 'todoPeople', 'people', 'todoTags', 'tags'].map(get)
-      tx.oncomplete = () => {
-        idb.close()
-        const t = (todos!.result as Array<Record<string, unknown>>).find((r) => r.title === target)
-        if (!t) { resolve(null); return }
-        const day = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : undefined)
-        const names = (joins: IDBRequest, key: string, rows: IDBRequest) => {
-          const byId = new Map((rows.result as Array<{ id: number; name: string }>).map((r) => [r.id, r.name]))
-          return (joins.result as Array<Record<string, number>>)
-            .filter((j) => j.todoId === t.id)
-            .map((j) => byId.get(j[key]!) ?? '?')
-            .sort()
-        }
-        resolve({
-          urgent: t.urgent as boolean | undefined,
-          important: t.important as boolean | undefined,
-          focus: t.focus as boolean | undefined,
-          statusId: t.statusId as number | undefined,
-          dueDate: day(t.dueDate),
-          nextFollowupAt: day(t.nextFollowupAt),
-          recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
-          progress: t.progress as string | undefined,
-          people: names(todoPeople!, 'personId', people!),
-          tags: names(todoTags!, 'tagId', tags!),
-        })
-      }
-      tx.onerror = () => { idb.close(); reject(tx.error) }
-    }
-    req.onerror = () => reject(req.error)
-  }), title)
+  const { todos, todoPeople, people, todoTags, tags } = await readStores(page, ['todos', 'todoPeople', 'people', 'todoTags', 'tags'])
+  const t = todos?.find((r) => r.title === title)
+  if (!t) return null
+  const day = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : undefined)
+  const names = (joins: Row[] | undefined, key: string, rows: Row[] | undefined) => {
+    const byId = new Map((rows ?? []).map((r) => [r.id, r.name as string]))
+    return (joins ?? []).filter((j) => j.todoId === t.id).map((j) => byId.get(j[key]) ?? '?').sort()
+  }
+  return {
+    urgent: t.urgent as boolean | undefined,
+    important: t.important as boolean | undefined,
+    focus: t.focus as boolean | undefined,
+    statusId: t.statusId as number | undefined,
+    dueDate: day(t.dueDate),
+    nextFollowupAt: day(t.nextFollowupAt),
+    recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
+    progress: t.progress as string | undefined,
+    people: names(todoPeople, 'personId', people),
+    tags: names(todoTags, 'tagId', tags),
+  }
 }
 
 async function tagCount(page: Page, name: string): Promise<number> {
-  return await page.evaluate(async (target) => await new Promise<number>((resolve, reject) => {
-    const req = indexedDB.open('todo2')
-    req.onsuccess = () => {
-      const idb = req.result
-      const all = idb.transaction(['tags'], 'readonly').objectStore('tags').getAll()
-      all.onsuccess = () => { idb.close(); resolve((all.result as Array<{ name: string }>).filter((t) => t.name === target).length) }
-      all.onerror = () => { idb.close(); reject(all.error) }
-    }
-    req.onerror = () => reject(req.error)
-  }), name)
+  return (await readStore<{ name: string }>(page, 'tags')).filter((t) => t.name === name).length
 }
 
 /** `Y-M-D` of today + `days`, in the page's clock. */

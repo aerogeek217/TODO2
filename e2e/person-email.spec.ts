@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * A person's email address in Settings › People, statuses & tags: the
@@ -20,23 +21,8 @@ const seed: WorkspaceSeed = {
 const SHAPE_ERROR = "Doesn't look like an email address"
 
 /** A row of the app's `settings` table, read straight from IndexedDB. */
-function readSetting(page: Page, key: string): Promise<string | undefined> {
-  return page.evaluate(async (key) => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    try {
-      return await new Promise<string | undefined>((resolve, reject) => {
-        const req = idb.transaction('settings').objectStore('settings').get(key)
-        req.onsuccess = () => resolve((req.result as { value?: string } | undefined)?.value)
-        req.onerror = () => reject(req.error)
-      })
-    } finally {
-      idb.close()
-    }
-  }, key)
+async function readSetting(page: Page, key: string): Promise<string | undefined> {
+  return (await readStore<{ key: string; value?: string }>(page, 'settings')).find((s) => s.key === key)?.value
 }
 
 async function openPeopleEditor(page: Page) {

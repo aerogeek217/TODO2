@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { box } from './fixtures/geometry'
 
 /**
  * The app tooltip (`useTooltip` → `TooltipBubble`, placed by
@@ -24,12 +25,6 @@ async function open(page: Page, tasks: Parameters<typeof seedWorkspace>[1]['task
   const widget = wsListWidget(page, 'tasks')
   await widget.waitFor({ state: 'visible' })
   return widget
-}
-
-async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('no bounding box')
-  return b
 }
 
 async function hoverForTooltip(page: Page, trigger: Locator): Promise<Locator> {

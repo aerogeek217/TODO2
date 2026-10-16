@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedTaskList } from './fixtures/workspace'
+import { assignedNames, readStore } from './fixtures/db'
 
 /**
  * People on the fly in a real browser: the person picker (popover anchored
@@ -14,42 +15,13 @@ import { seedTaskList } from './fixtures/workspace'
 
 type PersonRow = { id: number; name: string; initials: string; color?: string }
 
-async function readPeople(page: Page): Promise<PersonRow[]> {
-  return page.evaluate(() => new Promise<PersonRow[]>((resolve, reject) => {
-    const req = indexedDB.open('todo2')
-    req.onsuccess = () => {
-      const idb = req.result
-      const all = idb.transaction(['people'], 'readonly').objectStore('people').getAll()
-      all.onsuccess = () => { resolve(all.result as PersonRow[]); idb.close() }
-      all.onerror = () => { idb.close(); reject(all.error) }
-    }
-    req.onerror = () => reject(req.error)
-  }))
+function readPeople(page: Page): Promise<PersonRow[]> {
+  return readStore(page, 'people')
 }
 
 /** Names of the people assigned to the task with this title. */
-async function readAssignedNames(page: Page, title: string): Promise<string[]> {
-  return page.evaluate((target) => new Promise<string[]>((resolve, reject) => {
-    const req = indexedDB.open('todo2')
-    req.onsuccess = () => {
-      const idb = req.result
-      const tx = idb.transaction(['todos', 'todoPeople', 'people'], 'readonly')
-      const todos = tx.objectStore('todos').getAll()
-      const joins = tx.objectStore('todoPeople').getAll()
-      const people = tx.objectStore('people').getAll()
-      tx.oncomplete = () => {
-        const todo = (todos.result as Array<{ id: number; title: string }>).find((t) => t.title === target)
-        const byId = new Map((people.result as PersonRow[]).map((p) => [p.id, p.name]))
-        const names = (joins.result as Array<{ todoId: number; personId: number }>)
-          .filter((j) => j.todoId === todo?.id)
-          .map((j) => byId.get(j.personId) ?? '?')
-        idb.close()
-        resolve(names.sort())
-      }
-      tx.onerror = () => { idb.close(); reject(tx.error) }
-    }
-    req.onerror = () => reject(req.error)
-  }), title)
+function readAssignedNames(page: Page, title: string): Promise<string[]> {
+  return assignedNames(page, title)
 }
 
 const activeOptionName = (page: Page) => page.evaluate(() => {

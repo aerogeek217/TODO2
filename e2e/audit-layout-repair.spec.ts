@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace } from './fixtures/workspace'
+import { readStore, readStores, writeStores } from './fixtures/db'
 
 /**
  * Settings › Data integrity on a corrupt layout: the audit reports it and
@@ -7,38 +8,24 @@ import { openSettings, seedWorkspace } from './fixtures/workspace'
  * layout, so the active one survives with its good tabs.
  */
 
+interface StoredLayout { id: number; columns: Array<{ cells: Array<{ weight: unknown; tabs: unknown[] }> }> }
+
 /** Rewrites the stored active layout's columns straight in IndexedDB. */
 async function corruptActiveLayout(page: Page): Promise<number> {
-  return page.evaluate(async () => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    const tx = idb.transaction(['layouts', 'settings'], 'readwrite')
-    const get = <T,>(store: string, key: IDBValidKey) => new Promise<T>((resolve, reject) => {
-      const r = tx.objectStore(store).get(key)
-      r.onsuccess = () => resolve(r.result as T)
-      r.onerror = () => reject(r.error)
-    })
-    const active = Number((await get<{ value: string }>('settings', 'activeLayoutId')).value)
-    const layout = await get<{ columns: Array<{ cells: Array<{ weight: unknown; tabs: unknown[] }> }> }>('layouts', active)
-    const cell = layout.columns[0]!.cells[0]!
-    cell.weight = -1
-    cell.tabs.push({ id: 'retired', kind: 'status', config: {} })
-    tx.objectStore('layouts').put(layout)
-    await new Promise<void>((resolve, reject) => {
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-    })
-    idb.close()
-    return active
-  })
+  const { layouts, settings } = await readStores(page, ['layouts', 'settings'])
+  const active = Number(settings?.find((s) => s.key === 'activeLayoutId')?.value)
+  const layout = (layouts as unknown as StoredLayout[] | undefined)?.find((l) => l.id === active)
+  const cell = layout?.columns[0]?.cells[0]
+  if (!layout || !cell) throw new Error('no active layout')
+  cell.weight = -1
+  cell.tabs.push({ id: 'retired', kind: 'status', config: {} })
+  await writeStores(page, { put: { layouts: [layout] } })
+  return active
 }
 
 test('the audit repairs a corrupt active layout instead of deleting it', async ({ page }) => {
   await seedWorkspace(page, {
-    layouts: [{ name: 'Daily', columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes', config: {} }] }] }] }],
+    layouts: [{ name: 'Daily', columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes' }] }] }] }],
   })
   const active = await corruptActiveLayout(page)
   await page.reload()
@@ -54,21 +41,7 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
   await settings.getByRole('button', { name: 'Clean Up 1 Issue' }).click()
   await expect(settings.getByText('Cleaned up 1 orphaned record.')).toBeVisible()
 
-  const stored = await page.evaluate(async () => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    const rows = await new Promise<unknown[]>((resolve, reject) => {
-      const r = idb.transaction('layouts').objectStore('layouts').getAll()
-      r.onsuccess = () => resolve(r.result as unknown[])
-      r.onerror = () => reject(r.error)
-    })
-    idb.close()
-    return rows
-  })
-  expect(stored).toEqual([expect.objectContaining({
+  expect(await readStore(page, 'layouts')).toEqual([expect.objectContaining({
     id: active,
     name: 'Daily',
     // The size reset to 1, the retired tab gone, the notes tab kept.

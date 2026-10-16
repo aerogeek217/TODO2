@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { box, pointIn, type Point } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
 
 /**
  * Calendar widget in a real browser: list rows dropped on a day (with the
@@ -46,31 +48,9 @@ interface StoredTodo {
 }
 
 async function readTodo(page: Page, title: string): Promise<StoredTodo> {
-  const row = await page.evaluate(async (title) => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    const rows = await new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
-      const r = idb.transaction('todos').objectStore('todos').getAll()
-      r.onsuccess = () => resolve(r.result as Array<Record<string, unknown>>)
-      r.onerror = () => reject(r.error)
-    })
-    idb.close()
-    const t = rows.find((x) => x.title === title)
-    if (!t) return null
-    const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : undefined)
-    return { id: t.id as number, title: t.title as string, dueDate: iso(t.dueDate), nextFollowupAt: iso(t.nextFollowupAt), lastFollowupAt: iso(t.lastFollowupAt) }
-  }, title)
-  if (!row) throw new Error(`no task "${title}"`)
-  return {
-    id: row.id,
-    title: row.title,
-    dueDate: row.dueDate ? new Date(row.dueDate) : undefined,
-    nextFollowupAt: row.nextFollowupAt ? new Date(row.nextFollowupAt) : undefined,
-    lastFollowupAt: row.lastFollowupAt ? new Date(row.lastFollowupAt) : undefined,
-  }
+  const t = (await readStore<StoredTodo>(page, 'todos')).find((x) => x.title === title)
+  if (!t) throw new Error(`no task "${title}"`)
+  return { id: t.id, title: t.title, dueDate: t.dueDate, nextFollowupAt: t.nextFollowupAt, lastFollowupAt: t.lastFollowupAt }
 }
 
 /** Midnight of today + `n` days plus `hour`, in the page's time zone (ms). */
@@ -82,19 +62,10 @@ async function dayAt(page: Page, n: number, hour: number): Promise<number> {
 }
 
 /** Drags `from` (grabbed at `grabX` px from its left) onto the middle of `to`, checking `during` before letting go. */
-async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => Promise<void>, grabX = 40): Promise<{ x: number; y: number }> {
-  const a = await from.boundingBox()
-  const b = await to.boundingBox()
-  if (!a || !b) throw new Error('dragOnto: no geometry')
-  const x0 = a.x + Math.min(grabX, a.width / 2)
-  const y0 = a.y + a.height / 2
-  const end = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
-  await page.mouse.move(x0, y0)
-  await page.mouse.down()
-  await page.mouse.move(x0 + 8, y0 + 8, { steps: 2 })
-  await page.mouse.move(end.x, end.y, { steps: 14 })
-  if (during) await during()
-  await releaseDrag(page)
+async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => Promise<void>, grabX = 40): Promise<Point> {
+  const a = await box(from)
+  const end = await pointIn(to)
+  await drag(page, { x: a.x + Math.min(grabX, a.width / 2), y: a.y + a.height / 2 }, end, { during })
   return end
 }
 

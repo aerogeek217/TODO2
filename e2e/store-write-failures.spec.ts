@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
 import { seedTaskList } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * Task writes that fail: the change is taken back, the snackbar says so, and
@@ -14,7 +15,6 @@ import { seedTaskList } from './fixtures/workspace'
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-const DB_NAME = 'todo2'
 
 async function installTodoWriteFailureSwitch(page: Page) {
   await page.addInitScript(() => {
@@ -45,15 +45,7 @@ async function failTodoWrites(page: Page, on: boolean) {
 }
 
 async function dbTitles(page: Page): Promise<string[]> {
-  return page.evaluate(async (db) => new Promise<string[]>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['todos'], 'readonly').objectStore('todos').getAll()
-      r.onsuccess = () => { req.result.close(); resolve((r.result as Array<{ title: string }>).map((t) => t.title).sort()) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+  return (await readStore<{ title: string }>(page, 'todos')).map((t) => t.title).sort()
 }
 
 /** Errors the page didn't handle (an unhandled rejection shows up here too). */

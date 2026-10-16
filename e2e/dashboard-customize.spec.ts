@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { pointIn } from './fixtures/geometry'
 
 /**
  * The Dashboard tab menu and Customize dialog in a real browser: reordering
@@ -62,17 +63,12 @@ const announced = (page: Page, text: string) => expect(page.locator('[id^="DndLi
 
 /** A trusted-mouse drag of a row's grip onto another row (past the activation distance, in steps). */
 async function dragGrip(page: Page, grip: Locator, onto: Locator, below: boolean) {
-  const from = await grip.boundingBox()
-  const to = await onto.boundingBox()
-  if (!from || !to) throw new Error('no box')
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + 8, { steps: 4 })
-  // Lifted (past the activation distance) before it travels.
-  await expect(grip).toHaveAttribute('aria-pressed', 'true')
-  const y = below ? to.y + to.height * 0.8 : to.y + to.height * 0.2
-  await page.mouse.move(from.x + from.width / 2, y, { steps: 12 })
-  await releaseDrag(page)
+  const from = await pointIn(grip)
+  const to = await pointIn(onto, 0.5, below ? 0.8 : 0.2)
+  await drag(page, from, { x: from.x, y: to.y }, {
+    // Lifted (past the activation distance) before it travels.
+    lifted: () => expect(grip).toHaveAttribute('aria-pressed', 'true'),
+  })
 }
 
 test('reordering and hiding in Customize show behind the dialog and make the layout unsaved', async ({ page }) => {

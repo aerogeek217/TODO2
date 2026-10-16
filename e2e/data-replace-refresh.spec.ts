@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
 import { openSettings, seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * After the data is replaced (import, backup restore, sync file load) the
@@ -11,8 +12,6 @@ import { openSettings, seedTaskList, seedWorkspace } from './fixtures/workspace'
 
 test.use({ viewport: { width: 1280, height: 800 } })
 
-const DB_NAME = 'todo2'
-
 /** A manual backup of the current data, made in Settings › Backups (left open). */
 async function createBackup(page: Page) {
   const settings = await openSettings(page, 'Backups')
@@ -22,20 +21,9 @@ async function createBackup(page: Page) {
 }
 
 async function manualBackupId(page: Page): Promise<number> {
-  return page.evaluate(async (db) => new Promise<number>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['backups'], 'readonly').objectStore('backups').getAll()
-      r.onsuccess = () => {
-        req.result.close()
-        const manual = (r.result as Array<{ id: number; trigger: string }>).find((b) => b.trigger === 'manual')
-        if (manual) resolve(manual.id)
-        else reject(new Error('no manual backup'))
-      }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+  const manual = (await readStore<{ id: number; trigger: string }>(page, 'backups')).find((b) => b.trigger === 'manual')
+  if (!manual) throw new Error('no manual backup')
+  return manual.id
 }
 
 test('restoring a backup clears the row selection', async ({ page }) => {
@@ -74,7 +62,7 @@ test('a data replace while the task editor is open closes it', async ({ page }) 
   // The restore Settings › Backups runs (the editor covers the app meanwhile,
   // as when a sync file loads under it).
   const outcome = await page.evaluate(async (id) => {
-    const mod = (await import(/* @vite-ignore */ '/src/services/file-ops-store.ts')) as {
+    const mod = (await import(/* @vite-ignore */ '/src/services/file-ops-store.ts' as string)) as {
       useFileOpsStore: { getState(): { restoreBackup(id: number): Promise<{ status: string }> } }
     }
     return (await mod.useFileOpsStore.getState().restoreBackup(id)).status
@@ -86,15 +74,7 @@ test('a data replace while the task editor is open closes it', async ({ page }) 
 })
 
 async function storedNotes(page: Page): Promise<string[]> {
-  return page.evaluate(async (db) => new Promise<string[]>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['notes'], 'readonly').objectStore('notes').getAll()
-      r.onsuccess = () => { req.result.close(); resolve((r.result as Array<{ content: string }>).map((n) => n.content)) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+  return (await readStore<{ content: string }>(page, 'notes')).map((n) => n.content)
 }
 
 
@@ -106,20 +86,8 @@ interface NoteHoldWindow {
 
 /** The notes held by the newest pre-op backup (the one a restore takes first). */
 async function preOpBackupNotes(page: Page): Promise<string[]> {
-  return page.evaluate(async (db) => new Promise<string[]>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['backups'], 'readonly').objectStore('backups').getAll()
-      r.onsuccess = () => {
-        req.result.close()
-        const preOp = (r.result as Array<{ trigger: string; data: string }>).filter((b) => b.trigger === 'pre-destructive')
-        const newest = preOp.at(-1)
-        resolve(newest ? (JSON.parse(newest.data) as { notes: Array<{ content: string }> }).notes.map((n) => n.content) : [])
-      }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+  const newest = (await readStore<{ trigger: string; data: string }>(page, 'backups')).filter((b) => b.trigger === 'pre-destructive').at(-1)
+  return newest ? (JSON.parse(newest.data) as { notes: Array<{ content: string }> }).notes.map((n) => n.content) : []
 }
 
 test('note text saving when a backup restore starts goes into its pre-op backup, not over the restored note', async ({ page }) => {
@@ -137,10 +105,10 @@ test('note text saving when a backup restore starts goes into its pre-op backup,
   // Hold the next note save's database write, and note when a replace asks
   // the note store to hold its saves (the app's own module instances).
   await page.evaluate(async () => {
-    const repo = (await import(/* @vite-ignore */ '/src/data/note-repository.ts')) as {
+    const repo = (await import(/* @vite-ignore */ '/src/data/note-repository.ts' as string)) as {
       noteRepository: { saveContent: (...args: unknown[]) => Promise<boolean> }
     }
-    const notes = (await import(/* @vite-ignore */ '/src/stores/note-store.ts')) as {
+    const notes = (await import(/* @vite-ignore */ '/src/stores/note-store.ts' as string)) as {
       useNoteStore: {
         getState(): { holdForDataReplace?: () => Promise<() => void> }
         setState(patch: Record<string, unknown>): void

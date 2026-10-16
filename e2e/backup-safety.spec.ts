@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
 import { gotoSettingsDeepLink, openSettings, seedTaskList } from './fixtures/workspace'
+import { readStore, writeStores } from './fixtures/db'
 
 /**
  * Backups before destructive operations: a backup snapshot that can't be
@@ -14,7 +15,6 @@ import { gotoSettingsDeepLink, openSettings, seedTaskList } from './fixtures/wor
  * what a quota error does — so the app's own snapshot code fails for real.
  */
 
-const DB_NAME = 'todo2'
 const IMPORT_FILE = 'e2e-backup-import.json'
 
 test.use({ viewport: { width: 1280, height: 800 } })
@@ -45,27 +45,28 @@ async function stubPickers(page: Page) {
 }
 
 async function dbTitles(page: Page): Promise<string[]> {
-  return page.evaluate(async (db) => new Promise<string[]>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['todos'], 'readonly').objectStore('todos').getAll()
-      r.onsuccess = () => { req.result.close(); resolve((r.result as Array<{ title: string }>).map((t) => t.title).sort()) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+  return (await readStore<{ title: string }>(page, 'todos')).map((t) => t.title).sort()
 }
 
-async function dbBackups(page: Page): Promise<Array<{ trigger: string; data: string }>> {
-  return page.evaluate(async (db) => new Promise<Array<{ trigger: string; data: string }>>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['backups'], 'readonly').objectStore('backups').getAll()
-      r.onsuccess = () => { req.result.close(); resolve(r.result as Array<{ trigger: string; data: string }>) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+function dbBackups(page: Page): Promise<Array<{ trigger: string; data: string }>> {
+  return readStore(page, 'backups')
+}
+
+/**
+ * A task completed 60 days ago ("Old done") and open tasks titled `open`,
+ * with completed tasks kept 30 days: the next launch offers to purge it.
+ */
+async function seedExpired(page: Page, open: string[] = []) {
+  const now = Date.now()
+  const row = (title: string, done: boolean, sortOrder: number) => ({
+    uid: crypto.randomUUID(), title, isCompleted: done, sortOrder,
+    createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now),
+    ...(done ? { completedAt: new Date(now - 60 * 86_400_000) } : {}),
+  })
+  await writeStores(page, {
+    add: { todos: [row('Old done', true, 1), ...open.map((title, i) => row(title, false, i + 2))] },
+    put: { settings: [{ key: 'completedRetentionDays', value: '30' }] },
+  })
 }
 
 /**
@@ -207,27 +208,7 @@ test('Export & delete after a plain download asks "Did the file save?" before de
   })
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  await page.evaluate(async (db) => {
-    await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => {
-        const idb = req.result
-        const tx = idb.transaction(['todos', 'settings'], 'readwrite')
-        const now = Date.now()
-        const row = (title: string, done: boolean, i: number) => ({
-          uid: crypto.randomUUID(), title, isCompleted: done, sortOrder: i,
-          createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now),
-          ...(done ? { completedAt: new Date(now - 60 * 86_400_000) } : {}),
-        })
-        tx.objectStore('todos').add(row('Old done', true, 1))
-        tx.objectStore('todos').add(row('Keep', false, 2))
-        tx.objectStore('settings').put({ key: 'completedRetentionDays', value: '30' })
-        tx.oncomplete = () => { idb.close(); resolve() }
-        tx.onerror = () => reject(tx.error)
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, DB_NAME)
+  await seedExpired(page, ['Keep'])
   await page.reload()
 
   const purge = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
@@ -256,24 +237,7 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
   await installBackupFailureSwitch(page)
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  await page.evaluate(async (db) => {
-    await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => {
-        const idb = req.result
-        const tx = idb.transaction(['todos', 'settings'], 'readwrite')
-        const now = Date.now()
-        tx.objectStore('todos').add({
-          uid: crypto.randomUUID(), title: 'Old done', isCompleted: true, sortOrder: 1,
-          createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now), completedAt: new Date(now - 60 * 86_400_000),
-        })
-        tx.objectStore('settings').put({ key: 'completedRetentionDays', value: '30' })
-        tx.oncomplete = () => { idb.close(); resolve() }
-        tx.onerror = () => reject(tx.error)
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, DB_NAME)
+  await seedExpired(page)
   await startupBackupTaken(page)
   await page.reload()
   await failBackups(page, true)
@@ -301,24 +265,7 @@ test.describe('phone', () => {
     await installBackupFailureSwitch(page)
     await page.goto('/')
     await expect(page.getByRole('button', { name: 'Quick add' })).toBeVisible()
-    await page.evaluate(async (db) => {
-      await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open(db)
-        req.onsuccess = () => {
-          const idb = req.result
-          const tx = idb.transaction(['todos', 'settings'], 'readwrite')
-          const now = Date.now()
-          tx.objectStore('todos').add({
-            uid: crypto.randomUUID(), title: 'Old done', isCompleted: true, sortOrder: 1,
-            createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now), completedAt: new Date(now - 60 * 86_400_000),
-          })
-          tx.objectStore('settings').put({ key: 'completedRetentionDays', value: '30' })
-          tx.oncomplete = () => { idb.close(); resolve() }
-          tx.onerror = () => reject(tx.error)
-        }
-        req.onerror = () => reject(req.error)
-      })
-    }, DB_NAME)
+    await seedExpired(page)
     await startupBackupTaken(page)
     await page.reload()
     await failBackups(page, true)

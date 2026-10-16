@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedTaskList, seedWorkspace } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
+import { readStore } from './fixtures/db'
 
 /**
  * Notes → tasks in a real browser: the toolbar's Convert (preview dialog,
@@ -25,17 +26,8 @@ const NOTE = [
   '- [x] Send recap email',
 ].join('\n')
 
-async function storedTodos(page: Page): Promise<Array<{ title: string; urgent?: boolean; important?: boolean }>> {
-  return await page.evaluate(async () => await new Promise((resolve, reject) => {
-    const req = indexedDB.open('todo2')
-    req.onsuccess = () => {
-      const idb = req.result
-      const all = idb.transaction(['todos'], 'readonly').objectStore('todos').getAll()
-      all.onsuccess = () => { idb.close(); resolve(all.result as Array<{ title: string }>) }
-      all.onerror = () => { idb.close(); reject(all.error) }
-    }
-    req.onerror = () => reject(req.error)
-  }))
+function storedTodos(page: Page): Promise<Array<{ title: string; urgent?: boolean; important?: boolean }>> {
+  return readStore(page, 'todos')
 }
 
 async function noteLines(editor: Locator): Promise<string[]> {

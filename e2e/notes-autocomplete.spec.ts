@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedTaskList, seedWorkspace } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
+import { readStore } from './fixtures/db'
 
 /**
  * The notes editor's `@ # /` popup and token tints, in each place notes are
@@ -14,21 +15,7 @@ import { taskRowByTitle } from './fixtures/seed'
 const popup = (page: Page) => page.locator('[data-nlp-popup]')
 
 async function storedNames(page: Page, store: 'people' | 'tags'): Promise<string[]> {
-  return await page.evaluate(async (name) => {
-    return await new Promise<string[]>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => {
-        const idb = req.result
-        const all = idb.transaction([name], 'readonly').objectStore(name).getAll()
-        all.onsuccess = () => {
-          idb.close()
-          resolve((all.result as Array<{ name: string }>).map((r) => r.name))
-        }
-        all.onerror = () => { idb.close(); reject(all.error) }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, store)
+  return (await readStore<{ name: string }>(page, store)).map((r) => r.name)
 }
 
 /** The popup's box and the box of the tinted token starting with `token` in `editor`. */
@@ -137,16 +124,7 @@ test.describe('notes autocomplete', () => {
     await page.keyboard.press('Enter')
     await expect(editor.locator('.cm-line').first()).toHaveText('✓ Mail bob@acme.com about the SOW')
     expect(await storedNames(page, 'people')).toEqual(['Anna', 'Dana Kim'])
-    const titles = await page.evaluate(async () => await new Promise<string[]>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => {
-        const idb = req.result
-        const all = idb.transaction(['todos'], 'readonly').objectStore('todos').getAll()
-        all.onsuccess = () => { idb.close(); resolve((all.result as Array<{ title: string }>).map((t) => t.title)) }
-        all.onerror = () => { idb.close(); reject(all.error) }
-      }
-      req.onerror = () => reject(req.error)
-    }))
+    const titles = (await readStore<{ title: string }>(page, 'todos')).map((t) => t.title)
     expect(titles).toEqual(['Mail bob@acme.com about the SOW'])
   })
 

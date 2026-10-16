@@ -28,7 +28,7 @@ async function look(el: Locator): Promise<Record<string, string>> {
 
 async function setTheme(page: Page, mode: 'dark' | 'light') {
   await page.evaluate(async (m) => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts')) as {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts' as string)) as {
       useSettingsStore: { getState: () => { setThemeMode: (mode: 'dark' | 'light') => Promise<void> } }
     }
     await mod.useSettingsStore.getState().setThemeMode(m)
@@ -39,10 +39,10 @@ async function setTheme(page: Page, mode: 'dark' | 'light') {
 /** Turns on a screen filter (the top bar's People: Alice) so the screen chip shows. */
 async function screenFilterOn(page: Page) {
   await page.evaluate(async () => {
-    const people = (await import(/* @vite-ignore */ '/src/stores/person-store.ts')) as {
+    const people = (await import(/* @vite-ignore */ '/src/stores/person-store.ts' as string)) as {
       usePersonStore: { getState: () => { people: Array<{ id?: number; name: string }> } }
     }
-    const filters = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts')) as {
+    const filters = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts' as string)) as {
       useFilterStore: { getState: () => { setPersonIds: (ids: Set<number> | null) => void } }
     }
     const alice = people.usePersonStore.getState().people.find((x) => x.name === 'Alice')

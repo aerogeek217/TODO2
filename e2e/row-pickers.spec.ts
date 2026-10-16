@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { box, clickOutside, expectInsideViewport } from './fixtures/geometry'
 
 /**
  * The row and bulk-bar pickers (status menu, people / tag pickers) are placed
@@ -43,27 +44,6 @@ async function open(page: Page, tasks: WorkspaceSeed['tasks']): Promise<Locator>
 
 const picker = (page: Page) => page.locator('[data-anchored-picker]')
 
-async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-  const b = await locator.boundingBox()
-  if (!b) throw new Error('no bounding box')
-  return b
-}
-
-async function expectInsideViewport(page: Page, panel: Locator): Promise<void> {
-  const vp = page.viewportSize()
-  if (!vp) throw new Error('no viewport')
-  const p = await box(panel)
-  expect(p.x).toBeGreaterThanOrEqual(MARGIN - 0.5)
-  expect(p.y).toBeGreaterThanOrEqual(MARGIN - 0.5)
-  expect(p.x + p.width).toBeLessThanOrEqual(vp.width - MARGIN + 0.5)
-  expect(p.y + p.height).toBeLessThanOrEqual(vp.height - MARGIN + 0.5)
-}
-
-/** A real mousedown outside any popover: the notes column. */
-async function clickOutside(page: Page): Promise<void> {
-  await page.mouse.click(40, 400)
-}
-
 test.describe('status menu', () => {
   test('near the right edge it ends at the status pill; the pill toggles it, Esc and an outside click close it', async ({ page }) => {
     await open(page, [{ title: 'Top task', status: 'Doing' }])
@@ -89,7 +69,7 @@ test.describe('status menu', () => {
 
     await trigger.click()
     await expect(menu).toBeVisible()
-    await clickOutside(page)
+    await clickOutside(page, wsCell(page, 'n1'))
     await expect(menu).toHaveCount(0)
   })
 
@@ -148,7 +128,7 @@ test.describe('people picker', () => {
 
     await trigger.click()
     await expect(panel).toBeVisible()
-    await clickOutside(page)
+    await clickOutside(page, wsCell(page, 'n1'))
     await expect(panel).toHaveCount(0)
   })
 
@@ -201,7 +181,7 @@ test.describe('tag picker', () => {
     await expect(panel).toHaveCount(0)
     await chip.click()
     await expect(panel).toBeVisible()
-    await clickOutside(page)
+    await clickOutside(page, wsCell(page, 'n1'))
     await expect(panel).toHaveCount(0)
   })
 })
@@ -240,7 +220,7 @@ test.describe('bulk bar pickers', () => {
 
       await button.click()
       await expect(panel).toBeVisible()
-      await clickOutside(page)
+      await clickOutside(page, wsCell(page, 'n1'))
       await expect(panel).toHaveCount(0)
     })
   }

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * The global note in a real browser: two Notes widgets mounting at once
@@ -9,21 +10,7 @@ import { seedWorkspace } from './fixtures/workspace'
 
 /** Every stored note's text. */
 async function storedNotes(page: Page): Promise<string[]> {
-  return await page.evaluate(async () => {
-    return await new Promise<string[]>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => {
-        const idb = req.result
-        const all = idb.transaction(['notes'], 'readonly').objectStore('notes').getAll()
-        all.onsuccess = () => {
-          idb.close()
-          resolve((all.result as Array<{ content: string }>).map((r) => r.content))
-        }
-        all.onerror = () => { idb.close(); reject(all.error) }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  })
+  return (await readStore<{ content: string }>(page, 'notes')).map((r) => r.content)
 }
 
 const TWO_NOTES_LAYOUT = {

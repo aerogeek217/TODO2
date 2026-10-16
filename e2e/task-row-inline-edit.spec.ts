@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
 import { seedTaskList, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
+import { clickOutside } from './fixtures/geometry'
 
 /**
  * Inline title editing on `TaskRow` (`useInlineEdit`). Focus handoff into the
@@ -40,13 +41,6 @@ async function renameExternally(page: Page, id: number, title: string): Promise<
     if (!todo) throw new Error(`renameExternally: no todo ${id}`)
     await state.update(todo.id, { title })
   }, { url: TODO_STORE_URL, id, title })
-}
-
-/** Click outside the row: the list widget's empty space below the rows. */
-async function clickOutside(page: Page): Promise<void> {
-  const box = await wsListWidget(page, TASK_LIST_TAB).boundingBox()
-  if (!box) throw new Error('no list widget')
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 20)
 }
 
 /**
@@ -101,7 +95,7 @@ test.describe('TaskRow inline title edit', () => {
   test('blur (click elsewhere) saves', async ({ page }) => {
     const { id, input } = await startEditing(page, 'alpha')
     await input.fill('alpha via blur')
-    await clickOutside(page)
+    await clickOutside(page, wsListWidget(page, TASK_LIST_TAB))
     await expect(input).toHaveCount(0)
     await expect.poll(() => storeTitle(page, id)).toBe('alpha via blur')
     await expect(taskRowByTitle(page, 'alpha via blur')).toBeVisible()
@@ -114,7 +108,7 @@ test.describe('TaskRow inline title edit', () => {
     // Untouched draft follows the live title.
     await expect(input).toHaveValue('renamed elsewhere')
 
-    await clickOutside(page)
+    await clickOutside(page, wsListWidget(page, TASK_LIST_TAB))
     await expect(input).toHaveCount(0)
     await expect(taskRowByTitle(page, 'renamed elsewhere')).toBeVisible()
     // Give any (wrong) blur-save a chance to land before asserting it didn't.

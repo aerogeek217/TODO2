@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
+import { readStore, writeStores } from './fixtures/db'
 
 /**
  * Backup retention: an automatic backup is taken at startup when the last
@@ -9,21 +10,12 @@ import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
  * stored shows a warning instead of failing silently.
  */
 
-const DB_NAME = 'todo2'
 const DAY = 24 * 60 * 60 * 1000
 
 interface BackupRow { id?: number; trigger: string; createdAt: string; sizeBytes: number; data: string }
 
-async function dbBackups(page: Page): Promise<BackupRow[]> {
-  return page.evaluate(async (db) => new Promise<BackupRow[]>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['backups'], 'readonly').objectStore('backups').getAll()
-      r.onsuccess = () => { req.result.close(); resolve(r.result as BackupRow[]) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+function dbBackups(page: Page): Promise<BackupRow[]> {
+  return readStore<BackupRow>(page, 'backups')
 }
 
 function countByTrigger(rows: BackupRow[]): Record<string, number> {
@@ -34,18 +26,7 @@ function countByTrigger(rows: BackupRow[]): Record<string, number> {
 
 /** Replaces every stored backup with `rows`. */
 async function replaceBackups(page: Page, rows: BackupRow[]) {
-  await page.evaluate(async ({ db, rows }) => new Promise<void>((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const tx = req.result.transaction(['backups'], 'readwrite')
-      const store = tx.objectStore('backups')
-      store.clear()
-      for (const row of rows) store.add(row)
-      tx.oncomplete = () => { req.result.close(); resolve() }
-      tx.onerror = () => reject(tx.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), { db: DB_NAME, rows })
+  await writeStores(page, { clear: ['backups'], add: { backups: rows } })
 }
 
 test('a startup backup is taken, and manual and sync-file backups outlive full pools of automatic and pre-op ones', async ({ page }) => {

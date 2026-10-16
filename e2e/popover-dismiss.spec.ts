@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget } from './fixtures/workspace'
+import { box, clickOutside, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 
 /**
  * Popover-dismissal contract for portaled popovers built on
@@ -22,23 +23,13 @@ import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget } from
 async function rightClickRowCenter(page: Page, title: string): Promise<void> {
   // Right-click on the task title span specifically so the contextmenu lands
   // on the row (and not on a chip popover trigger under the row's bbox center).
-  const span = taskRowByTitle(page, title).locator(`span[title="${title}"]`)
-  const box = await span.boundingBox()
-  if (!box) throw new Error(`right-click target "${title}" has no bounding box`)
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' })
+  const at = await pointIn(taskRowByTitle(page, title).locator(`span[title="${title}"]`))
+  await page.mouse.click(at.x, at.y, { button: 'right' })
 }
 
-async function titleCenter(row: Locator, title: string): Promise<{ x: number; y: number }> {
-  const box = await row.locator(`span[title="${title}"]`).boundingBox()
-  if (!box) throw new Error(`"${title}" has no bounding box`)
-  return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
-}
-
-/** A real mousedown outside any popover: the list widget's empty space below its rows. */
-async function clickOutside(page: Page, widget: Locator): Promise<void> {
-  const box = await widget.boundingBox()
-  if (!box) throw new Error('no list widget')
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 20)
+async function titleCenter(row: Locator, title: string): Promise<Point> {
+  const at = await pointIn(row.locator(`span[title="${title}"]`))
+  return { x: Math.round(at.x), y: Math.round(at.y) }
 }
 
 test.describe('task-row context menu — portalized dismissal contract', () => {
@@ -116,14 +107,10 @@ test.describe('task-row context menu — re-anchor', () => {
     const rowA = wsListWidget(page, 'leftTab').locator('[data-row-key]').filter({ hasText: 'task A' })
     const rowB = wsListWidget(page, 'rightTab').locator('[data-row-key]').filter({ hasText: 'task B' })
     const menu = page.getByRole('menu')
-    const viewport = page.viewportSize()
-    if (!viewport) throw new Error('no viewport size')
-
     const pointA = await titleCenter(rowA, 'task A')
     await page.mouse.click(pointA.x, pointA.y, { button: 'right' })
     await expect(menu).toHaveCount(1)
-    const boxA = await menu.boundingBox()
-    if (!boxA) throw new Error('menu A has no bounding box')
+    const boxA = await box(menu)
 
     const pointB = await titleCenter(rowB, 'task B')
     await page.mouse.click(pointB.x, pointB.y, { button: 'right' })
@@ -131,16 +118,12 @@ test.describe('task-row context menu — re-anchor', () => {
     // gap unless a viewport flip/clamp applies — B sits well inside).
     await expect(menu).toHaveCount(1)
     await expect.poll(async () => (await menu.boundingBox())?.x).toBeCloseTo(pointB.x, 0)
-    const boxB = await menu.boundingBox()
-    if (!boxB) throw new Error('menu B has no bounding box')
+    const boxB = await box(menu)
     expect(boxB.y).toBeCloseTo(pointB.y + 4, 0)
     expect(Math.abs(boxB.x - boxA.x) + Math.abs(boxB.y - boxA.y)).toBeGreaterThan(200)
 
     // Stays inside the viewport (8px margin).
-    expect(boxB.x).toBeGreaterThanOrEqual(8)
-    expect(boxB.y).toBeGreaterThanOrEqual(8)
-    expect(boxB.x + boxB.width).toBeLessThanOrEqual(viewport.width - 8)
-    expect(boxB.y + boxB.height).toBeLessThanOrEqual(viewport.height - 8)
+    await expectInsideViewport(page, menu)
   })
 })
 

@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createTab, WIDGET_KINDS, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
-
-const DB_NAME = 'todo2'
+import { DB_NAME, readStore } from './db'
+import { box, pointIn, type Point } from './geometry'
 
 export interface WsTabSeed {
   id: string
@@ -309,87 +309,52 @@ export async function releaseDrag(page: Page): Promise<void> {
 }
 
 /**
- * Drags a tab with trusted mouse events to (x, y), checking `during` (if
- * given) before releasing. Crosses dnd-kit's 5px activation distance first.
+ * A trusted-mouse drag from `from` to `to` (viewport points): presses at
+ * `from`, moves 8 px down in two steps — past dnd-kit's 5 px activation
+ * distance — and checks `lifted` (if given), travels to `to` in 12 steps,
+ * checks `during` (if given), then lets go (`releaseDrag`).
  */
-export async function dragTab(
+export async function drag(
   page: Page,
-  tab: Locator,
-  to: { x: number; y: number },
-  during?: () => Promise<void>,
+  from: Point,
+  to: Point,
+  { lifted, during }: { lifted?: () => Promise<void>; during?: () => Promise<void> } = {},
 ): Promise<void> {
-  const box = await tab.boundingBox()
-  if (!box) throw new Error('dragTab: tab has no bounding box')
-  const x0 = box.x + box.width / 2
-  const y0 = box.y + box.height / 2
-  await page.mouse.move(x0, y0)
+  await page.mouse.move(from.x, from.y)
   await page.mouse.down()
-  await page.mouse.move(x0 + 8, y0 + 8, { steps: 2 })
+  await page.mouse.move(from.x, from.y + 8, { steps: 2 })
+  if (lifted) await lifted()
   await page.mouse.move(to.x, to.y, { steps: 12 })
   if (during) await during()
   await releaseDrag(page)
+}
+
+/** Drags a tab (grabbed at its centre) to (x, y), checking `during` (if given) before releasing. */
+export async function dragTab(page: Page, tab: Locator, to: Point, during?: () => Promise<void>): Promise<void> {
+  await drag(page, await pointIn(tab), to, { during })
 }
 
 export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
 }
 
-/** The stored list definitions, read straight from IndexedDB. */
+/** The stored list definitions. */
 export async function readListDefinitions(page: Page): Promise<Array<Record<string, unknown>>> {
-  return page.evaluate(async (db) => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    const rows = await new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
-      const r = idb.transaction('listDefinitions').objectStore('listDefinitions').getAll()
-      r.onsuccess = () => resolve(r.result as Array<Record<string, unknown>>)
-      r.onerror = () => reject(r.error)
-    })
-    idb.close()
-    return rows
-  }, DB_NAME)
+  return readStore(page, 'listDefinitions')
 }
 
-/** The stored manual list order (`listOrders` rows), read straight from IndexedDB. */
+/** The stored manual list order (`listOrders` rows). */
 export async function readListOrders(page: Page): Promise<Array<{ listDefinitionId: number; todoId: number; rank: number }>> {
-  return page.evaluate(async (db) => {
-    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    const rows = await new Promise<Array<{ listDefinitionId: number; todoId: number; rank: number }>>((resolve, reject) => {
-      const r = idb.transaction('listOrders').objectStore('listOrders').getAll()
-      r.onsuccess = () => resolve(r.result as Array<{ listDefinitionId: number; todoId: number; rank: number }>)
-      r.onerror = () => reject(r.error)
-    })
-    idb.close()
-    return rows
-  }, DB_NAME)
+  return readStore(page, 'listOrders')
 }
 
 /**
- * Drags a list widget row by its left edge (the grip) with trusted mouse
- * events to viewport y `toY`, checking `during` (if given) before releasing.
+ * Drags a list widget row by its left edge (the grip) to viewport y `toY`,
+ * checking `during` (if given) before releasing.
  */
-export async function dragRow(
-  page: Page,
-  row: Locator,
-  toY: number,
-  during?: () => Promise<void>,
-): Promise<void> {
-  const box = await row.boundingBox()
-  if (!box) throw new Error('dragRow: row has no bounding box')
-  const x = box.x + 10
-  const y0 = box.y + box.height / 2
-  await page.mouse.move(x, y0)
-  await page.mouse.down()
-  await page.mouse.move(x + 2, y0 + 8, { steps: 2 })
-  await page.mouse.move(x + 4, toY, { steps: 12 })
-  if (during) await during()
-  await releaseDrag(page)
+export async function dragRow(page: Page, row: Locator, toY: number, during?: () => Promise<void>): Promise<void> {
+  const b = await box(row)
+  await drag(page, { x: b.x + 10, y: b.y + b.height / 2 }, { x: b.x + 10, y: toY }, { during })
 }
 
 /**

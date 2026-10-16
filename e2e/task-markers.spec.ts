@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { openSettings, seedTaskList, wsCell, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
+import { rowTitles } from './fixtures/seed'
 
 /**
  * Urgent / Important markers and app-wide Urgent: a task due within the
@@ -12,12 +13,6 @@ import { openSettings, seedTaskList, wsCell, wsListWidget, TASK_LIST_TAB } from 
 
 function row(widget: Locator, title: string): Locator {
   return widget.locator('[data-todo-id]', { has: widget.page().locator(`span[title="${title}"]`) })
-}
-
-async function titles(widget: Locator): Promise<string[]> {
-  return widget.locator('[data-todo-id]').evaluateAll(
-    (els) => els.map((el) => el.querySelector('span[title]')?.getAttribute('title') ?? ''),
-  )
 }
 
 async function openEditor(page: Page, widget: Locator, title: string): Promise<void> {
@@ -105,7 +100,7 @@ const markerTasks = [
 
 test('the top-bar Markers filter (after Status) keeps tasks with every ticked marker', async ({ page }) => {
   const widget = await seedTaskList(page, { statuses: ['Doing'], tasks: markerTasks })
-  await expect.poll(() => titles(widget)).toHaveLength(5)
+  await expect.poll(() => rowTitles(widget)).toHaveLength(5)
   await expect(page.getByRole('button', { name: /^Focus filter/ })).toHaveCount(0)
   const names = await page.getByRole('group').filter({ has: page.getByRole('button', { name: 'Markers filter' }) })
     .getByRole('button').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')).filter((n) => n?.endsWith(' filter')))
@@ -113,19 +108,19 @@ test('the top-bar Markers filter (after Status) keeps tasks with every ticked ma
 
   await page.getByRole('button', { name: 'Markers filter' }).click()
   await page.getByRole('checkbox', { name: 'Urgent' }).click()
-  await expect.poll(() => titles(widget)).toEqual(['Flagged urgent', 'Due tomorrow'])
+  await expect.poll(() => rowTitles(widget)).toEqual(['Flagged urgent', 'Due tomorrow'])
 
   // Several markers AND; the picker stays open for the second pick.
   await page.getByRole('checkbox', { name: 'Urgent' }).click()
   await page.getByRole('checkbox', { name: 'Important' }).click()
   await page.getByRole('checkbox', { name: 'Focus' }).click()
-  await expect.poll(() => titles(widget)).toEqual(['Important focus'])
+  await expect.poll(() => rowTitles(widget)).toEqual(['Important focus'])
   await page.keyboard.press('Escape')
   await expect(page.getByRole('button', { name: 'Markers filter: Important +1' })).toBeVisible()
   await expect(page.locator('[data-filter-row]')).toHaveAttribute('data-filtered', 'true')
 
   await page.getByRole('button', { name: 'Clear markers filter' }).click()
-  await expect.poll(() => titles(widget)).toHaveLength(5)
+  await expect.poll(() => rowTitles(widget)).toHaveLength(5)
 })
 
 test('a list’s own Markers filter (+ Filter › Markers) narrows the list and is saved with it', async ({ page }) => {
@@ -140,9 +135,9 @@ test('a list’s own Markers filter (+ Filter › Markers) narrows the list and 
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
   await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Markers\s*Important/)
-  await expect.poll(() => titles(widget)).toEqual(['Important only', 'Important focus'])
+  await expect.poll(() => rowTitles(widget)).toEqual(['Important only', 'Important focus'])
 
   await wsCell(page, 'cell').getByTestId('save-list').click()
   await page.reload()
-  await expect.poll(() => titles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important only', 'Important focus'])
+  await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important only', 'Important focus'])
 })

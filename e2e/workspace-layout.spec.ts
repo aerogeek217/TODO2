@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { dragTab, openSettings, seedWorkspace, wsCell, wsShape, wsTab, type WsLayoutSeed } from './fixtures/workspace'
+import { drag, dragTab, openSettings, seedWorkspace, wsCell, wsShape, wsTab, type WsLayoutSeed } from './fixtures/workspace'
+import { box, pointIn, type Point } from './fixtures/geometry'
 
 /**
  * Workspace layout editing in a real browser: the three tab drop targets
@@ -19,10 +20,8 @@ const twoColumns: WsLayoutSeed = {
 
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 
-async function bodyPoint(page: Page, cellId: string, fy: number): Promise<{ x: number; y: number }> {
-  const box = await wsCell(page, cellId).locator('[data-ws-cell-body]').boundingBox()
-  if (!box) throw new Error(`no body for ${cellId}`)
-  return { x: box.x + box.width / 2, y: box.y + box.height * fy }
+function bodyPoint(page: Page, cellId: string, fy: number): Promise<Point> {
+  return pointIn(wsCell(page, cellId).locator('[data-ws-cell-body]'), 0.5, fy)
 }
 
 test.describe('tab drop targets', () => {
@@ -92,12 +91,11 @@ test.describe('tab drop targets', () => {
   test('Escape cancels a tab drag', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const tab = wsTab(page, 'eisTab')
-    const box = await tab.boundingBox()
+    const t = await box(tab)
     const to = await bodyPoint(page, 'b1', 0.5)
-    if (!box) throw new Error('no tab')
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
     await page.mouse.down()
-    await page.mouse.move(box.x + 20, box.y + 20, { steps: 2 })
+    await page.mouse.move(t.x + 20, t.y + 20, { steps: 2 })
     await page.mouse.move(to.x, to.y, { steps: 8 })
     await page.keyboard.press('Escape')
     await page.mouse.up()
@@ -342,15 +340,10 @@ test.describe('task drags inside the workspace', () => {
     const row = wsCell(page, 'a1').locator('[data-row-key]').filter({ hasText: 'Move me' })
     const day = wsCell(page, 'b1').locator('[data-day]').nth(2)
     await expect(row).toBeVisible()
-    const from = await row.boundingBox()
-    const to = await day.boundingBox()
-    if (!from || !to) throw new Error('no geometry')
-    await page.mouse.move(from.x + 40, from.y + from.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(from.x + 50, from.y + from.height / 2 + 8, { steps: 2 })
-    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 })
-    await expect(day).toHaveAttribute('data-drop-target', 'true')
-    await page.mouse.up()
+    const from = await box(row)
+    await drag(page, { x: from.x + 40, y: from.y + from.height / 2 }, await pointIn(day), {
+      during: () => expect(day).toHaveAttribute('data-drop-target', 'true'),
+    })
     await expect(day).toContainText('Move me')
     // A task drop is not a layout change.
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')

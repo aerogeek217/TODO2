@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { box, pointIn } from './fixtures/geometry'
 
 /**
  * The Dashboard widget in a real browser: a cold load straight into a
@@ -110,15 +111,10 @@ test('a Hot row drags onto a calendar day to set its due date', async ({ page })
   const row = section(page, 'hot').locator('[data-row-key]').filter({ hasText: 'Plan the offsite' })
   const day = wsCell(page, 'k2').locator('[data-day]').nth(2)
   await expect(row).toBeVisible()
-  const from = await row.boundingBox()
-  const to = await day.boundingBox()
-  if (!from || !to) throw new Error('no geometry')
-  await page.mouse.move(from.x + 40, from.y + from.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(from.x + 50, from.y + from.height / 2 + 8, { steps: 2 })
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 })
-  await expect(day).toHaveAttribute('data-drop-target', 'true')
-  await releaseDrag(page)
+  const from = await box(row)
+  await drag(page, { x: from.x + 40, y: from.y + from.height / 2 }, await pointIn(day), {
+    during: () => expect(day).toHaveAttribute('data-drop-target', 'true'),
+  })
   await expect(day).toContainText('Plan the offsite')
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 })

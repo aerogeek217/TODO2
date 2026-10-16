@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedTaskList } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
+import { readStore } from './fixtures/db'
 
 /**
  * Slash commands in Quick Add: the `/` menu (open, filter, keys, argument
@@ -22,34 +23,19 @@ interface StoredTodo {
 }
 
 async function readTodo(page: Page, title: string): Promise<StoredTodo | null> {
-  return await page.evaluate(async (target) => {
-    return await new Promise<StoredTodo | null>((resolve, reject) => {
-      const req = indexedDB.open('todo2')
-      req.onsuccess = () => {
-        const idb = req.result
-        const all = idb.transaction(['todos'], 'readonly').objectStore('todos').getAll()
-        all.onsuccess = () => {
-          const rows = all.result as Array<Record<string, unknown>>
-          const t = rows.find((r) => r.title === target)
-          idb.close()
-          if (!t) { resolve(null); return }
-          const day = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : undefined)
-          resolve({
-            title: t.title as string,
-            urgent: t.urgent as boolean | undefined,
-            important: t.important as boolean | undefined,
-            focus: t.focus as boolean | undefined,
-            statusId: t.statusId as number | undefined,
-            dueDate: day(t.dueDate),
-            nextFollowupAt: t.nextFollowupAt ? day(t.nextFollowupAt) : null,
-            recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
-          })
-        }
-        all.onerror = () => { idb.close(); reject(all.error) }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, title)
+  const t = (await readStore(page, 'todos')).find((r) => r.title === title)
+  if (!t) return null
+  const day = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : undefined)
+  return {
+    title: t.title as string,
+    urgent: t.urgent as boolean | undefined,
+    important: t.important as boolean | undefined,
+    focus: t.focus as boolean | undefined,
+    statusId: t.statusId as number | undefined,
+    dueDate: day(t.dueDate),
+    nextFollowupAt: t.nextFollowupAt ? day(t.nextFollowupAt) : null,
+    recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
+  }
 }
 
 /** `YYYY-M-D` of today + `days`, in the page's clock. */

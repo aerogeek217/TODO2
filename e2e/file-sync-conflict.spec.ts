@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
 import { readSyncFile as readFile } from './fixtures/sync-file'
+import { readStore, readStores, writeStores } from './fixtures/db'
 
 /**
  * Sync-file conflict flow in a real browser.
@@ -14,7 +15,6 @@ import { readSyncFile as readFile } from './fixtures/sync-file'
  */
 
 const SYNC_FILE = 'e2e-sync.json'
-const DB_NAME = 'todo2'
 
 async function stubPicker(page: Page) {
   await page.addInitScript((name) => {
@@ -42,41 +42,15 @@ async function writeSyncFile(page: Page, text: string) {
 
 /** Raw-IDB snapshot of every data store (what an export of this DB looks like). */
 async function dumpDb(page: Page): Promise<Record<string, unknown[]>> {
-  return page.evaluate(async (db) => {
-    return await new Promise<Record<string, unknown[]>>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => {
-        const idb = req.result
-        const names = Array.from(idb.objectStoreNames).filter((n) => n !== 'backups')
-        const tx = idb.transaction(names, 'readonly')
-        const out: Record<string, unknown[]> = {}
-        for (const n of names) {
-          const r = tx.objectStore(n).getAll()
-          r.onsuccess = () => { out[n] = r.result }
-        }
-        tx.oncomplete = () => { idb.close(); resolve(JSON.parse(JSON.stringify(out))) }
-        tx.onerror = () => reject(tx.error)
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, DB_NAME)
+  const data = await readStores(page)
+  delete data.backups
+  // As a file holds it: Dates as ISO strings.
+  return JSON.parse(JSON.stringify(data)) as Record<string, unknown[]>
 }
 
 async function addTodo(page: Page, title: string) {
-  await page.evaluate(async ({ db, title }) => {
-    await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => {
-        const idb = req.result
-        const tx = idb.transaction(['todos'], 'readwrite')
-        const now = new Date()
-        tx.objectStore('todos').add({ uid: crypto.randomUUID(), title, isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 })
-        tx.oncomplete = () => { idb.close(); resolve() }
-        tx.onerror = () => reject(tx.error)
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, { db: DB_NAME, title })
+  const now = new Date()
+  await writeStores(page, { add: { todos: [{ uid: crypto.randomUUID(), title, isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }] } })
 }
 
 test('attaching a file that differs from a non-empty browser asks first; cancel and "Use browser data" behave', async ({ page }) => {
@@ -132,14 +106,8 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   }).toEqual(['Browser task'])
 
   // A file backup snapshot was taken before the overwrite.
-  const backups = await page.evaluate(async (db) => new Promise<number>((resolve) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['backups'], 'readonly').objectStore('backups').getAll()
-      r.onsuccess = () => resolve((r.result as Array<{ data: string }>).filter((b) => b.data.includes('File task')).length)
-    }
-  }), DB_NAME)
-  expect(backups).toBeGreaterThan(0)
+  const backups = await readStore<{ data: string }>(page, 'backups')
+  expect(backups.filter((b) => b.data.includes('File task')).length).toBeGreaterThan(0)
 
   // Now in sync: a reload loads silently.
   await page.reload()

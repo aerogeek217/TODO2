@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
+import { readStore, writeStores } from './fixtures/db'
 
 /**
  * Safe purge: the launch prompt for completed tasks past the
@@ -14,7 +15,6 @@ import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
  */
 
 const ARCHIVE_FILE = 'e2e-archive.json'
-const DB_NAME = 'todo2'
 
 async function stubPickers(page: Page) {
   await page.addInitScript((name) => {
@@ -39,41 +39,21 @@ interface SeedTodo { title: string; completedDaysAgo?: number }
 
 /** Raw-IDB seed: the given todos + the retention setting. */
 async function seed(page: Page, todos: SeedTodo[], retentionDays: number) {
-  await page.evaluate(async ({ db, todos, retentionDays }) => {
-    await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => {
-        const idb = req.result
-        const tx = idb.transaction(['todos', 'settings'], 'readwrite')
-        const now = Date.now()
-        todos.forEach((t, i) => {
-          const done = t.completedDaysAgo != null
-          const row: Record<string, unknown> = {
-            uid: crypto.randomUUID(), title: t.title, isCompleted: done,
-            createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now), sortOrder: i + 1,
-          }
-          if (done) row.completedAt = new Date(now - (t.completedDaysAgo ?? 0) * 86_400_000)
-          tx.objectStore('todos').add(row)
-        })
-        tx.objectStore('settings').put({ key: 'completedRetentionDays', value: String(retentionDays) })
-        tx.oncomplete = () => { idb.close(); resolve() }
-        tx.onerror = () => reject(tx.error)
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, { db: DB_NAME, todos, retentionDays })
+  const now = Date.now()
+  await writeStores(page, {
+    add: {
+      todos: todos.map((t, i) => ({
+        uid: crypto.randomUUID(), title: t.title, isCompleted: t.completedDaysAgo != null,
+        createdAt: new Date(now - 100 * 86_400_000), modifiedAt: new Date(now), sortOrder: i + 1,
+        ...(t.completedDaysAgo != null ? { completedAt: new Date(now - t.completedDaysAgo * 86_400_000) } : {}),
+      })),
+    },
+    put: { settings: [{ key: 'completedRetentionDays', value: String(retentionDays) }] },
+  })
 }
 
-async function dbTodos(page: Page): Promise<Array<{ title: string; uid: string; isCompleted: boolean }>> {
-  return page.evaluate(async (db) => new Promise((resolve, reject) => {
-    const req = indexedDB.open(db)
-    req.onsuccess = () => {
-      const r = req.result.transaction(['todos'], 'readonly').objectStore('todos').getAll()
-      r.onsuccess = () => { req.result.close(); resolve(r.result) }
-      r.onerror = () => reject(r.error)
-    }
-    req.onerror = () => reject(req.error)
-  }), DB_NAME)
+function dbTodos(page: Page): Promise<Array<{ title: string; uid: string; isCompleted: boolean }>> {
+  return readStore(page, 'todos')
 }
 
 async function boot(page: Page, path = '/') {
