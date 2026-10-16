@@ -176,16 +176,23 @@ export const todoRepository = {
   },
 
   /**
-   * Puts tasks back with their ids, people and tags (undo of a delete, redo
-   * of a create that was undone). Join rows that already exist are not
-   * duplicated.
+   * Puts tasks back with their ids, people, tags and event history (undo of
+   * a delete, redo of a create that was undone). Join rows that already
+   * exist are not duplicated; events go back with their own ids (`delete` /
+   * `bulkDelete` return them).
    */
   async restoreManyWithAssignments(
-    items: readonly { todo: PersistedTodoItem; personIds: readonly number[]; tagIds: readonly number[] }[],
+    items: readonly {
+      todo: PersistedTodoItem
+      personIds: readonly number[]
+      tagIds: readonly number[]
+      events?: readonly TodoEvent[]
+    }[],
   ): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags], async () => {
-      for (const { todo, personIds, tagIds } of items) {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents], async () => {
+      for (const { todo, personIds, tagIds, events } of items) {
         await db.todos.put(todo)
+        if (events && events.length > 0) await db.todoEvents.bulkPut([...events])
         for (const personId of new Set(personIds)) {
           if (await db.todoPeople.where({ todoId: todo.id, personId }).count() === 0) {
             await db.todoPeople.add({ todoId: todo.id, personId })
@@ -224,19 +231,19 @@ export const todoRepository = {
     })
   },
 
-  async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders], async () => {
-      await db.todoPeople.where('todoId').equals(id).delete()
-      await db.todoTags.where('todoId').equals(id).delete()
-      await db.todoEvents.where('todoId').equals(id).delete()
-      await db.listOrders.where('todoId').equals(id).delete()
-      await db.todos.delete(id)
-    })
+  /**
+   * Deletes a task with its people, tags, events and list ranks. Returns the
+   * deleted event rows (undo puts them back with `restoreManyWithAssignments`).
+   */
+  async delete(id: number): Promise<TodoEvent[]> {
+    return todoRepository.bulkDelete([id])
   },
 
-  async bulkDelete(ids: number[]): Promise<void> {
-    if (ids.length === 0) return
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders], async () => {
+  /** `delete` for several tasks in one transaction; returns their deleted event rows. */
+  async bulkDelete(ids: readonly number[]): Promise<TodoEvent[]> {
+    if (ids.length === 0) return []
+    return db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders], async () => {
+      const events = await db.todoEvents.where('todoId').anyOf([...ids]).sortBy('id')
       for (const id of ids) {
         await db.todoPeople.where('todoId').equals(id).delete()
         await db.todoTags.where('todoId').equals(id).delete()
@@ -244,6 +251,7 @@ export const todoRepository = {
         await db.listOrders.where('todoId').equals(id).delete()
         await db.todos.delete(id)
       }
+      return events
     })
   },
 

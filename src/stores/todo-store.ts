@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { NewTodoItem, PersistedTodoItem, TodoChanges } from '../models'
+import type { NewTodoItem, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { useUndoStore } from './undo-store'
@@ -144,10 +144,10 @@ interface TodoState {
    */
   purgeCompleted: (ids: number[]) => Promise<PurgeOutcome>
   duplicate: (id: number) => Promise<number | undefined>
-  /** Internal: restore a deleted todo (for undo). */
-  _restore: (todo: PersistedTodoItem, assignments: CapturedAssignments) => Promise<void>
-  /** Internal: remove without undo registration (for redo of add). */
-  _removeNoUndo: (id: number) => Promise<void>
+  /** Internal: restore a deleted todo with its people, tags and events (for undo). */
+  _restore: (todo: PersistedTodoItem, assignments: CapturedAssignments, events?: readonly TodoEvent[]) => Promise<void>
+  /** Internal: remove without undo registration (for undo of add); returns the deleted events. */
+  _removeNoUndo: (id: number) => Promise<TodoEvent[]>
 }
 
 export const useTodoStore = create<TodoState>((set, get) => {
@@ -218,11 +218,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
       if (todo) {
         set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
       }
-      // Redo puts back the same row, so a later undo still finds it.
+      // Redo puts back the same row and its `created` event, so a later
+      // undo still finds it and the trend still counts it.
+      let removedEvents: TodoEvent[] = []
       undoable(
         `Add "${title}"`,
-        async () => { if (todo) await get()._restore(todo, NO_ASSIGNMENTS) },
-        () => get()._removeNoUndo(id),
+        async () => { if (todo) await get()._restore(todo, NO_ASSIGNMENTS, removedEvents) },
+        async () => { removedEvents = await get()._removeNoUndo(id) },
       )
       return id
     }, 'Failed to add task')
@@ -247,14 +249,17 @@ export const useTodoStore = create<TodoState>((set, get) => {
         await reloadAssignments(get().todos.map((t) => t.id))
       }
       await put()
+      let removedEvents: TodoEvent[] = []
       undoable(
         description,
         async () => {
-          await todoRepository.restoreManyWithAssignments(snapshots)
+          await todoRepository.restoreManyWithAssignments(
+            snapshots.map((s) => ({ ...s, events: removedEvents.filter((e) => e.todoId === s.todo.id) })),
+          )
           await put()
         },
         async () => {
-          await todoRepository.bulkDelete(ids)
+          removedEvents = await todoRepository.bulkDelete(ids)
           useListOrderStore.getState().forgetTodos(ids)
           const idSet = new Set(ids)
           set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
@@ -365,15 +370,15 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const assignments = await captureAssignments(id)
       const ranks = await listOrderRepository.getByTodos([id])
 
-      await todoRepository.delete(id)
+      const events = await todoRepository.delete(id)
       useListOrderStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
 
       undoable(
         `Delete "${todo.title}"`,
-        () => get()._removeNoUndo(id),
+        async () => { await get()._removeNoUndo(id) },
         async () => {
-          await get()._restore(snapshot, assignments)
+          await get()._restore(snapshot, assignments, events)
           await useListOrderStore.getState().restoreRows(ranks)
         },
         true,
@@ -661,7 +666,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
       const ranks = await listOrderRepository.getByTodos(ids)
 
-      await todoRepository.bulkDelete(ids)
+      const events = await todoRepository.bulkDelete(ids)
       useListOrderStore.getState().forgetTodos(ids)
       const idSet = new Set(ids)
       set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
@@ -671,7 +676,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         () => get().bulkRemove(ids),
         async () => {
           for (const { todo, personIds, tagIds } of assignmentData) {
-            await get()._restore(todo, { personIds, tagIds })
+            await get()._restore(todo, { personIds, tagIds }, events.filter((e) => e.todoId === todo.id))
           }
           await useListOrderStore.getState().restoreRows(ranks)
         },
@@ -719,18 +724,19 @@ export const useTodoStore = create<TodoState>((set, get) => {
         const { useTagStore } = await import('./tag-store')
         await useTagStore.getState().loadAssignments(todoIds)
       }
+      let removedEvents: TodoEvent[] = []
       undoable(
         `Duplicate "${todo.title}"`,
-        async () => { if (newTodo) await get()._restore(newTodo, { personIds, tagIds }) },
-        () => get()._removeNoUndo(newId),
+        async () => { if (newTodo) await get()._restore(newTodo, { personIds, tagIds }, removedEvents) },
+        async () => { removedEvents = await get()._removeNoUndo(newId) },
       )
       return newId
     }, 'Failed to duplicate task')
   },
 
-  _restore(todo: PersistedTodoItem, { personIds, tagIds }: CapturedAssignments) {
+  _restore(todo: PersistedTodoItem, { personIds, tagIds }: CapturedAssignments, events: readonly TodoEvent[] = []) {
     return trackWrite(async () => {
-      await todoRepository.restoreManyWithAssignments([{ todo, personIds, tagIds }])
+      await todoRepository.restoreManyWithAssignments([{ todo, personIds, tagIds, events }])
       set({
         todos: [...get().todos.filter((t) => t.id !== todo.id), todo],
         todosVersion: get().todosVersion + 1,
@@ -742,9 +748,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   _removeNoUndo(id: number) {
     return trackWrite(async () => {
-      await todoRepository.delete(id)
+      const events = await todoRepository.delete(id)
       useListOrderStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
+      return events
     })
   },
 
