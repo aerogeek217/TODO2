@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest'
 import { createHash } from 'node:crypto'
 import fixture from '../fixtures/v49-export.json'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
@@ -759,9 +759,9 @@ describe('v49 fixture → v62: the Default layout loses its status tabs', () => 
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
- * Recorded in America/Chicago: v53 turns precise scheduled dates into local
- * midnights, so the output depends on the time zone. Elsewhere this check
- * is skipped.
+ * v53 turns precise scheduled dates into local midnights, so the output
+ * depends on the time zone: the check runs in the zone the digests were
+ * recorded in (America/Chicago), whatever the machine's zone.
  */
 const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   50: '59b8f9865081f2a6',
@@ -781,16 +781,20 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 
 describe('v49 fixture → every version: frozen transforms give the recorded output', () => {
-  it.runIf(Intl.DateTimeFormat().resolvedOptions().timeZone === DIGESTS_TIME_ZONE)(
-    'the fixture upgraded to each version hashes to its recorded digest',
-    () => {
-      const digests: Record<number, string> = {}
-      for (const version of Object.keys(FROZEN_OUTPUT_DIGESTS).map(Number)) {
-        digests[version] = createHash('sha256').update(JSON.stringify(fixtureAt(version))).digest('hex').slice(0, 16)
-      }
-      expect(digests).toEqual(FROZEN_OUTPUT_DIGESTS)
-    },
-  )
+  // Node re-reads TZ when it is assigned, but deleting it keeps the last zone,
+  // so put back the zone this worker had by name (shared vitest workers).
+  const originalZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  beforeAll(() => { process.env.TZ = DIGESTS_TIME_ZONE })
+  afterAll(() => { process.env.TZ = originalZone })
+
+  it('the fixture upgraded to each version hashes to its recorded digest', () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(DIGESTS_TIME_ZONE)
+    const digests: Record<number, string> = {}
+    for (const version of Object.keys(FROZEN_OUTPUT_DIGESTS).map(Number)) {
+      digests[version] = createHash('sha256').update(JSON.stringify(fixtureAt(version))).digest('hex').slice(0, 16)
+    }
+    expect(digests).toEqual(FROZEN_OUTPUT_DIGESTS)
+  })
 })
 
 // ── Long names and titles: imported whole, at every step ───────────────────────────────────────────
