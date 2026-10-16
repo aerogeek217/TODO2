@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule, advanceRecurring } from '../../services/recurrence'
+import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule, advanceRecurring } from '../../utils/recurrence'
 import type { RecurrenceRule } from '../../models/recurrence'
 import type { TodoItem } from '../../models/todo-item'
 

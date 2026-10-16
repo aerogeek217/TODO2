@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
-import { makeRecurrenceRule } from '../../services/recurrence'
+import { makeRecurrenceRule } from '../../utils/recurrence'
 import { resetDb } from '../helpers'
 
 const RealDate = Date

@@ -1,7 +1,7 @@
 import type { PersistedTodoItem, Person, Status } from '../models'
 import type { CalendarDateType, CalendarDateTypes } from '../models/workspace-layout'
 import { addDays, dayKey, startOfDay } from '../utils/date'
-import { generateRecurringInstances } from './recurrence'
+import { generateRecurringInstances } from '../utils/recurrence'
 
 export interface CalendarEntry {
   todo: PersistedTodoItem

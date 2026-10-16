@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TaskDialogPayload } from '../services/task-dialog'
+import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
 

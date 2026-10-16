@@ -20,7 +20,7 @@ import { personRepository } from '../data/person-repository'
 import { tagRepository } from '../data/tag-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
-import { undoable } from '../services/undoable'
+import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
 
 export type SetFn = (partial: Record<string, unknown>) => void

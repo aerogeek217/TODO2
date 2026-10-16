@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { todoEventRepository } from '../data/todo-event-repository'
 import type { TodoEvent } from '../models'
-import { TREND_EVENT_TYPES, trendWindow, type TrendRange } from '../services/stats/trend'
+import type { DashboardTrendRange as TrendRange } from '../models/dashboard-config'
+import { TREND_EVENT_TYPES, trendWindow } from '../utils/trend-window'
 import type { WeekStart } from '../utils/effective-date'
 import { dayKey } from '../utils/date'
 

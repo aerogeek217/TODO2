@@ -15,7 +15,7 @@ import {
   type NotesDiffLine,
 } from '../../services/checkin-reply/diff'
 import { parseCheckinReply, type CheckinReplyInput } from '../../services/checkin-reply/parse'
-import { advanceRecurring } from '../../services/recurrence'
+import { advanceRecurring } from '../../utils/recurrence'
 import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'

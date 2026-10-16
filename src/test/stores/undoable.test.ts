@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { undoable } from '../../services/undoable'
+import { undoable } from '../../stores/undoable'
 import { useUndoStore } from '../../stores/undo-store'
 
 beforeEach(() => {

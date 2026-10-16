@@ -6,9 +6,9 @@ import {
   taskDialogCopySections,
   taskDialogCount,
   type TaskDialogEnv,
-  type TaskDialogPayload,
   type TaskDialogRowGroup,
 } from '../../services/task-dialog'
+import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
 import { useFilterStore } from '../../stores/filter-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'

@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, RecurrenceType, TodoChanges } from '../../models'
-import { makeRecurrenceRule } from '../../services/recurrence'
+import { makeRecurrenceRule } from '../../utils/recurrence'
 import { sameFieldValue } from '../../utils/todo-changes'
 
 /**

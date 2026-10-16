@@ -1,4 +1,4 @@
-import type { TaskDialogPayload } from '../../../services/task-dialog'
+import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
 import type { ListRowSelectMods } from '../list/ListWidgetRow'
 
 /**

@@ -1,4 +1,4 @@
-import { useUndoStore } from '../stores/undo-store'
+import { useUndoStore } from './undo-store'
 
 /**
  * Execute an action and register it as undoable.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TodoEvent, TodoEventType } from '../../../models'
-import { computeTrend, trendWindow } from '../../../services/stats/trend'
+import { computeTrend } from '../../../services/stats/trend'
+import { trendWindow } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
 
 const today = new Date(2026, 9, 10) // Sat

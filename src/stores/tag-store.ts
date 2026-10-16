@@ -5,7 +5,7 @@ import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { undoable } from '../services/undoable'
+import { undoable } from './undoable'
 import { useSettingsStore } from './settings-store'
 import { TagLimitError } from '../utils/tags'
 

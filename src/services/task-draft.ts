@@ -2,7 +2,7 @@ import type { NewTodoItem, Person, RecurrenceType, Status, Tag, TodoChanges, Tod
 import type { FilterDefaults } from '../utils/filter-defaults'
 import { parseInput } from './natural-language-parser'
 import { resolveInput, type ResolvedInput } from './nlp-resolver'
-import { makeRecurrenceRule } from './recurrence'
+import { makeRecurrenceRule } from '../utils/recurrence'
 
 /**
  * A task that doesn't exist yet — the one shape every way of creating a task

@@ -6,8 +6,8 @@ import {
   taskDialogCopySections,
   taskDialogCount,
   type TaskDialogEnv,
-  type TaskDialogSource,
 } from '../../services/task-dialog'
+import type { TaskDialogSource } from '../../stores/task-dialog-payload'
 import { buildTasksPlain } from '../../services/task-copy'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { emptyFilterCriteria } from '../helpers'

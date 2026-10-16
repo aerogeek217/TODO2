@@ -9,7 +9,7 @@ import type {
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
 import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
-import { undoable } from '../services/undoable'
+import { undoable } from './undoable'
 import { bySortOrder } from '../utils/sort-order'
 import { listOrderRepository } from '../data/list-order-repository'
 import { useListOrderStore } from './list-order-store'

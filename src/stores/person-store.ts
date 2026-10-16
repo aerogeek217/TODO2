@@ -4,7 +4,7 @@ import { db, personRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
-import { undoable } from '../services/undoable'
+import { undoable } from './undoable'
 import { generateInitials, withEmail } from '../utils/person'
 
 interface PersonState {

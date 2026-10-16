@@ -1,6 +1,6 @@
 import type { RecurrenceRule, RecurrenceType } from '../models/recurrence'
 import type { TodoItem } from '../models/todo-item'
-import { startOfToday } from '../utils/date'
+import { startOfToday } from './date'
 
 /** Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly to prevent drift. */
 export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null): RecurrenceRule {

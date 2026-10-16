@@ -5,7 +5,7 @@ import { SETTING_KEYS } from '../data/setting-keys'
 import { loadFresh, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { useTodoStore } from './todo-store'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { undoable } from '../services/undoable'
+import { undoable } from './undoable'
 import { bySortOrder } from '../utils/sort-order'
 
 interface StatusState {
