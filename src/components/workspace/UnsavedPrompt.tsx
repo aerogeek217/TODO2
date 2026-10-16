@@ -37,7 +37,9 @@ export function UnsavedPrompt({ lead, layoutLead, layout, listIds, onDone, onCan
       <UnsavedChangesDialog
         layoutName={layoutName}
         lead={layoutLead ?? lead}
-        onSave={() => { void useWorkspaceStore.getState().save().then(onDone) }}
+        // A failed save keeps the prompt open (the snackbar says why), so
+        // leaving never drops the changes it was asked to keep.
+        onSave={() => { void useWorkspaceStore.getState().save().then((ok) => { if (ok) onDone() }) }}
         onDiscard={() => { useWorkspaceStore.getState().discard(); onDone() }}
         onCancel={onCancel}
       />
@@ -113,8 +115,10 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
     const workspace = useWorkspaceStore.getState()
     const drafts = useListDraftStore.getState()
     if (layout) {
-      if (save.has('layout')) await workspace.save()
-      else workspace.discard()
+      if (save.has('layout')) {
+        // A failed save keeps the prompt open: leaving would drop the layout.
+        if (!(await workspace.save())) return
+      } else workspace.discard()
     }
     for (const id of listIds) {
       if (save.has(`list-${id}`)) await drafts.save(id)

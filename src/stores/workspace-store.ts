@@ -75,8 +75,12 @@ export interface WorkspaceState {
   init: () => Promise<void>
   /** Opens a layout, dropping the working copy. Unknown id → no-op. */
   load: (id: number) => Promise<void>
-  /** Writes the working copy over the saved layout. */
-  save: () => Promise<void>
+  /**
+   * Writes the working copy over the saved layout. Resolves `false` when the
+   * write failed — the layout stays unsaved and the snackbar says so; never
+   * rejects (as `saveAs` → `null`, `rename` → `false`).
+   */
+  save: () => Promise<boolean>
   /**
    * Saves the working copy as a new layout and opens it; the layout it came
    * from stays as last saved. Returns the new id, or `null` for an empty name.
@@ -160,6 +164,12 @@ function reportRepair(layout: Layout, fixes: readonly string[]): void {
   useUndoStore.getState().notify(`Repaired layout "${layout.name}" — ${fixes.join(', ')}. Save it to keep the repair.`)
 }
 
+/** A layout write failed: logged, and the snackbar says what didn't happen. */
+function reportWriteFailure(message: string, err: unknown): void {
+  console.warn(`[workspace] ${message}`, err)
+  useUndoStore.getState().notify(message)
+}
+
 /** The ids of the read layouts that were repaired. */
 function repairedOf(reads: readonly ReadLayout[]): Set<number> {
   return new Set(reads.filter((r) => r.fixes.length > 0).map((r) => r.layout.id))
@@ -198,7 +208,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       saved: nextSaved,
       ...(nextSaved && nextSaved !== saved ? { layouts: replaceLayout(layouts, nextSaved) } : {}),
     })
-    if (nextSaved && nextSaved !== saved && !repairedIds.has(nextSaved.id)) await layoutRepository.put(nextSaved)
+    if (nextSaved && nextSaved !== saved && !repairedIds.has(nextSaved.id)) {
+      // View state is a convenience: a failed write keeps it for this session.
+      await layoutRepository.put(nextSaved).catch((err: unknown) => {
+        console.warn('[workspace] saving the view state failed', err)
+      })
+    }
   }
 
   /**
@@ -246,13 +261,30 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async save() {
-      const { working, layouts, repairedIds } = get()
-      if (!working) return
+      const { working } = get()
+      if (!working) return false
       const next: Layout = { ...working, modifiedAt: new Date() }
-      const repaired = new Set(repairedIds)
+      // Saved only once the write has landed: a failed write leaves the
+      // layout unsaved (and says so) rather than lost on the next reload.
+      try {
+        await layoutRepository.put(next)
+      } catch (err) {
+        reportWriteFailure(`Couldn't save layout "${next.name}".`, err)
+        return false
+      }
+      const repaired = new Set(get().repairedIds)
       repaired.delete(next.id)
-      set({ working: next, saved: next, isDirty: false, repairedIds: repaired, layouts: replaceLayout(layouts, next) })
-      await layoutRepository.put(next)
+      // An edit made while the write ran stays in the working copy, unsaved.
+      const current = get().working
+      const kept = current && current !== working ? current : next
+      set({
+        working: kept,
+        saved: next,
+        isDirty: kept !== next && !layoutStructureEqual(kept.columns, next.columns),
+        repairedIds: repaired,
+        layouts: replaceLayout(get().layouts, next),
+      })
+      return true
     },
 
     async saveAs(name) {
@@ -263,8 +295,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { id: _from, ...body } = source
       void _from
       const record = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
-      const id = await layoutRepository.insert(record)
-      await layoutRepository.setActiveId(id)
+      let id: number
+      try {
+        id = await layoutRepository.insert(record)
+      } catch (err) {
+        reportWriteFailure(`Couldn't save layout "${clean}".`, err)
+        return null
+      }
+      await layoutRepository.setActiveId(id).catch((err: unknown) => {
+        console.warn('[workspace] remembering the open layout failed', err)
+      })
       const saved: Layout = { ...record, id }
       // Keep any edit made while the insert was in flight.
       const current = get().working ?? source
@@ -291,15 +331,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!clean) return false
       const read = await layoutRepository.get(id)
       if (!read) return false
+      // Only the name: a layout repaired when read keeps its stored row.
+      // Renamed on screen once the write has landed.
+      try {
+        await layoutRepository.rename(id, clean)
+      } catch (err) {
+        reportWriteFailure(`Couldn't rename layout "${read.layout.name}".`, err)
+        return false
+      }
       const { working, saved, layouts } = get()
       const nextSaved: Layout = saved?.id === id ? { ...saved, name: clean } : { ...read.layout, name: clean }
       set({
         layouts: replaceLayout(layouts, nextSaved),
         ...(saved?.id === id ? { saved: nextSaved } : {}),
-        ...(working?.id === id ? { working: { ...working, name: clean } } : {}),
+        ...(working?.id === id ? { working: { ...get().working ?? working, name: clean } } : {}),
       })
-      // Only the name: a layout repaired when read keeps its stored row.
-      await layoutRepository.rename(id, clean)
       return true
     },
 
