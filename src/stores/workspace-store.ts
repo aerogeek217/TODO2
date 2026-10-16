@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { layoutRepository } from '../data/layout-repository'
+import { layoutRepository, type ReadLayout } from '../data/layout-repository'
+import { useUndoStore } from './undo-store'
 import {
   LAYOUT_NAME_MAX,
   createTab,
@@ -52,8 +53,18 @@ export interface WorkspaceState {
   working: Layout | null
   /** The open layout as stored. */
   saved: Layout | null
-  /** The working copy has structural changes that `saved` doesn't. */
+  /**
+   * The working copy has structural changes that the stored layout doesn't:
+   * edits since the last save, or a repair made when the layout was read.
+   */
   isDirty: boolean
+  /**
+   * Layouts repaired when they were read (`ReadLayout.fixes`: a part this
+   * build can't use dropped or reset) whose stored row still has those
+   * parts. Saving the layout writes the repair; until then nothing writes the
+   * whole layout back (view state stays in memory).
+   */
+  repairedIds: ReadonlySet<number>
   hydrated: boolean
 
   /**
@@ -143,20 +154,41 @@ function mostRecentlyUsed(layouts: Layout[]): Layout | undefined {
   return best
 }
 
+/** Says (once per open) that a layout was repaired when it was read. */
+function reportRepair(layout: Layout, fixes: readonly string[]): void {
+  console.warn(`[workspace] layout "${layout.name}" repaired when read: ${fixes.join(', ')}`)
+  useUndoStore.getState().notify(`Repaired layout "${layout.name}" — ${fixes.join(', ')}. Save it to keep the repair.`)
+}
+
+/** The ids of the read layouts that were repaired. */
+function repairedOf(reads: readonly ReadLayout[]): Set<number> {
+  return new Set(reads.filter((r) => r.fixes.length > 0).map((r) => r.layout.id))
+}
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
+  /** The working copy differs from the stored layout (an edit, or a repair not saved yet). */
+  function dirty(working: Layout, saved: Layout | null): boolean {
+    return get().repairedIds.has(working.id) || !saved || !layoutStructureEqual(working.columns, saved.columns)
+  }
+
   /** Applies a structural edit to the working copy. Returns whether it changed. */
   function edit(fn: (layout: Layout, genId: IdGen) => Layout): boolean {
     const { working, saved } = get()
     if (!working) return false
     const next = fn(working, idGenFor(working))
     if (next === working) return false
-    set({ working: next, isDirty: !saved || !layoutStructureEqual(next.columns, saved.columns) })
+    set({ working: next, isDirty: dirty(next, saved) })
     return true
   }
 
-  /** Applies a view-state change to the working copy and persists it on the saved layout. */
+  /**
+   * Applies a view-state change to the working copy and persists it on the
+   * saved layout — unless that layout was repaired when read and not saved
+   * since: writing it would also write the repair, which only Save (or the
+   * audit's cleanup) does. Its view state then lasts until a reload.
+   */
   async function editView(fn: (layout: Layout) => Layout): Promise<void> {
-    const { working, saved, layouts } = get()
+    const { working, saved, layouts, repairedIds } = get()
     if (!working) return
     const nextWorking = fn(working)
     const nextSaved = saved ? fn(saved) : saved
@@ -166,12 +198,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       saved: nextSaved,
       ...(nextSaved && nextSaved !== saved ? { layouts: replaceLayout(layouts, nextSaved) } : {}),
     })
-    if (nextSaved && nextSaved !== saved) await layoutRepository.put(nextSaved)
+    if (nextSaved && nextSaved !== saved && !repairedIds.has(nextSaved.id)) await layoutRepository.put(nextSaved)
   }
 
-  /** Opens `layout` (already stored) as both working copy and saved layout. */
-  function open(layout: Layout, layouts: Layout[]): void {
-    set({ layouts, activeLayoutId: layout.id, working: layout, saved: layout, isDirty: false, hydrated: true })
+  /**
+   * Opens a read layout as both working copy and saved layout. A layout
+   * repaired when read opens unsaved, and the snackbar says what was repaired.
+   */
+  function open(read: ReadLayout, layouts: Layout[], repairedIds: ReadonlySet<number>): void {
+    const { layout, fixes } = read
+    set({ layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout, isDirty: repairedIds.has(layout.id), hydrated: true })
+    if (fixes.length > 0) reportRepair(layout, fixes)
   }
 
   return {
@@ -180,31 +217,41 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     working: null,
     saved: null,
     isDirty: false,
+    repairedIds: new Set(),
     hydrated: false,
 
     async init() {
       await layoutRepository.ensureDefault()
-      const layouts = await layoutRepository.getAll()
+      const reads = await layoutRepository.getAll()
       const wanted = await layoutRepository.getActiveId()
+      const layouts = reads.map((r) => r.layout)
       const active = layouts.find((l) => l.id === wanted) ?? mostRecentlyUsed(layouts)
-      if (!active) return
-      open(active, layouts)
+      const read = reads.find((r) => r.layout === active)
+      if (!read) return
+      open(read, layouts, repairedOf(reads))
     },
 
     async load(id) {
-      const stored = await layoutRepository.get(id)
-      if (!stored) return
-      const layout: Layout = { ...stored, lastUsedAt: new Date() }
-      await layoutRepository.put(layout)
+      const read = await layoutRepository.get(id)
+      if (!read) return
+      const now = new Date()
+      const layout: Layout = { ...read.layout, lastUsedAt: now }
+      // Only the last-used time: the rest of the row stays as stored.
+      await layoutRepository.touch(id, now)
       await layoutRepository.setActiveId(id)
-      open(layout, replaceLayout(get().layouts, layout))
+      const repairedIds = new Set(get().repairedIds)
+      if (read.fixes.length > 0) repairedIds.add(id)
+      else repairedIds.delete(id)
+      open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
     },
 
     async save() {
-      const { working, layouts } = get()
+      const { working, layouts, repairedIds } = get()
       if (!working) return
       const next: Layout = { ...working, modifiedAt: new Date() }
-      set({ working: next, saved: next, isDirty: false, layouts: replaceLayout(layouts, next) })
+      const repaired = new Set(repairedIds)
+      repaired.delete(next.id)
+      set({ working: next, saved: next, isDirty: false, repairedIds: repaired, layouts: replaceLayout(layouts, next) })
       await layoutRepository.put(next)
     },
 
@@ -236,33 +283,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     discard() {
       const { saved } = get()
       if (!saved) return
-      set({ working: saved, isDirty: false })
+      set({ working: saved, isDirty: get().repairedIds.has(saved.id) })
     },
 
     async rename(id, name) {
       const clean = cleanName(name)
       if (!clean) return false
-      const stored = await layoutRepository.get(id)
-      if (!stored) return false
+      const read = await layoutRepository.get(id)
+      if (!read) return false
       const { working, saved, layouts } = get()
-      const nextSaved: Layout = saved?.id === id ? { ...saved, name: clean } : { ...stored, name: clean }
+      const nextSaved: Layout = saved?.id === id ? { ...saved, name: clean } : { ...read.layout, name: clean }
       set({
         layouts: replaceLayout(layouts, nextSaved),
         ...(saved?.id === id ? { saved: nextSaved } : {}),
         ...(working?.id === id ? { working: { ...working, name: clean } } : {}),
       })
-      await layoutRepository.put(nextSaved)
+      // Only the name: a layout repaired when read keeps its stored row.
+      await layoutRepository.rename(id, clean)
       return true
     },
 
     async delete(id) {
       const deleted = await layoutRepository.deleteUnlessLast(id)
       if (!deleted) return false
-      const layouts = await layoutRepository.getAll()
+      const reads = await layoutRepository.getAll()
+      const layouts = reads.map((r) => r.layout)
+      const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
       if (get().activeLayoutId !== id) {
-        set({ layouts })
+        set({ layouts, repairedIds })
         return true
       }
+      set({ repairedIds })
       const next = mostRecentlyUsed(layouts)
       if (next) await get().load(next.id)
       set({ layouts: get().layouts.filter((l) => l.id !== id) })

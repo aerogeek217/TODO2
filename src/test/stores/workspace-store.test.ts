@@ -30,7 +30,7 @@ async function seedAndInit(...layouts: Array<Omit<WorkspaceLayout, 'id'>>): Prom
 }
 
 async function stored(id: number): Promise<PersistedWorkspaceLayout> {
-  const row = await layoutRepository.get(id)
+  const row = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
   if (!row) throw new Error(`no layout ${id}`)
   return row
 }

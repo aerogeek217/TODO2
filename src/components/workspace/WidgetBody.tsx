@@ -7,6 +7,7 @@ import { DashboardWidget } from './dashboard/DashboardWidget'
 import type { DashboardSummary } from './dashboard/dashboard-summary'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
+import styles from './WidgetBody.module.css'
 
 /** What a widget reports to its cell (tab count, and what its menu's copy items copy). */
 export interface WidgetResult extends ListWidgetResult {
@@ -28,7 +29,7 @@ interface WidgetBodyProps {
 
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
-/** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one). */
+/** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one; an unknown stored kind gets a note). */
 export function WidgetBody({ tab, onResult, onAddListTile }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
@@ -48,5 +49,16 @@ export function WidgetBody({ tab, onResult, onAddListTile }: WidgetBodyProps): R
           onAddListTile={onAddListTile}
         />
       )
+    default: {
+      // Every kind has its case above (`never` here), but stored data isn't
+      // typed: a kind this build doesn't know (the layout load repair drops
+      // such tabs; this is a last guard) renders a note, not a crash.
+      const unknown: never = tab
+      return (
+        <div className={styles.unknown} data-unknown-widget={String((unknown as { kind?: unknown }).kind)}>
+          This widget can't be shown in this version of TODO2.
+        </div>
+      )
+    }
   }
 }

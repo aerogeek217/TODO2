@@ -191,9 +191,12 @@ export function isWidgetKind(v: unknown): v is WidgetKind {
   return typeof v === 'string' && Object.hasOwn(WIDGET_KIND_SPECS, v)
 }
 
-/** A widget kind's name (`List`, `Calendar`, …). */
+/** The label of a tab whose kind this build doesn't know (stored data isn't typed). */
+export const UNKNOWN_WIDGET_LABEL = 'Unknown widget'
+
+/** A widget kind's name (`List`, `Calendar`, …; `UNKNOWN_WIDGET_LABEL` for a kind this build doesn't know). */
 export function widgetKindLabel(kind: WidgetKind): string {
-  return WIDGET_KIND_SPECS[kind].label
+  return isWidgetKind(kind) ? WIDGET_KIND_SPECS[kind].label : UNKNOWN_WIDGET_LABEL
 }
 
 /** A new tab of `kind` with that kind's default config. */
