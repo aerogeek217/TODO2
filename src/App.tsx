@@ -25,8 +25,8 @@ import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { backupScheduler } from './services/backup-scheduler'
-import { applyNlpMetadata } from './services/nlp-task-creator'
-import { getFilterDefaults, markerFlags, seedsMarkers, supplementWithFilterDefaults } from './utils/filter-defaults'
+import { createQuickAddTask } from './services/create-task'
+import { getFilterDefaults, markerFlags } from './utils/filter-defaults'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -90,8 +90,8 @@ function AppBulkConfirmDialog() {
  * QuickAddBar wrapper — wires the bar to ui-store visibility, the live data
  * stores, and the full-editor handoff path.
  *
- * Submit: `addTodo` for the row, then `applyNlpMetadata` for parsed
- * people / due date / recurrence / tags / status.
+ * Submit: `createQuickAddTask` with the defaults of where the bar was
+ * opened.
  *
  * Details / Tab handoff: stashes `{ rawTitle }` in `ui-store.quickAddDraft`,
  * closes the bar (preserving the draft), and opens the create popup. The
@@ -103,42 +103,12 @@ function AppQuickAddBar() {
   const close = useUIStore((s) => s.closeQuickAdd)
   const draft = useUIStore((s) => s.quickAddDraft)
   const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
-    const { resolved } = submitted
-    // Filter-default seed: prefer an explicit list-predicate seed stashed on
-    // `quickAddDraft.defaults` (from a list widget's "+ Add task" path); any
-    // other invocation falls through to the active top-bar filter.
-    // `supplementWithFilterDefaults` only fills fields the user didn't type —
-    // so an `@person` token always wins over the seed. (A list widget's seed
-    // already carries its prompt picks.)
+    // Defaults: an explicit list-predicate seed stashed on
+    // `quickAddDraft.defaults` (a list widget's "+ Add task"), else the
+    // active top-bar filter.
     const draft = useUIStore.getState().quickAddDraft
     const fd = draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters)
-    supplementWithFilterDefaults(resolved, fd)
-    // Parse-cleaned title fed to addTodo, then applyNlpMetadata for everything
-    // the resolver pulled out. Tags ride through applyNlpMetadata's
-    // resolve-or-create path (`nlp-task-creator.ts`).
-    const id = await useTodoStore.getState().add(resolved.title || submitted.title)
-    await applyNlpMetadata(
-      id,
-      resolved,
-      (tid) => useTodoStore.getState().todos.find((t) => t.id === tid),
-      useTodoStore.getState().update,
-      usePersonStore.getState().assignPerson,
-    )
-    // Seed-default tags ride a separate channel (resolved.tags is slug-based,
-    // applyNlpMetadata calls resolveTags on it). Tag ids from a list-predicate
-    // seed / active filter are already resolved against the registry so we
-    // assign them directly. User-typed `#tag` tokens still take precedence —
-    // applyNlpMetadata applied those above; this only adds the seed ids that
-    // weren't already covered.
-    if (fd.tagIds.length > 0) {
-      const tagStore = useTagStore.getState()
-      for (const tagId of fd.tagIds) {
-        await tagStore.assignTag(id, tagId)
-      }
-    }
-    // A Markers filter (e.g. the Focus list's "+ Add task"): the task starts
-    // with those markers so it shows where it was added.
-    if (seedsMarkers(fd)) await useTodoStore.getState().update(id, markerFlags(fd))
+    const id = await createQuickAddTask(submitted, fd)
     useUIStore.getState().showRecentlyCreated(id)
     close()
   }, [close])
