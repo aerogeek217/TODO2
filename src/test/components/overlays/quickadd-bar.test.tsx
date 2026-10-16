@@ -508,3 +508,44 @@ describe('QuickAddBar — preset (e.g. an Eisenhower quadrant\'s "+")', () => {
     expect(chipTexts()).toEqual([])
   })
 })
+
+describe('QuickAddBar — submit', () => {
+  beforeEach(seedStores)
+  afterEach(() => { cleanup() })
+
+  it('a task that could not be stored keeps the bar open with the text as typed; the next Enter tries again', async () => {
+    const onClose = vi.fn()
+    const onSubmit = vi.fn<(d: QuickAddDraft) => Promise<boolean>>().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
+    changeInput('Call plumber @Anna /urgent ')
+    await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(getInput()).toHaveValue('Call plumber @Anna /urgent ')
+
+    await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+    expect(onSubmit).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a second Enter while the first submit runs does nothing', async () => {
+    let finish!: (ok: boolean) => void
+    const onSubmit = vi.fn(() => new Promise<boolean>((r) => { finish = r }))
+    const onClose = vi.fn()
+    render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
+    changeInput('Once')
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    await act(async () => { finish(true) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a plain (void) submit closes the bar at once', () => {
+    const onClose = vi.fn()
+    render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)
+    changeInput('Plain')
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})

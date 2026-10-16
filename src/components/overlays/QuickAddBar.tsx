@@ -104,7 +104,12 @@ export interface QuickAddPreset {
 export interface QuickAddBarProps {
   open: boolean
   onClose: () => void
-  onSubmit: (draft: QuickAddDraft) => void
+  /**
+   * Creates the task. The bar closes at once, or — for a promise — once it
+   * resolves `true`; `false` (the task couldn't be stored) keeps the bar open
+   * with the text as typed, to try again.
+   */
+  onSubmit: (draft: QuickAddDraft) => void | Promise<boolean>
   /** Open the full task editor with the current draft. Parent decides what
    * "open" means (typically: stash draft on `ui-store.quickAddDraft` and
    * dispatch `openCreatePopup`). The bar does NOT call `onClose` after this
@@ -502,6 +507,8 @@ export function QuickAddBar({
     }
   }
 
+  // A submit in flight: a second Enter waits for it.
+  const submittingRef = useRef(false)
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
@@ -515,9 +522,17 @@ export function QuickAddBar({
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (draft.title.trim().length === 0) return
-      onSubmit(draft)
-      onClose()
+      if (draft.title.trim().length === 0 || submittingRef.current) return
+      const result = onSubmit(draft)
+      if (!(result instanceof Promise)) {
+        onClose()
+        return
+      }
+      submittingRef.current = true
+      void result.then((created) => {
+        submittingRef.current = false
+        if (created) onClose()
+      })
     }
   }
 

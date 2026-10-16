@@ -62,7 +62,7 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   onUpdate?: never
   onToggleComplete?: never
   onDelete?: never
-  /** Resolves to the new task's id, or null when it couldn't be stored. */
+  /** Resolves to the new task's id, or null when it couldn't be stored — the editor then stays open. */
   onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], tagIds: number[] }) => Promise<number | null>
   /**
    * Starts from this draft (a converted note line) instead of Quick Add's
@@ -442,8 +442,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
+  // A create in flight: a second Create / Enter waits for it.
+  const creatingRef = useRef(false)
   const handleCreate = async () => {
-    if (props.mode !== 'create' || !title.trim()) return
+    if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     const partial: Partial<TodoItem> = {
       title: title.trim(),
       notes: notes || undefined,
@@ -459,8 +461,19 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       ...(draftFocus ? { focus: true } : {}),
     }
     const assignments = { personIds: [...pendingPersonIds], tagIds: [...pendingTagIds] }
-    if (props.onSaveDraft) props.onSaveDraft(partial, assignments)
-    else await props.onCreate(partial, assignments)
+    if (props.onSaveDraft) {
+      props.onSaveDraft(partial, assignments)
+      onClose()
+      return
+    }
+    creatingRef.current = true
+    try {
+      // Not stored (the snackbar says so): stay open with every field as
+      // typed, so Create task can be pressed again.
+      if (await props.onCreate(partial, assignments) == null) return
+    } finally {
+      creatingRef.current = false
+    }
     onClose()
   }
 

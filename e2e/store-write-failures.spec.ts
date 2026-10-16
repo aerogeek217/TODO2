@@ -115,3 +115,40 @@ test('an undo that fails says so and stays undoable; the next undo brings the ta
   expect(await dbTitles(page)).toEqual(['alpha', 'beta'])
   expect(errors).toEqual([])
 })
+
+test('a create that fails keeps Quick Add and the task editor open as typed; trying again creates the task', async ({ page }) => {
+  await installTodoWriteFailureSwitch(page)
+  const errors = collectPageErrors(page)
+  await seedTaskList(page, { tasks: [{ title: 'alpha' }] })
+
+  // Quick Add: the bar stays open with the text.
+  await failTodoWrites(page, true)
+  await page.keyboard.press('Control+Space')
+  const bar = page.getByRole('dialog', { name: 'Quick add task' })
+  const input = bar.getByPlaceholder('New task…')
+  await input.fill('Call the plumber')
+  await input.press('Enter')
+  await expect(page.getByText('Couldn\'t add "Call the plumber".')).toBeVisible()
+  await expect(bar).toBeVisible()
+  await expect(input).toHaveValue('Call the plumber')
+
+  // Details ⇥: the editor too stays open with every field as typed.
+  await input.press('Tab')
+  await expect(bar).toBeHidden()
+  const title = page.getByPlaceholder('New task… (@person #tag /command)')
+  await expect(title).toHaveValue('Call the plumber')
+  const progress = page.getByPlaceholder('e.g. 50% done, Waiting on review...')
+  await progress.fill('Quote asked')
+  await page.getByRole('button', { name: 'Create task' }).click()
+  await expect(page.getByText('Couldn\'t add "Call the plumber".')).toBeVisible()
+  await expect(title).toHaveValue('Call the plumber')
+  await expect(progress).toHaveValue('Quote asked')
+  expect(await dbTitles(page)).toEqual(['alpha'])
+
+  await failTodoWrites(page, false)
+  await page.getByRole('button', { name: 'Create task' }).click()
+  await expect(title).toBeHidden()
+  await expect(taskRowByTitle(page, 'Call the plumber')).toBeVisible()
+  expect(await dbTitles(page)).toEqual(['Call the plumber', 'alpha'])
+  expect(errors).toEqual([])
+})

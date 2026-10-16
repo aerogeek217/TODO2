@@ -25,6 +25,7 @@ import {
 } from '../../../services/note-lines'
 import { draftFromEditor, draftFromText, type DraftContext, type TaskDraft } from '../../../services/task-draft'
 import { createTasksFromDrafts } from '../../../services/note-tasks'
+import { createTaskFromDraft } from '../../../services/create-task'
 import { ConfirmDialog } from '../Dialog'
 import { TaskEditPopup } from '../../task/TaskEditPopup'
 import { NotesConvertPreview, type PreviewRow } from './NotesConvertPreview'
@@ -188,19 +189,16 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
     today: new Date(),
   }), [])
 
-  // Single line: create, then mark the line `✓ <title>` (no prompt).
+  // Single line: create, then mark the line `✓ <title>` (no prompt). Not
+  // stored (the snackbar says so): null keeps the editor open and the line as
+  // it is.
   const createSingle = useCallback(async (line: ConvertLine, partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds: number[] }) => {
     const draft = draftFromEditor(partial, assignments ?? { personIds: [], tagIds: [] }, editorCtx())
-    try {
-      const [created] = await createTasksFromDrafts([draft], { description: `Add "${draft.title}"` })
-      if (!created) return 0
-      useUIStore.getState().showRecentlyCreated(created.id)
-      if (markConverted([{ line, title: created.title }]) > 0) onToast?.('Task created — its line changed, so it was left as it is')
-      return created.id
-    } catch {
-      onToast?.('Failed to convert line')
-      return 0
-    }
+    const id = await createTaskFromDraft(draft)
+    if (id == null) return null
+    useUIStore.getState().showRecentlyCreated(id)
+    if (markConverted([{ line, title: draft.title }]) > 0) onToast?.('Task created — its line changed, so it was left as it is')
+    return id
   }, [editorCtx, markConverted, onToast])
 
   const createAll = useCallback(async () => {
@@ -221,6 +219,7 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
         }),
       })
     } catch {
+      // Nothing was created: the drafts stay, no remove / keep prompt.
       onToast?.('Failed to create the tasks')
       setState({ ...state, busy: false })
     }

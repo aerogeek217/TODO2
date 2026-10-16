@@ -102,16 +102,18 @@ function AppQuickAddBar() {
   const open = useUIStore((s) => s.quickAddOpen)
   const close = useUIStore((s) => s.closeQuickAdd)
   const draft = useUIStore((s) => s.quickAddDraft)
-  const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
+  // Resolves false when the task couldn't be stored: the bar then stays open.
+  const handleSubmit = useCallback(async (submitted: QuickAddDraft): Promise<boolean> => {
     // Defaults: an explicit list-predicate seed stashed on
     // `quickAddDraft.defaults` (a list widget's "+ Add task"), else the
     // active top-bar filter.
     const draft = useUIStore.getState().quickAddDraft
     const fd = draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters)
     const id = await createQuickAddTask(submitted, fd)
-    if (id != null) useUIStore.getState().showRecentlyCreated(id)
-    close()
-  }, [close])
+    if (id == null) return false
+    useUIStore.getState().showRecentlyCreated(id)
+    return true
+  }, [])
 
   const handleOpenFullEditor = useCallback((submitted: QuickAddDraft) => {
     // Preserve-draft handoff: set the seed, flip the bar closed without

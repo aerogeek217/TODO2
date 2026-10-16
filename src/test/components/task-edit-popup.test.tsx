@@ -625,3 +625,29 @@ describe('TaskEditPopup', () => {
     })
   })
 })
+
+describe('TaskEditPopup — a create that fails', () => {
+  beforeEach(resetStores)
+  afterEach(cleanup)
+
+  it('stays open with every field as typed; Create task again creates and closes', async () => {
+    const onCreate = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(43)
+    const { onClose } = renderCreateMode({ onCreate })
+    typeTitle('Write report')
+    fireEvent.change(screen.getByPlaceholderText('e.g. 50% done, Waiting on review...'), { target: { value: 'Outline done' } })
+    fireEvent.click(screen.getByRole('button', { name: /Urgent/ }))
+
+    clickCreate()
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    await act(async () => {})
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Write report')
+    expect(screen.getByPlaceholderText('e.g. 50% done, Waiting on review...')).toHaveValue('Outline done')
+    expect(screen.getByRole('button', { name: /Urgent/ })).toHaveAttribute('aria-pressed', 'true')
+
+    clickCreate()
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(onCreate).toHaveBeenCalledTimes(2)
+    expect(onCreate.mock.calls[1]![0]).toEqual(onCreate.mock.calls[0]![0])
+  })
+})

@@ -288,3 +288,52 @@ describe('Convert preview', () => {
     expect(within(dialog).getByText(/From your selection in "Weekly sync"/)).toBeInTheDocument()
   })
 })
+
+describe('a create that fails (the task store refuses the write)', () => {
+  async function failInserts() {
+    const { todoRepository } = await import('../../../data/todo-repository')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    return vi.spyOn(todoRepository, 'insertManyWithAssignments').mockRejectedValue(new Error('disk full'))
+  }
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('one line: the editor stays open as typed, the line is not marked; Create again works', async () => {
+    const insert = await failInserts()
+    const { view, doc } = setup(NOTE)
+    act(() => view.dispatch({ selection: { anchor: lineStart(view, 4) + 5 } }))
+    pressAltT(view)
+    const title = await screen.findByDisplayValue('Book venue for team dinner')
+    fireEvent.change(title, { target: { value: 'Book the venue' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    await waitFor(() => expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t add "Book the venue".'))
+    expect(screen.getByDisplayValue('Book the venue')).toBeInTheDocument()
+    expect(doc()).toBe(NOTE)
+    expect(titles()).toEqual([])
+
+    insert.mockRestore()
+    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    await waitFor(() => expect(titles()).toEqual(['Book the venue']))
+    await waitFor(() => expect(doc().split('\n')[3]).toBe('✓ Book the venue'))
+    expect(screen.queryByDisplayValue('Book the venue')).toBeNull()
+  })
+
+  it('the preview: the drafts stay and no remove / keep prompt shows; Create again works', async () => {
+    const insert = await failInserts()
+    const { doc } = setup(NOTE)
+    fireEvent.click(screen.getByRole('button', { name: /^Convert 3 / }))
+    const dialog = await screen.findByRole('dialog', { name: 'Convert to tasks' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 3 tasks' }))
+    await waitFor(() => expect(insert).toHaveBeenCalled())
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Create 3 tasks' })).not.toBeDisabled())
+    expect(within(dialog).getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.queryByRole('dialog', { name: /Remove 3 converted lines/ })).toBeNull()
+    expect(titles()).toEqual([])
+    expect(doc()).toBe(NOTE)
+
+    insert.mockRestore()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 3 tasks' }))
+    expect(await screen.findByRole('dialog', { name: 'Remove 3 converted lines from the note?' })).toBeInTheDocument()
+    expect(titles()).toHaveLength(3)
+  })
+})
