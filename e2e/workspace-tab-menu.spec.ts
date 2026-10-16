@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
@@ -34,7 +34,7 @@ test('hovering Change list opens the flyout; picking a list switches the tab', a
 
   await changeList.hover()
   await expect(flyout(page)).toBeVisible()
-  await flyout(page).getByRole('button', { name: 'Target list' }).click()
+  await flyout(page).getByRole('menuitem', { name: 'Target list' }).click()
   await expect(menu).toHaveCount(0)
   await expect(flyout(page)).toHaveCount(0)
   await expect(tab).toContainText('Target list')
@@ -103,4 +103,117 @@ test('the add-tab list picker opened from a cell near the bottom stays inside th
   // Picking a list adds it as a tab of that cell.
   await page.getByRole('button', { name: /^List E/ }).click()
   await expect(wsCell(page, 'bottom').getByRole('tab', { name: 'List E' })).toHaveAttribute('aria-selected', 'true')
+})
+
+/** A tab in the right-hand of two columns (near the right edge) and one on the left. */
+const twoColumns: WorkspaceSeed = {
+  listDefinitions: [{ name: 'Source list' }, { name: 'Target list' }],
+  layouts: [{
+    name: 'Main',
+    columns: [
+      { id: 'left', cells: [{ id: 'leftCell', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'right', cells: [{ id: 'rightCell', tabs: [{ id: 'dashTab', kind: 'dashboard' }] }] },
+    ],
+  }],
+}
+
+async function rect(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+  const b = await locator.boundingBox()
+  if (!b) throw new Error('no bounding box')
+  return b
+}
+
+test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc returns focus to the tab', async ({ page }) => {
+  await seedWorkspace(page, twoLists)
+  const tab = wsTab(page, 'listTab')
+  await tab.focus()
+  await page.keyboard.press('Shift+F10')
+  const menu = tabMenu(page)
+  await expect(menu).toBeVisible()
+  await expect(menu).toHaveAttribute('data-shortcut-scope', 'none')
+  const t = await rect(tab)
+  const m = await rect(menu)
+  expect(Math.round(m.x)).toBe(Math.round(t.x))
+  expect(m.y).toBeGreaterThanOrEqual(t.y + t.height)
+  await expect(menu.getByRole('menuitem', { name: 'List options…' })).toBeFocused()
+  // Type-ahead: the next item starting with the key.
+  await page.keyboard.press('e')
+  await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
+  await page.keyboard.press('n')
+  await expect(menu.getByRole('menuitemradio', { name: 'Notes' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(tab).toBeFocused()
+})
+
+test('the tab menu opened near the bottom-right corner stays inside the window', async ({ page }) => {
+  await seedWorkspace(page, twoColumns)
+  const vp = page.viewportSize()!
+  // Right-click at the window's bottom-right corner area over the dashboard body is not a tab — use the
+  // right-hand tab, then check the menu flips to fit when opened at a point near the edges.
+  const tab = wsTab(page, 'dashTab')
+  const t = await rect(tab)
+  await page.mouse.click(Math.min(t.x + t.width - 2, vp.width - 4), t.y + t.height / 2, { button: 'right' })
+  const menu = tabMenu(page)
+  await expect(menu).toBeVisible()
+  const m = await rect(menu)
+  expect(m.x + m.width).toBeLessThanOrEqual(vp.width - 8 + 0.5)
+  expect(m.y + m.height).toBeLessThanOrEqual(vp.height - 8 + 0.5)
+})
+
+test('the Hot is › panel sits beside the menu, flipped to its left near the right edge; outside click closes both', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 800 })
+  await seedWorkspace(page, twoColumns)
+  const tab = wsTab(page, 'dashTab')
+  const t = await rect(tab)
+  await page.mouse.click(t.x + t.width - 4, t.y + t.height / 2, { button: 'right' })
+  const menu = tabMenu(page)
+  const hotIs = menu.getByRole('menuitem', { name: /Hot is/ })
+  await hotIs.hover()
+  const panel = page.getByRole('dialog', { name: 'Hot rule' })
+  await expect(panel).toBeVisible()
+  await expect(panel).toHaveAttribute('data-shortcut-scope', 'none')
+  const m = await rect(menu)
+  const p = await rect(panel)
+  const i = await rect(hotIs)
+  // No room on the right: on the menu's left, top level with its item.
+  expect(m.x + m.width + p.width).toBeGreaterThan(1100 - 8)
+  expect(p.x + p.width).toBeLessThanOrEqual(m.x + 0.5)
+  expect(Math.abs(p.y - i.y)).toBeLessThanOrEqual(1)
+  // Hovering another plain item closes a panel that was only hovered open.
+  await menu.getByRole('menuitem', { name: 'Customize dashboard…' }).hover()
+  await expect(panel).toHaveCount(0)
+
+  // Clicked open, it takes the focus and stays while the pointer crosses other items.
+  await hotIs.click()
+  await expect(panel).toBeVisible()
+  await expect(panel.locator(':focus')).toHaveCount(1)
+  await menu.getByRole('menuitem', { name: 'Customize dashboard…' }).hover()
+  await expect(panel).toBeVisible()
+  // A click outside the menu and its panel closes both.
+  await page.mouse.click(20, 780)
+  await expect(panel).toHaveCount(0)
+  await expect(menu).toHaveCount(0)
+})
+
+test('the Eisenhower range submenu: → opens it on the current value beside its item; ← goes back', async ({ page }) => {
+  await seedWorkspace(page, twoColumns)
+  await wsTab(page, 'eisTab').click({ button: 'right' })
+  const menu = tabMenu(page)
+  const item = menu.getByRole('menuitem', { name: /Due date makes a task urgent/ })
+  await expect(item).toBeFocused()
+  await expect(item).toContainText('3 days')
+  await page.keyboard.press('ArrowRight')
+  const sub = page.getByRole('menu', { name: 'Due date makes a task urgent' })
+  await expect(sub.getByRole('menuitemradio', { name: /3 days/ })).toBeFocused()
+  await expect(sub).toContainText('Overdue tasks count too')
+  const m = await rect(menu)
+  const s = await rect(sub)
+  const i = await rect(item)
+  expect(s.x).toBeGreaterThanOrEqual(m.x + m.width)
+  // Its first choice (after the group label) sits below the item's top; the panel's top is 4px above the item.
+  expect(Math.abs(s.y + 4 - i.y)).toBeLessThanOrEqual(2)
+  await page.keyboard.press('ArrowLeft')
+  await expect(sub).toHaveCount(0)
+  await expect(item).toBeFocused()
 })

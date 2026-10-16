@@ -46,8 +46,8 @@ describe('Dashboard tab menu', () => {
   it('lists Customize dashboard…, Hot is (the rule at a glance), Copy summary, then Change widget', () => {
     render(<Harness onCustomize={() => {}} onClose={() => {}} summary={SUMMARY} />)
     const labels = screen.getAllByRole('menuitem').map((el) => el.textContent)
-    expect(labels.slice(0, 3)).toEqual(['Customize dashboard…', 'Hot isU+I or Focus▸', 'Copy summary'])
-    expect(labels[3]).toContain('List')
+    expect(labels.slice(0, 3)).toEqual(['Customize dashboard…', 'Hot isU+I or Focus', 'Copy summary'])
+    expect(screen.getAllByRole('menuitemradio')[0]).toHaveTextContent('List')
   })
 
   it('Copy summary is offered only once the widget has reported its counts', () => {

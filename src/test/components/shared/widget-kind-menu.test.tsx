@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, fireEvent, screen, cleanup, waitFor } from '@testing-library/react'
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
 import { useUIStore } from '../../../stores/ui-store'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import type { ListDefinition } from '../../../models'
 
 afterEach(cleanup)
 
@@ -17,16 +19,17 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getByRole('menuitem', { name: /List/ })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('menuitem', { name: /Calendar/ })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /Dashboard/ })).toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: /Taskboard/ })).toBeNull()
+    // The kinds are radio items under "Change widget"; the current one is checked.
+    expect(screen.getByText('Change widget')).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: /List/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemradio', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
     // The Status widget is retired (its bar lives on in the Dashboard).
-    expect(screen.queryByRole('menuitem', { name: /status/i })).toBeNull()
+    expect(screen.queryByRole('menuitemradio', { name: /status/i })).toBeNull()
     // List · Calendar · Notes · Eisenhower · Dashboard.
-    expect(screen.getAllByRole('menuitem').map((el) => el.textContent?.replace('✓', '').trim()))
+    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()))
       .toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard'])
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
   })
 
   it('fires onChangeKind with the selected kind and closes', () => {
@@ -40,7 +43,7 @@ describe('WidgetKindMenu', () => {
         onClose={onClose}
       />,
     )
-    fireEvent.click(screen.getByRole('menuitem', { name: /Calendar/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Calendar/ }))
     expect(onChangeKind).toHaveBeenCalledWith('calendar')
     expect(onClose).toHaveBeenCalled()
   })
@@ -106,13 +109,16 @@ describe('WidgetKindMenu', () => {
       />,
     )
     // First focused item is List.
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /List/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /List/ }))
     const menu = screen.getByRole('menu')
     fireEvent.keyDown(menu, { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /Calendar/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Calendar/ }))
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /Dashboard/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Dashboard/ }))
+    // Type-ahead: the next item starting with the key.
+    fireEvent.keyDown(menu, { key: 'n' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
   })
 
   it('renders an "Edit list" item only when current kind is lens and onEditList is provided', () => {
@@ -177,8 +183,8 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
-      expect(screen.getByRole('menuitem', { name: /Dashboard/ })).toBeInTheDocument()
-      expect(screen.queryByRole('menuitem', { name: /^Stats/ })).toBeNull()
+      expect(screen.getByRole('menuitemradio', { name: /Dashboard/ })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitemradio', { name: /^Stats/ })).toBeNull()
       rerender(
         <WidgetKindMenu
           anchor={ANCHOR}
@@ -187,7 +193,9 @@ describe('WidgetKindMenu', () => {
           heading="Add widget"
         />,
       )
-      expect(screen.getByRole('menuitem', { name: /Dashboard/ })).toBeInTheDocument()
+      // Adding: plain items, nothing checked.
+      expect(screen.getByRole('menuitem', { name: /Dashboard/ })).not.toHaveAttribute('aria-checked')
+      expect(screen.getByText('Add widget')).toBeInTheDocument()
     })
 
     it('is marked active when the current kind is dashboard', () => {
@@ -199,7 +207,7 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
-      expect(screen.getByRole('menuitem', { name: /Dashboard/ })).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByRole('menuitemradio', { name: /Dashboard/ })).toHaveAttribute('aria-checked', 'true')
     })
 
     it('picking it fires onChangeKind("dashboard") and closes the menu', () => {
@@ -213,7 +221,7 @@ describe('WidgetKindMenu', () => {
           onClose={onClose}
         />,
       )
-      fireEvent.click(screen.getByRole('menuitem', { name: /Dashboard/ }))
+      fireEvent.click(screen.getByRole('menuitemradio', { name: /Dashboard/ }))
       expect(onChangeKind).toHaveBeenCalledWith('dashboard')
       expect(onClose).toHaveBeenCalled()
     })
@@ -227,9 +235,9 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
-      expect(screen.queryByRole('menuitem', { name: /Horizons/ })).toBeNull()
-      expect(screen.queryByRole('menuitem', { name: /Discipline/ })).toBeNull()
-      expect(screen.queryByRole('menuitem', { name: /Snooze graveyard/ })).toBeNull()
+      expect(screen.queryByRole('menuitemradio', { name: /Horizons/ })).toBeNull()
+      expect(screen.queryByRole('menuitemradio', { name: /Discipline/ })).toBeNull()
+      expect(screen.queryByRole('menuitemradio', { name: /Snooze graveyard/ })).toBeNull()
     })
   })
 
@@ -283,7 +291,7 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
     const items = screen.getAllByRole('menuitem')
     expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
-    expect(screen.getByRole('menuitem', { name: /Eisenhower/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: /Eisenhower/ })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('→ opens the submenu on the checked choice; picking one runs it and closes the menu', () => {
@@ -383,5 +391,51 @@ describe('WidgetKindMenu — an action that opens a panel', () => {
     expect(screen.getByRole('menu')).toHaveAttribute('data-shortcut-scope', 'none')
     fireEvent.click(screen.getByRole('menuitem', { name: /Hot is/ }))
     expect(screen.getByRole('dialog', { name: 'Hot rule' })).toHaveAttribute('data-shortcut-scope', 'none')
+  })
+})
+
+describe('WidgetKindMenu — Change list submenu', () => {
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        { id: 2, name: 'Second', sortOrder: 1 } as ListDefinition,
+        { id: 1, name: 'First', sortOrder: 0 } as ListDefinition,
+      ],
+    })
+  })
+  afterEach(() => useListDefinitionStore.setState(useListDefinitionStore.getInitialState(), true))
+
+  it('→ opens the saved lists in their order with the focus on the first; a pick runs and closes the menu', () => {
+    const pick = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="lens"
+        onChangeKind={() => {}}
+        pickListForLens={pick}
+        onListOptions={() => {}}
+        currentListName="First"
+        onClose={onClose}
+      />,
+    )
+    const row = screen.getByRole('menuitem', { name: /Change list/ })
+    expect(row).toHaveTextContent('First')
+    expect(row).toHaveAttribute('aria-haspopup', 'menu')
+    row.focus()
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    const sub = screen.getByRole('menu', { name: 'Change list' })
+    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.textContent)).toEqual(['First', 'Second'])
+    expect(document.activeElement).toHaveTextContent('First')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Second' }))
+    expect(pick).toHaveBeenCalledWith(2)
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('says so when there are no lists', () => {
+    useListDefinitionStore.setState({ listDefinitions: [] })
+    render(<WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('menuitem', { name: /Change list/ }))
+    expect(screen.getByRole('menu', { name: 'Change list…' })).toHaveTextContent('No lists yet.')
   })
 })

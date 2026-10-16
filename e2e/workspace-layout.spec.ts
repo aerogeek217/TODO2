@@ -317,7 +317,9 @@ test.describe('adding and changing widgets', () => {
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
-    await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Dashboard' }).click()
+    const changeWidget = page.getByRole('menu', { name: 'Change widget' })
+    await expect(changeWidget.getByRole('menuitemradio', { name: 'Calendar' })).toHaveAttribute('aria-checked', 'true')
+    await changeWidget.getByRole('menuitemradio', { name: 'Dashboard' }).click()
     await expect(page.getByRole('tab', { name: /Dashboard/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveCount(0)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
