@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { NotesToolbar } from '../../../components/shared/notes/NotesToolbar'
+import { NotesToolbar } from '../../../components/task/notes/NotesToolbar'
 
 function makeView(doc: string): EditorView {
   const state = EditorState.create({ doc })

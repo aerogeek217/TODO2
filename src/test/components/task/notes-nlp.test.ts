@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { Person, Status } from '../../../models'
-import { notesNlp, notesPopupField, type NotesNlpConfig } from '../../../components/shared/notes/notes-nlp'
+import { notesNlp, notesPopupField, type NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
 import { personItems, statusItems, tagItems } from '../../../services/nlp-autocomplete'
 
 // Sat 10 Oct 2026.

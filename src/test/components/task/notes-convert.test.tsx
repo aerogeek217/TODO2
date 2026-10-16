@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { useMemo, useRef, useState } from 'react'
 import { EditorView } from '@codemirror/view'
 import { db } from '../../../data/database'
-import { NotesBody, type NotesSource } from '../../../components/shared/notes/NotesBody'
+import { NotesBody, type NotesSource } from '../../../components/task/notes/NotesBody'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { usePersonStore } from '../../../stores/person-store'

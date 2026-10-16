@@ -26,8 +26,8 @@ import {
 import { draftFromEditor, draftFromText, type DraftContext, type TaskDraft } from '../../../services/task-draft'
 import { createTasksFromDrafts } from '../../../services/note-tasks'
 import { createTaskFromDraft } from '../../../services/create-task'
-import { ConfirmDialog } from '../Dialog'
-import { TaskEditPopup } from '../../task/TaskEditPopup'
+import { ConfirmDialog } from '../../shared/Dialog'
+import { TaskEditPopup } from '../TaskEditPopup'
 import { NotesConvertPreview, type PreviewRow } from './NotesConvertPreview'
 
 /** Marks the body while any convert dialog is open (hosts ignore outside clicks / Esc then). */

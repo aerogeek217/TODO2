@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { EditorView } from '@codemirror/view'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { NlpPopup } from '../NlpPopup'
+import { NlpPopup } from '../../shared/NlpPopup'
 import { closeNotesPopup, pickNotesPopupRow, type NotesPopupState } from './notes-nlp'
 import styles from './NotesEditor.module.css'
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, act } from '@testing-library/react'
 import { db } from '../../../data/database'
-import { NotesBody } from '../../../components/shared/notes/NotesBody'
+import { NotesBody } from '../../../components/task/notes/NotesBody'
 import { useNoteStore } from '../../../stores/note-store'
 import { useTodoStore } from '../../../stores/todo-store'
 

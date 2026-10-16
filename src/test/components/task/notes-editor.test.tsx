@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { createRef } from 'react'
 import type { EditorView } from '@codemirror/view'
-import { NotesEditor } from '../../../components/shared/notes/NotesEditor'
+import { NotesEditor } from '../../../components/task/notes/NotesEditor'
 
 afterEach(cleanup)
 

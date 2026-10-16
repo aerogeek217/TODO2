@@ -1,4 +1,4 @@
-import { NotesBody } from '../shared/notes/NotesBody'
+import { NotesBody } from '../task/notes/NotesBody'
 import styles from './NotesWidget.module.css'
 
 interface NotesWidgetProps {
