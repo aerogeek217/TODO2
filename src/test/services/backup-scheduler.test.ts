@@ -262,4 +262,34 @@ describe('BackupScheduler', () => {
       expect(mockCreateSnapshot).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('reset', () => {
+    it('stops the timer and drops a snapshot in flight, so the next caller starts its own', async () => {
+      let finishFirst!: () => void
+      mockCreateSnapshot.mockImplementationOnce(() => new Promise((r) => { finishFirst = () => r(1) }))
+      const first = backupScheduler.snapshotBeforeDestructive()
+      backupScheduler.start()
+
+      backupScheduler.reset()
+      const intervalSpy = vi.spyOn(globalThis, 'setInterval')
+      await backupScheduler.snapshotBeforeDestructive()
+      expect(mockCreateSnapshot).toHaveBeenCalledTimes(3) // first, the start's auto one, the new one
+      // The dropped snapshot settling later doesn't clear the next one's slot.
+      finishFirst()
+      await first
+      backupScheduler.start()
+      expect(intervalSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('reads the last automatic backup time again after a reset', async () => {
+      mockNewestSnapshotAt.mockResolvedValue(new Date(Date.now() - HOUR))
+      backupScheduler.start()
+      await vi.advanceTimersByTimeAsync(0)
+      backupScheduler.reset()
+      backupScheduler.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockNewestSnapshotAt).toHaveBeenCalledTimes(2)
+      expect(mockCreateSnapshot).not.toHaveBeenCalled()
+    })
+  })
 })

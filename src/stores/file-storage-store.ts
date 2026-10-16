@@ -19,6 +19,19 @@ let legacyImportResolve: ((confirmed: boolean) => void) | null = null
 let conflictResolve: ((choice: SyncConflictChoice) => void) | null = null
 let fileUpgradeResolve: ((confirmed: boolean) => void) | null = null
 
+/**
+ * Answers every waiting question as cancelled and forgets it, for tests that
+ * share one module instance (the store's state is reset separately).
+ */
+export function resetFileStoragePrompts(): void {
+  legacyImportResolve?.(false)
+  conflictResolve?.('cancel')
+  fileUpgradeResolve?.(false)
+  legacyImportResolve = null
+  conflictResolve = null
+  fileUpgradeResolve = null
+}
+
 interface FileStorageState extends FileStorageStatus {
   isSupported: boolean
   isLoading: boolean

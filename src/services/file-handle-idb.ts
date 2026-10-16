@@ -7,6 +7,15 @@ const LEGACY_DIR_KEY = 'last-directory'
 
 let cachedDB: IDBDatabase | null = null
 
+/**
+ * Closes and forgets the cached connection, for tests that share one module
+ * instance (e.g. before deleting the database). The next call reopens it.
+ */
+export function resetFileHandleCache(): void {
+  cachedDB?.close()
+  cachedDB = null
+}
+
 function openMetaDB(): Promise<IDBDatabase> {
   if (cachedDB) return Promise.resolve(cachedDB)
   return new Promise((resolve, reject) => {

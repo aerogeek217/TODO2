@@ -24,13 +24,14 @@ vi.mock('../../services/file-storage', () => ({
   },
 }))
 
-const { useFileStorageStore } = await import('../../stores/file-storage-store')
+const { useFileStorageStore, resetFileStoragePrompts } = await import('../../stores/file-storage-store')
 
 const conflictInfo = (fileName: string) => ({ fileName }) as SyncConflictInfo
 const upgradeInfo: FileUpgradeInfo = { fileName: 'a.json', fromVersion: 49, toVersion: 62 }
 const legacyInfo = { version: 12 } as unknown as UnsupportedImportInfo
 
 beforeEach(() => {
+  resetFileStoragePrompts()
   useFileStorageStore.setState(useFileStorageStore.getInitialState(), true)
 })
 
@@ -71,5 +72,17 @@ describe('file-storage store — waiting questions', () => {
     await expect(legacy1).resolves.toBe(false)
     useFileStorageStore.getState().confirmLegacyImport()
     await expect(legacy2).resolves.toBe(true)
+  })
+
+  it('the test reset answers every waiting question as cancelled', async () => {
+    const conflict = wiring.conflict!(conflictInfo('a.json'))
+    const upgrade = wiring.upgrade!(upgradeInfo)
+    const legacy = wiring.migration!(legacyInfo)
+    resetFileStoragePrompts()
+    await expect(conflict).resolves.toBe('cancel')
+    await expect(upgrade).resolves.toBe(false)
+    await expect(legacy).resolves.toBe(false)
+    // Nothing left to answer: a later resolve is a no-op.
+    useFileStorageStore.getState().resolveConflict('browser')
   })
 })

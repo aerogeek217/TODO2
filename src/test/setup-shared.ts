@@ -7,6 +7,13 @@ import { cleanup } from '@testing-library/react'
 import type * as Zustand from 'zustand'
 import { db } from '../data/database'
 import { resetWriteTracking } from '../stores/store-helpers'
+import { fileStorageService } from '../services/file-storage'
+import { backupScheduler } from '../services/backup-scheduler'
+import { resetFileHandleCache } from '../services/file-handle-idb'
+import { resetFileStoragePrompts } from '../stores/file-storage-store'
+import { resetNoteSaves } from '../stores/note-store'
+import { resetSettingsModuleState } from '../stores/settings-store'
+import { resetListOrderLoad } from '../stores/list-order-store'
 
 type StoreReset = () => void
 type ResetRegistry = typeof globalThis & { __zustandStoreResets?: Set<StoreReset> }
@@ -32,6 +39,14 @@ beforeAll(async () => {
   for (const reset of (globalThis as ResetRegistry).__zustandStoreResets ?? []) reset()
   // A write a previous file left unsettled would hold up every later load.
   resetWriteTracking()
+  // Module state outside the stores, back to a fresh import's.
+  fileStorageService.reset()
+  backupScheduler.reset()
+  resetFileStoragePrompts()
+  resetFileHandleCache()
+  resetNoteSaves()
+  resetSettingsModuleState()
+  resetListOrderLoad()
   // Closed but auto-opening, like an untouched db in a fresh worker.
   await db.delete({ disableAutoOpen: false })
   localStorage.clear()

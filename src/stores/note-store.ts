@@ -68,6 +68,18 @@ let editSeq = 0
 /** The save in progress, if any; the next save starts after it. */
 let saveQueue: Promise<void> = Promise.resolve()
 
+/**
+ * Clears the save timer and the save chain, for tests that share one module
+ * instance (the store's state is reset separately). A save already running
+ * finishes on its own; the next one doesn't wait for it.
+ */
+export function resetNoteSaves(): void {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = undefined
+  editSeq = 0
+  saveQueue = Promise.resolve()
+}
+
 /** Saves the pending text, if any. Never rejects. */
 async function saveOnce(): Promise<void> {
   const { pending: snap, replaceHolds } = useNoteStore.getState()

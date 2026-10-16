@@ -70,6 +70,18 @@ class BackupScheduler {
   }
 
   /**
+   * Back to the state at module load, for tests that share one module
+   * instance: stopped, default interval, nothing in flight. A snapshot
+   * already running finishes on its own; later callers don't wait for it.
+   */
+  reset() {
+    this.stop()
+    this.intervalMs = DEFAULT_INTERVAL_MS
+    this.autoRun = null
+    this.destructiveSnapshot = null
+  }
+
+  /**
    * Snapshots the whole database before a destructive operation. Rejects when
    * the snapshot can't be stored; `services/safety-snapshot` then asks the
    * user whether to go ahead. A caller arriving while a snapshot is in flight
@@ -79,13 +91,11 @@ class BackupScheduler {
   snapshotBeforeDestructive(): Promise<void> {
     if (this.destructiveSnapshot) return this.destructiveSnapshot
     const run = (async () => {
-      try {
-        await backupRepository.createSnapshot('pre-destructive')
-        await prune('pre-destructive')
-      } finally {
-        this.destructiveSnapshot = null
-      }
-    })()
+      await backupRepository.createSnapshot('pre-destructive')
+      await prune('pre-destructive')
+    })().finally(() => {
+      if (this.destructiveSnapshot === run) this.destructiveSnapshot = null
+    })
     this.destructiveSnapshot = run
     return run
   }
@@ -107,8 +117,12 @@ class BackupScheduler {
   }
 
   private autoSnapshotIfDue(): Promise<void> {
-    this.autoRun ??= this.runAutoSnapshot().finally(() => { this.autoRun = null })
-    return this.autoRun
+    if (this.autoRun) return this.autoRun
+    const run: Promise<void> = this.runAutoSnapshot().finally(() => {
+      if (this.autoRun === run) this.autoRun = null
+    })
+    this.autoRun = run
+    return run
   }
 
   /** Never rejects: a failure is logged and raised once as a backup warning. */

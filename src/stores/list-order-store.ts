@@ -44,6 +44,14 @@ function group(rows: readonly PersistedListOrder[]): Map<number, Map<number, num
 
 let inflight: Promise<void> | null = null
 
+/**
+ * Forgets the load in flight, for tests that share one module instance (the
+ * store's state is reset separately). That load finishes on its own.
+ */
+export function resetListOrderLoad(): void {
+  inflight = null
+}
+
 /** Awaits a rank write; false (logged) when it failed. */
 async function saveOrLog(write: Promise<void>): Promise<boolean> {
   try {
@@ -77,10 +85,12 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
     ensureLoaded() {
       if (get().loaded) return Promise.resolve()
       // A failed load leaves `loaded` false: reported, and retried next time.
-      inflight ??= get().load()
+      if (inflight) return inflight
+      const run: Promise<void> = get().load()
         .catch((e: unknown) => { reportLoadFailure('the manual task order', e) })
-        .finally(() => { inflight = null })
-      return inflight
+        .finally(() => { if (inflight === run) inflight = null })
+      inflight = run
+      return run
     },
 
     async setRanks(listDefinitionId, writes) {

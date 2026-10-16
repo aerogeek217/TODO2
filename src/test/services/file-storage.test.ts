@@ -906,6 +906,33 @@ describe('FileStorageService — status notifications', () => {
   })
 })
 
+// ─── Test reset ───────────────────────────────────────────────────────
+
+describe('FileStorageService — reset', () => {
+  it('forgets the file, stops syncing, removes the Dexie hooks and keeps the subscribers', async () => {
+    const listener = vi.fn()
+    const { svc, writable } = await startWith()
+    svc.onStatusChange(listener)
+    await svc.initialize()
+    expect(svc.status.isConnected).toBe(true)
+    fireLocalChange()
+
+    svc.reset()
+    expect(svc.status).toEqual({
+      isConnected: false, fileName: null, lastSavedAt: null, needsPermission: false, error: null, paused: null,
+    })
+    for (const table of mockTables) expect(table.hook('creating').handlers.size).toBe(0)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(writable.write).not.toHaveBeenCalled()
+    await expect(svc.whenIdle()).resolves.toBeUndefined()
+
+    // Still subscribed: a fresh start is heard.
+    listener.mockClear()
+    await svc.initialize()
+    expect(listener).toHaveBeenCalled()
+  })
+})
+
 // ─── Browser backup before loading the file ───────────────────────────
 
 describe('FileStorageService — browser backup before the file replaces it', () => {

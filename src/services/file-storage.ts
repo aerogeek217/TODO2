@@ -309,6 +309,28 @@ class FileStorageService {
     if (failure) throw failure.error
   }
 
+  /**
+   * Back to the state at module load, for tests that share one module
+   * instance: no file, no sync, no timers or Dexie hooks, idle (waiters
+   * released). A write already running finishes on its own but no longer
+   * counts. Subscribers and question handlers stay — they belong to modules
+   * (the file-storage store) that outlive the reset; a test removes its own.
+   */
+  reset(): void {
+    this.stopSync()
+    this.removeTracking()
+    this.handle = null
+    this.suppressSync = false
+    this.saveInFlight = null
+    this.pendingSave = false
+    this.changeGen = 0
+    this._lastSavedAt = null
+    this._error = null
+    this._needsPermission = false
+    this._paused = null
+    this.checkIdle()
+  }
+
   async initialize(): Promise<void> {
     if (!this.isSupported) return
 

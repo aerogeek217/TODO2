@@ -182,6 +182,17 @@ function setupMediaQueryListener(mode: ThemeMode) {
   }
 }
 
+/**
+ * Stops following the OS theme and forgets the customised colour keys, for
+ * tests that share one module instance (the store's state is reset
+ * separately).
+ */
+export function resetSettingsModuleState(): void {
+  mediaQueryCleanup?.()
+  mediaQueryCleanup = null
+  customizedColorKeys = { dark: new Set(), light: new Set() }
+}
+
 function isValidThemeMode(v: unknown): v is ThemeMode {
   return v === 'light' || v === 'dark' || v === 'system'
 }
