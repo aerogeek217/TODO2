@@ -5,8 +5,8 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import type { ListFilterField } from '../../../stores/list-widget-store'
 import type { FilterChipNames } from '../../../utils/filter-chips'
-import { ImportantIcon } from '../../shared/MarkerIcons'
-import { AtIcon, FlagIcon, HashIcon, SearchIcon, StatusRingIcon, WidgetKindIcon } from '../../shared/icons'
+import { ImportantIcon } from '../MarkerIcons'
+import { AtIcon, FlagIcon, HashIcon, SearchIcon, StatusRingIcon, WidgetKindIcon } from '../icons'
 
 /** The entity names chips resolve ids against, kept current. */
 export function useChipNames(): FilterChipNames {

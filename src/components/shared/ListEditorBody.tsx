@@ -13,7 +13,7 @@ import {
   PROMPT_LABEL,
   SORT_LABEL,
 } from '../../utils/list-options'
-import { PredicateChips } from '../workspace/list/PredicateChips'
+import { PredicateChips } from './filters/PredicateChips'
 import styles from './ListEditorBody.module.css'
 
 export interface ListEditorBodyProps {

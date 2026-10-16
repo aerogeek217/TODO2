@@ -16,7 +16,7 @@ import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { useTabTitle } from './widget-hooks'
 import { SaveListButton } from './list/SaveListButton'
-import { pointBelow } from './list/popover-point'
+import { pointBelow } from '../shared/filters/popover-point'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {

@@ -3,12 +3,12 @@ import type { TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import { clearChipField, filterChips, type FilterChip } from '../../../utils/filter-chips'
-import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
-import { CloseIcon, PlusIcon } from '../../shared/icons'
+import { MenuPopover, type MenuEntry } from '../MenuPopover'
+import { CloseIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker } from './PredicateFieldPicker'
 import { pointBelow } from './popover-point'
-import styles from './ListWidget.module.css'
+import styles from './ListFilterChips.module.css'
 
 /** A field picker to show: which field, where, and whether it adds the filter. */
 interface OpenPicker {

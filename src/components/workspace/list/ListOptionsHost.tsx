@@ -18,9 +18,9 @@ import {
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { LinkIcon, PlusIcon } from '../../shared/icons'
-import { PredicateFieldPicker } from './PredicateFieldPicker'
-import { ADD_FILTER_ITEMS } from './filter-menu'
-import { pointBelow } from './popover-point'
+import { PredicateFieldPicker } from '../../shared/filters/PredicateFieldPicker'
+import { ADD_FILTER_ITEMS } from '../../shared/filters/filter-menu'
+import { pointBelow } from '../../shared/filters/popover-point'
 import styles from './ListOptions.module.css'
 
 /**

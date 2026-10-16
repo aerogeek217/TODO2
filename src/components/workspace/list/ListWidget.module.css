@@ -44,108 +44,11 @@
   display: none;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  height: 22px;
-  padding: 0 6px 0 8px;
-  border: none;
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.screenChip {
-  composes: chip;
-  padding-left: 6px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--color-accent-dim);
-  color: var(--color-accent);
-  cursor: default;
-}
-
-.listChip {
-  composes: chip;
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.listChip:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
-.chipLabel {
-  color: var(--color-text-muted);
-}
-
-.chipRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-right: -2px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.chipRemove:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
 .chipSep {
   flex-shrink: 0;
   width: 1px;
   height: 14px;
   background: var(--color-border);
-}
-
-.addFilter {
-  composes: chip;
-  padding: 0 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.addFilter:hover,
-.addFilterOpen {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
-.summary {
-  composes: chip;
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 0 4px 0 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.summary:hover,
-.summaryOpen {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
-@container (max-width: 359px) {
-  .summary {
-    display: none;
-  }
 }
 
 /* ── Body ───────────────────────────────────────────────────────────────── */
@@ -624,37 +527,10 @@
   margin-top: 4px;
 }
 
-/* ── Pickers (portaled) ─────────────────────────────────────────────────── */
-
-.pickerPanel {
-  min-width: 220px;
-  max-width: 280px;
-  overflow: auto;
-}
-
-.textPicker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px;
-  min-width: 240px;
-}
-
-.textPickerLabel {
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-}
-
 /* ── Touch (mobile) ─────────────────────────────────────────────────────── */
 
 .touch .filterRow {
   height: var(--mobile-list-filter-row-height);
-}
-
-.touch .chip {
-  height: 32px;
-  border-radius: 8px;
 }
 
 .touch .groupHeader {

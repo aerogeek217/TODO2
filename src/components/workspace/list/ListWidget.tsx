@@ -38,9 +38,9 @@ import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { ReassignDialog } from '../../overlays/ReassignDialog'
 import { ChevronDownIcon, FunnelIcon, PlusIcon, SortIcon } from '../../shared/icons'
-import { pointBelow } from './popover-point'
-import { PredicateChips } from './PredicateChips'
-import { useChipNames } from './filter-menu'
+import { pointBelow } from '../../shared/filters/popover-point'
+import { PredicateChips } from '../../shared/filters/PredicateChips'
+import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
 import { MenuPopover } from '../../shared/MenuPopover'
@@ -49,6 +49,7 @@ import { groupPerson, personGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers } from '../../../utils/markers'
+import chipStyles from '../../shared/filters/ListFilterChips.module.css'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 
@@ -383,6 +384,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       className={`${styles.widget} ${isMobile ? styles.touch : ''}`}
       data-list-widget={tab.id}
       data-selection-scope={isMobile ? undefined : tab.id}
+      // Phones: the filter chips (a shared stylesheet) get their touch height.
+      data-touch-chips={isMobile ? '' : undefined}
     >
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
@@ -531,7 +534,7 @@ function ListFilterRow({ tabId, definition, screenChips, hasListChips }: {
           before={(
             <>
               {screenChips.map((chip) => (
-                <span key={`screen-${chip.field}`} className={styles.screenChip} title="Screen filter · set in the top bar" data-testid="screen-filter-chip">
+                <span key={`screen-${chip.field}`} className={chipStyles.screenChip} title="Screen filter · set in the top bar" data-testid="screen-filter-chip">
                   <FunnelIcon />
                   {screenChipText(chip)}
                 </span>
@@ -543,7 +546,7 @@ function ListFilterRow({ tabId, definition, screenChips, hasListChips }: {
       </div>
       <button
         type="button"
-        className={`${styles.summary} ${optionsOpen ? styles.summaryOpen : ''}`}
+        className={`${chipStyles.summary} ${optionsOpen ? chipStyles.summaryOpen : ''}`}
         aria-haspopup="dialog"
         aria-expanded={optionsOpen}
         title="List options"
