@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { CheckinDialog } from '../../../components/overlays/CheckinDialog'
+import { CheckinDialog } from '../../../components/checkin/CheckinDialog'
 import { db } from '../../../data/database'
 import type { Person, PersistedTodoItem, TodoPredicate } from '../../../models'
 import type { PersistedListDefinition } from '../../../models/list-definition'
