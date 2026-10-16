@@ -89,15 +89,17 @@ export const usePersonStore = create<PersonState>((set, get) => {
 
     async update(input: Person) {
       const person = withEmail(input, input.email)
-      const prevPeople = get().people
-      const prevMap = get().assignedPeopleMap
+      const prev = get().people.find((p) => p.id === person.id)
+      const applied = { ...person }
+      const put = (p: Person) => set({
+        people: get().people.map((q) => (q.id === p.id ? p : q)),
+        assignedPeopleMap: updateEntityInMap(p, get().assignedPeopleMap),
+      })
       return optimistic(
-        () => set({
-          people: prevPeople.map((p) => (p.id === person.id ? { ...person } : p)),
-          assignedPeopleMap: updateEntityInMap(person, prevMap),
-        }),
+        () => put(applied),
         () => personRepository.update(person),
-        () => set({ people: prevPeople, assignedPeopleMap: prevMap }),
+        // Only this person, and only while it still holds this edit.
+        () => { if (prev && get().people.find((p) => p.id === person.id) === applied) put(prev) },
         'Failed to update person',
       )
     },

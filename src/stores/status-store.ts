@@ -60,11 +60,14 @@ export const useStatusStore = create<StatusState>((set, get) => {
     if (statuses.some(s => s.id !== status.id && s.name.toLowerCase() === status.name.toLowerCase())) {
       throw new Error(`Status "${status.name}" already exists`)
     }
-    const prev = statuses
+    const prev = statuses.find(s => s.id === status.id)
+    const applied = { ...status }
+    const put = (next: Status) => set({ statuses: get().statuses.map(s => s.id === next.id ? next : s) })
     return optimistic(
-      () => set({ statuses: prev.map(s => s.id === status.id ? { ...status } : s) }),
+      () => put(applied),
       () => statusRepository.update(status),
-      () => set({ statuses: prev }),
+      // Only this status, and only while it still holds this edit.
+      () => { if (prev && get().statuses.find(s => s.id === status.id) === applied) put(prev) },
       'Failed to update status',
     )
   },

@@ -98,15 +98,17 @@ export const useTagStore = create<TagState>((set, get) => {
     },
 
     async update(tag: Tag) {
-      const prevTags = get().tags
-      const prevMap = get().assignedTagsMap
+      const prev = get().tags.find((t) => t.id === tag.id)
+      const applied = { ...tag }
+      const put = (t: Tag) => set({
+        tags: get().tags.map((q) => (q.id === t.id ? t : q)),
+        assignedTagsMap: updateEntityInMap(t, get().assignedTagsMap),
+      })
       return optimistic(
-        () => set({
-          tags: prevTags.map((t) => (t.id === tag.id ? { ...tag } : t)),
-          assignedTagsMap: updateEntityInMap(tag, prevMap),
-        }),
+        () => put(applied),
         () => tagRepository.update(tag),
-        () => set({ tags: prevTags, assignedTagsMap: prevMap }),
+        // Only this tag, and only while it still holds this edit.
+        () => { if (prev && get().tags.find((t) => t.id === tag.id) === applied) put(prev) },
         'Failed to update tag',
       )
     },

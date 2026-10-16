@@ -35,6 +35,39 @@ export interface AssignmentActions {
   bulkUnassign: (todoIds: number[], entityId: number) => Promise<void>
 }
 
+/**
+ * `map` with `entity` added to each task in `todoIds` that doesn't have it.
+ * Other tasks' entries are kept as they are (so a rollback touches only the
+ * tasks its own write changed).
+ */
+function withEntity<T extends { id?: number }>(map: Map<number, T[]>, todoIds: readonly number[], entity: T): Map<number, T[]> {
+  const next = new Map(map)
+  for (const todoId of todoIds) {
+    const current = next.get(todoId) ?? []
+    if (!current.some((e) => e.id === entity.id)) next.set(todoId, [...current, entity])
+  }
+  return next
+}
+
+/** `map` with `entity` back in task `todoId`'s list at `index` (an undone unassign). */
+function withEntityAt<T extends { id?: number }>(map: Map<number, T[]>, todoId: number, entity: T, index: number): Map<number, T[]> {
+  const current = map.get(todoId) ?? []
+  if (current.some((e) => e.id === entity.id)) return map
+  const next = new Map(map)
+  next.set(todoId, [...current.slice(0, index), entity, ...current.slice(index)])
+  return next
+}
+
+/** `map` with the entity `entityId` removed from each task in `todoIds`. */
+function withoutEntity<T extends { id?: number }>(map: Map<number, T[]>, todoIds: readonly number[], entityId: number): Map<number, T[]> {
+  const next = new Map(map)
+  for (const todoId of todoIds) {
+    const current = next.get(todoId)
+    if (current?.some((e) => e.id === entityId)) next.set(todoId, current.filter((e) => e.id !== entityId))
+  }
+  return next
+}
+
 export function createAssignmentActions<T extends { id?: number }>(
   config: AssignmentConfig<T>,
   getEntities: () => T[],
@@ -95,18 +128,12 @@ export function createAssignmentActions<T extends { id?: number }>(
     async assign(todoId: number, entityId: number) {
       const entity = getEntities().find((e) => e.id === entityId)
       if (!entity) return
-      const current = getMap().get(todoId) ?? []
-      if (current.some((e) => e.id === entityId)) return
+      if ((getMap().get(todoId) ?? []).some((e) => e.id === entityId)) return
 
-      const prevMap = new Map(getMap())
       return optimistic(
-        () => {
-          const updated = new Map(getMap())
-          updated.set(todoId, [...current, entity])
-          setMap(updated)
-        },
+        () => setMap(withEntity(getMap(), [todoId], entity)),
         () => repo.assign(todoId, entityId),
-        () => setMap(prevMap),
+        () => setMap(withoutEntity(getMap(), [todoId], entityId)),
         `Failed to assign ${label}`,
         {
           description: `Assign ${label} "${getName(entity)}"`,
@@ -118,16 +145,13 @@ export function createAssignmentActions<T extends { id?: number }>(
 
     async unassign(todoId: number, entityId: number) {
       const entity = getEntities().find((e) => e.id === entityId)
-      const prevMap = new Map(getMap())
+      const current = getMap().get(todoId) ?? []
+      const index = current.findIndex((e) => e.id === entityId)
+      const removed = current[index]
       return optimistic(
-        () => {
-          const current = getMap().get(todoId) ?? []
-          const updated = new Map(getMap())
-          updated.set(todoId, current.filter((e) => e.id !== entityId))
-          setMap(updated)
-        },
+        () => setMap(withoutEntity(getMap(), [todoId], entityId)),
         () => repo.unassign(todoId, entityId),
-        () => setMap(prevMap),
+        () => { if (removed) setMap(withEntityAt(getMap(), todoId, removed, index)) },
         `Failed to unassign ${label}`,
         {
           description: `Unassign ${label} "${entity ? getName(entity) : label}"`,
@@ -141,27 +165,13 @@ export function createAssignmentActions<T extends { id?: number }>(
       const entity = getEntities().find((e) => e.id === entityId)
       if (!entity) return
       const map = getMap()
-      const toAssign: number[] = []
-      for (const todoId of todoIds) {
-        const current = map.get(todoId) ?? []
-        if (!current.some((e) => e.id === entityId)) {
-          toAssign.push(todoId)
-        }
-      }
+      const toAssign = todoIds.filter((todoId) => !(map.get(todoId) ?? []).some((e) => e.id === entityId))
       if (toAssign.length === 0) return
 
-      const prevMap = new Map(map)
       return optimistic(
-        () => {
-          const updated = new Map(getMap())
-          for (const todoId of toAssign) {
-            const current = updated.get(todoId) ?? []
-            updated.set(todoId, [...current, entity])
-          }
-          setMap(updated)
-        },
+        () => setMap(withEntity(getMap(), toAssign, entity)),
         () => Promise.all(toAssign.map((id) => repo.assign(id, entityId))).then(() => {}),
-        () => setMap(prevMap),
+        () => setMap(withoutEntity(getMap(), toAssign, entityId)),
         `Failed to assign ${label}`,
         {
           description: `Assign "${getName(entity)}" to ${toAssign.length} tasks`,
@@ -174,27 +184,24 @@ export function createAssignmentActions<T extends { id?: number }>(
     async bulkUnassign(todoIds: number[], entityId: number) {
       const entity = getEntities().find((e) => e.id === entityId)
       const map = getMap()
-      const toUnassign: number[] = []
+      const removed = new Map<number, { entity: T; index: number }>()
       for (const todoId of todoIds) {
         const current = map.get(todoId) ?? []
-        if (current.some((e) => e.id === entityId)) {
-          toUnassign.push(todoId)
-        }
+        const index = current.findIndex((e) => e.id === entityId)
+        const found = current[index]
+        if (found) removed.set(todoId, { entity: found, index })
       }
+      const toUnassign = [...removed.keys()]
       if (toUnassign.length === 0) return
 
-      const prevMap = new Map(map)
       return optimistic(
-        () => {
-          const updated = new Map(getMap())
-          for (const todoId of toUnassign) {
-            const current = updated.get(todoId) ?? []
-            updated.set(todoId, current.filter((e) => e.id !== entityId))
-          }
-          setMap(updated)
-        },
+        () => setMap(withoutEntity(getMap(), toUnassign, entityId)),
         () => Promise.all(toUnassign.map((id) => repo.unassign(id, entityId))).then(() => {}),
-        () => setMap(prevMap),
+        () => {
+          let next = getMap()
+          for (const [todoId, { entity: e, index }] of removed) next = withEntityAt(next, todoId, e, index)
+          setMap(next)
+        },
         `Failed to unassign ${label}`,
         {
           description: `Unassign "${entity ? getName(entity) : label}" from ${toUnassign.length} tasks`,

@@ -91,11 +91,15 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
 
   async update(def) {
-    const prev = get().listDefinitions
+    const prev = get().listDefinitions.find(d => d.id === def.id)
+    const applied = { ...def }
+    const put = (next: PersistedListDefinition) =>
+      set({ listDefinitions: get().listDefinitions.map(d => d.id === next.id ? next : d) })
     await optimistic(
-      () => set({ listDefinitions: prev.map(d => d.id === def.id ? { ...def } : d) }),
+      () => put(applied),
       () => listDefinitionRepository.update(def),
-      () => set({ listDefinitions: prev }),
+      // Only this list, and only while it still holds this edit.
+      () => { if (prev && get().listDefinitions.find(d => d.id === def.id) === applied) put(prev) },
       'Failed to update list',
     )
   },
