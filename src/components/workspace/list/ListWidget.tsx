@@ -28,11 +28,11 @@ import { listOptionsSummary, PROMPT_LABEL, SORT_LABEL } from '../../../utils/lis
 import { manualOrderComparator, planMove, seedRanks, type MoveTarget, type RankWrite } from '../../../utils/list-order'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import {
-  dispatchCrossGroupMutation,
   resolveCrossGroupMutation,
   UNGROUPED_GROUP_KEY,
   type CrossGroupMutation,
 } from '../../../utils/cross-group-drag'
+import { dispatchCrossGroupMutation } from '../../../services/cross-group-mutation'
 import type { ListRowDragSource, ListRowDropTarget } from '../../../utils/list-row-drop'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 import { MobileTaskRow } from '../../task/MobileTaskRow'

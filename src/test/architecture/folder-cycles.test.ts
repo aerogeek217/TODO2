@@ -13,10 +13,7 @@ import path from 'node:path'
  */
 
 /** Folder edges left out of the check, until they're removed: [from, to]. */
-const ALLOWED_EDGES: readonly (readonly [string, string])[] = [
-  // `utils/cross-group-drag` calls the stores (it moves out of utils/).
-  ['utils', 'stores'],
-]
+const ALLOWED_EDGES: readonly (readonly [string, string])[] = []
 
 const SRC = path.resolve(__dirname, '../..')
 

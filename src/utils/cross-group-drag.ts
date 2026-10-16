@@ -1,7 +1,4 @@
 import type { TodoGroupBy } from '../models'
-import { useTodoStore } from '../stores/todo-store'
-import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 
 /**
  * Sentinel group key for the synthetic ungrouped bucket (tasks with no
@@ -12,8 +9,9 @@ export const UNGROUPED_GROUP_KEY = '__ungrouped'
 
 /**
  * Field-level mutation implied by dragging a row from one visual group
- * to another in a grouped list widget (`ListWidget` dispatches it once a
- * cross-group hop is detected; any manual-order rank is written separately).
+ * to another in a grouped list widget (`ListWidget` applies it with
+ * `services/cross-group-mutation` once a cross-group hop is detected; any
+ * manual-order rank is written separately).
  *
  * - `status` carries the new statusId, or `undefined` when the target is
  *   the synthetic ungrouped bucket (i.e. clear the status).
@@ -86,38 +84,4 @@ export function resolveCrossGroupMutation(
   }
 
   return null
-}
-
-/**
- * Apply the field-mutation implied by a cross-group drag. Stateless: reads
- * each store's imperative `getState()` API directly so it can be called from
- * anywhere (including outside React) without threading store deps through the
- * caller. Sister to {@link resolveCrossGroupMutation} which derives the
- * mutation and this which dispatches it.
- */
-export async function dispatchCrossGroupMutation(mutation: CrossGroupMutation): Promise<void> {
-  switch (mutation.kind) {
-    case 'status': {
-      await useTodoStore.getState().bulkSetStatus([mutation.todoId], mutation.statusId)
-      return
-    }
-    case 'people': {
-      if (mutation.removeId != null) {
-        await usePersonStore.getState().unassignPerson(mutation.todoId, mutation.removeId)
-      }
-      if (mutation.addId != null) {
-        await usePersonStore.getState().assignPerson(mutation.todoId, mutation.addId)
-      }
-      return
-    }
-    case 'tag': {
-      if (mutation.removeId != null) {
-        await useTagStore.getState().unassignTag(mutation.todoId, mutation.removeId)
-      }
-      if (mutation.addId != null) {
-        await useTagStore.getState().assignTag(mutation.todoId, mutation.addId)
-      }
-      return
-    }
-  }
 }
