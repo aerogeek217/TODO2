@@ -245,3 +245,30 @@ test.describe('bulk bar pickers', () => {
     })
   }
 })
+
+test.describe('mobile row people picker', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  test('Assign people… with nobody assigned opens it under the row; a tap on the row closes it', async ({ page }) => {
+    await seedWorkspace(page, {
+      listDefinitions: [{ name: 'Tasks' }],
+      people: ['Alice'],
+      tasks: [{ title: 'Pay the bill' }],
+      layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    })
+    const row = page.locator('[data-todo-id]').filter({ hasText: 'Pay the bill' })
+    await expect(row).toBeVisible()
+    // Mobile browsers turn a long press into `contextmenu`.
+    await row.dispatchEvent('contextmenu')
+    await page.getByRole('menuitem', { name: 'Assign people…' }).click()
+    const panel = picker(page)
+    await expect(panel).toBeVisible()
+    await expectInsideViewport(page, panel)
+    const r = await box(row)
+    expect((await box(panel)).y).toBeGreaterThanOrEqual(r.y)
+
+    // The row is only where it sits, not its trigger: a tap on it closes the picker.
+    await page.mouse.click(r.x + r.width - 30, r.y + 8)
+    await expect(panel).toHaveCount(0)
+  })
+})
