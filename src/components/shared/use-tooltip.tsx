@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { TooltipBubble } from '../components/shared/TooltipBubble'
+import { TooltipBubble } from './TooltipBubble'
 
 /** How long the pointer (or keyboard focus) rests on a trigger before its tooltip opens. */
 export const TOOLTIP_DELAY_MS = 400

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Tooltip } from '../../../components/shared/Tooltip'
-import { TOOLTIP_DELAY_MS, useTooltip } from '../../../hooks/use-tooltip'
+import { TOOLTIP_DELAY_MS, useTooltip } from '../../../components/shared/use-tooltip'
 
 function Trigger({ text, shortcut }: { text: string | null; shortcut?: string }) {
   const { triggerProps, tooltip } = useTooltip(text, { shortcut })

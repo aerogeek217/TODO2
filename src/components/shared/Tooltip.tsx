@@ -1,4 +1,4 @@
-import { useTooltip } from '../../hooks/use-tooltip'
+import { useTooltip } from './use-tooltip'
 
 /**
  * Convenience wrapper: a `<span>` trigger around `children`.

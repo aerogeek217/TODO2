@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { formatShortcut } from '../../../utils/platform'
-import { useTooltip } from '../../../hooks/use-tooltip'
+import { useTooltip } from '../use-tooltip'
 import styles from './NotesToolbar.module.css'
 
 /** The toolbar's Convert button: the bullet lines in scope and what to do with them. */
