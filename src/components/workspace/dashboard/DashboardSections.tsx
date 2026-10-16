@@ -18,7 +18,7 @@ import {
   trendRangeLabel, trendRangeWords,
 } from './dashboard-copy'
 import { tileDrill } from './dashboard-tiles'
-import { DashGlyph } from './glyphs'
+import { DashGlyph } from '../../shared/DashGlyph'
 import { SECTION_META, type DashboardSectionMeta } from './section-meta'
 import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { DashboardRowKit, OnDashboardDrill } from './types'

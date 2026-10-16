@@ -4,7 +4,7 @@ import { HotRuleEditor } from '../../settings/HotRuleEditor'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
 import { hotRuleShort } from './dashboard-copy'
 import type { DashboardSummary } from './dashboard-summary'
-import { DashGlyph } from './glyphs'
+import { DashGlyph } from '../../shared/DashGlyph'
 
 /** The Hot flyout's width (the popover surface). */
 export const HOT_FLYOUT_WIDTH_PX = 316

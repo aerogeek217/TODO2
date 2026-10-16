@@ -48,7 +48,7 @@ import {
   type CustomizeState,
 } from './dashboard-customize'
 import { TILES } from './dashboard-tiles'
-import { DashGlyph } from './glyphs'
+import { DashGlyph } from '../../shared/DashGlyph'
 import { SECTION_META } from './section-meta'
 import { useListTileHints } from './use-list-tile-hints'
 import styles from './CustomizeDashboardDialog.module.css'

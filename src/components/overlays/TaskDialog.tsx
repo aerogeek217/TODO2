@@ -26,7 +26,7 @@ import { findTab } from '../../utils/workspace-layout-ops'
 import { DialogFrame } from '../shared/Dialog'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
-import { DashGlyph } from '../workspace/dashboard/glyphs'
+import { DashGlyph } from '../shared/DashGlyph'
 import { EnvelopeIcon } from '../shared/icons'
 import styles from './TaskDialog.module.css'
 
