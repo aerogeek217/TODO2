@@ -91,6 +91,13 @@ describe('trend-events-store', () => {
     expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', today, 0))).toEqual({ events: [], stale: false, loading: false })
   })
 
+  it('an event write invalidates the cache with no dashboard mounted', async () => {
+    await useTrendEventsStore.getState().load('14d', today, 0)
+    expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', today, 0))?.stale).toBe(false)
+    await addEvent(1, 'completed', today)
+    expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', today, 0))?.stale).toBe(true)
+  })
+
   it('refreshing every store after a restore invalidates the cache', async () => {
     await useTrendEventsStore.getState().load('14d', today, 0)
     await refreshAllStores()
@@ -119,8 +126,12 @@ describe('useTrendEvents', () => {
     expect(since).toHaveBeenCalledTimes(2)
 
     unmount()
-    // Unmounted: no hook left to invalidate.
+    // Unmounted (the dashboard tab is not the active one): the store still
+    // hears the write, so the next mount reads again instead of showing old bars.
     await todoRepository.insert(makeTodo({ id: undefined }))
-    expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', new Date(2026, 9, 10), 0))?.stale).toBe(false)
+    expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', new Date(2026, 9, 10), 0))?.stale).toBe(true)
+    const again = renderHook(() => useTrendEvents('14d'))
+    await waitFor(() => expect(again.result.current).toHaveLength(3))
+    again.unmount()
   })
 })

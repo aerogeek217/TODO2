@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { todoEventRepository } from '../data/todo-event-repository'
 import type { TodoEvent } from '../models'
 import type { TrendRange } from '../services/stats/trend'
 import { useSettingsStore } from '../stores/settings-store'
@@ -9,7 +8,7 @@ import { useToday } from './use-today'
 /**
  * The history events `computeTrend` needs for `range`, ending today: read
  * once per (range, day) through `trend-events-store`, and read again after
- * any event write (Dexie hook) while mounted. `null` until the first read
+ * any event write (the store invalidates itself). `null` until the first read
  * lands; afterwards the last read stays on show while a re-read runs.
  */
 export function useTrendEvents(range: TrendRange): readonly TodoEvent[] | null {
@@ -17,8 +16,6 @@ export function useTrendEvents(range: TrendRange): readonly TodoEvent[] | null {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const key = trendEventsKey(range, today, weekStartsOn)
   const entry = useTrendEventsStore((s) => s.entries.get(key))
-
-  useEffect(() => todoEventRepository.onChange(() => useTrendEventsStore.getState().invalidate()), [])
 
   const needsLoad = entry == null || (entry.stale && !entry.loading)
   useEffect(() => {

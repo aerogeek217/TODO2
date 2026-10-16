@@ -80,3 +80,10 @@ export const useTrendEventsStore = create<TrendEventsState>((set, get) => {
     },
   }
 })
+
+// Every event write invalidates, whether or not a dashboard is mounted: a
+// dashboard tab that isn't the active one is unmounted, and the next mount
+// must not show bars cached before the write. (Dexie table hooks, so this
+// lasts for the module's lifetime, like the database.)
+const stopInvalidating = todoEventRepository.onChange(() => useTrendEventsStore.getState().invalidate())
+if (import.meta.hot) import.meta.hot.dispose(stopInvalidating)
