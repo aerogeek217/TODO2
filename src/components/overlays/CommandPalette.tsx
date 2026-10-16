@@ -147,10 +147,6 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   }, [])
 
   useEffect(() => {
-    setActiveIndex(0)
-  }, [query])
-
-  useEffect(() => {
     activeItemRef.current?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
@@ -190,7 +186,11 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
             ref={inputRef}
             className={styles.input}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              // A new query starts at its first result.
+              setActiveIndex(0)
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Search tasks, commands... (> for commands only)"
             role="combobox"

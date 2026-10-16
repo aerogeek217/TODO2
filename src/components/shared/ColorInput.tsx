@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import styles from './ColorInput.module.css'
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
@@ -17,10 +17,13 @@ interface ColorInputProps {
 
 export function ColorInput({ value, onChange }: ColorInputProps) {
   const [hexText, setHexText] = useState(value)
-
-  useEffect(() => {
+  // A new `value` from the parent replaces the text (adjusted during render,
+  // not in an effect: no render with the stale text).
+  const [shownValue, setShownValue] = useState(value)
+  if (value !== shownValue) {
+    setShownValue(value)
     setHexText(value)
-  }, [value])
+  }
 
   const handleHexChange = (raw: string) => {
     setHexText(raw)

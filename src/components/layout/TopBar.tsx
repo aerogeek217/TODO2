@@ -292,11 +292,14 @@ export function TopBar() {
   // pick it up, replacing what the user typed since).
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
 
-  // Sync local state when store is cleared externally
+  // The store's search text changed (typed here and debounced in, or
+  // cleared elsewhere): show it. Adjusted during render, not in an effect.
   const storeSearchText = filters.searchText
-  useEffect(() => {
+  const [shownStoreSearch, setShownStoreSearch] = useState(storeSearchText)
+  if (storeSearchText !== shownStoreSearch) {
+    setShownStoreSearch(storeSearchText)
     setLocalSearch(storeSearchText)
-  }, [storeSearchText])
+  }
 
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 

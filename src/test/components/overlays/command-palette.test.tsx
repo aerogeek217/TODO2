@@ -123,3 +123,17 @@ describe('CommandPalette', () => {
     })
   })
 })
+
+describe('CommandPalette — the active row', () => {
+  it('a new query starts again at its first result', () => {
+    const commands: Command[] = ['Alpha one', 'Alpha two', 'Alpha three'].map((name, i) => ({ id: `c${i}`, name, category: 'navigation', action: vi.fn() }))
+    render(<CommandPalette commands={commands} onClose={vi.fn()} />)
+    const input = screen.getByRole('combobox')
+    fireEvent.change(input, { target: { value: 'alpha' } })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(screen.getAllByRole('option')[2]).toHaveAttribute('aria-selected', 'true')
+    fireEvent.change(input, { target: { value: 'alpha t' } })
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
+  })
+})

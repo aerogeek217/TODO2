@@ -177,3 +177,21 @@ describe('TopBar grouped search', () => {
     expect(document.activeElement).toBe(tagOption)
   })
 })
+
+describe('TopBar search box and the filter store', () => {
+  afterEach(cleanup)
+
+  it('shows the store’s search text when it changes elsewhere (e.g. Clear all)', async () => {
+    renderBar()
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'budget' } })
+    })
+    await waitFor(() => expect(useFilterStore.getState().filters.searchText).toBe('budget'))
+    expect(input.value).toBe('budget')
+    act(() => useFilterStore.getState().clearAll())
+    expect(input.value).toBe('')
+    act(() => useFilterStore.getState().setSearchText('from elsewhere'))
+    expect(input.value).toBe('from elsewhere')
+  })
+})
