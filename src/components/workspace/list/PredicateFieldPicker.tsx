@@ -11,7 +11,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { toggleItem } from '../../../utils/filter'
 import { EntityDropdownItems, DateRangePanelBody, MarkersPanelBody, SelectionPanelBody } from '../../shared/filters/FilterPanels'
 import { DEFAULT_PREDICATE } from '../../shared/filters/FilterChipBar.shared'
-import topBar from '../../layout/TopBar.module.css'
+import picker from '../../shared/filters/FilterPicker.module.css'
 import styles from './ListWidget.module.css'
 
 type EntityField = 'people' | 'tags' | 'status'
@@ -65,7 +65,7 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
   return createPortal(
     <div
       ref={panelRef}
-      className={`${topBar.dropdownPanel} ${styles.pickerPanel}`}
+      className={`${picker.dropdownPanel} ${styles.pickerPanel}`}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
       role="dialog"
       aria-label={`${PICKER_TITLE[field]} filter`}
@@ -138,7 +138,7 @@ function EntityPicker({ field, predicate, adding, update, onClose }: {
       searchInputRef={searchRef}
     >
       {field === 'tags' && entities.length === 0 ? (
-        <div className={topBar.dropdownEmpty}>No tags yet</div>
+        <div className={picker.dropdownEmpty}>No tags yet</div>
       ) : (
         <EntityDropdownItems
           searchText={searchText}
@@ -197,7 +197,7 @@ function TextPicker({ predicate, update, onClose }: {
       <span className={styles.textPickerLabel}>Text contains</span>
       <input
         ref={inputRef}
-        className={topBar.dropdownSearchInput}
+        className={picker.dropdownSearchInput}
         type="text"
         value={predicate.searchText}
         maxLength={PREDICATE_SEARCH_TEXT_MAX}

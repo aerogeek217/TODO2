@@ -4,7 +4,7 @@ import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { toggleItem } from '../../../utils/filter'
 import { clearChipField, filterChips, type FilterChipField } from '../../../utils/filter-chips'
 import type { TodoPredicate } from '../../../models'
-import topBar from '../../layout/TopBar.module.css'
+import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
 import { hasMarkers } from '../../../utils/markers'
 import { useUIStore } from '../../../stores/ui-store'
@@ -97,7 +97,7 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
   const only = people.length === 1 ? people[0] : undefined
   return (
     <>
-      <div className={topBar.dropdownDivider} />
+      <div className={picker.dropdownDivider} />
       {people.length === 0 ? (
         <div className={styles.checkinHint}>Narrow to some people to email them.</div>
       ) : (
@@ -159,7 +159,7 @@ function FilterButton({ field }: { field: FieldDef }) {
         </button>
       )}
       {open && createPortal(
-        <div ref={panelRef} className={topBar.dropdownPanel} style={{ position: style.position, left: style.left, top: style.top }}>
+        <div ref={panelRef} className={picker.dropdownPanel} style={{ position: style.position, left: style.left, top: style.top }}>
           <FieldPanelBody field={field} onDone={close} />
         </div>,
         document.body,
@@ -283,7 +283,7 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
       {sub && subField && createPortal(
         <div
           ref={setSubRef}
-          className={topBar.dropdownPanel}
+          className={picker.dropdownPanel}
           style={{ position: subStyle.position, left: subStyle.left, top: subStyle.top }}
         >
           <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
@@ -425,12 +425,12 @@ export function FilterChipBarDesktop({
           const q = searchText.toLowerCase()
           const filtered = q ? sortedTags.filter((t) => t.name.toLowerCase().includes(q)) : sortedTags
           if (filtered.length === 0) {
-            return <div className={topBar.dropdownEmpty}>{q ? 'No matches' : 'No tags yet'}</div>
+            return <div className={picker.dropdownEmpty}>{q ? 'No matches' : 'No tags yet'}</div>
           }
           return filtered.map((tag) => (
-            <label key={tag.id} className={topBar.dropdownItem} onClick={() => toggle('tags', tag.id!, tagIdsSet, allTagIds, setTags)}>
-              <span className={`${topBar.check} ${isTagChecked(tag.id!) ? topBar.checked : ''}`} />
-              {tag.color && <span className={topBar.dot} style={{ background: tag.color }} />}
+            <label key={tag.id} className={picker.dropdownItem} onClick={() => toggle('tags', tag.id!, tagIdsSet, allTagIds, setTags)}>
+              <span className={`${picker.check} ${isTagChecked(tag.id!) ? picker.checked : ''}`} />
+              {tag.color && <span className={picker.dot} style={{ background: tag.color }} />}
               #{tag.name}
             </label>
           ))

@@ -6,7 +6,7 @@ import { startOfToday } from '../../../utils/date'
 import { DATE_FIELD_LABELS } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
 import { StatusIcon } from '../StatusIcon'
-import topBar from '../../layout/TopBar.module.css'
+import picker from './FilterPicker.module.css'
 import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
@@ -16,7 +16,7 @@ import { byName } from '../../../utils/sort-order'
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
  * (`FilterChipBar`) and the list widgets' filter chips. Each renders inside
- * a caller-owned popover panel (`topBar.dropdownPanel`).
+ * a caller-owned popover panel (`picker.dropdownPanel`).
  */
 
 interface SelectionPanelBodyProps {
@@ -39,29 +39,29 @@ interface SelectionPanelBodyProps {
 export function SelectionPanelBody({ allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
   return (
     <>
-      <div className={topBar.dropdownActions}>
+      <div className={picker.dropdownActions}>
         <button
           type="button"
-          className={`${topBar.dropdownAction} ${allSelected ? topBar.dropdownActionDisabled : ''}`}
+          className={`${picker.dropdownAction} ${allSelected ? picker.dropdownActionDisabled : ''}`}
           onClick={allSelected ? undefined : onSelectAll}
         >
           Select all
         </button>
-        <span className={topBar.dropdownActionSep}>/</span>
+        <span className={picker.dropdownActionSep}>/</span>
         <button
           type="button"
-          className={`${topBar.dropdownAction} ${noneSelected ? topBar.dropdownActionDisabled : ''}`}
+          className={`${picker.dropdownAction} ${noneSelected ? picker.dropdownActionDisabled : ''}`}
           onClick={noneSelected ? undefined : onDeselectAll}
         >
           Deselect all
         </button>
       </div>
-      <div className={topBar.dropdownDivider} />
+      <div className={picker.dropdownDivider} />
       {search && (
-        <div className={topBar.dropdownSearchWrapper}>
+        <div className={picker.dropdownSearchWrapper}>
           <input
             ref={searchInputRef}
-            className={topBar.dropdownSearchInput}
+            className={picker.dropdownSearchInput}
             type="text"
             placeholder="Search..."
             value={search.text}
@@ -75,7 +75,7 @@ export function SelectionPanelBody({ allSelected, noneSelected, onSelectAll, onD
           />
         </div>
       )}
-      <div className={search ? topBar.dropdownItemsScrollable : undefined}>{children}</div>
+      <div className={search ? picker.dropdownItemsScrollable : undefined}>{children}</div>
     </>
   )
 }
@@ -108,27 +108,27 @@ export function EntityDropdownItems({
   return (
     <>
       {showNone && (
-        <label className={topBar.dropdownItem} onClick={() => onToggle(0)}>
-          <span className={`${topBar.check} ${isChecked(0) ? topBar.checked : ''}`} />
-          <span className={topBar.noneLabel}>None</span>
+        <label className={picker.dropdownItem} onClick={() => onToggle(0)}>
+          <span className={`${picker.check} ${isChecked(0) ? picker.checked : ''}`} />
+          <span className={picker.noneLabel}>None</span>
         </label>
       )}
       {filtered.map((entity) => (
-        <label key={entity.id} className={topBar.dropdownItem} onClick={() => onToggle(entity.id!)}>
-          <span className={`${topBar.check} ${isChecked(entity.id!) ? topBar.checked : ''}`} />
+        <label key={entity.id} className={picker.dropdownItem} onClick={() => onToggle(entity.id!)}>
+          <span className={`${picker.check} ${isChecked(entity.id!) ? picker.checked : ''}`} />
           {entity.icon ? (
-            <span className={topBar.dotIcon} style={{ color: entity.color }}>
+            <span className={picker.dotIcon} style={{ color: entity.color }}>
               <StatusIcon icon={entity.icon} filled />
             </span>
           ) : showDot && entity.color ? (
-            <span className={topBar.dot} style={{ background: entity.color }} />
+            <span className={picker.dot} style={{ background: entity.color }} />
           ) : null}
           {namePrefix}
           {entity.name}
         </label>
       ))}
       {q && !showNone && filtered.length === 0 && (
-        <div className={topBar.dropdownEmpty}>No matches</div>
+        <div className={picker.dropdownEmpty}>No matches</div>
       )}
     </>
   )
@@ -147,11 +147,11 @@ function TriStateRow({
   const icon = triIcon(value)
   return (
     <label
-      className={topBar.dropdownItem}
+      className={picker.dropdownItem}
       onClick={() => onChange(next)}
       title={triLabel(value)}
     >
-      <span className={`${topBar.triState} ${value !== null ? topBar.triStateActive : ''}`}>
+      <span className={`${picker.triState} ${value !== null ? picker.triStateActive : ''}`}>
         {icon}
       </span>
       {label}
@@ -197,12 +197,12 @@ export function DateRangePanelBody({
 }: DateRangePanelBodyProps) {
   return (
     <>
-      <div className={topBar.dateFieldSelector}>
+      <div className={picker.dateFieldSelector}>
         {(['deadline', 'followup', 'created', 'modified'] as const).map((field) => (
           <button
             type="button"
             key={field}
-            className={`${topBar.dateFieldOption} ${dateField === field ? topBar.dateFieldOptionActive : ''}`}
+            className={`${picker.dateFieldOption} ${dateField === field ? picker.dateFieldOptionActive : ''}`}
             onClick={() => {
               if (field === dateField) return
               onChangeDateField(field)
@@ -218,17 +218,17 @@ export function DateRangePanelBody({
           </button>
         ))}
       </div>
-      <div className={topBar.dropdownDivider} />
-      <div className={topBar.dateRangeRow}>
-        <label className={topBar.dateLabel}>From</label>
+      <div className={picker.dropdownDivider} />
+      <div className={picker.dateRangeRow}>
+        <label className={picker.dateLabel}>From</label>
         <DateAnchorInput
           value={startAnchor}
           onChange={(v) => onChangeAnchors(v, endAnchor)}
           aria-label="Date range start"
         />
       </div>
-      <div className={topBar.dateRangeRow}>
-        <label className={topBar.dateLabel}>To</label>
+      <div className={picker.dateRangeRow}>
+        <label className={picker.dateLabel}>To</label>
         <DateAnchorInput
           value={endAnchor}
           onChange={(v) => onChangeAnchors(startAnchor, v)}
@@ -237,24 +237,24 @@ export function DateRangePanelBody({
       </div>
       {dateField === 'deadline' && (
         <>
-          <div className={topBar.dropdownDivider} />
+          <div className={picker.dropdownDivider} />
           <label
-            className={topBar.dropdownItem}
+            className={picker.dropdownItem}
             onClick={() => onChangeIncludeNoDate(!includeNoDate)}
           >
-            <span className={`${topBar.check} ${includeNoDate ? topBar.checked : ''}`} />
+            <span className={`${picker.check} ${includeNoDate ? picker.checked : ''}`} />
             Include tasks with no due date
           </label>
         </>
       )}
-      <div className={topBar.dropdownDivider} />
+      <div className={picker.dropdownDivider} />
       <TriStateRow label="Has due date" value={hasDeadline} onChange={onChangeHasDeadline} />
       <TriStateRow label="Has follow-up" value={hasFollowup} onChange={onChangeHasFollowup} />
-      <div className={topBar.dropdownDivider} />
-      <div className={topBar.dropdownActions}>
+      <div className={picker.dropdownDivider} />
+      <div className={picker.dropdownActions}>
         <button
           type="button"
-          className={`${topBar.dropdownAction} ${!active ? topBar.dropdownActionDisabled : ''}`}
+          className={`${picker.dropdownAction} ${!active ? picker.dropdownActionDisabled : ''}`}
           onClick={() => {
             onChangeAnchors(null, null)
             onChangeHasDeadline(null)
@@ -290,7 +290,7 @@ export function MarkersPanelBody({ value, onChange }: {
     <div className={markerStyles.panel} role="group" aria-label="Markers">
       <button
         type="button"
-        className={`${topBar.dropdownItem} ${markerStyles.row} ${hot ? markerStyles.rowOn : ''}`}
+        className={`${picker.dropdownItem} ${markerStyles.row} ${hot ? markerStyles.rowOn : ''}`}
         role="checkbox"
         aria-checked={hot}
         onClick={() => onChange(toggleHot(value))}
@@ -306,7 +306,7 @@ export function MarkersPanelBody({ value, onChange }: {
           <button
             key={key}
             type="button"
-            className={`${topBar.dropdownItem} ${markerStyles.row} ${on ? markerStyles.rowOn : ''} ${hot ? markerStyles.rowDisabled : ''}`}
+            className={`${picker.dropdownItem} ${markerStyles.row} ${on ? markerStyles.rowOn : ''} ${hot ? markerStyles.rowDisabled : ''}`}
             role="checkbox"
             aria-checked={on}
             aria-disabled={hot || undefined}
