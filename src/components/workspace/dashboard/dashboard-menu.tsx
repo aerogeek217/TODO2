@@ -1,6 +1,6 @@
 import { useSettingsStore } from '../../../stores/settings-store'
 import { wrapClipboardHtml, writeRichClipboard } from '../../../services/rich-clipboard'
-import { HotRuleEditor } from '../../settings/HotRuleEditor'
+import { HotRuleEditor } from '../../shared/HotRuleEditor'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
 import { hotRuleShort } from './dashboard-copy'
 import type { DashboardSummary } from './dashboard-summary'

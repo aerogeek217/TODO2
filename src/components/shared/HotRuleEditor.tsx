@@ -13,7 +13,7 @@ import {
   type HotRule,
 } from '../../utils/hot'
 import { MARKER_LABELS } from '../../utils/markers'
-import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
+import { FocusIcon, ImportantIcon, UrgentIcon } from './MarkerIcons'
 import styles from './HotRuleEditor.module.css'
 
 const CHIP_ON_CLASS: Record<MarkerKey, string | undefined> = {

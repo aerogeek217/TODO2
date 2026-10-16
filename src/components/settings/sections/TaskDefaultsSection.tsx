@@ -1,7 +1,7 @@
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
-import { HotRuleEditor } from '../HotRuleEditor'
+import { HotRuleEditor } from '../../shared/HotRuleEditor'
 import { HotIcon } from '../../shared/MarkerIcons'
 import {
   URGENT_DUE_WITHIN_CHOICES,
