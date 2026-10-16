@@ -24,6 +24,11 @@ export type PopoverAnchor =
 export type PopoverPlacement =
   | 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
   /**
+   * Centred on the anchor (a tooltip): below / above it, flipped like the
+   * other `bottom-*` / `top-*` placements, then kept inside the viewport.
+   */
+  | 'bottom-center' | 'top-center'
+  /**
    * Beside the anchor (a submenu panel next to its menu item): the panel's
    * top lines up with the anchor's top and it sits to the right, or to the
    * left (`left-start`) when the right side has no room. Near the bottom it
@@ -65,12 +70,25 @@ export interface UsePopoverAnchorOptions {
   /** When `true` (default), `Escape` fires `onClose` (document-level). */
   closeOnEscape?: boolean
   /**
+   * The Escape that closes the popover stops there (`preventDefault` +
+   * `stopPropagation` in the capture phase), so nothing behind it — e.g. a
+   * dialog the trigger sits in — also handles it. Default `false`.
+   */
+  consumeEscape?: boolean
+  /**
    * When `true` (default), a `mousedown` outside the panel + any element
    * registered via `extraInsideRefs` (and the trigger element if the anchor
    * is a `ref`) fires `onClose`.
    */
   closeOnOutsideClick?: boolean
   onClose: () => void
+  /**
+   * When `true` (default), a mousedown on a `ref` anchor counts as inside, so
+   * the trigger's own click can toggle the popover. `false` for an anchor
+   * that isn't the trigger (e.g. a whole row the panel is placed under): a
+   * click on it then closes the popover like any outside click.
+   */
+  anchorIsInside?: boolean
   /**
    * Other elements that count as "inside" for outside-click detection. The
    * panel root is always inside; this is for nested flyouts (e.g.
@@ -85,6 +103,12 @@ export interface UsePopoverAnchorOptions {
    * the new size.
    */
   contentKey?: string | number
+  /**
+   * Re-place the panel whenever it or a `ref` anchor changes size
+   * (`ResizeObserver`), e.g. a picker's list narrowing as the user types or
+   * an editor growing. Default `false`.
+   */
+  observeSize?: boolean
 }
 
 export interface PopoverStyle {
@@ -102,6 +126,8 @@ export interface UsePopoverAnchorResult {
   style: PopoverStyle
   /** Final placement after any flip. Useful for caret/arrow direction or aria. */
   placementUsed: PopoverPlacement
+  /** `false` until the panel has been placed against its anchor (it waits off-screen). */
+  placed: boolean
 }
 
 interface AnchorRect {
@@ -141,12 +167,14 @@ function viewportSize(): { vw: number; vh: number } {
  * anchor — clipping the bottom of the viewport for anchors near the bottom
  * (e.g. a cell's "+" → list picker near the bottom of the screen).
  */
+const OFFSCREEN_PX = -9999
+
 function makeInitialStyle(): PopoverStyle {
   const { vw, vh } = viewportSize()
   return {
     position: 'fixed',
-    left: -9999,
-    top: -9999,
+    left: OFFSCREEN_PX,
+    top: OFFSCREEN_PX,
     maxWidth: Math.max(0, vw - VIEWPORT_MARGIN_PX * 2),
     maxHeight: Math.max(0, vh - VIEWPORT_MARGIN_PX * 2),
   }
@@ -207,7 +235,18 @@ function computePopoverPosition(
     if (top < VIEWPORT_MARGIN_PX) top = VIEWPORT_MARGIN_PX
   }
 
-  // ---- X axis (*-start / *-end) ----
+  // ---- X axis (*-start / *-end / *-center) ----
+  if (place.endsWith('center')) {
+    let left = (a.left + a.right) / 2 - panelWidth / 2
+    if (panelWidth > 0) {
+      left = Math.min(left, vw - VIEWPORT_MARGIN_PX - panelWidth)
+      left = Math.max(left, VIEWPORT_MARGIN_PX)
+    }
+    return {
+      style: { position: 'fixed', left, top, maxWidth: vw - VIEWPORT_MARGIN_PX * 2, maxHeight: vh - VIEWPORT_MARGIN_PX * 2 },
+      placement: `${placementY}-center`,
+    }
+  }
   const wantsStart = place.endsWith('start')
   let placementX: 'start' | 'end' = wantsStart ? 'start' : 'end'
   let left = wantsStart ? a.left : a.right - panelWidth
@@ -309,10 +348,13 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     closeOnScroll = true,
     closeOnResize = true,
     closeOnEscape = true,
+    consumeEscape = false,
     closeOnOutsideClick = true,
+    anchorIsInside = true,
     onClose,
     extraInsideRefs,
     contentKey,
+    observeSize = false,
   } = opts
 
   const [style, setStyle] = useState<PopoverStyle>(makeInitialStyle)
@@ -334,6 +376,8 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   const closeOnScrollRef = useLatestRef(closeOnScroll)
   const closeOnResizeRef = useLatestRef(closeOnResize)
   const extraInsideRefsRef = useLatestRef(extraInsideRefs)
+  const consumeEscapeRef = useLatestRef(consumeEscape)
+  const anchorIsInsideRef = useLatestRef(anchorIsInside)
   const anchorElRef = anchor.kind === 'ref' ? anchor.ref : null
   const anchorX = anchor.kind === 'point' ? anchor.x : anchor.kind === 'rect' ? anchor.left : null
   const anchorY = anchor.kind === 'point' ? anchor.y : anchor.kind === 'rect' ? anchor.top : null
@@ -374,6 +418,17 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     if (open) compute()
   }, [open, placement, offset, anchorElRef, anchorX, anchorY, anchorRight, anchorBottom, contentKey, compute])
 
+  // Size changes of the panel / a ref anchor re-place it (flip and clamp use
+  // the new size).
+  useLayoutEffect(() => {
+    if (!open || !observeSize || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => compute())
+    if (panelElRef.current) ro.observe(panelElRef.current)
+    const a = anchorRef.current
+    if (a.kind === 'ref' && a.ref.current) ro.observe(a.ref.current)
+    return () => ro.disconnect()
+  }, [open, observeSize, anchorElRef, compute, anchorRef])
+
   // Scroll/resize listeners. Capture-phase scroll catches ancestors.
   useEffect(() => {
     if (!open) return
@@ -410,11 +465,16 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   useEffect(() => {
     if (!open || !closeOnEscape) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current()
+      if (e.key !== 'Escape') return
+      if (consumeEscapeRef.current) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+      onCloseRef.current()
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [open, closeOnEscape, onCloseRef])
+  }, [open, closeOnEscape, onCloseRef, consumeEscapeRef])
 
   // Outside-click (capture phase to beat descendant stopPropagation).
   useEffect(() => {
@@ -433,14 +493,14 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       // Trigger element clicks usually mean "toggle" — let the trigger's own
       // handler decide rather than racing it from here.
       const a = anchorRef.current
-      if (a.kind === 'ref' && a.ref.current && a.ref.current.contains(target)) {
+      if (anchorIsInsideRef.current && a.kind === 'ref' && a.ref.current && a.ref.current.contains(target)) {
         return
       }
       onCloseRef.current()
     }
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
-  }, [open, closeOnOutsideClick, anchorRef, onCloseRef, extraInsideRefsRef])
+  }, [open, closeOnOutsideClick, anchorRef, onCloseRef, extraInsideRefsRef, anchorIsInsideRef])
 
-  return { panelRef, style, placementUsed }
+  return { panelRef, style, placementUsed, placed: style.left !== OFFSCREEN_PX }
 }

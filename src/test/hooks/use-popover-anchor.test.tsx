@@ -583,3 +583,128 @@ describe('usePopoverAnchor — beside the anchor (right-start)', () => {
     expect(getByTestId('panel').style.top).toBe('528px') // 728 - 200
   })
 })
+
+describe('usePopoverAnchor — centred placements, placed flag, Escape and anchor options', () => {
+  function OptionsHarness({ anchor, size, placement, onClose = () => {}, consumeEscape, anchorIsInside, observeSize }: {
+    anchor: PopoverAnchor
+    size: { width: number; height: number }
+    placement?: 'bottom-center' | 'top-center' | 'bottom-start'
+    onClose?: () => void
+    consumeEscape?: boolean
+    anchorIsInside?: boolean
+    observeSize?: boolean
+  }) {
+    const sizeRef = useLatestRef(size)
+    const { panelRef, style, placementUsed, placed } = usePopoverAnchor({
+      anchor, open: true, onClose, placement, offset: 6, consumeEscape, anchorIsInside, observeSize,
+    })
+    const setPanel = useCallback((el: HTMLDivElement | null) => {
+      if (el) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => makeRect(0, 0, sizeRef.current.width, sizeRef.current.height),
+        })
+      }
+      panelRef(el)
+    }, [panelRef, sizeRef])
+    return <div ref={setPanel} data-testid="panel" data-placement={placementUsed} data-placed={placed} style={style}>panel</div>
+  }
+
+  it('bottom-center centres the panel under the anchor', () => {
+    const { getByTestId } = render(
+      <OptionsHarness anchor={{ kind: 'rect', left: 400, top: 100, right: 440, bottom: 120 }} size={{ width: 100, height: 30 }} placement="bottom-center" />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.style.left).toBe('370px') // 420 - 50
+    expect(panel.style.top).toBe('126px')
+    expect(panel.dataset.placement).toBe('bottom-center')
+    expect(panel.dataset.placed).toBe('true')
+  })
+
+  it('bottom-center flips above near the bottom and is clamped at the side edges', () => {
+    const { getByTestId } = render(
+      <OptionsHarness anchor={{ kind: 'rect', left: 1000, top: 740, right: 1020, bottom: 760 }} size={{ width: 100, height: 30 }} placement="bottom-center" />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.dataset.placement).toBe('top-center')
+    expect(panel.style.top).toBe('704px') // 740 - 30 - 6
+    expect(panel.style.left).toBe('916px') // 1024 - 8 - 100
+  })
+
+  it('placed is false while a ref anchor has no element yet', () => {
+    function NoElement() {
+      const ref = useRef<HTMLElement | null>(null)
+      return <OptionsHarness anchor={{ kind: 'ref', ref }} size={{ width: 100, height: 30 }} />
+    }
+    const { getByTestId } = render(<NoElement />)
+    expect(getByTestId('panel').dataset.placed).toBe('false')
+  })
+
+  it('consumeEscape stops the Escape that closes it', () => {
+    const onClose = vi.fn()
+    const behind = vi.fn()
+    document.addEventListener('keydown', behind)
+    try {
+      render(<OptionsHarness anchor={{ kind: 'point', x: 10, y: 10 }} size={{ width: 100, height: 30 }} onClose={onClose} consumeEscape />)
+      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+      document.body.dispatchEvent(event)
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(event.defaultPrevented).toBe(true)
+      expect(behind).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', behind)
+    }
+  })
+
+  it('without consumeEscape the Escape goes on to other listeners', () => {
+    const behind = vi.fn()
+    document.addEventListener('keydown', behind)
+    try {
+      render(<OptionsHarness anchor={{ kind: 'point', x: 10, y: 10 }} size={{ width: 100, height: 30 }} />)
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+      expect(behind).toHaveBeenCalledTimes(1)
+    } finally {
+      document.removeEventListener('keydown', behind)
+    }
+  })
+
+  it('anchorIsInside={false}: a mousedown on the anchor closes it', () => {
+    function RowAnchor({ onClose }: { onClose: () => void }) {
+      const ref = useRef<HTMLDivElement | null>(null)
+      return (
+        <>
+          <div ref={ref} data-testid="row">row</div>
+          <OptionsHarness anchor={{ kind: 'ref', ref }} size={{ width: 100, height: 30 }} onClose={onClose} anchorIsInside={false} />
+        </>
+      )
+    }
+    const onClose = vi.fn()
+    const { getByTestId } = render(<RowAnchor onClose={onClose} />)
+    fireEvent.mouseDown(getByTestId('row'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('observeSize re-places the panel when it changes size', () => {
+    const callbacks: Array<() => void> = []
+    const observed: Element[] = []
+    class FakeResizeObserver {
+      constructor(cb: () => void) { callbacks.push(cb) }
+      observe(el: Element) { observed.push(el) }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    try {
+      const size = { width: 200, height: 40 }
+      const anchor: PopoverAnchor = { kind: 'rect', left: 100, top: 680, right: 108, bottom: 702 }
+      const { getByTestId } = render(<OptionsHarness anchor={anchor} size={size} observeSize />)
+      expect(getByTestId('panel').style.top).toBe('708px')
+      expect(observed).toContain(getByTestId('panel'))
+      size.height = 150
+      act(() => { for (const cb of callbacks) cb() })
+      expect(getByTestId('panel').style.top).toBe('524px') // 680 - 150 - 6
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
