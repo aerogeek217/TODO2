@@ -136,16 +136,19 @@ test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Contin
   await startupBackupTaken(page)
   await failBackups(page, true)
 
-  const deleteAll = async () => {
-    await selectTaskRowByTitle(page, 't1')
-    await taskRowByTitle(page, 't6').locator('span[title="t6"]').click({ modifiers: ['Shift'] })
+  // Deletes the selected tasks. (Never click a selected row's title before
+  // pressing Delete: that starts renaming it 250 ms later, and a slower run
+  // then types the Delete key into the title.)
+  const deleteSelected = async () => {
     await expect(page.locator('[data-selected="true"]')).toHaveCount(6)
     await page.keyboard.press('Delete')
     const confirm = page.getByRole('dialog', { name: 'Delete tasks' })
     await confirm.getByRole('button', { name: 'Delete', exact: true }).click()
   }
 
-  await deleteAll()
+  await selectTaskRowByTitle(page, 't1')
+  await taskRowByTitle(page, 't6').locator('span[title="t6"]').click({ modifiers: ['Shift'] })
+  await deleteSelected()
   const prompt = backupPrompt(page)
   await expect(prompt).toBeVisible()
   await expect(prompt).toContainText('before deleting 6 tasks')
@@ -156,7 +159,7 @@ test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Contin
   await expect(page.locator('[data-selected="true"]')).toHaveCount(6)
   expect(await dbTitles(page)).toEqual(titles)
 
-  await deleteAll()
+  await deleteSelected()
   await expect(prompt).toBeVisible()
   await prompt.getByRole('button', { name: 'Continue' }).click()
   await expect(page.getByText('Delete 6 tasks — no backup was taken')).toBeVisible()
