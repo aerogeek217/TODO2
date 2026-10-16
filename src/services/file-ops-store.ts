@@ -35,6 +35,15 @@ export type ImportOutcome =
   | { status: 'done'; noBackup: boolean }
   | { status: 'cancelled' }
 
+/**
+ * Audit cleanup: `cleaned` records fixed or deleted (`noBackup`: without the
+ * backup snapshot — the user chose to continue), or `cancelled` — the
+ * snapshot failed and the user cancelled: nothing changed.
+ */
+export type CleanupOutcome =
+  | { status: 'done'; cleaned: number; noBackup: boolean }
+  | { status: 'cancelled' }
+
 /** A backup restore: an import's outcome, or the backup is missing / unreadable. */
 export type RestoreOutcome = ImportOutcome | { status: 'error'; error: string }
 
@@ -53,8 +62,11 @@ interface FileOpsState {
 
   runAudit: () => Promise<void>
   setAuditReport: (report: AuditReport | null) => void
-  /** Cleans the issues in the current report; returns the cleaned count. */
-  cleanupCurrentAudit: () => Promise<number>
+  /**
+   * Cleans the issues in the current report, backing up the database first
+   * (`takeSafetySnapshot`); the report stays when the user cancels.
+   */
+  cleanupCurrentAudit: () => Promise<CleanupOutcome>
 
   /** Replaces the database with imported data, snapshotting the current data first. */
   restoreFromImport: (data: ImportData) => Promise<ImportOutcome>
@@ -125,14 +137,16 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => {
 
   cleanupCurrentAudit: async () => {
     const report = get().auditReport
-    if (!report) return 0
-    const cleaned = await withNotesHeld(async () => {
-      const count = await cleanupIssues(report.issues)
+    if (!report) return { status: 'done', cleaned: 0, noBackup: false }
+    const outcome = await withNotesHeld(async (): Promise<CleanupOutcome> => {
+      const snapshot = await takeSafetySnapshot('cleaning up the database')
+      if (snapshot === 'cancelled') return { status: 'cancelled' }
+      const cleaned = await cleanupIssues(report.issues)
       await refreshAllStores()
-      return count
+      return { status: 'done', cleaned, noBackup: snapshot === 'without-backup' }
     })
-    set({ auditReport: null })
-    return cleaned
+    if (outcome.status === 'done') set({ auditReport: null })
+    return outcome
   },
 
   restoreFromImport: async (data) => {

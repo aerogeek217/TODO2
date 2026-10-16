@@ -15,8 +15,8 @@ export const NO_BACKUP_NOTE = 'No backup was taken.'
 /**
  * The one gate in front of every destructive operation that promises a
  * backup (import / restore, loading the sync file over browser data,
- * deleting completed tasks, bulk delete, append import): snapshot the
- * database first. If the snapshot can't be stored (e.g. browser storage is
+ * deleting completed tasks, bulk delete, append import, audit cleanup):
+ * snapshot the database first. If the snapshot can't be stored (e.g. browser storage is
  * full), nothing has changed yet, so ask "Continue without a backup?" —
  * Cancel is the default and Esc. Continuing leaves a warning on the sync
  * warning strip until dismissed.

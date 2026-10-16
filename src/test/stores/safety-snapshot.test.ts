@@ -241,3 +241,42 @@ describe('append import', () => {
     expect(await db.todos.count()).toBe(1)
   })
 })
+
+describe('audit cleanup', () => {
+  /** An orphaned person join (its task is gone), scanned into the report. */
+  async function scanOrphan() {
+    const personId = await db.people.add({ name: 'Ann', initials: 'A' }) as number
+    await db.todoPeople.add({ todoId: 999, personId })
+    await useFileOpsStore.getState().runAudit()
+    expect(useFileOpsStore.getState().auditReport?.totalOrphans).toBe(1)
+  }
+
+  it('backs up the database before it deletes anything', async () => {
+    await scanOrphan()
+    expect(await useFileOpsStore.getState().cleanupCurrentAudit()).toEqual({ status: 'done', cleaned: 1, noBackup: false })
+    const backups = await db.backups.toArray()
+    expect(backups.map((b) => b.trigger)).toEqual(['pre-destructive'])
+    // The backup holds the row the cleanup deleted.
+    expect(JSON.parse(backups[0]!.data).todoPeople).toHaveLength(1)
+    expect(await db.todoPeople.count()).toBe(0)
+  })
+
+  it('failed backup + Cancel cleans nothing and keeps the report', async () => {
+    await scanOrphan()
+    failSnapshots()
+    const pending = useFileOpsStore.getState().cleanupCurrentAudit()
+    await answerBackupPrompt(false)
+    expect(await pending).toEqual({ status: 'cancelled' })
+    expect(await db.todoPeople.count()).toBe(1)
+    expect(useFileOpsStore.getState().auditReport?.totalOrphans).toBe(1)
+  })
+
+  it('failed backup + Continue cleans and reports it', async () => {
+    await scanOrphan()
+    failSnapshots()
+    const pending = useFileOpsStore.getState().cleanupCurrentAudit()
+    await answerBackupPrompt(true)
+    expect(await pending).toEqual({ status: 'done', cleaned: 1, noBackup: true })
+    expect(await db.todoPeople.count()).toBe(0)
+  })
+})
