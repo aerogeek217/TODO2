@@ -262,3 +262,38 @@ describe('useNoteStore', () => {
     })
   })
 })
+
+describe('useNoteStore.holdForDataReplace', () => {
+  it('drops unsaved text, and no save starts while it holds', async () => {
+    await useNoteStore.getState().load()
+    const id = useNoteStore.getState().activeId!
+    useNoteStore.getState().setContent(id, 'typed before')
+    const release = await useNoteStore.getState().holdForDataReplace()
+    expect(useNoteStore.getState().pending).toBeNull()
+
+    // Typed during the replace: stays pending, not written.
+    useNoteStore.getState().setContent(id, 'typed during')
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('')
+    expect(useNoteStore.getState().pending?.content).toBe('typed during')
+
+    // The reload drops it (as `refreshAllStores` does); release writes nothing.
+    useNoteStore.getState().discardPending()
+    release()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('')
+    expect(useNoteStore.getState().replaceHolds).toBe(0)
+  })
+
+  it('a replace that failed (no reload) saves the text typed meanwhile on release', async () => {
+    await useNoteStore.getState().load()
+    const id = useNoteStore.getState().activeId!
+    const release = await useNoteStore.getState().holdForDataReplace()
+    useNoteStore.getState().setContent(id, 'typed during')
+    release()
+    release()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('typed during')
+    expect(useNoteStore.getState().replaceHolds).toBe(0)
+  })
+})

@@ -7,8 +7,25 @@ import type { ImportData } from '../data/import-validation'
 import { takeSafetySnapshot } from '../services/safety-snapshot'
 import { backupScheduler } from '../services/backup-scheduler'
 import { refreshAllStores } from './refresh-all'
+import { useNoteStore } from './note-store'
 
 export type { BackupSummary, AuditReport }
+
+/**
+ * Runs a write that replaces data, then reloads every store — with note
+ * saves held throughout (`holdForDataReplace`), so text typed before the
+ * replace can't be saved over the new notes.
+ */
+async function replaceData<T>(write: () => Promise<T>): Promise<T> {
+  const release = await useNoteStore.getState().holdForDataReplace()
+  try {
+    const result = await write()
+    await refreshAllStores()
+    return result
+  } finally {
+    release()
+  }
+}
 
 /**
  * An import that replaces the database. `cancelled`: the backup snapshot of
@@ -87,8 +104,7 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
     if (!prepared.ok) return { status: 'error', error: prepared.error }
     const snapshot = await takeSafetySnapshot('restoring the backup')
     if (snapshot === 'cancelled') return { status: 'cancelled' }
-    await restoreFromImportData(prepared.data)
-    await refreshAllStores()
+    await replaceData(() => restoreFromImportData(prepared.data))
     await get().loadBackups()
     return { status: 'done', noBackup: snapshot === 'without-backup' }
   },
@@ -102,8 +118,7 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   cleanupCurrentAudit: async () => {
     const report = get().auditReport
     if (!report) return 0
-    const cleaned = await cleanupIssues(report.issues)
-    await refreshAllStores()
+    const cleaned = await replaceData(() => cleanupIssues(report.issues))
     set({ auditReport: null })
     return cleaned
   },
@@ -111,8 +126,7 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   restoreFromImport: async (data) => {
     const snapshot = await takeSafetySnapshot('importing the file')
     if (snapshot === 'cancelled') return { status: 'cancelled' }
-    await restoreFromImportData(data)
-    await refreshAllStores()
+    await replaceData(() => restoreFromImportData(data))
     return { status: 'done', noBackup: snapshot === 'without-backup' }
   },
 }))

@@ -6,6 +6,7 @@ import {
   type SyncConflictChoice,
   type FileUpgradeInfo,
 } from '../services/file-storage'
+import { useNoteStore } from './note-store'
 import { refreshAllStores } from './refresh-all'
 import type { UnsupportedImportInfo } from '../data/file-version'
 
@@ -40,7 +41,9 @@ interface FileStorageState extends FileStorageStatus {
 export const useFileStorageStore = create<FileStorageState>((set) => {
   // Subscribe to service status changes
   fileStorageService.onStatusChange((status) => set(status))
-  // Refresh all Zustand stores after a file import
+  // Hold note saves while a file import replaces the data, then refresh
+  // every Zustand store
+  fileStorageService.onBeforeImport(() => useNoteStore.getState().holdForDataReplace())
   fileStorageService.onAfterImport(refreshAllStores)
   // Handle legacy-import confirmation requests from the service
   fileStorageService.onConfirmMigration((info) => {

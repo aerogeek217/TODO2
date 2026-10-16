@@ -34,6 +34,11 @@ interface NoteState {
   saveFailed: boolean
   /** The load in flight: concurrent `load()` calls share it. */
   loadInFlight: Promise<void> | null
+  /**
+   * Data replaces in progress (`holdForDataReplace`). While any runs, no
+   * save starts: text typed meanwhile stays pending.
+   */
+  replaceHolds: number
   /** Load (and seed if missing) the global note. */
   load: () => Promise<void>
   setContent: (id: number, content: string) => void
@@ -45,6 +50,18 @@ interface NoteState {
    * text would write it over the new note.
    */
   discardPending: () => void
+  /**
+   * Call before replacing the data (import, backup restore, sync file load,
+   * audit cleanup) writes the notes table: drops unsaved text, waits for a
+   * save already started (it lands before the replace, which then
+   * overwrites it) and holds every later save until the returned `release`
+   * is called — call it once the stores have reloaded (or the replace
+   * failed). A held save can't land after the replace. Text typed during
+   * the hold is saved on release unless the reload dropped it. Never
+   * rejects; waits only on note saves, never on a store load or a tracked
+   * write.
+   */
+  holdForDataReplace: () => Promise<() => void>
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
@@ -54,8 +71,9 @@ let saveQueue: Promise<void> = Promise.resolve()
 
 /** Saves the pending text, if any. Never rejects. */
 async function saveOnce(): Promise<void> {
-  const snap = useNoteStore.getState().pending
-  if (!snap) return
+  const { pending: snap, replaceHolds } = useNoteStore.getState()
+  // While data is being replaced, a save could land after the replace.
+  if (!snap || replaceHolds > 0) return
   const savedAt = new Date()
   try {
     const exists = await noteRepository.saveContent(snap.id, snap.content, savedAt)
@@ -91,6 +109,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   pending: null,
   saveFailed: false,
   loadInFlight: null,
+  replaceHolds: 0,
 
   load() {
     const inFlight = get().loadInFlight
@@ -147,5 +166,19 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       saveTimer = undefined
     }
     set({ pending: null, saveFailed: false })
+  },
+
+  async holdForDataReplace() {
+    set({ replaceHolds: get().replaceHolds + 1 })
+    get().discardPending()
+    // `saveOnce` never rejects, and a queued save that starts now skips.
+    await saveQueue
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      set({ replaceHolds: get().replaceHolds - 1 })
+      if (get().replaceHolds === 0 && get().pending) void get().flush()
+    }
   },
 }))

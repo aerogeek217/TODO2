@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
-import { openSettings, seedTaskList } from './fixtures/workspace'
+import { openSettings, seedTaskList, seedWorkspace } from './fixtures/workspace'
 
 /**
  * After the data is replaced (import, backup restore, sync file load) the
  * row selection and an open task editor are cleared: their task ids may now
- * name other tasks.
+ * name other tasks. A note save that started before the replace can't land
+ * after it.
  */
 
 test.use({ viewport: { width: 1280, height: 800 } })
@@ -82,4 +83,73 @@ test('a data replace while the task editor is open closes it', async ({ page }) 
 
   await expect(title).toBeHidden()
   await expect(taskRowByTitle(page, 'alpha')).toBeVisible()
+})
+
+async function storedNotes(page: Page): Promise<string[]> {
+  return page.evaluate(async (db) => new Promise<string[]>((resolve, reject) => {
+    const req = indexedDB.open(db)
+    req.onsuccess = () => {
+      const r = req.result.transaction(['notes'], 'readonly').objectStore('notes').getAll()
+      r.onsuccess = () => { req.result.close(); resolve((r.result as Array<{ content: string }>).map((n) => n.content)) }
+      r.onerror = () => reject(r.error)
+    }
+    req.onerror = () => reject(req.error)
+  }), DB_NAME)
+}
+
+interface NoteHoldWindow {
+  __noteSaveStarted?: boolean
+  __releaseNoteSave?: () => void
+}
+
+test('a note save started before a backup restore does not land after it', async ({ page }) => {
+  await seedWorkspace(page, {
+    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] }] }] }],
+  })
+  const editor = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
+  await editor.click()
+  await page.keyboard.type('in the backup')
+  await expect.poll(() => storedNotes(page)).toEqual(['in the backup'])
+  const settings = await createBackup(page)
+  await page.keyboard.press('Escape')
+  await expect(settings).toBeHidden()
+
+  // Hold the next note save's database write (the app's own module instance).
+  await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/data/note-repository.ts')) as {
+      noteRepository: { saveContent: (...args: unknown[]) => Promise<boolean> }
+    }
+    const w = window as unknown as NoteHoldWindow
+    const write = mod.noteRepository.saveContent.bind(mod.noteRepository)
+    const gate = new Promise<void>((resolve) => { w.__releaseNoteSave = resolve })
+    mod.noteRepository.saveContent = async (...args: unknown[]) => {
+      mod.noteRepository.saveContent = write
+      w.__noteSaveStarted = true
+      await gate
+      return write(...args)
+    }
+  })
+  await editor.click()
+  await page.keyboard.press('End')
+  await page.keyboard.type(' typed later')
+  await expect.poll(() => page.evaluate(() => (window as unknown as NoteHoldWindow).__noteSaveStarted === true)).toBe(true)
+
+  await openSettings(page, 'Backups')
+  const manual = settings.locator('[data-trigger="manual"]')
+  await manual.getByRole('button', { name: 'Restore' }).click()
+  await manual.getByRole('button', { name: 'Confirm' }).click()
+  const restored = settings.getByText('Restored successfully! The data it replaced was backed up first.')
+  // The restore is under way: done already, or waiting for the held save.
+  await expect.poll(async () => await restored.isVisible() || await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/note-store.ts')) as {
+      useNoteStore: { getState(): { replaceHolds?: number } }
+    }
+    return (mod.useNoteStore.getState().replaceHolds ?? 0) > 0
+  })).toBe(true)
+  await page.evaluate(() => { (window as unknown as NoteHoldWindow).__releaseNoteSave?.() })
+  await expect(restored).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await expect(editor).toHaveText('in the backup')
+  await expect.poll(() => storedNotes(page)).toEqual(['in the backup'])
 })

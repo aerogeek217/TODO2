@@ -76,6 +76,8 @@ export interface FileUpgradeInfo {
 
 type StatusListener = (status: FileStorageStatus) => void
 type AfterImportListener = () => Promise<void>
+/** Runs before the file's data replaces the browser's; resolves to a release called after the reload. */
+type BeforeImportListener = () => Promise<() => void>
 type MigrationConfirmListener = (info: UnsupportedImportInfo) => Promise<boolean>
 type ConflictListener = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
 type FileUpgradeListener = (info: FileUpgradeInfo) => Promise<boolean>
@@ -188,6 +190,7 @@ class FileStorageService {
   private changeGen = 0
   private listener: StatusListener | null = null
   private afterImportListener: AfterImportListener | null = null
+  private beforeImportListener: BeforeImportListener | null = null
   private migrationConfirmListener: MigrationConfirmListener | null = null
   private conflictListener: ConflictListener | null = null
   private fileUpgradeListener: FileUpgradeListener | null = null
@@ -217,6 +220,15 @@ class FileStorageService {
 
   onAfterImport(listener: AfterImportListener) {
     this.afterImportListener = listener
+  }
+
+  /**
+   * `listener` runs before the file's data replaces the browser's and
+   * resolves to a release, called once the after-import reload is done (or
+   * the replace failed) — the note store holds its saves in between.
+   */
+  onBeforeImport(listener: BeforeImportListener) {
+    this.beforeImportListener = listener
   }
 
   onConfirmMigration(listener: MigrationConfirmListener) {
@@ -594,15 +606,22 @@ class FileStorageService {
       }
       noBackup = snapshot === 'without-backup'
     }
-    this.suppressSync = true
+    // Note saves wait until the stores have reloaded: one landing after the
+    // restore would put this browser's text over the file's note.
+    const release = await this.beforeImportListener?.()
     try {
-      await restoreFromImportData(data)
+      this.suppressSync = true
+      try {
+        await restoreFromImportData(data)
+      } finally {
+        this.suppressSync = false
+      }
+      this.changeGen++
+      writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
+      await this.afterImportListener?.()
     } finally {
-      this.suppressSync = false
+      release?.()
     }
-    this.changeGen++
-    writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
-    await this.afterImportListener?.()
     // After the stores reload (which clears the snackbar): the result toast.
     if (noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
     return true
