@@ -351,10 +351,9 @@
 
 /* ─── Autocomplete popup (portal-anchored to document.body) ───────────── */
 
-/* Positioned via inline `top`/`left`/`width` from the bar's input rect +
- * caret offset. `position: fixed` keeps it pinned during scroll/resize; the
- * bar recomputes on those events. Z-index sits above the bar's overlay
- * (`--z-dialog`) so the popup paints over it. */
+/* Placed by `usePopoverAnchor` (inline `top` / `left`) against the input's
+ * box from the caret column; inline `width`. Z-index sits above the bar's
+ * overlay (`--z-dialog`) so the popup paints over it. */
 .popup {
   position: fixed;
   z-index: var(--z-dialog-overlay);

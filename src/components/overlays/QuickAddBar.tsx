@@ -32,6 +32,7 @@ import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { usePopoverAnchor, type PopoverAnchor } from '../../hooks/use-popover-anchor'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -50,7 +51,6 @@ import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
 
 const POPUP_GAP_PX = 4
-const POPUP_VIEWPORT_MARGIN_PX = 8
 const POPUP_WIDTH_PX = 280
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -326,35 +326,24 @@ function runParse(
 }
 
 /**
- * Viewport position for the autocomplete popup: below the input at the caret
- * column, flipped above when it would clip the bottom edge, clamped to the
- * right edge. Reads live DOM rects; null until the input is mounted.
+ * The autocomplete popup's anchor: the input's box from the caret column to
+ * its right edge, in the viewport. `usePopoverAnchor` puts the popup below it
+ * at the caret, above it when it would clip the bottom edge, and ends it at
+ * the input's right edge when it would clip the right one. Null until the
+ * input is mounted.
  */
-function measurePopupPosition(
-  input: HTMLInputElement | null,
-  popup: HTMLDivElement | null,
-  caretLeft: number,
-): { top: number; left: number; width: number } | null {
+function measurePopupAnchor(input: HTMLInputElement | null, caretLeft: number): PopupAnchorRect | null {
   if (!input) return null
-  const inputRect = input.getBoundingClientRect()
-  const popupRect = popup?.getBoundingClientRect()
-  const popupHeight = popupRect?.height ?? 0
-  const width = POPUP_WIDTH_PX
-
-  let top = inputRect.bottom + POPUP_GAP_PX
-  if (popupHeight > 0 && top + popupHeight > window.innerHeight - POPUP_VIEWPORT_MARGIN_PX) {
-    const flipped = inputRect.top - popupHeight - POPUP_GAP_PX
-    if (flipped >= POPUP_VIEWPORT_MARGIN_PX) top = flipped
-  }
-
-  let left = inputRect.left + caretLeft
-  if (left + width > window.innerWidth - POPUP_VIEWPORT_MARGIN_PX) {
-    left = Math.max(POPUP_VIEWPORT_MARGIN_PX, window.innerWidth - POPUP_VIEWPORT_MARGIN_PX - width)
-  }
-  if (left < POPUP_VIEWPORT_MARGIN_PX) left = POPUP_VIEWPORT_MARGIN_PX
-
-  return { top, left, width }
+  const r = input.getBoundingClientRect()
+  return { left: r.left + caretLeft, top: r.top, right: r.right, bottom: r.bottom }
 }
+
+interface PopupAnchorRect { left: number; top: number; right: number; bottom: number }
+
+const sameRect = (a: PopupAnchorRect | null, b: PopupAnchorRect | null) =>
+  a === b || (!!a && !!b && a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom)
+
+const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 // ─── Component ────────────────────────────────────────────────────
 
@@ -451,15 +440,13 @@ export function QuickAddBar({
   }, [])
   useLayoutEffect(() => { syncMirror() }, [raw, syncMirror])
 
-  // Popup placement state — anchored to the input rect + caret offset,
-  // portal'd to body. Flips above when clipping, clamps on the right edge;
-  // tracks scroll (capture) + resize while visible.
-  const [popupPos, setPopupPos] = useState<{ top: number; left: number; width: number }>({
-    top: 0,
-    left: 0,
-    width: POPUP_WIDTH_PX,
-  })
-  const popupRef = useRef<HTMLDivElement>(null)
+  // Popup placement — `usePopoverAnchor` against the input's box from the
+  // caret column (`measurePopupAnchor`), portal'd to body. The rect is static
+  // to the hook, so it is re-measured here on scroll (capture) and resize
+  // while the popup is visible; the hook re-places on the popup's own size
+  // changes.
+  const [popupAnchor, setPopupAnchor] = useState<PopupAnchorRect | null>(null)
+  const popupRef = useRef<HTMLDivElement | null>(null)
 
   // Click-outside that also excludes the portal'd autocomplete popup. The
   // standard `useClickOutside` only checks one ref; mousedown listeners run in
@@ -477,27 +464,43 @@ export function QuickAddBar({
     return () => document.removeEventListener('mousedown', handler, true)
   }, [open, onClose])
 
-  const computePopupPosition = useCallback(() => {
-    const pos = measurePopupPosition(inputRef.current, popupRef.current, ac.state.caretLeft)
-    if (pos) setPopupPos(pos)
+  const measureAnchor = useCallback(() => {
+    const next = measurePopupAnchor(inputRef.current, ac.state.caretLeft)
+    setPopupAnchor((prev) => (sameRect(prev, next) ? prev : next))
   }, [ac.state.caretLeft])
 
-  const popupRowCount = ac.state.view?.rows.length ?? 0
   useLayoutEffect(() => {
     if (!ac.state.visible) return
-    computePopupPosition()
-  }, [ac.state.visible, popupRowCount, ac.state.view?.mode, computePopupPosition])
+    measureAnchor()
+  }, [ac.state.visible, measureAnchor])
 
   useEffect(() => {
     if (!ac.state.visible) return
-    const handler = () => computePopupPosition()
-    window.addEventListener('scroll', handler, true)
-    window.addEventListener('resize', handler)
+    window.addEventListener('scroll', measureAnchor, true)
+    window.addEventListener('resize', measureAnchor)
     return () => {
-      window.removeEventListener('scroll', handler, true)
-      window.removeEventListener('resize', handler)
+      window.removeEventListener('scroll', measureAnchor, true)
+      window.removeEventListener('resize', measureAnchor)
     }
-  }, [ac.state.visible, computePopupPosition])
+  }, [ac.state.visible, measureAnchor])
+
+  // Keys belong to the input (`useNlpAutocomplete`); the bar's own
+  // outside-click handler above covers the popup.
+  const { panelRef: popupPanelRef, style: popupStyle } = usePopoverAnchor({
+    anchor: popupAnchor ? { kind: 'rect', ...popupAnchor } : OFFSCREEN,
+    open: ac.state.visible,
+    offset: POPUP_GAP_PX,
+    closeOnScroll: false,
+    closeOnResize: false,
+    closeOnEscape: false,
+    closeOnOutsideClick: false,
+    observeSize: true,
+    onClose: () => {},
+  })
+  const setPopupEl = useCallback((el: HTMLDivElement | null) => {
+    popupRef.current = el
+    popupPanelRef(el)
+  }, [popupPanelRef])
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // While the popup is open its keys never reach the bar's Esc / Tab / ⏎.
@@ -648,9 +651,9 @@ export function QuickAddBar({
             view={ac.state.view}
             selectedIndex={ac.state.selectedIndex}
             onPick={(row) => ac.select(row, inputRef.current)}
-            popupRef={popupRef}
+            popupRef={setPopupEl}
             className={styles.popup}
-            style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width }}
+            style={{ top: popupStyle.top, left: popupStyle.left, width: POPUP_WIDTH_PX }}
           />,
           document.body,
         )}
