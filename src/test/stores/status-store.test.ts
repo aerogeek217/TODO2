@@ -8,7 +8,7 @@ const now = new Date()
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useStatusStore.setState({ statuses: [], loading: false, error: null })
+  useStatusStore.setState({ statuses: [] })
   useUndoStore.getState().clear()
 })
 

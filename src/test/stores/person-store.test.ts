@@ -5,7 +5,7 @@ import { usePersonStore } from '../../stores/person-store'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
+  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
 })
 
 async function addTodo(title = 'Task'): Promise<number> {

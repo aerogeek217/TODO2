@@ -9,7 +9,7 @@ beforeEach(async () => {
   await db.delete()
   await db.open()
   useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
-  useTodoStore.setState({ todos: [], loading: false, error: null })
+  useTodoStore.setState({ todos: [] })
 })
 
 afterEach(() => {

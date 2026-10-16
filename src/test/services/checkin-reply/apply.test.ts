@@ -35,7 +35,7 @@ beforeEach(async () => {
   await db.open()
   tasks = checkinSampleTasks()
   await db.todos.bulkAdd(tasks)
-  useTodoStore.setState({ todos: tasks, todosVersion: 0, loading: false, error: null })
+  useTodoStore.setState({ todos: tasks, todosVersion: 0 })
   useSettingsStore.setState({ followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL, defaultStatusId: null })
   useUndoStore.getState().clear()
 })

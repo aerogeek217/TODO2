@@ -153,7 +153,7 @@ describe('applyNlpMetadata', () => {
   it('assigns NLP-resolved tags through the registry', async () => {
     await db.delete()
     await db.open()
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 
     const todoId = (await db.todos.add({
       title: 'Test task', isCompleted: false,
@@ -183,7 +183,7 @@ describe('applyNlpMetadata', () => {
   it('skips the tag path entirely when resolved.tags is empty', async () => {
     await db.delete()
     await db.open()
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 
     const todoId = (await db.todos.add({
       title: 'Test task', isCompleted: false,
@@ -213,7 +213,7 @@ describe('NLP → tag registry end-to-end', () => {
   beforeEach(async () => {
     await db.delete()
     await db.open()
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   })
 
   async function addTodo(title = 'Task'): Promise<number> {
@@ -280,7 +280,7 @@ describe('applyNlpMetadata — @name that matches nobody', () => {
   async function setup() {
     await db.delete()
     await db.open()
-    usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
+    usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
     return (await db.todos.add({
       title: 'Call legal', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,

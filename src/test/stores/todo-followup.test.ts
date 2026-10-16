@@ -13,7 +13,7 @@ const day = (y: number, m: number, d: number) => new Date(y, m - 1, d)
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
   useUndoStore.getState().clear()
   useSettingsStore.setState({ followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL, defaultStatusId: null })
   vi.useFakeTimers({ toFake: ['Date'] })

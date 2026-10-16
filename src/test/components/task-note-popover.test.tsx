@@ -11,7 +11,7 @@ beforeEach(async () => {
   await db.delete()
   await db.open()
   useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
-  useTodoStore.setState({ todos: [], loading: false, error: null })
+  useTodoStore.setState({ todos: [] })
 })
 
 afterEach(() => {
@@ -22,7 +22,7 @@ afterEach(() => {
 
 function seedTodo(notes?: string) {
   const todo = makeTodo({ id: 100, title: 'Task with notes', notes })
-  useTodoStore.setState({ todos: [todo], loading: false, error: null })
+  useTodoStore.setState({ todos: [todo] })
   return todo
 }
 

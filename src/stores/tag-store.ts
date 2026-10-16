@@ -3,7 +3,7 @@ import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 import { useSettingsStore } from './settings-store'
@@ -12,10 +12,8 @@ import { TagLimitError } from '../utils/tags'
 interface TagState {
   tags: Tag[]
   assignedTagsMap: Map<number, Tag[]>
-  loading: boolean
   /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
   loaded: boolean
-  error: string | null
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
@@ -64,18 +62,15 @@ export const useTagStore = create<TagState>((set, get) => {
     () => get().tags,
     () => get().assignedTagsMap,
     (map) => set({ assignedTagsMap: map }),
-    set,
   )
 
   return {
     tags: [],
     assignedTagsMap: new Map(),
-    loading: false,
     loaded: false,
-    error: null,
 
     async load() {
-      const tags = await loadWithState(set, () => tagRepository.getAll(), 'tags')
+      const tags = await loadFresh(() => tagRepository.getAll(), 'tags')
       if (tags) set({ tags, loaded: true })
     },
     ensureLoaded: tagEnsure,
@@ -106,7 +101,6 @@ export const useTagStore = create<TagState>((set, get) => {
       const prevTags = get().tags
       const prevMap = get().assignedTagsMap
       return optimistic(
-        set,
         () => set({
           tags: prevTags.map((t) => (t.id === tag.id ? { ...tag } : t)),
           assignedTagsMap: updateEntityInMap(tag, prevMap),

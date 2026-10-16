@@ -35,13 +35,13 @@ function renderBar() {
 describe('TopBar search-result pill bar', () => {
   beforeEach(() => {
     useFilterStore.getState().clearAll()
-    useTodoStore.setState({ todos: [], loading: false, error: null })
+    useTodoStore.setState({ todos: [] })
     usePersonStore.setState({
       people: [makePerson({ id: 1, name: 'Alice', initials: 'AL' })],
       assignedPeopleMap: new Map(),
     })
     useStatusStore.setState({ statuses: [] })
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
     useUIStore.setState({ selectedTodoId: null, editPopupMode: null } as never)
   })
 

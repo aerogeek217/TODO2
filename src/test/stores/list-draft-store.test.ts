@@ -15,7 +15,7 @@ const drafts = () => useListDraftStore.getState().drafts
 
 beforeEach(async () => {
   await resetDb()
-  useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
+  useListDefinitionStore.setState({ listDefinitions: [] })
   // Ids restart with the database: no draft may outlive its test.
   useListDraftStore.setState({ drafts: {} })
 })

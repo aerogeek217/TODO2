@@ -4,7 +4,7 @@ import { todoRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { useUndoStore } from './undo-store'
 import { advanceRecurring } from '../services/recurrence'
-import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
+import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
 import { useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
@@ -76,10 +76,8 @@ interface TodoState {
    * ids.
    */
   todosVersion: number
-  loading: boolean
   /** A load has read the rows (a failed load leaves it false, so `ensureAllLoaded` retries). */
   loaded: boolean
-  error: string | null
 
   loadAll: () => Promise<void>
   ensureAllLoaded: () => Promise<void>
@@ -168,7 +166,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const before = fieldsOf(prev, effective)
     const now = new Date()
     return optimistic(
-      set,
       () => set({
         todos: get().todos.map((t) => (t.id === id ? { ...t, ...effective, modifiedAt: now } : t)),
       }),
@@ -195,18 +192,16 @@ export const useTodoStore = create<TodoState>((set, get) => {
   return {
   todos: [],
   todosVersion: 0,
-  loading: false,
   loaded: false,
-  error: null,
 
   async loadAll() {
-    const todos = await loadWithState(set, () => todoRepository.getAll(), 'tasks')
+    const todos = await loadFresh(() => todoRepository.getAll(), 'tasks')
     if (todos) set({ todos, todosVersion: get().todosVersion + 1, loaded: true })
   },
   ensureAllLoaded: allEnsure,
 
   async add(title: string) {
-    return mutate(set, async () => {
+    return mutate(async () => {
       const { todos } = get()
       const maxSort = todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
       const now = new Date()
@@ -236,7 +231,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   async addMany(items, { description, snackbar = false }) {
     if (items.length === 0) return []
-    return mutate(set, async () => {
+    return mutate(async () => {
       const maxSort = get().todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
       const rows = items.map((item, i) => ({ ...item, todo: { ...item.todo, sortOrder: maxSort + 1 + i } }))
       const ids = await todoRepository.insertManyWithAssignments(rows)
@@ -296,7 +291,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
         const nextChanges = { dueDate: advance.dueDate }
         const prevChanges = { dueDate: todo.dueDate }
         return optimistic(
-          set,
           () => set({
             todos: get().todos.map((t) =>
               t.id === id ? { ...t, ...nextChanges, modifiedAt: new Date() } : t
@@ -339,7 +333,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const now = new Date()
     const completedAt = resolveCompletedAt(todo, { isCompleted: completed }, now)
     return optimistic(
-      set,
       () => set({
         todos: get().todos.map((t) =>
           t.id === id ? { ...t, isCompleted: completed, completedAt, modifiedAt: now } : t
@@ -361,7 +354,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   async remove(id: number) {
-    return mutate(set, async () => {
+    return mutate(async () => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return
       const snapshot = { ...todo }
@@ -422,7 +415,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
     const label = completed ? 'Complete' : 'Uncomplete'
     return optimistic(
-      set,
       () => {
         set({
           todos: get().todos.map((t) => {
@@ -568,7 +560,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
       })
     }
     return optimistic(
-      set,
       () => {
         const now = new Date()
         set({
@@ -613,7 +604,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const targetIds = targets.map((t) => t.id)
     const description = `Followed up · next follow-up ${formatFollowupDate(next, now)}`
     return optimistic(
-      set,
       () => set({
         todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changes, modifiedAt: now } : t)),
       }),
@@ -657,7 +647,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       noBackup = snapshot === 'without-backup'
     }
     opts?.beforeDelete?.()
-    return mutate(set, async () => {
+    return mutate(async () => {
       const snapshots = get().todos.filter((t) => ids.includes(t.id)).map(t => ({ ...t }))
       const assignments = await captureAssignmentsBulk(ids)
       const assignmentData = snapshots.map(t => {
@@ -687,7 +677,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   async duplicate(id: number) {
-    return mutate(set, async () => {
+    return mutate(async () => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return undefined
       const now = new Date()

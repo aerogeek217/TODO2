@@ -16,7 +16,7 @@ import { useUndoStore } from '../../stores/undo-store'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
   useUndoStore.getState().clear()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-10T12:00:00.000Z'))

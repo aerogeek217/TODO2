@@ -8,7 +8,7 @@ import type {
   PersistedListDefinition,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
-import { loadWithState, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { undoable } from '../services/undoable'
 import { bySortOrder } from '../utils/sort-order'
 import { listOrderRepository } from '../data/list-order-repository'
@@ -27,10 +27,8 @@ interface AddInput {
 
 interface ListDefinitionState {
   listDefinitions: PersistedListDefinition[]
-  loading: boolean
   /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
   loaded: boolean
-  error: string | null
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
@@ -60,12 +58,10 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   const defEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {
   listDefinitions: [],
-  loading: false,
   loaded: false,
-  error: null,
 
   async load() {
-    const rows = await loadWithState(set, () => listDefinitionRepository.getAll(), 'saved lists')
+    const rows = await loadFresh(() => listDefinitionRepository.getAll(), 'saved lists')
     if (rows) set({ listDefinitions: rows, loaded: true })
   },
   ensureLoaded: defEnsure,
@@ -85,7 +81,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       ...(limitMode != null ? { limitMode } : {}),
     }
     return mutate(
-      set,
       async () => {
         const id = await listDefinitionRepository.insert(entry)
         set({ listDefinitions: [...get().listDefinitions, { ...entry, id }] })
@@ -98,7 +93,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   async update(def) {
     const prev = get().listDefinitions
     await optimistic(
-      set,
       () => set({ listDefinitions: prev.map(d => d.id === def.id ? { ...def } : d) }),
       () => listDefinitionRepository.update(def),
       () => set({ listDefinitions: prev }),
@@ -150,7 +144,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
         await listDefinitionRepository.reorder(updated.map(d => d.id))
       } catch (e) {
         console.error('Failed to reorder list definitions:', e)
-        set({ listDefinitions: prev, error: 'Failed to reorder list definitions' })
+        set({ listDefinitions: prev })
       }
     })
   },

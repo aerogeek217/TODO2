@@ -10,7 +10,7 @@ const realLoad = usePersonStore.getState().load
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
+  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
 })
 
 afterEach(() => {

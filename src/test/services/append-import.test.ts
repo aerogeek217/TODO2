@@ -47,7 +47,7 @@ function prepareAppend(json: string): ImportData {
 
 beforeEach(async () => {
   await resetDb()
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
   resetEntityStores({ todos: false })
 })
 

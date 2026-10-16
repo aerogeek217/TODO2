@@ -46,7 +46,6 @@ function makeActions(initialEntities: E[] = []) {
     () => initialEntities,
     () => map,
     (m) => { map = m },
-    (() => {}) as never,
   )
   return {
     actions,

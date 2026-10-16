@@ -13,7 +13,7 @@ import { makeTodo, matchesFilterNow as matchesFilter } from '../helpers'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
+  useListDefinitionStore.setState({ listDefinitions: [] })
   useUndoStore.setState({ undoStack: [], redoStack: [] } as never)
   useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
 })
@@ -22,8 +22,7 @@ describe('useListDefinitionStore load', () => {
   it('load sets listDefinitions to [] when table is empty', async () => {
     await useListDefinitionStore.getState().load()
     expect(useListDefinitionStore.getState().listDefinitions).toEqual([])
-    expect(useListDefinitionStore.getState().loading).toBe(false)
-    expect(useListDefinitionStore.getState().error).toBeNull()
+    expect(useListDefinitionStore.getState().loaded).toBe(true)
   })
 
   it('load reads rows ordered by sortOrder', async () => {
@@ -45,13 +44,6 @@ describe('useListDefinitionStore load', () => {
     await useListDefinitionStore.getState().load()
     const names = useListDefinitionStore.getState().listDefinitions.map(d => d.name)
     expect(names).toEqual(['A', 'B'])
-  })
-
-  it('load clears loading flag when complete', async () => {
-    const promise = useListDefinitionStore.getState().load()
-    expect(useListDefinitionStore.getState().loading).toBe(true)
-    await promise
-    expect(useListDefinitionStore.getState().loading).toBe(false)
   })
 })
 

@@ -7,7 +7,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useSettingsStore.setState({ maxTags: 500 })
 })
 

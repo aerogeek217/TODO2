@@ -1,4 +1,4 @@
-import { optimistic, type SetFn } from './store-helpers'
+import { optimistic } from './store-helpers'
 
 /**
  * Factory that generates assign/unassign/bulk assignment actions for
@@ -40,7 +40,6 @@ export function createAssignmentActions<T extends { id?: number }>(
   getEntities: () => T[],
   getMap: () => Map<number, T[]>,
   setMap: (map: Map<number, T[]>) => void,
-  set: SetFn,
 ): AssignmentActions {
   const { repo, label, getName } = config
 
@@ -101,7 +100,6 @@ export function createAssignmentActions<T extends { id?: number }>(
 
       const prevMap = new Map(getMap())
       return optimistic(
-        set,
         () => {
           const updated = new Map(getMap())
           updated.set(todoId, [...current, entity])
@@ -122,7 +120,6 @@ export function createAssignmentActions<T extends { id?: number }>(
       const entity = getEntities().find((e) => e.id === entityId)
       const prevMap = new Map(getMap())
       return optimistic(
-        set,
         () => {
           const current = getMap().get(todoId) ?? []
           const updated = new Map(getMap())
@@ -155,7 +152,6 @@ export function createAssignmentActions<T extends { id?: number }>(
 
       const prevMap = new Map(map)
       return optimistic(
-        set,
         () => {
           const updated = new Map(getMap())
           for (const todoId of toAssign) {
@@ -189,7 +185,6 @@ export function createAssignmentActions<T extends { id?: number }>(
 
       const prevMap = new Map(map)
       return optimistic(
-        set,
         () => {
           const updated = new Map(getMap())
           for (const todoId of toUnassign) {

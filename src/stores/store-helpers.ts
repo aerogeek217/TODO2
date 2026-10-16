@@ -2,10 +2,10 @@
  * Shared helpers for Zustand store patterns:
  * - `trackWrite` / `readFresh` — keep a `load()` from overwriting an edit made
  *   while its read was in flight
- * - `loadWithState` / `reportLoadFailure` — loading / error boilerplate around
- *   a fresh read; a failed load is reported to the user
+ * - `loadFresh` / `reportLoadFailure` — a fresh read for a store load; a
+ *   failed load is reported to the user
  * - `makeEnsureLoaded` — load once, retry after a failure
- * - `mutate` / `optimistic` — tracked store writes with error state
+ * - `mutate` / `optimistic` — tracked store writes
  * - `updateEntityInMap` — refresh entity references in assignment maps
  * - `captureAssignments` — capture a task's people and tags for undo
  * - `bulkUpdateField` — shared bulk field update with undo
@@ -93,25 +93,18 @@ export function reportLoadFailure(label: string, error: unknown): void {
 }
 
 /**
- * Execute a data-fetching function with loading/error state management.
- * The read goes through `readFresh`. Returns the fetched data, or undefined
- * on error (reported with `reportLoadFailure`).
+ * A store load's read: goes through `readFresh` and returns the fetched data,
+ * or undefined on error (reported with `reportLoadFailure`).
  */
-export async function loadWithState<T>(
-  set: SetFn,
+export async function loadFresh<T>(
   fetcher: () => Promise<T>,
   label: string,
 ): Promise<T | undefined> {
-  set({ loading: true, error: null })
   try {
-    const data = await readFresh(fetcher)
-    return data
+    return await readFresh(fetcher)
   } catch (e) {
     reportLoadFailure(label, e)
-    set({ error: `Failed to load ${label}` })
     return undefined
-  } finally {
-    set({ loading: false })
   }
 }
 
@@ -121,7 +114,7 @@ export async function loadWithState<T>(
  * same in-flight load; once `isLoaded()` (a store flag the load sets only
  * when its read succeeded) is true, calls are a no-op. A failed load leaves
  * the flag unset, so the next `ensureLoaded()` tries again. `load` reports
- * its own failure (`loadWithState`); the returned promise never rejects.
+ * its own failure (`loadFresh`); the returned promise never rejects.
  */
 export function makeEnsureLoaded(
   load: () => Promise<void>,
@@ -138,22 +131,18 @@ export function makeEnsureLoaded(
 }
 
 /**
- * Wrap a store mutation with error handling: clears previous error, catches failures,
- * logs them, sets error state, and re-throws so callers can handle if needed.
- * The mutation is a tracked write (`trackWrite`).
+ * Wrap a store mutation: logs a failure and re-throws it so callers can
+ * handle it. The mutation is a tracked write (`trackWrite`).
  */
 export function mutate<T>(
-  set: SetFn,
   fn: () => Promise<T>,
   label: string,
 ): Promise<T> {
   return trackWrite(async () => {
-    set({ error: null })
     try {
       return await fn()
     } catch (e) {
       console.error(`${label}:`, e)
-      set({ error: label })
       throw e
     }
   })
@@ -169,7 +158,6 @@ export function mutate<T>(
  * update is a tracked write (`trackWrite`).
  */
 export function optimistic(
-  set: SetFn,
   apply: () => void,
   persist: () => Promise<void>,
   rollback: () => void,
@@ -182,7 +170,6 @@ export function optimistic(
   },
 ): Promise<void> {
   return trackWrite(async () => {
-    set({ error: null })
     apply()
     try {
       await persist()
@@ -192,7 +179,6 @@ export function optimistic(
     } catch (e) {
       console.error(`${label}:`, e)
       rollback()
-      set({ error: label })
       throw e
     }
   })
@@ -264,7 +250,6 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   const idSet = new Set(ids)
 
   await optimistic(
-    set,
     () => {
       const now = new Date()
       set({

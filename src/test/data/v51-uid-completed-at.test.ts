@@ -160,7 +160,7 @@ describe('v51 Dexie upgrade', () => {
   it('the purge then uses the backfilled completion time', async () => {
     await buildV50Db()
     await db.open()
-    useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+    useTodoStore.setState({ todos: [], todosVersion: 0 })
     await useTodoStore.getState().loadAll()
     // A cutoff a day after DONE: todo 1 (completed at DONE, per its event)
     // expires; todo 2 (backfilled from the later modifiedAt) stays.

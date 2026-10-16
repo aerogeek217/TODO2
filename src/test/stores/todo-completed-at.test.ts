@@ -20,7 +20,7 @@ const purgeExpired = async (days: number) => {
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
   useUndoStore.getState().clear()
 })
 

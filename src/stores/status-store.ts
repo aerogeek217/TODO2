@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../models'
 import { statusRepository, settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
-import { loadWithState, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { loadFresh, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { useTodoStore } from './todo-store'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
@@ -10,10 +10,8 @@ import { bySortOrder } from '../utils/sort-order'
 
 interface StatusState {
   statuses: Status[]
-  loading: boolean
   /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
   loaded: boolean
-  error: string | null
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
@@ -35,12 +33,10 @@ export const useStatusStore = create<StatusState>((set, get) => {
   const statusEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {
   statuses: [],
-  loading: false,
   loaded: false,
-  error: null,
 
   async load() {
-    const statuses = await loadWithState(set, () => statusRepository.getAll(), 'statuses')
+    const statuses = await loadFresh(() => statusRepository.getAll(), 'statuses')
     if (statuses) set({ statuses, loaded: true })
   },
   ensureLoaded: statusEnsure,
@@ -66,7 +62,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
     }
     const prev = statuses
     return optimistic(
-      set,
       () => set({ statuses: prev.map(s => s.id === status.id ? { ...status } : s) }),
       () => statusRepository.update(status),
       () => set({ statuses: prev }),
@@ -146,7 +141,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
         await statusRepository.reorder(updated.map(s => s.id!))
       } catch (e) {
         console.error('Failed to reorder statuses:', e)
-        set({ statuses: prev, error: 'Failed to reorder statuses' })
+        set({ statuses: prev })
       }
     })
   },

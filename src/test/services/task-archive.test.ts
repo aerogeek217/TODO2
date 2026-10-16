@@ -54,7 +54,7 @@ async function seed() {
 
 beforeEach(async () => {
   await resetDb()
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
   useUIStore.setState(useUIStore.getInitialState(), true)
   saveMock.mockReset()
 })

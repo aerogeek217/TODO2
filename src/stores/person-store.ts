@@ -3,17 +3,15 @@ import type { Person } from '../models'
 import { db, personRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { undoable } from '../services/undoable'
 import { generateInitials, withEmail } from '../utils/person'
 
 interface PersonState {
   people: Person[]
   assignedPeopleMap: Map<number, Person[]>
-  loading: boolean
   /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
   loaded: boolean
-  error: string | null
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
@@ -51,18 +49,15 @@ export const usePersonStore = create<PersonState>((set, get) => {
     () => get().people,
     () => get().assignedPeopleMap,
     (map) => set({ assignedPeopleMap: map }),
-    set,
   )
 
   return {
     people: [],
     assignedPeopleMap: new Map(),
-    loading: false,
     loaded: false,
-    error: null,
 
     async load() {
-      const people = await loadWithState(set, () => personRepository.getAll(), 'people')
+      const people = await loadFresh(() => personRepository.getAll(), 'people')
       if (people) set({ people, loaded: true })
     },
     ensureLoaded: personEnsure,
@@ -97,7 +92,6 @@ export const usePersonStore = create<PersonState>((set, get) => {
       const prevPeople = get().people
       const prevMap = get().assignedPeopleMap
       return optimistic(
-        set,
         () => set({
           people: prevPeople.map((p) => (p.id === person.id ? { ...person } : p)),
           assignedPeopleMap: updateEntityInMap(person, prevMap),

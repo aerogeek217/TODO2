@@ -60,7 +60,7 @@ describe('useTaskEditCallbacks — create', () => {
     // Tables cleared (not the db deleted) so the edit tests' writes can settle.
     await Promise.all([db.people.clear(), db.todoPeople.clear(), db.todos.clear()])
     useTodoStore.setState({ todos: [] })
-    usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
+    usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
   })
 
   afterEach(cleanup)

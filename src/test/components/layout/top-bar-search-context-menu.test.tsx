@@ -95,10 +95,10 @@ describe('searchMenuHandlers — search context menu', () => {
 describe('TopBar search right-click — dropdown survival', () => {
   beforeEach(() => {
     useFilterStore.getState().clearAll()
-    useTodoStore.setState({ todos: [], loading: false, error: null })
+    useTodoStore.setState({ todos: [] })
     usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
     useStatusStore.setState({ statuses: [] })
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   })
 
   afterEach(cleanup)

@@ -8,8 +8,8 @@ import { useTodoStore } from '../../../stores/todo-store'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false, error: null })
+  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
 })
 
 const realLoad = useTagStore.getState().load

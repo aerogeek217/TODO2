@@ -41,7 +41,7 @@ beforeEach(async () => {
   tasks = checkinSampleTasks()
   await db.todos.bulkAdd(tasks)
   await db.people.bulkAdd([marcus, ada])
-  useTodoStore.setState({ todos: tasks, todosVersion: 0, loading: false, error: null })
+  useTodoStore.setState({ todos: tasks, todosVersion: 0 })
   usePersonStore.setState({ people: [marcus, ada], assignedPeopleMap: new Map(tasks.map((t) => [t.id, [marcus]])) })
   useSettingsStore.setState({ followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL, defaultStatusId: null })
   useUIStore.setState({ checkinImportOpen: false, checkinDialog: null })

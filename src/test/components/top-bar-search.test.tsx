@@ -22,13 +22,13 @@ function renderBar() {
 describe('TopBar grouped search', () => {
   beforeEach(() => {
     useFilterStore.getState().clearAll()
-    useTodoStore.setState({ todos: [], loading: false, error: null })
+    useTodoStore.setState({ todos: [] })
     usePersonStore.setState({
       people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
       assignedPeopleMap: new Map(),
     })
     useStatusStore.setState({ statuses: [] })
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   })
 
   afterEach(cleanup)

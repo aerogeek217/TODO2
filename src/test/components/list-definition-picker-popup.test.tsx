@@ -18,7 +18,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
 }
 
 beforeEach(() => {
-  useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
+  useListDefinitionStore.setState({ listDefinitions: [] })
 })
 
 afterEach(cleanup)
