@@ -12,6 +12,7 @@ import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
 import { useWorkspaceStore } from './workspace-store'
 import { useTrendEventsStore } from './trend-events-store'
+import { useUIStore } from './ui-store'
 
 /**
  * Reload every Zustand store from IndexedDB after a destructive replace
@@ -35,6 +36,12 @@ export async function refreshAllStores() {
   useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
   // The replaced history (a table clear doesn't fire the event hooks).
   useTrendEventsStore.getState().invalidate()
+  // Selected / edited task ids and a Quick Add draft's people / tags may now
+  // name other rows.
+  useUIStore.getState().clearSelection()
+  useUIStore.getState().closeEditPopup()
+  // Note text typed before the replace would be saved over the new note.
+  useNoteStore.getState().discardPending()
   await useSettingsStore.getState().load()
   await Promise.all([
     useTodoStore.getState().loadAll(),

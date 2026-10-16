@@ -39,6 +39,12 @@ interface NoteState {
   setContent: (id: number, content: string) => void
   /** Saves pending text now. Never rejects; a failure keeps the text pending. */
   flush: () => Promise<void>
+  /**
+   * Drops text not saved yet and its scheduled save — the notes were
+   * replaced underneath the store (import / restore), and saving the old
+   * text would write it over the new note.
+   */
+  discardPending: () => void
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined
@@ -133,5 +139,13 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       saveTimer = undefined
     }
     await persistPending()
+  },
+
+  discardPending() {
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = undefined
+    }
+    set({ pending: null, saveFailed: false })
   },
 }))
