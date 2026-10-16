@@ -465,7 +465,15 @@ class FileStorageService {
     this._error = null
     this._paused = null
     clearFileSyncState()
-    await clearFileHandle()
+    // Never rejects (its callers don't wait on it): this tab has let the
+    // file go either way; a handle the browser couldn't forget would come
+    // back at the next start, so say so.
+    try {
+      await clearFileHandle()
+    } catch (err) {
+      console.warn('[file-storage] forgetting the file handle failed', err)
+      this._error = 'Disconnected, but the browser could not forget the file — it may reconnect on the next start. Disconnect again to retry.'
+    }
     this.notify()
   }
 

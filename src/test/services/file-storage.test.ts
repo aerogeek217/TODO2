@@ -855,6 +855,16 @@ describe('FileStorageService — attach, create, disconnect', () => {
     expect(svc.status.isConnected).toBe(true)
   })
 
+  it('disconnect never rejects: a handle store that fails is said, and the file is still let go here', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc } = await startWith()
+    await svc.initialize()
+    mockClearFileHandle.mockRejectedValueOnce(new Error('aborted'))
+    await expect(svc.disconnect()).resolves.toBeUndefined()
+    expect(svc.status.fileName).toBeNull()
+    expect(svc.status.error).toBe('Disconnected, but the browser could not forget the file — it may reconnect on the next start. Disconnect again to retry.')
+  })
+
   it('disconnect clears the handle, the sync record, and the tracking hooks', async () => {
     const { svc } = await startWith()
     await svc.initialize()
