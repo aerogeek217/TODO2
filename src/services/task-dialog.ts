@@ -115,7 +115,7 @@ export function taskDialogCopySections(
   }))
 }
 
-/** A person's open tasks (the person chip on a task row). */
+/** A person's open tasks (a task row's avatar menu › Show tasks). */
 export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialogPayload {
   return {
     title: person.name,
@@ -126,5 +126,18 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
       predicate: { ...emptyPredicate(), personIds: [person.id!] },
     },
     ...(person.id != null ? { personId: person.id } : {}),
+  }
+}
+
+/** A tag's open tasks (a task row's tag menu › Show tasks). */
+export function tagTaskDialog(tag: Pick<Tag, 'id' | 'name'>): TaskDialogPayload {
+  return {
+    title: `#${tag.name}`,
+    glyph: 'tag',
+    description: `Open tasks tagged #${tag.name}.`,
+    source: {
+      kind: 'predicate',
+      predicate: { ...emptyPredicate(), tags: [tag.id!] },
+    },
   }
 }

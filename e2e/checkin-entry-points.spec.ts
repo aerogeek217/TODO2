@@ -65,6 +65,7 @@ test('A: the person task dialog (task-row chip, dashboard People row) offers Ema
   // A task row's person chip.
   const row = wsListWidget(page, 't1').locator('[data-list-group="person-1"] [data-todo-id]').filter({ hasText: 'Review plan' })
   await row.locator('[data-person-avatar]').first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Show tasks' }).click()
   await expect(taskDialog.getByRole('heading')).toHaveText('Bob Stone')
   const footer = taskDialog.locator('[class*="footer"]')
   await expect(footer.getByRole('button').nth(1)).toHaveText('Email check-in')

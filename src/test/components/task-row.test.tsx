@@ -399,12 +399,37 @@ describe('TaskRow', () => {
       expect(screen.getByText('+3')).toBeInTheDocument()
     })
 
-    it('right-click on an avatar opens the person’s task dialog', () => {
-      const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' })]
+    it('right-click on an avatar: Show tasks · Edit… · Delete… for that person', () => {
+      const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' }), makePerson({ id: 2, name: 'Bob', initials: 'BO' })]
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
       fireEvent.contextMenu(screen.getByText('AL'))
-      expect(useUIStore.getState().taskDialog).toMatchObject({ personId: 1 })
-      expect(screen.queryByRole('menu')).toBeNull()
+      const menu = screen.getByRole('menu', { name: '@Alice' })
+      expect(screen.queryByRole('menu', { name: 'Task actions' })).toBeNull()
+      expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
+      expect(useUIStore.getState().taskDialog).toMatchObject({ personId: 1, title: 'Alice' })
+
+      fireEvent.contextMenu(screen.getByText('AL'))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }))
+      expect(useUIStore.getState().entityAction).toEqual({ kind: 'person', id: 1, action: 'edit' })
+      fireEvent.contextMenu(screen.getByText('AL'))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+      expect(useUIStore.getState().entityAction).toEqual({ kind: 'person', id: 1, action: 'delete' })
+    })
+
+    it('a context menu on the cell itself (the keyboard’s) lists each person with their actions', () => {
+      const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' }), makePerson({ id: 2, name: 'Bob', initials: 'BO' })]
+      render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
+      fireEvent.contextMenu(screen.getByRole('button', { name: 'People: Alice, Bob' }))
+      const menu = screen.getByRole('menu', { name: 'People' })
+      expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['@Alice', '@Bob'])
+      expect(within(menu).getByRole('menuitem', { name: '@Bob' })).toHaveAttribute('aria-haspopup', 'menu')
+    })
+
+    it('an empty people cell keeps the task menu', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={[]} />)
+      fireEvent.contextMenu(screen.getByRole('button', { name: 'Assign people' }))
+      expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
     })
   })
 
@@ -420,6 +445,22 @@ describe('TaskRow', () => {
       expect(within(cell).getByText('#alpha')).toHaveStyle({ color: '#ff0000' })
       expect(within(cell).queryByText('#beta')).toBeNull()
       expect(within(cell).getByText('+1')).toBeInTheDocument()
+    })
+
+    it('right-click on a tag: Show tasks opens the tag’s task dialog; Edit… / Delete… act on it', () => {
+      const tags = [{ id: 1, name: 'alpha', color: '#ff0000' }]
+      useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.contextMenu(screen.getByText('#alpha'))
+      const menu = screen.getByRole('menu', { name: '#alpha' })
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
+      expect(useUIStore.getState().taskDialog).toMatchObject({
+        title: '#alpha',
+        source: { kind: 'predicate', predicate: expect.objectContaining({ tags: [1] }) },
+      })
+      fireEvent.contextMenu(screen.getByText('#alpha'))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }))
+      expect(useUIStore.getState().entityAction).toEqual({ kind: 'tag', id: 1, action: 'edit' })
     })
 
     it('an empty tags cell is Add tag', () => {

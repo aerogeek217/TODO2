@@ -124,6 +124,7 @@ test('the person chip on a task row opens that person’s open tasks', async ({ 
   })
   const row = widget.locator('[data-todo-id]').filter({ hasText: 'Vendor contract' })
   await row.locator('[data-person-avatar]').first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Show tasks' }).click()
 
   await expect(dialog(page).getByRole('heading')).toHaveText('Alice Chen')
   await expect(dialog(page)).toContainText('Open tasks assigned to Alice Chen.')

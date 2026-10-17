@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { usePersonStore } from '../../stores/person-store'
 import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
 import { ColorInput } from '../shared/ColorInput'
-import { ConfirmDialog } from '../shared/Dialog'
+import { DeletePersonConfirm } from './EntityDeleteConfirm'
 import type { Person } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
@@ -59,10 +59,12 @@ function EmailField({ value, onChange, showError, onBlur, errorId, autoFocus }: 
 interface PeopleEditorProps {
   onClose: () => void
   /**
-   * Open straight onto this person's edit row with the Email field focused
-   * (e.g. "Add email" in the check-in dialog).
+   * Open straight onto this person's edit row (e.g. "Add email" in the
+   * check-in dialog, a task row's avatar menu › Edit…).
    */
   editPersonId?: number
+  /** The field focused on that row: `email` (default) or `name`. */
+  focusField?: 'name' | 'email'
 }
 
 /** Color picker plus a clear button; a person without a color shows the neutral swatch. */
@@ -91,8 +93,8 @@ function withColor(person: Omit<Person, 'color'>, color: string | undefined): Pe
   return color ? { ...person, color } : person
 }
 
-export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
-  const { people, load: loadPeople, add: addPerson, update: updatePerson, remove: removePerson } = usePersonStore()
+export function PeopleEditor({ onClose, editPersonId, focusField = 'email' }: PeopleEditorProps) {
+  const { people, load: loadPeople, add: addPerson, update: updatePerson } = usePersonStore()
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -102,7 +104,6 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
   const [newInitialsManual, setNewInitialsManual] = useState(false)
   const [newColor, setNewColor] = useState<string | undefined>(undefined)
   const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [deleteCount, setDeleteCount] = useState(0)
   const [searchText, setSearchText] = useState('')
   const [nameError, setNameError] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -121,7 +122,7 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
     setEditing({ id: ontoPerson.id!, name: ontoPerson.name, initials: ontoPerson.initials, color: ontoPerson.color, email: ontoPerson.email ?? '' })
     setEditInitialsManual(true)
   }
-  const focusEmail = editPersonId != null && editing?.id === editPersonId
+  const focusEmail = focusField === 'email' && editPersonId != null && editing?.id === editPersonId
 
   const clearState = () => {
     setEditing(null)
@@ -185,17 +186,9 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
     }
   }
 
-  const startDeletePerson = async (id: number) => {
+  const startDeletePerson = (id: number) => {
     clearState()
     setDeleteId(id)
-    const count = await usePersonStore.getState().countTasks(id)
-    setDeleteCount(count)
-  }
-
-  const confirmDeletePerson = async () => {
-    if (deleteId == null) return
-    await removePerson(deleteId)
-    setDeleteId(null)
   }
 
   const handleKeyDown = (save: () => void, cancel: () => void) => (e: React.KeyboardEvent) => {
@@ -306,26 +299,7 @@ export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
           )}
         </div>
       </EditorModal>
-      {deleteId != null && (() => {
-        const target = people.find((p) => p.id === deleteId)
-        if (!target) return null
-        return (
-          <ConfirmDialog
-            open
-            title="Delete person"
-            message={
-              <>
-                Delete <strong>{target.name}</strong>?
-                {deleteCount > 0 && ` Assigned to ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
-              </>
-            }
-            confirmLabel="Delete"
-            danger
-            onConfirm={confirmDeletePerson}
-            onCancel={() => setDeleteId(null)}
-          />
-        )
-      })()}
+      {deleteId != null && <DeletePersonConfirm personId={deleteId} onDone={() => setDeleteId(null)} />}
     </>
   )
 }

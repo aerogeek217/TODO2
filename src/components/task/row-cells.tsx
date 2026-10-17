@@ -118,7 +118,7 @@ export function NotesCell({ hasNotes, anchorRef, open, onToggle }: {
 
 // ── People ──────────────────────────────────────────────────────────────────
 
-export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonContextMenu }: {
+export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonContextMenu, onCellContextMenu }: {
   people: readonly Person[]
   /** The people track's width, px. */
   track: number
@@ -127,6 +127,8 @@ export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonC
   onToggle: () => void
   /** Right-click on one avatar. */
   onPersonContextMenu?: (e: MouseEvent, person: Person) => void
+  /** A context menu on the cell itself (Shift+F10 / the menu key while it has focus, or a right-click beside the avatars). */
+  onCellContextMenu?: (e: MouseEvent) => void
 }) {
   const names = people.map((p) => p.name)
   const { triggerProps, tooltip } = useTooltip(names.length > 0 ? names.join(', ') : null)
@@ -142,6 +144,7 @@ export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonC
       aria-expanded={open}
       data-row-cell="people"
       onClick={cellClick(onToggle)}
+      onContextMenu={onCellContextMenu}
       {...triggerProps}
     >
       {people.length === 0 ? <Placeholder>@</Placeholder> : (
@@ -170,7 +173,7 @@ export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonC
 
 // ── Tags ────────────────────────────────────────────────────────────────────
 
-export function TagsCell({ tags, track, anchorRef, open, onToggle, onTagContextMenu }: {
+export function TagsCell({ tags, track, anchorRef, open, onToggle, onTagContextMenu, onCellContextMenu }: {
   tags: readonly Tag[]
   /** The tags track's width, px. */
   track: number
@@ -179,6 +182,8 @@ export function TagsCell({ tags, track, anchorRef, open, onToggle, onTagContextM
   onToggle: () => void
   /** Right-click on one tag name; absent = the row's own context menu. */
   onTagContextMenu?: (e: MouseEvent, tag: Tag) => void
+  /** A context menu on the cell itself (see `PeopleCell`). */
+  onCellContextMenu?: (e: MouseEvent) => void
 }) {
   const labels = tags.map((t) => `#${t.name}`)
   const { triggerProps, tooltip } = useTooltip(labels.length > 0 ? labels.join(' ') : null)
@@ -194,6 +199,7 @@ export function TagsCell({ tags, track, anchorRef, open, onToggle, onTagContextM
       aria-expanded={open}
       data-row-cell="tags"
       onClick={cellClick(onToggle)}
+      onContextMenu={onCellContextMenu}
       {...triggerProps}
     >
       {tags.length === 0 ? <Placeholder>#</Placeholder> : (

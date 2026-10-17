@@ -18,6 +18,14 @@ export type SettingsSectionId =
   | 'shortcuts'
   | 'about'
 
+/** A person or tag picked from a task row's menu, and what to do with it (`entityAction`). */
+export interface EntityAction {
+  kind: 'person' | 'tag'
+  id: number
+  /** `edit` = its editor, opened on it; `delete` = the delete confirm. */
+  action: 'edit' | 'delete'
+}
+
 /** What Quick Add (or the editor it hands off to) starts from; see `quickAddDraft`. */
 export interface QuickAddDraftSeed {
   rawTitle: string
@@ -153,6 +161,8 @@ interface UIState {
   checkinDialog: { personIds: number[] } | null
   /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
   checkinImportOpen: boolean
+  /** A row avatar's / tag's Edit… or Delete… (`EntityActionHost`); `null` = none. */
+  entityAction: EntityAction | null
 
   selectOneTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
@@ -199,6 +209,8 @@ interface UIState {
   /** Opens the check-in reply import dialog (closing the check-in dialog). */
   openCheckinImport: () => void
   closeCheckinImport: () => void
+  openEntityAction: (action: EntityAction) => void
+  closeEntityAction: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -226,6 +238,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsSection: 'appearance',
   checkinDialog: null,
   checkinImportOpen: false,
+  entityAction: null,
 
   selectOneTodo(id: number) {
     set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
@@ -408,5 +421,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeCheckinImport() {
     set({ checkinImportOpen: false })
+  },
+
+  openEntityAction(action) {
+    set({ entityAction: action })
+  },
+
+  closeEntityAction() {
+    set({ entityAction: null })
   },
 }))

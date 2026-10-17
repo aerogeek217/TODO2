@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useMemo, memo, type MouseEvent } from 'react'
-import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
+import { type PersistedTodoItem, type Person, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -12,7 +12,8 @@ import { useTooltip } from '../shared/use-tooltip'
 import { TaskMenu } from './TaskMenu'
 import { PriorityMenu } from './PriorityMenu'
 import { MoreIcon } from '../shared/icons'
-import { personTaskDialog } from '../../services/task-dialog'
+import { MenuPopover } from '../shared/MenuPopover'
+import { rowEntityMenu, rowEntityName, type RowEntity } from './entity-menu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { useTaskRowColumns } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
@@ -56,6 +57,10 @@ export const TaskRow = memo(function TaskRow({
   const [markersOpen, setMarkersOpen] = useState(false)
   /** The task menu: from the ⋯ button, or at the pointer (right-click). */
   const [menu, setMenu] = useState<{ kind: 'button' } | { kind: 'point'; x: number; y: number } | null>(null)
+  /** An avatar's / tag's menu: at the pointer, or under its cell (opened from the keyboard). */
+  const [entityMenu, setEntityMenu] = useState<
+    { entities: RowEntity[]; at: { kind: 'point'; x: number; y: number } | { kind: 'cell'; cell: 'people' | 'tags' } } | null
+  >(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLButtonElement>(null)
@@ -106,12 +111,24 @@ export const TaskRow = memo(function TaskRow({
   const people = assignedPeople ?? NO_PEOPLE
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
-  const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen || menu !== null
+  const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen
+    || menu !== null || entityMenu !== null
 
-  const onPersonContextMenu = (e: MouseEvent, person: Person) => {
+  // Right-click on an avatar / a tag: Show tasks · Edit… · Delete… for it.
+  const openEntityMenu = (e: MouseEvent, entity: RowEntity) => {
     e.preventDefault()
     e.stopPropagation()
-    useUIStore.getState().showTaskDialog(personTaskDialog(person))
+    setEntityMenu({ entities: [entity], at: { kind: 'point', x: e.clientX, y: e.clientY } })
+  }
+  const onPersonContextMenu = (e: MouseEvent, person: Person) => openEntityMenu(e, { kind: 'person', entity: person })
+  const onTagContextMenu = (e: MouseEvent, tag: Tag) => openEntityMenu(e, { kind: 'tag', entity: tag })
+  // The cell's own context menu (the keyboard's, or a click beside the
+  // avatars / tags): every entry it shows; an empty cell keeps the task menu.
+  const onCellContextMenu = (cell: 'people' | 'tags', entities: RowEntity[]) => (e: MouseEvent) => {
+    if (entities.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    setEntityMenu({ entities, at: { kind: 'cell', cell } })
   }
 
   return (
@@ -201,10 +218,19 @@ export const TaskRow = memo(function TaskRow({
               open={peopleOpen}
               onToggle={togglePeople}
               onPersonContextMenu={onPersonContextMenu}
+              onCellContextMenu={onCellContextMenu('people', people.map((p) => ({ kind: 'person', entity: p })))}
             />
           )}
           {cols.tags > 0 && (
-            <TagsCell tags={assignedTags} track={cols.tags} anchorRef={tagsRef} open={tagPickerOpen} onToggle={toggleTagPicker} />
+            <TagsCell
+              tags={assignedTags}
+              track={cols.tags}
+              anchorRef={tagsRef}
+              open={tagPickerOpen}
+              onToggle={toggleTagPicker}
+              onTagContextMenu={onTagContextMenu}
+              onCellContextMenu={onCellContextMenu('tags', assignedTags.map((t) => ({ kind: 'tag', entity: t })))}
+            />
           )}
           <DueCell
             todo={todo}
@@ -281,6 +307,20 @@ export const TaskRow = memo(function TaskRow({
           anchorRef={markersRef}
           onSetMarker={menuHandlers.onSetMarker}
           onClose={() => setMarkersOpen(false)}
+        />
+      )}
+
+      {entityMenu && (
+        <MenuPopover
+          anchorRef={entityMenu.at.kind === 'cell' ? (entityMenu.at.cell === 'people' ? peopleRef : tagsRef) : undefined}
+          point={entityMenu.at.kind === 'point' ? { x: entityMenu.at.x, y: entityMenu.at.y } : undefined}
+          width={entityMenu.entities.length === 1 ? 180 : 200}
+          label={entityMenu.entities.length === 1 && entityMenu.entities[0]
+            ? rowEntityName(entityMenu.entities[0])
+            : entityMenu.entities[0]?.kind === 'tag' ? 'Tags' : 'People'}
+          entries={rowEntityMenu(entityMenu.entities)}
+          closeOnScroll={entityMenu.at.kind === 'point'}
+          onClose={() => setEntityMenu(null)}
         />
       )}
 

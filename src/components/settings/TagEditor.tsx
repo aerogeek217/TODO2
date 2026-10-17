@@ -4,7 +4,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import type { Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
-import { ConfirmDialog } from '../shared/Dialog'
+import { DeleteTagConfirm } from './EntityDeleteConfirm'
 import styles from './EntityEditor.module.css'
 import { EditorModal } from './EditorModal'
 import { byName } from '../../utils/sort-order'
@@ -17,10 +17,12 @@ interface EditState {
 
 interface TagEditorProps {
   onClose: () => void
+  /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…). */
+  editTagId?: number
 }
 
-export function TagEditor({ onClose }: TagEditorProps) {
-  const { tags, load, add, update, remove, loadAssignments, selectTodoCountByTagId, assignedTagsMap } = useTagStore()
+export function TagEditor({ onClose, editTagId }: TagEditorProps) {
+  const { tags, load, add, update, loadAssignments, assignedTagsMap } = useTagStore()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
   const todos = useTodoStore((s) => s.todos)
 
@@ -29,7 +31,6 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
   const [searchText, setSearchText] = useState('')
 
@@ -43,6 +44,14 @@ export function TagEditor({ onClose }: TagEditorProps) {
   }, [todos, loadAssignments])
 
   const counts = useMemo(() => countTodosByTag(assignedTagsMap), [assignedTagsMap])
+
+  // Opened onto one tag: edit that row once the tag is there.
+  const [openedOnto, setOpenedOnto] = useState<number | null>(null)
+  const ontoTag = editTagId != null && openedOnto !== editTagId ? tags.find((t) => t.id === editTagId) : undefined
+  if (ontoTag) {
+    setOpenedOnto(editTagId ?? null)
+    setEditing({ id: ontoTag.id!, name: ontoTag.name, color: ontoTag.color })
+  }
 
   const clearState = () => {
     setEditing(null)
@@ -99,13 +108,6 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const startDelete = (id: number) => {
     clearState()
     setDeleteId(id)
-    setDeleteCount(selectTodoCountByTagId(id))
-  }
-
-  const confirmDelete = async () => {
-    if (deleteId == null) return
-    await remove(deleteId)
-    setDeleteId(null)
   }
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
@@ -205,26 +207,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
           <button className={styles.addBtn} onClick={startAdd}>+ Add Tag</button>
         )}
       </EditorModal>
-      {deleteId != null && (() => {
-        const target = tags.find((t) => t.id === deleteId)
-        if (!target) return null
-        return (
-          <ConfirmDialog
-            open
-            title="Delete tag"
-            message={
-              <>
-                Delete <strong>{target.name}</strong>?
-                {deleteCount > 0 && ` ${deleteCount} task${deleteCount !== 1 ? 's' : ''} currently tagged.`}
-              </>
-            }
-            confirmLabel="Delete"
-            danger
-            onConfirm={confirmDelete}
-            onCancel={() => setDeleteId(null)}
-          />
-        )
-      })()}
+      {deleteId != null && <DeleteTagConfirm tagId={deleteId} onDone={() => setDeleteId(null)} />}
     </>
   )
 }

@@ -132,10 +132,11 @@ async function checkContract(page: Page, c: Contract) {
   await expect(c.focusReturnsTo ?? c.trigger).toBeFocused()
 }
 
-/** The person dialog from a list row's avatar (right-click), as the app opens it. */
+/** The person dialog from a list row's avatar (right-click › Show tasks), as the app opens it. */
 async function openPersonDialog(page: Page, task: string, person: string) {
   const row = wsListWidget(page, 'list').locator('[data-todo-id]').filter({ hasText: task })
   await row.locator(`[data-person-avatar="${person}"]`).click({ button: 'right' })
+  await page.getByRole('menu', { name: `@${person}` }).getByRole('menuitem', { name: 'Show tasks' }).click()
   await expect(taskDialog(page).getByRole('heading')).toHaveText(person)
 }
 
