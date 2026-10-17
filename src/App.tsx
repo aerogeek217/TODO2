@@ -5,6 +5,7 @@ import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useFileStorageStore } from './services/file-storage-store'
+import { fileStorageService } from './services/file-storage'
 import { TopBar } from './components/layout/TopBar'
 import { FileSyncBanner } from './components/layout/FileSyncBanner'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
@@ -153,13 +154,25 @@ function AppQuickAddBar() {
 }
 
 /**
- * Launch prompt for completed tasks past the retention setting.
- * Lists the tasks that were expired at launch (`launchUids` — uids survive a
- * sync-file restore, ids don't) and are still expired now. Read from the
- * database, not `useTodoStore.todos` (which may not be loaded yet), and
- * re-read whenever the store reloads. Waits while a sync-file prompt is
- * open. Closing it in any way ("Not now" included) skips it until the next
- * launch.
+ * uids of the completed tasks past the retention setting now (none when
+ * retention is off) — what the purge prompt asks about.
+ */
+async function expiredCompletedUids(): Promise<ReadonlySet<string> | null> {
+  const { completedRetentionDays } = useSettingsStore.getState()
+  if (completedRetentionDays == null) return null
+  const expired = await listExpiredCompleted(completedRetentionDays)
+  return expired.length > 0 ? new Set(expired.map((t) => t.uid)) : null
+}
+
+/**
+ * Prompt for completed tasks past the retention setting, at launch and
+ * again after a later sync-file load (Grant access, Attach / Open file).
+ * Lists the tasks that were expired when it was checked (`launchUids` —
+ * uids survive a sync-file restore, ids don't) and are still expired now.
+ * Read from the database, not `useTodoStore.todos` (which may not be loaded
+ * yet), and re-read whenever the store reloads. Waits while a sync-file
+ * prompt is open. Closing it in any way ("Not now" included) skips it until
+ * the next launch or file load.
  */
 function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<string>; onClose: () => void }) {
   const todosVersion = useTodoStore((s) => s.todosVersion)
@@ -241,11 +254,8 @@ function AppShell() {
         // remember which ones were expired at launch and ask
         // (`StartupPurgePrompt`). Runs after the sync file was loaded (or its
         // prompts answered), so the list reflects the data the user kept.
-        const { completedRetentionDays } = useSettingsStore.getState()
-        if (completedRetentionDays != null) {
-          const expired = await listExpiredCompleted(completedRetentionDays)
-          if (expired.length > 0) setPurgeLaunchUids(new Set(expired.map((t) => t.uid)))
-        }
+        const expired = await expiredCompletedUids()
+        if (expired) setPurgeLaunchUids(expired)
       })
       .then(() => {
         backupScheduler.start()
@@ -257,6 +267,21 @@ function AppShell() {
       })
     return () => backupScheduler.stop()
   }, [loadSettings, initFileStorage, loadPeople])
+
+  // A sync file loaded after launch (Grant access, Attach / Open file, a
+  // retry or a resolved conflict) replaced the data: ask about its expired
+  // tasks too. Runs after the stores reloaded (an earlier subscriber).
+  useEffect(() => {
+    if (!initialized) return
+    return fileStorageService.onAfterImport(async () => {
+      try {
+        const expired = await expiredCompletedUids()
+        if (expired) setPurgeLaunchUids(expired)
+      } catch (err) {
+        console.warn('[purge] could not read expired tasks', err)
+      }
+    })
+  }, [initialized])
 
   // Global keyboard shortcuts
   useKeyboardShortcuts({

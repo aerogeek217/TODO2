@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
-import { readStore, writeStores } from './fixtures/db'
+import { readStore, readStores, writeStores } from './fixtures/db'
 
 /**
  * Safe purge: the launch prompt for completed tasks past the
@@ -152,4 +152,52 @@ test('launch prompt: Delete removes the expired tasks without a file; a cancelle
   await prompt.getByRole('button', { name: 'Delete', exact: true }).click()
   await expect(prompt).toBeHidden()
   expect((await dbTodos(page)).map((t) => t.title)).toEqual(['Keep'])
+})
+
+/**
+ * The launch prompt's check runs again after a sync file is loaded later
+ * (here: attached from Settings into a browser with no expired tasks), so
+ * the file's own expired tasks are asked about too.
+ */
+test('attaching a sync file with expired tasks brings up the prompt for them', async ({ page }) => {
+  const SYNC_FILE = 'e2e-purge-sync.json'
+  await page.addInitScript((name) => {
+    const pick = async () => {
+      const dir = await navigator.storage.getDirectory()
+      return [await dir.getFileHandle(name, { create: true })]
+    }
+    Object.defineProperty(window, 'showOpenFilePicker', { value: pick, configurable: true })
+  }, SYNC_FILE)
+  await boot(page)
+
+  // The file: this browser's data plus one long-completed task and a 30-day retention.
+  const data = JSON.parse(JSON.stringify(await readStores(page))) as Record<string, unknown[]>
+  delete data.backups
+  const now = Date.now()
+  data.todos = [{
+    id: 1, uid: crypto.randomUUID(), title: 'Old file task', isCompleted: true, sortOrder: 1,
+    createdAt: new Date(now - 100 * 86_400_000).toISOString(), modifiedAt: new Date(now).toISOString(),
+    completedAt: new Date(now - 60 * 86_400_000).toISOString(),
+  }]
+  data.settings = [...(data.settings ?? []), { key: 'completedRetentionDays', value: '30' }]
+  const schemaVersion = await page.evaluate(async (url) => {
+    const mod = (await import(/* @vite-ignore */ url)) as { CURRENT_DB_VERSION: number }
+    return mod.CURRENT_DB_VERSION
+  }, '/src/data/database.ts')
+  const text = JSON.stringify({ ...data, __schemaVersion: schemaVersion, savedAt: new Date(now).toISOString() })
+  await page.evaluate(async ({ name, text }) => {
+    const dir = await navigator.storage.getDirectory()
+    const w = await (await dir.getFileHandle(name, { create: true })).createWritable()
+    await w.write(text)
+    await w.close()
+  }, { name: SYNC_FILE, text })
+
+  // No prompt at launch: the browser had nothing expired.
+  await expect(page.getByRole('dialog', { name: /old completed task/ })).toHaveCount(0)
+
+  await gotoSettingsDeepLink(page)
+  await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
+  const prompt = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
+  await expect(prompt).toBeVisible()
+  await expect(prompt.getByTestId('purge-task-list')).toContainText('Old file task')
 })
