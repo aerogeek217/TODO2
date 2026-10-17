@@ -161,11 +161,15 @@ test('task dialog → editor: the editor owns Esc, focused or not; then Esc clos
   await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[title="Plan the offsite"]').click()
   await expect(editorTitle(page)).toBeVisible()
 
+  // With nothing focused, Esc is the topmost dialog's — the editor's: it
+  // closes the editor, not the task dialog under it.
   await blurAll(page)
   await page.keyboard.press('Escape')
+  await expect(editorTitle(page)).toHaveCount(0)
   await expect(dialog).toBeVisible()
-  await expect(editorTitle(page)).toBeVisible()
 
+  await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[title="Plan the offsite"]').click()
+  await expect(editorTitle(page)).toBeVisible()
   await editorTitle(page).focus()
   for (let i = 0; i < 3 && await editorTitle(page).isVisible(); i++) {
     await page.keyboard.press('Escape')
@@ -519,4 +523,25 @@ test.describe('editor modals', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
   })
+})
+
+test('task editor from a list row: on the frame, 12vh from the top; Tab kept inside; Esc leaves the title, then closes; focus back to the row', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const title = wsListWidget(page, 'list').locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[title="Plan the offsite"]')
+  await title.dblclick()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await expect(editor).toBeVisible()
+  expect(await focusInside(editor)).toBe(true)
+  const box = await editor.boundingBox()
+  const vh = page.viewportSize()?.height ?? 0
+  expect(Math.abs((box?.y ?? 0) - vh * 0.12)).toBeLessThan(2)
+  await expectFocusTrapped(page, editor)
+
+  await editorTitle(page).focus()
+  await page.keyboard.press('Escape')
+  await expect(editorTitle(page)).not.toBeFocused()
+  await expect(editor).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(editor).toHaveCount(0)
+  await expect.poll(() => page.evaluate(() => document.activeElement !== document.body)).toBe(true)
 })

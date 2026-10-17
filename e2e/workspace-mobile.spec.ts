@@ -213,3 +213,17 @@ test('switching between desktop and phone widths keeps the drag sensors stable (
   await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
   expect(errors.filter((e) => e.includes('changed size between renders'))).toEqual([])
 })
+
+test('the task editor on a phone fills the screen (on the dialog frame)', async ({ page }) => {
+  await seed(page)
+  // Long-press a row (a mobile browser turns it into contextmenu) → Open.
+  await page.getByRole('button', { name: /Call plumber/ }).first().dispatchEvent('contextmenu')
+  await page.getByRole('menuitem', { name: 'Open' }).tap()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await expect(editor).toBeVisible()
+  // Once its slide-up has run.
+  await expect.poll(async () => {
+    const b = await box(editor)
+    return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]
+  }).toEqual([0, 0, 390, 844])
+})

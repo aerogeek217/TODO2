@@ -24,6 +24,12 @@
   outline: none;
 }
 
+/* On the dialog frame, which centres its panel by auto margins: the card
+ * sits 12vh from the top instead (the doubled class outranks the frame's). */
+.card.card {
+  margin: 12vh auto auto;
+}
+
 @keyframes backdropFade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -660,6 +666,10 @@
     background: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+
+  .card.card {
+    margin: 0;
   }
 
   .card {

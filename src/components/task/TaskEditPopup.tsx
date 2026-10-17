@@ -25,6 +25,7 @@ import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody, type NotesSource } from './notes/NotesBody'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { DialogFrame } from '../shared/Dialog'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditPopupBaseProps {
@@ -223,12 +224,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     },
   })
 
-  // Stacked over a dialog, the editor takes focus so Esc reaches it, not the dialog.
-  const backdropRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!isEdit) titleRef.current?.focus()
-    else if (nested) backdropRef.current?.focus({ preventScroll: true })
-  }, [isEdit, nested])
+  // The frame moves focus in: the title in create mode, the panel in edit
+  // mode (so Esc and the keys stay in the editor, stacked or not).
+  const panelRef = useRef<HTMLDivElement>(null)
 
   // Edit mode: the editor shows changes made elsewhere (a bulk edit, a
   // calendar drop, undo) except in the fields the user has changed since the
@@ -269,31 +267,18 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (show.recurrenceType !== undefined) setRecurrenceType(show.recurrenceType)
   }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
 
-  // Track whether mousedown started on the backdrop itself.
-  // Prevents closing when user selects text inside and drags outside.
-  const mouseDownOnBackdropRef = useRef(false)
-  const handleBackdropMouseDown = (e: React.MouseEvent) => {
-    mouseDownOnBackdropRef.current = e.target === e.currentTarget
-  }
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && mouseDownOnBackdropRef.current) onClose()
-  }
-
+  // The first Esc in a text field only leaves the field (claimed, so the
+  // frame doesn't close); focus stays in the editor, so the next Esc closes it.
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      const tag = (e.target as HTMLElement).tagName
-      // Handled here: an editor stacked over another surface (the convert
-      // preview, another editor) must not close that one too.
+    if (e.key !== 'Escape') return
+    const tag = (e.target as HTMLElement).tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') {
+      e.preventDefault()
       e.stopPropagation()
-      if (tag === 'INPUT' || tag === 'TEXTAREA') {
-        ;(e.target as HTMLElement).blur()
-        // Focus stays in the editor, so the next Esc closes it.
-        ;(e.currentTarget as HTMLElement).focus({ preventScroll: true })
-      } else {
-        onClose()
-      }
+      ;(e.target as HTMLElement).blur()
+      panelRef.current?.focus({ preventScroll: true })
     }
-  }, [onClose])
+  }, [])
 
   const buildRule = useCallback(() => {
     if (!recurrenceType) return undefined
@@ -555,8 +540,19 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [showStatusMenu])
 
   return (
-    <div ref={backdropRef} className={`${styles.backdrop} ${nested ? styles.backdropNested : ''}`} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
-      <div className={styles.card}>
+    // The shared dialog frame: Esc (after a text field's first), a backdrop
+    // press, focus in / kept inside / back to the opener, no app shortcuts
+    // inside; stacked above a dialog when `nested`.
+    <DialogFrame
+      onClose={onClose}
+      layer={nested ? 'raised' : 'overlay'}
+      className={styles.card}
+      backdropClassName={`${styles.backdrop} ${nested ? styles.backdropNested : ''}`}
+      panelRef={panelRef}
+      initialFocus={isEdit ? 'panel' : titleRef}
+      onKeyDown={handleKeyDown}
+      aria-label={isEdit ? 'Edit task' : 'New task'}
+    >
         <TaskEditHeader
           isEdit={isEdit}
           isCompleted={todo?.isCompleted}
@@ -714,8 +710,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         ) : (
           <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
         )}
-      </div>
-    </div>
+    </DialogFrame>
   )
 }
 
