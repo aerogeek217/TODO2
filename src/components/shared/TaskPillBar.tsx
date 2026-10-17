@@ -13,12 +13,12 @@ import styles from './TaskPillBar.module.css'
 
 /**
  * Shared task-pill bar — the one due-date / people / status chip
- * implementation for `TaskRow` / `MobileTaskRow` / `TopBar`'s
- * `SearchResultPills`.
+ * implementation for `MobileTaskRow` / `TopBar`'s `SearchResultPills`
+ * (the desktop `TaskRow` has its own column cells).
  *
  * Tags: this primitive does NOT render tag chips. Tag display is the
- * separate `TagChipSelector` shared component, mounted by `TaskRow` and
- * `MobileTaskRow` adjacent to (not inside) the pill bar — adding tags here
+ * separate `TagChipSelector` shared component, mounted by `MobileTaskRow`
+ * adjacent to (not inside) the pill bar — adding tags here
  * would force every consumer of `TaskPillBar` (search dropdown, etc.) to
  * thread tags they don't render.
  *
@@ -26,7 +26,7 @@ import styles from './TaskPillBar.module.css'
  * through; this primitive does NOT subscribe to any store.
  *
  * Composition — `<TaskPillBar>` is the default composed bar (people →
- * dates → follow-up → status, the layout used by `TaskRow` / `MobileTaskRow` /
+ * dates → follow-up → status, the layout used by `MobileTaskRow` /
  * `SearchResultRow`). Surfaces with a different layout compose
  * `<TaskPillPeople>`, `<TaskPillDates>`, `<TaskPillStatus>` directly.
  */
@@ -53,9 +53,6 @@ interface TaskPillPeopleProps extends PillCommon {
 interface TaskPillDatesProps extends PillCommon {
   todo: PersistedTodoItem
   today: Date
-  /** `'stack'` = TaskRow's vertical date column. `'inline'` = horizontal
-   * row (default). */
-  layout?: 'inline' | 'stack'
   deadlineIntensity?: number
   onDeadlineClick?: (e: MouseEvent) => void
   /** When provided AND interactive=true, the due-date chip shows an
@@ -109,7 +106,7 @@ export const TaskPillPeople = memo(function TaskPillPeople({
 
 export const TaskPillDates = memo(function TaskPillDates({
   todo, today, interactive = true, compact = false,
-  layout = 'inline', deadlineIntensity,
+  deadlineIntensity,
   onDeadlineClick, onDeadlineClear,
 }: TaskPillDatesProps) {
   const hasDeadline = !!todo.dueDate
@@ -191,11 +188,7 @@ export const TaskPillDates = memo(function TaskPillDates({
     )
   )
 
-  return layout === 'stack' ? (
-    <div className={styles.dateStack}>
-      {deadlineChip}
-    </div>
-  ) : (
+  return (
     <div className={styles.dateInline}>
       {deadlineChip}
     </div>
@@ -313,9 +306,6 @@ interface TaskPillBarProps extends PillCommon {
   status?: Status
   today: Date
 
-  /** `'stack'` = TaskRow's vertical date column, `'inline'` (default) =
-   * horizontal flow. */
-  dateLayout?: 'inline' | 'stack'
   /** Hide the status indicator entirely — `MobileTaskRow` renders status
    * outside the metaRow so it passes `false`. */
   showStatus?: boolean
@@ -345,7 +335,7 @@ interface TaskPillBarProps extends PillCommon {
 export const TaskPillBar = memo(function TaskPillBar({
   todo, people, status, today,
   interactive = true, compact = false, density = 'default',
-  dateLayout = 'inline', showStatus = true,
+  showStatus = true,
   deadlineIntensity,
   peopleAnchorRef, followupAnchorRef, statusAnchorRef,
   followupOpen, ariaHidden,
@@ -373,7 +363,6 @@ export const TaskPillBar = memo(function TaskPillBar({
         today={today}
         interactive={interactive}
         compact={compact}
-        layout={dateLayout}
         deadlineIntensity={deadlineIntensity}
         onDeadlineClick={onDeadlineClick}
         onDeadlineClear={onDeadlineClear}

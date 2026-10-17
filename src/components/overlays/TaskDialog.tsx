@@ -26,6 +26,7 @@ import { findTab } from '../../utils/workspace-layout-ops'
 import { DialogFrame } from '../shared/Dialog'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
+import { TaskRowGrid } from '../task/TaskRowGrid'
 import { DashGlyph } from '../shared/DashGlyph'
 import { EnvelopeIcon } from '../shared/icons'
 import styles from './TaskDialog.module.css'
@@ -182,18 +183,21 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
       <p className={styles.description}>{payload.description}</p>
       <div className={styles.body} aria-label="Tasks" role="group">
         {count === 0 && <div className={styles.empty}>No tasks</div>}
-        {groups.map((g) => (g.label == null
-          ? <div key={g.key}>{rowsOf(g)}</div>
-          : (
-            <div key={g.key} role="group" aria-label={g.label} data-task-dialog-group={g.key}>
-              <div className={styles.groupHeader}>
-                <i className={styles.groupDot} style={{ background: g.color ?? 'var(--color-text-muted)' }} />
-                <span>{g.label}</span>
-                <span className={styles.groupCount}>· {g.todoIds.length}</span>
+        {/* The default split: no divider here. */}
+        <TaskRowGrid>
+          {groups.map((g) => (g.label == null
+            ? <div key={g.key}>{rowsOf(g)}</div>
+            : (
+              <div key={g.key} role="group" aria-label={g.label} data-task-dialog-group={g.key}>
+                <div className={styles.groupHeader}>
+                  <i className={styles.groupDot} style={{ background: g.color ?? 'var(--color-text-muted)' }} />
+                  <span>{g.label}</span>
+                  <span className={styles.groupCount}>· {g.todoIds.length}</span>
+                </div>
+                {rowsOf(g)}
               </div>
-              {rowsOf(g)}
-            </div>
-          )))}
+            )))}
+        </TaskRowGrid>
       </div>
       <div className={styles.footer}>
         <button type="button" className={styles.ghostBtn} onClick={() => { void copy() }} disabled={count === 0}>

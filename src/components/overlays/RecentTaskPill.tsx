@@ -20,6 +20,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { TaskRow } from '../task/TaskRow'
+import { TaskRowGrid } from '../task/TaskRowGrid'
 import styles from './RecentTaskPill.module.css'
 
 export function RecentTaskPill() {
@@ -55,13 +56,14 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
       onAnimationEnd={() => clearRecent()}
     >
       <span className={styles.label}>New</span>
-      <div className={styles.rowWrapper}>
+      {/* The default split: no divider here. */}
+      <TaskRowGrid className={styles.rowWrapper}>
         <TaskRow
           todo={todo}
           assignedPeople={assignedPeople}
           onOpenDetail={handleOpenDetail}
         />
-      </div>
+      </TaskRowGrid>
       <button
         type="button"
         className={styles.dismissButton}

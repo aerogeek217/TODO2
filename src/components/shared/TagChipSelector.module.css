@@ -8,14 +8,6 @@
   overflow: hidden;
 }
 
-/* Empty-state wrapper — hover-revealed via the surrounding row's hover rule
- * (TaskRow.module.css / MobileTaskRow.module.css use a `[class*="tagChipEmpty"]`
- * substring matcher to attach `opacity: 0 → 1` on `.row:hover`). */
-.tagChipEmpty {
-  /* Marker class only — the hash is what the row CSS substring-matches.
-   * No own properties; visibility is row-controlled. */
-}
-
 .tagChip {
   font-size: var(--font-size-meta);
   padding: 0 5px;
@@ -93,7 +85,7 @@
   }
 
   /* The first tag stays readable-ish ("#ho…") instead of shrinking away. */
-  .chipGroup:not(.tagChipEmpty) {
+  .chipGroup:has(.tagChip) {
     min-width: 44px;
   }
 }

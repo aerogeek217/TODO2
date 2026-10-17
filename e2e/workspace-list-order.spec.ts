@@ -47,7 +47,7 @@ function titles(page: Page): Promise<string[]> {
 
 function row(page: Page, title: string, group?: string): Locator {
   const scope = group ? wsListWidget(page, 't1').locator(`[data-list-section="${group}"]`) : wsListWidget(page, 't1')
-  return scope.locator('[data-row-key]', { has: page.locator(`span[title="${title}"]`) })
+  return scope.locator('[data-row-key]', { has: page.locator(`span[data-task-title="${title}"]`) })
 }
 
 /** Viewport y just inside the top of `target` (lands before it). */
@@ -144,18 +144,18 @@ test('dragging into another person’s group reassigns the task after a confirm'
 
 test('selection: click, Shift-range across groups, arrow keys, and the bulk bar', async ({ page }) => {
   await seedWorkspace(page, seed({ name: 'Team', grouping: 'people' }))
-  await row(page, 'Alpha', 'person-1').locator('span[title="Alpha"]').click()
+  await row(page, 'Alpha', 'person-1').locator('span[data-task-title="Alpha"]').click()
   await expect(row(page, 'Alpha', 'person-1')).toHaveAttribute('data-cursor', 'true')
 
   // Shift-click Bravo (Bob's group): a range over the group header.
-  await row(page, 'Bravo', 'person-2').locator('span[title="Bravo"]').click({ modifiers: ['Shift'] })
+  await row(page, 'Bravo', 'person-2').locator('span[data-task-title="Bravo"]').click({ modifiers: ['Shift'] })
   const bar = page.getByTestId('list-bulk-bar')
   await expect(bar).toContainText('4 selected')
 
   // ↓ moves the cursor to the next row; Shift+↑ extends from the anchor.
   await page.keyboard.press('Escape')
   await expect(bar).toBeHidden()
-  await row(page, 'Alpha', 'person-1').locator('span[title="Alpha"]').click()
+  await row(page, 'Alpha', 'person-1').locator('span[data-task-title="Alpha"]').click()
   await page.keyboard.press('ArrowDown')
   // The next row is Charlie's occurrence in Alice's group, not the one in Bob's.
   await expect(row(page, 'Charlie', 'person-1')).toHaveAttribute('data-cursor', 'true')

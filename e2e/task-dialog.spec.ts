@@ -33,7 +33,7 @@ const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const dialogRow = (page: Page, title: string) => dialog(page).locator('[data-todo-id]').filter({ hasText: title })
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Task title' })
 const dialogTitles = (page: Page) => dialog(page).locator('[data-todo-id]').evaluateAll((rows) =>
-  rows.map((r) => r.querySelector('[class*="titleBlock"] span')?.textContent ?? ''))
+  rows.map((r) => r.querySelector('[data-task-title]')?.textContent ?? ''))
 
 test('a tile opens its tasks; a completed row stays, struck through, while the count drops', async ({ page }) => {
   await seedWorkspace(page, SEED)
@@ -52,7 +52,7 @@ test('a tile opens its tasks; a completed row stays, struck through, while the c
   await expect(tileCount(page, 'hot')).toHaveText('1')
   await expect(outage).toBeVisible()
   await expect(outage.getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
-  await expect(outage.locator('span[title="Fix checkout outage"]')).toHaveCSS('text-decoration-line', 'line-through')
+  await expect(outage.locator('span[data-task-title="Fix checkout outage"]')).toHaveCSS('text-decoration-line', 'line-through')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 
   await page.keyboard.press('Escape')
@@ -70,13 +70,13 @@ test('a row opens the editor on top; Esc in the editor closes only the editor', 
   expect(await dialogTitles(page)).toEqual(['Call the plumber', 'Fix checkout outage', 'Plan the offsite', 'Vendor contract'])
 
   // Opened from a row, the editor has the focus: Esc closes it, not the dialog.
-  await dialogRow(page, 'Call the plumber').locator('span[title="Call the plumber"]').click()
+  await dialogRow(page, 'Call the plumber').locator('span[data-task-title="Call the plumber"]').click()
   await expect(editor(page)).toHaveValue('Call the plumber')
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
   await expect(dialog(page)).toBeVisible()
 
-  await dialogRow(page, 'Plan the offsite').locator('span[title="Plan the offsite"]').click()
+  await dialogRow(page, 'Plan the offsite').locator('span[data-task-title="Plan the offsite"]').click()
   await expect(editor(page)).toBeVisible()
   // The editor is on top: its fields take clicks over the dialog.
   const progress = page.getByPlaceholder('e.g. 50% done, Waiting on review...')
@@ -123,7 +123,7 @@ test('the person chip on a task row opens that person’s open tasks', async ({ 
     ],
   })
   const row = widget.locator('[data-todo-id]').filter({ hasText: 'Vendor contract' })
-  await row.locator('[class*="peopleGroup"] [class*="avatar"]').first().click({ button: 'right' })
+  await row.locator('[data-person-avatar]').first().click({ button: 'right' })
 
   await expect(dialog(page).getByRole('heading')).toHaveText('Alice Chen')
   await expect(dialog(page)).toContainText('Open tasks assigned to Alice Chen.')
@@ -174,11 +174,11 @@ test('Esc in a row’s status menu or people picker over the task dialog closes 
   await expect(statusMenu).toHaveCount(0)
   await expect(dialog(page)).toBeVisible()
 
-  await row.getByRole('button', { name: '1 person assigned' }).click()
+  await row.getByRole('button', { name: 'People: Alice Chen' }).click()
   const people = page.locator('[data-anchored-picker]')
   // Above the dialog: the click lands on the picker, not the dialog under it.
   await people.getByRole('option', { name: /Alice Chen/ }).click()
-  await expect(row.getByRole('button', { name: '1 person assigned' })).toHaveCount(0)
+  await expect(row.getByRole('button', { name: 'Assign people' })).toBeVisible()
   await expect(people.getByRole('combobox')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(people).toHaveCount(0)

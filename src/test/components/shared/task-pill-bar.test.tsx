@@ -236,40 +236,6 @@ describe('<TaskPillBar>', () => {
     })
   })
 
-  describe('dateLayout=stack (TaskRow)', () => {
-    it('wraps the due date in a vertical date-stack container', () => {
-      const todo = makeTodo({
-        id: 1,
-        dueDate: new Date(2026, 3, 25),
-      })
-      const { container } = render(
-        <TaskPillBar
-          todo={todo}
-          people={[]}
-          today={today}
-          dateLayout="stack"
-        />,
-      )
-      expect(container.querySelector('[class*="dateStack"]')).toBeInTheDocument()
-    })
-
-    it('uses inline layout by default', () => {
-      const todo = makeTodo({
-        id: 1,
-        dueDate: new Date(2026, 3, 25),
-      })
-      const { container } = render(
-        <TaskPillBar
-          todo={todo}
-          people={[]}
-          today={today}
-        />,
-      )
-      expect(container.querySelector('[class*="dateInline"]')).toBeInTheDocument()
-      expect(container.querySelector('[class*="dateStack"]')).toBeNull()
-    })
-  })
-
   describe('showStatus={false} (MobileTaskRow)', () => {
     it('omits the status indicator when showStatus is false', () => {
       const todo = makeTodo({ id: 1, statusId: 5 })

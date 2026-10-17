@@ -37,6 +37,8 @@ import { dispatchCrossGroupMutation } from '../../../services/cross-group-mutati
 import type { ListRowDragSource, ListRowDropTarget } from '../../../utils/list-row-drop'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
+import { TaskRowGrid } from '../../task/TaskRowGrid'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { ReassignDialog } from '../../overlays/ReassignDialog'
 import { ChevronDownIcon, FunnelIcon, PlusIcon, SortIcon } from '../../shared/icons'
 import { pointBelow } from '../../shared/filters/popover-point'
@@ -326,53 +328,60 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     }
   } else {
     const sourceLabel = drag ? sections.find((s) => s.key === drag.source.sectionKey)?.label : undefined
-    body = (
-      <div className={styles.body}>
-        {grouped ? displaySections.map((section) => {
-          const isCollapsed = collapsedKeys.has(section.key)
-          const crossTarget = drag?.target?.cross === true && drag.target.sectionKey === section.key
-          const person = isMobile ? null : groupPerson(groupedBy, section)
-          const header = (
-            <button
-              type="button"
-              className={`${styles.groupHeader} ${person && !drag ? styles.groupHeaderWithAction : ''}`}
-              aria-expanded={!isCollapsed}
-              onClick={() => toggleGroup(tab.id, section.key)}
-            >
-              <span className={styles.groupChevron}><ChevronDownIcon /></span>
-              <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
-              <span className={styles.groupName} style={{ color: section.accentColor ?? 'var(--color-text-secondary)' }} data-testid="list-group-name">{section.label}</span>
-              <span className={styles.groupCount}>{section.todos.length}</span>
-              {crossTarget && sourceLabel != null && (
-                <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
-              )}
-            </button>
-          )
-          return (
-            <div
-              key={section.key}
-              className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
-              data-list-group={section.key}
-              data-list-section={section.key}
-            >
-              {person ? (
-                <PersonGroupHeader
-                  person={person}
-                  showAction={!drag}
-                  onOpenMenu={(at) => setHeaderMenu({ person, at })}
-                >
-                  {header}
-                </PersonGroupHeader>
-              ) : header}
-              {!isCollapsed && renderSectionRows(section)}
-            </div>
-          )
-        }) : displaySections.map((section) => (
-          <div key={section.key} data-list-section={section.key}>
-            {renderSectionRows(section)}
+    const groups = (
+      grouped ? displaySections.map((section) => {
+        const isCollapsed = collapsedKeys.has(section.key)
+        const crossTarget = drag?.target?.cross === true && drag.target.sectionKey === section.key
+        const person = isMobile ? null : groupPerson(groupedBy, section)
+        const header = (
+          <button
+            type="button"
+            className={`${styles.groupHeader} ${person && !drag ? styles.groupHeaderWithAction : ''}`}
+            aria-expanded={!isCollapsed}
+            onClick={() => toggleGroup(tab.id, section.key)}
+          >
+            <span className={styles.groupChevron}><ChevronDownIcon /></span>
+            <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
+            <span className={styles.groupName} style={{ color: section.accentColor ?? 'var(--color-text-secondary)' }} data-testid="list-group-name">{section.label}</span>
+            <span className={styles.groupCount}>{section.todos.length}</span>
+            {crossTarget && sourceLabel != null && (
+              <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
+            )}
+          </button>
+        )
+        return (
+          <div
+            key={section.key}
+            className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
+            data-list-group={section.key}
+            data-list-section={section.key}
+          >
+            {person ? (
+              <PersonGroupHeader
+                person={person}
+                showAction={!drag}
+                onOpenMenu={(at) => setHeaderMenu({ person, at })}
+              >
+                {header}
+              </PersonGroupHeader>
+            ) : header}
+            {!isCollapsed && renderSectionRows(section)}
           </div>
-        ))}
-      </div>
+        )
+      }) : displaySections.map((section) => (
+        <div key={section.key} data-list-section={section.key}>
+          {renderSectionRows(section)}
+        </div>
+      ))
+    )
+    body = isMobile ? <div className={styles.body}>{groups}</div> : (
+      <TaskRowGrid
+        className={styles.body}
+        detailsWidth={tab.viewState?.detailsWidth}
+        onDetailsWidthChange={(detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'lens', { detailsWidth })}
+      >
+        {groups}
+      </TaskRowGrid>
     )
   }
 

@@ -135,7 +135,7 @@ async function checkContract(page: Page, c: Contract) {
 /** The person dialog from a list row's avatar (right-click), as the app opens it. */
 async function openPersonDialog(page: Page, task: string, person: string) {
   const row = wsListWidget(page, 'list').locator('[data-todo-id]').filter({ hasText: task })
-  await row.locator('[class*="peopleGroup"]').getByTitle(person).click({ button: 'right' })
+  await row.locator(`[data-person-avatar="${person}"]`).click({ button: 'right' })
   await expect(taskDialog(page).getByRole('heading')).toHaveText(person)
 }
 
@@ -158,7 +158,7 @@ test('task dialog → editor: the editor owns Esc, focused or not; then Esc clos
   await seedWorkspace(page, SEED)
   await hotTile(page).click()
   const dialog = taskDialog(page)
-  await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[title="Plan the offsite"]').click()
+  await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[data-task-title="Plan the offsite"]').click()
   await expect(editorTitle(page)).toBeVisible()
 
   // With nothing focused, Esc is the topmost dialog's — the editor's: it
@@ -168,7 +168,7 @@ test('task dialog → editor: the editor owns Esc, focused or not; then Esc clos
   await expect(editorTitle(page)).toHaveCount(0)
   await expect(dialog).toBeVisible()
 
-  await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[title="Plan the offsite"]').click()
+  await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[data-task-title="Plan the offsite"]').click()
   await expect(editorTitle(page)).toBeVisible()
   await editorTitle(page).focus()
   for (let i = 0; i < 3 && await editorTitle(page).isVisible(); i++) {
@@ -527,7 +527,7 @@ test.describe('editor modals', () => {
 
 test('task editor from a list row: on the frame, 12vh from the top; Tab kept inside; Esc leaves the title, then closes; focus back to the row', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  const title = wsListWidget(page, 'list').locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[title="Plan the offsite"]')
+  const title = wsListWidget(page, 'list').locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[data-task-title="Plan the offsite"]')
   await title.dblclick()
   const editor = page.getByRole('dialog', { name: 'Edit task' })
   await expect(editor).toBeVisible()

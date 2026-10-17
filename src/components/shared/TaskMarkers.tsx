@@ -30,8 +30,9 @@ function Marker({ label, tooltip, color, testId, children }: {
 }
 
 /**
- * A task row's markers, in the fixed order Focus › Urgent › Important, each
- * shown only when set. The Urgent slot shows the clock when only the due date
+ * A task's markers as glyphs (where glyphs are wanted — the notes → tasks
+ * preview; task rows show `MarkerDots`), in the fixed order Focus › Urgent ›
+ * Important, each shown only when set. The Urgent slot shows the clock when only the due date
  * makes the task urgent (`utils/urgency.ts`), the urgent mark when flagged.
  * Renders nothing when the task has no marker. `className` styles the strip
  * (gap, completed dimming); `size` is the glyph size in px.

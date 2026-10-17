@@ -15,6 +15,8 @@ export interface WsTabSeed {
   offset?: number
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
+  /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
+  detailsWidth?: number
   /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
   dashboard?: {
     tiles?: string[]
@@ -225,6 +227,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
               if (d.sections) config.sections = d.sections
             }
             if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
+            if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
             out.config = config
             return out
           }),

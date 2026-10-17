@@ -8,6 +8,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import type { TileStats } from '../../../services/stats/tiles'
 import { useUIStore } from '../../../stores/ui-store'
+import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { readScopeRows } from '../../../utils/scoped-selection'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { useElementSize } from '../../../hooks/use-element-size'
@@ -182,7 +183,11 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
     onResultRef.current?.({ countLabel, summary })
   }, [countLabel, summary, onResultRef])
 
-  const rows: DashboardRowKit = { tabId: tab.id, isMobile, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup }
+  const rows: DashboardRowKit = {
+    tabId: tab.id, isMobile, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
+    detailsWidth: tab.viewState?.detailsWidth,
+    onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'dashboard', { detailsWidth }),
+  }
 
   const wide = !isMobile && (size.width === 0 || size.width >= DASHBOARD_WIDE_MIN_PX)
   const showLists = data.listTiles.length > 0 || onAddListTile != null

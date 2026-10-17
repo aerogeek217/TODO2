@@ -23,7 +23,7 @@ test('switching tabs drops the hidden list selection', async ({ page }) => {
     }],
   })
   await wsListWidget(page, 'list').waitFor({ state: 'visible' })
-  await taskRowByTitle(page, 'one').locator('span[title="one"]').click()
+  await taskRowByTitle(page, 'one').locator('span[data-task-title="one"]').click()
   await expect(page.locator('[data-selected="true"]')).toHaveCount(1)
 
   await wsTab(page, 'notes').click()
@@ -66,7 +66,7 @@ test('list, Eisenhower and dashboard rows select alike; one widget at a time', a
   const bulkBar = page.getByTestId('list-bulk-bar')
 
   for (const w of widgets) {
-    const title = (t: string) => w.root.locator('[data-todo-id]').filter({ hasText: t }).locator(`span[title="${t}"]`)
+    const title = (t: string) => w.root.locator('[data-todo-id]').filter({ hasText: t }).locator(`span[data-task-title="${t}"]`)
     await expect(title('charlie')).toBeVisible()
 
     await title('alpha').click()
@@ -123,7 +123,7 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
     }],
   })
   const list = wsListWidget(page, 'list')
-  const title = (t: string) => list.locator('[data-todo-id]').filter({ hasText: t }).locator(`span[title="${t}"]`)
+  const title = (t: string) => list.locator('[data-todo-id]').filter({ hasText: t }).locator(`span[data-task-title="${t}"]`)
   const selected = page.locator('[data-selected="true"]')
   const bulkBar = page.getByTestId('list-bulk-bar')
   const selectTwo = async () => {

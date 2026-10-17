@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, memo } from 'react'
+import { useCallback, useRef, useState, memo, type RefObject } from 'react'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -53,7 +53,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     onOpenDetail,
     peoplePickerClassName: styles.chipDropdown,
     // With nobody assigned there are no avatars to anchor to (Assign people… from the menu).
-    emptyPeopleAnchorRef: primaryRowRef,
+    fallbackPeopleAnchorRef: primaryRowRef,
+    useFallbackPeopleAnchor: (assignedPeople ?? NO_PEOPLE).length === 0,
   })
 
   const handleChevronTap = useCallback((e: React.MouseEvent) => {
@@ -186,7 +187,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             today={today}
             density="small"
             deadlineIntensity={deadlineIntensity}
-            peopleAnchorRef={peopleRef}
+            peopleAnchorRef={peopleRef as RefObject<HTMLDivElement | null>}
             followupAnchorRef={followupAnchorRef}
             followupOpen={followupOpen}
             showStatus={false}

@@ -23,12 +23,12 @@ import { box, clickOutside, expectInsideViewport, pointIn, type Point } from './
 async function rightClickRowCenter(page: Page, title: string): Promise<void> {
   // Right-click on the task title span specifically so the contextmenu lands
   // on the row (and not on a chip popover trigger under the row's bbox center).
-  const at = await pointIn(taskRowByTitle(page, title).locator(`span[title="${title}"]`))
+  const at = await pointIn(taskRowByTitle(page, title).locator(`span[data-task-title="${title}"]`))
   await page.mouse.click(at.x, at.y, { button: 'right' })
 }
 
 async function titleCenter(row: Locator, title: string): Promise<Point> {
-  const at = await pointIn(row.locator(`span[title="${title}"]`))
+  const at = await pointIn(row.locator(`span[data-task-title="${title}"]`))
   return { x: Math.round(at.x), y: Math.round(at.y) }
 }
 

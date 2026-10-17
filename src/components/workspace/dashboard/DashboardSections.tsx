@@ -10,6 +10,7 @@ import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { usePersonStore } from '../../../stores/person-store'
 import { rowKey } from '../../../utils/scoped-selection'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
+import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { ListWidgetRow } from '../list/ListWidgetRow'
 import { useElementSize } from '../../../hooks/use-element-size'
@@ -144,6 +145,12 @@ function TaskRows({ sectionKey, ids, data, kit }: {
   )
 }
 
+/** Task rows sharing the tab's columns and divider (phones: a plain list). */
+function RowsGrid({ kit, children }: { kit: DashboardRowKit; children: ReactNode }) {
+  if (kit.isMobile) return <>{children}</>
+  return <TaskRowGrid detailsWidth={kit.detailsWidth} onDetailsWidthChange={kit.onDetailsWidthChange}>{children}</TaskRowGrid>
+}
+
 /** The open tasks of `tasks` matching `pick`, in dialog order. */
 function openIds(tasks: readonly PersistedTodoItem[], pick: (t: PersistedTodoItem) => boolean): number[] {
   return idsByDate(tasks.filter((t) => !t.isCompleted && pick(t)), 'deadline')
@@ -173,7 +180,7 @@ export function HotSection({ data, rows, onDrill, style }: DashboardSectionProps
       <div className={styles.panelBody}>
         {ids.length === 0
           ? <Empty title="Nothing hot" hint="Tasks matching the Hot setting show here." />
-          : <TaskRows sectionKey="hot" ids={ids} data={data} kit={rows} />}
+          : <RowsGrid kit={rows}><TaskRows sectionKey="hot" ids={ids} data={data} kit={rows} /></RowsGrid>}
       </div>
     </Panel>
   )
@@ -211,16 +218,20 @@ export function FollowupSection({ data, options, rows, onDrill, style }: Dashboa
             title="Nothing needs follow-up"
             hint={`No follow-ups are late, due today or due in the next ${lookAhead} days.`}
           />
-        ) : groups.map((g) => (
-          <div key={g.key} role="group" aria-label={g.name}>
-            <div className={styles.groupHeader}>
-              <i className={styles.groupDot} style={{ background: g.dot }} />
-              <span>{g.name}</span>
-              <span className={styles.groupCount}>· {g.ids.length}</span>
-            </div>
-            <TaskRows sectionKey={g.key} ids={g.ids} data={data} kit={rows} />
-          </div>
-        ))}
+        ) : (
+          <RowsGrid kit={rows}>
+            {groups.map((g) => (
+              <div key={g.key} role="group" aria-label={g.name}>
+                <div className={styles.groupHeader}>
+                  <i className={styles.groupDot} style={{ background: g.dot }} />
+                  <span>{g.name}</span>
+                  <span className={styles.groupCount}>· {g.ids.length}</span>
+                </div>
+                <TaskRows sectionKey={g.key} ids={g.ids} data={data} kit={rows} />
+              </div>
+            ))}
+          </RowsGrid>
+        )}
       </div>
     </Panel>
   )

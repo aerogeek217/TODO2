@@ -1,0 +1,38 @@
+/* Three 5px marker dots, 2px apart, top to bottom Focus · Urgent · Important. */
+.dots {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 5px;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-tint-6);
+}
+
+.focus {
+  background: var(--color-marker-focus);
+}
+
+.urgent {
+  background: var(--color-marker-urgent);
+}
+
+/* Urgent only because of the due date: a ring. */
+.urgentRing {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.2px var(--color-marker-urgent);
+}
+
+.important {
+  background: var(--color-marker-important);
+}
+
+/* Completed tasks: dimmed with the row. */
+.dim {
+  opacity: 0.45;
+}

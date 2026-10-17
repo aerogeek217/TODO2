@@ -82,7 +82,7 @@ test.describe('task rows fit their container', () => {
       expect(problems).toEqual([])
       // The row's controls are all there: the ⋯ and status of the busiest row.
       const busiest = page.locator('[data-todo-id]').first()
-      await busiest.hover()
+      await busiest.locator('[data-task-title]').hover()
       await expect(busiest.getByRole('button', { name: 'Task actions' })).toBeInViewport()
     })
   }

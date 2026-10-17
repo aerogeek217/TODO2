@@ -12,15 +12,15 @@ import { rowTitles } from './fixtures/seed'
  */
 
 function row(widget: Locator, title: string): Locator {
-  return widget.locator('[data-todo-id]', { has: widget.page().locator(`span[title="${title}"]`) })
+  return widget.locator('[data-todo-id]', { has: widget.page().locator(`span[data-task-title="${title}"]`) })
 }
 
 async function openEditor(page: Page, widget: Locator, title: string): Promise<void> {
-  await row(widget, title).locator(`span[title="${title}"]`).dblclick()
+  await row(widget, title).locator(`span[data-task-title="${title}"]`).dblclick()
   await expect(page.getByRole('button', { name: 'Urgent', exact: true })).toBeVisible()
 }
 
-test('rows show the urgent mark, the clock (urgent by due date), important and focus', async ({ page }) => {
+test('the marker gutter: Focus · Urgent · Important dots; urgent by due date is a ring', async ({ page }) => {
   const widget = await seedTaskList(page, {
     tasks: [
       { title: 'Flagged', urgent: true, important: true, focus: true },
@@ -29,20 +29,28 @@ test('rows show the urgent mark, the clock (urgent by due date), important and f
       { title: 'Later', dueInDays: 9 },
     ],
   })
-  const marks = (title: string) => row(widget, title).getByTestId('task-markers').locator('[role="img"]')
-  await expect(marks('Flagged')).toHaveCount(3)
-  expect(await marks('Flagged').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))).toEqual(['Focus', 'Urgent', 'Important'])
-  await expect(row(widget, 'Due soon').getByRole('img', { name: 'Urgent: due soon' })).toBeVisible()
-  await expect(row(widget, 'Overdue').getByRole('img', { name: 'Urgent: due soon' })).toBeVisible()
-  await expect(row(widget, 'Later').getByTestId('task-markers')).toHaveCount(0)
+  const gutter = (title: string) => row(widget, title).locator('[data-row-cell="markers"]')
+  const dots = (title: string) => gutter(title).locator('[data-dot]').evaluateAll((els) => els.map((el) => [el.getAttribute('data-dot'), el.getAttribute('data-on')]))
+  await expect(gutter('Flagged')).toHaveAccessibleName('Markers: Focus, Urgent, Important')
+  expect(await dots('Flagged')).toEqual([['focus', 'true'], ['urgent', 'flag'], ['important', 'true']])
+  await expect(gutter('Due soon')).toHaveAccessibleName('Markers: Urgent (due soon)')
+  await expect(gutter('Overdue')).toHaveAccessibleName('Markers: Urgent (due soon)')
+  // The ring: no fill, an inset ring in the urgent colour.
+  const ring = await gutter('Due soon').locator('[data-dot="urgent"]').evaluate((el) => {
+    const cs = getComputedStyle(el)
+    return { bg: cs.backgroundColor, shadow: cs.boxShadow }
+  })
+  expect(ring.bg).toBe('rgba(0, 0, 0, 0)')
+  expect(ring.shadow).toContain('inset')
+  await expect(gutter('Later')).toHaveAccessibleName('No markers')
 
   // Settings › Task defaults: range Off → the clocks go; the flag stays.
   const settings = await openSettings(page, 'Task defaults')
   await settings.getByRole('combobox', { name: 'Due date makes a task urgent' }).selectOption('off')
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
-  await expect(widget.getByRole('img', { name: 'Urgent: due soon' })).toHaveCount(0)
-  await expect(row(widget, 'Flagged').getByRole('img', { name: 'Urgent', exact: true })).toBeVisible()
+  await expect(gutter('Due soon')).toHaveAccessibleName('No markers')
+  await expect(gutter('Flagged')).toHaveAccessibleName('Markers: Focus, Urgent, Important')
 })
 
 test('turning Urgent off in the editor on a task urgent by its due date asks to remove the date', async ({ page }) => {
@@ -70,12 +78,12 @@ test('turning Urgent off in the editor on a task urgent by its due date asks to 
   await expect(page.getByTitle('Set due date').first()).toBeVisible()
   await expect(page.getByText('Removed the due date')).toBeVisible()
   await page.getByRole('button', { name: 'Done' }).click()
-  await expect(row(widget, 'Pick up prescriptions').getByTestId('task-markers')).toHaveCount(0)
+  await expect(row(widget, 'Pick up prescriptions').getByRole('button', { name: 'No markers' })).toBeVisible()
 })
 
 test('turning Urgent off on a flagged task due today clears the flag, then offers Keep / Remove due date', async ({ page }) => {
   const widget = await seedTaskList(page, { tasks: [{ title: 'Headcount request', urgent: true, dueInDays: 0 }] })
-  await expect(row(widget, 'Headcount request').getByRole('img', { name: 'Urgent', exact: true })).toBeVisible()
+  await expect(row(widget, 'Headcount request').getByRole('button', { name: 'Markers: Urgent' })).toBeVisible()
   await openEditor(page, widget, 'Headcount request')
   const urgent = page.getByRole('button', { name: 'Urgent', exact: true })
   await expect(urgent).toHaveAttribute('data-urgent', 'flag')
@@ -87,7 +95,7 @@ test('turning Urgent off on a flagged task due today clears the flag, then offer
   // Still urgent, now by its date: the toggle shows the clock.
   await expect(urgent).toHaveAttribute('data-urgent', 'date')
   await page.getByRole('button', { name: 'Done' }).click()
-  await expect(row(widget, 'Headcount request').getByRole('img', { name: 'Urgent: due soon' })).toBeVisible()
+  await expect(row(widget, 'Headcount request').getByRole('button', { name: 'Markers: Urgent (due soon)' })).toBeVisible()
 })
 
 const markerTasks = [

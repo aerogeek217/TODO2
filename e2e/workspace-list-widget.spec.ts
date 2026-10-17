@@ -210,7 +210,7 @@ test('a hard cap shows the first N with a switch to scroll', async ({ page }) =>
   await expect(wsCell(page, 'k1').getByTestId('save-list')).toBeVisible()
 })
 
-test('narrow widgets: a follow-up pill gives way to a due pill, the summary hides, titles keep room', async ({ page }) => {
+test('narrow widgets: a narrower due column, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 800 })
   await seedWorkspace(page, {
     tags: ['home', 'work'],
@@ -229,15 +229,15 @@ test('narrow widgets: a follow-up pill gives way to a due pill, the summary hide
   expect((await narrow.boundingBox())!.width).toBeLessThan(360)
   expect((await wide.boundingBox())!.width).toBeGreaterThan(360)
 
-  await expect(wide.locator('[data-pill="followup"]')).toBeVisible()
-  await expect(narrow.locator('[data-pill="followup"]')).toBeHidden()
-  await expect(narrow.locator('[data-pill="due"]')).toBeVisible()
+  // Every row keeps its follow-up and due cells; the narrow one's due column is 40px, not 46.
+  for (const w of [wide, narrow]) await expect(w.locator('[data-row-cell="followup"]')).toHaveAttribute('data-followup', 'upcoming')
+  expect(Math.round((await wide.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(46)
+  expect(Math.round((await narrow.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(40)
   await expect(wide.locator('button[title="List options"]')).toBeVisible()
   await expect(narrow.locator('button[title="List options"]')).toBeHidden()
-  // Extra tags collapse into +N; the title keeps a readable width.
-  await expect(narrow.getByRole('button', { name: '1 more tag', exact: true })).toBeVisible()
-  await expect(wide.getByRole('button', { name: '1 more tag', exact: true })).toBeHidden()
-  await expect(wide.getByRole('button', { name: '#work', exact: true })).toBeVisible()
-  const title = narrow.locator('[data-todo-id] [title^="A fairly long"]')
-  expect((await title.boundingBox())!.width).toBeGreaterThan(60)
+  // The tags column gives way in the narrow widget; the title keeps 80px.
+  await expect(wide.getByRole('button', { name: 'Tags: home, work', exact: true })).toBeVisible()
+  await expect(narrow.locator('[data-row-cell="tags"]')).toHaveCount(0)
+  const title = narrow.locator('[data-todo-id] [data-task-title^="A fairly long"]')
+  expect((await title.boundingBox())!.width).toBeGreaterThanOrEqual(80)
 })

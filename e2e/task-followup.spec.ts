@@ -68,12 +68,15 @@ test.describe('Task follow-up', () => {
     await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
   })
 
-  test('empty-slot flag: hidden at rest, revealed on hover, opens the popover on Followed up; typing an interval in the field + Enter sets it', async ({ page }) => {
+  test('empty follow-up cell: its flag shows on hover (the cell keeps its place), opens the popover on Followed up; typing an interval in the field + Enter sets it', async ({ page }) => {
     const row = taskRowByTitle(page, 'alpha')
     const flag = row.getByRole('button', { name: 'Set follow-up', exact: true })
-    await expect(flag).toBeHidden()
-    await row.hover()
-    await expect(flag).toBeVisible()
+    const placeholderOpacity = () => flag.evaluate((el) => Number(getComputedStyle(el.querySelector('[aria-hidden="true"]') as HTMLElement).opacity))
+    const at = (await flag.boundingBox())!
+    expect(await placeholderOpacity()).toBe(0)
+    await row.locator('[data-task-title]').hover()
+    await expect.poll(placeholderOpacity).toBe(1)
+    expect(await flag.boundingBox()).toEqual(at)
     await flag.click()
 
     const pop = popover(page)
@@ -150,34 +153,34 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-17 00:00', last: null })
   })
 
-  test('× on the pill clears the follow-up in one click without opening the popover', async ({ page }) => {
+  test('the popover’s × clears the follow-up; the cell goes back to its placeholder', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 13)
     const row = taskRowByTitle(page, 'alpha')
-    await row.hover()
-    await row.getByRole('button', { name: 'Clear follow-up', exact: true }).click()
+    await row.getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
+    await popover(page).getByRole('button', { name: 'Clear follow-up', exact: true }).click()
     await expect(row.getByRole('button', { name: /^Follow-up:/ })).toHaveCount(0)
-    await expect(popover(page)).toHaveCount(0)
-    await expect(row).toBeVisible()
+    await expect(row.getByRole('button', { name: 'Set follow-up', exact: true })).toBeVisible()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
   })
 
-  test('overdue follow-up: the day only ("late" in its accessible name) with the yellow ring, not the due-date magenta', async ({ page }) => {
+  test('overdue follow-up: the filled flag only ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
-    const pill = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
-    await expect(pill).toHaveAttribute('data-followup-overdue', 'true')
-    await expect(pill.locator('[class*="followupLabel"]')).toHaveText('Thu 8')
-    const { shadow, color } = await pill.evaluate((el) => {
-      const cs = getComputedStyle(el)
-      return { shadow: cs.boxShadow, color: cs.color }
+    const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
+    await expect(cell).toHaveAttribute('data-followup', 'late')
+    await expect(cell).toHaveText('')
+    const { filter, color, fill } = await cell.evaluate((el) => {
+      const svg = el.querySelector('svg')!
+      return { filter: getComputedStyle(svg).filter, color: getComputedStyle(el).color, fill: svg.getAttribute('fill') }
     })
-    expect(shadow).not.toBe('none')
+    expect(filter).toContain('drop-shadow')
+    expect(fill).toBe('currentColor')
     // Dark theme `--color-followup` (#f5c842).
     expect(color).toBe('rgb(245, 200, 66)')
   })
 
   test('row menu: Follow-up › "Pick a date or interval…" opens the popover; "Followed up" stamps the task', async ({ page }) => {
     const row = taskRowByTitle(page, 'beta')
-    const title = row.locator('span[title="beta"]')
+    const title = row.locator('span[data-task-title="beta"]')
     const tb = (await title.boundingBox())!
     await page.mouse.click(tb.x + 5, tb.y + 5, { button: 'right' })
     await page.getByRole('menuitem', { name: /^Follow-up/ }).click()
@@ -195,7 +198,7 @@ test.describe('Task follow-up', () => {
   })
 
   test('task editor: Next commits on Tab; Last accepts past dates only', async ({ page }) => {
-    await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').dblclick()
+    await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
     const next = page.getByRole('textbox', { name: 'Next follow-up' })
     await expect(next).toHaveValue('')
     await next.click()

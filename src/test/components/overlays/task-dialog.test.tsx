@@ -93,7 +93,7 @@ describe('TaskDialog', () => {
 
   it('a row opens the editor', () => {
     open(HOT)
-    fireEvent.click(row(2).querySelector('[class*="titleBlock"] span')!)
+    fireEvent.click(row(2).querySelector('[data-task-title]')!)
     expect(useUIStore.getState()).toMatchObject({ editPopupMode: 'edit', selectedTodoId: 2 })
     expect(dialog()).not.toBeNull()
   })

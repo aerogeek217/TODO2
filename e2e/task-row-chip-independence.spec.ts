@@ -46,14 +46,14 @@ test.describe('TaskRow chip independence', () => {
     await row.waitFor({ state: 'visible' })
 
     // Avatar must be visible right after submit — no reload, no status set.
-    const avatar = row.locator('[class*="peopleGroup"] [class*="avatar"]').first()
+    const avatar = row.locator('[data-person-avatar]').first()
     await expect(avatar, 'Alice avatar should render immediately after QuickAdd submit').toBeVisible()
     await expect(avatar).toHaveText(/A/)
 
-    // Empty `@` trigger must NOT be present when avatar is.
+    // The people cell is filled, not the empty one.
     await expect(
-      row.locator('[class*="chipGroupEmpty"]'),
-      'empty @ trigger should not render when person is assigned',
+      row.getByRole('button', { name: 'Assign people' }),
+      'the empty people cell should not render when a person is assigned',
     ).toHaveCount(0)
   })
 
@@ -65,12 +65,12 @@ test.describe('TaskRow chip independence', () => {
 
     const row = taskRowByTitle(page, 'person no status')
     await row.waitFor({ state: 'visible' })
-    const avatar = row.locator('[class*="peopleGroup"] [class*="avatar"]').first()
+    const avatar = row.locator('[data-person-avatar]').first()
     await expect(avatar).toBeVisible()
     await expect(avatar).toHaveText(/A/)
-    // Status indicator wrapper renders even when status is unset (the
-    // empty dot is hover-revealed via CSS).
-    await expect(row.locator('[class*="statusWrapper"]')).toHaveCount(1)
+    // The status cell renders even when status is unset (its empty dot is
+    // hover-revealed via CSS).
+    await expect(row.getByRole('button', { name: 'Set status' })).toHaveCount(1)
   })
 
   test('status renders independently of assignments (no-person row)', async ({ page }) => {
@@ -81,11 +81,11 @@ test.describe('TaskRow chip independence', () => {
 
     const row = taskRowByTitle(page, 'status no person')
     await row.waitFor({ state: 'visible' })
-    const status = row.locator('[class*="statusWrapper"]')
+    const status = row.locator('[data-row-cell="status"]')
     await expect(status, 'status indicator should render even without a person').toBeVisible()
-    await expect(status.locator('[class*="statusButton"]')).toHaveAttribute('aria-label', /Working/)
-    // No people group — only the empty `@` trigger should render.
-    await expect(row.locator('[class*="peopleGroup"]')).toHaveCount(0)
-    await expect(row.locator('[class*="chipGroupEmpty"]')).toHaveCount(1)
+    await expect(status).toHaveAttribute('aria-label', /Working/)
+    // No avatars — the people cell is the empty one.
+    await expect(row.locator('[data-person-avatar]')).toHaveCount(0)
+    await expect(row.getByRole('button', { name: 'Assign people' })).toHaveCount(1)
   })
 })

@@ -38,10 +38,10 @@ test.describe('person picker — lookup or create', () => {
     })
   })
 
-  test('opens under the @ slot with focus in the search; Create keeps it open with the person checked', async ({ page }) => {
+  test('opens under the people cell with focus in the search; Create keeps it open with the person checked', async ({ page }) => {
     const row = taskRowByTitle(page, 'vendor contract')
     await row.hover()
-    const trigger = row.getByRole('button', { name: '@', exact: true })
+    const trigger = row.getByRole('button', { name: 'Assign people' })
     await trigger.click()
 
     const search = page.getByPlaceholder('Search or create people…')

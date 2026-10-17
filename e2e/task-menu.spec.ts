@@ -52,7 +52,7 @@ test.describe('task menu', () => {
 
   test('Follow-up ›: → opens the submenu beside the item with focus inside; ← closes it; an interval sets the date', async ({ page }) => {
     // Right-click near the row's left end, so there is room on the right.
-    await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').click({ button: 'right' })
+    await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').click({ button: 'right' })
     const item = page.getByRole('menuitem', { name: /^Follow-up/ })
     await item.focus()
     await page.keyboard.press('ArrowRight')
@@ -78,7 +78,7 @@ test.describe('task menu', () => {
     await item.click()
     await page.getByRole('menuitem', { name: /^2 weeks/ }).click()
     await expect(page.getByRole('menu')).toHaveCount(0)
-    await expect(taskRowByTitle(page, 'alpha').locator('[data-pill="followup"]')).toBeVisible()
+    await expect(taskRowByTitle(page, 'alpha').locator('[data-row-cell="followup"]')).toHaveAttribute('data-followup', 'upcoming')
   })
 
   test('the submenu flips to the left of the menu near the right edge', async ({ page }) => {
@@ -101,14 +101,14 @@ test.describe('task menu', () => {
   })
 
   test('markers are checkbox items; Urgent is checked for a flagged task', async ({ page }) => {
-    await taskRowByTitle(page, 'beta').locator('span[title="beta"]').click({ button: 'right' })
+    await taskRowByTitle(page, 'beta').locator('span[data-task-title="beta"]').click({ button: 'right' })
     await expect(page.getByRole('menuitemcheckbox', { name: 'Urgent' })).toHaveAttribute('aria-checked', 'true')
     await page.getByRole('menuitemcheckbox', { name: 'Important' }).click()
-    await expect(taskRowByTitle(page, 'beta').getByRole('img', { name: 'Important' })).toBeVisible()
+    await expect(taskRowByTitle(page, 'beta').getByRole('button', { name: 'Markers: Urgent, Important' })).toBeVisible()
   })
 
-  test('tooltip: the follow-up pill tooltip opens after 400 ms, not before', async ({ page }) => {
-    const pill = taskRowByTitle(page, 'alpha').locator('[data-pill="followup"]')
+  test('tooltip: the follow-up cell tooltip opens after 400 ms, not before', async ({ page }) => {
+    const pill = taskRowByTitle(page, 'alpha').locator('[data-row-cell="followup"]')
     // Timed in the page from the pointer entering the pill (the event that
     // starts the delay) — not from a later evaluate, whose start lags the
     // hover by however long the round trip takes.
@@ -144,8 +144,8 @@ test('list bulk bar fits 320px; ⋯ More holds Followed up and the markers (mixe
     layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }] }] }],
   })
   await wsListWidget(page, TASK_LIST_TAB).waitFor({ state: 'visible' })
-  await taskRowByTitle(page, 'one').locator('span[title="one"]').click()
-  await taskRowByTitle(page, 'two').locator('span[title="two"]').click({ modifiers: ['Shift'] })
+  await taskRowByTitle(page, 'one').locator('span[data-task-title="one"]').click()
+  await taskRowByTitle(page, 'two').locator('span[data-task-title="two"]').click({ modifiers: ['Shift'] })
   const bar = page.getByTestId('list-bulk-bar')
   await expect(bar).toBeVisible()
   expect((await bar.boundingBox())!.width).toBeLessThanOrEqual(320)

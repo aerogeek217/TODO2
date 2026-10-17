@@ -21,4 +21,7 @@ export interface DashboardRowKit {
   cursorKey: string | null
   onSelect: (key: string, todoId: number, mods: ListRowSelectMods) => void
   onOpen: (todoId: number) => void
+  /** The tab's task-row details width (one value for every section). */
+  detailsWidth: number | undefined
+  onDetailsWidthChange: (width: number | undefined) => void
 }

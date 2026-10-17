@@ -1,23 +1,24 @@
-import { useRef, useState, useCallback, useMemo, memo } from 'react'
+import { useRef, useState, useCallback, useMemo, memo, type MouseEvent } from 'react'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
-import { startOfToday, toDateInputValue } from '../../utils/date'
-import { daysUntil, dateIntensity } from '../../utils/effective-date'
+import { startOfToday } from '../../utils/date'
 import { StatusIcon } from '../shared/StatusIcon'
-import { TaskPillPeople, TaskPillDates, TaskPillFollowup, TaskPillStatus } from '../shared/TaskPillBar'
-import { FollowupFlagIcon } from '../shared/FollowupIcons'
-import { TagChipSelector } from '../shared/TagChipSelector'
-import { DragHandle } from '../shared/DragHandle'
+import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
+import { useTooltip } from '../shared/use-tooltip'
 import { TaskMenu } from './TaskMenu'
+import { PriorityMenu } from './PriorityMenu'
 import { MoreIcon } from '../shared/icons'
-import { TaskMarkers } from '../shared/TaskMarkers'
 import { personTaskDialog } from '../../services/task-dialog'
 import { useTaskRowPickers } from './use-task-row-pickers'
+import { useTaskRowColumns } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
+import {
+  DueCell, FollowupCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
+} from './row-cells'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -30,22 +31,50 @@ interface TaskRowProps {
   onOpenDetail?: (todoId: number) => void
 }
 
+const NO_PEOPLE: Person[] = []
+
+/**
+ * The desktop task row: one grid column per field, the same columns on every
+ * row of its list (`TaskRowGrid`; the default split outside one):
+ *
+ *   markers · checkbox · title │ notes · people · tags · due · follow-up · status · ⋯
+ *
+ * Every column is always there; a click on a cell opens its picker anchored
+ * to it, and an empty cell shows its placeholder only on hover / focus — by
+ * opacity, so nothing moves. Only people and tags give way when the details
+ * are squeezed (`utils/task-row-columns`). Click selects, a click on a
+ * selected row's title edits it inline, a double-click on the title or empty
+ * space opens the editor, right-click opens the task menu; the whole row is
+ * the drag source (its list wraps it).
+ */
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail,
 }: TaskRowProps) {
+  const cols = useTaskRowColumns()
   const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [markersOpen, setMarkersOpen] = useState(false)
   /** The task menu: from the ⋯ button, or at the pointer (right-click). */
   const [menu, setMenu] = useState<{ kind: 'button' } | { kind: 'point'; x: number; y: number } | null>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLButtonElement>(null)
-  const statusRef = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLButtonElement>(null)
+  const markersRef = useRef<HTMLButtonElement>(null)
+  const tagsRef = useRef<HTMLButtonElement>(null)
 
   const {
-    bulk, handleToggleComplete, tagSelectorProps, peopleOpen, togglePeople, peopleRef, followupOpen, toggleFollowup,
-    followupAnchorRef, toggleNotes, notesIconRef, deadlineInputRef, openDeadlinePicker, onDeadlineInputChange,
-    menuHandlers, panels,
+    bulk, handleToggleComplete, assignedTags, allTags, tagPickerOpen, toggleTagPicker, closeTagPicker, toggleTag, createTag,
+    peopleOpen, togglePeople, peopleRef, followupOpen, toggleFollowup, followupAnchorRef, notesOpen, toggleNotes, notesIconRef,
+    deadlineInputRef, openDeadlinePicker, onDeadlineInputChange, menuHandlers, panels,
   } = useTaskRowPickers({
-    todo, assignedPeople, ghost, onOpenDetail, peoplePickerClassName: styles.chipDropdown,
+    todo,
+    assignedPeople,
+    ghost,
+    onOpenDetail,
+    peoplePickerClassName: styles.chipDropdown,
+    // With its column removed, the people picker (Assign people…) opens at the row.
+    fallbackPeopleAnchorRef: rowRef,
+    useFallbackPeopleAnchor: cols.people === 0,
   })
 
   const statuses = useStatusStore((s) => s.statuses)
@@ -66,15 +95,30 @@ export const TaskRow = memo(function TaskRow({
     save: saveTitle, handleKeyDown: handleTitleKeyDown, scheduleEdit, cancelScheduledEdit,
   } = useInlineEdit(todo.title, handleSaveTitle)
 
+  // The full title in the tooltip — only when it's cut off.
+  const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(todo.title)
+  const onTitlePointerEnter = (e: React.PointerEvent<HTMLElement>) => {
+    const el = e.currentTarget
+    if (el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
+  }
+
   const today = startOfToday()
-  const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
-  const hasPeople = !!assignedPeople && assignedPeople.length > 0
+  const people = assignedPeople ?? NO_PEOPLE
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
+  const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen || menu !== null
+
+  const onPersonContextMenu = (e: MouseEvent, person: Person) => {
+    e.preventDefault()
+    e.stopPropagation()
+    useUIStore.getState().showTaskDialog(personTaskDialog(person))
+  }
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${showStatusMenu || peopleOpen || tagSelectorProps.open ? styles.rowDropdownOpen : ''}`}
+      ref={rowRef}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
+      style={{ gridTemplateColumns: cols.template }}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
@@ -84,6 +128,8 @@ export const TaskRow = memo(function TaskRow({
       onMouseDown={keepRowTextUnselected}
       onDoubleClick={(e) => {
         e.stopPropagation()
+        // A double-click on a cell opened its picker (once); only the title and empty space open the editor.
+        if (e.target instanceof Element && e.target.closest('[data-row-cell]')) return
         cancelScheduledEdit()
         if (!isEditing) onOpenDetail?.(todo.id)
       }}
@@ -93,8 +139,9 @@ export const TaskRow = memo(function TaskRow({
         setMenu({ kind: 'point', x: e.clientX, y: e.clientY })
       }}
     >
-
-      <DragHandle className={styles.dragHandle} />
+      {ghost
+        ? <MarkerGutterStatic todo={todo} today={today} />
+        : <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
       <input
         type="checkbox"
@@ -103,12 +150,7 @@ export const TaskRow = memo(function TaskRow({
         onChange={handleToggleComplete}
         onClick={(e) => e.stopPropagation()}
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-      />
-
-      <TaskMarkers
-        todo={todo}
-        today={today}
-        className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}
+        data-row-cell="checkbox"
       />
 
       {isEditing ? (
@@ -124,202 +166,91 @@ export const TaskRow = memo(function TaskRow({
           onPointerDown={(e) => e.stopPropagation()}
         />
       ) : (
-        <div className={styles.titleBlock}>
-          <span
-            className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
-            title={todo.title}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
-              } else if (isSelected) {
-                scheduleEdit()
-              } else {
-                onSelect?.(todo.id, { shift: false, ctrl: false })
-              }
-            }}
-          >
-            {todo.title}
-          </span>
-        </div>
-      )}
-
-      {/* Notes indicator — click opens inline notes popover. Sits at the
-          leftmost chip slot (just after the title) so it flows freely with
-          tags on the left while leaving people / date / status aligned in
-          their fixed-width slots on the right. */}
-      {todo.notes && !ghost && (
-        <button
-          ref={notesIconRef}
-          type="button"
-          className={styles.notesIndicator}
-          title="Edit notes"
-          aria-label="Edit notes"
-          onClick={toggleNotes}
-        >
-          <NotesGlyph />
-        </button>
-      )}
-      {todo.notes && ghost && (
-        <span className={styles.notesIndicator} title="Has notes">
-          <NotesGlyph />
-        </span>
-      )}
-
-      {/* Progress label with visual bar */}
-      {todo.progress && (
-        <span className={styles.progressChip}>
-          {todo.progress}
-          {(() => {
-            const m = todo.progress.match(/(\d+)\s*%/)
-            if (!m || m[1] == null) return null
-            const pct = Math.min(100, Math.max(0, parseInt(m[1])))
-            return (
-              <span className={styles.progressBarTrack}>
-                <span className={styles.progressBarFill} style={{ width: `${pct}%` }} />
-              </span>
-            )
-          })()}
-        </span>
-      )}
-
-      {/* Slots are interleaved per-chip (populated vs empty-state) instead of
-          composing the full `<TaskPillBar>`, so each chip stays in a fixed
-          JSX position regardless of which sibling is populated. Order is
-          `# tags → @ people → date → status` for both populated and empty
-          variants. */}
-
-      {/* Slot 1 — tags. Populated chips render; empty `#` trigger is
-          hover-revealed via the `[class*="tagChipEmpty"]` rule. */}
-      {!ghost && <TagChipSelector {...tagSelectorProps} />}
-
-      {/* Slot 2 — people. Populated avatars or hover-revealed `@`
-          trigger; either way `peopleRef` anchors the popover. */}
-      {!ghost && (hasPeople ? (
-        <TaskPillPeople
-          people={assignedPeople ?? []}
-          anchorRef={peopleRef}
-          onPeopleClick={togglePeople}
-          onPersonContextMenu={(e, person) => {
-            e.preventDefault()
-            e.stopPropagation()
-            useUIStore.getState().showTaskDialog(personTaskDialog(person))
-          }}
-        />
-      ) : (
-        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
-          <button
-            className={styles.chipTrigger}
-            onClick={(e) => { e.stopPropagation(); togglePeople() }}
-          >
-            @
-          </button>
-        </div>
-      ))}
-
-      {/* Slot 3 — dates. Populated stack or empty calendar button.
-          `dateStackEmpty` reserves the same width so status doesn't shift
-          horizontally between rows. The hidden native `<input type="date">`
-          lives inside this slot in both cases (single `deadlineInputRef`). */}
-      {!ghost && (todo.dueDate ? (
-        <>
-          <TaskPillDates
-            todo={todo}
-            today={today}
-            layout="stack"
-            deadlineIntensity={deadlineIntensity}
-            onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-            onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
-          />
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-            onChange={onDeadlineInputChange}
-          />
-        </>
-      ) : (
-        <div className={styles.dateStackEmpty}>
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value=""
-            onChange={onDeadlineInputChange}
-          />
-          <button
-            type="button"
-            className={`${styles.actionBtn} ${styles.actionBtnHover}`}
-            onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-            title="Set due date"
-            aria-label="Set due date"
-          >
-            <StatusIcon icon="calendar" />
-          </button>
-        </div>
-      ))}
-
-      {/* Slot 4 — follow-up. Populated pill (× clears only the follow-up) or
-          a hover-revealed flag that takes no space at rest. Both open the
-          follow-up popover. */}
-      {!ghost && (todo.nextFollowupAt ? (
-        <TaskPillFollowup
-          todo={todo}
-          today={today}
-          anchorRef={followupAnchorRef}
-          open={followupOpen}
-          onFollowupClick={toggleFollowup}
-          onFollowupClear={() => bulk.setFollowup(todo.id, null)}
-        />
-      ) : (
-        <button
-          ref={followupAnchorRef}
-          type="button"
-          className={`${styles.followupTrigger} ${followupOpen ? styles.followupTriggerOpen : ''}`}
-          onClick={toggleFollowup}
-          aria-label="Set follow-up"
-          title="Set follow-up"
-          aria-haspopup="dialog"
-          aria-expanded={followupOpen}
-        >
-          <FollowupFlagIcon />
-        </button>
-      ))}
-
-      {/* Slot 5 — status. Always rendered; empty dot is hover-revealed via
-          the `[class*="statusDotEmpty"]` rule. */}
-      {!ghost && (
-        <TaskPillStatus
-          status={status}
-          anchorRef={statusRef}
-          onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
-        />
-      )}
-
-      {/* Task menu trigger — hover / keyboard-focus revealed, pressed while open. */}
-      {!ghost && (
-        <button
-          ref={moreRef}
-          type="button"
-          className={`${styles.moreBtn} ${menu ? styles.moreBtnOpen : ''}`}
-          aria-label="Task actions"
-          aria-haspopup="menu"
-          aria-expanded={menu !== null}
+        <span
+          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          data-task-title={todo.title}
+          {...titleTipProps}
+          onPointerEnter={onTitlePointerEnter}
           onClick={(e) => {
             e.stopPropagation()
-            setMenu((m) => (m ? null : { kind: 'button' }))
+            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+              onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
+            } else if (isSelected) {
+              scheduleEdit()
+            } else {
+              onSelect?.(todo.id, { shift: false, ctrl: false })
+            }
           }}
-          onDoubleClick={(e) => e.stopPropagation()}
         >
-          <MoreIcon />
-        </button>
+          {todo.title}
+          {titleTip}
+        </span>
+      )}
+
+      {ghost ? (
+        // The drag overlay's copy: the title and a notes mark only.
+        todo.notes ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has notes"><NotesGlyph /></span> : null
+      ) : (
+        <>
+          <NotesCell hasNotes={!!todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
+          {cols.people > 0 && (
+            <PeopleCell
+              people={people}
+              track={cols.people}
+              anchorRef={peopleRef}
+              open={peopleOpen}
+              onToggle={togglePeople}
+              onPersonContextMenu={onPersonContextMenu}
+            />
+          )}
+          {cols.tags > 0 && (
+            <TagsCell tags={assignedTags} track={cols.tags} anchorRef={tagsRef} open={tagPickerOpen} onToggle={toggleTagPicker} />
+          )}
+          <DueCell
+            todo={todo}
+            today={today}
+            inputRef={deadlineInputRef}
+            onOpen={openDeadlinePicker}
+            onClear={() => bulk.setDeadline(todo.id, null)}
+            onInputChange={onDeadlineInputChange}
+          />
+          <FollowupCell todo={todo} today={today} anchorRef={followupAnchorRef} open={followupOpen} onToggle={toggleFollowup} />
+          <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />
+          <button
+            ref={moreRef}
+            type="button"
+            className={`${styles.cell} ${styles.cellCenter} ${styles.moreBtn} ${menu ? styles.cellOpen : ''}`}
+            aria-label="Task actions"
+            aria-haspopup="menu"
+            aria-expanded={menu !== null}
+            data-row-cell="more"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (e.detail > 1) return
+              setMenu((m) => (m ? null : { kind: 'button' }))
+            }}
+          >
+            <MoreIcon />
+          </button>
+        </>
       )}
 
       {/* The people picker, the follow-up popover and the notes popover. */}
       {panels}
 
-      {/* Portaled status menu — anchored to statusRef (TaskPillBar's status wrapper). */}
+      {!ghost && tagPickerOpen && (
+        <TagPicker
+          // With its column removed, the tag picker (Add tag…) opens at the row.
+          anchorRef={cols.tags > 0 ? tagsRef : rowRef}
+          anchorIsInside={cols.tags > 0}
+          assignedTags={assignedTags}
+          allTags={allTags}
+          onToggle={toggleTag}
+          onCreate={createTag}
+          onClose={closeTagPicker}
+        />
+      )}
+
       {!ghost && showStatusMenu && (
         <AnchoredPicker anchorRef={statusRef} onClose={closeStatus} closeOnEscape>
           <div className={styles.statusMenu}>
@@ -344,6 +275,15 @@ export const TaskRow = memo(function TaskRow({
         </AnchoredPicker>
       )}
 
+      {markersOpen && (
+        <PriorityMenu
+          todo={todo}
+          anchorRef={markersRef}
+          onSetMarker={menuHandlers.onSetMarker}
+          onClose={() => setMarkersOpen(false)}
+        />
+      )}
+
       {menu && (
         <TaskMenu
           todo={todo}
@@ -353,17 +293,6 @@ export const TaskRow = memo(function TaskRow({
           onClose={() => setMenu(null)}
         />
       )}
-
     </div>
   )
 })
-
-function NotesGlyph() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-      <path d="M9.5 1.5V5H13" />
-      <path d="M5 8h6M5 11h4" />
-    </svg>
-  )
-}

@@ -15,18 +15,19 @@ const editor = (page: Page) => page.getByRole('dialog', { name: 'Edit task' })
 test.describe('desktop row', () => {
   test('double-clicking the title opens the editor with no text selected', async ({ page }) => {
     await seedTaskList(page, { tasks: [{ title: 'Quarterly planning notes' }] })
-    await taskRowByTitle(page, 'Quarterly planning notes').locator('span[title="Quarterly planning notes"]').dblclick()
+    await taskRowByTitle(page, 'Quarterly planning notes').locator('span[data-task-title="Quarterly planning notes"]').dblclick()
     await expect(editor(page)).toBeVisible()
     expect(await selectedText(page)).toBe('')
   })
 
-  test('double-clicking the row outside the title selects no text either', async ({ page }) => {
+  test('double-clicking the row’s empty space selects no text either', async ({ page }) => {
     await seedTaskList(page, { tasks: [{ title: 'Quarterly planning notes' }] })
     const row = taskRowByTitle(page, 'Quarterly planning notes')
-    const title = await row.locator('span[title="Quarterly planning notes"]').boundingBox()
-    if (!title) throw new Error('no title box')
-    // Just past the end of the title text, still on the row.
-    await page.mouse.dblclick(title.x + title.width + 4, title.y + title.height / 2)
+    const title = await row.locator('span[data-task-title="Quarterly planning notes"]').boundingBox()
+    const r = await row.locator('[data-todo-id]').boundingBox()
+    if (!title || !r) throw new Error('no box')
+    // Below the title, in the row's padding.
+    await page.mouse.dblclick(title.x + 20, r.y + r.height - 1)
     await expect(editor(page)).toBeVisible()
     expect(await selectedText(page)).toBe('')
   })
@@ -35,7 +36,7 @@ test.describe('desktop row', () => {
     await seedTaskList(page, { tasks: [{ title: 'Quarterly planning notes' }] })
     const row = taskRowByTitle(page, 'Quarterly planning notes')
     const id = await row.locator('[data-todo-id]').first().getAttribute('data-todo-id')
-    const title = row.locator('span[title="Quarterly planning notes"]')
+    const title = row.locator('span[data-task-title="Quarterly planning notes"]')
     // A click selects the row; a later click on the selected row's title edits it inline.
     await title.click()
     await expect(row).toHaveAttribute('data-selected', 'true')

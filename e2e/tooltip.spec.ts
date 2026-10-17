@@ -37,7 +37,7 @@ async function hoverForTooltip(page: Page, trigger: Locator): Promise<Locator> {
 
 test('centred 6px below its trigger', async ({ page }) => {
   await open(page, [{ title: 'Alpha', urgent: true }], 2)
-  const marker = taskRowByTitle(page, 'Alpha').getByRole('img', { name: 'Urgent' })
+  const marker = taskRowByTitle(page, 'Alpha').getByRole('button', { name: 'Markers: Urgent' })
   const tip = await hoverForTooltip(page, marker)
   const m = await box(marker)
   const t = await box(tip)
@@ -49,7 +49,7 @@ test('near the bottom it opens above its trigger', async ({ page }) => {
   await open(page, [...FILLERS, { title: 'Last', followupInDays: 3 }], 2)
   const row = taskRowByTitle(page, 'Last')
   await row.scrollIntoViewIfNeeded()
-  const pill = row.locator('[data-pill="followup"]')
+  const pill = row.locator('[data-row-cell="followup"]')
   const tip = await hoverForTooltip(page, pill)
   const p = await box(pill)
   const t = await box(tip)
@@ -58,9 +58,9 @@ test('near the bottom it opens above its trigger', async ({ page }) => {
 })
 
 test('near the left edge it stays inside the window', async ({ page }) => {
-  // Due tomorrow: urgent by its date, so the row shows the clock with a two-line tooltip.
+  // Due tomorrow: urgent by its date, so the marker gutter has a two-line tooltip.
   await open(page, [{ title: 'Alpha', dueInDays: 1 }])
-  const clock = taskRowByTitle(page, 'Alpha').getByRole('img', { name: /Urgent/ })
+  const clock = taskRowByTitle(page, 'Alpha').getByRole('button', { name: /^Markers: Urgent/ })
   const tip = await hoverForTooltip(page, clock)
   const c = await box(clock)
   const t = await box(tip)
@@ -72,7 +72,7 @@ test('near the left edge it stays inside the window', async ({ page }) => {
 
 test('Escape and a scroll close it', async ({ page }) => {
   await open(page, [{ title: 'Alpha', urgent: true }, ...FILLERS])
-  const marker = taskRowByTitle(page, 'Alpha').getByRole('img', { name: 'Urgent' })
+  const marker = taskRowByTitle(page, 'Alpha').getByRole('button', { name: 'Markers: Urgent' })
   let tip = await hoverForTooltip(page, marker)
   await page.keyboard.press('Escape')
   await expect(tip).toHaveCount(0)

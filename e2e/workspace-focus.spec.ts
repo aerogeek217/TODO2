@@ -9,11 +9,11 @@ import { rowTitles } from './fixtures/seed'
  */
 
 function rowIn(page: Page, widget: Locator, title: string): Locator {
-  return widget.locator('[data-row-key]', { has: page.locator(`span[title="${title}"]`) })
+  return widget.locator('[data-row-key]', { has: page.locator(`span[data-task-title="${title}"]`) })
 }
 
 async function menuMarker(page: Page, row: Locator, marker: string): Promise<void> {
-  await row.locator('[data-todo-id]').click({ button: 'right' })
+  await row.locator('[data-task-title]').click({ button: 'right' })
   await page.getByRole('menuitemcheckbox', { name: marker }).click()
 }
 
@@ -40,11 +40,11 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
   // Row menu.
   await menuMarker(page, rowIn(page, all, 'Bravo'), 'Focus')
   await expect.poll(() => rowTitles(focus)).toEqual(['Bravo'])
-  await expect(rowIn(page, all, 'Bravo').getByRole('img', { name: 'Focus' })).toBeVisible()
-  await expect(rowIn(page, all, 'Alpha').getByRole('img', { name: 'Focus' })).toHaveCount(0)
+  await expect(rowIn(page, all, 'Bravo').getByRole('button', { name: 'Markers: Focus' })).toBeVisible()
+  await expect(rowIn(page, all, 'Alpha').getByRole('button', { name: 'No markers' })).toBeVisible()
 
   // Task editor toggle.
-  await rowIn(page, all, 'Charlie').locator('[data-todo-id]').dblclick()
+  await rowIn(page, all, 'Charlie').locator('[data-task-title]').dblclick()
   const toggle = page.getByRole('button', { name: 'Focus', exact: true })
   await expect(toggle).toHaveAttribute('aria-pressed', 'false')
   await toggle.click()

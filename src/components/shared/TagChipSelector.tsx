@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, type RefObject } from 'react'
 import type { Tag } from '../../models'
 import { ChipSelector } from './ChipSelector'
 import { AnchoredPicker } from './AnchoredPicker'
@@ -20,10 +20,9 @@ export interface TagChipSelectorProps {
 }
 
 /**
- * Inline tag chip row + lookup-or-create popover. Mirrors the people
- * `ChipSelector` pattern on `TaskRow`: empty state shows a hover-revealed
- * `#` trigger; populated state shows clickable `#tag` chips. Click any chip
- * (or the trigger) to open a portaled dropdown over the full tag registry.
+ * Inline tag chip row + lookup-or-create popover (the phone row): the empty
+ * state shows a `#` trigger, the populated state clickable `#tag` chips.
+ * Click any chip (or the trigger) to open `TagPicker`.
  *
  * Pre-resolution rule (mirrors `TaskPillBar`): the consumer threads
  * `assignedTags` and `allTags` in. This component does NOT subscribe to
@@ -48,15 +47,10 @@ export function TagChipSelector({
   }, [open, setOpen])
 
   const hasTags = assignedTags.length > 0
-  const assignedIds = new Set(assignedTags.map((t) => t.id!))
 
   return (
     <>
-      <div
-        ref={anchorRef}
-        className={`${styles.chipGroup} ${hasTags ? '' : styles.tagChipEmpty}`}
-        data-tag-chips=""
-      >
+      <div ref={anchorRef} className={styles.chipGroup} data-tag-chips="">
         {assignedTags.map((tag) => (
           <button
             key={`tag-${tag.id}`}
@@ -96,21 +90,42 @@ export function TagChipSelector({
         )}
       </div>
       {open && (
-        <AnchoredPicker anchorRef={anchorRef} onClose={close}>
-          <div className={styles.dropdown}>
-            <ChipSelector
-              items={[...allTags]
-                .sort(byName)
-                .map((t) => ({ id: t.id!, name: t.name, color: t.color }))}
-              selectedIds={assignedIds}
-              onToggle={onToggle}
-              onCreate={onCreate}
-              onClose={close}
-              placeholder="Search tags..."
-            />
-          </div>
-        </AnchoredPicker>
+        <TagPicker anchorRef={anchorRef} assignedTags={assignedTags} allTags={allTags} onToggle={onToggle} onCreate={onCreate} onClose={close} />
       )}
     </>
+  )
+}
+
+/**
+ * The tag lookup-or-create popover over the full tag registry, anchored to
+ * `anchorRef` (`anchorIsInside`: the anchor is the trigger, so a click on it
+ * is left to the trigger's own toggle). Shared by the chip row above and the
+ * desktop task row's tags cell.
+ */
+export function TagPicker({ anchorRef, anchorIsInside = true, assignedTags, allTags, onToggle, onCreate, onClose }: {
+  anchorRef: RefObject<HTMLElement | null>
+  anchorIsInside?: boolean
+  assignedTags: readonly Tag[]
+  allTags: readonly Tag[]
+  onToggle: (tagId: number) => void
+  onCreate: (name: string) => Promise<void> | void
+  onClose: () => void
+}) {
+  const assignedIds = new Set(assignedTags.map((t) => t.id!))
+  return (
+    <AnchoredPicker anchorRef={anchorRef} anchorIsInside={anchorIsInside} onClose={onClose}>
+      <div className={styles.dropdown}>
+        <ChipSelector
+          items={[...allTags]
+            .sort(byName)
+            .map((t) => ({ id: t.id!, name: t.name, color: t.color }))}
+          selectedIds={assignedIds}
+          onToggle={onToggle}
+          onCreate={onCreate}
+          onClose={onClose}
+          placeholder="Search tags..."
+        />
+      </div>
+    </AnchoredPicker>
   )
 }

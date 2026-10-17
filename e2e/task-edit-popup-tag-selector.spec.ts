@@ -20,7 +20,7 @@ test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ 
   // fires `onOpenDetail` (→ openEditPopup) on double-click; single click is
   // just selection.
   const taskRow = taskRowByTitle(page, 'Some task')
-  await taskRow.locator('span[title="Some task"]').dblclick()
+  await taskRow.locator('span[data-task-title="Some task"]').dblclick()
 
   // Wait for the popup. The "Tags" row in `TaskEditMetadata` exposes a
   // `+ Add` button that toggles the chip selector dropdown.

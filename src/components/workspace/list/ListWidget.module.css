@@ -174,13 +174,28 @@
   border-bottom-right-radius: 6px;
 }
 
-/* Keyboard cursor: a ring, no fill (can sit on a selected row). */
-.rowCursor {
+/*
+ * Keyboard cursor: a ring, no fill (can sit on a selected row). Drawn above
+ * the task row, so its hover fill and separator line never cover it.
+ */
+.rowCursor::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 6px;
   box-shadow: inset 0 0 0 1px var(--color-accent);
+  pointer-events: none;
 }
 
 .rowCursor:not(.rowSelected) {
   border-radius: 6px;
+}
+
+/* A selected or cursor row draws no separator line under itself. */
+.rowSelected > [data-todo-id]::after,
+.rowCursor > [data-todo-id]::after {
+  background: transparent;
 }
 
 .rowFaded {

@@ -15,12 +15,12 @@ export function taskRowByTitle(page: Page, title: string): Locator {
  *  carries `title={todo.title}` for tooltip parity, which we use as a stable
  *  selector that only fires the row's onSelect. */
 export async function selectTaskRowByTitle(page: Page, title: string): Promise<void> {
-  await taskRowByTitle(page, title).locator(`span[title="${title}"]`).click()
+  await taskRowByTitle(page, title).locator(`span[data-task-title="${title}"]`).click()
 }
 
 /** The titles of the task rows in `scope` (a widget, a quadrant, a group), top to bottom. */
 export async function rowTitles(scope: Locator): Promise<string[]> {
   return scope.locator('[data-todo-id]').evaluateAll(
-    (els) => els.map((el) => el.querySelector('span[title]')?.getAttribute('title') ?? ''),
+    (els) => els.map((el) => el.querySelector('span[data-task-title]')?.getAttribute('data-task-title') ?? ''),
   )
 }

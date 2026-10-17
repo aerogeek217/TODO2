@@ -197,7 +197,7 @@ test.describe('notes → tasks', () => {
 
   test('task editor notes: Alt+T stacks a create popup on the editor; Esc closes only it', async ({ page }) => {
     await seedTaskList(page, { tasks: [{ title: 'alpha', notes: 'Call vendor /urgent' }] })
-    await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').dblclick()
+    await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
     const editTitle = page.getByRole('textbox', { name: 'Task title' })
     await expect(editTitle).toBeVisible()
     await page.locator('.cm-content').click()

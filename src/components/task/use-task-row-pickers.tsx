@@ -23,11 +23,13 @@ export interface TaskRowPickersOptions {
   /** The people picker's panel class. */
   peoplePickerClassName: string | undefined
   /**
-   * Where the people picker opens when nobody is assigned and the row shows
-   * no people trigger (the phone row: its first line). A click there is
-   * outside the picker, so it closes it.
+   * Where the people picker opens when the row shows no people trigger to
+   * anchor it (`useFallbackPeopleAnchor`): the phone row's first line with
+   * nobody assigned, or the desktop row when its people column is removed.
+   * A click there is outside the picker, so it closes it.
    */
-  emptyPeopleAnchorRef?: RefObject<HTMLElement | null>
+  fallbackPeopleAnchorRef?: RefObject<HTMLElement | null>
+  useFallbackPeopleAnchor?: boolean
 }
 
 /**
@@ -38,7 +40,7 @@ export interface TaskRowPickersOptions {
  * follow-up popover and notes popover; the row places its own triggers.
  */
 export function useTaskRowPickers({
-  todo, assignedPeople, ghost = false, onOpenDetail, peoplePickerClassName, emptyPeopleAnchorRef,
+  todo, assignedPeople, ghost = false, onOpenDetail, peoplePickerClassName, fallbackPeopleAnchorRef, useFallbackPeopleAnchor = false,
 }: TaskRowPickersOptions) {
   const { bulk, handleToggleComplete, handleSetMarker, handleDelete } = useTaskRowActions({ todo })
   const allPeople = usePersonStore((s) => s.people)
@@ -54,10 +56,13 @@ export function useTaskRowPickers({
   /** The pill / flag open the follow-up popover on "Followed up"; the menu's "Pick a date or interval…" on the date field. */
   const [followupFocus, setFollowupFocus] = useState<'followedUp' | 'next'>('followedUp')
   const [notesOpen, setNotesOpen] = useState(false)
-  const peopleRef = useRef<HTMLDivElement>(null)
+  const peopleRef = useRef<HTMLElement>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
+
+  const closeTagPicker = useCallback(() => setTagPickerOpen(false), [])
+  const toggleTagPicker = useCallback(() => setTagPickerOpen((v) => !v), [])
 
   const closePeople = useCallback(() => setPeopleOpen(false), [])
   const togglePeople = useCallback(() => setPeopleOpen((v) => !v), [])
@@ -126,7 +131,7 @@ export function useTaskRowPickers({
     onDelete: handleDelete,
   }
 
-  const peopleAnchor = people.length === 0 && emptyPeopleAnchorRef ? emptyPeopleAnchorRef : peopleRef
+  const peopleAnchor = useFallbackPeopleAnchor && fallbackPeopleAnchorRef ? fallbackPeopleAnchorRef : peopleRef
   const panels: ReactNode = ghost ? null : (
     <>
       {peopleOpen && (
@@ -165,13 +170,20 @@ export function useTaskRowPickers({
     bulk,
     handleToggleComplete,
     assignedTags,
+    allTags,
     tagSelectorProps,
+    tagPickerOpen,
+    toggleTagPicker,
+    closeTagPicker,
+    toggleTag,
+    createTag,
     peopleOpen,
     togglePeople,
     peopleRef,
     followupOpen,
     toggleFollowup,
     followupAnchorRef,
+    notesOpen,
     toggleNotes,
     notesIconRef,
     deadlineInputRef,

@@ -91,12 +91,12 @@ test.describe('status menu', () => {
 })
 
 test.describe('people picker', () => {
-  test('near the bottom it opens above the @ trigger and stays there as its list narrows', async ({ page }) => {
+  test('near the bottom it opens above the empty people cell and stays there as its list narrows', async ({ page }) => {
     await open(page, [...FILLERS, { title: 'Last task' }])
     const row = taskRowByTitle(page, 'Last task')
     await row.scrollIntoViewIfNeeded()
     await row.hover()
-    const trigger = row.getByRole('button', { name: '@', exact: true })
+    const trigger = row.getByRole('button', { name: 'Assign people' })
     await trigger.click()
     const panel = picker(page)
     await expect(panel.getByRole('combobox')).toBeFocused()
@@ -114,7 +114,7 @@ test.describe('people picker', () => {
 
   test('the trigger toggles it; Esc and an outside click close it', async ({ page }) => {
     await open(page, [{ title: 'Top task', people: ['Alice'] }])
-    const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: '1 person assigned' })
+    const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: 'People: Alice' })
     await trigger.click()
     const panel = picker(page)
     await expect(panel.getByRole('combobox')).toBeFocused()
@@ -134,7 +134,7 @@ test.describe('people picker', () => {
 
   test('follows the trigger when the list scrolls', async ({ page }) => {
     await open(page, [{ title: 'Top task', people: ['Alice'] }, ...FILLERS])
-    const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: '1 person assigned' })
+    const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: 'People: Alice' })
     await trigger.click()
     const panel = picker(page)
     await expect(panel).toBeVisible()
@@ -155,7 +155,7 @@ test.describe('people picker', () => {
 })
 
 test.describe('tag picker', () => {
-  test('near the bottom it opens above the # trigger; Esc in its search closes it', async ({ page }) => {
+  test('near the bottom it opens above the empty tags cell; Esc in its search closes it', async ({ page }) => {
     await open(page, [...FILLERS, { title: 'Last task' }])
     const row = taskRowByTitle(page, 'Last task')
     await row.scrollIntoViewIfNeeded()
@@ -171,9 +171,9 @@ test.describe('tag picker', () => {
     await expect(panel).toHaveCount(0)
   })
 
-  test('a tag chip toggles it; an outside click closes it', async ({ page }) => {
+  test('the tags cell toggles it; an outside click closes it', async ({ page }) => {
     await open(page, [{ title: 'Top task', tags: ['home'] }])
-    const chip = taskRowByTitle(page, 'Top task').getByRole('button', { name: '#home' })
+    const chip = taskRowByTitle(page, 'Top task').getByRole('button', { name: 'Tags: home' })
     await chip.click()
     const panel = picker(page)
     await expect(panel).toBeVisible()
@@ -188,8 +188,8 @@ test.describe('tag picker', () => {
 
 test.describe('bulk bar pickers', () => {
   async function selectTwo(page: Page): Promise<Locator> {
-    await taskRowByTitle(page, 'one').locator('span[title="one"]').click()
-    await taskRowByTitle(page, 'two').locator('span[title="two"]').click({ modifiers: ['Shift'] })
+    await taskRowByTitle(page, 'one').locator('span[data-task-title="one"]').click()
+    await taskRowByTitle(page, 'two').locator('span[data-task-title="two"]').click({ modifiers: ['Shift'] })
     const bar = page.getByTestId('list-bulk-bar')
     await expect(bar).toBeVisible()
     return bar
@@ -278,7 +278,7 @@ for (const phone of [false, true]) {
       await page.getByRole('menuitem', { name: 'Assign people…' }).click()
       await expect(picker(page)).toBeVisible()
       await picker(page).getByText('Alice', { exact: true }).click()
-      await expect(row.getByTitle('Alice')).toBeVisible()
+      await expect(phone ? row.getByTitle('Alice') : row.getByRole('button', { name: 'People: Alice' })).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(picker(page)).toHaveCount(0)
 

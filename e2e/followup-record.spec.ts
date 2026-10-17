@@ -39,7 +39,7 @@ async function followupOf(page: Page, title: string): Promise<{ next: string | n
 
 const popover = (page: Page) => page.getByRole('dialog', { name: 'Follow-up' })
 const rowIn = (scope: Locator, title: string) => scope.locator('[data-todo-id]').filter({ hasText: title })
-const titleIn = (scope: Locator, title: string) => rowIn(scope, title).locator(`span[title="${title}"]`)
+const titleIn = (scope: Locator, title: string) => rowIn(scope, title).locator(`span[data-task-title="${title}"]`)
 
 const SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'All' }],

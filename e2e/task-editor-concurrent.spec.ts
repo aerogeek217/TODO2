@@ -41,7 +41,7 @@ async function storedTask(page: Page, title: string): Promise<{ title: string; d
 
 test('a title typed in the editor survives a bulk due-date change; saving keeps that change', async ({ page }) => {
   await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
-  await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').dblclick()
+  await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
   const title = page.getByRole('textbox', { name: 'Task title' })
   await title.click()
   await title.press('End')

@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useTagStore } from '../../stores/tag-store'
+import { TaskRowColumnsContext } from '../../components/task/task-row-grid-context'
+import { taskRowColumns } from '../../utils/task-row-columns'
 import { makeTodo, makePerson, resetEntityStores } from '../helpers'
 
 const mockBulk = {
@@ -64,52 +67,70 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('due-date chip', () => {
-    it('renders with formatted date when dueDate is set', () => {
+  describe('due column', () => {
+    it('shows the due date as MM/DD (tabular), named with the full day', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
-      expect(screen.getByText(/4\/20\/2026|Apr 20/)).toBeInTheDocument()
+      const due = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
+      expect(due).toHaveTextContent('04/20')
     })
 
-    it('is absent when dueDate is not set', () => {
-      const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      expect(container.querySelector('[class*="deadlineChip"]')).toBeNull()
+    it('shows ↻ after the date when the task repeats', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('04/20↻')
     })
 
-    it('shows the recurrence indicator when recurrenceRule is set on deadline', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />,
-      )
-      expect(container.querySelector('[class*="recurrenceIndicator"]')).toBeInTheDocument()
-    })
-  })
-
-  describe('past/overdue state', () => {
-    it('applies the deadlineChipPast class when the deadline is overdue', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />,
-      )
-      const chip = container.querySelector('[class*="deadlineChip"]') as HTMLElement
-      expect(chip.className).toMatch(/deadlineChipPast/i)
+    it('marks an overdue date (text colour + bold, no fill), not a future one', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />)
+      expect(screen.getByRole('button', { name: /^Due / })).toHaveAttribute('data-due-past', 'true')
+      unmount()
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })} />)
+      expect(screen.getByRole('button', { name: /^Due / })).not.toHaveAttribute('data-due-past')
     })
 
-    it('does not apply the past class for a future deadline', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })} />,
-      )
-      const chip = container.querySelector('[class*="deadlineChip"]') as HTMLElement
-      expect(chip.className).not.toMatch(/deadlineChipPast/i)
-    })
-  })
-
-  describe('empty-state date button', () => {
-    it('renders when no due date is set', () => {
+    it('an empty due cell is the Set due date button with a hidden placeholder', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByTitle('Set due date')).toBeInTheDocument()
+      const empty = screen.getByRole('button', { name: 'Set due date' })
+      expect(empty.querySelector('[aria-hidden="true"]')).not.toBeNull()
+      expect(empty.textContent).toBe('')
     })
 
-    it('does not render when a due date is set', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
-      expect(screen.queryByTitle('Set due date')).not.toBeInTheDocument()
+    it('the tooltip gives the full date, the distance and the repeat rule', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Due Mon 20 Apr' }))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysRepeats every Monday')
+    })
+  })
+
+  describe('every column always there', () => {
+    it('renders one cell per column in order, filled or empty', () => {
+      const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      const cells = Array.from(container.querySelectorAll('[data-row-cell]')).map((el) => el.getAttribute('data-row-cell'))
+      expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status', 'more'])
+      for (const name of ['Add notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
+        expect(screen.getByRole('button', { name })).toBeInTheDocument()
+      }
+    })
+
+    it('no progress on the row (it stays in the editor) and no drag grip', () => {
+      const { container } = render(<TaskRow todo={makeTodo({ id: 1, progress: '50%' })} />)
+      expect(screen.queryByText('50%')).toBeNull()
+      expect(container.querySelector('[class*="dragHandle"]')).toBeNull()
+    })
+
+    it('a narrow list removes the tags column first, then people; their pickers then open at the row', () => {
+      const tags = [{ id: 1, name: 'alpha', color: '#111' }]
+      useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
+      render(
+        <TaskRowColumnsContext.Provider value={taskRowColumns(308)}>
+          <TaskRow todo={makeTodo({ id: 1 })} />
+        </TaskRowColumnsContext.Provider>,
+      )
+      expect(screen.queryByRole('button', { name: 'Tags: alpha' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Assign people' })).toBeInTheDocument()
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add tag…' }))
+      expect(screen.getByPlaceholderText('Search tags...')).toBeInTheDocument()
     })
   })
 
@@ -241,219 +262,189 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('markers', () => {
+  describe('marker gutter', () => {
     beforeEach(() => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('shows Focus › Urgent › Important before the title, each only when set', () => {
+    it('three dots Focus · Urgent · Important in one button named by the markers, before the checkbox', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
-      const names = screen.getByTestId('task-markers').querySelectorAll('[role="img"]')
-      expect([...names].map((n) => n.getAttribute('aria-label'))).toEqual(['Focus', 'Urgent', 'Important'])
-      const title = screen.getByText('All three')
-      expect(screen.getByTestId('task-markers').compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      const gutter = screen.getByRole('button', { name: 'Markers: Focus, Urgent, Important' })
+      const dots = Array.from(gutter.querySelectorAll('[data-dot]'))
+      expect(dots.map((d) => [d.getAttribute('data-dot'), d.getAttribute('data-on')])).toEqual([
+        ['focus', 'true'], ['urgent', 'flag'], ['important', 'true'],
+      ])
+      expect(gutter.compareDocumentPosition(screen.getByRole('checkbox')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
-    it('a task urgent only by its due date shows the clock; a flagged one the mark', () => {
-      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
-      const clock = screen.getByRole('img', { name: 'Urgent: due soon' })
-      // Tooltip: opens after 400 ms of hover, two lines, described-by while open.
-      fireEvent.pointerEnter(clock)
-      act(() => { vi.advanceTimersByTime(399) })
-      expect(screen.queryByRole('tooltip')).toBeNull()
-      act(() => { vi.advanceTimersByTime(1) })
-      const tip = screen.getByRole('tooltip')
-      expect(tip).toHaveTextContent('Urgent: due soonDue Sat 18, within 3 days.')
-      expect(clock).toHaveAttribute('aria-describedby', tip.id)
-      fireEvent.pointerLeave(clock)
-      expect(screen.queryByRole('tooltip')).toBeNull()
-      expect(screen.queryByRole('img', { name: 'Urgent' })).toBeNull()
-      unmount()
-      render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', urgent: true, dueDate: new Date(2026, 3, 18) })} />)
-      expect(screen.getByRole('img', { name: 'Urgent' })).toBeInTheDocument()
-      expect(screen.queryByRole('img', { name: 'Urgent: due soon' })).toBeNull()
+    it('urgent only by its due date is the ring, named and explained in the tooltip', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
+      const gutter = screen.getByRole('button', { name: 'Markers: Urgent (due soon)' })
+      expect(gutter.querySelector('[data-dot="urgent"]')).toHaveAttribute('data-on', 'date')
+      fireEvent.pointerEnter(gutter)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Markers: Urgent (due soon)Due Sat 18, within 3 days.')
     })
 
-    it('no clock when the range is off, the date is far, or the task is completed', () => {
+    it('no marker: No markers (range off, a far date, a completed task)', () => {
       useSettingsStore.setState({ urgentDueWithinDays: null })
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 15) })} />)
-      expect(screen.queryByTestId('task-markers')).toBeNull()
+      expect(screen.getByRole('button', { name: 'No markers' })).toBeInTheDocument()
       unmount()
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
       const second = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 30) })} />)
-      expect(screen.queryByTestId('task-markers')).toBeNull()
+      expect(screen.getByRole('button', { name: 'No markers' })).toBeInTheDocument()
       second.unmount()
       render(<TaskRow todo={makeTodo({ id: 1, isCompleted: true, dueDate: new Date(2026, 3, 15) })} />)
-      expect(screen.queryByTestId('task-markers')).toBeNull()
+      expect(screen.getByRole('button', { name: 'No markers' })).toBeInTheDocument()
+    })
+
+    it('a click opens the markers menu; its items set the marker; urgent by date turns off through the clear-Urgent path', () => {
+      render(<TaskRow todo={makeTodo({ id: 4, focus: true, dueDate: new Date(2026, 3, 18) })} onOpenDetail={vi.fn()} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Markers: Focus, Urgent (due soon)' }))
+      const menu = screen.getByRole('menu', { name: 'Markers' })
+      expect(within(menu).getByRole('menuitemcheckbox', { name: 'Focus' })).toHaveAttribute('aria-checked', 'true')
+      expect(within(menu).getByRole('menuitemcheckbox', { name: 'Important' })).toHaveAttribute('aria-checked', 'false')
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Urgent' }))
+      expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, false)
+      fireEvent.click(screen.getByRole('button', { name: /^Markers:/ }))
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Important' }))
+      expect(mockBulk.setImportant).toHaveBeenCalledWith(4, true)
     })
   })
 
-  describe('focus marker', () => {
-    it('shows the marker before the title only for a task in focus', () => {
-      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, title: 'Plain' })} />)
-      expect(screen.queryByRole('img', { name: 'Focus' })).not.toBeInTheDocument()
+  describe('cells open their pickers', () => {
+    it('the empty due cell and a filled one open the native date picker (not the editor)', () => {
+      const onOpenDetail = vi.fn()
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1 })} onOpenDetail={onOpenDetail} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Set due date' }))
+      act(() => { vi.runAllTimers() }) // openDeadlinePicker uses setTimeout(…, 0)
+      expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalledTimes(1)
       unmount()
-      render(<TaskRow todo={makeTodo({ id: 1, title: 'Focused', focus: true })} />)
-      const marker = screen.getByRole('img', { name: 'Focus' })
-      const title = screen.getByText('Focused')
-      expect(marker.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    })
-  })
-
-  describe('inline date editing', () => {
-    it('clicking the empty-state date button opens the native date picker', () => {
-      const onOpenDetail = vi.fn()
-      render(<TaskRow todo={makeTodo({ id: 1 })} onOpenDetail={onOpenDetail} />)
-      fireEvent.click(screen.getByTitle('Set due date'))
-      vi.runAllTimers() // openDeadlinePicker uses setTimeout(…, 0)
-      expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalled()
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} onOpenDetail={onOpenDetail} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Due Mon 20 Apr' }))
+      act(() => { vi.runAllTimers() })
+      expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalledTimes(2)
       expect(onOpenDetail).not.toHaveBeenCalled()
     })
 
-    it('clicking the due-date chip opens the native date picker (does not open detail popup)', () => {
-      const onOpenDetail = vi.fn()
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} onOpenDetail={onOpenDetail} />,
-      )
-      fireEvent.click(container.querySelector('[class*="deadlineChip"]') as HTMLElement)
-      vi.runAllTimers() // openDeadlinePicker uses setTimeout(…, 0)
-      expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalled()
-      expect(onOpenDetail).not.toHaveBeenCalled()
-    })
-
-    it('clicking the due-date chip × button clears the due date', () => {
+    it('the due cell’s × clears the due date', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
-      fireEvent.click(screen.getByLabelText('Clear due date'))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear due date' }))
       expect(mockBulk.setDeadline).toHaveBeenCalledWith(1, null)
     })
+
+    it('a double-click on a cell opens its picker once and not the editor; on the title it opens the editor', () => {
+      const onOpenDetail = vi.fn()
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Foo' })} onOpenDetail={onOpenDetail} />)
+      const status = screen.getByRole('button', { name: 'Set status' })
+      fireEvent.click(status, { detail: 1 })
+      fireEvent.click(status, { detail: 2 })
+      fireEvent.doubleClick(status)
+      expect(screen.getByText('No Status')).toBeInTheDocument()
+      expect(status).toHaveAttribute('aria-expanded', 'true')
+      expect(onOpenDetail).not.toHaveBeenCalled()
+      fireEvent.doubleClick(screen.getByText('Foo'))
+      expect(onOpenDetail).toHaveBeenCalledWith(1)
+    })
+
+    it('the status cell opens the status menu; the follow-up cell names the day and opens the popover', () => {
+      useStatusStore.setState({ statuses: [{ id: 10, name: 'Done', icon: 'check', color: '#00ff00', sortOrder: 0 }] })
+      render(<TaskRow todo={makeTodo({ id: 1, statusId: 10, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Status: Done' }))
+      fireEvent.click(screen.getByText('No Status'))
+      expect(mockBulk.setStatus).toHaveBeenCalledWith(1, undefined)
+      const followup = screen.getByRole('button', { name: 'Follow-up: Mon 20' })
+      expect(followup).toHaveAttribute('data-followup', 'upcoming')
+      expect(followup.textContent).toBe('')
+      fireEvent.click(followup)
+      expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
+    })
+
+    it('a late follow-up is the filled, late flag; today’s is filled', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 10) })} />)
+      expect(screen.getByRole('button', { name: /, late$/ })).toHaveAttribute('data-followup', 'late')
+      unmount()
+      render(<TaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 16) })} />)
+      expect(screen.getByRole('button', { name: 'Follow-up: Today' })).toHaveAttribute('data-followup', 'today')
+    })
+
+    it('the notes cell: Add notes when empty, Edit notes with notes', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      expect(screen.getByRole('button', { name: 'Add notes' })).toBeInTheDocument()
+      unmount()
+      render(<TaskRow todo={makeTodo({ id: 1, notes: 'Some notes' })} />)
+      expect(screen.getByRole('button', { name: 'Edit notes' })).toBeInTheDocument()
+    })
   })
 
-  describe('avatar stack', () => {
-    it('renders overlapping avatars for assigned people instead of @name chips', () => {
+  describe('people column', () => {
+    it('renders overlapping avatars for assigned people, named in the cell', () => {
       const people = [
         makePerson({ id: 1, name: 'Alice', initials: 'AL' }),
         makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
       ]
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
+      expect(screen.getByRole('button', { name: 'People: Alice, Bob' })).toBeInTheDocument()
       expect(screen.getByText('AL')).toBeInTheDocument()
       expect(screen.getByText('BO')).toBeInTheDocument()
-      expect(screen.queryByText('@Alice')).not.toBeInTheDocument()
     })
 
-    it('shows +N overflow when 4+ people are assigned', () => {
+    it('as many avatars as fit the column, then +N', () => {
       const people = [1, 2, 3, 4].map((id) => makePerson({ id, name: `P${id}`, initials: `P${id}` }))
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
-      expect(screen.getByText('+1')).toBeInTheDocument()
+      // The default people column (46px) fits one avatar and "+3".
+      expect(screen.getByText('P1')).toBeInTheDocument()
+      expect(screen.queryByText('P2')).toBeNull()
+      expect(screen.getByText('+3')).toBeInTheDocument()
     })
 
-  })
-
-  describe('status slot layout', () => {
-    it('reserves min-width on the status wrapper whether status is set or not', () => {
-      const { container: a } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      const noStatus = a.querySelector('[class*="statusWrapper"]') as HTMLElement
-      cleanup()
-
-      useStatusStore.setState({
-        statuses: [{ id: 10, name: 'Done', icon: 'check', color: '#00ff00', sortOrder: 0 }],
-      })
-      const { container: b } = render(<TaskRow todo={makeTodo({ id: 1, statusId: 10 })} />)
-      const withStatus = b.querySelector('[class*="statusWrapper"]') as HTMLElement
-
-      // Both wrappers carry the status-slot class (min-width reserved in CSS)
-      expect(noStatus.className).toMatch(/statusWrapper/)
-      expect(withStatus.className).toMatch(/statusWrapper/)
+    it('right-click on an avatar opens the person’s task dialog', () => {
+      const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' })]
+      render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
+      fireEvent.contextMenu(screen.getByText('AL'))
+      expect(useUIStore.getState().taskDialog).toMatchObject({ personId: 1 })
+      expect(screen.queryByRole('menu')).toBeNull()
     })
   })
 
-  describe('inline tag chip', () => {
-    // Assigned tags render as `#name` chips alongside the people avatars, and
-    // a hover-revealed `#` empty trigger mounts when no tags are assigned.
-    // Tag toggle goes through bulk actions.
-    it('renders #name chips for each assigned tag', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
-      useTagStore.setState({
-        tags: [
-          { id: 1, name: 'alpha', color: '#111' },
-          { id: 2, name: 'beta', color: '#222' },
-        ],
-        assignedTagsMap: new Map([
-          [1, [
-            { id: 1, name: 'alpha', color: '#111' },
-            { id: 2, name: 'beta', color: '#222' },
-          ]],
-        ]),
-      })
+  describe('tags column', () => {
+    it('coloured #name text, whole tags while they fit, then +N; the cell names them all', () => {
+      const tags = [
+        { id: 1, name: 'alpha', color: '#ff0000' },
+        { id: 2, name: 'beta', color: '#222' },
+      ]
+      useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
-      expect(screen.getByText('#alpha')).toBeInTheDocument()
-      expect(screen.getByText('#beta')).toBeInTheDocument()
+      const cell = screen.getByRole('button', { name: 'Tags: alpha, beta' })
+      expect(within(cell).getByText('#alpha')).toHaveStyle({ color: '#ff0000' })
+      expect(within(cell).queryByText('#beta')).toBeNull()
+      expect(within(cell).getByText('+1')).toBeInTheDocument()
     })
 
-    it('renders the empty-state # trigger when no tags are assigned', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
-      useTagStore.setState({
-        tags: [{ id: 1, name: 'alpha', color: '#111' }],
-        assignedTagsMap: new Map(),
-      })
+    it('an empty tags cell is Add tag', () => {
+      useTagStore.setState({ tags: [{ id: 1, name: 'alpha', color: '#111' }], assignedTagsMap: new Map() })
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByLabelText('Add tag')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Add tag' })).toBeInTheDocument()
     })
 
-    it('clicking an existing tag chip opens the lookup-or-create dropdown', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
+    it('clicking the tags cell opens the lookup-or-create picker; picking a tag assigns it', () => {
       useTagStore.setState({
-        tags: [
-          { id: 1, name: 'alpha', color: '#111' },
-          { id: 2, name: 'beta', color: '#222' },
-        ],
+        tags: [{ id: 1, name: 'alpha', color: '#111' }, { id: 2, name: 'beta', color: '#222' }],
         assignedTagsMap: new Map([[1, [{ id: 1, name: 'alpha', color: '#111' }]]]),
       })
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      fireEvent.click(screen.getByText('#alpha'))
-      // The dropdown's input renders with the search placeholder
+      fireEvent.click(screen.getByRole('button', { name: 'Tags: alpha' }))
       expect(screen.getByPlaceholderText('Search tags...')).toBeInTheDocument()
-    })
-
-    it('toggling an unassigned tag from the dropdown calls quickAssignTag', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
-      useTagStore.setState({
-        tags: [
-          { id: 1, name: 'alpha', color: '#111' },
-          { id: 2, name: 'beta', color: '#222' },
-        ],
-        assignedTagsMap: new Map([[1, [{ id: 1, name: 'alpha', color: '#111' }]]]),
-      })
-      render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      fireEvent.click(screen.getByText('#alpha'))
       fireEvent.click(screen.getByText('beta'))
       expect(mockBulk.quickAssignTag).toHaveBeenCalledWith(1, 2)
     })
 
-    it('does not render the inline tag chip on a ghost row', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
-      useTagStore.setState({
-        tags: [],
-        assignedTagsMap: new Map(),
-      })
+    it('a ghost row has no cells', () => {
+      useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
       render(<TaskRow todo={makeTodo({ id: 1 })} ghost />)
       expect(screen.queryByLabelText('Add tag')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('@ trigger placement', () => {
-    // The empty-state @ button must render BEFORE the pill bar so it occupies
-    // the people-chip slot. When people are populated, the avatar group inside
-    // the pill bar takes that slot — same visual position either way.
-    it('renders @ trigger before the pill bar in DOM order when no people are assigned', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />,
-      )
-      const buttons = Array.from(container.querySelectorAll('button')) as HTMLElement[]
-      const atIdx = buttons.findIndex((b) => b.textContent?.trim() === '@')
-      const deadlineIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Edit due date')
-      expect(atIdx).toBeGreaterThanOrEqual(0)
-      expect(deadlineIdx).toBeGreaterThanOrEqual(0)
-      expect(atIdx).toBeLessThan(deadlineIdx)
+      expect(screen.queryByLabelText('Set due date')).not.toBeInTheDocument()
     })
   })
 

@@ -33,7 +33,7 @@ test('restoring a backup clears the row selection', async ({ page }) => {
   await expect(settings).toBeHidden()
 
   await selectTaskRowByTitle(page, 'alpha')
-  await taskRowByTitle(page, 'gamma').locator('span[title="gamma"]').click({ modifiers: ['Shift'] })
+  await taskRowByTitle(page, 'gamma').locator('span[data-task-title="gamma"]').click({ modifiers: ['Shift'] })
   await expect(page.locator('[data-selected="true"]')).toHaveCount(3)
 
   await openSettings(page, 'Backups')
@@ -55,7 +55,7 @@ test('a data replace while the task editor is open closes it', async ({ page }) 
   await expect(settings).toBeHidden()
   const backupId = await manualBackupId(page)
 
-  await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').dblclick()
+  await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
   const title = page.getByRole('textbox', { name: 'Task title' })
   await expect(title).toHaveValue('alpha')
 

@@ -14,10 +14,10 @@ const svgBase = {
   'aria-hidden': true,
 }
 
-/** Flag — the follow-up pill, empty-slot trigger and editor group heading. */
-export function FollowupFlagIcon() {
+/** Flag — the follow-up pill, the row's follow-up cell and editor group heading. `filled` fills the flag. */
+export function FollowupFlagIcon({ filled = false }: { filled?: boolean }) {
   return (
-    <svg {...svgBase}>
+    <svg {...svgBase} fill={filled ? 'currentColor' : 'none'}>
       <path d="M3.5 14V2.5M3.5 3h7l-1.5 2.5 1.5 2.5h-7" />
     </svg>
   )

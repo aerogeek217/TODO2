@@ -143,7 +143,7 @@ test.describe('notes autocomplete', () => {
 
   test('task editor notes: above the dialog, mouse pick, Esc keeps the dialog', async ({ page }) => {
     await seedTaskList(page, { people: ['Anna', 'Dana Kim'], tasks: [{ title: 'alpha', notes: 'Some notes' }] })
-    await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').dblclick()
+    await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
     const title = page.getByRole('textbox', { name: 'Task title' })
     await expect(title).toBeVisible()
     const editor = page.locator('.cm-content')

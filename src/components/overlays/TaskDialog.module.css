@@ -83,13 +83,6 @@
   margin: 0 -8px;
   overflow-x: hidden;
   overflow-y: auto;
-  /* Task rows size their title and pills to the list they sit in. */
-  container-type: inline-size;
-}
-
-/* Rows here don't drag. */
-.body [class*="dragHandle"] {
-  visibility: hidden;
 }
 
 .body [data-todo-id] {

@@ -70,7 +70,7 @@ afterEach(() => {
   cleanup()
 })
 
-const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[title]')?.getAttribute('title'))
+const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[data-task-title]')?.getAttribute('data-task-title'))
 
 describe('ListWidget', () => {
   it('a malformed stored filter loads as no filter instead of crashing the widget', async () => {
@@ -219,7 +219,7 @@ const rowKeys = () => Array.from(document.querySelectorAll<HTMLElement>('[data-r
 
 function clickTitle(key: string, mods: { shiftKey?: boolean; ctrlKey?: boolean } = {}) {
   const row = document.querySelector<HTMLElement>(`[data-row-key="${key}"]`)!
-  fireEvent.click(row.querySelector('[data-todo-id] span[title]')!, mods)
+  fireEvent.click(row.querySelector('[data-todo-id] span[data-task-title]')!, mods)
 }
 
 function press(key: string, shiftKey = false) {

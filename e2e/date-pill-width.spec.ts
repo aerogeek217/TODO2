@@ -4,8 +4,8 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 /**
  * The due-date pill hugs its content where pills remain — phone rows and the
  * top bar's search results: no more than 4px of padding a side (plus the 1px
- * border). On a desktop row the due × is an overlay: it takes no width, so
- * the date stays centred in its slot.
+ * border). On a desktop row the due column's × is an overlay: it takes no
+ * width, so the date doesn't move when it appears.
  */
 
 const SEED: WorkspaceSeed = {
@@ -42,21 +42,16 @@ test('search results: the due pill hugs its date', async ({ page }) => {
   expect(await slack(chip)).toBeLessThanOrEqual(10.5)
 })
 
-test('desktop row: the due × overlays the pill, so the date stays centred', async ({ page }) => {
+test('desktop row: the due × overlays the due cell, so the date doesn’t move', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  const chip = page.locator('[data-todo-id]').filter({ hasText: 'Pay the bill' }).locator('[data-pill="due"]')
-  await chip.hover()
-  const clear = chip.getByRole('button', { name: 'Clear due date' })
-  await expect(clear).toBeVisible()
-  const gaps = await chip.evaluate((el) => {
-    const box = el.getBoundingClientRect()
-    // The date's own box: every child but the ×.
-    const range = document.createRange()
-    range.setStartBefore(el.firstChild!)
-    const x = el.querySelector('[aria-label="Clear due date"]')!
-    range.setEndBefore(x)
-    const content = range.getBoundingClientRect()
-    return { left: content.left - box.left, right: box.right - content.right }
-  })
-  expect(Math.abs(gaps.left - gaps.right)).toBeLessThanOrEqual(1)
+  const row = page.locator('[data-todo-id]').filter({ hasText: 'Pay the bill' })
+  const date = row.locator('[data-row-cell="due"] span').first()
+  const before = (await date.boundingBox())!
+  const clear = row.getByRole('button', { name: 'Clear due date' })
+  await expect(clear).toHaveCSS('opacity', '0')
+  await row.locator('[data-row-cell="due"]').hover()
+  await expect(clear).toHaveCSS('opacity', '1')
+  expect(await date.boundingBox()).toEqual(before)
+  await clear.click()
+  await expect(row.getByRole('button', { name: 'Set due date' })).toBeVisible()
 })

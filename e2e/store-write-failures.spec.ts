@@ -60,7 +60,7 @@ test('a task edit that fails is taken back and the snackbar says so', async ({ p
   const errors = collectPageErrors(page)
   await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
 
-  await taskRowByTitle(page, 'alpha').locator('span[title="alpha"]').dblclick()
+  await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
   const title = page.getByRole('textbox', { name: 'Task title' })
   await title.click()
   await title.press('End')

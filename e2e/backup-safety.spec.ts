@@ -148,7 +148,7 @@ test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Contin
   }
 
   await selectTaskRowByTitle(page, 't1')
-  await taskRowByTitle(page, 't6').locator('span[title="t6"]').click({ modifiers: ['Shift'] })
+  await taskRowByTitle(page, 't6').locator('span[data-task-title="t6"]').click({ modifiers: ['Shift'] })
   await deleteSelected()
   const prompt = backupPrompt(page)
   await expect(prompt).toBeVisible()
