@@ -10,6 +10,11 @@
  *
  * Chips are read-only feedback (no ×). To clear, edit the text.
  *
+ * ⏎ always adds the task, even while the `@ # /` popup is open: a
+ * half-typed token is completed to its best match first; an unreadable one
+ * stays in the title as typed. Tab (or a click) picks a suggestion, and so
+ * does ⏎ after ↑/↓. Text that is only tokens adds nothing and says so.
+ *
  * Inline syntax (parsed live, removed from the title):
  *   @person   #tag   /urgent /important /focus /due /followup /repeat /status
  * Plain words are never read as dates.
@@ -357,6 +362,8 @@ export function QuickAddBar({
   parse,
 }: QuickAddBarProps) {
   const [raw, setRaw] = useState('')
+  /** ⏎ was pressed on text that is only tokens: the "No title" line shows until the text changes. */
+  const [titleMissing, setTitleMissing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -384,8 +391,10 @@ export function QuickAddBar({
     tags: acTags,
     statuses: acStatuses,
     commands: true,
+    enterSubmits: true,
     onApply: (value, cursor) => {
       setRaw(value)
+      setTitleMissing(false)
       // Restore caret after React commits the new value.
       requestAnimationFrame(() => {
         if (!inputRef.current) return
@@ -399,6 +408,12 @@ export function QuickAddBar({
     ...parsed,
     rawTitle: raw,
     resolved,
+  }
+  /** The draft for `text` (the current one when it's what is typed). */
+  const draftFor = (text: string): QuickAddDraft => {
+    if (text === raw) return draft
+    const run = runParse(text, people, statuses)
+    return { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved }
   }
 
   // The token the popup is open on: tinted as "being typed"; its problem
@@ -430,6 +445,7 @@ export function QuickAddBar({
       requestAnimationFrame(() => inputRef.current?.focus())
     } else {
       setRaw('')
+      setTitleMissing(false)
       dismissAutocomplete()
     }
   }, [open, dismissAutocomplete, initialDraftRef])
@@ -531,8 +547,17 @@ export function QuickAddBar({
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (draft.title.trim().length === 0 || submittingRef.current) return
-      const result = onSubmit(draft)
+      if (submittingRef.current) return
+      // A token the popup is open on is completed to its best match.
+      const text = ac.completeForSubmit(raw)
+      ac.dismiss()
+      if (text !== raw) setRaw(text)
+      const submitted = draftFor(text)
+      if (submitted.title.trim().length === 0) {
+        if (text.trim().length > 0) setTitleMissing(true)
+        return
+      }
+      const result = onSubmit(submitted)
       if (!(result instanceof Promise)) {
         onClose()
         return
@@ -581,6 +606,7 @@ export function QuickAddBar({
               value={raw}
               onChange={(e) => {
                 setRaw(e.target.value)
+                setTitleMissing(false)
                 ac.handleInputChange(
                   e.target.value,
                   e.target.selectionStart ?? e.target.value.length,
@@ -614,6 +640,14 @@ export function QuickAddBar({
               {parsed.unmatchedPersons.map((n) => `@${n}`).join(' ')}
             </span>
             <span>— created when you add the task</span>
+          </div>
+        )}
+
+        {/* ⏎ on text that is only tokens */}
+        {titleMissing && (
+          <div className={styles.problemLine} role="alert">
+            <span className={styles.problemLabel}>No title:</span>
+            <span>— type what the task is; @ # / only add details</span>
           </div>
         )}
 

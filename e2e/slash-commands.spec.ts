@@ -5,7 +5,8 @@ import { afterTransactionsOn, readStore } from './fixtures/db'
 
 /**
  * Slash commands in Quick Add: the `/` menu (open, filter, keys, argument
- * states, Escape), a full command typed without the menu, and the Details ⇥
+ * states, Escape), ⏎ adding the task while the menu is open, a full command
+ * typed without the menu, and the Details ⇥
  * handoff carrying the parsed commands into the task editor. Real-browser
  * because the popup is portalled, anchored at the trigger character from the
  * measured input, and keys hop between the input, the popup and the dialog.
@@ -76,7 +77,7 @@ test.describe('Quick Add slash commands', () => {
     expect(menuBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height)
     expect(menuBox.x).toBeGreaterThan(inputBox.x + 100)
 
-    // Typing filters by prefix; ↓ moves; ⏎ picks (and never submits).
+    // Typing filters by prefix; ↓ moves; ⏎ after ↓ picks (no submit).
     await page.keyboard.type('fo')
     await expect(menu.getByRole('option')).toHaveCount(2)
     await page.keyboard.press('ArrowDown')
@@ -91,16 +92,15 @@ test.describe('Quick Add slash commands', () => {
     await expect(arg.getByRole('option', { name: /1m/ })).toContainText('default')
     await page.keyboard.type('2w')
     await expect(arg.getByRole('option')).toHaveCount(1)
-    await page.keyboard.press('Enter')
+    // Tab picks.
+    await page.keyboard.press('Tab')
     await expect(arg).toBeHidden()
     await expect(input).toHaveValue('Call legal about SOW /followup 2w ')
 
-    // An unreadable date shows the error; ⏎ does nothing; Esc closes only the popup.
+    // An unreadable date shows the error; Esc closes only the popup.
     await page.keyboard.type('/due frday')
     const due = page.getByRole('listbox', { name: 'Due date' })
     await expect(due.getByRole('alert')).toHaveText(/Can't read "frday"/)
-    await page.keyboard.press('Enter')
-    await expect(dialog).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(due).toBeHidden()
     await expect(dialog).toBeVisible()
@@ -110,6 +110,33 @@ test.describe('Quick Add slash commands', () => {
     // A second Esc closes the bar.
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
+  })
+
+  test('⏎ adds the task while the menu is open: a half-typed token resolves, a partial date stays in the title', async ({ page }) => {
+    const { dialog, input } = await openQuickAdd(page)
+    // Half-typed command: completed to its best match.
+    await page.keyboard.type('Draft memo /ur')
+    await expect(page.getByRole('listbox', { name: 'Commands' })).toBeVisible()
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect.poll(() => readTodo(page, 'Draft memo')).toMatchObject({ urgent: true })
+
+    // A date still being typed (only a hint shows): added, the date left in the title.
+    await openQuickAdd(page)
+    await page.keyboard.type('Pay invoice /due 24')
+    await expect(page.getByRole('listbox', { name: 'Due date' })).toBeVisible()
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect.poll(() => readTodo(page, 'Pay invoice /due 24')).not.toBeNull()
+    expect((await readTodo(page, 'Pay invoice /due 24'))?.dueDate).toBeUndefined()
+
+    // Only tokens: nothing is added, and the bar says why.
+    await openQuickAdd(page)
+    await page.keyboard.type('/urgent ')
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByText('No title:')).toBeVisible()
+    await expect(input).toHaveValue('/urgent ')
   })
 
   test('/status completes status names; a multi-word name is quoted', async ({ page }) => {

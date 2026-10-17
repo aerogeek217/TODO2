@@ -74,7 +74,8 @@ test.describe('QuickAddBar @ mention picker', () => {
     await expect(targetOption).toHaveAttribute('aria-selected', 'true')
     await expect(popup.getByRole('option')).toHaveCount(1)
 
-    await page.keyboard.press('Enter')
+    // Tab picks (⏎ would add the task at once, with the same match).
+    await page.keyboard.press('Tab')
 
     // Picker dismisses; the name contains a space, so the token is quoted.
     // The chip preview renders via the parser+resolver path.

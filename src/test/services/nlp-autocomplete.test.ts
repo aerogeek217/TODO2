@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyAutocompletePick,
+  bestMatchCompletion,
   carrySelection,
   computeAutocomplete,
   isPartialDateArgument,
@@ -268,6 +269,52 @@ describe('@ and #', () => {
   it('picks quote a name with a space', () => {
     expect(pick('Call @dan')?.value).toBe('Call @"Dana Kim" ')
     expect(pick('Call @Marco')?.value).toBe('Call @Marco ')
+  })
+
+  it('people: an exact name or initials match comes first, then names starting with the query', () => {
+    const src = { ...sources, people: [
+      { id: 1, name: 'Sal', initials: 'SA', kind: 'person' as const },
+      { id: 2, name: 'Alice', initials: 'AC', kind: 'person' as const },
+      { id: 3, name: 'Al', initials: 'AX', kind: 'person' as const },
+    ] }
+    expect(labels(at('x @al', src))).toEqual(['Al', 'Alice', 'Sal'])
+    expect(labels(at('x @ali', src))).toEqual(['Alice'])
+    expect(labels(at('x @a', src))).toEqual(['Alice', 'Al', 'Sal'])
+  })
+})
+
+describe('bestMatchCompletion', () => {
+  /** `text` with its token completed for a submit, the cursor at the end. */
+  const complete = (text: string) => {
+    const view = at(text)
+    if (!view) throw new Error(`no popup for "${text}"`)
+    return bestMatchCompletion(text, view)
+  }
+
+  it('completes a half-typed person, tag, flag command or argument to the first row', () => {
+    expect(complete('Call @ann')).toBe('Call @Anna ')
+    expect(complete('Call @dan')).toBe('Call @"Dana Kim" ')
+    expect(complete('Plan #ba')).toBe('Plan #Backend ')
+    expect(complete('Fix /ur')).toBe('Fix /urgent ')
+    expect(complete('Renew /due tom')).toBe('Renew /due tomorrow ')
+    expect(complete('Ping /followup 2')).toBe('Ping /followup 2w ')
+    expect(complete('Ship /status in')).toBe('Ship /status "In progress" ')
+    expect(complete('Pay /repeat mon')).toBe('Pay /repeat monthly ')
+  })
+
+  it('leaves the text as typed when there is nothing to complete', () => {
+    // A new name (created with the task), an already readable date.
+    expect(complete('Call @Marco')).toBe('Call @Marco')
+    expect(complete('Renew /due fri')).toBe('Renew /due fri')
+    // Unreadable or still partial: stays in the title as typed.
+    expect(complete('Renew /due frday')).toBe('Renew /due frday')
+    expect(complete('Renew /due 24')).toBe('Renew /due 24')
+    // Nothing typed after the trigger or the command: nothing to match.
+    expect(complete('Call @')).toBe('Call @')
+    expect(complete('Fix /')).toBe('Fix /')
+    expect(complete('Renew /due ')).toBe('Renew /due ')
+    // An argument command isn't completed without its argument.
+    expect(complete('Renew /du')).toBe('Renew /du')
   })
 })
 

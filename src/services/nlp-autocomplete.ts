@@ -31,7 +31,8 @@ import { byName } from '../utils/sort-order'
  * render `components/shared/NlpPopup`.
  *
  * Triggers count only at the start of the text or after whitespace:
- *  - `@` people (substring or exact initials; create row when nothing matches);
+ *  - `@` people (substring or exact initials — an exact name or initials match
+ *    first, then names starting with the query; create row when nothing matches);
  *  - `#` tags (prefix; create row when nothing matches);
  *  - `/` slash commands (prefix on the name), then the command's argument
  *    (date suggestions / live parse / error, statuses, frequencies).
@@ -277,8 +278,19 @@ function entityView(
   } else {
     // A leading quote (`@"First Last"` being typed) is ignored for matching.
     const q = query.replace(/^"/, '')
+    // Best match first (stable within each rank): exact name or initials,
+    // then names starting with the query, then the other substring matches.
+    const rank = (p: AutocompleteItem) => {
+      const name = p.name.toLowerCase()
+      if (name === q || p.initials?.toLowerCase() === q) return 0
+      return name.startsWith(q) ? 1 : 2
+    }
     items = q
-      ? sources.people.filter((p) => p.name.toLowerCase().includes(q) || p.initials?.toLowerCase() === q)
+      ? sources.people
+        .filter((p) => p.name.toLowerCase().includes(q) || p.initials?.toLowerCase() === q)
+        .map((p, i) => ({ p, i, r: rank(p) }))
+        .sort((a, b) => a.r - b.r || a.i - b.i)
+        .map((x) => x.p)
       : sources.people
   }
   const rows: AutocompleteRow[] = items.slice(0, MAX_ENTITY_ROWS).map((item) => ({ kind: 'entity', item }))
@@ -474,4 +486,23 @@ export function applyAutocompletePick(
   const after = value.slice(view.to).replace(/^ /, '')
   const next = `${before}${insert} ${after}`
   return { value: next, cursor: before.length + insert.length + 1, reopen }
+}
+
+/**
+ * `value` with the half-typed token `view` is open on completed to its best
+ * match — the first row — for a submit that doesn't wait for a pick: a
+ * person or tag, a flag command (`/ur` → `/urgent`), or an argument
+ * suggestion (`/due tom` → `tomorrow`). Unchanged when nothing was typed
+ * after the trigger (or the command), when the first row adds nothing (a new
+ * name to create, a date that already reads), for an argument command
+ * without its argument, and for an unreadable or still partial argument —
+ * those stay in the title as typed.
+ */
+export function bestMatchCompletion(value: string, view: AutocompleteView): string {
+  if (view.query.trim() === '') return value
+  const row = view.rows[0]
+  if (!row) return value
+  if (row.kind === 'create' || row.kind === 'parsed' || row.kind === 'error') return value
+  if (row.kind === 'command' && takesArgument(row.command.name)) return value
+  return applyAutocompletePick(value, view, row)?.value ?? value
 }

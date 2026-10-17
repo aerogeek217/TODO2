@@ -324,7 +324,7 @@ describe('QuickAddBar', () => {
       expect(options()).toEqual(['/focusAdd to Focus', '/followupNext follow-up…'])
     })
 
-    it('⏎ picks a command and never submits; ↓ moves', async () => {
+    it('after ↓, ⏎ picks a command (no submit)', async () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeAtCaret('Call legal /fo')
@@ -346,13 +346,71 @@ describe('QuickAddBar', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('Can\'t read "frday"')
     })
 
-    it('⏎ on an error row does nothing (no submit)', async () => {
+    it('⏎ on an unreadable argument adds the task with the argument left in the title', async () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeAtCaret('Renew /due frday')
       await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.title).toBe('Renew /due frday')
+      expect(draft.resolved.dueDate).toBeUndefined()
+    })
+
+    it('⏎ while the popup is open adds the task, a half-typed token resolved to its best match', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Call legal /ur')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.title).toBe('Call legal')
+      expect(draft.rawTitle).toBe('Call legal /urgent ')
+      expect(draft.resolved.urgent).toBe(true)
+    })
+
+    it('⏎ on a half-typed date argument adds the task with the suggested date', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Renew /due tom')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.title).toBe('Renew')
+      expect(draft.resolved.dueDate).toBeInstanceOf(Date)
+    })
+
+    it('⏎ on a date still being typed (no suggestion) adds the task with it left in the title', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Renew /due 24')
+      expect(screen.getByRole('listbox', { name: 'Due date' })).toBeInTheDocument()
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+      expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).title).toBe('Renew /due 24')
+    })
+
+    it('Tab picks the active row while the popup is open (no Details, no submit)', async () => {
+      const onSubmit = vi.fn()
+      const onOpenFullEditor = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} onOpenFullEditor={onOpenFullEditor} />)
+      typeAtCaret('Call legal /ur')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Tab' }) })
+      expect(getInput().value).toBe('Call legal /urgent ')
       expect(onSubmit).not.toHaveBeenCalled()
-      expect(getInput().value).toBe('Renew /due frday')
+      expect(onOpenFullEditor).not.toHaveBeenCalled()
+    })
+
+    it('a title of tokens only: ⏎ adds nothing and says the task needs a title', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      changeInput('@anna /urgent ')
+      expect(screen.queryByText('No title:')).not.toBeInTheDocument()
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(screen.getByText('No title:')).toBeInTheDocument()
+      // Typing again takes the line away.
+      changeInput('Call @anna /urgent ')
+      expect(screen.queryByText('No title:')).not.toBeInTheDocument()
     })
 
     it('Esc closes only the popup and leaves the text', async () => {
@@ -387,7 +445,7 @@ describe('QuickAddBar', () => {
       return input
     }
 
-    it('offers "Press ⏎ to create @Name" when nobody matches; ⏎ inserts the token', async () => {
+    it('offers "Press ⏎ to create @Name" when nobody matches; Tab inserts the token', async () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeAtCaret('Call legal @Marco')
@@ -396,12 +454,32 @@ describe('QuickAddBar', () => {
       expect(listbox).toContainElement(option)
       expect(option).toHaveAttribute('aria-selected', 'true')
 
-      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Tab' }) })
       expect(getInput().value).toBe('Call legal @Marco ')
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-      // Enter went to the popup, not to submit.
       expect(onSubmit).not.toHaveBeenCalled()
       expect(screen.getByText('New person:')).toBeInTheDocument()
+    })
+
+    it('⏎ on the create row adds the task with the new person', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Call legal @Marco')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.title).toBe('Call legal')
+      expect(draft.resolved.unmatchedPersons).toEqual(['Marco'])
+    })
+
+    it('⏎ on a half-typed name adds the task with the best match', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Review @ann')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.title).toBe('Review')
+      expect(draft.resolved.personIds).toEqual([1])
+      expect(draft.resolved.unmatchedPersons).toEqual([])
     })
 
     it('a partial match lists matches only — no create row', () => {

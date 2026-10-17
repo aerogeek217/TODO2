@@ -3,6 +3,7 @@ import { useLatestRef } from './use-latest-ref'
 import { useSettingsStore } from '../stores/settings-store'
 import {
   applyAutocompletePick,
+  bestMatchCompletion,
   carrySelection,
   computeAutocomplete,
   isSelectable,
@@ -19,11 +20,13 @@ export interface AutocompleteState {
   view: AutocompleteView | null
   /** The active row (↑/↓ move it, no wrap). */
   selectedIndex: number
+  /** ↑/↓ moved the active row in this list (with `enterSubmits`, ⏎ then picks it). */
+  navigated: boolean
   /** Left offset of the trigger character within the input, for anchoring. */
   caretLeft: number
 }
 
-const initialState: AutocompleteState = { visible: false, view: null, selectedIndex: 0, caretLeft: 0 }
+const initialState: AutocompleteState = { visible: false, view: null, selectedIndex: 0, navigated: false, caretLeft: 0 }
 
 type TextInput = HTMLInputElement | HTMLTextAreaElement
 
@@ -34,6 +37,12 @@ interface UseNlpAutocompleteOptions {
   statuses?: AutocompleteItem[]
   /** `/` opens the slash-command menu (task text that is parsed on create). */
   commands?: boolean
+  /**
+   * ⏎ belongs to the host unless ↑/↓ moved the active row: `handleKeyDown`
+   * leaves it unconsumed, and the host submits `completeForSubmit(value)`.
+   * Off: ⏎ always picks while the popup is open.
+   */
+  enterSubmits?: boolean
   /** Writes a pick into the input: set the value, then put the caret at `cursor`. */
   onApply: (value: string, cursor: number) => void
 }
@@ -56,10 +65,14 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * The `@ # /` autocomplete popup for a React text input: wraps the pure
  * `services/nlp-autocomplete` with popup state, caret anchoring and keys.
  * Hosts call `handleInputChange` on every change, route keydown through
- * `handleKeyDown` (true = consumed: prevent default, stop propagation — while
- * the popup is open ⏎ never submits), and render `NlpPopup` with `state`.
+ * `handleKeyDown` (true = consumed: prevent default, stop propagation), and
+ * render `NlpPopup` with `state`. While the popup is open Tab picks the
+ * active row; ⏎ picks it too — or, with `enterSubmits`, only after ↑/↓
+ * moved it, and otherwise goes to the host, which submits
+ * `completeForSubmit(value)` (the half-typed token completed to its best
+ * match).
  */
-export function useNlpAutocomplete({ people, tags = [], statuses = [], commands = false, onApply }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, tags = [], statuses = [], commands = false, enterSubmits = false, onApply }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const followupDefault = useSettingsStore((s) => s.followupDefaultInterval)
   const onApplyRef = useLatestRef(onApply)
@@ -74,12 +87,17 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [], commands 
       setState((s) => (s.visible ? initialState : s))
       return
     }
-    setState((s) => ({
-      visible: true,
-      view,
-      selectedIndex: carrySelection(s.view, s.selectedIndex, view),
-      caretLeft: measureCaretLeft(input, value, view.anchor),
-    }))
+    setState((s) => {
+      // The same list narrowing keeps the active row and how it got there.
+      const sameList = s.view?.mode === view.mode && s.view.anchor === view.anchor
+      return {
+        visible: true,
+        view,
+        selectedIndex: carrySelection(s.view, s.selectedIndex, view),
+        navigated: sameList && s.navigated,
+        caretLeft: measureCaretLeft(input, value, view.anchor),
+      }
+    })
   }, [people, tags, statuses, commands, followupDefault])
 
   const select = useCallback((row: AutocompleteRow, input: TextInput | null) => {
@@ -97,24 +115,30 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [], commands 
     if (!state.visible || !state.view) return false
     const rows = state.view.rows
     if (e.key === 'ArrowDown') {
-      setState((s) => ({ ...s, selectedIndex: Math.min(s.selectedIndex + 1, Math.max(0, rows.length - 1)) }))
+      setState((s) => ({ ...s, navigated: true, selectedIndex: Math.min(s.selectedIndex + 1, Math.max(0, rows.length - 1)) }))
       return true
     }
     if (e.key === 'ArrowUp') {
-      setState((s) => ({ ...s, selectedIndex: Math.max(s.selectedIndex - 1, 0) }))
+      setState((s) => ({ ...s, navigated: true, selectedIndex: Math.max(s.selectedIndex - 1, 0) }))
       return true
     }
+    if (e.key === 'Enter' && enterSubmits && !state.navigated) return false
     if (e.key === 'Enter' || e.key === 'Tab') {
       const row = rows[state.selectedIndex]
       if (isSelectable(row) && row) select(row, input)
-      return true // never submits while open
+      return true
     }
     if (e.key === 'Escape') {
       dismiss()
       return true
     }
     return false
-  }, [state.visible, state.view, state.selectedIndex, select, dismiss])
+  }, [state.visible, state.view, state.selectedIndex, state.navigated, enterSubmits, select, dismiss])
 
-  return { state, handleInputChange, handleKeyDown, select, dismiss }
+  /** `value` with the token the popup is open on completed to its best match (unchanged when it's closed). */
+  const completeForSubmit = useCallback((value: string): string => (
+    state.visible && state.view ? bestMatchCompletion(value, state.view) : value
+  ), [state.visible, state.view])
+
+  return { state, handleInputChange, handleKeyDown, select, dismiss, completeForSubmit }
 }

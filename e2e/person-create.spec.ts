@@ -114,7 +114,7 @@ test.describe('Quick Add @ — create on submit', () => {
     await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
   })
 
-  test('nothing matches: ⏎ on the create row inserts the token; submit creates and assigns the person', async ({ page }) => {
+  test('nothing matches: Tab on the create row inserts the token; submit creates and assigns the person', async ({ page }) => {
     await page.keyboard.press('Control+Space')
     const dialog = page.getByRole('dialog', { name: 'Quick add task' })
     const input = dialog.getByPlaceholder('New task…')
@@ -124,7 +124,7 @@ test.describe('Quick Add @ — create on submit', () => {
     const popup = page.getByRole('listbox', { name: 'People' })
     const create = popup.getByRole('option', { name: 'Press ⏎ to create @Marco' })
     await expect(create).toHaveAttribute('aria-selected', 'true')
-    await page.keyboard.press('Enter')
+    await page.keyboard.press('Tab')
     await expect(popup).toBeHidden()
     await expect(input).toHaveValue('Call legal @Marco ')
     await expect(dialog.getByText('New person:')).toBeVisible()
@@ -132,7 +132,7 @@ test.describe('Quick Add @ — create on submit', () => {
     // A quoted multi-word name that matches nobody is created too.
     await page.keyboard.type('@"Ana Lopez" @dana')
     await expect(popup.getByRole('option', { name: '@Dana Kim' })).toBeVisible()
-    await page.keyboard.press('Enter')
+    await page.keyboard.press('Tab')
     await expect(dialog.getByText('@Marco @Ana Lopez')).toBeVisible()
     await page.keyboard.press('Enter')
     await expect(dialog).toBeHidden()
