@@ -25,12 +25,14 @@ interface WidgetBodyProps {
   onResult?: (result: WidgetResult) => void
   /** Dashboard: "+ Add list tile" opens Customize at its list tiles; absent = no button. */
   onAddListTile?: () => void
+  /** Dashboard: its gear opens Customize; absent = no gear. */
+  onCustomize?: () => void
 }
 
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
 /** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one; an unknown stored kind gets a note). */
-export function WidgetBody({ tab, onResult, onAddListTile }: WidgetBodyProps): ReactElement {
+export function WidgetBody({ tab, onResult, onAddListTile, onCustomize }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
       return <ListWidget tab={tab} onResult={onResult} />
@@ -47,6 +49,7 @@ export function WidgetBody({ tab, onResult, onAddListTile }: WidgetBodyProps): R
           onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS, summary: r.summary }) : undefined}
           onDrill={(drill) => useUIStore.getState().showTaskDialog({ ...drill, fromTabId: tab.id })}
           onAddListTile={onAddListTile}
+          onCustomize={onCustomize}
         />
       )
     default: {

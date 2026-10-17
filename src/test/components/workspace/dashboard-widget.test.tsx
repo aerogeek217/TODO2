@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, act, within, fireEvent } from '@testing-library/react'
+import { render, cleanup, act, within, fireEvent, screen } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { DashboardWidget, type DashboardResult } from '../../../components/workspace/dashboard/DashboardWidget'
 import type { DashboardDrill } from '../../../components/workspace/dashboard/types'
@@ -100,6 +100,16 @@ describe('DashboardWidget — the design sample', () => {
     render(<DndContext><DashboardWidget tab={tabWith()} onAddListTile={onAdd} /></DndContext>)
     fireEvent.click(document.querySelector<HTMLElement>('[aria-label="List tiles"] button')!)
     expect(onAdd).toHaveBeenCalled()
+  })
+
+  it('the corner gear opens Customize when the host can; none without', () => {
+    const onCustomize = vi.fn()
+    const { unmount } = render(<DndContext><DashboardWidget tab={tabWith()} onCustomize={onCustomize} /></DndContext>)
+    fireEvent.click(screen.getByRole('button', { name: 'Customize dashboard' }))
+    expect(onCustomize).toHaveBeenCalled()
+    unmount()
+    render(<DndContext><DashboardWidget tab={tabWith()} /></DndContext>)
+    expect(screen.queryByRole('button', { name: 'Customize dashboard' })).toBeNull()
   })
 
   it('renders every section in the default order and spans', () => {

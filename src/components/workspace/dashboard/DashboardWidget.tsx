@@ -18,6 +18,8 @@ import { DASHBOARD_WIDE_MIN_PX, packSections, sectionRowTracks, TILES_PER_ROW } 
 import { DASHBOARD_SECTIONS } from './dashboard-sections'
 import { buildDashboardSummary, type DashboardSummary } from './dashboard-summary'
 import { DashGlyph } from '../../shared/DashGlyph'
+import { GearIcon } from '../../shared/icons'
+import { useTooltip } from '../../shared/use-tooltip'
 import { useListTileHints } from './use-list-tile-hints'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from '../../../hooks/use-dashboard-data'
@@ -137,6 +139,24 @@ function ListTiles({ data, onDrill, onAddListTile }: {
   )
 }
 
+/** The dashboard's corner gear (shown on hover / focus): opens Customize dashboard. */
+function CustomizeGear({ onClick }: { onClick: () => void }) {
+  const { triggerProps, tooltip } = useTooltip('Customize dashboard')
+  return (
+    <button
+      type="button"
+      className={styles.customizeGear}
+      aria-label="Customize dashboard"
+      data-dashboard-customize=""
+      onClick={onClick}
+      {...triggerProps}
+    >
+      <GearIcon size={14} />
+      {tooltip}
+    </button>
+  )
+}
+
 export interface DashboardWidgetProps {
   tab: DashboardTab
   onResult?: (r: DashboardResult) => void
@@ -144,6 +164,8 @@ export interface DashboardWidgetProps {
   onDrill?: OnDashboardDrill
   /** Opens Customize at its list tiles ("+ Add list tile"); absent = no button. */
   onAddListTile?: () => void
+  /** Opens Customize from the gear shown on hover / focus; absent = no gear. */
+  onCustomize?: () => void
 }
 
 /**
@@ -152,7 +174,7 @@ export interface DashboardWidgetProps {
  * sections — order and visibility). Built for one cell filling the
  * workspace; below ~1100px of cell width it's one scrolling column.
  */
-export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddListTile }: DashboardWidgetProps) {
+export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddListTile, onCustomize }: DashboardWidgetProps) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const data = useDashboardData(config)
   // A section divider's width while it is dragged: every task-row section follows it live.
@@ -229,6 +251,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
       data-layout={wide ? 'grid' : 'column'}
       data-selection-scope={isMobile ? undefined : tab.id}
     >
+      {onCustomize && !isMobile && <CustomizeGear onClick={onCustomize} />}
       {config.tiles.length > 0 && (
         <div className={styles.tiles} aria-label="Tiles" role="group" data-tile-rows={tileRows}>
           {config.tiles.map((id) => <Tile key={id} id={id} data={data} onDrill={onDrill} />)}

@@ -34,6 +34,7 @@ import { useTabDrag } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
 import { useDashboardMenuActions } from './dashboard/dashboard-menu'
+import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
@@ -184,6 +185,16 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   })
 
   const cellMenuEntries: MenuEntry[] = [
+    // The active widget's own setup, when it has one.
+    ...(active?.kind === 'dashboard' ? [
+      {
+        kind: 'item' as const,
+        label: 'Customize dashboard…',
+        icon: <DashGlyph name="sliders" />,
+        onSelect: () => setCustomize({ tabId: active.id, focusListTiles: false }),
+      },
+      { kind: 'separator' as const },
+    ] : []),
     {
       kind: 'item',
       label: 'Add widget',
@@ -287,6 +298,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
             tab={active}
             onResult={(result) => setWidgetResult({ tabId: active.id, result })}
             onAddListTile={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: true }) : undefined}
+            onCustomize={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: false }) : undefined}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} />}
         </div>

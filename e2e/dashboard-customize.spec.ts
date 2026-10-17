@@ -131,6 +131,35 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 })
 
+test('Customize also opens from the cell ⋯ menu and from the dashboard’s gear (hover or keyboard focus)', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect(dash(page)).toBeVisible()
+  await wsCell(page, 'k1').hover()
+  await wsCell(page, 'k1').getByRole('button', { name: 'Cell options' }).click()
+  const menu = page.getByRole('menu', { name: 'Cell options' })
+  await expect(menu.getByRole('menuitem').first()).toHaveText('Customize dashboard…')
+  await menu.getByRole('menuitem', { name: 'Customize dashboard…' }).click()
+  await expect(customize(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(customize(page)).toHaveCount(0)
+
+  const gear = dash(page).getByRole('button', { name: 'Customize dashboard' })
+  await page.mouse.move(0, 0)
+  await expect(gear).toHaveCSS('opacity', '0')
+  await dash(page).locator('[data-dash-tile]').first().hover()
+  await expect(gear).toHaveCSS('opacity', '1')
+  await gear.click()
+  await expect(customize(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(gear).toBeFocused()
+  await page.mouse.move(0, 0)
+  // Keyboard focus shows it too.
+  await page.keyboard.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(gear).toBeFocused()
+  await expect(gear).toHaveCSS('opacity', '1')
+})
+
 test('the Hot flyout edits the app-wide rule: the Hot tile follows, the layout stays saved', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(tileCount(page, 'hot')).toHaveText('2')
