@@ -8,6 +8,7 @@ import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatHotRule, parseHotRule } from '../utils/hot'
+import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-settings'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
@@ -304,6 +305,9 @@ function checkSetting(v: unknown): CheckResult {
   // Checked before the length cap so an unrecognized key is always reported
   // as such — `validateImportData` drops those rows instead of failing.
   if (!isKnownSettingKey(v.key as string)) return UNRECOGNIZED_SETTING_KEY
+  // Keyboard shortcuts: any text — the picker keeps only the bindings it can
+  // read (`settingFixes` names what it drops), so its length is bounded.
+  if (v.key === SETTING_KEYS.keyboardShortcuts) return true
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
@@ -462,9 +466,19 @@ function pickTodoPerson(v: Raw): AllFields<TodoPerson> {
 function pickSetting(v: Raw): AllFields<SettingRow> {
   const key = v.key as string
   const value = v.value as string
+  if (key === SETTING_KEYS.keyboardShortcuts) {
+    // Only the bindings that read, pass the rules and don't clash.
+    return { key, value: formatShortcutOverrides(readShortcutOverrides(value).overrides) } satisfies AllFields<SettingRow>
+  }
   // The Hot rule is stored normalized (duplicate lines collapsed).
   const hotRule = key === SETTING_KEYS.hotRule ? parseHotRule(value) : undefined
   return { key, value: hotRule ? formatHotRule(hotRule) : value } satisfies AllFields<SettingRow>
+}
+
+/** What `pickSetting` drops from a valid settings row, in words. */
+function settingFixes(row: Raw): string[] {
+  if (row.key !== SETTING_KEYS.keyboardShortcuts || typeof row.value !== 'string') return []
+  return readShortcutOverrides(row.value).dropped
 }
 
 function pickNote(v: Raw): AllFields<Note> {
@@ -588,6 +602,8 @@ interface RowFixer {
   fixes: (row: Raw) => string[]
   /** The import warning's lead for `n` fixed rows. */
   lead: (n: number) => string
+  /** How the warning names a row; default its title or name. Empty = the fixes alone. */
+  label?: (row: Raw) => string
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -608,7 +624,11 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
       lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
     },
   },
-  settings: { check: checkSetting, pick: pickSetting },
+  settings: {
+    check: checkSetting,
+    pick: pickSetting,
+    fixer: { fixes: settingFixes, lead: () => 'Fixed the keyboard shortcuts', label: () => '' },
+  },
   todoPeople: { check: checkTodoPerson, pick: pickTodoPerson },
   statuses: { check: checkStatus, pick: pickStatus },
   listDefinitions: {
@@ -795,8 +815,11 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
     if (!fixer || !Array.isArray(rows)) continue
     const fixed: string[] = []
     for (const row of rows) {
-      const fixes = isRecord(row) ? fixer.fixes(row) : []
-      if (fixes.length > 0) fixed.push(`${rowLabel(row) || 'unnamed'} (${fixes.join(', ')})`)
+      if (!isRecord(row)) continue
+      const fixes = fixer.fixes(row)
+      if (fixes.length === 0) continue
+      const label = fixer.label ? fixer.label(row) : rowLabel(row) || 'unnamed'
+      fixed.push(label ? `${label} (${fixes.join(', ')})` : fixes.join(', '))
     }
     if (fixed.length === 0) continue
     const shown = fixed.slice(0, MAX_REPORTED_ROW_ERRORS)

@@ -224,4 +224,38 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
   })
+
+  it('keyboard shortcuts: start at the defaults, save only changes, refuse clashes, reset one or all', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({})
+
+    const set = useSettingsStore.getState().setShortcut
+    expect(await set('command-palette', [{ key: 'p', mod: true, shift: true }])).toBeNull()
+    expect(await set('open-settings', [{ key: 'g' }, { key: 'o' }])).toBeNull()
+    expect((await db.settings.get('keyboardShortcuts'))!.value).toBe('{"command-palette":"Mod-Shift-p","open-settings":"g o"}')
+
+    // A clash is refused with the reason and nothing is written.
+    expect(await set('focus-filters', [{ key: 'p', mod: true, shift: true }])).toMatch(/already used by Command Palette/)
+    expect(useSettingsStore.getState().shortcutOverrides['focus-filters']).toBeUndefined()
+
+    // Reload reads them back.
+    useSettingsStore.setState({ shortcutOverrides: {} })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({
+      'command-palette': [{ key: 'p', mod: true, shift: true }],
+      'open-settings': [{ key: 'g' }, { key: 'o' }],
+    })
+
+    await useSettingsStore.getState().resetShortcut('command-palette')
+    expect((await db.settings.get('keyboardShortcuts'))!.value).toBe('{"open-settings":"g o"}')
+    await useSettingsStore.getState().resetAllShortcuts()
+    expect(await db.settings.get('keyboardShortcuts')).toBeUndefined()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({})
+  })
+
+  it('keyboard shortcuts: load drops what the editor could not have saved', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{"focus-filters":"Mod-k","toggle-complete":"x","nope":"y"}' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({ 'toggle-complete': [{ key: 'x' }] })
+  })
 })

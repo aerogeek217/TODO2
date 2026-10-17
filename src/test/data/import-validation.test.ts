@@ -402,6 +402,58 @@ describe('validateImportData', () => {
     })
   })
 
+  describe('keyboard shortcuts', () => {
+    const ALL_CHANGED = JSON.stringify({
+      'quick-add': 'Mod-Shift-Space',
+      'command-palette': 'Mod-Alt-p',
+      undo: 'Mod-Alt-z',
+      redo: 'Mod-Alt-y',
+      'redo-alt': 'Mod-Alt-Shift-z',
+      'select-all': 'Mod-Alt-a',
+      'show-shortcuts': 'F2',
+      'focus-search': 'Mod-Alt-f',
+      'focus-search-alt': 'Mod-Alt-s',
+      'focus-filters': 'Shift-f',
+      'open-settings': 'g o',
+      'toggle-complete': 'x',
+      'delete-selected': 'Backspace',
+    })
+
+    it('is a known setting', () => {
+      expect(isKnownSettingKey('keyboardShortcuts')).toBe(true)
+    })
+
+    it('keeps the bindings the editor saves, however many', () => {
+      expect(ALL_CHANGED.length).toBeGreaterThan(200)
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: ALL_CHANGED }] }))
+      expect(result).toMatchObject({ ok: true, warnings: [] })
+      if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: ALL_CHANGED }])
+    })
+
+    it('drops unknown, malformed, refused and clashing bindings with a warning instead of failing', () => {
+      const value = JSON.stringify({
+        nope: 'Mod-Alt-p',
+        undo: 'Mod-Mod-z',
+        'select-all': 'Mod-w',
+        'focus-filters': 'n',
+        'toggle-complete': 'n',
+        'open-settings': 'g o',
+      })
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value }] }))
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{"focus-filters":"n","open-settings":"g o"}' }])
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toMatch(/^Fixed the keyboard shortcuts: unknown shortcut "nope" dropped, Undo: unreadable keys dropped, Select all visible tasks: .* \(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped$/)
+    })
+
+    it('resets unreadable text with a warning', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: '{oops' }] }))
+      expect(result).toMatchObject({ ok: true, warnings: ['Fixed the keyboard shortcuts: unreadable keyboard shortcuts reset'] })
+      if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{}' }])
+    })
+  })
+
   it('todo with valid recurrenceRule passes; invalid type fails', () => {
     const validResult = validateImportData(validData({
       todos: [makeTodo({ recurrenceRule: { type: 'weekly' } })],

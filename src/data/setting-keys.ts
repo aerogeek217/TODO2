@@ -40,6 +40,12 @@ export const SETTING_KEYS = {
   checkinTaskScope: 'checkinTaskScope',
   /** Id of the workspace layout that is open (a `layouts` row). */
   activeLayoutId: 'activeLayoutId',
+  /**
+   * The user's keyboard shortcut changes: JSON object of chord texts by
+   * binding id (`{"command-palette":"Mod-Shift-p","open-settings":"g o"}`,
+   * `utils/shortcut-bindings`). Only changed bindings; absent = all defaults.
+   */
+  keyboardShortcuts: 'keyboardShortcuts',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

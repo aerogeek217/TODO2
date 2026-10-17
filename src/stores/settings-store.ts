@@ -29,6 +29,13 @@ import {
   type CheckinOpenMethod,
   type CheckinTaskScope,
 } from '../utils/checkin-settings'
+import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
+import {
+  formatShortcutOverrides,
+  readShortcutOverrides,
+  shortcutRefusal,
+  withShortcut,
+} from '../utils/shortcut-bindings'
 import { readFresh, trackWrite } from './store-helpers'
 import { registerModuleReset } from '../utils/module-reset'
 
@@ -58,6 +65,8 @@ interface SettingsState {
    * list that no longer exists: read it through `resolveCheckinTaskScope`.
    */
   checkinTaskScope: CheckinTaskScope
+  /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
+  shortcutOverrides: ShortcutOverrides
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
@@ -73,6 +82,15 @@ interface SettingsState {
   setHotRule: (rule: HotRule) => Promise<void>
   setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
   setCheckinTaskScope: (scope: CheckinTaskScope) => Promise<void>
+  /**
+   * Gives `id` new keys. Resolves the reason when they are refused (a
+   * reserved key, or another binding's — nothing is written), else null.
+   */
+  setShortcut: (id: ShortcutId, chord: ShortcutChord) => Promise<string | null>
+  /** Puts `id` back on its default keys. */
+  resetShortcut: (id: ShortcutId) => Promise<void>
+  /** Puts every binding back on its default keys. */
+  resetAllShortcuts: () => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -209,6 +227,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
   checkinTaskScope: DEFAULT_CHECKIN_TASK_SCOPE,
+  shortcutOverrides: {},
 
   async load() {
     try {
@@ -229,6 +248,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
       let checkinTaskScope: CheckinTaskScope = DEFAULT_CHECKIN_TASK_SCOPE
+      let shortcutOverrides: ShortcutOverrides = {}
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const color = parseColorSettingKey(row.key)
@@ -261,10 +281,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isCheckinOpenMethod(row.value)) checkinOpenMethod = row.value
         } else if (row.key === SETTING_KEYS.checkinTaskScope) {
           checkinTaskScope = parseCheckinTaskScope(row.value) ?? DEFAULT_CHECKIN_TASK_SCOPE
+        } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
+          shortcutOverrides = readShortcutOverrides(row.value).overrides
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -410,7 +432,34 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
     })
   },
+
+  async setShortcut(id: ShortcutId, chord: ShortcutChord) {
+    const refusal = shortcutRefusal(id, chord, get().shortcutOverrides)
+    if (refusal) return refusal
+    await writeShortcuts(withShortcut(get().shortcutOverrides, id, chord))
+    return null
+  },
+
+  resetShortcut(id: ShortcutId) {
+    return writeShortcuts(withShortcut(get().shortcutOverrides, id, null))
+  },
+
+  resetAllShortcuts() {
+    return writeShortcuts({})
+  },
 }))
+
+/** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */
+function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {
+  return trackWrite(async () => {
+    if (Object.keys(overrides).length === 0) {
+      await settingsRepository.delete(SETTING_KEYS.keyboardShortcuts)
+    } else {
+      await settingsRepository.put(SETTING_KEYS.keyboardShortcuts, formatShortcutOverrides(overrides))
+    }
+    useSettingsStore.setState({ shortcutOverrides: overrides })
+  })
+}
 
 /**
  * The settings filters are evaluated with (urgent range, Hot rule, week

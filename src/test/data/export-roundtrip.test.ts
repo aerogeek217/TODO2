@@ -91,6 +91,7 @@ function buildSeed(): Seed {
       { key: 'color.dark.appBg', value: '#202830' },
       { key: 'color.light.appBg', value: '#fdf6e3' },
       { key: 'activeLayoutId', value: '2' },
+      { key: 'keyboardShortcuts', value: '{"command-palette":"Mod-Alt-p","open-settings":"g o"}' },
     ],
     statuses: [
       { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
