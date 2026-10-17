@@ -9,7 +9,7 @@ import { StatusIcon } from '../StatusIcon'
 import picker from './FilterPicker.module.css'
 import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
-import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
+import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
 import { byName } from '../../../utils/sort-order'
 
@@ -276,7 +276,7 @@ const TICK = (
 )
 
 /**
- * The Markers filter: Hot, then Focus / Urgent / Important checkboxes. A task
+ * The Priority filter: Hot, then Focus / Urgent / Important checkboxes. A task
  * must be hot, or have every ticked marker (strict AND). Ticking Hot clears
  * and disables the single markers. Ticking keeps the picker open.
  */
@@ -287,7 +287,7 @@ export function MarkersPanelBody({ value, onChange }: {
   const hot = isHotFilter(value)
   const ticked = activeMarkers(value)
   return (
-    <div className={markerStyles.panel} role="group" aria-label="Markers">
+    <div className={markerStyles.panel} role="group" aria-label={MARKERS_LABEL}>
       <button
         type="button"
         className={`${picker.dropdownItem} ${markerStyles.row} ${hot ? markerStyles.rowOn : ''}`}
@@ -320,8 +320,8 @@ export function MarkersPanelBody({ value, onChange }: {
       })}
       <p className={markerStyles.note}>
         {hot
-          ? 'Hot already combines these markers. Clear Hot to pick them one by one.'
-          : 'Tasks must have every ticked marker (strict AND). Urgent includes urgent by due date.'}
+          ? 'Hot already combines these. Clear Hot to pick them one by one.'
+          : 'Tasks must have everything ticked (strict AND). Urgent includes urgent by due date.'}
       </p>
     </div>
   )

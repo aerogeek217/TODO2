@@ -16,8 +16,8 @@ export const MARKER_COLOR: Record<MarkerKey, string> = {
   important: 'var(--color-marker-important)',
 }
 
-/** The name of the markers as a group (menus, the task row's marker gutter). */
-export const MARKERS_LABEL = 'Markers'
+/** The name of the markers as a group (filters, menus, the task row's marker gutter). */
+export const MARKERS_LABEL = 'Priority'
 
 /** A task's markers as the row's gutter shows them. */
 export interface MarkerSummary {
@@ -25,7 +25,7 @@ export interface MarkerSummary {
   /** `flag` = flagged, `date` = urgent only by its due date (the ring), `null` = not urgent. */
   urgent: UrgentMark
   important: boolean
-  /** `Markers: Focus, Urgent (due soon)` / `No markers`. */
+  /** `Priority: Focus, Urgent (due soon)` / `No priority`. */
   label: string
   /** The label, plus why the due date makes it urgent. */
   tooltip: string

@@ -78,7 +78,7 @@ export function TaskDefaultsSection() {
       </SettingRow>
       <SettingRow
         label={<span className={styles.labelWithIcon}><span className={styles.hotIcon}><HotIcon /></span>Hot tasks</span>}
-        help="A task is hot when it matches any line. Within a line it needs every lit marker."
+        help="A task is hot when it matches any line. Within a line it needs everything lit."
         column
       >
         <HotRuleEditor />

@@ -2,7 +2,7 @@ import type { DateAnchor, MarkersFilter, Person, Status, Tag, TodoPredicate } fr
 import type { DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
-import { hasMarkers, markersValue } from './markers'
+import { hasMarkers, MARKERS_LABEL, markersValue } from './markers'
 
 /** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'
@@ -103,7 +103,7 @@ function datesChip(c: FilterClauses): FilterChip | null {
 export function filterChips(c: FilterClauses, names: FilterChipNames, includeCompleted = false): FilterChip[] {
   const chips: FilterChip[] = []
   const byId = <T extends { id?: number; name: string }>(rows: readonly T[]) => (id: number) => rows.find((r) => r.id === id)?.name
-  if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: 'Markers', value: markersValue(c.markers) })
+  if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers) })
   if (c.tags != null) chips.push({ field: 'tags', label: 'Tags', value: namesValue(c.tags, byId(names.tags), 'Untagged', '#') })
   if (c.personIds != null) chips.push({ field: 'people', label: 'People', value: namesValue(c.personIds, byId(names.people), 'Unassigned') })
   const dates = datesChip(c)

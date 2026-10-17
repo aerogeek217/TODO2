@@ -40,8 +40,8 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
   // Row menu.
   await menuMarker(page, rowIn(page, all, 'Bravo'), 'Focus')
   await expect.poll(() => rowTitles(focus)).toEqual(['Bravo'])
-  await expect(rowIn(page, all, 'Bravo').getByRole('button', { name: 'Markers: Focus' })).toBeVisible()
-  await expect(rowIn(page, all, 'Alpha').getByRole('button', { name: 'No markers' })).toBeVisible()
+  await expect(rowIn(page, all, 'Bravo').getByRole('button', { name: 'Priority: Focus' })).toBeVisible()
+  await expect(rowIn(page, all, 'Alpha').getByRole('button', { name: 'No priority' })).toBeVisible()
 
   // Task editor toggle.
   await rowIn(page, all, 'Charlie').locator('[data-task-title]').dblclick()

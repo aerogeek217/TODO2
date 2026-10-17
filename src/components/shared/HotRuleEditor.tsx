@@ -108,7 +108,7 @@ export function HotRuleEditor({ variant = 'settings' }: { variant?: 'settings' |
 
   return (
     <div className={`${styles.editor} ${flyout ? styles.flyout : ''}`}>
-      {flyout && <div className={styles.heading}>Hot when a task has all markers of any line</div>}
+      {flyout && <div className={styles.heading}>Hot when a task has everything on any line</div>}
       {draft.map((line, index) => {
         const markers = lineMarkers(line)
         const others = draft.filter((_, i) => i !== index)
@@ -131,7 +131,7 @@ export function HotRuleEditor({ variant = 'settings' }: { variant?: 'settings' |
                     className={`${styles.chip} ${on ? CHIP_ON_CLASS[key] ?? '' : ''}`}
                     aria-pressed={on}
                     aria-disabled={locked || undefined}
-                    title={locked ? 'The Hot rule needs at least one marker.' : undefined}
+                    title={locked ? 'The Hot rule needs at least one of Focus, Urgent or Important.' : undefined}
                     onClick={() => { if (!locked) toggle(index, key) }}
                   >
                     <ChipIcon marker={key} on={on} />
@@ -140,7 +140,7 @@ export function HotRuleEditor({ variant = 'settings' }: { variant?: 'settings' |
                 )
               })}
               <span className={styles.count}>
-                {flyout ? '' : markers.length > 0 ? `${lineCounts[index] ?? 0} now` : 'Pick markers'}
+                {flyout ? '' : markers.length > 0 ? `${lineCounts[index] ?? 0} now` : 'Pick some'}
               </span>
               {canRemove ? (
                 <button

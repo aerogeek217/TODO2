@@ -25,9 +25,9 @@ const SECTIONS: NlpSyntaxSection[] = [
   {
     label: 'Commands — type / for the menu',
     rows: [
-      { syntax: '/focus', description: 'Add to Focus' },
-      { syntax: '/urgent', description: 'Mark urgent' },
-      { syntax: '/important', description: 'Mark important' },
+      { syntax: '/focus', description: 'Priority: add to Focus' },
+      { syntax: '/urgent', description: 'Priority: mark urgent' },
+      { syntax: '/important', description: 'Priority: mark important' },
       { syntax: '/due <date>', description: 'Set the due date' },
       { syntax: '/followup <date | interval | none>', description: 'Set the next follow-up (instead of the default); none = no follow-up' },
       { syntax: '/repeat <frequency>', description: 'Repeat from the due date: daily, weekly, biweekly, monthly, quarterly, yearly' },

@@ -139,11 +139,11 @@ describe('TaskRow', () => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('right-click opens the task menu (no priority / project items)', () => {
+    it('right-click opens the task menu (markers under Priority, no project items)', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} onOpenDetail={vi.fn()} />)
       fireEvent.contextMenu(getRow())
-      expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
-      expect(screen.queryByText(/priority/i)).not.toBeInTheDocument()
+      const menu = screen.getByRole('menu', { name: 'Task actions' })
+      expect(within(menu).getByText('Priority')).toBeInTheDocument()
       expect(screen.queryByText(/project/i)).not.toBeInTheDocument()
       for (const name of ['Open', 'Mark complete', 'Set due date…', 'Followed up', 'Assign people…', 'Add tag…', 'Delete']) {
         expect(screen.getByRole('menuitem', { name })).toBeInTheDocument()
@@ -269,7 +269,7 @@ describe('TaskRow', () => {
 
     it('three dots Focus · Urgent · Important in one button named by the markers, before the checkbox', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
-      const gutter = screen.getByRole('button', { name: 'Markers: Focus, Urgent, Important' })
+      const gutter = screen.getByRole('button', { name: 'Priority: Focus, Urgent, Important' })
       const dots = Array.from(gutter.querySelectorAll('[data-dot]'))
       expect(dots.map((d) => [d.getAttribute('data-dot'), d.getAttribute('data-on')])).toEqual([
         ['focus', 'true'], ['urgent', 'flag'], ['important', 'true'],
@@ -279,35 +279,35 @@ describe('TaskRow', () => {
 
     it('urgent only by its due date is the ring, named and explained in the tooltip', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
-      const gutter = screen.getByRole('button', { name: 'Markers: Urgent (due soon)' })
+      const gutter = screen.getByRole('button', { name: 'Priority: Urgent (due soon)' })
       expect(gutter.querySelector('[data-dot="urgent"]')).toHaveAttribute('data-on', 'date')
       fireEvent.pointerEnter(gutter)
       act(() => { vi.advanceTimersByTime(400) })
-      expect(screen.getByRole('tooltip')).toHaveTextContent('Markers: Urgent (due soon)Due Sat 18, within 3 days.')
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Priority: Urgent (due soon)Due Sat 18, within 3 days.')
     })
 
     it('no marker: No markers (range off, a far date, a completed task)', () => {
       useSettingsStore.setState({ urgentDueWithinDays: null })
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 15) })} />)
-      expect(screen.getByRole('button', { name: 'No markers' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'No priority' })).toBeInTheDocument()
       unmount()
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
       const second = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 30) })} />)
-      expect(screen.getByRole('button', { name: 'No markers' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'No priority' })).toBeInTheDocument()
       second.unmount()
       render(<TaskRow todo={makeTodo({ id: 1, isCompleted: true, dueDate: new Date(2026, 3, 15) })} />)
-      expect(screen.getByRole('button', { name: 'No markers' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'No priority' })).toBeInTheDocument()
     })
 
     it('a click opens the markers menu; its items set the marker; urgent by date turns off through the clear-Urgent path', () => {
       render(<TaskRow todo={makeTodo({ id: 4, focus: true, dueDate: new Date(2026, 3, 18) })} onOpenDetail={vi.fn()} />)
-      fireEvent.click(screen.getByRole('button', { name: 'Markers: Focus, Urgent (due soon)' }))
-      const menu = screen.getByRole('menu', { name: 'Markers' })
+      fireEvent.click(screen.getByRole('button', { name: 'Priority: Focus, Urgent (due soon)' }))
+      const menu = screen.getByRole('menu', { name: 'Priority' })
       expect(within(menu).getByRole('menuitemcheckbox', { name: 'Focus' })).toHaveAttribute('aria-checked', 'true')
       expect(within(menu).getByRole('menuitemcheckbox', { name: 'Important' })).toHaveAttribute('aria-checked', 'false')
       fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Urgent' }))
       expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, false)
-      fireEvent.click(screen.getByRole('button', { name: /^Markers:/ }))
+      fireEvent.click(screen.getByRole('button', { name: /^Priority:/ }))
       fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Important' }))
       expect(mockBulk.setImportant).toHaveBeenCalledWith(4, true)
     })

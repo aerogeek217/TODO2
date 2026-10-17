@@ -172,7 +172,7 @@ export function pickPredicate(raw: unknown): PickedPredicate {
   }
   if ('markers' in v && v.markers !== undefined) {
     const markers = readMarkers(v.markers)
-    if (markers === undefined) fixes.push('markers filter dropped')
+    if (markers === undefined) fixes.push('priority filter dropped')
     predicate.markers = markers ?? null
   }
   if ('tags' in v && v.tags !== undefined) predicate.tags = ids(v.tags, 'tag')

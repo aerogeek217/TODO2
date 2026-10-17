@@ -257,10 +257,10 @@ describe('MobileTaskRow', () => {
 
     it('shows the markers as the three dots, named (Focus lit only for a task in focus)', () => {
       const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
-      expect(screen.getByRole('img', { name: 'No markers' }).querySelector('[data-dot="focus"]')).not.toHaveAttribute('data-on')
+      expect(screen.getByRole('img', { name: 'No priority' }).querySelector('[data-dot="focus"]')).not.toHaveAttribute('data-on')
       unmount()
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
-      expect(screen.getByRole('img', { name: 'Markers: Focus' }).querySelector('[data-dot="focus"]')).toHaveAttribute('data-on', 'true')
+      expect(screen.getByRole('img', { name: 'Priority: Focus' }).querySelector('[data-dot="focus"]')).toHaveAttribute('data-on', 'true')
     })
 
     it('shows a set follow-up as its flag only (the day in its name)', () => {

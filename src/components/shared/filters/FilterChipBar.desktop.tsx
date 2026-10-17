@@ -6,7 +6,7 @@ import { clearChipField, filterChips, FILTER_FIELD_ORDER, type FilterChipField }
 import type { TodoPredicate } from '../../../models'
 import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
-import { hasMarkers } from '../../../utils/markers'
+import { hasMarkers, MARKERS_LABEL } from '../../../utils/markers'
 import { useUIStore } from '../../../stores/ui-store'
 import {
   AtIcon,
@@ -43,7 +43,7 @@ type FieldPanel =
     }
   | { kind: 'custom'; render: (close: () => void) => ReactNode }
 
-/** One screen filter (People, Tags, Dates, Status, Markers) as the bar and the Filters menu show it. */
+/** One screen filter (Priority, Tags, People, Dates, Status) as the bar and the Filters menu show it. */
 interface FieldDef {
   key: FieldKey
   label: string
@@ -318,7 +318,7 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
 }
 
 /**
- * The top bar's screen filters: People, Tags, Dates, Status and Markers
+ * The top bar's screen filters: Priority, Tags, People, Dates and Status
  * buttons (folded into one Filters menu when `fold` is set), then Show
  * completed and Clear all. The pickers are the shared `FilterPanels`.
  */
@@ -496,7 +496,7 @@ export function FilterChipBarDesktop({
   }
   fields.push({
     key: 'markers',
-    label: 'Markers',
+    label: MARKERS_LABEL,
     icon: <ImportantIcon outline />,
     highlighted: hasMarkers(p.markers),
     value: values.markers ?? null,
@@ -507,7 +507,7 @@ export function FilterChipBarDesktop({
       render: () => <MarkersPanelBody value={p.markers ?? null} onChange={(markers) => update({ markers })} />,
     },
   })
-  // Buttons and the folded menu in display order (Markers, Tags, People, Dates, Status).
+  // Buttons and the folded menu in display order (Priority, Tags, People, Dates, Status).
   fields.sort((a, b) => FILTER_FIELD_ORDER.indexOf(a.key) - FILTER_FIELD_ORDER.indexOf(b.key))
 
   return (

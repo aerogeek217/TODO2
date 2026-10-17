@@ -323,7 +323,7 @@ describe('sanitisable-row audit', () => {
     const report = await auditData()
     const issue = report.issues.find((i) => i.table === 'listDefinitions')!
     expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
-    expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped, markers filter dropped')
+    expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped, priority filter dropped')
   })
 
   it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {

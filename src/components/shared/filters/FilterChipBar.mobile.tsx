@@ -5,7 +5,7 @@ import { DateAnchorInput } from '../DateAnchorInput'
 import { FollowupFlagIcon } from '../FollowupIcons'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
-import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, toggleHot, toggleMarker } from '../../../utils/markers'
+import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import {
   cycleTri,
@@ -174,15 +174,15 @@ export function FilterChipBarMobile({
 
   return (
     <>
-      {/* Markers section */}
+      {/* Priority section */}
       <AccordionSection
-        label="Markers"
+        label={MARKERS_LABEL}
         badge={markersActiveCount}
         open={openSection === 'markers'}
         onToggle={() => handleSection('markers')}
       >
         <div>
-          {/* Markers: Hot, or every switched-on marker (strict AND). Hot
+          {/* Priority: Hot, or every switched-on marker (strict AND). Hot
               switches the single markers off and disables them. */}
           <div className={sheet.filterRow}>
             <span className={sheet.filterLabel}>

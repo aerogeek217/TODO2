@@ -104,7 +104,7 @@ test.describe('task menu', () => {
     await taskRowByTitle(page, 'beta').locator('span[data-task-title="beta"]').click({ button: 'right' })
     await expect(page.getByRole('menuitemcheckbox', { name: 'Urgent' })).toHaveAttribute('aria-checked', 'true')
     await page.getByRole('menuitemcheckbox', { name: 'Important' }).click()
-    await expect(taskRowByTitle(page, 'beta').getByRole('button', { name: 'Markers: Urgent, Important' })).toBeVisible()
+    await expect(taskRowByTitle(page, 'beta').getByRole('button', { name: 'Priority: Urgent, Important' })).toBeVisible()
   })
 
   test('tooltip: the follow-up cell tooltip opens after 400 ms, not before', async ({ page }) => {

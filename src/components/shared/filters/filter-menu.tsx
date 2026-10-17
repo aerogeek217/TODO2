@@ -5,6 +5,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import type { ListFilterField } from '../../../stores/list-widget-store'
 import type { FilterChipNames } from '../../../utils/filter-chips'
+import { MARKERS_LABEL } from '../../../utils/markers'
 import { ImportantIcon } from '../MarkerIcons'
 import { AtIcon, FlagIcon, HashIcon, SearchIcon, StatusRingIcon, WidgetKindIcon } from '../icons'
 
@@ -18,7 +19,7 @@ export function useChipNames(): FilterChipNames {
 
 /** "+ Filter" menu items, in the top bar's filter order: a field, then that field's picker. */
 export const ADD_FILTER_ITEMS: ReadonlyArray<{ label: string; field: ListFilterField; dateField?: DateField; icon: ReactNode; submenu: boolean }> = [
-  { label: 'Markers', field: 'markers', icon: <ImportantIcon outline />, submenu: true },
+  { label: MARKERS_LABEL, field: 'markers', icon: <ImportantIcon outline />, submenu: true },
   { label: 'Tags', field: 'tags', icon: <HashIcon />, submenu: true },
   { label: 'People', field: 'people', icon: <AtIcon />, submenu: true },
   { label: 'Due date', field: 'dates', dateField: 'deadline', icon: <WidgetKindIcon kind="calendar" />, submenu: true },

@@ -77,7 +77,7 @@ describe('Dashboard tab menu', () => {
     render(<Harness onCustomize={() => {}} onClose={() => {}} summary={SUMMARY} />)
     fireEvent.click(screen.getByRole('menuitem', { name: /Hot is/ }))
     const panel = screen.getByRole('dialog', { name: 'Hot rule' })
-    expect(panel).toHaveTextContent('Hot when a task has all markers of any line')
+    expect(panel).toHaveTextContent('Hot when a task has everything on any line')
     expect(panel).toHaveTextContent('One rule for the whole app; also in Settings › Task Defaults.')
     // No per-line counts in the flyout; the total sits beside + Or….
     expect(panel.textContent).not.toMatch(/\d now/)

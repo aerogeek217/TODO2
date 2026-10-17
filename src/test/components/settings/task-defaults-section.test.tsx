@@ -66,7 +66,7 @@ describe('TaskDefaultsSection — Hot tasks', () => {
   it('shows the default rule as lines with live counts of open tasks and the total', () => {
     seedTodos()
     render(<TaskDefaultsSection />)
-    expect(screen.getByText('A task is hot when it matches any line. Within a line it needs every lit marker.')).toBeInTheDocument()
+    expect(screen.getByText('A task is hot when it matches any line. Within a line it needs everything lit.')).toBeInTheDocument()
     expect(chip(1, 'Urgent')).toHaveAttribute('aria-pressed', 'true')
     expect(chip(1, 'Important')).toHaveAttribute('aria-pressed', 'true')
     expect(chip(1, 'Focus')).toHaveAttribute('aria-pressed', 'false')
@@ -95,7 +95,7 @@ describe('TaskDefaultsSection — Hot tasks', () => {
   it('+ Or… adds an empty line that is saved once it has a marker; × removes a line', async () => {
     render(<TaskDefaultsSection />)
     fireEvent.click(screen.getByRole('button', { name: 'Or…' }))
-    expect(within(line(3)).getByText('Pick markers')).toBeInTheDocument()
+    expect(within(line(3)).getByText('Pick some')).toBeInTheDocument()
     expect(useSettingsStore.getState().hotRule).toHaveLength(2)
     fireEvent.click(chip(3, 'Important'))
     await waitFor(() => expect(useSettingsStore.getState().hotRule).toEqual([

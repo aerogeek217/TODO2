@@ -569,7 +569,7 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  describe('Markers filter and Hot rule', () => {
+  describe('Priority filter and Hot rule', () => {
     function listWithMarkers(markers: unknown) {
       return {
         id: 1, name: 'List', sortOrder: 0, 
@@ -593,7 +593,7 @@ describe('validateImportData', () => {
         const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
         if (!result.ok) throw new Error(result.error)
         expect(result.data.listDefinitions[0]!.membership).toMatchObject({ predicate: { markers: null } })
-        expect(result.warnings).toEqual(['Fixed the filters of 1 list: "List" (markers filter dropped)'])
+        expect(result.warnings).toEqual(['Fixed the filters of 1 list: "List" (priority filter dropped)'])
       },
     )
 

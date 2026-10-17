@@ -77,7 +77,7 @@ describe('FilterChipBar — primitive', () => {
     it('the filter buttons read Markers, Tags, People, Dates, Status', () => {
       render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
       expect(screen.getAllByRole('button', { name: / filter$/ }).map((b) => b.getAttribute('aria-label')))
-        .toEqual(['Markers filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
+        .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
     })
 
     it('folded: the Filters menu lists the same order', () => {
@@ -85,7 +85,7 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
       const menu = screen.getByRole('group', { name: 'Screen filters' })
       expect(within(menu).getAllByRole('button', { name: / filter$/ }).map((b) => b.getAttribute('aria-label')))
-        .toEqual(['Markers filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
+        .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
     })
 
     it('the Markers button ticks markers that AND; unticking the last clears it', () => {
@@ -93,7 +93,7 @@ describe('FilterChipBar — primitive', () => {
       const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
       expect(screen.queryByRole('button', { name: /^Focus filter/ })).toBeNull()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Markers filter' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Priority filter' }))
       expect(screen.getByText(/strict AND/)).toBeInTheDocument()
       fireEvent.click(screen.getByRole('checkbox', { name: 'Focus' }))
       expect(updates.at(-1)?.markers).toEqual({ focus: true })
@@ -103,29 +103,29 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'Urgent' }))
       expect(updates.at(-1)?.markers).toEqual({ urgent: true, focus: true })
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true, focus: true } }} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('button', { name: 'Markers filter: Focus +1' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Priority filter: Focus +1' })).toBeInTheDocument()
       fireEvent.click(screen.getByRole('checkbox', { name: 'Urgent' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Clear markers filter' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear priority filter' }))
       expect(updates.at(-1)?.markers).toBeNull()
     })
 
     it('Hot comes first; ticking it replaces the single markers and greys them out', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true } }} onChange={(p) => updates.push(p)} />)
-      fireEvent.click(screen.getByRole('button', { name: 'Markers filter: Urgent' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Priority filter: Urgent' }))
       const names = screen.getAllByRole('checkbox').map((c) => c.textContent)
       expect(names).toEqual(['Hot', 'Focus', 'Urgent', 'Important'])
       fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' }))
       expect(updates.at(-1)?.markers).toBe('hot')
 
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: 'hot' }} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('button', { name: 'Markers filter: Hot' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Priority filter: Hot' })).toBeInTheDocument()
       expect(screen.getByRole('checkbox', { name: 'Hot' })).toHaveAttribute('aria-checked', 'true')
       for (const name of ['Urgent', 'Important', 'Focus']) {
         expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-disabled', 'true')
         expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-checked', 'false')
       }
-      expect(screen.getByText('Hot already combines these markers. Clear Hot to pick them one by one.')).toBeInTheDocument()
+      expect(screen.getByText('Hot already combines these. Clear Hot to pick them one by one.')).toBeInTheDocument()
       const before = updates.length
       fireEvent.click(screen.getByRole('checkbox', { name: 'Important' }))
       expect(updates.length).toBe(before)
@@ -339,7 +339,7 @@ describe('FilterChipBar — primitive', () => {
   describe('mobile density', () => {
     it('the sections read Markers, Tags, People, Date range, Status, then Show / hide', () => {
       render(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={() => {}} />)
-      const headers = ['Markers', 'Tags', 'People', 'Date range', 'Status', 'Show / hide'].map((label) => screen.getByText(label))
+      const headers = ['Priority', 'Tags', 'People', 'Date range', 'Status', 'Show / hide'].map((label) => screen.getByText(label))
       for (let i = 1; i < headers.length; i++) {
         expect(headers[i - 1]!.compareDocumentPosition(headers[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       }
@@ -378,7 +378,7 @@ describe('FilterChipBar — primitive', () => {
     it('switches markers on at mobile density', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
-      fireEvent.click(screen.getByText('Markers'))
+      fireEvent.click(screen.getByText('Priority'))
       fireEvent.click(screen.getByRole('switch', { name: 'Only focus tasks' }))
       expect(updates.at(-1)?.markers).toEqual({ focus: true })
       rerender(<FilterChipBar density="mobile" predicate={updates.at(-1)!} onChange={(p) => updates.push(p)} />)
@@ -432,6 +432,6 @@ describe('FilterChipBar — primitive', () => {
 describe('+ Filter menu', () => {
   it('lists Markers, Tags, People, the dates, Status, then text', () => {
     expect(ADD_FILTER_ITEMS.map((i) => i.label))
-      .toEqual(['Markers', 'Tags', 'People', 'Due date', 'Follow-up date', 'Status', 'Text contains…'])
+      .toEqual(['Priority', 'Tags', 'People', 'Due date', 'Follow-up date', 'Status', 'Text contains…'])
   })
 })

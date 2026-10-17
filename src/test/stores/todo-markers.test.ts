@@ -125,7 +125,7 @@ describe('markers in import validation', () => {
     // Anything else is dropped on import (no filter), not rejected.
     for (const bad of [{ focus: false }, { hot: true }, true, ['urgent']]) {
       expect(validateRow('listDefinitions', def(bad))).toBe(true)
-      expect(rowFixes('listDefinitions', def(bad))).toEqual(['markers filter dropped'])
+      expect(rowFixes('listDefinitions', def(bad))).toEqual(['priority filter dropped'])
       const picked = IMPORT_TABLES.listDefinitions.pick(def(bad))
       expect(picked.membership.predicate.markers).toBeNull()
     }

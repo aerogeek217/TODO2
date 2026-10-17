@@ -61,7 +61,7 @@ describe('pickPredicate', () => {
   it.each([['an unknown string', 'warm'], ['hot as a key', { hot: true }], ['a non-true value', { urgent: 'yes' }], ['an array', ['hot']], ['a number', 1]])(
     'drops a Markers filter that is %s',
     (_name, markers) => {
-      expect(pickPredicate({ ...emptyPredicate(), markers })).toEqual({ predicate: emptyPredicate(), fixes: ['markers filter dropped'] })
+      expect(pickPredicate({ ...emptyPredicate(), markers })).toEqual({ predicate: emptyPredicate(), fixes: ['priority filter dropped'] })
     },
   )
 

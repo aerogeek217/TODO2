@@ -9,6 +9,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { toggleItem } from '../../../utils/filter'
+import { MARKERS_LABEL } from '../../../utils/markers'
 import { EntityDropdownItems, DateRangePanelBody, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import { DEFAULT_PREDICATE } from './FilterChipBar.shared'
 import picker from './FilterPicker.module.css'
@@ -90,7 +91,7 @@ const PICKER_TITLE: Record<ListFilterField, string> = {
   people: 'People',
   tags: 'Tags',
   status: 'Status',
-  markers: 'Markers',
+  markers: MARKERS_LABEL,
   dates: 'Date',
   text: 'Text',
 }

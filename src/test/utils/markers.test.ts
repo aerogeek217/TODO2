@@ -5,7 +5,7 @@ import { DEFAULT_HOT_RULE } from '../../utils/hot'
 const today = new Date(2026, 9, 10)
 const within = (urgentRange: number | null): MarkerSettings => ({ urgentRange, hotRule: DEFAULT_HOT_RULE })
 
-describe('Markers filter helpers', () => {
+describe('Priority filter helpers', () => {
   it('lists ticked markers in display order (Focus › Urgent › Important)', () => {
     expect(activeMarkers({ focus: true, urgent: true })).toEqual(['focus', 'urgent'])
     expect(activeMarkers(null)).toEqual([])
@@ -82,15 +82,15 @@ describe('markerSummary (the row gutter)', () => {
   const base = { isCompleted: false }
   it('names the markers in order Focus › Urgent › Important; no marker = No markers', () => {
     expect(markerSummary({ ...base, urgent: true, important: true, focus: true }, today, 3).label)
-      .toBe('Markers: Focus, Urgent, Important')
-    expect(markerSummary(base, today, 3)).toMatchObject({ label: 'No markers', focus: false, urgent: null, important: false })
+      .toBe('Priority: Focus, Urgent, Important')
+    expect(markerSummary(base, today, 3)).toMatchObject({ label: 'No priority', focus: false, urgent: null, important: false })
   })
 
   it('urgent only by its due date: the ring, named and explained', () => {
     const s = markerSummary({ ...base, focus: true, dueDate: new Date(2026, 9, 12) }, today, 3)
     expect(s.urgent).toBe('date')
-    expect(s.label).toBe('Markers: Focus, Urgent (due soon)')
-    expect(s.tooltip).toBe('Markers: Focus, Urgent (due soon)\nDue Mon 12, within 3 days.')
+    expect(s.label).toBe('Priority: Focus, Urgent (due soon)')
+    expect(s.tooltip).toBe('Priority: Focus, Urgent (due soon)\nDue Mon 12, within 3 days.')
     expect(markerSummary({ ...base, urgent: true, dueDate: new Date(2026, 9, 12) }, today, 3).urgent).toBe('flag')
     expect(markerSummary({ ...base, dueDate: new Date(2026, 9, 12) }, today, null).urgent).toBeNull()
   })

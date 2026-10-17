@@ -255,7 +255,7 @@ test('a click on a cell opens its picker anchored to the cell', async ({ page })
   const r = row(wsListWidget(page, 'tab'), 'Draft the Q4 roadmap review deck')
   await expect(r).toBeVisible()
   const panels: Array<[string, Locator]> = [
-    ['markers', page.getByRole('menu', { name: 'Markers' })],
+    ['markers', page.getByRole('menu', { name: 'Priority' })],
     ['notes', page.getByRole('dialog', { name: 'Task notes' })],
     ['people', page.locator('[data-anchored-picker]')],
     ['tags', page.locator('[data-anchored-picker]')],
@@ -282,19 +282,19 @@ test('a click on a cell opens its picker anchored to the cell', async ({ page })
 test('the marker gutter opens the markers menu; Urgent off on a task urgent by its due date asks to remove the date', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760, [{ title: 'Pick up prescriptions', dueInDays: 1 }]))
   const r = row(wsListWidget(page, 'tab'), 'Pick up prescriptions')
-  const gutter = r.getByRole('button', { name: 'Markers: Urgent (due soon)' })
+  const gutter = r.getByRole('button', { name: 'Priority: Urgent (due soon)' })
   await gutter.click()
-  const menu = page.getByRole('menu', { name: 'Markers' })
+  const menu = page.getByRole('menu', { name: 'Priority' })
   await expect(menu.getByRole('menuitemcheckbox', { name: 'Urgent' })).toHaveAttribute('aria-checked', 'true')
   await menu.getByRole('menuitemcheckbox', { name: 'Urgent' }).click()
   const prompt = page.getByRole('dialog', { name: 'Remove the due date?' })
   await prompt.getByRole('button', { name: 'Remove due date' }).click()
-  await expect(r.getByRole('button', { name: 'No markers' })).toBeVisible()
+  await expect(r.getByRole('button', { name: 'No priority' })).toBeVisible()
   await expect(r.getByRole('button', { name: 'Set due date' })).toBeVisible()
 
-  await r.getByRole('button', { name: 'No markers' }).click()
+  await r.getByRole('button', { name: 'No priority' }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Focus' }).click()
-  await expect(r.getByRole('button', { name: 'Markers: Focus' })).toBeVisible()
+  await expect(r.getByRole('button', { name: 'Priority: Focus' })).toBeVisible()
 })
 
 test('a drag can start on a cell; a click there without moving opens its picker; a double-click opens it once', async ({ page }) => {

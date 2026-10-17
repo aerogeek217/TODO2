@@ -37,7 +37,7 @@ describe('filterChips', () => {
       dateRangeEnd: { kind: 'offset' as const, days: 14 },
     }
     expect(filterChips(p, names)).toEqual([
-      { field: 'markers', label: 'Markers', value: 'Important' },
+      { field: 'markers', label: 'Priority', value: 'Important' },
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'people', label: 'People', value: 'Alice +2' },
       { field: 'dates', label: 'Due', value: 'within 14 days, has due date' },
@@ -70,7 +70,7 @@ describe('filterChips', () => {
 
   it('a Markers clause reads the first marker (+N), first among the chips', () => {
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true } }, names)).toEqual([
-      { field: 'markers', label: 'Markers', value: 'Focus' },
+      { field: 'markers', label: 'Priority', value: 'Focus' },
     ])
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true }, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
       .toEqual(['markers', 'status', 'text'])
@@ -83,7 +83,7 @@ describe('filterChips', () => {
 
   it('a Hot Markers clause reads Hot and narrows', () => {
     expect(filterChips({ ...emptyPredicate(), markers: 'hot' }, names)).toEqual([
-      { field: 'markers', label: 'Markers', value: 'Hot' },
+      { field: 'markers', label: 'Priority', value: 'Hot' },
     ])
     expect(hasNarrowingFilters({ ...emptyPredicate(), markers: 'hot' })).toBe(true)
     expect(clearChipField({ ...emptyPredicate(), markers: 'hot' }, 'markers')).toMatchObject({ markers: null })
