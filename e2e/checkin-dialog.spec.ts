@@ -76,6 +76,11 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await recordAnchorClicks(page)
   await seedWorkspace(page, seed)
+  // A browser that can't keep the unsaved layout for a reload: leaving the
+  // page would ask "Leave site?" — what the new-context link must not do.
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError') }
+  })
   await makeLayoutDirty(page)
 
   const dialogs: string[] = []
