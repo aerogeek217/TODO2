@@ -75,7 +75,26 @@ export function isEisenhowerQuadrant(v: unknown): v is EisenhowerQuadrant {
   return typeof v === 'string' && (EISENHOWER_QUADRANTS as readonly string[]).includes(v)
 }
 
-export interface EisenhowerTabViewState {
+/** The largest stored task-row details width, px (`TaskRowsViewState.detailsWidth`). */
+export const DETAILS_WIDTH_MAX = 4000
+
+/** A stored details width as it is kept: a finite number in 0 … `DETAILS_WIDTH_MAX`, rounded; else none. */
+export function pickDetailsWidth(v: unknown): number | undefined {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > DETAILS_WIDTH_MAX) return undefined
+  return Math.round(v)
+}
+
+/** View state of a tab that shows task rows. */
+export interface TaskRowsViewState {
+  /**
+   * Width of the rows' details columns (notes … ⋯), px, set by the divider
+   * between the title and the details; absent = the default split. Clamped
+   * to the rows' room when drawn; the stored value is kept.
+   */
+  detailsWidth?: number
+}
+
+export interface EisenhowerTabViewState extends TaskRowsViewState {
   /** Sections collapsed in the stacked (narrow) layout. */
   collapsed?: EisenhowerQuadrant[]
 }
@@ -91,12 +110,12 @@ interface TabOf<K extends WidgetKind, C, V> {
   viewState?: V
 }
 
-/** A list tab has no view state: its prompt picks are temporary (not saved). */
-export type LensTab = TabOf<'lens', LensTabConfig, NoTabSettings>
+/** A list tab's view state: the rows' details width (its prompt picks are temporary, not saved). */
+export type LensTab = TabOf<'lens', LensTabConfig, TaskRowsViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', NoTabSettings, EisenhowerTabViewState>
-export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, NoTabSettings>
+export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, TaskRowsViewState>
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab
 

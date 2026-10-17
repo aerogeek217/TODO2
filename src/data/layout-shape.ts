@@ -3,7 +3,9 @@ import {
   EISENHOWER_QUADRANTS,
   isEisenhowerQuadrant,
   isWidgetKind,
+  pickDetailsWidth,
   type CalendarTabViewState,
+  type TaskRowsViewState,
   type LayoutCell,
   type LayoutColumn,
   type LayoutTab,
@@ -51,6 +53,11 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   if (!isRecord(config)) return `${path}.config`
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
+  // Tabs showing task rows: the details width, a number in range.
+  if ((kind === 'lens' || kind === 'eisenhower' || kind === 'dashboard')
+    && view?.detailsWidth !== undefined && pickDetailsWidth(view.detailsWidth) === undefined) {
+    return `${path}.viewState.detailsWidth`
+  }
   switch (kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
@@ -151,7 +158,8 @@ export interface PickedLayoutColumns {
  * Rebuilds a layout body with only the model's keys. For columns that pass
  * `checkLayoutColumns` (all import ever picks) nothing is dropped but a stale
  * `activeTabId` (= first tab), unknown dashboard ids / options, duplicate
- * collapsed quadrants, and an out-of-range calendar offset (clamped).
+ * collapsed quadrants, and an out-of-range calendar offset (clamped); a
+ * details width is rounded.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
  * the audit can repair a stored layout instead of deleting it: a column /
@@ -187,12 +195,19 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
     let view: Obj | undefined
     if (isRecord(tab.viewState)) view = tab.viewState
     else if (tab.viewState !== undefined) fix('settings')
+    /** The task rows' view state (`detailsWidth`), or none; a bad width is dropped. */
+    const rowsView = (): TaskRowsViewState | undefined => {
+      const width = pickDetailsWidth(view?.detailsWidth)
+      if (width === undefined && view?.detailsWidth !== undefined) fix('settings')
+      return width === undefined ? undefined : { detailsWidth: width }
+    }
     switch (tab.kind) {
       case 'lens': {
         const lensConfig: LensTabConfig = {}
         if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
         else if (config.listDefinitionId !== undefined) fix('settings')
-        return { id, kind: 'lens', config: lensConfig }
+        const lensView = rowsView()
+        return lensView ? { id, kind: 'lens', config: lensConfig, viewState: lensView } : { id, kind: 'lens', config: lensConfig }
       }
       case 'calendar': {
         const types = config.dateTypes
@@ -219,15 +234,20 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
         const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: {} }
         // Known quadrants, once each, in display order.
         const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
-        if (quadrants.length > 0) eisenhower.viewState = { collapsed: quadrants }
+        const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }
+        if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
         return eisenhower
       }
-      case 'dashboard':
+      case 'dashboard': {
         // Unknown ids / options inside are dropped, missing parts defaulted.
         for (const key of ['tiles', 'listTiles', 'sections'] as const) {
           if (config[key] !== undefined && !Array.isArray(config[key])) fix('settings')
         }
-        return { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
+        const dashboardView = rowsView()
+        const dashboard: LayoutTab = { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
+        if (dashboardView) dashboard.viewState = dashboardView
+        return dashboard
+      }
       case 'notes':
         return { id, kind: 'notes', config: {} }
     }

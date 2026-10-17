@@ -156,6 +156,16 @@ describe('view state', () => {
     expect(row.modifiedAt).toEqual(T0)
   })
 
+  it('a details-width write is view state: stored at once, never dirty; clearing removes it', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().patchTabViewState('b1', 'eisenhower', { detailsWidth: 310 })
+    expect(ws().isDirty).toBe(false)
+    expect((await stored(id!)).columns[1]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 310 })
+    await ws().patchTabViewState('b1', 'eisenhower', { detailsWidth: undefined })
+    expect(ws().isDirty).toBe(false)
+    expect((await stored(id!)).columns[1]!.cells[0]!.tabs[0]!.viewState).toEqual({})
+  })
+
   it('with unsaved changes: view state still reaches the stored layout, structure does not', async () => {
     const [id] = await seedAndInit(twoColumns())
     const tabId = ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })!

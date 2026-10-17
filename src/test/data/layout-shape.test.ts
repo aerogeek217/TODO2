@@ -33,17 +33,20 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
   ['bad collapsed', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { collapsed: 'yes' })), 'columns[0].cells[0].collapsed'],
   ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
+  ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['details width over 4000', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: {}, viewState: { detailsWidth: 4001 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
 ]
 
 /** Columns holding every kind, an empty cell, view state and a collapsed cell. */
 const EVERY_KIND = [
   { id: 'c1', weight: 1, cells: [
     { id: 'k1', weight: 1, activeTabId: 't2', collapsed: true, tabs: [
-      { id: 't1', kind: 'lens', config: { listDefinitionId: 3 } },
+      { id: 't1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 300 } },
       { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
       { id: 't3', kind: 'notes', config: {} },
-      { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
-      { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] } },
+      { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'], detailsWidth: 0 } },
+      { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] }, viewState: { detailsWidth: 4000 } },
     ] },
     { id: 'k2', weight: 0.5, tabs: [] },
   ] },
@@ -120,6 +123,21 @@ describe('layouts row validation', () => {
         { id: 't5', kind: 'eisenhower', config: {} },
       ] }] }],
     }])
+  })
+
+  it('import keeps a list, Eisenhower or dashboard tab’s details width, rounded', () => {
+    const columns = [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [
+      { id: 't1', kind: 'lens', config: {}, viewState: { detailsWidth: 262.6 } },
+      { id: 't2', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 180 } },
+      { id: 't3', kind: 'dashboard', config: { tiles: [], listTiles: [], sections: [] }, viewState: { detailsWidth: 0.4 } },
+      // Only tabs that show task rows keep it.
+      { id: 't4', kind: 'notes', config: {}, viewState: { detailsWidth: 200 } },
+    ] }] }]
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns)] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs.map((t) => t.viewState)).toEqual([
+      { detailsWidth: 263 }, { detailsWidth: 180 }, { detailsWidth: 0 }, undefined,
+    ])
   })
 
   it('import keeps a dashboard config’s known ids (once, in order) and options, drops the rest', () => {

@@ -417,7 +417,10 @@ export function patchTabConfig<L extends WorkspaceLayout, K extends WidgetKind>(
   })
 }
 
-/** View state: shallow-patches a tab's `viewState` — only when the tab is of `kind`. */
+/**
+ * View state: shallow-patches a tab's `viewState` — only when the tab is of
+ * `kind`. A key patched to `undefined` is removed (back to its default).
+ */
 export function patchTabViewState<L extends WorkspaceLayout, K extends WidgetKind>(
   layout: L,
   tabId: string,
@@ -427,8 +430,10 @@ export function patchTabViewState<L extends WorkspaceLayout, K extends WidgetKin
   return updateTab(layout, tabId, (tab) => {
     if (tab.kind !== kind) return tab
     const base = (tab.viewState ?? {}) as TabViewStateOf<K>
-    const viewState = shallowPatch(base, patch)
-    return viewState === base ? tab : ({ ...tab, viewState } as LayoutTab)
+    const patched = shallowPatch(base, patch)
+    if (patched === base) return tab
+    const viewState = Object.fromEntries(Object.entries(patched).filter(([, v]) => v !== undefined))
+    return { ...tab, viewState } as LayoutTab
   })
 }
 

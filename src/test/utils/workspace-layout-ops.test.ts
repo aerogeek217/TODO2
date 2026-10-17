@@ -218,6 +218,15 @@ describe('weights, view state, tab settings', () => {
     expect(patchTabViewState(view, 'cal', 'calendar', { offset: 2 })).toBe(view)
   })
 
+  it('a view-state key patched to undefined is removed', () => {
+    const l = replaceTab(base(), 'a1', createTab('lens', 'a1'))
+    const set = patchTabViewState(l, 'a1', 'lens', { detailsWidth: 300 })
+    expect(set.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 300 })
+    const cleared = patchTabViewState(set, 'a1', 'lens', { detailsWidth: undefined })
+    expect(cleared.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({})
+    expect(layoutStructureEqual(l.columns, set.columns)).toBe(true)
+  })
+
   it('replaceTab swaps a tab in place and keeps it active', () => {
     const l = base()
     const next = replaceTab(l, 'a1', createTab('eisenhower', 'a1'))
