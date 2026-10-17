@@ -763,11 +763,12 @@ button.personRow:hover {
 }
 
 /* The corner gear: Customize dashboard, shown while the pointer is over the
-   dashboard or the gear has keyboard focus. */
+   dashboard or the gear has keyboard focus. It sits in the slot the first
+   row keeps free at its right (`GEAR_SLOT_PX`), level with the padding. */
 .customizeGear {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 12px;
+  right: 12px;
   z-index: 2;
   display: inline-flex;
   align-items: center;

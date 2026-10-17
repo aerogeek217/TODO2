@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
-import { pointIn } from './fixtures/geometry'
+import { box, pointIn } from './fixtures/geometry'
 
 /**
  * The Dashboard tab menu and Customize dialog in a real browser: reordering
@@ -159,6 +159,56 @@ test('Customize also opens from the cell ⋯ menu and from the dashboard’s gea
   await expect(gear).toBeFocused()
   await expect(gear).toHaveCSS('opacity', '1')
 })
+
+/** The boxes of every tile, list tile, list strip control and section that intersect the gear's box. */
+async function coveredByGear(page: Page): Promise<string[]> {
+  const gear = await box(dash(page).getByRole('button', { name: 'Customize dashboard' }))
+  const targets = dash(page).locator('[data-dash-tile], [data-dash-list-tile], [data-dash-section], [aria-label="List tiles"] button')
+  const boxes = await targets.evaluateAll((els) => els.map((el) => {
+    const r = el.getBoundingClientRect()
+    const h = el as HTMLElement
+    return { id: h.dataset.dashTile ?? h.dataset.dashListTile ?? h.dataset.dashSection ?? h.textContent ?? '', x: r.x, y: r.y, w: r.width, h: r.height }
+  }))
+  return boxes
+    .filter((b) => b.x < gear.x + gear.width && gear.x < b.x + b.w && b.y < gear.y + gear.height && gear.y < b.y + b.h)
+    .map((b) => b.id)
+}
+
+for (const { name, width, layout } of [
+  { name: 'the grid', width: 1440, layout: 'grid' },
+  { name: 'one column (below 1100px)', width: 1000, layout: 'column' },
+]) {
+  test(`the gear never covers a tile, list tile or section — ${name}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await seedWorkspace(page, SEED)
+    await expect(dash(page)).toHaveAttribute('data-layout', layout)
+    const gear = dash(page).getByRole('button', { name: 'Customize dashboard' })
+    await dash(page).locator('[data-dash-tile]').last().hover()
+    await expect(gear).toHaveCSS('opacity', '1')
+    expect(await coveredByGear(page)).toEqual([])
+
+    // The tile nearest the gear still takes the click while the gear shows.
+    const tiles = dash(page).locator('[data-dash-tile]')
+    const nearest = await tiles.evaluateAll((els) => {
+      const rs = els.map((el) => el.getBoundingClientRect())
+      return rs.reduce((best, r, i) => (r.top < (rs[best]?.top ?? Infinity) - 1 || (Math.abs(r.top - (rs[best]?.top ?? 0)) <= 1 && r.right > (rs[best]?.right ?? 0)) ? i : best), 0)
+    })
+    await tiles.nth(nearest).getByTestId('dash-tile-count').click()
+    await expect(page.locator('[data-task-dialog]')).toBeVisible()
+    await page.keyboard.press('Escape')
+
+    // With the tiles hidden, the next row (the list tiles strip) keeps the slot free instead.
+    const dialog = await openCustomize(page)
+    const checked = dialog.getByRole('list', { name: 'Tiles' }).getByRole('checkbox', { checked: true })
+    while (await checked.count() > 0) await checked.first().uncheck()
+    await expect(dash(page).locator('[data-dash-tile]')).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await expect(customize(page)).toHaveCount(0)
+    await dash(page).hover({ position: { x: 200, y: 200 } })
+    await expect(gear).toHaveCSS('opacity', '1')
+    expect(await coveredByGear(page)).toEqual([])
+  })
+}
 
 test('the Hot flyout edits the app-wide rule: the Hot tile follows, the layout stays saved', async ({ page }) => {
   await seedWorkspace(page, SEED)

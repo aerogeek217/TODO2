@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   normalizeDashboardConfig,
+  type DashboardSectionId,
   type DashboardTileId,
 } from '../../../models/dashboard-config'
 import type { DashboardTab } from '../../../models/workspace-layout'
@@ -85,14 +86,15 @@ function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData;
   )
 }
 
-function ListTiles({ data, onDrill, onAddListTile }: {
+function ListTiles({ data, onDrill, onAddListTile, style }: {
   data: DashboardData
   onDrill?: OnDashboardDrill
   onAddListTile?: () => void
+  style?: CSSProperties
 }) {
   const hints = useListTileHints()
   return (
-    <div className={styles.lists} aria-label="List tiles" role="group">
+    <div className={styles.lists} aria-label="List tiles" role="group" style={style}>
       <span className={styles.listsCaption}>Lists</span>
       {data.listTiles.map((t) => {
         const content = (
@@ -138,6 +140,13 @@ function ListTiles({ data, onDrill, onAddListTile }: {
     </div>
   )
 }
+
+/**
+ * The room kept free for the corner gear at the right of the dashboard's
+ * first row (the gear's 24px + an 8px gap), so the gear never covers a tile,
+ * a number or a section's controls.
+ */
+const GEAR_SLOT_PX = 32
 
 /** The dashboard's corner gear (shown on hover / focus): opens Customize dashboard. */
 function CustomizeGear({ onClick }: { onClick: () => void }) {
@@ -225,6 +234,17 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   if (showLists) tracks.push('56px')
   tracks.push(...sectionRowTracks(sectionRows.length))
 
+  // The corner gear sits in a slot kept free at the right of the first row:
+  // the tiles, else the list tiles, else the first row's last section (the
+  // first section when they stack in one column).
+  const showGear = onCustomize != null && !isMobile
+  const firstSection = wide ? sectionRows[0]?.at(-1)?.id : sectionRows[0]?.[0]?.id
+  const gearBeside: 'tiles' | 'lists' | DashboardSectionId | null = !showGear ? null
+    : config.tiles.length > 0 ? 'tiles'
+    : showLists ? 'lists'
+    : firstSection ?? null
+  const slot = (id: typeof gearBeside): CSSProperties | undefined => (gearBeside === id ? { marginRight: GEAR_SLOT_PX } : undefined)
+
   const sections: ReactNode[] = sectionRows.flatMap((row) => row.map((placed) => {
     const { Component } = DASHBOARD_SECTIONS[placed.id]
     return (
@@ -234,7 +254,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
         options={optionsOf.get(placed.id) ?? {}}
         rows={rows}
         onDrill={onDrill}
-        style={wide ? { gridColumn: `span ${placed.span}` } : undefined}
+        style={wide ? { gridColumn: `span ${placed.span}`, ...slot(placed.id) } : slot(placed.id)}
       />
     )
   }))
@@ -251,13 +271,13 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
       data-layout={wide ? 'grid' : 'column'}
       data-selection-scope={isMobile ? undefined : tab.id}
     >
-      {onCustomize && !isMobile && <CustomizeGear onClick={onCustomize} />}
+      {showGear && onCustomize && <CustomizeGear onClick={onCustomize} />}
       {config.tiles.length > 0 && (
-        <div className={styles.tiles} aria-label="Tiles" role="group" data-tile-rows={tileRows}>
+        <div className={styles.tiles} aria-label="Tiles" role="group" data-tile-rows={tileRows} style={slot('tiles')}>
           {config.tiles.map((id) => <Tile key={id} id={id} data={data} onDrill={onDrill} />)}
         </div>
       )}
-      {showLists && <ListTiles data={data} onDrill={onDrill} onAddListTile={onAddListTile} />}
+      {showLists && <ListTiles data={data} onDrill={onDrill} onAddListTile={onAddListTile} style={slot('lists')} />}
       {sections}
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
     </div>
