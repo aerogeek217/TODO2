@@ -33,7 +33,7 @@ export function clampCalendarOffset(n: number): number {
   return Math.max(-CALENDAR_OFFSET_MAX, Math.min(CALENDAR_OFFSET_MAX, Math.trunc(n)))
 }
 
-/** Which task dates a calendar shows. At least one is `true`. */
+/** Which task dates a calendar shows (both off = an empty calendar that takes no drops). */
 export interface CalendarDateTypes {
   due: boolean
   followup: boolean
@@ -42,13 +42,9 @@ export interface CalendarDateTypes {
 /** One task date a calendar can show: the due date or the next follow-up. */
 export type CalendarDateType = keyof CalendarDateTypes
 
-/**
- * `types` with `type` switched on / off — but a calendar always shows at
- * least one date type: switching the last one off gives `types` back.
- */
+/** `types` with `type` switched on / off (the last one may go off too). */
 export function toggleCalendarDateType(types: CalendarDateTypes, type: CalendarDateType): CalendarDateTypes {
-  const next = { ...types, [type]: !types[type] }
-  return next.due || next.followup ? next : types
+  return { ...types, [type]: !types[type] }
 }
 
 export interface LensTabConfig {

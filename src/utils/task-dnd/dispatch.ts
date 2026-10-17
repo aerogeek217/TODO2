@@ -65,6 +65,7 @@ function isDateType(v: unknown): v is CalendarDateType {
 /**
  * Which date a calendar-day drop sets, from the drag payload and the date
  * types the target calendar shows (`dateTypes` on the day's drop data):
+ * - a calendar showing neither date type takes no drop (`null`);
  * - a calendar entry (`calendarDateType` on the drag) moves its own date,
  *   whatever the target calendar shows;
  * - otherwise the date type the target shows, or `'choose'` when it shows both.
@@ -72,7 +73,8 @@ function isDateType(v: unknown): v is CalendarDateType {
 export function resolveCalendarDropType(
   activeData: Record<string, unknown> | null | undefined,
   dateTypes: CalendarDateTypes,
-): CalendarDateType | 'choose' {
+): CalendarDateType | 'choose' | null {
+  if (!dateTypes.due && !dateTypes.followup) return null
   const own = activeData?.calendarDateType
   if (isDateType(own)) return own
   if (dateTypes.due && dateTypes.followup) return 'choose'
@@ -99,7 +101,8 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
  * Eisenhower quadrant gets that quadrant's flags ({@link EisenhowerOps}).
  *
  * Returns `true` when the drop was handled (the caller should stop
- * processing — also when the user cancelled the date-type choice), `false`
+ * processing — also when the user cancelled the date-type choice or the
+ * calendar shows no date type), `false`
  * when the drop is not one of these targets.
  */
 export async function dispatchTaskDrop(
@@ -122,6 +125,10 @@ export async function dispatchTaskDrop(
     const dateTypes = overData.dateTypes
     if (date instanceof Date && isDateTypes(dateTypes)) {
       let type = resolveCalendarDropType(activeData, dateTypes)
+      if (type === null) {
+        dndLog('dispatch.calendar-day-refused', { todoId: activeTodo.id, date: date.toISOString() })
+        return true
+      }
       if (type === 'choose') {
         const chosen = deps.calendar.chooseType
           ? await deps.calendar.chooseType({

@@ -26,7 +26,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['dashboard list tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: 3 } })), 'columns[0].cells[0].tabs[0].config.listTiles'],
   ['dashboard sections not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { sections: {} } })), 'columns[0].cells[0].tabs[0].config.sections'],
   ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].cells[0].tabs[0].config'],
-  ['calendar with no date type', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: false, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
+  ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
   ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].cells[0].tabs[0].viewState.view'],
   ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],

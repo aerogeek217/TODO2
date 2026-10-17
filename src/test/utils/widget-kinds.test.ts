@@ -58,11 +58,12 @@ describe('widget kinds', () => {
 })
 
 describe('toggleCalendarDateType', () => {
-  it('switches a date type, but never the last one off', () => {
+  it('switches a date type on or off — the last one too', () => {
     const both = { due: true, followup: true }
     expect(toggleCalendarDateType(both, 'due')).toEqual({ due: false, followup: true })
     const dueOnly = { due: true, followup: false }
     expect(toggleCalendarDateType(dueOnly, 'followup')).toEqual({ due: true, followup: true })
-    expect(toggleCalendarDateType(dueOnly, 'due')).toBe(dueOnly)
+    expect(toggleCalendarDateType(dueOnly, 'due')).toEqual({ due: false, followup: false })
+    expect(toggleCalendarDateType({ due: false, followup: false }, 'followup')).toEqual({ due: false, followup: true })
   })
 })

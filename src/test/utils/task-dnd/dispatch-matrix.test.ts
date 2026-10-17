@@ -156,6 +156,21 @@ describe('dispatchTaskDrop — which date a day drop sets', () => {
     expect(reschedule).toHaveBeenCalledWith(3, date, 'due')
   })
 
+  it('a calendar showing no date type refuses the drop: handled, nothing set', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'due' as const)
+    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: false }) }), { calendar: { reschedule, chooseType } })
+    expect(handled).toBe(true)
+    expect(reschedule).not.toHaveBeenCalled()
+    expect(chooseType).not.toHaveBeenCalled()
+    // A calendar entry's own date isn't moved there either.
+    await dispatchTaskDrop(
+      makeEvent({ activeTodoId: 3, activeExtra: { calendarDateType: 'due' }, over: day({ due: false, followup: false }) }),
+      { calendar: { reschedule, chooseType } },
+    )
+    expect(reschedule).not.toHaveBeenCalled()
+  })
+
   it('a calendar entry moves its own date, whatever the target shows, without asking', async () => {
     const reschedule = vi.fn(async () => {})
     const chooseType = vi.fn(async () => 'due' as const)
@@ -181,6 +196,8 @@ describe('resolveCalendarDropType', () => {
     [{ calendarDateType: 'due' }, { due: false, followup: true }, 'due'],
     [{ calendarDateType: 'followup' }, { due: true, followup: true }, 'followup'],
     [{ calendarDateType: 'bogus' }, { due: true, followup: false }, 'due'],
+    [{}, { due: false, followup: false }, null],
+    [{ calendarDateType: 'due' }, { due: false, followup: false }, null],
   ] as const)('drag %o on a day showing %o → %s', (active, dateTypes, expected) => {
     expect(resolveCalendarDropType(active, dateTypes)).toBe(expected)
   })

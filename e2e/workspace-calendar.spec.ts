@@ -140,6 +140,24 @@ test.describe('dropping a list task on a day', () => {
     expect(t.nextFollowupAt?.getTime()).toBe(await dayAt(page, 2, 12))
     expect(t.dueDate).toBeUndefined()
   })
+
+  test('no date type shown: the drop is refused and sets nothing', async ({ page }) => {
+    await seedWorkspace(page, {
+      listDefinitions: [TASK_LIST],
+      tasks: [{ title: 'Call legal' }],
+      layouts: layoutWith({ dateTypes: { due: false, followup: false } }),
+    })
+    await expect(calendar(page).getByTestId('calendar-empty')).toHaveAttribute('data-empty', 'no-types')
+    const target = await day(page, 2)
+    await dragOnto(page, listRow(page, 'Call legal'), target, async () => {
+      await expect(target).not.toHaveAttribute('data-drop-target', 'true')
+    })
+    await expect(chooser(page)).toHaveCount(0)
+    await expect(calendar(page).locator('[data-cal-entry]')).toHaveCount(0)
+    const t = await readTodo(page, 'Call legal')
+    expect(t.dueDate).toBeUndefined()
+    expect(t.nextFollowupAt).toBeUndefined()
+  })
 })
 
 test('dragging an entry moves its own date only, with no chooser', async ({ page }) => {
@@ -215,7 +233,7 @@ test('month navigation is view state: saved across reload, never unsaved', async
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 })
 
-test('date-type toggles are layout config: unsaved until saved, at least one stays on', async ({ page }) => {
+test('date-type toggles are layout config: unsaved until saved; both can be off', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [TASK_LIST],
     tasks: [{ title: 'Both dates', dueInDays: 1, followupInDays: 1 }],
@@ -230,10 +248,13 @@ test('date-type toggles are layout config: unsaved until saved, at least one sta
   await expect(tomorrow.locator('[data-cal-entry]')).toHaveCount(1)
   await expect(tomorrow.locator('[data-cal-entry="followup"]')).toHaveCount(1)
   await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-  // The only type left on can't be turned off.
+  // The last type on turns off too: nothing shows, and the calendar says why.
   await followup.click()
-  await expect(followup).toHaveAttribute('aria-pressed', 'true')
-  await expect(followup).toHaveAttribute('title', 'At least one date type is shown')
+  await expect(followup).toHaveAttribute('aria-pressed', 'false')
+  await expect(calendar(page).locator('[data-cal-entry]')).toHaveCount(0)
+  await expect(calendar(page).getByTestId('calendar-empty')).toContainText('No date types shown')
+  await followup.click()
+  await expect(tomorrow.locator('[data-cal-entry="followup"]')).toHaveCount(1)
 })
 
 test('+N more opens the day with every entry', async ({ page }) => {

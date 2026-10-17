@@ -57,7 +57,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       return true
     case 'calendar': {
       const types = config.dateTypes
-      if (!isRecord(types) || typeof types.due !== 'boolean' || typeof types.followup !== 'boolean' || (!types.due && !types.followup)) {
+      if (!isRecord(types) || typeof types.due !== 'boolean' || typeof types.followup !== 'boolean') {
         return `${path}.config.dateTypes`
       }
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
@@ -196,7 +196,7 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
       }
       case 'calendar': {
         const types = config.dateTypes
-        const typesOk = isRecord(types) && typeof types.due === 'boolean' && typeof types.followup === 'boolean' && (types.due || types.followup)
+        const typesOk = isRecord(types) && typeof types.due === 'boolean' && typeof types.followup === 'boolean'
         if (!typesOk) fix('settings')
         const dateTypes = typesOk
           ? { due: types.due === true, followup: types.followup === true }

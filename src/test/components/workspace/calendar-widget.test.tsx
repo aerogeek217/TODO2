@@ -113,7 +113,7 @@ describe('CalendarWidget', () => {
     expect(document.querySelector('[data-day]')?.getAttribute('data-day')).toBe(dayKey(day(27, 8)))
   })
 
-  it('date-type toggles are layout config (unsaved); the last one on stays on', () => {
+  it('date-type toggles are layout config (unsaved); both can be off', () => {
     setup()
     const group = screen.getByRole('group', { name: 'Date types shown' })
     fireEvent.click(within(group).getByRole('button', { name: /Due/ }))
@@ -122,10 +122,11 @@ describe('CalendarWidget', () => {
     expect(within(dayCell(day(16))!).queryByText('Both dates')).toBeNull()
     expect(within(dayCell(day(20))!).getByText('Both dates')).toBeInTheDocument()
 
-    const followup = within(group).getByRole('button', { name: /Follow-up/ })
-    expect(followup.getAttribute('title')).toBe('At least one date type is shown')
-    fireEvent.click(followup)
-    expect(workingTab().config.dateTypes).toEqual({ due: false, followup: true })
+    fireEvent.click(within(group).getByRole('button', { name: /Follow-up/ }))
+    expect(workingTab().config.dateTypes).toEqual({ due: false, followup: false })
+    expect(document.querySelectorAll('[data-cal-entry]')).toHaveLength(0)
+    expect(screen.getByTestId('calendar-empty')).toHaveAttribute('data-empty', 'no-types')
+    expect(screen.getByText('No date types shown')).toBeInTheDocument()
   })
 
   it('navigation and the view switch are view state (never unsaved)', async () => {
