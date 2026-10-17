@@ -31,7 +31,8 @@ const seed: WorkspaceSeed = {
       title: 'Answer Northwind’s security questionnaire', people: ['Marcus Chen'], uid: '0c4d8e17-5b2a-4f1e-9c3d-7a6b5c4d3e2f',
       progress: 'half done', notes: 'Sections 4 and 7 still open.\nSam has the SOC 2 letter.', modifiedAt,
     },
-    { title: 'Review the staging load-test results', people: ['Marcus Chen'], uid: 'b71e05d9-1111-4222-8333-444455556666', progress: '40%', modifiedAt },
+    // A planned follow-up: recording one moves it to today + the default month.
+    { title: 'Review the staging load-test results', people: ['Marcus Chen'], uid: 'b71e05d9-1111-4222-8333-444455556666', progress: '40%', followupInDays: 5, modifiedAt },
     { title: 'Draft the migration runbook', people: ['Marcus Chen'], uid: '3f9a1c42-aaaa-4bbb-8ccc-ddddeeeeffff', notes: RUNBOOK_NOTES, modifiedAt },
     {
       title: 'Renew the Contoso support contract — confirm pricing tier & seats (<50 users?)', people: ['Marcus Chen'],
@@ -114,6 +115,19 @@ test('paste a reply, untick one change, apply; Undo restores the old notes', asy
   ].join('\n'))
   expect(runbook?.lastFollowupAt).toBeDefined()
   expect(after['Review the staging load-test results']?.lastFollowupAt).toBeDefined()
+  // Recorded today, not on the planned date: last = now, next = today + 1 month.
+  const recorded = (await readStore<{ title: string; lastFollowupAt?: Date; nextFollowupAt?: Date }>(page, 'todos'))
+    .find((t) => t.title === 'Review the staging load-test results')
+  const expected = await page.evaluate(async (url) => {
+    const { addFollowupInterval } = (await import(/* @vite-ignore */ url)) as {
+      addFollowupInterval: (from: Date, interval: { count: number; unit: 'm' }) => Date
+    }
+    const t = new Date()
+    return { today: new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime(), next: addFollowupInterval(t, { count: 1, unit: 'm' }).getTime() }
+  }, '/src/utils/followup.ts')
+  const lastDay = recorded?.lastFollowupAt ? new Date(recorded.lastFollowupAt) : null
+  expect(lastDay && new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate()).getTime()).toBe(expected.today)
+  expect(recorded?.nextFollowupAt?.getTime()).toBe(expected.next)
   expect(after['Renew the Contoso support contract — confirm pricing tier & seats (<50 users?)']?.lastFollowupAt).toBeUndefined()
 
   await expect(page.getByText('Applied 2 changes from Marcus Chen')).toBeVisible()
