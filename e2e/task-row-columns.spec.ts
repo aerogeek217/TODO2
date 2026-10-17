@@ -219,19 +219,35 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   await expect(dash.locator('[data-todo-id]').first()).toBeVisible()
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(180)
 
-  // One value for the tab: dragging one quadrant's divider moves every quadrant's on release.
+  // One value for the tab: dragging one quadrant's divider moves every quadrant live, and is stored on release.
   const doQuadrant = eis.locator('[data-eis-quadrant="do"]')
   const from = await pointIn(divider(doQuadrant))
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   await page.mouse.move(from.x + 12, from.y, { steps: 3 })
+  // Mid-drag: the other quadrants' rows have moved too (148 leaves no room for people: laid out at the fixed tracks).
+  expect(await laidOutDetails(row(eis.locator('[data-eis-quadrant="drop"]'), 'Bare task'))).toBe(132)
+  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(132)
+  expect(await storedTabView(page, 'eis')).toEqual({ detailsWidth: 160 })
   await page.mouse.up()
   await expect.poll(() => storedTabView(page, 'eis')).toEqual({ detailsWidth: 148 })
-  // Every quadrant's divider reads the new value (148 leaves no room for people: laid out at the fixed tracks).
   for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(132)
   // The dashboard keeps its own.
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(180)
+
+  // The dashboard's Hot and Needs follow-up sections share theirs live too.
+  const hot = page.locator('[data-dash-section="hot"]')
+  const followup = page.locator('[data-dash-section="followup"]')
+  const dFrom = await pointIn(divider(hot))
+  await page.mouse.move(dFrom.x, dFrom.y)
+  await page.mouse.down()
+  await page.mouse.move(dFrom.x - 20, dFrom.y, { steps: 3 })
+  expect(await laidOutDetails(row(followup, 'Book the venue'))).toBe(200)
+  expect(await storedTabView(page, 'dash')).toEqual({ detailsWidth: 180 })
+  await page.mouse.up()
+  await expect.poll(() => storedTabView(page, 'dash')).toEqual({ detailsWidth: 200 })
+  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
 })
 
 test('a click on a cell opens its picker anchored to the cell', async ({ page }) => {

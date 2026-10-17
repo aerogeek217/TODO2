@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   normalizeDashboardConfig,
   type DashboardTileId,
@@ -155,6 +155,8 @@ export interface DashboardWidgetProps {
 export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddListTile }: DashboardWidgetProps) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const data = useDashboardData(config)
+  // A section divider's width while it is dragged: every task-row section follows it live.
+  const [liveDetailsWidth, setLiveDetailsWidth] = useState<number | null>(null)
   // Under the top-bar filter every dialog says it counts only what it shows.
   const onDrill: OnDashboardDrill | undefined = onDrillProp && ((d) => onDrillProp(
     data.filtered ? { ...d, description: withScreenNote(d.description) } : d,
@@ -187,6 +189,8 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
     tabId: tab.id, isMobile, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'dashboard', { detailsWidth }),
+    liveDetailsWidth,
+    onLiveDetailsWidthChange: setLiveDetailsWidth,
   }
 
   const wide = !isMobile && (size.width === 0 || size.width >= DASHBOARD_WIDE_MIN_PX)

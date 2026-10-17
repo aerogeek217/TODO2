@@ -24,4 +24,7 @@ export interface DashboardRowKit {
   /** The tab's task-row details width (one value for every section). */
   detailsWidth: number | undefined
   onDetailsWidthChange: (width: number | undefined) => void
+  /** The width while a section's divider is dragged: every section follows it live. */
+  liveDetailsWidth: number | null
+  onLiveDetailsWidthChange: (width: number | null) => void
 }

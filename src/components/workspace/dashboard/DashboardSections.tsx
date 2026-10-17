@@ -148,7 +148,16 @@ function TaskRows({ sectionKey, ids, data, kit }: {
 /** Task rows sharing the tab's columns and divider (phones: a plain list). */
 function RowsGrid({ kit, children }: { kit: DashboardRowKit; children: ReactNode }) {
   if (kit.isMobile) return <>{children}</>
-  return <TaskRowGrid detailsWidth={kit.detailsWidth} onDetailsWidthChange={kit.onDetailsWidthChange}>{children}</TaskRowGrid>
+  return (
+    <TaskRowGrid
+      detailsWidth={kit.detailsWidth}
+      onDetailsWidthChange={kit.onDetailsWidthChange}
+      liveDetailsWidth={kit.liveDetailsWidth}
+      onLiveDetailsWidthChange={kit.onLiveDetailsWidthChange}
+    >
+      {children}
+    </TaskRowGrid>
+  )
 }
 
 /** The open tasks of `tasks` matching `pick`, in dialog order. */

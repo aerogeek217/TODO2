@@ -231,6 +231,9 @@ interface RowContext {
   /** The tab's task-row details width (one value for every quadrant). */
   detailsWidth: number | undefined
   onDetailsWidthChange: (width: number | undefined) => void
+  /** The width while a quadrant's divider is dragged: every quadrant follows it live. */
+  liveDetailsWidth: number | null
+  onLiveDetailsWidthChange: (width: number | null) => void
 }
 
 interface QuadrantProps {
@@ -354,7 +357,14 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
       {showBody && (
         <div className={styles.body}>
           {rows.length > 0 ? (ctx.isMobile ? rows : (
-            <TaskRowGrid detailsWidth={ctx.detailsWidth} onDetailsWidthChange={ctx.onDetailsWidthChange}>{rows}</TaskRowGrid>
+            <TaskRowGrid
+              detailsWidth={ctx.detailsWidth}
+              onDetailsWidthChange={ctx.onDetailsWidthChange}
+              liveDetailsWidth={ctx.liveDetailsWidth}
+              onLiveDetailsWidthChange={ctx.onLiveDetailsWidthChange}
+            >
+              {rows}
+            </TaskRowGrid>
           )) : !hideEmptyLines && (
             <div className={styles.empty}>
               <span className={styles.emptyTitle}>{emptyTitle}</span>
@@ -377,6 +387,8 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
  */
 export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResult?: (r: EisenhowerResult) => void }) {
   const isMobile = useIsMobile()
+  // A quadrant divider's width while it is dragged: every quadrant follows it live.
+  const [liveDetailsWidth, setLiveDetailsWidth] = useState<number | null>(null)
   const today = useToday()
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
   const todos = useTodoStore((s) => s.todos)
@@ -448,6 +460,8 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
     tabId: tab.id, isMobile, drag, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'eisenhower', { detailsWidth }),
+    liveDetailsWidth,
+    onLiveDetailsWidthChange: setLiveDetailsWidth,
   }
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 

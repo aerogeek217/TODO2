@@ -17,6 +17,14 @@ interface TaskRowGridProps {
    * the list has no divider.
    */
   onDetailsWidthChange?: (width: number | undefined) => void
+  /**
+   * The width while a divider is dragged, shared by every list of one tab
+   * (Eisenhower quadrants, dashboard sections) so they all follow the drag
+   * live; `null` = no drag. Without `onLiveDetailsWidthChange` the list
+   * keeps its own.
+   */
+  liveDetailsWidth?: number | null
+  onLiveDetailsWidthChange?: (width: number | null) => void
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -29,11 +37,17 @@ interface TaskRowGridProps {
  * `onDetailsWidthChange` it draws the draggable divider between the titles
  * and the details, spanning the rows.
  */
-export function TaskRowGrid({ detailsWidth, onDetailsWidthChange, className, style, children }: TaskRowGridProps) {
+export function TaskRowGrid({
+  detailsWidth, onDetailsWidthChange, liveDetailsWidth, onLiveDetailsWidthChange, className, style, children,
+}: TaskRowGridProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<{ width: number; padRight: number }>({ width: 0, padRight: 0 })
-  /** The width while the divider is dragged (not stored yet). */
-  const [live, setLive] = useState<number | null>(null)
+  /** The width while a divider is dragged (not stored yet): the tab's shared one, or this list's own. */
+  const [ownLive, setOwnLive] = useState<number | null>(null)
+  const live = onLiveDetailsWidthChange ? (liveDetailsWidth ?? null) : ownLive
+  const setLive = onLiveDetailsWidthChange ?? setOwnLive
+  /** This list's divider is the one being dragged. */
+  const [dragging, setDragging] = useState(false)
   const drag = useRef<{ x: number; start: number; pointerId: number } | null>(null)
 
   useLayoutEffect(() => {
@@ -65,7 +79,7 @@ export function TaskRowGrid({ detailsWidth, onDetailsWidthChange, className, sty
 
   const divider = onDetailsWidthChange && (
     <div
-      className={`${styles.divider} ${live !== null ? styles.dividerDragging : ''}`}
+      className={`${styles.divider} ${dragging ? styles.dividerDragging : ''}`}
       style={{ right: box.padRight + TASK_ROW.padRight + cols.laidOut + TASK_ROW.gap / 2 - HIT / 2 }}
       role="separator"
       aria-orientation="vertical"
@@ -83,6 +97,7 @@ export function TaskRowGrid({ detailsWidth, onDetailsWidthChange, className, sty
         e.stopPropagation()
         e.currentTarget.setPointerCapture(e.pointerId)
         drag.current = { x: e.clientX, start: cols.details, pointerId: e.pointerId }
+        setDragging(true)
         setLive(cols.details)
       }}
       onPointerMove={(e) => {
@@ -95,12 +110,14 @@ export function TaskRowGrid({ detailsWidth, onDetailsWidthChange, className, sty
         const d = drag.current
         if (!d || d.pointerId !== e.pointerId) return
         drag.current = null
+        setDragging(false)
         const width = live ?? d.start
         if (width === d.start) setLive(null)
         else commit(width)
       }}
       onPointerCancel={() => {
         drag.current = null
+        setDragging(false)
         setLive(null)
       }}
       onDoubleClick={(e) => {
