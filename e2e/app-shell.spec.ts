@@ -60,7 +60,8 @@ test('an editor opened from Settings stacks over it and owns Esc', async ({ page
 
 test('the filter tray turns red while a screen filter is on', async ({ page }) => {
   await seedWorkspace(page, team)
-  const funnelColor = () => tray(page).locator('span[title="Filters apply to every widget on screen"]').evaluate((el) => getComputedStyle(el).color)
+  const funnel = tray(page).getByRole('button', { name: 'Clear all filters' })
+  const funnelColor = () => funnel.evaluate((el) => getComputedStyle(el).color)
   const danger = await page.evaluate(() => {
     const probe = document.createElement('span')
     probe.style.color = 'var(--color-danger)'
@@ -85,6 +86,33 @@ test('the filter tray turns red while a screen filter is on', async ({ page }) =
   await page.getByRole('button', { name: 'Clear people filter' }).click()
   await expect(tray(page)).not.toHaveAttribute('data-filtered')
   await expect(rows(page)).toHaveCount(2)
+})
+
+test('the red funnel, left of search, clears every screen filter at once; there is no Clear all text', async ({ page }) => {
+  await seedWorkspace(page, team)
+  const funnel = tray(page).getByRole('button', { name: 'Clear all filters' })
+  const search = tray(page).getByRole('textbox', { name: 'Search tasks' })
+  await expect(funnel).toBeDisabled()
+  const funnelBox = await funnel.boundingBox()
+  const searchBox = await search.boundingBox()
+  expect(funnelBox && searchBox && funnelBox.x + funnelBox.width <= searchBox.x).toBe(true)
+
+  await page.getByRole('button', { name: 'People filter' }).click()
+  await page.locator('label', { hasText: '@Alice' }).click()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Show completed' }).click()
+  await search.fill('a')
+  await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
+  await expect(tray(page).getByText('Clear all', { exact: true })).toHaveCount(0)
+
+  await funnel.hover()
+  await expect(page.getByRole('tooltip')).toHaveText(/Clear all filters/)
+  await funnel.click()
+  await expect(tray(page)).not.toHaveAttribute('data-filtered')
+  await expect(search).toHaveValue('')
+  await expect(page.getByRole('button', { name: 'Show completed' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(rows(page)).toHaveCount(2)
+  await expect(funnel).toBeDisabled()
 })
 
 test('at 1180px the filters fold into a Filters menu that sets and clears a filter', async ({ page }) => {

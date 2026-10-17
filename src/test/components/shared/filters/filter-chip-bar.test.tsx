@@ -201,15 +201,17 @@ describe('FilterChipBar — primitive', () => {
       // default onChange-based clear when the override is supplied.
       let cleared = 0
       let captured: TodoPredicate | null = null
-      const active: TodoPredicate = { ...emptyPredicate(), showCompleted: true }
+      const active: TodoPredicate = { ...emptyPredicate(), showCompleted: true, personIds: [1] }
       render(
         <FilterChipBar
           predicate={active}
           onChange={(p) => { captured = p }}
           onClearAll={() => { cleared += 1 }}
+          fold
         />,
       )
-      fireEvent.click(screen.getByTitle('Clear all filters'))
+      fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
       expect(cleared).toBe(1)
       // onChange was NOT called with DEFAULT_PREDICATE — override takes over.
       expect(captured).toBeNull()
@@ -269,15 +271,11 @@ describe('FilterChipBar — primitive', () => {
     // real-browser e2e (see e2e/list-editor-dropdowns.spec.ts) — JSDOM's
     // synthetic getBoundingClientRect can't drive the hook's measurement
     // pass meaningfully (per ARCHITECTURE.md / Testing).
-    it('renders the Clear button only when the predicate has at least one active filter', () => {
-      const { rerender } = render(
-        <FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />,
-      )
-      expect(screen.queryByTitle('Clear all filters')).toBeNull()
-
-      const active: TodoPredicate = { ...emptyPredicate(), showCompleted: true }
-      rerender(<FilterChipBar predicate={active} onChange={() => {}} />)
-      expect(screen.getByTitle('Clear all filters')).toBeInTheDocument()
+    it('has no Clear all button of its own (the top bar’s funnel clears)', () => {
+      const active: TodoPredicate = { ...emptyPredicate(), showCompleted: true, personIds: [1] }
+      render(<FilterChipBar predicate={active} onChange={() => {}} />)
+      expect(screen.queryByRole('button', { name: /^Clear all/ })).toBeNull()
+      expect(screen.queryByText('Clear all')).toBeNull()
     })
 
     describe('People picker: Email check-in', () => {
@@ -319,7 +317,7 @@ describe('FilterChipBar — primitive', () => {
 
       it('folded: the action closes the Filters menu too', () => {
         render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
-        fireEvent.click(screen.getByRole('button', { name: 'Filters, 1 active' }))
+        fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
         fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
         fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice…' }))
         expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1] })

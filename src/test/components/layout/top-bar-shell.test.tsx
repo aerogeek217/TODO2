@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../../components/layout/TopBar'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -56,7 +56,26 @@ describe('TopBar — app shell', () => {
     expect(tray).not.toHaveAttribute('data-filtered')
     act(() => useFilterStore.getState().setShowCompleted(true))
     expect(tray).toHaveAttribute('data-filtered', 'true')
-    fireEvent.click(screen.getByTitle('Clear all filters'))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
     expect(tray).not.toHaveAttribute('data-filtered')
+  })
+
+  it('the funnel, left of search, clears every screen filter; disabled while none is on; no Clear all text', () => {
+    renderBar()
+    const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
+    const funnel = within(tray).getByRole('button', { name: 'Clear all filters' })
+    const search = within(tray).getByRole('textbox', { name: 'Search tasks' })
+    expect(funnel.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(funnel).toBeDisabled()
+    act(() => {
+      useFilterStore.getState().setPersonIds(new Set([1]))
+      useFilterStore.getState().setShowCompleted(true)
+    })
+    expect(funnel).toBeEnabled()
+    expect(within(tray).queryByText('Clear all')).toBeNull()
+    fireEvent.click(funnel)
+    expect(useFilterStore.getState().isActive).toBe(false)
+    expect(useFilterStore.getState().filters.personIds).toBeNull()
+    expect(funnel).toBeDisabled()
   })
 })

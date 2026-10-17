@@ -74,13 +74,35 @@
 
 .funnel {
   display: inline-flex;
-  margin: 0 2px 0 6px;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0 0 0 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
+.funnel:disabled {
+  cursor: default;
+}
+
 .trayActive .funnel {
   color: var(--color-danger);
+  cursor: pointer;
+}
+
+.trayActive .funnel:hover {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+.funnel:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 /* ═══ Search input ═══ */

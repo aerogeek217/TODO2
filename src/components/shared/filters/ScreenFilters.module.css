@@ -44,7 +44,6 @@
 .filterMain:focus-visible,
 .clearField:focus-visible,
 .completed:focus-visible,
-.clearAll:focus-visible,
 .menuRowMain:focus-visible,
 .menuClearAll:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -148,26 +147,6 @@
 .completedOn:hover,
 .completedOn svg {
   color: var(--color-accent);
-}
-
-.clearAll {
-  height: 26px;
-  padding: 0 7px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.clearAll:hover {
-  background: var(--color-tint-6);
-  color: var(--color-text-primary);
 }
 
 /* ═══ Filters (narrow windows) ═══ */

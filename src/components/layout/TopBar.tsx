@@ -20,6 +20,7 @@ import { searchMenuHandlers } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
 import { StoragePill } from './StoragePill'
 import { CloseIcon, FunnelIcon, GearIcon, PlusIcon, SearchIcon } from '../shared/icons'
+import { useTooltip } from '../shared/use-tooltip'
 import { useMediaQuery } from '../../hooks/use-media-query'
 import { formatShortcut } from '../../utils/platform'
 import styles from './TopBar.module.css'
@@ -37,6 +38,28 @@ const MAX_GROUP_PREVIEW = 5
 
 /** Below this width the screen-filter buttons fold into one Filters menu. */
 const FOLD_FILTERS_QUERY = '(max-width: 1279px)'
+
+/**
+ * The filter tray's funnel, left of search: red while any screen filter is
+ * on; a click clears them all. Disabled while none is on.
+ */
+function ClearFiltersButton({ active }: { active: boolean }) {
+  const { triggerProps, tooltip } = useTooltip(active ? 'Clear all filters\nFilters apply to every widget on screen' : null)
+  return (
+    <button
+      type="button"
+      className={styles.funnel}
+      aria-label="Clear all filters"
+      disabled={!active}
+      onClick={() => useFilterStore.getState().clearAll()}
+      data-clear-filters=""
+      {...triggerProps}
+    >
+      <FunnelIcon size={14} />
+      {tooltip}
+    </button>
+  )
+}
 
 function SearchFieldIcon({ field }: { field: TextMatchField }) {
   const common = { width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
@@ -363,6 +386,7 @@ export function TopBar() {
         data-filter-row
         data-filtered={isActive || undefined}
       >
+        <ClearFiltersButton active={isActive} />
         <div className={styles.searchWrapper}>
           <span className={styles.searchIcon}><SearchIcon size={14} /></span>
           <input
@@ -428,9 +452,6 @@ export function TopBar() {
           )}
         </div>
 
-        <span className={styles.funnel} title="Filters apply to every widget on screen" aria-hidden="true">
-          <FunnelIcon size={14} />
-        </span>
         <FilterChipBar
           predicate={filterPredicate}
           onChange={handleFilterChange}
