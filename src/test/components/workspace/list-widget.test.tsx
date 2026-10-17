@@ -14,7 +14,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
-import { SINGLE_BINDINGS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
+import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
@@ -224,9 +224,9 @@ function clickTitle(key: string, mods: { shiftKey?: boolean; ctrlKey?: boolean }
 
 function press(key: string, shiftKey = false) {
   const e = new KeyboardEvent('keydown', { key, shiftKey, cancelable: true })
-  const binding = SINGLE_BINDINGS.find((b) => b.chord.key === key.toLowerCase())!
+  const handler = SHORTCUT_HANDLERS[key === 'ArrowUp' ? 'select-previous' : 'select-next']
   const ctx: ShortcutCtx = { e, callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }
-  act(() => { void binding.handler(ctx) })
+  act(() => { void handler(ctx) })
 }
 
 describe('ListWidget rows: occurrences, selection, manual order', () => {
@@ -278,8 +278,8 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     press('ArrowUp', true)
     expect(useUIStore.getState().selectionCursorKey).toBe('person-2|2')
     expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([2, 3])
-    const selectAll = SINGLE_BINDINGS.find((b) => b.chord.key === 'a' && b.chord.mod)!
-    act(() => { void selectAll.handler({ e: new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }), callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }) })
+    const selectAll = SHORTCUT_HANDLERS['select-all']
+    act(() => { void selectAll({ e: new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }), callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }) })
     expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
   })
 

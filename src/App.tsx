@@ -20,7 +20,7 @@ import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStatusStore } from './stores/status-store'
 import { useTagStore } from './stores/tag-store'
-import { formatShortcut } from './utils/platform'
+import { useShortcutLabel } from './hooks/use-shortcut-label'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
@@ -302,6 +302,8 @@ function AppShell() {
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
+  const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+  const quickAddKeys = useShortcutLabel('quick-add')
 
   const commandCtx = useMemo(
     () => ({
@@ -331,7 +333,8 @@ function AppShell() {
     [todos, people, assignedPeopleMap, selectionCount]
   )
 
-  const commands = useMemo(() => createCommands(commandCtx), [commandCtx])
+  // The palette's key hints follow the user's shortcut changes.
+  const commands = useMemo(() => createCommands(commandCtx, shortcutOverrides), [commandCtx, shortcutOverrides])
   const handleSearchDynamic = useCallback(
     (query: string) => searchDynamicCommands(query, commandCtx),
     [commandCtx]
@@ -381,7 +384,7 @@ function AppShell() {
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" title={`Quick add (${formatShortcut('Mod-Space')})`}>
+          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" title={`Quick add (${quickAddKeys})`}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <line x1="9" y1="3" x2="9" y2="15" />
               <line x1="3" y1="9" x2="15" y2="9" />

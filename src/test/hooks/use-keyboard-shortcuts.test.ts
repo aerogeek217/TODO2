@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useKeyboardShortcuts } from '../../hooks/use-keyboard-shortcuts'
-import { matchChord } from '../../services/keyboard-shortcuts'
+import { useSettingsStore } from '../../stores/settings-store'
 
 function dispatchKey(target: EventTarget, key: string, init: KeyboardEventInit = {}) {
   target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
@@ -126,39 +126,42 @@ describe('useKeyboardShortcuts — sequence chords (G then …)', () => {
   })
 })
 
-describe('matchChord predicate', () => {
-  function ev(init: KeyboardEventInit) {
-    return new KeyboardEvent('keydown', init)
-  }
+describe('useKeyboardShortcuts — user bindings', () => {
+  const noop = () => {}
 
-  it('matches Mod-K via ctrlKey', () => {
-    expect(matchChord(ev({ key: 'k', ctrlKey: true }), { key: 'k', mod: true })).toBe(true)
+  afterEach(() => {
+    document.body.innerHTML = ''
   })
 
-  it('matches Mod-K via metaKey', () => {
-    expect(matchChord(ev({ key: 'k', metaKey: true }), { key: 'k', mod: true })).toBe(true)
+  it('fires a binding on its new keys and no longer on its default', () => {
+    const openPalette = vi.fn<() => void>()
+    useSettingsStore.setState({ shortcutOverrides: { 'command-palette': [{ key: 'p', mod: true, shift: true }] } })
+    renderHook(() => useKeyboardShortcuts({ openPalette, closePalette: noop, openSettings: noop }))
+    dispatchKey(window, 'k', { ctrlKey: true })
+    expect(openPalette).not.toHaveBeenCalled()
+    dispatchKey(window, 'P', { ctrlKey: true, shiftKey: true })
+    expect(openPalette).toHaveBeenCalledOnce()
   })
 
-  it('rejects Mod-K with extraneous shift when shift defaults to false', () => {
-    expect(matchChord(ev({ key: 'k', ctrlKey: true, shiftKey: true }), { key: 'k', mod: true })).toBe(false)
+  it('follows a rebound sequence, and a binding changed while mounted', () => {
+    const openSettings = vi.fn<() => void>()
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings }))
+    useSettingsStore.setState({ shortcutOverrides: { 'open-settings': [{ key: 'g' }, { key: 'o' }] } })
+    dispatchKey(window, 'g')
+    dispatchKey(window, 's')
+    expect(openSettings).not.toHaveBeenCalled()
+    dispatchKey(window, 'g')
+    dispatchKey(window, 'o')
+    expect(openSettings).toHaveBeenCalledOnce()
   })
 
-  it('matches both shift states when shiftAny is set', () => {
-    expect(matchChord(ev({ key: 'ArrowUp', shiftKey: false }), { key: 'arrowup', shiftAny: true })).toBe(true)
-    expect(matchChord(ev({ key: 'ArrowUp', shiftKey: true }), { key: 'arrowup', shiftAny: true })).toBe(true)
-  })
-
-  it('matches Mod-Shift-Z strictly', () => {
-    expect(matchChord(ev({ key: 'z', ctrlKey: true, shiftKey: true }), { key: 'z', mod: true, shift: true })).toBe(true)
-    expect(matchChord(ev({ key: 'z', ctrlKey: true, shiftKey: false }), { key: 'z', mod: true, shift: true })).toBe(false)
-  })
-
-  it('matches by code when useCode is true', () => {
-    // Ctrl+Space: e.key is ' ', e.code is 'Space'.
-    expect(matchChord(ev({ key: ' ', code: 'Space', ctrlKey: true }), { key: 'Space', useCode: true, mod: true })).toBe(true)
-  })
-
-  it('case-insensitive on letter keys', () => {
-    expect(matchChord(ev({ key: 'F' }), { key: 'f' })).toBe(true)
+  it('fires a binding moved onto a single key', () => {
+    const openShortcutsModal = vi.fn<() => void>()
+    useSettingsStore.setState({ shortcutOverrides: { 'show-shortcuts': [{ key: 'h' }] } })
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings: noop, openShortcutsModal }))
+    dispatchKey(window, '?')
+    expect(openShortcutsModal).not.toHaveBeenCalled()
+    dispatchKey(window, 'h')
+    expect(openShortcutsModal).toHaveBeenCalledOnce()
   })
 })

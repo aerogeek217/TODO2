@@ -22,7 +22,7 @@ import { StoragePill } from './StoragePill'
 import { CloseIcon, FunnelIcon, GearIcon, PlusIcon, SearchIcon } from '../shared/icons'
 import { useTooltip } from '../shared/use-tooltip'
 import { useMediaQuery } from '../../hooks/use-media-query'
-import { formatShortcut } from '../../utils/platform'
+import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
 
@@ -274,6 +274,8 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
 })
 
 export function TopBar() {
+  const quickAddKeys = useShortcutLabel('quick-add')
+  const settingsKeys = useShortcutLabel('open-settings')
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
   const setSearchText = useFilterStore((s) => s.setSearchText)
@@ -372,7 +374,7 @@ export function TopBar() {
         className={styles.newTask}
         onClick={() => useUIStore.getState().openQuickAdd()}
         aria-label="New task"
-        title={`New task (${formatShortcut('Mod-Space')})`}
+        title={`New task (${quickAddKeys})`}
       >
         <PlusIcon size={14} strokeWidth={2} />
         <span className={styles.newTaskLabel}>New task</span>
@@ -468,7 +470,7 @@ export function TopBar() {
           className={`${styles.gear} ${settingsOpen ? styles.gearOpen : ''}`}
           onClick={() => useUIStore.getState().openSettings()}
           aria-label="Settings"
-          title="Settings (G then S)"
+          title={`Settings (${settingsKeys})`}
         >
           <GearIcon />
         </button>

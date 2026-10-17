@@ -1,11 +1,13 @@
 import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
-import { formatShortcut } from '../utils/platform'
 import { isValidEmail } from '../utils/person'
 import { byName } from '../utils/sort-order'
 import { useUndoStore } from '../stores/undo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useSettingsStore } from '../stores/settings-store'
+import { shortcutLabel } from '../utils/shortcut-bindings'
+import type { ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 
 /** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
@@ -79,31 +81,31 @@ function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) 
     }))
 }
 
-export function createCommands(ctx: CommandContext): Command[] {
-  const cmdF = formatShortcut('Mod-F')
-  const cmdSpace = formatShortcut('Mod-Space')
-  const cmdZ = formatShortcut('Mod-Z')
-  const cmdShiftZ = formatShortcut('Mod-Shift-Z')
-  const cmdA = formatShortcut('Mod-A')
+/** The palette's commands; key hints show the live keys (`overrides`: the user's shortcut changes). */
+export function createCommands(
+  ctx: CommandContext,
+  overrides: ShortcutOverrides = useSettingsStore.getState().shortcutOverrides,
+): Command[] {
+  const keys = (id: ShortcutId) => shortcutLabel(id, overrides)
   const commands: Command[] = [
     // Navigation
-    { id: 'open-settings', name: 'Open Settings', shortcut: 'G then S', category: 'navigation', action: ctx.openSettings },
-    { id: 'focus-filter', name: 'Focus Filters', shortcut: 'F', category: 'navigation', action: () => {
+    { id: 'open-settings', name: 'Open Settings', shortcut: keys('open-settings'), category: 'navigation', action: ctx.openSettings },
+    { id: 'focus-filter', name: 'Focus Filters', shortcut: keys('focus-filters'), category: 'navigation', action: () => {
       const filterRow = document.querySelector('[data-filter-row]')
       const firstBtn = filterRow?.querySelector('button') as HTMLElement | null
       firstBtn?.focus()
     }},
-    { id: 'focus-search', name: 'Focus Search', shortcut: cmdF, category: 'navigation', action: () => {
+    { id: 'focus-search', name: 'Focus Search', shortcut: keys('focus-search'), category: 'navigation', action: () => {
       const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement | null
       if (searchInput) { searchInput.focus(); searchInput.select() }
     }},
-    ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: '?', category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
+    ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: keys('show-shortcuts'), category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
 
     // Task actions
-    { id: 'new-task', name: 'New Task', shortcut: cmdSpace, category: 'task', action: ctx.openQuickAdd },
-    { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: () => { void useUndoStore.getState().undo() } },
-    { id: 'redo', name: 'Redo', shortcut: cmdShiftZ, category: 'task', action: () => { void useUndoStore.getState().redo() } },
-    { id: 'select-all', name: 'Select All Tasks', shortcut: cmdA, category: 'task', action: () => {
+    { id: 'new-task', name: 'New Task', shortcut: keys('quick-add'), category: 'task', action: ctx.openQuickAdd },
+    { id: 'undo', name: 'Undo', shortcut: keys('undo'), category: 'task', action: () => { void useUndoStore.getState().undo() } },
+    { id: 'redo', name: 'Redo', shortcut: keys('redo'), category: 'task', action: () => { void useUndoStore.getState().redo() } },
+    { id: 'select-all', name: 'Select All Tasks', shortcut: keys('select-all'), category: 'task', action: () => {
       const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
       if (rows.length > 0) {
         const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
