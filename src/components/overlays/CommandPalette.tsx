@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import Fuse, { type FuseResult } from 'fuse.js'
 import type { Command, CommandCategory } from '../../services/command-registry'
+import { DialogFrame } from '../shared/Dialog'
 import styles from './CommandPalette.module.css'
 
 interface CommandPaletteProps {
@@ -165,13 +166,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
     } else if (e.key === 'Enter' && flatResults[activeIndex]) {
       e.preventDefault()
       executeCommand(flatResults[activeIndex])
-    } else if (e.key === 'Escape') {
-      onClose()
     }
-  }
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose()
   }
 
   let flatIndex = 0
@@ -179,8 +174,18 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   const activeOptionId = flatResults.length > 0 ? optionId(activeIndex) : undefined
 
   return (
-    <div className={styles.backdrop} onClick={handleBackdropClick}>
-      <div className={styles.card} role="dialog" aria-modal="true" aria-label="Command palette">
+    // The shared frame: Esc (from anywhere in it), a backdrop press, Tab
+    // kept inside, focus back to where it was (unless a command moved it).
+    <DialogFrame
+      onClose={onClose}
+      layer="overlay"
+      className={styles.card}
+      backdropClassName={styles.backdrop}
+      // Top-anchored, not centred.
+      style={{ marginTop: '10vh' }}
+      initialFocus={inputRef}
+      aria-label="Command palette"
+    >
         <div className={styles.inputRow}>
           <input
             ref={inputRef}
@@ -249,7 +254,6 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
           <span><span className={styles.footerKey}>Esc</span> Close</span>
           <span><span className={styles.footerKey}>&gt;</span> Commands only</span>
         </div>
-      </div>
-    </div>
+    </DialogFrame>
   )
 }

@@ -146,6 +146,10 @@ export function DialogFrame({
     return () => {
       // Still in the page: a re-run (React's StrictMode), not a close.
       if (panel?.isConnected) return
+      // Something the close opened already took the focus (a command run
+      // from the palette that opens Quick Add): leave it there.
+      const active = document.activeElement
+      if (active && active !== document.body && active.isConnected) return
       if (opener && opener !== document.body && document.body.contains(opener)) opener.focus()
     }
   }, [initialFocusRef, panelRef, opener])

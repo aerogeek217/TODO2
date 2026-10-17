@@ -137,3 +137,49 @@ describe('CommandPalette — the active row', () => {
     expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
   })
 })
+
+describe('CommandPalette as a dialog', () => {
+  const commands: Command[] = [{ id: 'a', name: 'Alpha', category: 'navigation', action: vi.fn() }]
+
+  it('Tab stays in it, and an Esc with nothing focused closes it', () => {
+    const onClose = vi.fn()
+    render(<CommandPalette commands={commands} onClose={onClose} />)
+    const input = screen.getByRole('combobox')
+    expect(document.activeElement).toBe(input)
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(document.activeElement).toBe(input)
+    input.blur()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closing gives focus back, unless what the command opened already took it', () => {
+    const opener = document.createElement('button')
+    const other = document.createElement('input')
+    document.body.append(opener, other)
+    opener.focus()
+    const { unmount } = render(<CommandPalette commands={commands} onClose={vi.fn()} />)
+    other.focus()
+    unmount()
+    expect(document.activeElement).toBe(other)
+    opener.remove()
+    other.remove()
+  })
+})
+
+describe('DialogFrame focus return', () => {
+  it('a dialog closed after something else took the focus leaves it there', async () => {
+    const { DialogFrame } = await import('../../../components/shared/Dialog')
+    const opener = document.createElement('button')
+    const other = document.createElement('input')
+    document.body.append(opener, other)
+    opener.focus()
+    const { unmount } = render(<DialogFrame onClose={vi.fn()} aria-label="D"><button>In</button></DialogFrame>)
+    expect(document.activeElement?.textContent).toBe('In')
+    other.focus()
+    unmount()
+    expect(document.activeElement).toBe(other)
+    opener.remove()
+    other.remove()
+  })
+})
