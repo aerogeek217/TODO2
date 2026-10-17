@@ -350,7 +350,7 @@ describe('unsaved changes kept for a reload', () => {
   it('a new layout comes back new and unsaved; its lists must still be the same lists', async () => {
     const listId = await db.listDefinitions.add({
       name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateField: 'deadline', dateRangeIncludeNoDate: false } },
+      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
     } as never) as number
     const [a] = await seedAndInit(twoColumns('A'))
     await useListDefinitionStore.getState().load()

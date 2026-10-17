@@ -33,14 +33,10 @@ describe('list drafts', () => {
     const def = await addList('Team')
     const { edit } = useListDraftStore.getState()
     edit(def.id, (d) => ({ ...d, sort: 'name' }))
-    edit(def.id, (d) => ({ ...d, maxTasks: 5 }))
-    expect(drafts()[def.id]).toMatchObject({ sort: 'name', maxTasks: 5 })
+    edit(def.id, (d) => ({ ...d, grouping: 'status' }))
+    expect(drafts()[def.id]).toMatchObject({ sort: 'name', grouping: 'status' })
     edit(def.id, (d) => ({ ...d, sort: 'manual' }))
-    edit(def.id, (d) => {
-      const next = { ...d }
-      delete next.maxTasks
-      return next
-    })
+    edit(def.id, (d) => ({ ...d, grouping: 'none' }))
     expect(drafts()[def.id]).toBeUndefined()
   })
 

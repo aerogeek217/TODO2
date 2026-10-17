@@ -62,8 +62,6 @@ export interface WorkspaceSeed {
     /** Names of people for the predicate's `personIds`. */
     people?: string[]
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
-    maxTasks?: number
-    limitMode?: 'hard' | 'scroll'
   }>
   tasks?: Array<{
     title: string
@@ -100,12 +98,7 @@ export function emptyPredicate(): Record<string, unknown> {
     personIds: null,
     statusIds: null,
     searchText: '',
-    dateField: 'deadline',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasDeadline: null,
-    hasFollowup: null,
+    dates: {},
     markers: null,
     tags: null,
   }
@@ -169,8 +162,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         sort: def.sort ?? 'manual',
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
-        ...(def.maxTasks != null ? { maxTasks: def.maxTasks } : {}),
-        ...(def.limitMode ? { limitMode: def.limitMode } : {}),
       }))
     }
     let taskOrder = 0

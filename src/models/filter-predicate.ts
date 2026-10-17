@@ -46,6 +46,40 @@ export type DateAnchor =
   | { kind: 'relative'; token: RelativeDateToken }
   | { kind: 'offset'; days: number }
 
+/**
+ * A date filter on one date type:
+ *
+ * - `range` — the task's date, as a day, is within [start, end] (either end
+ *   open; a range with neither end is no filter and isn't stored). With
+ *   `includeNoDate` (due date / follow-up only, stored only when true) a
+ *   task without that date passes too.
+ * - `set` / `unset` — the date is set / empty (due date / follow-up only:
+ *   every task has a created and a modified date).
+ */
+export type DateMatch =
+  | DateRangeMatch
+  | { match: 'set' }
+  | { match: 'unset' }
+
+export interface DateRangeMatch {
+  match: 'range'
+  /** Lower bound, resolved at evaluation time; null = open. */
+  start: DateAnchor | null
+  /** Upper bound (the whole day), resolved at evaluation time; null = open. */
+  end: DateAnchor | null
+  /** Also keep tasks without the date (due date / follow-up only). */
+  includeNoDate?: boolean
+}
+
+/**
+ * The date filters, one clause per date type: a task must pass every clause
+ * (AND). An absent key = that type doesn't filter; `{}` = no date filter.
+ */
+export type DateFilters = Partial<Record<DateField, DateMatch>>
+
+/** The date types a task may lack: they offer Has a date / No date and "also tasks with no date". */
+export const OPTIONAL_DATE_FIELDS: readonly DateField[] = ['deadline', 'followup']
+
 /** Longest text filter a stored list keeps (its "Text contains" input has the same limit). */
 export const PREDICATE_SEARCH_TEXT_MAX = 500
 
@@ -76,8 +110,9 @@ export type MarkersFilter = typeof HOT_MARKERS | MarkerSet
 /**
  * Serializable predicate describing the live filter fields.
  *
- * Shape is JSON-friendly: number arrays (not Sets), and `DateAnchor` for date
- * range (either a fixed ISO string or a relative token resolved at eval time).
+ * Shape is JSON-friendly: number arrays (not Sets), and `DateAnchor`s for the
+ * date ranges (a fixed date, a relative token or a day offset, resolved at
+ * evaluation time).
  * Stored unchanged inside a list definition's `membership.predicate`, then
  * converted to the runtime `FilterCriteria` shape at evaluation time.
  */
@@ -87,20 +122,8 @@ export interface TodoPredicate {
   personIds: number[] | null
   statusIds: number[] | null
   searchText: string
-  dateField: DateField
-  /** Fixed ISO string or relative token; null = no lower bound. */
-  dateRangeStart: DateAnchor | null
-  dateRangeEnd: DateAnchor | null
-  /** With `dateField === 'deadline'`: also keep tasks that have no due date. */
-  dateRangeIncludeNoDate: boolean
-  /** Tri-state presence filter on `dueDate`. null = no filter. */
-  hasDeadline: boolean | null
-  /**
-   * Tri-state presence filter on `nextFollowupAt`. null = no filter. Optional
-   * on read so predicates stored before the field existed deserialize as
-   * `null` without a data rewrite.
-   */
-  hasFollowup?: boolean | null
+  /** The date filters, one clause per date type (AND); `{}` = none. */
+  dates: DateFilters
   /**
    * Markers filter (Hot, or Focus / Urgent / Important with strict AND);
    * null or absent = no filter. Optional on read.
@@ -123,12 +146,7 @@ export function emptyPredicate(): TodoPredicate {
     personIds: null,
     statusIds: null,
     searchText: '',
-    dateField: 'deadline',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasDeadline: null,
-    hasFollowup: null,
+    dates: {},
     markers: null,
     tags: null,
   }

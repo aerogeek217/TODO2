@@ -7,25 +7,32 @@ import type { TodoPredicate } from '../../models/filter-predicate'
 /** The empty predicate without its optional fields (as stored before they existed). */
 function requiredOnly(): TodoPredicate {
   const p: Partial<TodoPredicate> = emptyPredicate()
-  delete p.hasFollowup
   delete p.markers
   delete p.tags
   return p as TodoPredicate
 }
+
+const OCT_1 = { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' } as const
 
 /** Every predicate shape the app writes. */
 const APP_PREDICATES: Array<[string, TodoPredicate]> = [
   ['the empty predicate (new list)', emptyPredicate()],
   ['a screen filter saved as a predicate', criteriaToPredicate(predicateToCriteria(emptyPredicate()))],
   ['every field set', {
-    showCompleted: true, personIds: [1, 0], statusIds: [2], searchText: 'invoice', dateField: 'followup',
-    dateRangeStart: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, dateRangeEnd: { kind: 'offset', days: -7 },
-    dateRangeIncludeNoDate: true, hasDeadline: false, hasFollowup: true, markers: { urgent: true, focus: true }, tags: [3, 4],
+    showCompleted: true, personIds: [1, 0], statusIds: [2], searchText: 'invoice',
+    dates: {
+      deadline: { match: 'unset' },
+      followup: { match: 'range', start: OCT_1, end: { kind: 'offset', days: -7 }, includeNoDate: true },
+      created: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
+      modified: { match: 'range', start: { kind: 'offset', days: -30 }, end: null },
+    },
+    markers: { urgent: true, focus: true }, tags: [3, 4],
   }],
   ['Hot markers and relative dates', {
     ...emptyPredicate(), markers: 'hot',
-    dateRangeStart: { kind: 'relative', token: 'start-of-week' }, dateRangeEnd: { kind: 'relative', token: 'end-of-month-plus-3' },
+    dates: { deadline: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'end-of-month-plus-3' } } },
   }],
+  ['a due date that must be set', { ...emptyPredicate(), dates: { deadline: { match: 'set' } } }],
   ['empty id filters (match nothing)', { ...emptyPredicate(), personIds: [], statusIds: [], tags: [], markers: {} }],
   ['a predicate stored before the optional fields existed', requiredOnly()],
 ]
@@ -71,34 +78,63 @@ describe('pickPredicate', () => {
     expect(fixes).toEqual(['text filter shortened'])
   })
 
-  it('drops unknown keys (and keys inside date anchors) silently', () => {
+  it('drops unknown keys (the old single-range keys included, and keys inside clauses and anchors) silently', () => {
     const { predicate, fixes } = pickPredicate({
-      ...emptyPredicate(), focus: true, __proto__x: 1, dateRangeEnd: { kind: 'offset', days: 3, extra: 'x' },
+      ...emptyPredicate(), focus: true, __proto__x: 1, dateField: 'followup', hasDeadline: true,
+      dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: 3, extra: 'x' }, extra: 1 } },
     })
-    expect(predicate).toEqual({ ...emptyPredicate(), dateRangeEnd: { kind: 'offset', days: 3 } })
+    expect(predicate).toEqual({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: 3 } } } })
+    expect(fixes).toEqual([])
+  })
+
+  it('stores a clause in its one form: no clause that filters nothing, includeNoDate only when true on the due date / follow-up, date-type order', () => {
+    const { predicate, fixes } = pickPredicate({
+      ...emptyPredicate(),
+      dates: {
+        modified: { match: 'range', start: OCT_1, end: null, includeNoDate: true },
+        followup: { match: 'range', start: null, end: null, includeNoDate: true },
+        deadline: { match: 'range', start: OCT_1, end: null, includeNoDate: false },
+      },
+    })
+    expect(predicate.dates).toEqual({ deadline: { match: 'range', start: OCT_1, end: null }, modified: { match: 'range', start: OCT_1, end: null } })
+    expect(Object.keys(predicate.dates)).toEqual(['deadline', 'modified'])
+    expect(fixes).toEqual([])
+  })
+
+  it.each([
+    ['an unknown date type', { scheduled: { match: 'set' } }, 'unknown date filter dropped'],
+    ['an unknown match', { deadline: { match: 'between' } }, 'due date filter dropped'],
+    ['a clause that is not an object', { deadline: 'set' }, 'due date filter dropped'],
+    ['Has a date on the created date', { created: { match: 'set' } }, 'created date filter dropped'],
+    ['No date on the modified date', { modified: { match: 'unset' } }, 'modified date filter dropped'],
+    ['a bad range end', { deadline: { match: 'range', start: { kind: 'relative', token: 'someday' }, end: null } }, 'due date filter dropped'],
+    ['a range end that is not a date', { deadline: { match: 'range', start: 'soon', end: null } }, 'due date filter dropped'],
+    ['a non-boolean includeNoDate', { deadline: { match: 'range', start: OCT_1, end: null, includeNoDate: 'yes' } }, 'due date filter dropped'],
+  ])('drops %s (no filter on that type), and says so', (_name, dates, fix) => {
+    const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), dates: { ...dates, followup: { match: 'set' } } })
+    expect(fixes).toEqual([fix])
+    expect(predicate.dates).toEqual({ followup: { match: 'set' } })
+  })
+
+  it('reads a legacy ISO-string range end as a fixed anchor', () => {
+    const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: '2026-10-01T05:00:00.000Z', end: '2026-10-31' } } })
+    expect(predicate.dates).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T05:00:00.000Z' }, end: { kind: 'fixed', iso: '2026-10-31' } } })
     expect(fixes).toEqual([])
   })
 
   it('fills a missing required field with its default', () => {
-    expect(pickPredicate({ showCompleted: true, searchText: 'a', dateRangeIncludeNoDate: false })).toEqual({
+    expect(pickPredicate({ showCompleted: true, searchText: 'a', dates: {} })).toEqual({
       predicate: {
-        showCompleted: true, personIds: null, statusIds: null, searchText: 'a', dateField: 'deadline',
-        dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null,
+        showCompleted: true, personIds: null, statusIds: null, searchText: 'a', dates: {},
       },
       fixes: [],
     })
   })
 
-  it('resets malformed core fields (rows already stored; import rejects them) and reads a legacy ISO date', () => {
-    const { predicate, fixes } = pickPredicate({
-      showCompleted: 'yes', searchText: 7, dateField: 'scheduled', dateRangeIncludeNoDate: 1,
-      dateRangeStart: '2026-10-01T00:00:00.000Z', dateRangeEnd: { kind: 'bogus' }, hasDeadline: 'no', hasFollowup: 3,
-    })
-    expect(predicate).toEqual({
-      ...emptyPredicate(), markers: undefined, tags: undefined,
-      dateRangeStart: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' },
-    })
-    expect(fixes).toHaveLength(7)
+  it('resets malformed core fields (rows already stored; import rejects them)', () => {
+    const { predicate, fixes } = pickPredicate({ showCompleted: 'yes', searchText: 7, dates: [] })
+    expect(predicate).toEqual(requiredOnly())
+    expect(fixes).toEqual(['text filter reset', 'date filters reset', 'show completed reset'])
   })
 
   it('turns a missing or non-object predicate into the empty one', () => {
@@ -112,26 +148,22 @@ describe('checkPredicateShape', () => {
   it.each([
     ['showCompleted', { showCompleted: 'yes' }],
     ['searchText', { searchText: 5 }],
-    ['dateRangeIncludeNoDate', { dateRangeIncludeNoDate: undefined }],
-    ['dateRangeStart', { dateRangeStart: 'not a date' }],
-    ['dateRangeEnd', { dateRangeEnd: { kind: 'relative', token: 'someday' } }],
-    ['dateField', { dateField: 'scheduled' }],
-    ['hasDeadline', { hasDeadline: 'no' }],
-    ['hasFollowup', { hasFollowup: 1 }],
+    ['dates', { dates: undefined }],
+    ['dates', { dates: [] }],
+    ['dates', { dates: 'due' }],
   ])('names a malformed %s', (field, patch) => {
     expect(checkPredicateShape({ ...emptyPredicate(), ...patch })).toBe(field)
   })
 
-  it('accepts the legacy ISO-string date anchor a 2026-04 build stored (pickPredicate makes it fixed)', () => {
-    const legacy = { ...emptyPredicate(), dateRangeStart: '2026-10-01T05:00:00.000Z', dateRangeEnd: '2026-10-31' }
-    expect(checkPredicateShape(legacy)).toBe(true)
-    expect(pickPredicate(legacy).predicate).toMatchObject({
-      dateRangeStart: { kind: 'fixed', iso: '2026-10-01T05:00:00.000Z' },
-      dateRangeEnd: { kind: 'fixed', iso: '2026-10-31' },
-    })
+  it('a predicate in the old single-range shape (no `dates`) is rejected: only the v64 upgrade reads it', () => {
+    const old = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dateField: 'deadline', dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: true }
+    expect(checkPredicateShape(old)).toBe('dates')
   })
 
   it('does not check what pickPredicate sanitises', () => {
-    expect(checkPredicateShape({ ...emptyPredicate(), personIds: 5, tags: 'x', markers: 'warm', searchText: 'x'.repeat(10_000) })).toBe(true)
+    expect(checkPredicateShape({
+      ...emptyPredicate(), personIds: 5, tags: 'x', markers: 'warm', searchText: 'x'.repeat(10_000),
+      dates: { scheduled: 1, deadline: { match: 'between' } },
+    })).toBe(true)
   })
 })

@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react'
 import { toggleItem } from '../../../utils/filter'
 import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
+import { activeDateFields, datePresenceOf, dateRangeOf, isDateMatchOn, withDateMatch } from '../../../utils/date-filters'
+import type { DateAnchor, DateField } from '../../../models'
 import { DateAnchorInput } from '../DateAnchorInput'
 import { FollowupFlagIcon } from '../FollowupIcons'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
-import { MARKER_KEYS } from '../../../models'
+import { DATE_FIELD_VALUES, MARKER_KEYS } from '../../../models'
 import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import {
@@ -128,6 +130,8 @@ export function FilterChipBarMobile({
 }: FilterChipBarProps) {
   const [openSection, setOpenSection] = useState<MobileSection | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
+  // The date type the Date range section edits (picking one writes nothing).
+  const [dateField, setDateField] = useState<DateField>(() => activeDateFields(predicate.dates)[0] ?? 'deadline')
   const resetDensityState = useCallback(() => {
     setOpenSection(null)
     setEntitySearch('')
@@ -151,6 +155,17 @@ export function FilterChipBarMobile({
     setTags,
     clearAll,
   } = s
+
+  const range = dateRangeOf(p.dates[dateField])
+  const setRange = (start: DateAnchor | null, end: DateAnchor | null, includeNoDate = range.includeNoDate) => {
+    update({ dates: withDateMatch(p.dates, dateField, { match: 'range', start, end, includeNoDate }) })
+  }
+  const setPresence = (field: DateField, v: boolean | null) => {
+    update({ dates: withDateMatch(p.dates, field, v === null ? null : { match: v ? 'set' : 'unset' }) })
+  }
+  const hasDue = datePresenceOf(p.dates.deadline)
+  const hasFollowup = datePresenceOf(p.dates.followup)
+  const noDateLabel = dateField === 'followup' ? 'Include tasks with no follow-up' : 'Include tasks with no due date'
 
   const handleSection = (next: MobileSection) => {
     setOpenSection(openSection === next ? null : next)
@@ -299,11 +314,13 @@ export function FilterChipBarMobile({
       >
         <div className={sheet.dateSection}>
           <div className={sheet.dateFieldSelector}>
-            {(['deadline', 'followup', 'created', 'modified'] as const).map((field) => (
+            {DATE_FIELD_VALUES.map((field) => (
               <button
                 key={field}
-                className={`${sheet.dateFieldOption} ${p.dateField === field ? sheet.dateFieldOptionActive : ''}`}
-                onClick={() => update({ dateField: field })}
+                aria-pressed={field === dateField}
+                data-filtering={isDateMatchOn(p.dates[field]) ? '' : undefined}
+                className={`${sheet.dateFieldOption} ${dateField === field ? sheet.dateFieldOptionActive : ''} ${isDateMatchOn(p.dates[field]) ? sheet.dateFieldOptionLit : ''}`}
+                onClick={() => setDateField(field)}
               >
                 {DATE_FIELD_LABELS_SHORT[field]}
               </button>
@@ -311,29 +328,30 @@ export function FilterChipBarMobile({
           </div>
           <div className={sheet.dateInputs}>
             <DateAnchorInput
-              value={p.dateRangeStart}
-              onChange={(v) => update({ dateRangeStart: v, dateRangeEnd: p.dateRangeEnd })}
+              value={range.start}
+              onChange={(v) => setRange(v, range.end)}
               aria-label="Date range start"
             />
             <span style={{ color: 'var(--color-text-muted)' }}>to</span>
             <DateAnchorInput
-              value={p.dateRangeEnd}
-              onChange={(v) => update({ dateRangeStart: p.dateRangeStart, dateRangeEnd: v })}
+              value={range.end}
+              onChange={(v) => setRange(range.start, v)}
               aria-label="Date range end"
             />
           </div>
-          {p.dateField === 'deadline' && (
+          {(dateField === 'deadline' || dateField === 'followup') && (
             <div className={sheet.filterRow}>
               <span className={sheet.filterLabel}>
                 <span className={sheet.filterLabelIcon}>∅</span>
-                Include tasks with no due date
+                {noDateLabel}
               </span>
               <button
-                className={`${sheet.toggle} ${p.dateRangeIncludeNoDate ? sheet.toggleActive : ''}`}
-                onClick={() => update({ dateRangeIncludeNoDate: !p.dateRangeIncludeNoDate })}
+                className={`${sheet.toggle} ${range.includeNoDate ? sheet.toggleActive : ''}`}
+                onClick={() => setRange(range.start, range.end, !range.includeNoDate)}
+                disabled={range.start === null && range.end === null}
                 role="switch"
-                aria-checked={p.dateRangeIncludeNoDate}
-                aria-label="Include tasks with no due date"
+                aria-checked={range.includeNoDate}
+                aria-label={noDateLabel}
               />
             </div>
           )}
@@ -343,12 +361,12 @@ export function FilterChipBarMobile({
               Has due date
             </span>
             <button
-              className={`${sheet.triToggle} ${p.hasDeadline !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => update({ hasDeadline: cycleTri(p.hasDeadline) })}
-              aria-label={`Has due date: ${triLabel(p.hasDeadline)}`}
-              title={triLabel(p.hasDeadline)}
+              className={`${sheet.triToggle} ${hasDue !== null ? sheet.triToggleActive : ''}`}
+              onClick={() => setPresence('deadline', cycleTri(hasDue))}
+              aria-label={`Has due date: ${triLabel(hasDue)}`}
+              title={triLabel(hasDue)}
             >
-              {triIcon(p.hasDeadline)}
+              {triIcon(hasDue)}
             </button>
           </div>
           <div className={sheet.filterRow}>
@@ -357,12 +375,12 @@ export function FilterChipBarMobile({
               Has follow-up
             </span>
             <button
-              className={`${sheet.triToggle} ${(p.hasFollowup ?? null) !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => update({ hasFollowup: cycleTri(p.hasFollowup ?? null) })}
-              aria-label={`Has follow-up: ${triLabel(p.hasFollowup ?? null)}`}
-              title={triLabel(p.hasFollowup ?? null)}
+              className={`${sheet.triToggle} ${hasFollowup !== null ? sheet.triToggleActive : ''}`}
+              onClick={() => setPresence('followup', cycleTri(hasFollowup))}
+              aria-label={`Has follow-up: ${triLabel(hasFollowup)}`}
+              title={triLabel(hasFollowup)}
             >
-              {triIcon(p.hasFollowup ?? null)}
+              {triIcon(hasFollowup)}
             </button>
           </div>
         </div>

@@ -36,9 +36,7 @@ const TODOS: PersistedTodoItem[] = [
 const ASSIGNED = new Map<number, Person[]>([[1, [ada]], [2, [ada, bob]], [3, [ada]], [4, [bob]], [5, [cy]], [6, [ada]]])
 
 const predicate: TodoPredicate = {
-  showCompleted: false, personIds: null, statusIds: null, searchText: 'review', dateField: 'deadline',
-  dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null,
-  hasFollowup: null, markers: null, tags: null,
+  showCompleted: false, personIds: null, statusIds: null, searchText: 'review', dates: {}, markers: null, tags: null,
 }
 const REVIEWS: PersistedListDefinition = {
   id: 7, name: 'Reviews', sortOrder: 1, sort: 'name', grouping: 'none', 

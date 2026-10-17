@@ -57,12 +57,7 @@ function evaluatorIds(screen: FilterCriteria, list: FilterCriteria): number[] {
     statusIds: list.statusIds ? [...list.statusIds] : null,
     tags: list.tags ? [...list.tags] : null,
     searchText: list.searchText,
-    dateField: list.dateField,
-    dateRangeStart: list.dateRangeStart,
-    dateRangeEnd: list.dateRangeEnd,
-    dateRangeIncludeNoDate: list.dateRangeIncludeNoDate,
-    hasDeadline: list.hasDeadline,
-    hasFollowup: list.hasFollowup,
+    dates: list.dates,
     markers: list.markers,
   }
   return todos.filter((t) => evaluate(predicate, t)).map((t) => t.id)
@@ -86,18 +81,18 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
   { name: 'search by status name', a: { searchText: 'doing' }, b: { searchText: 'only' }, onlyA: [1, 3], onlyB: [1, 2], both: [1] },
   {
     name: 'due range',
-    a: { dateField: 'deadline', dateRangeStart: fixed(day(10, 1)), dateRangeEnd: fixed(day(10, 15)) },
-    b: { dateField: 'deadline', dateRangeStart: fixed(day(10, 14)), dateRangeEnd: null },
+    a: { dates: { deadline: { match: 'range', start: fixed(day(10, 1)), end: fixed(day(10, 15)) } } },
+    b: { dates: { deadline: { match: 'range', start: fixed(day(10, 14)), end: null } } },
     onlyA: [1, 3], onlyB: [2, 3], both: [3],
   },
   {
     name: 'due range vs follow-up range (different date fields)',
-    a: { dateField: 'deadline', dateRangeStart: fixed(day(10, 1)), dateRangeEnd: fixed(day(10, 31)) },
-    b: { dateField: 'followup', dateRangeStart: fixed(day(10, 1)), dateRangeEnd: fixed(day(10, 31)) },
+    a: { dates: { deadline: { match: 'range', start: fixed(day(10, 1)), end: fixed(day(10, 31)) } } },
+    b: { dates: { followup: { match: 'range', start: fixed(day(10, 1)), end: fixed(day(10, 31)) } } },
     onlyA: [1, 2, 3], onlyB: [2, 4], both: [2],
   },
-  { name: 'has due date', a: { hasDeadline: true }, b: { hasDeadline: false }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
-  { name: 'has follow-up', a: { hasFollowup: true }, b: { hasDeadline: true }, onlyA: [2, 4], onlyB: [1, 2, 3], both: [2] },
+  { name: 'has due date', a: { dates: { deadline: { match: 'set' } } }, b: { dates: { deadline: { match: 'unset' } } }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
+  { name: 'has follow-up', a: { dates: { followup: { match: 'set' } } }, b: { dates: { deadline: { match: 'set' } } }, onlyA: [2, 4], onlyB: [1, 2, 3], both: [2] },
   { name: 'markers', a: { markers: { focus: true } }, b: { markers: { important: true } }, onlyA: [2, 3], onlyB: [4], both: [] },
   // Urgent = flagged (2) or due within 3 days, overdue included (1, 3).
   { name: 'urgent marker with focus', a: { markers: { urgent: true } }, b: { markers: { focus: true } }, onlyA: [1, 2, 3], onlyB: [2, 3], both: [2, 3] },
@@ -162,7 +157,7 @@ describe('composeScreenFilter', () => {
   it('different fields AND across screen and list', () => {
     expect(ids(crit({ personIds: new Set([1]) }), crit({ statusIds: new Set([1]) }))).toEqual([1, 3])
     expect(ids(crit({ tags: new Set([2]) }), crit({ personIds: new Set([1]) }))).toEqual([3])
-    expect(ids(crit({ searchText: 'only' }), crit({ hasFollowup: true }))).toEqual([2])
+    expect(ids(crit({ searchText: 'only' }), crit({ dates: { followup: { match: 'set' } } }))).toEqual([2])
   })
 
   describe('showCompleted ORs', () => {

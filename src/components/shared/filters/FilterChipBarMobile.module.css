@@ -110,6 +110,22 @@
   box-shadow: var(--shadow-card);
 }
 
+/* A date type that filters (selected or not): accent text and a dot. */
+.dateFieldOptionLit {
+  color: var(--color-accent);
+}
+
+.dateFieldOptionLit::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  vertical-align: 1px;
+}
+
 .dateInputs {
   display: flex;
   gap: 8px;

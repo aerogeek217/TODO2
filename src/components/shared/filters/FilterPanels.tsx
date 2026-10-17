@@ -1,8 +1,15 @@
-import type { ReactNode, RefObject } from 'react'
-import { MARKER_KEYS, type DateAnchor, type MarkersFilter } from '../../../models'
+import { useState, type ReactNode, type RefObject } from 'react'
+import { DATE_FIELD_VALUES, MARKER_KEYS, type DateAnchor, type DateFilters, type MarkersFilter } from '../../../models'
 import type { DateField } from '../../../models/app-view'
-import { fixedAnchor } from '../../../utils/filter-criteria'
-import { startOfToday } from '../../../utils/date'
+import {
+  activeDateFields,
+  datePresenceOf,
+  dateRangeOf,
+  hasDateFilters,
+  isDateMatchOn,
+  isOptionalDateField,
+  withDateMatch,
+} from '../../../utils/date-filters'
 import { DATE_FIELD_LABELS } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
 import { StatusIcon } from '../StatusIcon'
@@ -160,105 +167,97 @@ function TriStateRow({
 }
 
 export interface DateRangePanelBodyProps {
-  active: boolean
-  dateField: DateField
-  startAnchor: DateAnchor | null
-  endAnchor: DateAnchor | null
-  includeNoDate: boolean
-  hasDeadline: boolean | null
-  hasFollowup: boolean | null
-  onChangeDateField: (field: DateField) => void
-  onChangeAnchors: (start: DateAnchor | null, end: DateAnchor | null) => void
-  onChangeIncludeNoDate: (include: boolean) => void
-  onChangeHasDeadline: (v: boolean | null) => void
-  onChangeHasFollowup: (v: boolean | null) => void
-  /** After Clear resets the range and the presence filters. */
+  /** The date filters edited: one clause per date type. */
+  dates: DateFilters
+  /** The date type selected when the panel opens; default the first that filters, else Due. */
+  initialField?: DateField
+  onChange: (dates: DateFilters) => void
+  /** After Clear resets every date type. */
   onCleared?: () => void
 }
 
+/** "Include tasks with no …" per date type that offers it. */
+const NO_DATE_LABEL: Partial<Record<DateField, string>> = {
+  deadline: 'Include tasks with no due date',
+  followup: 'Include tasks with no follow-up',
+}
+
 /**
- * The date filter: which date field, a From / To range, "include tasks with
- * no due date", the has-due-date / has-follow-up tri-states, and Clear.
+ * The date filters, one clause per date type (a task must pass every one):
+ * the type buttons pick which type From / To and "include tasks with no …"
+ * edit — picking one writes nothing; a type that filters is lit — then the
+ * has-due-date / has-follow-up tri-states and Clear (every type).
  */
-export function DateRangePanelBody({
-  active,
-  dateField,
-  startAnchor,
-  endAnchor,
-  includeNoDate,
-  hasDeadline,
-  hasFollowup,
-  onChangeDateField,
-  onChangeAnchors,
-  onChangeIncludeNoDate,
-  onChangeHasDeadline,
-  onChangeHasFollowup,
-  onCleared,
-}: DateRangePanelBodyProps) {
+export function DateRangePanelBody({ dates, initialField, onChange, onCleared }: DateRangePanelBodyProps) {
+  const [field, setField] = useState<DateField>(() => initialField ?? activeDateFields(dates)[0] ?? 'deadline')
+  const { start, end, includeNoDate } = dateRangeOf(dates[field])
+  const hasEnd = start !== null || end !== null
+  const setRange = (s: DateAnchor | null, e: DateAnchor | null, include = includeNoDate) => {
+    onChange(withDateMatch(dates, field, { match: 'range', start: s, end: e, includeNoDate: include }))
+  }
+  const setPresence = (f: DateField, v: boolean | null) => {
+    onChange(withDateMatch(dates, f, v === null ? null : { match: v ? 'set' : 'unset' }))
+  }
+  const noDateLabel = isOptionalDateField(field) ? NO_DATE_LABEL[field] : undefined
   return (
     <>
       <div className={picker.dateFieldSelector}>
-        {(['deadline', 'followup', 'created', 'modified'] as const).map((field) => (
-          <button
-            type="button"
-            key={field}
-            className={`${picker.dateFieldOption} ${dateField === field ? picker.dateFieldOptionActive : ''}`}
-            onClick={() => {
-              if (field === dateField) return
-              onChangeDateField(field)
-              const todayAnchor = fixedAnchor(startOfToday())
-              if (field === 'deadline' || field === 'followup') {
-                onChangeAnchors(todayAnchor, null)
-              } else {
-                onChangeAnchors(null, todayAnchor)
-              }
-            }}
-          >
-            {DATE_FIELD_LABELS[field]}
-          </button>
-        ))}
+        {DATE_FIELD_VALUES.map((f) => {
+          const lit = isDateMatchOn(dates[f])
+          return (
+            <button
+              type="button"
+              key={f}
+              aria-pressed={f === field}
+              data-filtering={lit ? '' : undefined}
+              className={`${picker.dateFieldOption} ${f === field ? picker.dateFieldOptionActive : ''} ${lit ? picker.dateFieldOptionLit : ''}`}
+              onClick={() => setField(f)}
+            >
+              {DATE_FIELD_LABELS[f]}
+            </button>
+          )
+        })}
       </div>
       <div className={picker.dropdownDivider} />
       <div className={picker.dateRangeRow}>
         <label className={picker.dateLabel}>From</label>
         <DateAnchorInput
-          value={startAnchor}
-          onChange={(v) => onChangeAnchors(v, endAnchor)}
+          value={start}
+          onChange={(v) => setRange(v, end)}
           aria-label="Date range start"
         />
       </div>
       <div className={picker.dateRangeRow}>
         <label className={picker.dateLabel}>To</label>
         <DateAnchorInput
-          value={endAnchor}
-          onChange={(v) => onChangeAnchors(startAnchor, v)}
+          value={end}
+          onChange={(v) => setRange(start, v)}
           aria-label="Date range end"
         />
       </div>
-      {dateField === 'deadline' && (
+      {noDateLabel && (
         <>
           <div className={picker.dropdownDivider} />
           <label
-            className={picker.dropdownItem}
-            onClick={() => onChangeIncludeNoDate(!includeNoDate)}
+            className={`${picker.dropdownItem} ${hasEnd ? '' : picker.dropdownItemDisabled}`}
+            aria-disabled={!hasEnd}
+            onClick={() => { if (hasEnd) setRange(start, end, !includeNoDate) }}
           >
             <span className={`${picker.check} ${includeNoDate ? picker.checked : ''}`} />
-            Include tasks with no due date
+            {noDateLabel}
           </label>
         </>
       )}
       <div className={picker.dropdownDivider} />
-      <TriStateRow label="Has due date" value={hasDeadline} onChange={onChangeHasDeadline} />
-      <TriStateRow label="Has follow-up" value={hasFollowup} onChange={onChangeHasFollowup} />
+      <TriStateRow label="Has due date" value={datePresenceOf(dates.deadline)} onChange={(v) => setPresence('deadline', v)} />
+      <TriStateRow label="Has follow-up" value={datePresenceOf(dates.followup)} onChange={(v) => setPresence('followup', v)} />
       <div className={picker.dropdownDivider} />
       <div className={picker.dropdownActions}>
         <button
           type="button"
-          className={`${picker.dropdownAction} ${!active ? picker.dropdownActionDisabled : ''}`}
+          className={`${picker.dropdownAction} ${!hasDateFilters(dates) ? picker.dropdownActionDisabled : ''}`}
           onClick={() => {
-            onChangeAnchors(null, null)
-            onChangeHasDeadline(null)
-            onChangeHasFollowup(null)
+            onChange({})
             onCleared?.()
           }}
         >

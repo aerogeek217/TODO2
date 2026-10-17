@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Dexie from 'dexie'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV63 } from '../../data/upgrades/v63-app-background-and-list-pin'
-import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport, prepareImportText } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
 import { backupRepository } from '../../data/backup-repository'
@@ -89,8 +89,8 @@ describe('upgradeV63 (pure)', () => {
     ])
   })
 
-  it('the result passes import validation with no warning', () => {
-    const out = upgradeV63(v62DataSet())
+  it('the result, upgraded to the current version, passes import validation with no warning', () => {
+    const out = upgradeDataSet(upgradeV63(v62DataSet()), 63, CURRENT_DB_VERSION)
     const result = validateImportData({ todos: [], ...out })
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.warnings).toEqual([])

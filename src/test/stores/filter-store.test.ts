@@ -90,107 +90,68 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
   })
 
-  it('dateField defaults to deadline (due date)', () => {
-    expect(useFilterStore.getState().filters.dateField).toBe('deadline')
+  it('no date filter by default', () => {
+    expect(useFilterStore.getState().filters.dates).toEqual({})
   })
 
-  it('setDateField changes the date field', () => {
-    patchScreenFilter({ dateField: 'created' })
-    expect(useFilterStore.getState().filters.dateField).toBe('created')
-
-    patchScreenFilter({ dateField: 'modified' })
-    expect(useFilterStore.getState().filters.dateField).toBe('modified')
-
-    patchScreenFilter({ dateField: 'followup' })
-    expect(useFilterStore.getState().filters.dateField).toBe('followup')
-
-    patchScreenFilter({ dateField: 'deadline' })
-    expect(useFilterStore.getState().filters.dateField).toBe('deadline')
-  })
-
-  it('date range filters by due date with the default dateField', () => {
+  it('setDateRange sets the due-date range; both ends null removes it', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
+    expect(Object.keys(f().dates)).toEqual(['deadline'])
     expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
     expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-    // No date excluded by default
+    // No date excluded by default; a follow-up date doesn't count.
     expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 4, nextFollowupAt: new Date('2025-03-15') }))).toBe(false)
+    useFilterStore.getState().setDateRange(null, null)
+    expect(f().dates).toEqual({})
+    expect(useFilterStore.getState().isActive).toBe(false)
   })
 
-  it('date range filters by createdAt when dateField is created', () => {
-    patchScreenFilter({ dateField: 'created' })
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
+  describe('date filters: a clause per date type', () => {
+    const march = { match: 'range', start: { kind: 'fixed', iso: '2025-03-01' }, end: { kind: 'fixed', iso: '2025-03-31' } } as const
 
-    expect(matchesFilter(f(), makeTodo({ id: 1, createdAt: new Date('2025-03-15') }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, createdAt: new Date('2025-04-15') }))).toBe(false)
-  })
-
-  it('date range filters by modifiedAt when dateField is modified', () => {
-    patchScreenFilter({ dateField: 'modified' })
-    useFilterStore.getState().setDateRange(new Date('2025-06-01'), new Date('2025-06-30'))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, modifiedAt: new Date('2025-06-15') }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, modifiedAt: new Date('2025-05-15') }))).toBe(false)
-  })
-
-  it('date range filters by dueDate when dateField is deadline', () => {
-    patchScreenFilter({ dateField: 'deadline' })
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-    // A follow-up-only task does NOT pass the due-date filter
-    expect(matchesFilter(f(), makeTodo({ id: 3, nextFollowupAt: new Date('2025-03-15') }))).toBe(false)
-  })
-
-  it('includeNoDate keeps tasks without a due date when dateField is deadline', () => {
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-    patchScreenFilter({ dateRangeIncludeNoDate: true })
-
-    expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-  })
-
-  it('includeNoDate has no effect on other date fields', () => {
-    patchScreenFilter({ dateField: 'followup' })
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-    patchScreenFilter({ dateRangeIncludeNoDate: true })
-
-    expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(false)
-  })
-
-  describe('hasDeadline / hasFollowup presence filters', () => {
-    it('hasDeadline=true keeps only tasks with a due date', () => {
-      patchScreenFilter({ hasDeadline: true })
-      expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+    it('a range on created / modified / follow-up reads that date', () => {
+      patchScreenFilter({ dates: { created: march } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, createdAt: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, createdAt: new Date('2025-04-15') }))).toBe(false)
+      patchScreenFilter({ dates: { modified: march } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, modifiedAt: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, modifiedAt: new Date('2025-05-15') }))).toBe(false)
+      patchScreenFilter({ dates: { followup: march } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, nextFollowupAt: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-03-15') }))).toBe(false)
     })
 
-    it('hasDeadline=false keeps only tasks without a due date', () => {
-      patchScreenFilter({ hasDeadline: false })
+    it('includeNoDate keeps tasks without the date — on the due date and on the follow-up', () => {
+      patchScreenFilter({ dates: { deadline: { ...march, includeNoDate: true } } })
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
+      patchScreenFilter({ dates: { followup: { ...march, includeNoDate: true } } })
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2025-04-15') }))).toBe(false)
+    })
+
+    it('Has a date / No date', () => {
+      patchScreenFilter({ dates: { deadline: { match: 'set' } } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
+      patchScreenFilter({ dates: { deadline: { match: 'unset' } } })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
     })
 
-    it('null (default) disables the presence filter entirely', () => {
-      expect(f().hasDeadline).toBeNull()
-      expect(f().hasFollowup).toBeNull()
-      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+    it('several date types: a task must pass every one (AND)', () => {
+      patchScreenFilter({ dates: { deadline: { match: 'set' }, followup: { match: 'set' }, created: march } })
+      const both = { dueDate: new Date('2026-04-20'), nextFollowupAt: new Date('2026-04-16') }
+      expect(matchesFilter(f(), makeTodo({ id: 1, ...both, createdAt: new Date('2025-03-10') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, ...both, createdAt: new Date('2025-02-10') }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 3, nextFollowupAt: new Date('2026-04-16'), createdAt: new Date('2025-03-10') }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 4, dueDate: new Date('2026-04-20'), createdAt: new Date('2025-03-10') }))).toBe(false)
     })
 
-    it('hasDeadline and hasFollowup compose with AND', () => {
-      patchScreenFilter({ hasDeadline: true })
-      patchScreenFilter({ hasFollowup: true })
-      // Only the task with both should pass
-      expect(matchesFilter(f(), makeTodo({
-        id: 1,
-        nextFollowupAt: new Date('2026-04-16'),
-        dueDate: new Date('2026-04-20'),
-      }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2026-04-20') }))).toBe(false)
+    it('a range with neither end filters nothing', () => {
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: null, end: null } } })
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
     })
   })
 
@@ -276,7 +237,7 @@ describe('useFilterStore', () => {
     it('relative end-of-week resolves to the configured weekStartsOn boundary', () => {
       // Wednesday 2026-04-15 → Monday-first week ends Sunday 2026-04-19.
       const today = new Date('2026-04-15T12:00:00')
-      patchScreenFilter({ dateRangeStart: null, dateRangeEnd: { kind: 'relative', token: 'end-of-week' } })
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: null, end: { kind: 'relative', token: 'end-of-week' } } } })
 
       // Task due Sunday (2026-04-19) passes; task due next Monday (2026-04-20) fails.
       expect(matchesFilter(f(), makeTodo({
@@ -292,7 +253,7 @@ describe('useFilterStore', () => {
 
     it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
       const today = new Date('2026-04-15T12:00:00')
-      patchScreenFilter({ dateRangeStart: { kind: 'relative', token: 'tomorrow' }, dateRangeEnd: null })
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: { kind: 'relative', token: 'tomorrow' }, end: null } } })
       // Today-due task excluded (before tomorrow); tomorrow-due passes.
       expect(matchesFilter(f(), makeTodo({
         id: 1,
@@ -306,28 +267,17 @@ describe('useFilterStore', () => {
     })
 
     it('fixed anchor behaves like the legacy ISO-string range', () => {
-      patchScreenFilter({
-        dateRangeStart: { kind: 'fixed', iso: '2025-03-01' },
-        dateRangeEnd: { kind: 'fixed', iso: '2025-03-31' },
-      })
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: { kind: 'fixed', iso: '2025-03-01' }, end: { kind: 'fixed', iso: '2025-03-31' } } } })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
     })
   })
 
-  it('clearAll resets dateField to deadline', () => {
-    patchScreenFilter({ dateField: 'modified' })
-    useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.dateField).toBe('deadline')
-  })
-
-  it('clearAll resets hasDeadline / hasFollowup to null', () => {
-    patchScreenFilter({ hasFollowup: true })
-    patchScreenFilter({ hasDeadline: false })
+  it('clearAll clears every date type', () => {
+    patchScreenFilter({ dates: { followup: { match: 'set' }, deadline: { match: 'unset' } } })
     expect(useFilterStore.getState().isActive).toBe(true)
     useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.hasFollowup).toBeNull()
-    expect(useFilterStore.getState().filters.hasDeadline).toBeNull()
+    expect(useFilterStore.getState().filters.dates).toEqual({})
   })
 
   describe('tags filter', () => {
@@ -428,12 +378,10 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       personIds: new Set([5, 10]),
       statusIds: new Set([0, 3]),
       searchText: 'x',
-      dateField: 'deadline' as const,
-      dateRangeStart: { kind: 'fixed' as const, iso: '2025-03-01T00:00:00.000Z' },
-      dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const },
-      dateRangeIncludeNoDate: true,
-      hasDeadline: null,
-      hasFollowup: true,
+      dates: {
+        deadline: { match: 'range' as const, start: { kind: 'fixed' as const, iso: '2025-03-01T00:00:00.000Z' }, end: { kind: 'relative' as const, token: 'end-of-week' as const }, includeNoDate: true },
+        followup: { match: 'set' as const },
+      },
       markers: null,
       tags: null,
     }
@@ -441,18 +389,12 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const serialized = criteriaToPredicate(original)
     expect(Array.isArray(serialized.personIds)).toBe(true)
     expect(serialized.personIds).toEqual([5, 10])
-    expect(serialized.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
-    expect(serialized.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
-    expect(serialized.hasFollowup).toBe(true)
-    expect(serialized.hasDeadline).toBe(null)
+    expect(serialized.dates).toEqual(original.dates)
 
     const runtime = predicateToCriteria(serialized)
     expect(runtime.personIds instanceof Set).toBe(true)
     expect([...runtime.personIds!].sort((a, b) => a - b)).toEqual([5, 10])
-    expect(runtime.dateField).toBe('deadline')
-    expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
-    expect(runtime.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
-    expect(runtime.hasFollowup).toBe(true)
+    expect(runtime.dates).toEqual(original.dates)
   })
 
   it('tags round-trip as Set ↔ array; missing field reads back as null', async () => {
@@ -462,12 +404,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       personIds: null,
       statusIds: null,
       searchText: '',
-      dateField: 'deadline' as const,
-      dateRangeStart: null,
-      dateRangeEnd: null,
-      dateRangeIncludeNoDate: false,
-      hasDeadline: null,
-      hasFollowup: null,
+      dates: {},
       markers: null,
       tags: new Set([10, 20]),
     }
@@ -486,21 +423,21 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     expect(backCompat.tags).toBeNull()
   })
 
-  it('legacy ISO-string dateRangeStart auto-upgrades to fixed anchor', async () => {
+  it('a legacy ISO-string range end reads as a fixed anchor; clauses that filter nothing are left out', async () => {
     const { predicateToCriteria } = await import('../../utils/filter-criteria')
     const legacy = {
       showCompleted: false,
       personIds: null,
       statusIds: null,
       searchText: '',
-      dateField: 'deadline' as const,
-      dateRangeStart: '2025-03-01' as unknown as never, // legacy string shape
-      dateRangeEnd: null,
-      dateRangeIncludeNoDate: false,
-      hasDeadline: null,
+      dates: {
+        deadline: { match: 'range', start: '2025-03-01' as unknown as never, end: null },
+        created: { match: 'set' as const },
+        followup: { match: 'range' as const, start: null, end: null, includeNoDate: true },
+      },
     }
     const runtime = predicateToCriteria(legacy as any)
-    expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01' })
+    expect(runtime.dates).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: '2025-03-01' }, end: null } })
   })
 })
 
@@ -515,8 +452,7 @@ describe('countActiveFilters', () => {
     const s = useFilterStore.getState()
     s.setSearchText('plumber')
     s.setShowCompleted(true)
-    patchScreenFilter({ hasDeadline: true })
-    patchScreenFilter({ hasFollowup: false })
+    patchScreenFilter({ dates: { deadline: { match: 'set' }, followup: { match: 'unset' } } })
     expect(countActiveFilters(useFilterStore.getState().filters)).toBe(3)
     expect(useFilterStore.getState().isActive).toBe(true)
   })

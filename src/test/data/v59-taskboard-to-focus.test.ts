@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import Dexie from 'dexie'
 import { CURRENT_DB_VERSION, db } from '../../data/database'
-import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { upgradeV59 } from '../../data/upgrades/v59-taskboard-to-focus'
 import { prepareImport } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
@@ -108,8 +108,8 @@ describe('upgradeV59 (pure)', () => {
     expect('listOrders' in out).toBe(false)
   })
 
-  it('the result passes import validation', () => {
-    const res = validateImportData(upgradeV59(v58DataSet()))
+  it('the result, upgraded to the current version, passes import validation', () => {
+    const res = validateImportData(upgradeDataSet(upgradeV59(v58DataSet()), 59, CURRENT_DB_VERSION))
     if (!res.ok) throw new Error(res.error)
     expect(res.data.todos.filter((t) => t.focus).map((t) => t.id)).toEqual([2, 3, 4])
   })

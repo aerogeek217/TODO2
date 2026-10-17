@@ -24,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 63
+export const CURRENT_DB_VERSION = 64
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -354,9 +354,16 @@ export class Todo2Database extends Dexie {
     // (`upgrades/v63-app-background-and-list-pin.ts`) drops the write-only
     // `pinnedToDashboard` from list definitions and renames the
     // `color.<theme>.canvasBg` colour overrides to `color.<theme>.appBg`.
+    this.version(63).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 63))
+
+    // v64: date filters per date type; the list and tag caps go. No index
+    // change; the transform (`upgrades/v64-date-filters-and-caps.ts`) folds
+    // each stored list predicate's date range and has-due-date / has-follow-up
+    // filters into `dates` (a clause per date type), and drops the lists'
+    // `maxTasks` / `limitMode` and the `maxTags` setting.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `63` first.
+    // docblock above). When bumping, turn this into a literal `64` first.
     this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }

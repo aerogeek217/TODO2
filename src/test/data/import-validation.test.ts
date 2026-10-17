@@ -307,12 +307,14 @@ describe('validateImportData', () => {
     expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: horizonSlots, selectedHorizonDefId'])
   })
 
-  // maxTags accepted as a known setting key.
-  it('accepts maxTags setting key', () => {
+  // Tags have no cap: a maxTags row (dropped by the v64 upgrade) is an unknown key now.
+  it('drops a maxTags row in a current file as an unrecognized setting', () => {
     const result = validateImportData(validData({
       settings: [{ key: 'maxTags', value: '20' }],
     }))
-    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.settings).toEqual([])
+    expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: maxTags'])
   })
 
   // Person color / RecurrenceRule validation.
@@ -485,7 +487,7 @@ describe('validateImportData', () => {
   })
 
   it('rebuilds a list membership from its known keys, dropping stray ones', () => {
-    const predicate = { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false }
+    const predicate = { showCompleted: false, searchText: '', dates: {} }
     const result = validateImportData(validData({
       listDefinitions: [{
         id: 1, name: 'L', sortOrder: 0, sort: 'manual', grouping: 'none',
@@ -496,7 +498,7 @@ describe('validateImportData', () => {
     expect(result.warnings).toEqual([])
     expect(result.data.listDefinitions[0]!.membership).toEqual({
       kind: 'custom',
-      predicate: { ...predicate, personIds: null, statusIds: null, dateField: 'deadline', dateRangeStart: null, dateRangeEnd: null, hasDeadline: null },
+      predicate: { ...predicate, personIds: null, statusIds: null },
     })
   })
 
@@ -545,7 +547,7 @@ describe('validateImportData', () => {
       statuses: [{ id: 1, name: long, color: '#00ff00', sortOrder: 0 }],
       listDefinitions: [{
         id: 1, name: long, sortOrder: 0, 
-        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false } },
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
         sort: 'manual', grouping: 'none',
       }],
     }))
@@ -577,7 +579,7 @@ describe('validateImportData', () => {
     const result = validateImportData(validData({
       listDefinitions: [{
         id: 1, name: 'By priority', sortOrder: 0,
-        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, dateField: 'deadline' } },
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
         sort: 'priority',
         grouping: 'none',
       }],
@@ -593,7 +595,7 @@ describe('validateImportData', () => {
           kind: 'custom',
           predicate: {
             showCompleted: false,
-            searchText: '', dateRangeIncludeNoDate: false, dateField: 'followup',
+            searchText: '', dates: { followup: { match: 'set' } },
           },
         },
         sort: 'followup',
@@ -610,10 +612,7 @@ describe('validateImportData', () => {
     ['grouping', { grouping: 'date' }],
     ['sort', { sort: 'project' }],
     ['grouping', { grouping: 'project' }],
-    ['dateField', { dateField: 'scheduled' }],
-    ['dateField', { dateField: 'date' }],
-  ])('rejects a listDefinition with a removed %s value %o', (_field, patch) => {
-    const { dateField, ...defPatch } = patch as { dateField?: string; sort?: string; grouping?: string }
+  ])('rejects a listDefinition with a removed %s value %o', (_field, defPatch) => {
     const result = validateImportData(validData({
       listDefinitions: [{
         id: 1, name: 'Old', sortOrder: 0, 
@@ -621,8 +620,7 @@ describe('validateImportData', () => {
           kind: 'custom',
           predicate: {
             showCompleted: false,
-            searchText: '', dateRangeIncludeNoDate: false,
-            ...(dateField ? { dateField } : {}),
+            searchText: '', dates: {},
           },
         },
         sort: 'manual',
@@ -637,7 +635,7 @@ describe('validateImportData', () => {
     function listWithMarkers(markers: unknown) {
       return {
         id: 1, name: 'List', sortOrder: 0, 
-        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, markers } },
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {}, markers } },
         sort: 'manual', grouping: 'none',
       }
     }
@@ -690,7 +688,7 @@ describe('validateImportData', () => {
     function list(id: number, name: string, predicate: Record<string, unknown>) {
       return {
         id, name, sortOrder: id, sort: 'manual', grouping: 'none',
-        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, ...predicate } },
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {}, ...predicate } },
       }
     }
 
@@ -716,11 +714,17 @@ describe('validateImportData', () => {
       const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { focus: true, legacy: 'x' })] }))
       if (!result.ok) throw new Error(result.error)
       const predicate = result.data.listDefinitions[0]!.membership.predicate
-      expect(Object.keys(predicate).sort()).toEqual([
-        'dateField', 'dateRangeEnd', 'dateRangeIncludeNoDate', 'dateRangeStart', 'hasDeadline',
-        'personIds', 'searchText', 'showCompleted', 'statusIds',
-      ])
+      expect(Object.keys(predicate).sort()).toEqual(['dates', 'personIds', 'searchText', 'showCompleted', 'statusIds'])
       expect(result.warnings).toEqual([])
+    })
+
+    it('drops a malformed date clause (or an unknown date type) with a warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [list(1, 'Dates', { dates: { scheduled: { match: 'set' }, deadline: { match: 'range', start: 'soon', end: null }, followup: { match: 'set' } } })],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.listDefinitions[0]!.membership.predicate.dates).toEqual({ followup: { match: 'set' } })
+      expect(result.warnings).toEqual(['Fixed the filters of 1 list: "Dates" (unknown date filter dropped, due date filter dropped)'])
     })
 
     it('still rejects a predicate missing its core shape', () => {
@@ -737,7 +741,7 @@ describe('validateImportData', () => {
           kind: 'custom',
           predicate: {
             showCompleted: false,
-            searchText: '', dateRangeIncludeNoDate: false,
+            searchText: '', dates: {},
           },
         },
         sort: 'manual',

@@ -164,7 +164,7 @@ describe('FilterChipBar — primitive', () => {
       expect(updates).toHaveLength(0)
       fireEvent.click(screen.getByText('Has due date'))
       const last = updates[updates.length - 1]!
-      expect(last.hasDeadline).toBe(true)
+      expect(last.dates).toEqual({ deadline: { match: 'set' } })
     })
 
     it('opening Date with no active filter does NOT commit a today anchor', () => {
@@ -228,43 +228,52 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.queryByText('Effective Date')).toBeNull()
     })
 
-    it('switching dateField commits BOTH field and seeded anchors atomically', () => {
-      // Regression: two in-handler `update` calls (one for `dateField`, one for
-      // anchors) used to close over the same stale `p`, so the second call
-      // dropped the dateField change. The dropdown's input row visibly changed
-      // but the effective filter still ran against the previous field.
+    it('picking a date type writes nothing; From then edits that type, and it lights up', () => {
       const updates: TodoPredicate[] = []
-      render(
+      const { rerender } = render(
         <FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
       )
       fireEvent.click(screen.getByRole('button', { name: /Date/i }))
       fireEvent.click(screen.getByText('Next follow-up'))
+      expect(updates).toHaveLength(0)
+      expect(screen.getByRole('button', { name: 'Next follow-up' })).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.change(document.querySelectorAll('input[type="date"]')[0]!, { target: { value: '2026-04-01' } })
       const last = updates.at(-1)!
-      expect(last.dateField).toBe('followup')
-      expect(last.dateRangeStart).not.toBeNull()
+      expect(Object.keys(last.dates)).toEqual(['followup'])
+      expect(last.dates.followup).toMatchObject({ match: 'range', end: null })
+      rerender(<FilterChipBar predicate={last} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByRole('button', { name: 'Next follow-up' })).toHaveAttribute('data-filtering')
+      expect(screen.getByRole('button', { name: 'Due date' })).not.toHaveAttribute('data-filtering')
     })
 
-    it('Clear inside Date dropdown clears anchors and both tri-states atomically', () => {
-      // Same closure-staleness bug as above: chained `update` calls for
-      // anchors + hasDeadline + hasFollowup used to leave the earlier patches
-      // re-overwritten by the later ones.
+    it('a second date type adds its own clause; both filter (AND)', () => {
+      const updates: TodoPredicate[] = []
+      const start: TodoPredicate = { ...emptyPredicate(), dates: { deadline: { match: 'set' } } }
+      render(<FilterChipBar predicate={start} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByRole('button', { name: /^Dates filter:/ }))
+      fireEvent.click(screen.getByText('Created'))
+      fireEvent.change(document.querySelectorAll('input[type="date"]')[1]!, { target: { value: '2026-04-30' } })
+      const last = updates.at(-1)!
+      expect(Object.keys(last.dates)).toEqual(['deadline', 'created'])
+      expect(last.dates.deadline).toEqual({ match: 'set' })
+    })
+
+    it('Clear inside Date dropdown clears every date type', () => {
       const updates: TodoPredicate[] = []
       const active: TodoPredicate = {
         ...emptyPredicate(),
-        dateRangeStart: { kind: 'fixed', iso: new Date().toISOString() },
-        hasFollowup: true,
-        hasDeadline: false,
+        dates: {
+          deadline: { match: 'unset' },
+          followup: { match: 'set' },
+          created: { match: 'range', start: { kind: 'fixed', iso: new Date().toISOString() }, end: null },
+        },
       }
       render(
         <FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />,
       )
       fireEvent.click(screen.getByRole('button', { name: /^Dates filter:/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-      const last = updates.at(-1)!
-      expect(last.dateRangeStart).toBeNull()
-      expect(last.dateRangeEnd).toBeNull()
-      expect(last.hasFollowup).toBeNull()
-      expect(last.hasDeadline).toBeNull()
+      expect(updates.at(-1)!.dates).toEqual({})
     })
 
     // Flip / clamp behavior is owned by `usePopoverAnchor` and verified in
@@ -370,7 +379,7 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(screen.getByText('Date range'))
       const btn = screen.getByRole('button', { name: /Has due date/ })
       fireEvent.click(btn)
-      expect(updates.at(-1)?.hasDeadline).toBe(true)
+      expect(updates.at(-1)?.dates).toEqual({ deadline: { match: 'set' } })
     })
 
     it('switches markers on at mobile density', () => {

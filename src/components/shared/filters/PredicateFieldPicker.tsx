@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { DateAnchor, TodoPredicate } from '../../../models'
+import type { TodoPredicate } from '../../../models'
 import { PREDICATE_SEARCH_TEXT_MAX } from '../../../models/filter-predicate'
 import type { DateField } from '../../../models/app-view'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -31,7 +31,7 @@ export interface PredicateFieldPickerProps {
   at: PopoverPoint
   /**
    * Adding this filter: an entity picker starts with nothing ticked (the
-   * first pick narrows to it) and a date picker starts on `dateField`.
+   * first pick narrows to it) and a date picker opens on `dateField`.
    */
   adding?: boolean
   dateField?: DateField
@@ -161,26 +161,12 @@ function DatesPicker({ predicate, presetField, update, onClose }: {
   update: (patch: Partial<TodoPredicate>) => void
   onClose: () => void
 }) {
-  // The field shown before a range is set (adding "Follow-up date" on a list
-  // whose stored field is due). It's written together with the range.
-  const hasRange = predicate.dateRangeStart != null || predicate.dateRangeEnd != null
-  const [field, setField] = useState<DateField>(!hasRange && presetField ? presetField : predicate.dateField)
-  const fieldRef = useRef(field)
-  const active = hasRange || predicate.hasDeadline != null || (predicate.hasFollowup ?? null) != null
+  // Adding "Follow-up date" opens on that type; a chip opens on the first type that filters.
   return (
     <DateRangePanelBody
-      active={active}
-      dateField={field}
-      startAnchor={predicate.dateRangeStart}
-      endAnchor={predicate.dateRangeEnd}
-      includeNoDate={predicate.dateRangeIncludeNoDate}
-      hasDeadline={predicate.hasDeadline}
-      hasFollowup={predicate.hasFollowup ?? null}
-      onChangeDateField={(f) => { fieldRef.current = f; setField(f) }}
-      onChangeAnchors={(start: DateAnchor | null, end: DateAnchor | null) => update({ dateField: fieldRef.current, dateRangeStart: start, dateRangeEnd: end })}
-      onChangeIncludeNoDate={(dateRangeIncludeNoDate) => update({ dateRangeIncludeNoDate })}
-      onChangeHasDeadline={(hasDeadline) => update({ hasDeadline })}
-      onChangeHasFollowup={(hasFollowup) => update({ hasFollowup })}
+      dates={predicate.dates}
+      initialField={presetField}
+      onChange={(dates) => update({ dates })}
       onCleared={onClose}
     />
   )

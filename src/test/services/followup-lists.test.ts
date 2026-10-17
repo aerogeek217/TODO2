@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useFilterStore } from '../../stores/filter-store'
-import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
+import { criteriaToPredicate, fixedAnchor, predicateToCriteria } from '../../utils/filter-criteria'
 import { buildList, type ListBuildContext } from '../../services/build-list'
 import { buildListSections, listSortComparator } from '../../services/list-sections'
 import { partitionByGroup, type GroupingContext } from '../../utils/task-grouping'
 import { resolveCrossGroupMutation } from '../../utils/cross-group-drag'
 import { defsEqual } from '../../utils/list-def-equal'
-import { validateRow } from '../../data/import-validation'
+import { rowFixes, validateRow } from '../../data/import-validation'
 import { emptyPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import type { PersistedTodoItem } from '../../models'
@@ -27,49 +27,42 @@ beforeEach(() => {
   useFilterStore.getState().clearAll()
 })
 
-describe('filter: hasFollowup + dateField followup', () => {
+describe('filter: the follow-up date', () => {
   const f = () => useFilterStore.getState().filters
 
-  it('tri-state presence: null = all, true = with, false = without', () => {
+  it('Has a date / No date: with, without; no clause = all', () => {
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today))).toHaveLength(5)
-    patchScreenFilter({ hasFollowup: true })
+    patchScreenFilter({ dates: { followup: { match: 'set' } } })
     expect(useFilterStore.getState().isActive).toBe(true)
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today)).map((t) => t.id))
       .toEqual([4, 3, 1, 2])
-    patchScreenFilter({ hasFollowup: false })
+    patchScreenFilter({ dates: { followup: { match: 'unset' } } })
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today)).map((t) => t.id))
       .toEqual([5])
   })
 
   it('date range on the next follow-up', () => {
-    patchScreenFilter({ dateField: 'followup' })
-    useFilterStore.getState().setDateRange(day(10, 14), day(10, 18))
+    patchScreenFilter({ dates: { followup: { match: 'range', start: fixedAnchor(day(10, 14)), end: fixedAnchor(day(10, 18)) } } })
     expect(all.filter((t) => matchesFilter(f(), t, undefined, today)).map((t) => t.id))
       .toEqual([3, 2])
   })
 
-  it('round-trips through the stored predicate; predicates without the key read as no filter', () => {
-    patchScreenFilter({ hasFollowup: false })
+  it('round-trips through the stored predicate', () => {
+    patchScreenFilter({ dates: { followup: { match: 'unset' } } })
     const p = criteriaToPredicate(f())
-    expect(p.hasFollowup).toBe(false)
-    expect(predicateToCriteria(p).hasFollowup).toBe(false)
-    const legacy = { ...p }
-    delete legacy.hasFollowup
-    expect(predicateToCriteria(legacy).hasFollowup).toBeNull()
+    expect(p.dates).toEqual({ followup: { match: 'unset' } })
+    expect(predicateToCriteria(p).dates).toEqual({ followup: { match: 'unset' } })
   })
 
-  it('list-definition equality sees hasFollowup (absent == null)', () => {
+  it('list-definition equality sees the follow-up clause; a range with no end equals none', () => {
     const base: PersistedListDefinition = {
-      id: 1, name: 'L', sortOrder: 0, 
+      id: 1, name: 'L', sortOrder: 0,
       membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'followup', grouping: 'followup',
     }
-    const withNull: PersistedListDefinition = { ...base, membership: { kind: 'custom', predicate: { ...emptyPredicate(), hasFollowup: null } } }
-    const legacyPredicate = { ...emptyPredicate() }
-    delete legacyPredicate.hasFollowup
-    const legacy: PersistedListDefinition = { ...base, membership: { kind: 'custom', predicate: legacyPredicate } }
-    const withTrue: PersistedListDefinition = { ...base, membership: { kind: 'custom', predicate: { ...emptyPredicate(), hasFollowup: true } } }
-    expect(defsEqual(withNull, legacy)).toBe(true)
-    expect(defsEqual(withNull, withTrue)).toBe(false)
+    const withOpenRange: PersistedListDefinition = { ...base, membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { followup: { match: 'range', start: null, end: null } } } } }
+    const withSet: PersistedListDefinition = { ...base, membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { followup: { match: 'set' } } } } }
+    expect(defsEqual(base, withOpenRange)).toBe(true)
+    expect(defsEqual(base, withSet)).toBe(false)
   })
 })
 
@@ -144,14 +137,15 @@ describe('import validation', () => {
     expect(validateRow('settings', { key: 'followupDefaultInterval', value: '0d' })).not.toBe(true)
   })
 
-  it('accepts hasFollowup on stored predicates, rejects non-booleans', () => {
+  it('accepts a follow-up clause on stored predicates; drops a malformed one with a warning', () => {
     const def = {
       name: 'L', sortOrder: 0, sort: 'followup', grouping: 'followup',
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), dateField: 'followup', hasFollowup: true } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { followup: { match: 'set' } } } },
     }
     expect(validateRow('listDefinitions', def)).toBe(true)
-    expect(validateRow('listDefinitions', {
-      ...def, membership: { kind: 'custom', predicate: { ...emptyPredicate(), hasFollowup: 'yes' } },
-    })).not.toBe(true)
+    expect(rowFixes('listDefinitions', def)).toEqual([])
+    const bad = { ...def, membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { followup: { match: 'yes' } } } } }
+    expect(validateRow('listDefinitions', bad)).toBe(true)
+    expect(rowFixes('listDefinitions', bad)).toEqual(['follow-up date filter dropped'])
   })
 })

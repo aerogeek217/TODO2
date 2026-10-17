@@ -267,6 +267,16 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
     'color.dark.accent': '#4f8cff', 'color.light.accent': '#1a5fd0',
     'color.dark.appBg': APP_BACKGROUND.dark, 'color.light.appBg': APP_BACKGROUND.light,
   })
+  // The lists' date filters are one clause per date type; no list or tag cap is left.
+  const lists = upgraded.stores.listDefinitions ?? []
+  for (const l of lists) {
+    const predicate = (l.membership as { predicate: Record<string, unknown> }).predicate
+    expect(typeof predicate.dates, `${String(l.name)} dates`).toBe('object')
+    expect('dateField' in predicate || 'hasDeadline' in predicate, `${String(l.name)} old date keys`).toBe(false)
+    expect('maxTasks' in l || 'limitMode' in l, `${String(l.name)} caps`).toBe(false)
+  }
+  expect(lists.find((l) => l.name === 'Someday')?.membership).toMatchObject({ predicate: { dates: { deadline: { match: 'unset' } } } })
+  expect((upgraded.stores.settings ?? []).some((r) => r.key === 'maxTags')).toBe(false)
 
   // Sync resumes: a real edit reaches the file.
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })

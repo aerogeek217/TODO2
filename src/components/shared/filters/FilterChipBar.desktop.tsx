@@ -449,18 +449,8 @@ export function FilterChipBarDesktop({
       kind: 'custom',
       render: (close) => (
         <DateRangePanelBody
-          active={dateActive}
-          dateField={p.dateField}
-          startAnchor={p.dateRangeStart}
-          endAnchor={p.dateRangeEnd}
-          includeNoDate={p.dateRangeIncludeNoDate}
-          hasDeadline={p.hasDeadline}
-          hasFollowup={p.hasFollowup ?? null}
-          onChangeDateField={(dateField) => update({ dateField })}
-          onChangeAnchors={(dateRangeStart, dateRangeEnd) => update({ dateRangeStart, dateRangeEnd })}
-          onChangeIncludeNoDate={(dateRangeIncludeNoDate) => update({ dateRangeIncludeNoDate })}
-          onChangeHasDeadline={(hasDeadline) => update({ hasDeadline })}
-          onChangeHasFollowup={(hasFollowup) => update({ hasFollowup })}
+          dates={p.dates}
+          onChange={(dates) => update({ dates })}
           onCleared={close}
         />
       ),

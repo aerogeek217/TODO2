@@ -32,15 +32,13 @@ describe('filterChips', () => {
       personIds: [1, 2, 3],
       markers: { important: true as const },
       tags: [1],
-      hasDeadline: true,
-      dateRangeStart: { kind: 'relative' as const, token: 'today' as const },
-      dateRangeEnd: { kind: 'offset' as const, days: 14 },
+      dates: { deadline: { match: 'range' as const, start: { kind: 'relative' as const, token: 'today' as const }, end: { kind: 'offset' as const, days: 14 } } },
     }
     expect(filterChips(p, names)).toEqual([
       { field: 'markers', label: 'Priority', value: 'Important' },
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'people', label: 'People', value: 'Alice +2' },
-      { field: 'dates', label: 'Due', value: 'within 14 days, has due date' },
+      { field: 'dates', label: 'Due', value: 'within 14 days' },
       { field: 'status', label: 'Status', value: 'Waiting' },
       { field: 'text', label: 'Text', value: '“invoice”' },
     ])
@@ -62,10 +60,27 @@ describe('filterChips', () => {
     expect(filterChips(c, names, true).map((x) => x.field)).toEqual(['tags', 'completed'])
   })
 
-  it('presence-only date clauses read as Dates', () => {
-    expect(filterChips({ ...emptyPredicate(), hasFollowup: false }, names)).toEqual([
-      { field: 'dates', label: 'Dates', value: 'no follow-up' },
+  it('one date type reads as its name and clause; several as Dates and each type’s clause', () => {
+    expect(filterChips({ ...emptyPredicate(), dates: { followup: { match: 'unset' } } }, names)).toEqual([
+      { field: 'dates', label: 'Follow-up', value: 'no date' },
     ])
+    expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'set' } } }, names)).toEqual([
+      { field: 'dates', label: 'Due', value: 'has a date' },
+    ])
+    const week = { kind: 'offset' as const, days: 7 }
+    const today = { kind: 'offset' as const, days: 0 }
+    expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: today, end: week, includeNoDate: true } } }, names)).toEqual([
+      { field: 'dates', label: 'Due', value: 'within 7 days, or none' },
+    ])
+    expect(filterChips({
+      ...emptyPredicate(),
+      dates: { created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null }, deadline: { match: 'range', start: today, end: week } },
+    }, names)).toEqual([
+      { field: 'dates', label: 'Dates', value: 'Due within 7 days, Created from start of month' },
+    ])
+    // A range with no end filters nothing: no chip.
+    expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: null } } }, names)).toEqual([])
+    expect(hasNarrowingFilters({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: null } } })).toBe(false)
   })
 
   it('a Markers clause reads the first marker (+N), first among the chips', () => {
@@ -90,7 +105,7 @@ describe('filterChips', () => {
   })
 
   it('describeFilters joins chips in words', () => {
-    const p = { ...emptyPredicate(), statusIds: [1], dateField: 'followup' as const, dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const } }
+    const p = { ...emptyPredicate(), statusIds: [1], dates: { followup: { match: 'range' as const, start: null, end: { kind: 'relative' as const, token: 'end-of-week' as const } } } }
     expect(describeFilters(filterChips(p, names))).toBe('Follow-up by end of week · Status Waiting')
   })
 })
@@ -118,7 +133,8 @@ describe('clearChipField', () => {
     const p = {
       ...emptyPredicate(),
       personIds: [1], tags: [2], statusIds: [1], searchText: 'x',
-      dateRangeStart: { kind: 'offset' as const, days: 0 }, dateRangeIncludeNoDate: true, hasDeadline: true, hasFollowup: false, markers: { urgent: true as const },
+      dates: { deadline: { match: 'range' as const, start: { kind: 'offset' as const, days: 0 }, end: null, includeNoDate: true }, followup: { match: 'unset' as const } },
+      markers: { urgent: true as const },
     }
     expect(clearChipField(p, 'people').personIds).toBeNull()
     expect(clearChipField(p, 'tags').tags).toBeNull()
@@ -126,7 +142,7 @@ describe('clearChipField', () => {
     expect(clearChipField(p, 'text').searchText).toBe('')
     expect(clearChipField(p, 'markers')).toMatchObject({ markers: null, personIds: [1] })
     const dates = clearChipField(p, 'dates')
-    expect(dates).toMatchObject({ dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null, hasFollowup: null, personIds: [1] })
+    expect(dates).toMatchObject({ dates: {}, personIds: [1], markers: { urgent: true } })
   })
 })
 

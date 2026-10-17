@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { withDateMatch } from '../utils/date-filters'
 import { countActiveFilters, fixedAnchor, type FilterCriteria } from '../utils/filter-criteria'
 
 /**
@@ -15,7 +16,7 @@ interface FilterState {
   setPersonIds: (personIds: Set<number> | null) => void
   setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
-  /** Wraps Date endpoints as `{kind:'fixed', iso}` anchors. */
+  /** The due-date range, Date endpoints as `{kind:'fixed', iso}` anchors; both `null` = no due-date filter. */
   setDateRange: (start: Date | null, end: Date | null) => void
   setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
@@ -27,12 +28,7 @@ const defaultFilters: FilterCriteria = {
   personIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'deadline',
-  dateRangeStart: null,
-  dateRangeEnd: null,
-  dateRangeIncludeNoDate: false,
-  hasDeadline: null,
-  hasFollowup: null,
+  dates: {},
   markers: null,
   tags: null,
 }
@@ -66,10 +62,14 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   },
 
   setDateRange(start: Date | null, end: Date | null) {
+    const filters = get().filters
     commit(set, {
-      ...get().filters,
-      dateRangeStart: start ? fixedAnchor(start) : null,
-      dateRangeEnd: end ? fixedAnchor(end) : null,
+      ...filters,
+      dates: withDateMatch(filters.dates, 'deadline', {
+        match: 'range',
+        start: start ? fixedAnchor(start) : null,
+        end: end ? fixedAnchor(end) : null,
+      }),
     })
   },
 

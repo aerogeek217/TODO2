@@ -182,6 +182,16 @@ describe('dev seed → prepareImport → restore', () => {
     for (const l of lists) expect('pinnedToDashboard' in l, l.name).toBe(false)
     const colours = Object.fromEntries((await db.settings.toArray()).filter((s) => s.key.startsWith('color.')).map((s) => [s.key, s.value]))
     expect(colours).toEqual({ 'color.dark.accent': '#4f8cff', 'color.dark.appBg': '#111110', 'color.light.appBg': '#f5f4f2' })
+
+    // v64: date filters per date type; no list keeps a cap.
+    for (const l of lists) expect('maxTasks' in l || 'limitMode' in l, l.name).toBe(false)
+    const datesOf = (name: string) => lists.find((l) => l.name === name)!.membership.predicate.dates
+    // Due within 7 days + has a due date = the range alone.
+    expect(datesOf('Overdue & due soon')).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 7 } } })
+    expect(datesOf('Someday')).toEqual({ deadline: { match: 'unset' } })
+    // The effective-date range (v53: the due date) keeps "include no date".
+    expect(datesOf('Northwind')).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: expect.any(String) as string }, end: null, includeNoDate: true } })
+    expect(datesOf('Tasks for…')).toEqual({})
   })
 
   it('turns the taskboard into in-focus tasks in the Focus list, in board order', async () => {

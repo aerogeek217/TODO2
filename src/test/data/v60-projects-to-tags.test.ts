@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Dexie from 'dexie'
 import { CURRENT_DB_VERSION, db } from '../../data/database'
-import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import {
   upgradeV60,
   V60_DEFAULT_TAG_COLOR,
@@ -153,9 +153,9 @@ describe('upgradeV60 (pure)', () => {
     expect(V60_REMOVED_SETTING_KEYS).toHaveLength(5)
   })
 
-  it('the result passes import validation', () => {
+  it('the result, upgraded to the current version, passes import validation', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const result = validateImportData(upgradeV60(v59DataSet()))
+    const result = validateImportData(upgradeDataSet(upgradeV60(v59DataSet()), 60, CURRENT_DB_VERSION))
     expect(result.ok, result.ok ? '' : result.error).toBe(true)
   })
 

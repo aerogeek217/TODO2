@@ -12,9 +12,7 @@ const bob = makePerson({ id: 2, name: 'Bob' })
 const NONE: FilterCriteria = { ...emptyFilterCriteria, markers: null }
 
 const basePredicate: TodoPredicate = {
-  showCompleted: false, personIds: null, statusIds: null, searchText: '', dateField: 'deadline',
-  dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null,
-  hasFollowup: null, markers: null, tags: null,
+  showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null,
 }
 
 function list(id: number, predicate: Partial<TodoPredicate>, extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition {

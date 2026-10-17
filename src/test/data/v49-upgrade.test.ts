@@ -85,8 +85,8 @@ describe('v49 fixture → prepareImport → restore', () => {
     for (const table of ALL_DATA_TABLES) {
       let expected = TABLES_ADDED_AFTER_V49.has(table.name) ? 0 : (fixture[table.name as FixtureTable] as unknown[]).length
       // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer;
-      // v56 adds `activeLayoutId`; v60 removes the five canvas / project settings.
-      if (table.name === 'settings') expected -= 3 - 1 + 5
+      // v56 adds `activeLayoutId`; v60 removes the five canvas / project settings; v64 `maxTags`.
+      if (table.name === 'settings') expected -= 3 - 1 + 5 + 1
       // v56 seeds the Default layout.
       if (table.name === 'layouts') expected = 1
       // v55 turns the two orgs into people and their two assignments into person assignments.
@@ -146,11 +146,11 @@ describe('v49 fixture → prepareImport → restore', () => {
     // v57 drops the favorites flag.
     expect(defs.every((d) => !('favorited' in d))).toBe(true)
     expect(defs[2]).toMatchObject({
-      maxTasks: 25, limitMode: 'scroll',
       runtimeFilter: { field: 'person', label: 'Who' }, sort: 'deadline', grouping: 'people',
     })
-    expect(defs[3]!.membership.predicate.dateRangeEnd).toEqual({ kind: 'offset', days: 30 })
-    expect(defs[3]!.membership.predicate.dateRangeStart).toEqual({ kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' })
+    expect(defs[3]!.membership.predicate.dates.deadline).toEqual({
+      match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 },
+    })
 
     const insets = fixtureAt(59).listInsets!
     expect(insets.find((i) => i.listDefinitionId === 3)?.runtimeFilterValue).toEqual([1, 2])
@@ -172,7 +172,7 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('preserves every surviving settings row, including theme colors (and rails JSON up to v59)', async () => {
     await importFixture()
     const settings = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
-    expect(settings.size).toBe(fixture.settings.length - 3 + 1 - 5)
+    expect(settings.size).toBe(fixture.settings.length - 3 + 1 - 5 - 1)
     expect(settings.get('weekStartsOn')).toBe('1')
     expect(settings.get('color.dark.accent')).toBe('#4f8cff')
     expect(settings.get('color.light.accent')).toBe('#1a5fd0')
@@ -304,11 +304,12 @@ describe('v49 fixture → follow-up fields: no backfill beyond the scheduled dat
     }
   })
 
-  it('stored predicates without hasFollowup still load, and no default-interval row is invented', async () => {
+  it('stored predicates without hasFollowup still load (up to v63), and no default-interval row is invented', async () => {
     await importFixture()
-    for (const def of await fixtureListDefinitions()) {
-      expect('hasFollowup' in def.membership.predicate, `${def.name} predicate`).toBe(false)
+    for (const def of fixtureAt(63).listDefinitions!.filter((d) => d.id !== FOCUS_LIST_ID)) {
+      expect('hasFollowup' in (def.membership as { predicate: object }).predicate, `${String(def.name)} predicate`).toBe(false)
     }
+    for (const def of await fixtureListDefinitions()) expect(def.membership.predicate.dates.followup, def.name).toBeUndefined()
     expect(await db.settings.get('followupDefaultInterval')).toBeUndefined()
   })
 })
@@ -370,23 +371,25 @@ describe('v49 fixture → v53: scheduled dates become next follow-ups; removed e
     for (const def of defs) {
       expect(['date', 'scheduled'], `${def.name} sort`).not.toContain(def.sort)
       expect(['date', 'scheduled'], `${def.name} grouping`).not.toContain(def.grouping)
-      expect(['date', 'scheduled'], `${def.name} dateField`).not.toContain(def.membership.predicate.dateField)
       expect('hasScheduled' in def.membership.predicate, `${def.name} hasScheduled`).toBe(false)
     }
-    const [thisWeek, someday, byPerson, acme] = defs
-    expect(thisWeek).toMatchObject({ sort: 'deadline', grouping: 'none' })
+    // The predicates as v53 left them (v64 folds the date fields into `dates`).
+    const predicatesAt63 = fixtureAt(63).listDefinitions!.map((d) => (d.membership as { predicate: Record<string, unknown> }).predicate)
+    for (const p of predicatesAt63) expect(['date', 'scheduled']).not.toContain(p.dateField)
+    const [thisWeek, someday, byPerson, acme] = predicatesAt63
+    expect(defs[0]).toMatchObject({ sort: 'deadline', grouping: 'none' })
     // The removed 'date' grouping of "Acme" became 'project' at v53 (and 'tag' at v60).
     expect(fixtureAt(53).listDefinitions![3]).toMatchObject({ grouping: 'project' })
-    expect(thisWeek!.membership.predicate).toMatchObject({
+    expect(thisWeek).toMatchObject({
       dateField: 'deadline',
       dateRangeStart: { kind: 'relative', token: 'start-of-week' },
       dateRangeEnd: { kind: 'relative', token: 'end-of-week' },
     })
-    expect(someday!.membership.predicate).toMatchObject({ dateField: 'deadline', hasDeadline: false })
-    expect(byPerson!.membership.predicate.dateField).toBe('deadline')
+    expect(someday).toMatchObject({ dateField: 'deadline', hasDeadline: false })
+    expect(byPerson!.dateField).toBe('deadline')
     // "Include no date" only applied to the effective date; on a predicate that
     // already filtered by due date it was inert, and stays inert.
-    expect(acme!.membership.predicate).toMatchObject({ dateField: 'deadline', dateRangeIncludeNoDate: false })
+    expect(acme).toMatchObject({ dateField: 'deadline', dateRangeIncludeNoDate: false })
   })
 
   it('removes the seeded follow-up status pointer but keeps the status itself', async () => {
@@ -607,7 +610,7 @@ describe('v49 fixture → v59: taskboard tasks are in focus, in a manually order
     // v59 created it pinned; v63 drops the pin with every other list's.
     expect(fixtureAt(62).listDefinitions!.find((d) => d.id === FOCUS_LIST_ID)).toMatchObject({ pinnedToDashboard: true })
     // v61 turned its focus filter into the Markers filter.
-    expect(focus!.membership.predicate).toMatchObject({ markers: { focus: true }, showCompleted: false, personIds: null, tags: null, hasFollowup: null })
+    expect(focus!.membership.predicate).toMatchObject({ markers: { focus: true }, showCompleted: false, personIds: null, tags: null, dates: {} })
     const ranks = (await db.listOrders.toArray()).map((r) => [r.listDefinitionId, r.todoId, r.rank])
     expect(ranks).toEqual([[FOCUS_LIST_ID, 6, 1], [FOCUS_LIST_ID, 1, 2]])
   })
@@ -804,10 +807,64 @@ describe('v49 fixture → v63: lists lose the pin; the app background colour is 
   })
 })
 
+describe('v49 fixture → v64: date filters per date type; the list and tag caps go', () => {
+  const OLD_DATE_KEYS = ['dateField', 'dateRangeStart', 'dateRangeEnd', 'dateRangeIncludeNoDate', 'hasDeadline', 'hasFollowup']
+  const predicateOf = (d: Record<string, unknown>) => (d.membership as { predicate: Record<string, unknown> }).predicate
+
+  it('up to v63 the lists keep the single range, the presence filters and the caps; maxTags is stored', () => {
+    const at63 = fixtureAt(63)
+    for (const d of at63.listDefinitions!) expect('dateField' in predicateOf(d), String(d.name)).toBe(true)
+    expect(at63.listDefinitions!.filter((d) => 'maxTasks' in d).map((d) => [d.id, d.maxTasks, d.limitMode])).toEqual([[3, 25, 'scroll'], [4, 10, 'hard']])
+    expect(at63.settings!.some((r) => r.key === 'maxTags')).toBe(true)
+  })
+
+  it('each stored predicate holds its date filters as one clause per date type, nothing else changed', async () => {
+    await importFixture()
+    const defs = await db.listDefinitions.orderBy('id').toArray()
+    expect(defs.map((d) => [d.name, d.membership.predicate.dates])).toEqual([
+      ['This week', { deadline: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'end-of-week' } } }],
+      // "Has due date: no" with no range.
+      ['Someday', { deadline: { match: 'unset' } }],
+      ['By person', {}],
+      // The v49 "include no date" was on, but inert on a due-date range (v53 turned it off).
+      ['Acme next 30 days', { deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 } } }],
+      ['Focus', {}],
+    ])
+    for (const d of defs) for (const key of OLD_DATE_KEYS) expect(key in d.membership.predicate, `${d.name} ${key}`).toBe(false)
+    // Apart from the date fields and the caps, every list is as at v63.
+    const strip = (d: Record<string, unknown>) => {
+      const rest: Record<string, unknown> = { ...d, membership: { ...(d.membership as object), predicate: { ...predicateOf(d) } } }
+      delete rest.maxTasks
+      delete rest.limitMode
+      const p = predicateOf(rest)
+      for (const key of [...OLD_DATE_KEYS, 'dates']) delete p[key]
+      return rest
+    }
+    expect(fixtureAt(64).listDefinitions!.map(strip)).toEqual(fixtureAt(63).listDefinitions!.map(strip))
+  })
+
+  it('no list keeps maxTasks / limitMode, and the maxTags setting is gone', async () => {
+    await importFixture()
+    for (const d of await db.listDefinitions.toArray()) {
+      expect('maxTasks' in d, d.name).toBe(false)
+      expect('limitMode' in d, d.name).toBe(false)
+    }
+    expect(await db.settings.get('maxTags')).toBeUndefined()
+    // Every other setting of v63 is kept.
+    const keysAt63 = fixtureAt(63).settings!.map((r) => r.key).filter((k) => k !== 'maxTags')
+    expect(fixtureAt(64).settings!.map((r) => r.key)).toEqual(keysAt63)
+  })
+
+  it('upgrading the v64 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 63, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
 // ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
 /**
  * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
- * hex digits). The transforms up to v63 are frozen, so these never change:
+ * hex digits). The transforms up to v64 are frozen, so these never change:
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
@@ -830,6 +887,7 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   61: '43c2476afe90c43e',
   62: '7a756537e39297bf',
   63: '13816223c358d095',
+  64: 'd89ed146e9a87d82',
 }
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 

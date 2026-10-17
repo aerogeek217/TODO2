@@ -179,12 +179,7 @@ const EMPTY_PREDICATE: TodoPredicate = {
   personIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'deadline',
-  dateRangeStart: null,
-  dateRangeEnd: null,
-  dateRangeIncludeNoDate: false,
-  hasDeadline: null,
-  hasFollowup: null,
+  dates: {},
   markers: null,
   tags: null,
 }

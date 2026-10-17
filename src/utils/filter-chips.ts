@@ -1,6 +1,6 @@
-import type { DateAnchor, MarkersFilter, Person, Status, Tag, TodoPredicate } from '../models'
-import type { DateField } from '../models/app-view'
+import type { DateAnchor, DateFilters, DateMatch, MarkersFilter, Person, Status, Tag, TodoPredicate } from '../models'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
+import { activeDateFields, hasDateFilters } from './date-filters'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { hasMarkers, MARKERS_LABEL, markersValue } from './markers'
 
@@ -32,11 +32,7 @@ export interface FilterClauses {
   statusIds: Iterable<number> | null
   tags?: Iterable<number> | null
   searchText: string
-  dateField: DateField
-  dateRangeStart: DateAnchor | null
-  dateRangeEnd: DateAnchor | null
-  hasDeadline: boolean | null
-  hasFollowup?: boolean | null
+  dates: DateFilters
   markers?: MarkersFilter | null
 }
 
@@ -84,14 +80,30 @@ export function describeRange(start: DateAnchor | null, end: DateAnchor | null):
   return ''
 }
 
+/** One date clause in words: `within 14 days`, `by Oct 31, or none`, `has a date`, `no date`. */
+export function describeDateMatch(m: DateMatch): string {
+  if (m.match === 'set') return 'has a date'
+  if (m.match === 'unset') return 'no date'
+  const range = describeRange(m.start, m.end)
+  return m.includeNoDate === true ? `${range}, or none` : range
+}
+
+/**
+ * The date filters as one chip: one date type → its short name and clause
+ * (`Due` `within 14 days`); several → `Dates` and each type's clause
+ * (`Due within 14 days, Follow-up has a date`).
+ */
 function datesChip(c: FilterClauses): FilterChip | null {
-  const parts: string[] = []
-  const range = describeRange(c.dateRangeStart, c.dateRangeEnd)
-  if (range) parts.push(range)
-  if (c.hasDeadline != null) parts.push(c.hasDeadline ? 'has due date' : 'no due date')
-  if (c.hasFollowup != null) parts.push(c.hasFollowup ? 'has follow-up' : 'no follow-up')
+  const fields = activeDateFields(c.dates)
+  const only = fields.length === 1 ? fields[0] : undefined
+  const onlyMatch = only ? c.dates[only] : undefined
+  if (only && onlyMatch) return { field: 'dates', label: DATE_FIELD_LABELS_SHORT[only], value: describeDateMatch(onlyMatch) }
+  const parts = fields.flatMap((f) => {
+    const m = c.dates[f]
+    return m ? [`${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m)}`] : []
+  })
   if (parts.length === 0) return null
-  return { field: 'dates', label: range ? DATE_FIELD_LABELS_SHORT[c.dateField] : 'Dates', value: parts.join(', ') }
+  return { field: 'dates', label: 'Dates', value: parts.join(', ') }
 }
 
 /**
@@ -121,10 +133,7 @@ export function hasNarrowingFilters(p: TodoPredicate): boolean {
     || p.statusIds != null
     || (p.tags ?? null) != null
     || (p.searchText ?? '').trim() !== ''
-    || p.dateRangeStart != null
-    || p.dateRangeEnd != null
-    || p.hasDeadline != null
-    || (p.hasFollowup ?? null) != null
+    || hasDateFilters(p.dates)
     || hasMarkers(p.markers)
 }
 
@@ -141,7 +150,7 @@ export function clearChipField(p: TodoPredicate, field: FilterChipField): TodoPr
     case 'status': return { ...p, statusIds: null }
     case 'markers': return { ...p, markers: null }
     case 'text': return { ...p, searchText: '' }
-    case 'dates': return { ...p, dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null, hasFollowup: null }
+    case 'dates': return { ...p, dates: {} }
     case 'completed': return { ...p, showCompleted: false }
   }
 }

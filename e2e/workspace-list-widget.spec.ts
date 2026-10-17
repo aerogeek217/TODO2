@@ -100,6 +100,56 @@ test('adding a filter from the filter row makes the list unsaved; saving keeps i
   await expect(wsListWidget(page, 't1').getByTestId('list-filter-chip')).toHaveText(/People\s*Bob/)
 })
 
+test('a list’s date filters: a due-date range and Has follow-up both narrow it, saved as one clause per date type', async ({ page }) => {
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'Dated' }],
+    tasks: [
+      { title: 'Soon with follow-up', dueInDays: 2, followupInDays: 3 },
+      { title: 'Soon', dueInDays: 2 },
+      { title: 'Later', dueInDays: 20 },
+      { title: 'Undated' },
+    ],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  })
+  await page.getByRole('button', { name: 'Show completed' }).click()
+  const widget = wsListWidget(page, 't1')
+  await expect(rows(page, 't1')).toHaveCount(4)
+
+  // Due by today + 5 days.
+  const inFive = new Date()
+  inFive.setDate(inFive.getDate() + 5)
+  const ymd = `${inFive.getFullYear()}-${String(inFive.getMonth() + 1).padStart(2, '0')}-${String(inFive.getDate()).padStart(2, '0')}`
+  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Due date' }).click()
+  const picker = page.getByTestId('list-filter-picker')
+  await picker.getByLabel('Date range end', { exact: true }).fill(ymd)
+  await expect(rows(page, 't1')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await expect(picker).toBeHidden()
+
+  // + Filter › Follow-up date opens on the follow-up; picking it wrote nothing, Has follow-up adds its clause.
+  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Follow-up date' }).click()
+  await expect(picker.getByRole('button', { name: 'Next follow-up' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(picker.getByRole('button', { name: 'Due date' })).toHaveAttribute('data-filtering', '')
+  await expect(rows(page, 't1')).toHaveCount(2)
+  await picker.getByText('Has follow-up').click()
+  await expect(rows(page, 't1')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Dates\s*Due by .+, Follow-up has a date/)
+
+  await wsCell(page, 'k1').getByTestId('save-list').click()
+  await page.reload()
+  await expect(rows(page, 't1')).toHaveCount(1)
+  const [stored] = await readListDefinitions(page)
+  const predicate = (stored!.membership as { predicate: Record<string, unknown> }).predicate
+  expect(predicate.dates).toEqual({
+    deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: expect.any(String) as string } },
+    followup: { match: 'set' },
+  })
+  expect('dateField' in predicate).toBe(false)
+})
+
 test('List options from the tab menu group the list; the edit is shared by every widget showing it', async ({ page }) => {
   await seedWorkspace(page, {
     ...team,
@@ -202,7 +252,7 @@ test('narrow widgets: a narrower due column, the tags column gives way, the summ
   await page.setViewportSize({ width: 1100, height: 800 })
   await seedWorkspace(page, {
     tags: ['home', 'work'],
-    listDefinitions: [{ name: 'Mixed', predicate: { hasDeadline: true } }],
+    listDefinitions: [{ name: 'Mixed', predicate: { dates: { deadline: { match: 'set' } } } }],
     tasks: [{ title: 'A fairly long task title that must stay readable', tags: ['home', 'work'], dueInDays: 2, followupInDays: 5 }],
     layouts: [{
       name: 'Main',

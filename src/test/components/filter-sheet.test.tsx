@@ -102,11 +102,13 @@ describe('FilterSheet', () => {
   // ── Date range ────────────────────────────────────────────────────
 
   describe('date range', () => {
-    it('changes date field', () => {
+    it('picking a date type writes nothing; the range then edits that type', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Date range'))
       fireEvent.click(screen.getByText('Created'))
-      expect(useFilterStore.getState().filters.dateField).toBe('created')
+      expect(useFilterStore.getState().filters.dates).toEqual({})
+      fireEvent.change(document.querySelectorAll('input[type="date"]')[0]!, { target: { value: '2026-04-01' } })
+      expect(Object.keys(useFilterStore.getState().filters.dates)).toEqual(['created'])
     })
 
     it('sets date range start from input', () => {
@@ -115,8 +117,8 @@ describe('FilterSheet', () => {
       const dateInputs = document.querySelectorAll('input[type="date"]')
       fireEvent.change(dateInputs[0]!, { target: { value: '2026-04-01' } })
 
-      const { dateRangeStart } = useFilterStore.getState().filters
-      expect(dateRangeStart).not.toBeNull()
+      const due = useFilterStore.getState().filters.dates.deadline
+      const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'fixed') throw new Error('expected fixed anchor')
       expect(dateRangeStart.iso.slice(0, 10)).toBe('2026-04-01')
     })
@@ -129,23 +131,23 @@ describe('FilterSheet', () => {
       const selects = document.querySelectorAll('select')
       fireEvent.change(selects[0]!, { target: { value: 'end-of-week' } })
 
-      const { dateRangeStart } = useFilterStore.getState().filters
-      expect(dateRangeStart).not.toBeNull()
+      const due = useFilterStore.getState().filters.dates.deadline
+      const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'relative') throw new Error('expected relative anchor')
       expect(dateRangeStart.token).toBe('end-of-week')
     })
 
-    it('cycles hasDeadline tri-state null → true → false → null', () => {
+    it('cycles the Has due date tri-state: off → has a date → no date → off', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Date range'))
       const btn = screen.getByRole('button', { name: /Has due date/ })
 
       fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasDeadline).toBe(true)
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' } })
       fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasDeadline).toBe(false)
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'unset' } })
       fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasDeadline).toBe(null)
+      expect(useFilterStore.getState().filters.dates).toEqual({})
     })
 
     it('offers no scheduled-date filter', () => {

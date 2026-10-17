@@ -1,5 +1,5 @@
-import type { DateAnchor, DateField, MarkerSet, MarkersFilter, TodoPredicate } from '../models'
-import { readDateAnchor } from './date-anchor'
+import type { DateAnchor, DateFilters, MarkerSet, MarkersFilter, TodoPredicate } from '../models'
+import { hasDateFilters, normalizeDateFilters, readDateFilters } from './date-filters'
 import { activeMarkers, hasMarkers, isHotFilter } from './markers'
 
 /**
@@ -19,23 +19,14 @@ export interface FilterCriteria {
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
   searchText: string
   /**
-   * Which date field drives the date range filter:
+   * The date filters, one clause per date type, all of which must pass:
    *   'deadline'  → todo.dueDate
    *   'followup'  → todo.nextFollowupAt
    *   'created'   → todo.createdAt
    *   'modified'  → todo.modifiedAt
+   * `{}` = no date filter (see `DateFilters`).
    */
-  dateField: DateField
-  /** null = no filter; `DateAnchor` = only show tasks with date on or after this anchor (resolved at eval time). */
-  dateRangeStart: DateAnchor | null
-  /** null = open-ended; `DateAnchor` = only show tasks with date on or before this anchor (resolved at eval time). */
-  dateRangeEnd: DateAnchor | null
-  /** When true AND dateField === 'deadline', tasks with no due date are included in date-range results. */
-  dateRangeIncludeNoDate: boolean
-  /** Tri-state presence filter on `dueDate`. null = no filter. */
-  hasDeadline: boolean | null
-  /** Tri-state presence filter on `nextFollowupAt`. null = no filter. */
-  hasFollowup: boolean | null
+  dates: DateFilters
   /**
    * Markers filter: the task must be hot (Settings' Hot rule) or have every
    * listed marker (Urgent = effective urgent, `utils/urgency.ts`). null = no
@@ -58,11 +49,11 @@ export function fixedAnchor(d: Date): DateAnchor {
 
 /**
  * Number of active screen filters, one per control: people, status,
- * tags, dates (range or due / follow-up presence), markers, show completed,
+ * tags, dates (however many date types filter), markers, show completed,
  * search.
  */
 export function countActiveFilters(f: FilterCriteria): number {
-  const dates = f.dateRangeStart !== null || f.dateRangeEnd !== null || f.hasDeadline !== null || f.hasFollowup != null
+  const dates = hasDateFilters(f.dates)
   return [
     f.personIds !== null,
     f.statusIds !== null,
@@ -99,30 +90,20 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     personIds: f.personIds ? Array.from(f.personIds) : null,
     statusIds: f.statusIds ? Array.from(f.statusIds) : null,
     searchText: f.searchText,
-    dateField: f.dateField,
-    dateRangeStart: f.dateRangeStart,
-    dateRangeEnd: f.dateRangeEnd,
-    dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
-    hasDeadline: f.hasDeadline,
-    hasFollowup: f.hasFollowup,
+    dates: normalizeDateFilters(f.dates),
     markers: normalizeMarkers(f.markers),
     tags: f.tags ? Array.from(f.tags) : null,
   }
 }
 
-/** Serializable → runtime. Inverse of `criteriaToPredicate`. Auto-upgrades legacy ISO-string date anchors. */
+/** Serializable → runtime. Inverse of `criteriaToPredicate`. Reads date anchors through `readDateAnchor` (legacy ISO strings → fixed). */
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   return {
     showCompleted: p.showCompleted,
     personIds: Array.isArray(p.personIds) ? new Set(p.personIds) : null,
     statusIds: Array.isArray(p.statusIds) ? new Set(p.statusIds) : null,
     searchText: p.searchText,
-    dateField: p.dateField,
-    dateRangeStart: readDateAnchor(p.dateRangeStart),
-    dateRangeEnd: readDateAnchor(p.dateRangeEnd),
-    dateRangeIncludeNoDate: p.dateRangeIncludeNoDate,
-    hasDeadline: p.hasDeadline ?? null,
-    hasFollowup: p.hasFollowup ?? null,
+    dates: readDateFilters(p.dates),
     markers: normalizeMarkers(p.markers),
     tags: Array.isArray(p.tags) ? new Set(p.tags) : null,
   }

@@ -18,6 +18,10 @@ export {
 export {
   type TodoPredicate,
   type DateAnchor,
+  type DateFilters,
+  type DateMatch,
+  type DateRangeMatch,
+  OPTIONAL_DATE_FIELDS,
   type RelativeDateToken,
   RELATIVE_DATE_TOKENS,
   type MarkerKey,

@@ -41,9 +41,9 @@ export function isListTileEligible(def: Pick<PersistedListDefinition, 'runtimeFi
  * predicate, composed with the screen filter (`createScreenComposedEvaluator`
  * — narrowing clauses AND). A shown task is always a member by the list's
  * own filter, so the screen's Show completed adds nothing to a tile (it
- * counts completed tasks only when the list itself shows them). The count is every member;
- * a list's `maxTasks` cap only limits what a List widget displays. Lists with
- * a runtime prompt are skipped (see `isListTileEligible`).
+ * counts completed tasks only when the list itself shows them). The count is
+ * every member. Lists with a runtime prompt are skipped (see
+ * `isListTileEligible`).
  */
 export function computeListTileCounts(
   definitions: readonly PersistedListDefinition[],

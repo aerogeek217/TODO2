@@ -46,12 +46,7 @@ export const emptyFilterCriteria: FilterCriteria = {
   personIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'deadline',
-  dateRangeStart: null,
-  dateRangeEnd: null,
-  dateRangeIncludeNoDate: false,
-  hasDeadline: null,
-  hasFollowup: null,
+  dates: {},
   markers: null,
   tags: null,
 }
@@ -129,11 +124,16 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
- * Store specs of the v62 schema: the current specs (v63 changed no store).
+ * Store specs of the v63 schema: the current specs (v64 changed no store).
  * Update when a later version changes a store spec.
  */
-export function v62StoreSpecs(): Record<string, string> {
+export function v63StoreSpecs(): Record<string, string> {
   return currentStoreSpecs()
+}
+
+/** Store specs of the v62 schema — v63 changed no store spec. */
+export function v62StoreSpecs(): Record<string, string> {
+  return v63StoreSpecs()
 }
 
 /** Store specs of the v61 schema — v62 changed no store spec. */

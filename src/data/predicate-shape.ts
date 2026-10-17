@@ -2,9 +2,12 @@ import { DATE_FIELD_VALUES, type DateField } from '../models'
 import {
   HOT_MARKERS,
   MARKER_KEYS,
+  OPTIONAL_DATE_FIELDS,
   PREDICATE_SEARCH_TEXT_MAX,
   RELATIVE_DATE_TOKENS,
   type DateAnchor,
+  type DateFilters,
+  type DateMatch,
   type MarkerSet,
   type MarkersFilter,
   type RelativeDateToken,
@@ -19,9 +22,10 @@ import { isRecord } from '../utils/is-record'
  * - `checkPredicateShape` — the core shape import validation requires (a
  *   predicate failing it fails the import, as it always has).
  * - `pickPredicate` — rebuilds a predicate from its known keys only. A
- *   malformed id filter (people / statuses / tags) or Markers filter is
- *   dropped — no filter — and a too-long text filter is shortened; both are
- *   reported in `dropped`, so import can warn and the audit can report. The
+ *   malformed id filter (people / statuses / tags), Priority filter or date
+ *   clause (an unknown date type included) is dropped — no filter — and a
+ *   too-long text filter is shortened; all are reported in `fixes`, so
+ *   import can warn and the audit can report. The
  *   core fields fall back to their defaults when malformed (only reachable
  *   for rows already in the database: import rejects those), so a bad stored
  *   predicate can't crash the lists showing it.
@@ -36,10 +40,6 @@ export { PREDICATE_SEARCH_TEXT_MAX }
 export const PREDICATE_ID_LIST_MAX = 100_001
 
 type Obj = Record<string, unknown>
-
-function isOptTriBool(v: unknown): boolean {
-  return v === undefined || v === null || typeof v === 'boolean'
-}
 
 function isDateLike(v: unknown): boolean {
   return typeof v === 'string' && !isNaN(Date.parse(v))
@@ -57,34 +57,83 @@ function readAnchor(v: unknown): DateAnchor | undefined {
 }
 
 /**
- * A stored anchor, or none. The legacy ISO-string form counts: a 2026-04
- * build wrote it into stored lists (the legacy inset → list migration) and
- * nothing rewrote those rows, so a database can still hold it;
- * `pickPredicate` turns it into a `fixed` anchor.
+ * A range end: `null` (open) or an anchor; `undefined` when malformed. The
+ * legacy ISO-string form counts as a `fixed` anchor (a 2026-04 build wrote
+ * it into stored lists, and the v64 upgrade carries it over as it was).
  */
-function isOptAnchor(v: unknown): boolean {
-  return v === undefined || v === null || isDateLike(v) || readAnchor(v) !== undefined
+function readRangeEnd(v: unknown): DateAnchor | null | undefined {
+  if (v === undefined || v === null) return null
+  if (isDateLike(v)) return { kind: 'fixed', iso: v as string }
+  return readAnchor(v)
 }
 
 function isDateField(v: unknown): v is DateField {
   return (DATE_FIELD_VALUES as readonly unknown[]).includes(v)
 }
 
+/** A date type's name in a fix (`due date filter dropped`). */
+const DATE_FILTER_WORDS: Record<DateField, string> = {
+  deadline: 'due date',
+  followup: 'follow-up date',
+  created: 'created date',
+  modified: 'modified date',
+}
+
+/**
+ * One stored date clause for `field`, rebuilt from its known keys; `null`
+ * for a range with neither end (no filter, not stored), `undefined` when
+ * malformed — an unknown `match`, a bad range end or `includeNoDate`, or
+ * Has a date / No date on a date every task has (created / modified).
+ * `includeNoDate` is kept only when true, on the due date / follow-up.
+ */
+function readDateMatch(field: DateField, v: unknown): DateMatch | null | undefined {
+  if (!isRecord(v)) return undefined
+  const optional = OPTIONAL_DATE_FIELDS.includes(field)
+  if (v.match === 'set' || v.match === 'unset') return optional ? { match: v.match } : undefined
+  if (v.match !== 'range') return undefined
+  const start = readRangeEnd(v.start)
+  const end = readRangeEnd(v.end)
+  if (start === undefined || end === undefined) return undefined
+  if (v.includeNoDate !== undefined && typeof v.includeNoDate !== 'boolean') return undefined
+  if (start === null && end === null) return null
+  return { match: 'range', start, end, ...(optional && v.includeNoDate === true ? { includeNoDate: true } : {}) }
+}
+
+/**
+ * The stored date filters: known date types with a well-formed clause, in
+ * date-type order. Each clause dropped is named in `fixes`.
+ */
+function readDateFilters(v: Obj, fixes: PredicateFix[]): DateFilters {
+  const out: DateFilters = {}
+  for (const [key, clause] of Object.entries(v)) {
+    if (!isDateField(key)) {
+      fixes.push('unknown date filter dropped')
+      continue
+    }
+    const m = readDateMatch(key, clause)
+    if (m === undefined) fixes.push(`${DATE_FILTER_WORDS[key]} filter dropped`)
+    else if (m) out[key] = m
+  }
+  const ordered: DateFilters = {}
+  for (const field of DATE_FIELD_VALUES) {
+    const m = out[field]
+    if (m) ordered[field] = m
+  }
+  return ordered
+}
+
 /**
  * `true` when `v` has the core predicate shape import requires, else the
- * name of the first bad field. The id filters, the Markers filter and the
- * text filter's length are not checked here: `pickPredicate` sanitises them.
+ * name of the first bad field: `showCompleted`, `searchText` and the date
+ * filters map (`dates`, an object). The id filters, the Priority filter, the
+ * date clauses inside `dates` and the text filter's length are not checked
+ * here: `pickPredicate` sanitises them.
  */
 export function checkPredicateShape(v: unknown): true | string {
   if (!isRecord(v)) return 'predicate'
   if (typeof v.showCompleted !== 'boolean') return 'showCompleted'
   if (typeof v.searchText !== 'string') return 'searchText'
-  if (typeof v.dateRangeIncludeNoDate !== 'boolean') return 'dateRangeIncludeNoDate'
-  if (!isOptAnchor(v.dateRangeStart)) return 'dateRangeStart'
-  if (!isOptAnchor(v.dateRangeEnd)) return 'dateRangeEnd'
-  if (v.dateField !== undefined && !isDateField(v.dateField)) return 'dateField'
-  if (!isOptTriBool(v.hasDeadline)) return 'hasDeadline'
-  if (!isOptTriBool(v.hasFollowup)) return 'hasFollowup'
+  if (!isRecord(v.dates)) return 'dates'
   return true
 }
 
@@ -120,9 +169,9 @@ export interface PickedPredicate {
 
 /**
  * Rebuilds a stored predicate from its known keys (unknown keys go). Optional
- * fields (`hasFollowup`, `markers`, `tags`) stay absent when absent; a
- * required one that is missing gets its default. See the module comment for
- * what is dropped and reported.
+ * fields (`markers`, `tags`) stay absent when absent; a required one that is
+ * missing gets its default. See the module comment for what is dropped and
+ * reported.
  */
 export function pickPredicate(raw: unknown): PickedPredicate {
   const fixes: PredicateFix[] = []
@@ -146,29 +195,16 @@ export function pickPredicate(raw: unknown): PickedPredicate {
     searchText = searchText.slice(0, PREDICATE_SEARCH_TEXT_MAX)
     fixes.push('text filter shortened')
   }
-  const anchor = (value: unknown, what: string): DateAnchor | null => {
-    if (value === undefined || value === null) return null
-    // The legacy form, an ISO string (as the filter store reads it too).
-    if (isDateLike(value)) return { kind: 'fixed', iso: value as string }
-    const a = readAnchor(value)
-    if (a) return a
-    if (isRecord(raw)) fixes.push(`${what} reset`)
-    return null
-  }
+  let dates: DateFilters = {}
+  if (isRecord(v.dates)) dates = readDateFilters(v.dates, fixes)
+  else if (isRecord(raw)) fixes.push('date filters reset')
 
   const predicate: TodoPredicate = {
     showCompleted: core(typeof v.showCompleted === 'boolean', v.showCompleted as boolean, false, 'show completed'),
     personIds: ids(v.personIds, 'people'),
     statusIds: ids(v.statusIds, 'status'),
     searchText,
-    dateField: v.dateField === undefined ? 'deadline' : core(isDateField(v.dateField), v.dateField as DateField, 'deadline', 'date field'),
-    dateRangeStart: anchor(v.dateRangeStart, 'date range start'),
-    dateRangeEnd: anchor(v.dateRangeEnd, 'date range end'),
-    dateRangeIncludeNoDate: core(typeof v.dateRangeIncludeNoDate === 'boolean', v.dateRangeIncludeNoDate as boolean, false, 'include no date'),
-    hasDeadline: core(isOptTriBool(v.hasDeadline), (v.hasDeadline ?? null) as boolean | null, null, 'due date filter'),
-  }
-  if ('hasFollowup' in v) {
-    predicate.hasFollowup = core(isOptTriBool(v.hasFollowup), (v.hasFollowup ?? null) as boolean | null, null, 'follow-up filter')
+    dates,
   }
   if ('markers' in v && v.markers !== undefined) {
     const markers = readMarkers(v.markers)

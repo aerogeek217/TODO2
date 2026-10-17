@@ -36,12 +36,12 @@ const FULL_PREDICATE: TodoPredicate = {
   personIds: [1, 0],
   statusIds: [1, 2],
   searchText: 'invoice',
-  dateField: 'deadline',
-  dateRangeStart: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' },
-  dateRangeEnd: { kind: 'offset', days: 30 },
-  dateRangeIncludeNoDate: true,
-  hasDeadline: true,
-  hasFollowup: false,
+  dates: {
+    deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 }, includeNoDate: true },
+    followup: { match: 'unset' },
+    created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
+    modified: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
+  },
   markers: { urgent: true, important: true },
   tags: [1],
 }
@@ -85,7 +85,6 @@ function buildSeed(): Seed {
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },
       { key: 'completedRetentionDays', value: '30' },
-      { key: 'maxTags', value: '20' },
       { key: 'color.dark.accent', value: '#4f8cff' },
       { key: 'color.light.accent', value: '#1a5fd0' },
       { key: 'color.dark.appBg', value: '#202830' },
@@ -99,13 +98,13 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, markers: 'hot' } },
-      sort: 'followup', grouping: 'followup', 
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: 'hot' } },
+      sort: 'followup', grouping: 'followup',
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
-      sort: 'deadline', grouping: 'people', 
-      maxTasks: 25, limitMode: 'scroll', runtimeFilter: { field: 'person', label: 'Who' },
+      sort: 'deadline', grouping: 'people',
+      runtimeFilter: { field: 'person', label: 'Who' },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
     todoEvents: [
@@ -224,6 +223,11 @@ describe('export → JSON → import round-trip', () => {
     const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
     expect(markers).toContain('hot')
     expect(markers.some((m) => typeof m === 'object' && m !== null)).toBe(true)
+    // Every date type and every kind of date clause.
+    const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
+    expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(['deadline', 'followup', 'created', 'modified']))
+    expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
+    expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
     const tabs = cells.flatMap((c) => c.tabs)
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)

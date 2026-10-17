@@ -139,8 +139,8 @@ describe('ListWidget', () => {
     expect(screen.getByText('No tasks in this list')).toBeInTheDocument()
   })
 
-  it('shows every task, even with a stored cap: no "Showing N of M" line', () => {
-    const { result } = setup(def({ maxTasks: 2, limitMode: 'hard' }))
+  it('shows every task: no "Showing N of M" line', () => {
+    const { result } = setup(def())
     expect(titles()).toHaveLength(3)
     expect(result()?.countLabel).toBe('3')
     expect(screen.queryByText(/Showing/)).toBeNull()

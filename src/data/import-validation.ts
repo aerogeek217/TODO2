@@ -172,8 +172,6 @@ function checkListDefinition(v: unknown): CheckResult {
     ['membership', isValidMembership(v.membership)],
     ['sort', isValidSort(v.sort)],
     ['grouping', isValidGrouping(v.grouping)],
-    ['maxTasks', v.maxTasks === undefined || (isFiniteNum(v.maxTasks) && (v.maxTasks as number) >= 1 && (v.maxTasks as number) <= 10000)],
-    ['limitMode', v.limitMode === undefined || v.limitMode === 'hard' || v.limitMode === 'scroll'],
     ['runtimeFilter', isOptRuntimeFilter(v.runtimeFilter)],
   ])
 }
@@ -562,8 +560,6 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
     membership: { kind: 'custom', predicate: pickPredicate((v.membership as Raw).predicate).predicate },
     sort: v.sort as ListSort,
     grouping: v.grouping as ListGrouping,
-    maxTasks: typeof v.maxTasks === 'number' ? v.maxTasks : undefined,
-    limitMode: v.limitMode === 'hard' || v.limitMode === 'scroll' ? v.limitMode : undefined,
     runtimeFilter: pickRuntimeFilter(v.runtimeFilter),
   } satisfies AllFields<ListDefinition>
 }

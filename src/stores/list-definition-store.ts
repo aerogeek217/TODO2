@@ -20,8 +20,6 @@ interface AddInput {
   membership?: ListMembership
   sort?: ListSort
   grouping?: ListGrouping
-  maxTasks?: number
-  limitMode?: 'hard' | 'scroll'
 }
 
 interface ListDefinitionState {
@@ -61,7 +59,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
   ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, grouping, maxTasks, limitMode }) {
+  async add({ name, membership, sort, grouping }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
     const entry: Omit<ListDefinition, 'sortOrder'> = {
@@ -69,8 +67,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
       sort: sort ?? 'manual',
       grouping: grouping ?? 'none',
-      ...(maxTasks != null ? { maxTasks } : {}),
-      ...(limitMode != null ? { limitMode } : {}),
     }
     return mutate(
       async () => {

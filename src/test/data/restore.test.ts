@@ -71,7 +71,7 @@ describe('restoreFromImportData', () => {
       await db.statuses.add({ id: 1, name: 'Old Status', color: '#aabbcc', sortOrder: 0 })
       await db.listDefinitions.add({
         id: 1, name: 'Old List', sortOrder: 0, sort: 'manual', grouping: 'none',
-        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false } as never },
+        membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {} } },
       })
       await db.notes.add({ content: 'old', createdAt: now, modifiedAt: now })
       await db.tags.add({ id: 1, name: 'old', color: '#abcdef' })

@@ -1,4 +1,4 @@
-import type { TodoItem, PersistedTodoItem, Person, Status, Tag, TodoPredicate } from '../models'
+import { DATE_FIELD_VALUES, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../models'
 import { startOfDay } from './date'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
@@ -49,14 +49,6 @@ export function matchesFilter(
     const unassignedSentinel = !hasPerson && filters.personIds.has(0)
     if (!personMatch && !unassignedSentinel) return false
   }
-  if (filters.hasDeadline !== null) {
-    const has = todo.dueDate !== undefined
-    if (has !== filters.hasDeadline) return false
-  }
-  if (filters.hasFollowup != null) {
-    const has = todo.nextFollowupAt != null
-    if (has !== filters.hasFollowup) return false
-  }
   if (filters.markers != null && !matchesMarkers(todo, filters.markers, today, settings)) {
     return false
   }
@@ -66,41 +58,41 @@ export function matchesFilter(
     if (!ids.some((id) => filters.tags!.has(id))) return false
   }
 
-  if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
-    const ws = settings.weekStartsOn
-    const resolvedStart = filters.dateRangeStart ? resolveDateAnchor(filters.dateRangeStart, today, ws) : null
-    const resolvedEnd = filters.dateRangeEnd ? resolveDateAnchor(filters.dateRangeEnd, today, ws) : null
+  for (const field of DATE_FIELD_VALUES) {
+    const clause = filters.dates[field]
+    if (clause && !matchesDateMatch(todo, field, clause, today, settings.weekStartsOn)) return false
+  }
+  return true
+}
 
-    let rawDate: Date | null
-    switch (filters.dateField) {
-      case 'deadline':
-        rawDate = todo.dueDate ? new Date(todo.dueDate) : null
-        break
-      case 'followup':
-        rawDate = todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null
-        break
-      case 'created':
-        rawDate = todo.createdAt
-        break
-      case 'modified':
-        rawDate = todo.modifiedAt
-        break
-    }
+/** The task's date of one date type, or null when it has none. */
+function todoDate(todo: TodoItem, field: DateField): Date | null {
+  switch (field) {
+    case 'deadline': return todo.dueDate ? new Date(todo.dueDate) : null
+    case 'followup': return todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null
+    case 'created': return todo.createdAt
+    case 'modified': return todo.modifiedAt
+  }
+}
 
-    if (!rawDate) {
-      if (!(filters.dateField === 'deadline' && filters.dateRangeIncludeNoDate)) return false
-    } else {
-      const d = startOfDay(new Date(rawDate))
-      if (resolvedStart !== null) {
-        const start = startOfDay(resolvedStart)
-        if (d < start) return false
-      }
-      if (resolvedEnd !== null) {
-        const end = new Date(resolvedEnd)
-        end.setHours(23, 59, 59, 999)
-        if (d > end) return false
-      }
-    }
+/**
+ * Whether a task passes one date clause: Has a date / No date by whether the
+ * date is set; a range by the date as a day (anchors resolved against
+ * `today`; either end open), a task without the date passing only with
+ * `includeNoDate`. A range with neither end passes every task.
+ */
+export function matchesDateMatch(todo: TodoItem, field: DateField, clause: DateMatch, today: Date, weekStartsOn: WeekStart): boolean {
+  const raw = todoDate(todo, field)
+  if (clause.match === 'set') return raw != null
+  if (clause.match === 'unset') return raw == null
+  if (clause.start == null && clause.end == null) return true
+  if (!raw) return clause.includeNoDate === true
+  const d = startOfDay(new Date(raw))
+  if (clause.start != null && d < startOfDay(resolveDateAnchor(clause.start, today, weekStartsOn))) return false
+  if (clause.end != null) {
+    const end = new Date(resolveDateAnchor(clause.end, today, weekStartsOn))
+    end.setHours(23, 59, 59, 999)
+    if (d > end) return false
   }
   return true
 }

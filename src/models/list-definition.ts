@@ -49,10 +49,6 @@ export interface ListDefinition {
   membership: ListMembership
   sort: ListSort
   grouping: ListGrouping
-  /** Optional cap on the number of visible tasks. Undefined = unlimited. */
-  maxTasks?: number
-  /** How `maxTasks` is enforced. Defaults to `'hard'` when omitted. */
-  limitMode?: 'hard' | 'scroll'
   /** When set, the list exposes a picker at render time; see `RuntimeFilterSpec`. */
   runtimeFilter?: RuntimeFilterSpec
 }

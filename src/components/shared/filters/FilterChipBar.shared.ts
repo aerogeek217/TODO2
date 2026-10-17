@@ -3,6 +3,7 @@ import type { TodoPredicate } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
+import { hasDateFilters } from '../../../utils/date-filters'
 import { hasMarkers } from '../../../utils/markers'
 import { byName } from '../../../utils/sort-order'
 
@@ -39,12 +40,7 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   personIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'deadline',
-  dateRangeStart: null,
-  dateRangeEnd: null,
-  dateRangeIncludeNoDate: false,
-  hasDeadline: null,
-  hasFollowup: null,
+  dates: {},
   markers: null,
   tags: null,
 }
@@ -57,10 +53,7 @@ export function hasAnyFilter(p: TodoPredicate): boolean {
     p.personIds !== null ||
     p.statusIds !== null ||
     p.searchText !== '' ||
-    p.dateRangeStart !== null ||
-    p.dateRangeEnd !== null ||
-    p.hasDeadline !== null ||
-    (p.hasFollowup ?? null) !== null ||
+    hasDateFilters(p.dates) ||
     hasMarkers(p.markers) ||
     (p.tags ?? null) !== null
   )
@@ -119,9 +112,8 @@ export interface FilterChipBarSharedState {
  * mobile) lives in the per-density component.
  *
  * `update` composes patches against the latest predicate we've sent — not
- * the prop from this render — so two `update` calls in one handler (e.g.
- * the Date-field button or Date-dropdown Clear, which patch dateField +
- * anchors / anchors + tri-states) don't both close over the same stale `p`.
+ * the prop from this render — so two `update` calls in one handler don't
+ * both close over the same stale `p`.
  * The ref sync via useLayoutEffect keeps the in-flight value coherent
  * across renders triggered by external store updates.
  */
@@ -151,11 +143,7 @@ export function useFilterChipBarState(
   const peopleActive = p.personIds !== null
   const statusActive = p.statusIds !== null
   const tagsActive = (p.tags ?? null) !== null
-  const dateActive =
-    p.dateRangeStart !== null ||
-    p.dateRangeEnd !== null ||
-    p.hasDeadline !== null ||
-    (p.hasFollowup ?? null) !== null
+  const dateActive = hasDateFilters(p.dates)
   const active = hasAnyFilter(p)
 
   const inflightRef = useRef<TodoPredicate>(p)
