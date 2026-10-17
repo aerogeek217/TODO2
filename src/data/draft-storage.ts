@@ -2,8 +2,10 @@ import type { PersistedListDefinition } from '../models/list-definition'
 import { LAYOUT_NAME_MAX, type LayoutColumn } from '../models/workspace-layout'
 import { registerModuleReset } from '../utils/module-reset'
 import { isRecord } from '../utils/is-record'
+import { CURRENT_DB_VERSION } from './database'
 import { rowFixes, sanitizeRow, validateRow } from './import-validation'
 import { pickLayoutColumns } from './layout-shape'
+import { upgradeDataSet, type DataRow } from './schema-upgrades'
 
 /**
  * Unsaved layout and list changes kept across a reload, in `localStorage`:
@@ -14,6 +16,11 @@ import { pickLayoutColumns } from './layout-shape'
  * back while the stored data still matches: a draft made against other data
  * is dropped, never applied to it. Storage that can't be read or written
  * (private mode, quota, blocked site data) just means nothing is kept.
+ *
+ * Each record also carries the schema version it was written in: a record
+ * an older build kept is read through the schema upgrades (as a file of that
+ * version would be) before any check, so a draft is never applied in an old
+ * shape; one a newer build kept is dropped.
  */
 
 const LAYOUT_KEY = 'todo2-unsaved-layout'
@@ -33,6 +40,26 @@ export type LayoutDraftRecord =
 export interface ListDraftRecord {
   draft: PersistedListDefinition
   base: PersistedListDefinition
+}
+
+/** The schema version of a record kept without one: the first build that kept drafts. */
+const FIRST_DRAFT_VERSION = 63
+
+/** The schema version a record was written in, or `null` when this build can't read it. */
+function versionOf(v: unknown): number | null {
+  if (v === undefined) return FIRST_DRAFT_VERSION
+  return typeof v === 'number' && Number.isInteger(v) && v >= FIRST_DRAFT_VERSION && v <= CURRENT_DB_VERSION ? v : null
+}
+
+/** `rows` of `table` upgraded from schema `from` to the current one; `null` when that fails or loses a row. */
+function upgradeRows(table: string, rows: unknown[], from: number): unknown[] | null {
+  if (from === CURRENT_DB_VERSION) return rows
+  try {
+    const out = upgradeDataSet({ [table]: rows as DataRow[] }, from, CURRENT_DB_VERSION)[table]
+    return out?.length === rows.length ? out : null
+  } catch {
+    return null
+  }
 }
 
 /** Whether the last write reached storage (both kinds). */
@@ -78,10 +105,16 @@ function columnsOf(raw: unknown): LayoutColumn[] | null {
 export function readLayoutDraft(): LayoutDraftRecord | null {
   const v = readJson(LAYOUT_KEY)
   if (!isRecord(v)) return null
-  const columns = columnsOf(v.columns)
+  const from = versionOf(v.schemaVersion)
+  if (from === null) return null
+  // The columns (and the base's) as layout rows, upgraded together.
+  const upgraded = upgradeRows('layouts', [{ columns: v.columns }, { columns: v.baseColumns }], from)
+  if (!upgraded) return null
+  const [now, base] = upgraded.map((row) => (isRecord(row) ? row.columns : undefined))
+  const columns = columnsOf(now)
   if (!columns) return null
   if (v.kind === 'saved') {
-    const baseColumns = columnsOf(v.baseColumns)
+    const baseColumns = columnsOf(base)
     if (!baseColumns || typeof v.layoutId !== 'number' || !Number.isInteger(v.layoutId) || v.layoutId < 1) return null
     return { kind: 'saved', layoutId: v.layoutId, baseColumns, columns }
   }
@@ -99,7 +132,7 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
 
 /** Keeps the layout draft (`null` = none). */
 export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
-  layoutWriteOk = writeJson(LAYOUT_KEY, record)
+  layoutWriteOk = writeJson(LAYOUT_KEY, record && { ...record, schemaVersion: CURRENT_DB_VERSION })
 }
 
 /** A list definition only when import would take it as it is (rebuilt from known keys); else `null`. */
@@ -116,8 +149,11 @@ export function readListDrafts(): Map<number, ListDraftRecord> {
   if (!isRecord(v)) return out
   for (const [key, entry] of Object.entries(v)) {
     if (!isRecord(entry)) continue
-    const draft = listDefOf(entry.draft)
-    const base = listDefOf(entry.base)
+    const from = versionOf(entry.schemaVersion)
+    const upgraded = from === null ? null : upgradeRows('listDefinitions', [entry.draft, entry.base], from)
+    if (!upgraded) continue
+    const draft = listDefOf(upgraded[0])
+    const base = listDefOf(upgraded[1])
     const id = Number(key)
     if (!draft || !base || draft.id !== id || base.id !== id) continue
     out.set(id, { draft, base })
@@ -127,7 +163,8 @@ export function readListDrafts(): Map<number, ListDraftRecord> {
 
 /** Keeps the list drafts (an empty map removes them). */
 export function writeListDrafts(records: ReadonlyMap<number, ListDraftRecord>): void {
-  listsWriteOk = writeJson(LISTS_KEY, records.size > 0 ? Object.fromEntries(records) : null)
+  const entries = [...records].map(([id, record]) => [id, { ...record, schemaVersion: CURRENT_DB_VERSION }] as const)
+  listsWriteOk = writeJson(LISTS_KEY, entries.length > 0 ? Object.fromEntries(entries) : null)
 }
 
 /** Forgets every kept draft (a data replace: they were made against other data). */

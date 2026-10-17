@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { db } from '../../data/database'
+import { CURRENT_DB_VERSION, db } from '../../data/database'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { draftListIds, getUnsavedListIds, useListDraftStore } from '../../stores/list-draft-store'
@@ -131,4 +131,30 @@ describe('list drafts kept for a reload', () => {
     // What's on screen wins over what was kept.
     expect(drafts()[def.id]).toMatchObject({ grouping: 'people', sort: 'manual' })
   })
+
+  it('a draft an older build kept comes back through the schema upgrade (date filters per type), never in the old shape', async () => {
+    // The stored list as the v64 upgrade left it: "has due date: no" became a No date clause.
+    const id = await useListDefinitionStore.getState().add({
+      name: 'Someday', membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { deadline: { match: 'unset' } } } },
+    })
+    const old = {
+      showCompleted: false, personIds: null, statusIds: null, searchText: '', dateField: 'deadline',
+      dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: false, hasFollowup: null, markers: null, tags: null,
+    }
+    const base = { id, name: 'Someday', sortOrder: 0, sort: 'manual', grouping: 'none', maxTasks: 10, limitMode: 'hard', membership: { kind: 'custom', predicate: old } }
+    const draft = { ...base, sort: 'name', membership: { kind: 'custom', predicate: { ...old, dateField: 'created', dateRangeStart: { kind: 'relative', token: 'start-of-month' } } } }
+    // Kept by the build before (no schema version on the record).
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ [id]: { draft, base } }))
+    await reload()
+    expect(drafts()[id]).toEqual({
+      id, name: 'Someday', sortOrder: 0, sort: 'name', grouping: 'none',
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { deadline: { match: 'unset' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } } } },
+    })
+    expect(getUnsavedListIds()).toEqual([id])
+    // Kept again in the current shape, with its schema version.
+    const kept = JSON.parse(localStorage.getItem('todo2-unsaved-lists')!)[id]
+    expect(kept.schemaVersion).toBe(CURRENT_DB_VERSION)
+    expect('dateField' in kept.draft.membership.predicate).toBe(false)
+  })
+
 })
