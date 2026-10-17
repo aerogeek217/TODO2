@@ -105,6 +105,7 @@ export function useBuiltList(
       statuses,
       runtimeFilterValue,
       ranks,
+      urgentRange: markerSettings.urgentRange,
     })
     const baseCount = screenFilter && mergedPredicate
       ? countMatching(todos, (t) => listOnly(mergedPredicate, t))

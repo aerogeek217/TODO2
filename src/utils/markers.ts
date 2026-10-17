@@ -55,6 +55,20 @@ export function markerSummary(
   }
 }
 
+/**
+ * A task's place in the Priority sort, first to last: Focus, then Urgent and
+ * Important, Urgent, Important, none. Urgent is effective urgent (flagged or
+ * due within `range`, overdue included).
+ */
+export function priorityRank(todo: MarkerFields, today: Date, range: UrgentDueWithinDays): number {
+  if (todo.focus === true) return 0
+  const urgent = hasMarker(todo, 'urgent', today, range)
+  const important = todo.important === true
+  if (urgent && important) return 1
+  if (urgent) return 2
+  return important ? 3 : 4
+}
+
 /** Display name of the Markers filter's Hot choice. */
 export const HOT_LABEL = 'Hot'
 

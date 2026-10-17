@@ -5,7 +5,7 @@ import type { RuntimeFilterField } from '../models/list-definition'
 export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'deadline', 'followup', 'people', 'status', 'tag']
 
 /** Sorts a list definition offers, in menu order. */
-export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'deadline', 'followup', 'name', 'created']
+export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'created']
 
 /** Prompt fields a list definition offers, in menu order (`none` = no prompt). */
 export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['none', 'person', 'status', 'tag']
@@ -21,6 +21,7 @@ export const GROUP_LABEL: Record<TodoGroupBy, string> = {
 
 export const SORT_LABEL: Record<TodoSortBy, string> = {
   manual: 'Manual',
+  priority: 'Priority',
   deadline: 'Due date',
   followup: 'Follow-up date',
   name: 'Name',

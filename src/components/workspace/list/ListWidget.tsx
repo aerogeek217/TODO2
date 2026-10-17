@@ -12,6 +12,7 @@ import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useListOrderStore, useListRanks } from '../../../stores/list-order-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import {
   isUngroupedSectionKey,
   listSortComparator,
@@ -225,7 +226,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   const switchToManual = () => {
     if (!pendingSwitch) return
-    const order = orderCandidates().sort(listSortComparator(definition.sort)).map((t) => t.id)
+    const order = orderCandidates()
+      .sort(listSortComparator(definition.sort, { urgentRange: useSettingsStore.getState().urgentDueWithinDays }))
+      .map((t) => t.id)
     void useListOrderStore.getState().replaceList(listId, seedRanks(order, pendingSwitch.move))
     useListDraftStore.getState().edit(listId, (d) => ({ ...d, sort: 'manual' }))
     setPendingSwitch(null)

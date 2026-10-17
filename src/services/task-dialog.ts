@@ -82,6 +82,7 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
         people: env.people,
         statuses: env.statuses,
         ranks: env.listRanks.get(def.id) ?? new Map(),
+        urgentRange: env.markerSettings.urgentRange,
       })
       const sections = list.sections
       const grouped = !(sections.length === 1 && sections[0]?.key === 'all')

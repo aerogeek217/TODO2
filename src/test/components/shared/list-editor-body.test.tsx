@@ -45,7 +45,7 @@ describe('<ListEditorBody>', () => {
   it('offers the list choices, plus a stored sort no longer offered', () => {
     render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
     const sorts = Array.from((screen.getByLabelText('Sort by') as HTMLSelectElement).options).map((o) => o.textContent)
-    expect(sorts).toEqual(['Manual', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
+    expect(sorts).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
     const groups = Array.from((screen.getByLabelText('Group by') as HTMLSelectElement).options).map((o) => o.value)
     expect(groups).toEqual(['none', 'deadline', 'followup', 'people', 'status', 'tag'])
   })

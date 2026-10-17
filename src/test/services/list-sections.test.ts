@@ -388,6 +388,50 @@ describe('buildListSections — ungrouped', () => {
 })
 
 describe('listSortComparator', () => {
+  describe('priority', () => {
+    // Mon 12 Jan 2026; urgent range 2 days → due by Wed 14 counts as urgent.
+    const today = new Date(2026, 0, 12)
+    const ctx = { today, urgentRange: 2 }
+    const order = (todos: PersistedTodoItem[], c: Parameters<typeof listSortComparator>[1] = ctx) =>
+      [...todos].sort(listSortComparator('priority', c)).map((t) => t.title)
+
+    it('puts Focus first, then Urgent + Important, Urgent, Important, none', () => {
+      const todos = [
+        makeTodo({ id: 1, title: 'none', sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'important', important: true, sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'urgent', urgent: true, sortOrder: 3 }),
+        makeTodo({ id: 4, title: 'urgent + important', urgent: true, important: true, sortOrder: 4 }),
+        makeTodo({ id: 5, title: 'focus', focus: true, sortOrder: 5 }),
+      ]
+      expect(order(todos)).toEqual(['focus', 'urgent + important', 'urgent', 'important', 'none'])
+    })
+
+    it('counts a task due within the urgent range as urgent; outside it, not', () => {
+      const todos = [
+        makeTodo({ id: 1, title: 'important', important: true, sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'due soon', dueDate: new Date(2026, 0, 14), sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'due later', dueDate: new Date(2026, 0, 20), sortOrder: 3 }),
+        makeTodo({ id: 4, title: 'overdue + important', important: true, dueDate: new Date(2026, 0, 2), sortOrder: 4 }),
+      ]
+      expect(order(todos)).toEqual(['overdue + important', 'due soon', 'important', 'due later'])
+      // Without a range only the flags count.
+      expect(order(todos, { today, urgentRange: null })).toEqual(['overdue + important', 'important', 'due soon', 'due later'])
+    })
+
+    it('breaks ties by due date (undated last), then manual order', () => {
+      const todos = [
+        makeTodo({ id: 1, title: 'undated b', important: true, sortOrder: 2 }),
+        makeTodo({ id: 2, title: 'undated a', important: true, sortOrder: 1 }),
+        makeTodo({ id: 3, title: 'due 30th', important: true, dueDate: new Date(2026, 0, 30), sortOrder: 9 }),
+        makeTodo({ id: 4, title: 'due 25th', important: true, dueDate: new Date(2026, 0, 25), sortOrder: 8 }),
+      ]
+      expect(order(todos)).toEqual(['due 25th', 'due 30th', 'undated a', 'undated b'])
+      // The list's manual ranks break the last ties when it has them.
+      const manualRanks = new Map([[1, 1], [2, 2]])
+      expect(order(todos, { ...ctx, manualRanks })).toEqual(['due 25th', 'due 30th', 'undated b', 'undated a'])
+    })
+  })
+
   it('manual sorts by sortOrder, then id', () => {
     const a = makeTodo({ id: 1, sortOrder: 10 })
     const b = makeTodo({ id: 2, sortOrder: 5 })

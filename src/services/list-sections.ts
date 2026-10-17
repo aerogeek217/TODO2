@@ -1,11 +1,14 @@
 import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy } from '../models'
 import { isTodoGroupBy } from '../models'
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
-import { compareTodosByDate, type WeekStart } from '../utils/effective-date'
+import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
 import { bySortOrder } from '../utils/sort-order'
+import { startOfDay } from '../utils/date'
 import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 import type { DateBucketKey } from '../utils/bucket-by-date'
 import { manualOrderComparator, type ListRanks } from '../utils/list-order'
+import { priorityRank } from '../utils/markers'
+import type { UrgentDueWithinDays } from '../utils/urgency'
 
 /**
  * One rendered group of a list. Every list widget builds its sections with
@@ -46,6 +49,18 @@ export interface ListSectionsContext {
    * omitted (a surface without a stored list) → `manual` is `sortOrder`.
    */
   manualRanks?: ListRanks
+  /** The app's "due date makes a task urgent" range, for the Priority sort; absent = flags only. */
+  urgentRange?: UrgentDueWithinDays
+}
+
+/** What a sort reads besides the tasks. */
+export interface ListSortContext {
+  /** The list's manual order (see {@link ListSectionsContext.manualRanks}). */
+  manualRanks?: ListRanks
+  /** The Priority sort's day (effective Urgent); absent = today. */
+  today?: Date
+  /** The Priority sort's urgent range; absent = flags only. */
+  urgentRange?: UrgentDueWithinDays
 }
 
 /**
@@ -57,15 +72,21 @@ export interface ListSectionsContext {
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
  * - `created` — oldest first by `createdAt`, ties by `sortOrder`.
+ * - `priority` — Focus, then Urgent + Important, Urgent, Important, none
+ *   (`priorityRank`; Urgent includes due soon); ties by due date (undated
+ *   last), then manual order.
  * - `people` / `status` — no ordering of their own; they fall back to manual
  *   order (as does a stored value this build doesn't know).
  */
 export function listSortComparator(
   sortBy: TodoSortBy,
-  manualRanks?: ListRanks,
+  ctx: ListSortContext = {},
 ): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  const { manualRanks } = ctx
   if (sortBy === 'manual' && manualRanks) return manualOrderComparator(manualRanks)
   switch (sortBy) {
+    case 'priority':
+      return priorityComparator(ctx)
     case 'name':
       return (a, b) => a.title.localeCompare(b.title) || bySortOrder(a, b)
     case 'deadline':
@@ -79,6 +100,32 @@ export function listSortComparator(
       return bySortOrder
   }
   return bySortOrder
+}
+
+/** The Priority sort: rank, then due date (undated last), then manual order. */
+function priorityComparator(ctx: ListSortContext): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  const today = ctx.today ?? startOfDay(new Date())
+  const range = ctx.urgentRange ?? null
+  const manual = ctx.manualRanks ? manualOrderComparator(ctx.manualRanks) : bySortOrder
+  const rank = new Map<number, number>()
+  const rankOf = (t: PersistedTodoItem): number => {
+    let r = rank.get(t.id)
+    if (r === undefined) {
+      r = priorityRank(t, today, range)
+      rank.set(t.id, r)
+    }
+    return r
+  }
+  return (a, b) => {
+    const byRank = rankOf(a) - rankOf(b)
+    if (byRank !== 0) return byRank
+    const ad = pickTodoDate(a, 'deadline')
+    const bd = pickTodoDate(b, 'deadline')
+    if (ad !== null && bd !== null && ad.getTime() !== bd.getTime()) return ad.getTime() - bd.getTime()
+    if (ad === null && bd !== null) return 1
+    if (ad !== null && bd === null) return -1
+    return manual(a, b)
+  }
 }
 
 /** Group colours of date sections; the trailing "No …" sections are muted too. */
@@ -136,7 +183,7 @@ export function buildListSections(
   // A stored grouping this build doesn't know reads as ungrouped rather than
   // breaking the surface.
   const groupBy = isTodoGroupBy(spec.groupBy) ? spec.groupBy : 'none'
-  const sorted = [...members].sort(listSortComparator(spec.sortBy, ctx.manualRanks))
+  const sorted = [...members].sort(listSortComparator(spec.sortBy, { manualRanks: ctx.manualRanks, today: ctx.today, urgentRange: ctx.urgentRange }))
   if (groupBy === 'none') {
     return sorted.length > 0 ? [{ key: 'all', label: 'All tasks', todos: sorted }] : []
   }

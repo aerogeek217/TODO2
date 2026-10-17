@@ -521,6 +521,18 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
+  it('a listDefinition sorted by priority passes validation', () => {
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'By priority', sortOrder: 0,
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateRangeIncludeNoDate: false, dateField: 'deadline' } },
+        sort: 'priority',
+        grouping: 'none',
+      }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
   it('listDefinition with followup sort + none grouping passes validation', () => {
     const result = validateImportData(validData({
       listDefinitions: [{

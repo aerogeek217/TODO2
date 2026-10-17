@@ -14,6 +14,7 @@ import type { WeekStart } from '../utils/effective-date'
 import { startOfDay } from '../utils/date'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
 import type { ListRanks } from '../utils/list-order'
+import type { UrgentDueWithinDays } from '../utils/urgency'
 
 /** Whether a task passes a predicate (closes over assignment maps, statuses, the screen filter). */
 export type PredicateEvaluator = (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
@@ -42,6 +43,8 @@ export interface ListBuildContext {
    * these ranks (none yet → oldest first); omitted → by `sortOrder`.
    */
   ranks?: ListRanks
+  /** The app's urgent range, for the Priority sort; absent = flags only. */
+  urgentRange?: UrgentDueWithinDays
 }
 
 /** A list definition run over the tasks: its members and sections. */
@@ -119,9 +122,14 @@ export function buildList(
       assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
       assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
       manualRanks: ctx.ranks,
+      urgentRange: ctx.urgentRange,
     },
   )
-  const sorted = [...members].sort(listSortComparator(def.sort, ctx.ranks))
+  const sorted = [...members].sort(listSortComparator(def.sort, {
+    manualRanks: ctx.ranks,
+    today: startOfDay(ctx.today),
+    urgentRange: ctx.urgentRange,
+  }))
   return {
     id: def.id,
     key: `def-${def.id}`,

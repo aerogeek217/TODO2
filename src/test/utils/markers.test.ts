@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { activeMarkers, hasMarkers, markerSummary, isHotFilter, markersEqual, markersValue, matchesMarkers, toggleHot, toggleMarker, type MarkerSettings } from '../../utils/markers'
+import { activeMarkers, hasMarkers, markerSummary, isHotFilter, markersEqual, markersValue, matchesMarkers, priorityRank, toggleHot, toggleMarker, type MarkerSettings } from '../../utils/markers'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 const today = new Date(2026, 9, 10)
@@ -93,5 +93,17 @@ describe('markerSummary (the row gutter)', () => {
     expect(s.tooltip).toBe('Priority: Focus, Urgent (due soon)\nDue Mon 12, within 3 days.')
     expect(markerSummary({ ...base, urgent: true, dueDate: new Date(2026, 9, 12) }, today, 3).urgent).toBe('flag')
     expect(markerSummary({ ...base, dueDate: new Date(2026, 9, 12) }, today, null).urgent).toBeNull()
+  })
+})
+
+describe('priorityRank', () => {
+  const base = { isCompleted: false }
+  it('ranks Focus, Urgent + Important, Urgent, Important, none — Urgent by due date counts', () => {
+    expect(priorityRank({ ...base, focus: true, important: true }, today, 3)).toBe(0)
+    expect(priorityRank({ ...base, urgent: true, important: true }, today, 3)).toBe(1)
+    expect(priorityRank({ ...base, dueDate: new Date(2026, 9, 12), important: true }, today, 3)).toBe(1)
+    expect(priorityRank({ ...base, urgent: true }, today, 3)).toBe(2)
+    expect(priorityRank({ ...base, important: true }, today, 3)).toBe(3)
+    expect(priorityRank({ ...base, dueDate: new Date(2026, 9, 12) }, today, null)).toBe(4)
   })
 })
