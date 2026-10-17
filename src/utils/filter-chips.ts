@@ -4,8 +4,11 @@ import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { hasMarkers, markersValue } from './markers'
 
-/** The filter fields a chip stands for, in chip order. */
+/** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'
+
+/** The filter fields in display order: the top bar's buttons, a list's chips and its + Filter menu. */
+export const FILTER_FIELD_ORDER: readonly FilterChipField[] = ['markers', 'tags', 'people', 'dates', 'status', 'text', 'completed']
 
 export interface FilterChip {
   field: FilterChipField
@@ -92,20 +95,20 @@ function datesChip(c: FilterClauses): FilterChip | null {
 }
 
 /**
- * Chips for the narrowing clauses of a filter, in chip order (people, tags,
- * dates, status, markers, text). `showCompleted` adds a trailing
- * `completed` chip only when `includeCompleted` is set (screen filters show
+ * Chips for the narrowing clauses of a filter, in `FILTER_FIELD_ORDER` (markers, tags,
+ * people, dates, status, text — the top bar's order). `showCompleted` adds a
+ * trailing `completed` chip only when `includeCompleted` is set (screen filters show
  * it; a list's own filter keeps it in its options).
  */
 export function filterChips(c: FilterClauses, names: FilterChipNames, includeCompleted = false): FilterChip[] {
   const chips: FilterChip[] = []
   const byId = <T extends { id?: number; name: string }>(rows: readonly T[]) => (id: number) => rows.find((r) => r.id === id)?.name
-  if (c.personIds != null) chips.push({ field: 'people', label: 'People', value: namesValue(c.personIds, byId(names.people), 'Unassigned') })
+  if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: 'Markers', value: markersValue(c.markers) })
   if (c.tags != null) chips.push({ field: 'tags', label: 'Tags', value: namesValue(c.tags, byId(names.tags), 'Untagged', '#') })
+  if (c.personIds != null) chips.push({ field: 'people', label: 'People', value: namesValue(c.personIds, byId(names.people), 'Unassigned') })
   const dates = datesChip(c)
   if (dates) chips.push(dates)
   if (c.statusIds != null) chips.push({ field: 'status', label: 'Status', value: namesValue(c.statusIds, byId(names.statuses), 'No status') })
-  if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: 'Markers', value: markersValue(c.markers) })
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
   if (includeCompleted && c.showCompleted) chips.push({ field: 'completed', label: 'Completed', value: 'Completed shown' })

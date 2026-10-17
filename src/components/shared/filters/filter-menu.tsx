@@ -16,13 +16,13 @@ export function useChipNames(): FilterChipNames {
   return useMemo(() => ({ people, tags, statuses }), [people, tags, statuses])
 }
 
-/** "+ Filter" menu items: a field, then that field's picker. */
+/** "+ Filter" menu items, in the top bar's filter order: a field, then that field's picker. */
 export const ADD_FILTER_ITEMS: ReadonlyArray<{ label: string; field: ListFilterField; dateField?: DateField; icon: ReactNode; submenu: boolean }> = [
-  { label: 'People', field: 'people', icon: <AtIcon />, submenu: true },
+  { label: 'Markers', field: 'markers', icon: <ImportantIcon outline />, submenu: true },
   { label: 'Tags', field: 'tags', icon: <HashIcon />, submenu: true },
+  { label: 'People', field: 'people', icon: <AtIcon />, submenu: true },
   { label: 'Due date', field: 'dates', dateField: 'deadline', icon: <WidgetKindIcon kind="calendar" />, submenu: true },
   { label: 'Follow-up date', field: 'dates', dateField: 'followup', icon: <FlagIcon />, submenu: true },
   { label: 'Status', field: 'status', icon: <StatusRingIcon />, submenu: true },
-  { label: 'Markers', field: 'markers', icon: <ImportantIcon outline />, submenu: true },
   { label: 'Text contains…', field: 'text', icon: <SearchIcon />, submenu: false },
 ]

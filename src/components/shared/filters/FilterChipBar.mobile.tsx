@@ -17,7 +17,7 @@ import {
 } from './FilterChipBar.shared'
 import { byName } from '../../../utils/sort-order'
 
-type MobileSection = EntityKey | 'toggles' | 'date'
+type MobileSection = EntityKey | 'markers' | 'toggles' | 'date'
 
 interface AccordionSectionProps {
   label: string
@@ -170,31 +170,18 @@ export function FilterChipBarMobile({
   }
 
   const hot = isHotFilter(p.markers)
-  const togglesActiveCount = (p.showCompleted ? 1 : 0) + (hot ? 1 : 0) + activeMarkers(p.markers).length
+  const markersActiveCount = (hot ? 1 : 0) + activeMarkers(p.markers).length
 
   return (
     <>
-      {/* Toggles section */}
+      {/* Markers section */}
       <AccordionSection
-        label="Show / hide"
-        badge={togglesActiveCount}
-        open={openSection === 'toggles'}
-        onToggle={() => handleSection('toggles')}
+        label="Markers"
+        badge={markersActiveCount}
+        open={openSection === 'markers'}
+        onToggle={() => handleSection('markers')}
       >
         <div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>✓</span>
-              Completed
-            </span>
-            <button
-              className={`${sheet.toggle} ${p.showCompleted ? sheet.toggleActive : ''}`}
-              onClick={() => update({ showCompleted: !p.showCompleted })}
-              role="switch"
-              aria-checked={p.showCompleted}
-              aria-label="Show completed"
-            />
-          </div>
           {/* Markers: Hot, or every switched-on marker (strict AND). Hot
               switches the single markers off and disables them. */}
           <div className={sheet.filterRow}>
@@ -231,6 +218,77 @@ export function FilterChipBarMobile({
           })}
         </div>
       </AccordionSection>
+
+      {/* Tags */}
+      <AccordionSection
+        label="Tags"
+        badge={tagIdsSet?.size}
+        open={openSection === 'tags'}
+        onToggle={() => handleSection('tags')}
+      >
+        <div className={sheet.entityList}>
+          {sortedTags.length === 0 ? (
+            <div className={sheet.entityItem}>
+              <span className={`${sheet.entityName} ${sheet.entityNone}`}>No tags yet.</span>
+            </div>
+          ) : (
+            <>
+              <input
+                className={sheet.entitySearchInput}
+                placeholder="Search tags..."
+                value={entitySearch}
+                onChange={(e) => setEntitySearch(e.target.value)}
+              />
+              {sortedTags
+                .filter(
+                  (t) =>
+                    !entitySearch || t.name.toLowerCase().includes(entitySearch.toLowerCase()),
+                )
+                .map((tag) => (
+                  <div
+                    key={tag.id}
+                    className={sheet.entityItem}
+                    onClick={() => handleTagToggle(tag.id!)}
+                  >
+                    <span
+                      className={sheet.entityDot}
+                      style={{ background: tag.color || 'var(--color-accent)' }}
+                    />
+                    <span className={sheet.entityName}>#{tag.name}</span>
+                    <input
+                      type="checkbox"
+                      className={sheet.entityCheck}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      checked={tagIdsSet === null || tagIdsSet.has(tag.id!)}
+                      readOnly
+                    />
+                  </div>
+                ))}
+            </>
+          )}
+        </div>
+      </AccordionSection>
+
+      {/* People */}
+      {people.length > 0 && (
+        <AccordionSection
+          label="People"
+          badge={personIdsSet?.size}
+          open={openSection === 'people'}
+          onToggle={() => handleSection('people')}
+        >
+          <MobileEntityList
+            entities={people}
+            filterIds={personIdsSet}
+            onToggle={handlePersonToggle}
+            noneLabel="Unassigned"
+            searchPlaceholder="Search people..."
+            searchText={entitySearch}
+            onSearchChange={setEntitySearch}
+          />
+        </AccordionSection>
+      )}
 
       {/* Date range section */}
       <AccordionSection
@@ -310,77 +368,6 @@ export function FilterChipBarMobile({
         </div>
       </AccordionSection>
 
-      {/* People */}
-      {people.length > 0 && (
-        <AccordionSection
-          label="People"
-          badge={personIdsSet?.size}
-          open={openSection === 'people'}
-          onToggle={() => handleSection('people')}
-        >
-          <MobileEntityList
-            entities={people}
-            filterIds={personIdsSet}
-            onToggle={handlePersonToggle}
-            noneLabel="Unassigned"
-            searchPlaceholder="Search people..."
-            searchText={entitySearch}
-            onSearchChange={setEntitySearch}
-          />
-        </AccordionSection>
-      )}
-
-      {/* Tags */}
-      <AccordionSection
-        label="Tags"
-        badge={tagIdsSet?.size}
-        open={openSection === 'tags'}
-        onToggle={() => handleSection('tags')}
-      >
-        <div className={sheet.entityList}>
-          {sortedTags.length === 0 ? (
-            <div className={sheet.entityItem}>
-              <span className={`${sheet.entityName} ${sheet.entityNone}`}>No tags yet.</span>
-            </div>
-          ) : (
-            <>
-              <input
-                className={sheet.entitySearchInput}
-                placeholder="Search tags..."
-                value={entitySearch}
-                onChange={(e) => setEntitySearch(e.target.value)}
-              />
-              {sortedTags
-                .filter(
-                  (t) =>
-                    !entitySearch || t.name.toLowerCase().includes(entitySearch.toLowerCase()),
-                )
-                .map((tag) => (
-                  <div
-                    key={tag.id}
-                    className={sheet.entityItem}
-                    onClick={() => handleTagToggle(tag.id!)}
-                  >
-                    <span
-                      className={sheet.entityDot}
-                      style={{ background: tag.color || 'var(--color-accent)' }}
-                    />
-                    <span className={sheet.entityName}>#{tag.name}</span>
-                    <input
-                      type="checkbox"
-                      className={sheet.entityCheck}
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      checked={tagIdsSet === null || tagIdsSet.has(tag.id!)}
-                      readOnly
-                    />
-                  </div>
-                ))}
-            </>
-          )}
-        </div>
-      </AccordionSection>
-
       {/* Status */}
       {statuses.length > 0 && (
         <AccordionSection
@@ -400,6 +387,30 @@ export function FilterChipBarMobile({
           />
         </AccordionSection>
       )}
+
+      {/* Toggles section */}
+      <AccordionSection
+        label="Show / hide"
+        badge={p.showCompleted ? 1 : 0}
+        open={openSection === 'toggles'}
+        onToggle={() => handleSection('toggles')}
+      >
+        <div>
+          <div className={sheet.filterRow}>
+            <span className={sheet.filterLabel}>
+              <span className={sheet.filterLabelIcon}>✓</span>
+              Completed
+            </span>
+            <button
+              className={`${sheet.toggle} ${p.showCompleted ? sheet.toggleActive : ''}`}
+              onClick={() => update({ showCompleted: !p.showCompleted })}
+              role="switch"
+              aria-checked={p.showCompleted}
+              aria-label="Show completed"
+            />
+          </div>
+        </div>
+      </AccordionSection>
 
       {showClearAll && active && (
         <button className={sheet.clearButton} onClick={clearAll}>

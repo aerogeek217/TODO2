@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { toggleItem } from '../../../utils/filter'
-import { clearChipField, filterChips, type FilterChipField } from '../../../utils/filter-chips'
+import { clearChipField, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
 import type { TodoPredicate } from '../../../models'
 import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
@@ -507,6 +507,8 @@ export function FilterChipBarDesktop({
       render: () => <MarkersPanelBody value={p.markers ?? null} onChange={(markers) => update({ markers })} />,
     },
   })
+  // Buttons and the folded menu in display order (Markers, Tags, People, Dates, Status).
+  fields.sort((a, b) => FILTER_FIELD_ORDER.indexOf(a.key) - FILTER_FIELD_ORDER.indexOf(b.key))
 
   return (
     <>

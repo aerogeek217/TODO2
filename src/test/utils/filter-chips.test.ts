@@ -24,20 +24,22 @@ describe('filterChips', () => {
     expect(hasNarrowingFilters({ ...emptyPredicate(), showCompleted: true })).toBe(false)
   })
 
-  it('one chip per field, in chip order, with value text', () => {
+  it('one chip per field, in chip order (Markers, Tags, People, Dates, Status, Text), with value text', () => {
     const p = {
       ...emptyPredicate(),
       searchText: ' invoice ',
       statusIds: [1],
       personIds: [1, 2, 3],
+      markers: { important: true as const },
       tags: [1],
       hasDeadline: true,
       dateRangeStart: { kind: 'relative' as const, token: 'today' as const },
       dateRangeEnd: { kind: 'offset' as const, days: 14 },
     }
     expect(filterChips(p, names)).toEqual([
-      { field: 'people', label: 'People', value: 'Alice +2' },
+      { field: 'markers', label: 'Markers', value: 'Important' },
       { field: 'tags', label: 'Tags', value: '#q4' },
+      { field: 'people', label: 'People', value: 'Alice +2' },
       { field: 'dates', label: 'Due', value: 'within 14 days, has due date' },
       { field: 'status', label: 'Status', value: 'Waiting' },
       { field: 'text', label: 'Text', value: '“invoice”' },
@@ -66,12 +68,12 @@ describe('filterChips', () => {
     ])
   })
 
-  it('a Markers clause reads the first marker (+N), after status and before text', () => {
+  it('a Markers clause reads the first marker (+N), first among the chips', () => {
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true } }, names)).toEqual([
       { field: 'markers', label: 'Markers', value: 'Focus' },
     ])
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true }, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
-      .toEqual(['status', 'markers', 'text'])
+      .toEqual(['markers', 'status', 'text'])
     // Display order is Focus › Urgent › Important, whatever the stored order.
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Focus +1')
     expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: true } })).toBe(true)

@@ -98,13 +98,13 @@ const markerTasks = [
   { title: 'Plain' },
 ]
 
-test('the top-bar Markers filter (after Status) keeps tasks with every ticked marker', async ({ page }) => {
-  const widget = await seedTaskList(page, { statuses: ['Doing'], tasks: markerTasks })
+test('the top-bar Markers filter (first of the filters) keeps tasks with every ticked marker', async ({ page }) => {
+  const widget = await seedTaskList(page, { statuses: ['Doing'], people: ['Ann'], tags: ['home'], tasks: markerTasks })
   await expect.poll(() => rowTitles(widget)).toHaveLength(5)
   await expect(page.getByRole('button', { name: /^Focus filter/ })).toHaveCount(0)
   const names = await page.getByRole('group').filter({ has: page.getByRole('button', { name: 'Markers filter' }) })
     .getByRole('button').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')).filter((n) => n?.endsWith(' filter')))
-  expect(names.indexOf('Markers filter')).toBe(names.indexOf('Status filter') + 1)
+  expect(names).toEqual(['Markers filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
 
   await page.getByRole('button', { name: 'Markers filter' }).click()
   await page.getByRole('checkbox', { name: 'Urgent' }).click()
