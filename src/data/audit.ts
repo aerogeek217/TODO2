@@ -37,8 +37,9 @@ export interface AuditIssue {
   /** IDs of rows to delete (join orphans) or update (dangling FK) */
   ids: number[]
   /**
-   * String keys for delete-by-key tables. Used by the unknown-setting check —
-   * `db.settings` is keyed by `key`, not numeric `id`.
+   * String keys for tables keyed by string — `db.settings` is keyed by
+   * `key`, not numeric `id`. Used by the settings passes (delete or
+   * sanitize by key).
    */
   keys?: string[]
   /**
@@ -172,11 +173,12 @@ export async function auditData(): Promise<AuditReport> {
   // --- Unknown rows in known tables ---
   // Run validateRow over every row so a forced cross-floor load surfaces any
   // pre-strip-shape data the current validators reject. Skip `settings` —
-  // it's keyed by string (`key`) rather than numeric `id`, so the two
-  // dedicated settings passes below handle it via delete-by-key: the
-  // unknown-key pass for rows whose `key` isn't recognized, and the
-  // invalid-value pass for rows whose `key` is fine but whose `value`
-  // fails the per-key value validator (legacy shapes, stale formats).
+  // it's keyed by string (`key`) rather than numeric `id`, so the
+  // dedicated settings passes below handle it by key: the unknown-key pass
+  // for rows whose `key` isn't recognized and the invalid-value pass for
+  // rows whose `value` fails the per-key validator (legacy shapes, stale
+  // formats) delete; the fixable-value pass sanitises a readable value with
+  // parts an import would drop.
   // A layout the validator rejects is repaired, never deleted
   // (`REPAIRED_NOT_DELETED`).
   for (const tableKey of DATA_TABLE_NAMES) {
@@ -310,6 +312,31 @@ export async function auditData(): Promise<AuditReport> {
           note: `Schema validator rejected this row: ${result}`,
         }
       }),
+    })
+  }
+
+  // --- Settings rows with parts an import would drop ---
+  // Readable rows whose value import rewrites without some parts (the
+  // keyboard shortcut overrides that are unknown, refused or clashing):
+  // the same `rowFixes` / `sanitizeRow` as import, by key.
+  const fixableSettings = settingsRows
+    .filter((s) => isKnownSettingKey(s.key) && validateRow('settings', s) === true)
+    .map((s) => ({ row: s, fixes: rowFixes('settings', s) }))
+    .filter((p) => p.fixes.length > 0)
+  if (fixableSettings.length > 0) {
+    issues.push({
+      table: 'settings',
+      description: 'Settings rows with malformed parts (cleanup drops those parts, as an import would)',
+      count: fixableSettings.length,
+      ids: [],
+      keys: fixableSettings.map((p) => p.row.key),
+      fix: 'sanitize',
+      samples: fixableSettings.slice(0, MAX_SAMPLES_PER_ISSUE).map(({ row, fixes }) => ({
+        row: { key: row.key, value: row.value },
+        id: row.key,
+        badFields: ['value'],
+        note: `Cleanup: ${fixes.join(', ')}`,
+      })),
     })
   }
 
@@ -463,7 +490,7 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
       } else if (issue.fix === 'sanitize') {
         const table = db.table(issue.table)
         const key = issue.table as Parameters<typeof sanitizeRow>[0]
-        for (const id of issue.ids) {
+        for (const id of issue.keys && issue.keys.length > 0 ? issue.keys : issue.ids) {
           const row: unknown = await table.get(id)
           if (row !== undefined) await table.put(sanitizeRow(key, row))
         }

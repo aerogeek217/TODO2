@@ -498,6 +498,32 @@ describe('invalid-setting-value audit', () => {
 // schema does not register. We mock `db.backendDB()` to return a side Dexie
 // instance whose IDB has an extra store; that bypasses the constraint that
 // Dexie itself can only register stores at schema-version time.
+describe('sanitisable settings audit (keyboard shortcuts)', () => {
+  it('reports a shortcuts row whose unknown, refused or clashing overrides import would drop, naming each', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{"nope":"x","undo":"Mod-w","focus-filters":"n","toggle-complete":"n","open-settings":"g o"}' })
+
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['keyboardShortcuts'] })])
+    const note = report.issues[0]!.samples![0]!.note
+    expect(note).toMatch(/^Cleanup: unknown shortcut "nope" dropped, Undo: .*\(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped$/)
+  })
+
+  it('cleanup rewrites the row to what import keeps; a clean row is not reported', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{"nope":"x","focus-filters":"n","toggle-complete":"n"}' })
+
+    await cleanupIssues((await auditData()).issues)
+
+    expect(await db.settings.get('keyboardShortcuts')).toEqual({ key: 'keyboardShortcuts', value: '{"focus-filters":"n"}' })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('cleanup resets unreadable shortcuts text', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{oops' })
+    await cleanupIssues((await auditData()).issues)
+    expect(await db.settings.get('keyboardShortcuts')).toEqual({ key: 'keyboardShortcuts', value: '{}' })
+  })
+})
+
 describe('unknown-table audit', () => {
   let sideDb: Dexie | null = null
 
