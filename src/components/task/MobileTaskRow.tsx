@@ -13,6 +13,7 @@ import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { TaskMarkers } from '../shared/TaskMarkers'
 import { useTaskRowPickers } from './use-task-row-pickers'
+import { keepRowTextUnselected } from './row-events'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -108,6 +109,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       role="button"
       tabIndex={0}
       onClick={handleRowTap}
+      onMouseDown={keepRowTextUnselected}
       onContextMenu={handleContextMenu}
       onMouseEnter={() => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={() => useUIStore.getState().setHoveredTodoId(null)}

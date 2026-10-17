@@ -17,6 +17,7 @@ import { MoreIcon } from '../shared/icons'
 import { TaskMarkers } from '../shared/TaskMarkers'
 import { personTaskDialog } from '../../services/task-dialog'
 import { useTaskRowPickers } from './use-task-row-pickers'
+import { keepRowTextUnselected } from './row-events'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -80,6 +81,7 @@ export const TaskRow = memo(function TaskRow({
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
+      onMouseDown={keepRowTextUnselected}
       onDoubleClick={(e) => {
         e.stopPropagation()
         cancelScheduledEdit()
