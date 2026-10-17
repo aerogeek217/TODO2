@@ -16,7 +16,7 @@
  * does ⏎ after ↑/↓. Text that is only tokens adds nothing and says so.
  *
  * Inline syntax (parsed live, removed from the title):
- *   @person   #tag   /urgent /important /focus /due /followup /repeat /status
+ *   @person   #tag   /focus /urgent /important /due /followup /repeat /status
  * Plain words are never read as dates.
  *
  * Title input carries `data-shortcut-scope="none"` so global keyboard
@@ -32,7 +32,7 @@ import type {
   RecurrenceType,
   Status,
 } from '../../models'
-import { DEFAULT_STATUS_ICON } from '../../models'
+import { DEFAULT_STATUS_ICON, MARKER_KEYS, type MarkerKey } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
@@ -48,15 +48,19 @@ import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-com
 import { tokenTints, type TintSpan } from '../../services/nlp-token-tints'
 import { addFollowupInterval, formatFollowupDate, formatFollowupDay } from '../../utils/followup'
 import { startOfToday } from '../../utils/date'
+import { MARKER_LABELS } from '../../utils/markers'
 import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
-import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
+import { MarkerIcon } from '../shared/MarkerIcons'
 import { NlpPopup } from '../shared/NlpPopup'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
 
 const POPUP_GAP_PX = 4
 const POPUP_WIDTH_PX = 280
+
+/** Each marker chip's tint (`data-tint`). */
+const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'accent', urgent: 'urgent', important: 'followup' }
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -188,15 +192,11 @@ function ParsedChips({ draft, preset, defaultFollowup, today }: {
 }) {
   return (
     <div className={styles.chipsRow} role="group" aria-label="What the task gets">
-      {(draft.urgent || preset?.urgent) && (
-        <span className={`${styles.chip} ${styles.markerChip}`} data-tint="urgent"><UrgentIcon /> Urgent</span>
-      )}
-      {(draft.important || preset?.important) && (
-        <span className={`${styles.chip} ${styles.markerChip}`} data-tint="followup"><ImportantIcon /> Important</span>
-      )}
-      {(draft.focus || preset?.focus) && (
-        <span className={`${styles.chip} ${styles.markerChip}`} data-tint="accent"><FocusIcon /> Focus</span>
-      )}
+      {MARKER_KEYS.filter((key) => draft[key] || preset?.[key]).map((key) => (
+        <span key={`marker-${key}`} className={`${styles.chip} ${styles.markerChip}`} data-tint={MARKER_CHIP_TINT[key]}>
+          <MarkerIcon marker={key} /> {MARKER_LABELS[key]}
+        </span>
+      ))}
       {draft.tags.map((t) => (
         <span key={`tag-${t}`} className={styles.chip}>#{t}</span>
       ))}

@@ -46,7 +46,7 @@ describe('buildTaskMenuEntries — the one task menu', () => {
     expect(shape(build(makeTodo({ id: 1 })))).toEqual([
       'Open', 'Mark complete', '--',
       'Set due date…', 'Follow-up', 'Followed up', 'Assign people…', 'Add tag…', '--',
-      '[Markers]', 'Urgent', 'Important', 'Focus', '--',
+      '[Markers]', 'Focus', 'Urgent', 'Important', '--',
       'Delete',
     ])
   })
@@ -57,7 +57,7 @@ describe('buildTaskMenuEntries — the one task menu', () => {
     })
     expect(shape(entries)).toEqual([
       'Mark complete', '--', 'Follow-up', 'Followed up', '--',
-      '[Markers]', 'Urgent', 'Important', 'Focus', '--', 'Delete',
+      '[Markers]', 'Focus', 'Urgent', 'Important', '--', 'Delete',
     ])
     expect(shape(item(entries, 'Follow-up').children!)).toEqual(['1 week', '2 weeks', '1 month', '3 months'])
   })

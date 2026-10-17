@@ -6,8 +6,8 @@ const today = new Date(2026, 9, 10)
 const within = (urgentRange: number | null): MarkerSettings => ({ urgentRange, hotRule: DEFAULT_HOT_RULE })
 
 describe('Markers filter helpers', () => {
-  it('lists ticked markers in display order (Urgent › Important › Focus)', () => {
-    expect(activeMarkers({ focus: true, urgent: true })).toEqual(['urgent', 'focus'])
+  it('lists ticked markers in display order (Focus › Urgent › Important)', () => {
+    expect(activeMarkers({ focus: true, urgent: true })).toEqual(['focus', 'urgent'])
     expect(activeMarkers(null)).toEqual([])
     expect(activeMarkers({})).toEqual([])
     expect(hasMarkers({})).toBe(false)
@@ -30,8 +30,8 @@ describe('Markers filter helpers', () => {
 
   it('reads as the first marker +N', () => {
     expect(markersValue({ focus: true })).toBe('Focus')
-    expect(markersValue({ important: true, focus: true })).toBe('Important +1')
-    expect(markersValue({ urgent: true, important: true, focus: true })).toBe('Urgent +2')
+    expect(markersValue({ important: true, focus: true })).toBe('Focus +1')
+    expect(markersValue({ urgent: true, important: true, focus: true })).toBe('Focus +2')
     expect(markersValue(null)).toBe('')
   })
 

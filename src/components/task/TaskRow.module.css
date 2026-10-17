@@ -573,7 +573,7 @@
   }
 }
 
-/* Markers (Urgent › Important › Focus) between the checkbox and the title; never hidden. */
+/* Markers (Focus › Urgent › Important) between the checkbox and the title; never hidden. */
 .markers {
   display: inline-flex;
   align-items: center;

@@ -246,10 +246,10 @@ describe('TaskRow', () => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('shows Urgent › Important › Focus before the title, each only when set', () => {
+    it('shows Focus › Urgent › Important before the title, each only when set', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
       const names = screen.getByTestId('task-markers').querySelectorAll('[role="img"]')
-      expect([...names].map((n) => n.getAttribute('aria-label'))).toEqual(['Urgent', 'Important', 'Focus'])
+      expect([...names].map((n) => n.getAttribute('aria-label'))).toEqual(['Focus', 'Urgent', 'Important'])
       const title = screen.getByText('All three')
       expect(screen.getByTestId('task-markers').compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })

@@ -37,7 +37,7 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
 /**
  * The floating bar over a list widget with 2+ rows selected: set due date,
  * set follow-up, assign people, add tag, complete, ⋯ More, delete, clear.
- * ⋯ More holds Followed up and the Markers (Urgent / Important / Focus) as
+ * ⋯ More holds Followed up and the Markers (Focus / Urgent / Important) as
  * tri-state checkbox items: when only some tasks have one, a click gives it
  * to all of them; when all have it, a click takes it off all (Urgent counts
  * tasks urgent by due date too, and turning it off asks about those dates —

@@ -1,5 +1,6 @@
-import type { MarkerKey, PersistedTodoItem } from '../../models'
+import { MARKER_KEYS, type MarkerKey, type PersistedTodoItem } from '../../models'
 import { isEffectivelyUrgent, type UrgentDueWithinDays } from '../../utils/urgency'
+import { MARKER_COLOR, MARKER_LABELS } from '../../utils/markers'
 import {
   addFollowupInterval,
   describeFollowupInterval,
@@ -49,11 +50,14 @@ export interface BuildTaskMenuOpts {
   handlers: TaskMenuHandlers
 }
 
-const MARKERS: ReadonlyArray<{ key: MarkerKey; label: string; icon: React.ReactNode; color: string }> = [
-  { key: 'urgent', label: 'Urgent', icon: <UrgentIcon />, color: 'var(--color-marker-urgent)' },
-  { key: 'important', label: 'Important', icon: <ImportantIcon outline />, color: 'var(--color-marker-important)' },
-  { key: 'focus', label: 'Focus', icon: <FocusIcon />, color: 'var(--color-marker-focus)' },
-]
+const MARKER_ICON: Record<MarkerKey, React.ReactNode> = {
+  focus: <FocusIcon />,
+  urgent: <UrgentIcon />,
+  important: <ImportantIcon outline />,
+}
+
+/** The menu's marker items, in display order. */
+const MARKERS = MARKER_KEYS.map((key) => ({ key, label: MARKER_LABELS[key], icon: MARKER_ICON[key], color: MARKER_COLOR[key] }))
 
 function markerCount(key: MarkerKey, targets: readonly PersistedTodoItem[], today: Date, range: UrgentDueWithinDays): number {
   return targets.filter((t) => {

@@ -7,7 +7,7 @@ export interface FilterDefaults {
   tagIds: number[]
   statusId: number | undefined
   /**
-   * The markers the filter requires (Urgent / Important / Focus): new tasks
+   * The markers the filter requires (Focus / Urgent / Important): new tasks
    * start with those flags, so they show where they were added. A Hot filter
    * seeds nothing (no single set of flags makes a task hot under every rule).
    */

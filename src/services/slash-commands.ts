@@ -23,9 +23,9 @@ export interface SlashCommandSpec {
 
 /** The commands in menu order. */
 export const SLASH_COMMANDS: readonly SlashCommandSpec[] = [
+  { name: 'focus', aliases: [], description: 'Add to Focus' },
   { name: 'urgent', aliases: [], description: 'Mark urgent' },
   { name: 'important', aliases: [], description: 'Mark important' },
-  { name: 'focus', aliases: [], description: 'Add to Focus' },
   { name: 'due', aliases: [], description: 'Due date…', argumentLabel: 'Due date' },
   { name: 'followup', aliases: ['follow-up'], description: 'Next follow-up…', argumentLabel: 'Next follow-up' },
   { name: 'repeat', aliases: [], description: 'Repeat…', argumentLabel: 'Repeat' },

@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import type { TodoItem } from '../../models'
+import { Fragment, type ReactNode } from 'react'
+import { MARKER_KEYS, type MarkerKey, type TodoItem } from '../../models'
 import { useSettingsStore } from '../../stores/settings-store'
 import { urgentByDateReason, urgentMark } from '../../utils/urgency'
 import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from './MarkerIcons'
@@ -30,7 +30,7 @@ function Marker({ label, tooltip, color, testId, children }: {
 }
 
 /**
- * A task row's markers, in the fixed order Urgent › Important › Focus, each
+ * A task row's markers, in the fixed order Focus › Urgent › Important, each
  * shown only when set. The Urgent slot shows the clock when only the due date
  * makes the task urgent (`utils/urgency.ts`), the urgent mark when flagged.
  * Renders nothing when the task has no marker. `className` styles the strip
@@ -48,33 +48,35 @@ export function TaskMarkers({ todo, today, size = 14, className }: {
   const focus = todo.focus === true
   if (!urgent && !important && !focus) return null
   const reason = urgent === 'date' ? urgentByDateReason(todo, today, range) : ''
+  const glyphs: Record<MarkerKey, ReactNode> = {
+    focus: focus && (
+      <Marker label="Focus" color="var(--color-marker-focus)" testId="focus-marker">
+        <FocusIcon />
+      </Marker>
+    ),
+    urgent: urgent === 'flag' ? (
+      <Marker label="Urgent" color="var(--color-marker-urgent)" testId="urgent-marker">
+        <UrgentIcon />
+      </Marker>
+    ) : urgent === 'date' && (
+      <Marker
+        label="Urgent: due soon"
+        tooltip={reason ? `Urgent: due soon\n${reason}` : 'Urgent: due soon'}
+        color="var(--color-marker-urgent)"
+        testId="urgent-clock-marker"
+      >
+        <UrgentClockIcon />
+      </Marker>
+    ),
+    important: important && (
+      <Marker label="Important" color="var(--color-marker-important)" testId="important-marker">
+        <ImportantIcon />
+      </Marker>
+    ),
+  }
   return (
     <span className={className} style={{ fontSize: size }} data-testid="task-markers">
-      {urgent === 'flag' && (
-        <Marker label="Urgent" color="var(--color-marker-urgent)" testId="urgent-marker">
-          <UrgentIcon />
-        </Marker>
-      )}
-      {urgent === 'date' && (
-        <Marker
-          label="Urgent: due soon"
-          tooltip={reason ? `Urgent: due soon\n${reason}` : 'Urgent: due soon'}
-          color="var(--color-marker-urgent)"
-          testId="urgent-clock-marker"
-        >
-          <UrgentClockIcon />
-        </Marker>
-      )}
-      {important && (
-        <Marker label="Important" color="var(--color-marker-important)" testId="important-marker">
-          <ImportantIcon />
-        </Marker>
-      )}
-      {focus && (
-        <Marker label="Focus" color="var(--color-marker-focus)" testId="focus-marker">
-          <FocusIcon />
-        </Marker>
-      )}
+      {MARKER_KEYS.map((key) => <Fragment key={key}>{glyphs[key]}</Fragment>)}
     </span>
   )
 }

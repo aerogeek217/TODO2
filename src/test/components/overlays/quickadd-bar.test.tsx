@@ -75,6 +75,12 @@ describe('QuickAddBar', () => {
     expect(chips[4]).toMatch(/· default$/)
   })
 
+  it('marker chips read Focus › Urgent › Important', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('Fix the build /important /urgent /focus')
+    expect(chipTexts().slice(0, 3)).toEqual(['Focus', 'Urgent', 'Important'])
+  })
+
   it('a plain date word is title text: no due chip', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     changeInput('Call mom tomorrow ')
@@ -318,7 +324,7 @@ describe('QuickAddBar', () => {
       typeAtCaret('Call legal /')
       expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
       expect(options().map((t) => t.split(/[A-Z]/)[0])).toEqual([
-        '/urgent', '/important', '/focus', '/due', '/followup', '/repeat', '/status',
+        '/focus', '/urgent', '/important', '/due', '/followup', '/repeat', '/status',
       ])
       typeAtCaret('Call legal /fo')
       expect(options()).toEqual(['/focusAdd to Focus', '/followupNext follow-up…'])

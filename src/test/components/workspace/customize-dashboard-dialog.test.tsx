@@ -69,7 +69,7 @@ describe('CustomizeDashboardDialog', () => {
     setup()
     expect(screen.getByRole('dialog', { name: 'Customize dashboard' })).toBeTruthy()
     expect(rowIds('Tiles')).toEqual([
-      'tile:open', 'tile:hot', 'tile:urgent', 'tile:overdue', 'tile:followupDue', 'tile:focus', 'tile:dueToday', 'tile:dueNext7', 'tile:noFollowup',
+      'tile:open', 'tile:hot', 'tile:focus', 'tile:urgent', 'tile:overdue', 'tile:followupDue', 'tile:dueToday', 'tile:dueNext7', 'tile:noFollowup',
     ])
     const tiles = within(group('Tiles'))
     expect((tiles.getByRole('checkbox', { name: 'Open' }) as HTMLInputElement).checked).toBe(true)
@@ -87,7 +87,7 @@ describe('CustomizeDashboardDialog', () => {
   it('ticking a tile shows it at once and makes the layout unsaved; unticking it back is no change', () => {
     setup()
     fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Due today' }))
-    expect(tabConfig().tiles).toEqual(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus', 'dueToday'])
+    expect(tabConfig().tiles).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday'])
     expect(dirty()).toBe(true)
     fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Due today' }))
     expect(tabConfig().tiles).toEqual(defaultDashboardConfig().tiles)

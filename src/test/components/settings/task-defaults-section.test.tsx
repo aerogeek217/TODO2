@@ -76,6 +76,12 @@ describe('TaskDefaultsSection — Hot tasks', () => {
     expect(screen.getByTestId('hot-rule-total')).toHaveTextContent('3 open tasks are hot right now.')
   })
 
+  it('a line’s marker chips read Focus › Urgent › Important', () => {
+    render(<TaskDefaultsSection />)
+    expect(within(line(1)).getAllByRole('button').map((b) => b.textContent).filter((t) => t && /^(Focus|Urgent|Important)$/.test(t)))
+      .toEqual(['Focus', 'Urgent', 'Important'])
+  })
+
   it('toggling a marker saves the rule at once and updates the counts', async () => {
     seedTodos()
     render(<TaskDefaultsSection />)

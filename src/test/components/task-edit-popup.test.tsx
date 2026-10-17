@@ -468,6 +468,16 @@ describe('TaskEditPopup', () => {
       vi.useRealTimers()
     })
 
+    it('the marker toggles read Focus › Urgent › Important', () => {
+      const todo = makeTodo({ id: 41, title: 'Order' })
+      useTodoStore.setState({ todos: [todo] })
+      renderEditMode(todo)
+      const names = screen.getAllByRole('button')
+        .map((b) => b.textContent?.trim() ?? '')
+        .filter((t) => t === 'Focus' || t === 'Urgent' || t === 'Important')
+      expect(names).toEqual(['Focus', 'Urgent', 'Important'])
+    })
+
     it('edit mode: Urgent and Important flag the task and clear it again', async () => {
       const todo = makeTodo({ id: 42, title: 'Flag me' })
       useTodoStore.setState({ todos: [todo] })
@@ -615,7 +625,7 @@ describe('TaskEditPopup', () => {
       typeTitle('Call /')
       expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
       fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
-      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call /urgent ')
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call /focus ')
     })
 
     it('/ is plain text in an existing task’s title', () => {

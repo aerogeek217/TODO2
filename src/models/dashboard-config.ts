@@ -6,12 +6,12 @@
 
 /** The built-in tiles, in catalog order. */
 export const DASHBOARD_TILE_IDS = [
-  'open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus', 'dueToday', 'dueNext7', 'noFollowup',
+  'open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup',
 ] as const
 export type DashboardTileId = (typeof DASHBOARD_TILE_IDS)[number]
 
 /** The tiles a new dashboard shows (six fit in a row). */
-export const DEFAULT_DASHBOARD_TILES: readonly DashboardTileId[] = ['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus']
+export const DEFAULT_DASHBOARD_TILES: readonly DashboardTileId[] = ['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue']
 
 /** The sections, in default order. */
 export const DASHBOARD_SECTION_IDS = ['hot', 'followup', 'next7', 'trend', 'status', 'people'] as const

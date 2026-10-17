@@ -72,8 +72,8 @@ describe('filterChips', () => {
     ])
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true }, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
       .toEqual(['status', 'markers', 'text'])
-    // Display order is Urgent › Important › Focus, whatever the stored order.
-    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Urgent +1')
+    // Display order is Focus › Urgent › Important, whatever the stored order.
+    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Focus +1')
     expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: true } })).toBe(true)
     expect(hasNarrowingFilters({ ...emptyPredicate(), markers: {} })).toBe(false)
     expect(filterChips({ ...emptyPredicate(), markers: {} }, names)).toEqual([])

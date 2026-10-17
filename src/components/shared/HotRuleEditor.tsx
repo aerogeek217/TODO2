@@ -42,7 +42,7 @@ function totalLine(n: number) {
 
 /**
  * Editor for the app-wide Hot rule: lines joined by "or", each an AND of
- * marker toggles (Urgent / Important / Focus), with each line's live count of
+ * marker toggles (Focus / Urgent / Important), with each line's live count of
  * open tasks, the total, `+ Or…` and `Reset to default`. Every change saves at
  * once. A new line starts empty and is stored once it has a marker; the
  * rule always keeps at least one marker.

@@ -48,7 +48,7 @@ describe('dashboard copy', () => {
   it('the Hot rule in words', () => {
     expect(hotRuleInWords(DEFAULT_HOT_RULE)).toBe('Urgent and important, or in Focus')
     expect(hotRuleInWords([{ focus: true }, { urgent: true }])).toBe('In Focus, or urgent')
-    expect(hotRuleInWords([{ urgent: true, important: true, focus: true }])).toBe('Urgent and important and Focus')
+    expect(hotRuleInWords([{ urgent: true, important: true, focus: true }])).toBe('Focus and urgent and important')
     expect(hotLineLabel({ important: true, urgent: true })).toBe('urgent + important')
   })
 

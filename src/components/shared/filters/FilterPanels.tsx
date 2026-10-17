@@ -276,7 +276,7 @@ const TICK = (
 )
 
 /**
- * The Markers filter: Hot, then Urgent / Important / Focus checkboxes. A task
+ * The Markers filter: Hot, then Focus / Urgent / Important checkboxes. A task
  * must be hot, or have every ticked marker (strict AND). Ticking Hot clears
  * and disables the single markers. Ticking keeps the picker open.
  */

@@ -74,7 +74,7 @@ async function dragGrip(page: Page, grip: Locator, onto: Locator, below: boolean
 test('reordering and hiding in Customize show behind the dialog and make the layout unsaved', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-  expect(await tileIds(page)).toEqual(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'])
+  expect(await tileIds(page)).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
 
   const dialog = await openCustomize(page)
   const tiles = dialog.getByRole('list', { name: 'Tiles' })
@@ -127,7 +127,7 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   expect(await tileIds(page)).toEqual(['focus', 'open', 'hot', 'urgent', 'followupDue', 'dueToday'])
   await page.getByRole('button', { name: 'Layout: Dash' }).click()
   await page.getByRole('menuitem', { name: 'Discard changes' }).click()
-  await expect.poll(() => tileIds(page)).toEqual(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'])
+  await expect.poll(() => tileIds(page)).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 })
 
@@ -173,7 +173,7 @@ test('Copy summary writes the dashboard’s counts to the clipboard', async ({ p
   await expect(menu).toHaveCount(0)
   // (The OS clipboard may store the line break as CRLF.)
   await expect.poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
-    .toBe('Open 4 · Hot 2 · Urgent 2 · Overdue 0 · Follow-up due 0 · Focus 1\nAlice’s list 2')
+    .toBe('Open 4 · Hot 2 · Focus 1 · Urgent 2 · Overdue 0 · Follow-up due 0\nAlice’s list 2')
   const html = await page.evaluate(async () => {
     const items = await navigator.clipboard.read()
     const blob = await items[0]!.getType('text/html')

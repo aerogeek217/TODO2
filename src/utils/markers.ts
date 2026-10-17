@@ -4,16 +4,16 @@ import type { UrgentDueWithinDays } from './urgency'
 
 /** Display names of the task markers. */
 export const MARKER_LABELS: Record<MarkerKey, string> = {
+  focus: 'Focus',
   urgent: 'Urgent',
   important: 'Important',
-  focus: 'Focus',
 }
 
 /** The colour token of each marker. */
 export const MARKER_COLOR: Record<MarkerKey, string> = {
+  focus: 'var(--color-marker-focus)',
   urgent: 'var(--color-marker-urgent)',
   important: 'var(--color-marker-important)',
-  focus: 'var(--color-marker-focus)',
 }
 
 /** Display name of the Markers filter's Hot choice. */

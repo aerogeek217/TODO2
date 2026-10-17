@@ -90,7 +90,7 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'Urgent' }))
       expect(updates.at(-1)?.markers).toEqual({ urgent: true, focus: true })
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true, focus: true } }} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('button', { name: 'Markers filter: Urgent +1' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Markers filter: Focus +1' })).toBeInTheDocument()
       fireEvent.click(screen.getByRole('checkbox', { name: 'Urgent' }))
       fireEvent.click(screen.getByRole('button', { name: 'Clear markers filter' }))
       expect(updates.at(-1)?.markers).toBeNull()
@@ -101,7 +101,7 @@ describe('FilterChipBar — primitive', () => {
       const { rerender } = render(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true } }} onChange={(p) => updates.push(p)} />)
       fireEvent.click(screen.getByRole('button', { name: 'Markers filter: Urgent' }))
       const names = screen.getAllByRole('checkbox').map((c) => c.textContent)
-      expect(names).toEqual(['Hot', 'Urgent', 'Important', 'Focus'])
+      expect(names).toEqual(['Hot', 'Focus', 'Urgent', 'Important'])
       fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' }))
       expect(updates.at(-1)?.markers).toBe('hot')
 

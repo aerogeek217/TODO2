@@ -156,7 +156,7 @@ describe('layouts row validation', () => {
       id: 't',
       kind: 'dashboard',
       config: {
-        tiles: ['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'],
+        tiles: ['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'],
         listTiles: [2],
         sections: ['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
       },

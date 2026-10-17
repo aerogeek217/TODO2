@@ -618,6 +618,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             </div>
           )}
           {statuses.length > 0 && <span className={styles.badgeDivider} aria-hidden="true" />}
+          {/* The marker toggles, in display order (Focus › Urgent › Important). */}
+          <MarkerToggle
+            className={`${styles.markerToggle} ${focusOn ? styles.markerToggleFocusOn : ''}`}
+            pressed={focusOn}
+            onClick={handleToggleFocus}
+            tooltip={focusOn ? 'Remove from Focus' : 'Add to Focus'}
+          >
+            <FocusIcon /> Focus
+          </MarkerToggle>
           <MarkerToggle
             className={`${styles.markerToggle} ${urgentState ? styles.markerToggleUrgentOn : ''}`}
             pressed={urgentState !== null}
@@ -636,14 +645,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             tooltip={importantOn ? 'Remove important' : 'Mark important'}
           >
             <ImportantIcon outline={!importantOn} /> Important
-          </MarkerToggle>
-          <MarkerToggle
-            className={`${styles.markerToggle} ${focusOn ? styles.markerToggleFocusOn : ''}`}
-            pressed={focusOn}
-            onClick={handleToggleFocus}
-            tooltip={focusOn ? 'Remove from Focus' : 'Add to Focus'}
-          >
-            <FocusIcon /> Focus
           </MarkerToggle>
         </div>
 
@@ -714,7 +715,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   )
 }
 
-/** An editor marker toggle (Urgent / Important / Focus) with its tooltip. */
+/** An editor marker toggle (Focus / Urgent / Important) with its tooltip. */
 function MarkerToggle({ className, pressed, onClick, tooltip, children, ...rest }: {
   className: string
   pressed: boolean

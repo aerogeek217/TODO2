@@ -52,8 +52,8 @@ export const PREDICATE_SEARCH_TEXT_MAX = 500
 /** A task marker the Markers filter can require. */
 export type MarkerKey = 'urgent' | 'important' | 'focus'
 
-/** Markers in display order (Urgent › Important › Focus). */
-export const MARKER_KEYS: readonly MarkerKey[] = ['urgent', 'important', 'focus']
+/** Markers in display order (Focus › Urgent › Important). */
+export const MARKER_KEYS: readonly MarkerKey[] = ['focus', 'urgent', 'important']
 
 /**
  * A set of markers: only `true` values are stored, an empty object is none.
@@ -102,7 +102,7 @@ export interface TodoPredicate {
    */
   hasFollowup?: boolean | null
   /**
-   * Markers filter (Hot, or Urgent / Important / Focus with strict AND);
+   * Markers filter (Hot, or Focus / Urgent / Important with strict AND);
    * null or absent = no filter. Optional on read.
    */
   markers?: MarkersFilter | null

@@ -32,7 +32,7 @@ describe('Customize dashboard — the dialog state', () => {
     const c = config()
     const state = customizeStateFrom(c)
     const moved = { ...state, tileOrder: moveItem(state.tileOrder, 0, 1) }
-    expect(tilesFor(moved, new Set(c.tiles))).toEqual(['hot', 'open', 'urgent', 'overdue', 'followupDue', 'focus'])
+    expect(tilesFor(moved, new Set(c.tiles))).toEqual(['hot', 'open', 'focus', 'urgent', 'overdue', 'followupDue'])
     // A hidden tile moved above shown ones stays hidden.
     const hiddenUp = { ...state, tileOrder: moveItem(state.tileOrder, 8, 0) }
     expect(tilesFor(hiddenUp, new Set(c.tiles))[0]).toBe('open')
@@ -43,7 +43,7 @@ describe('Customize dashboard — the dialog state', () => {
     const c = config()
     const state = customizeStateFrom(c)
     expect(tilesFor(state, toggled(new Set(c.tiles), 'dueToday'))).toEqual([...c.tiles, 'dueToday'])
-    expect(tilesFor(state, toggled(new Set(c.tiles), 'hot'))).toEqual(['open', 'urgent', 'overdue', 'followupDue', 'focus'])
+    expect(tilesFor(state, toggled(new Set(c.tiles), 'hot'))).toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue'])
     const sections = sectionsFor(state, toggled(new Set(c.sections.map((s) => s.id)), 'trend'))
     expect(sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'status', 'people'])
   })
@@ -87,7 +87,7 @@ describe('dashboard copy for the tab menu and Customize', () => {
   it('the Hot rule at a glance', () => {
     expect(hotRuleShort(DEFAULT_HOT_RULE)).toBe('U+I or Focus')
     expect(hotRuleShort([{ urgent: true }])).toBe('Urgent')
-    expect(hotRuleShort([{ urgent: true, important: true, focus: true }, { important: true }])).toBe('U+I+F or Important')
+    expect(hotRuleShort([{ urgent: true, important: true, focus: true }, { important: true }])).toBe('F+U+I or Important')
   })
 
   it('what each tile counts, with the urgent range and the next-7-days end', () => {

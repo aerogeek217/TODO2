@@ -28,7 +28,7 @@ export function hasMarker(todo: MarkerFields, key: MarkerKey, today: Date, range
   }
 }
 
-/** The markers of a line, in display order (Urgent › Important › Focus). */
+/** The markers of a line, in display order (Focus › Urgent › Important). */
 export function lineMarkers(line: MarkerSet): MarkerKey[] {
   return MARKER_KEYS.filter((k) => line[k] === true)
 }
@@ -45,10 +45,17 @@ export function isHot(todo: MarkerFields, rule: HotRule, today: Date, range: Urg
   return rule.some((line) => matchesHotLine(todo, line, today, range))
 }
 
-/** `line` in canonical form: its markers in display order, `true` only. */
+/**
+ * The key order of a stored line. Fixed apart from the display order, so a
+ * stored or exported rule keeps the same text whatever order the markers show
+ * in.
+ */
+const STORED_KEY_ORDER: readonly MarkerKey[] = ['urgent', 'important', 'focus']
+
+/** `line` in canonical form: its markers in stored key order, `true` only. */
 function canonicalLine(line: MarkerSet): MarkerSet {
   const out: MarkerSet = {}
-  for (const k of lineMarkers(line)) out[k] = true
+  for (const k of STORED_KEY_ORDER) if (line[k] === true) out[k] = true
   return out
 }
 
@@ -59,7 +66,7 @@ function lineKey(line: MarkerSet): string {
 
 /**
  * `rule` as stored: lines without a marker dropped, duplicate lines collapsed
- * (first one kept), keys in display order. Empty when no line has a marker —
+ * (first one kept), keys in stored key order. Empty when no line has a marker —
  * not a valid rule.
  */
 export function normalizeHotRule(rule: HotRule): MarkerSet[] {

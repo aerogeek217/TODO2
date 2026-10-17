@@ -78,7 +78,7 @@ describe('DashboardWidget — the design sample', () => {
   it('renders the default tiles with the design numbers and sub-lines', () => {
     setup()
     expect(Array.from(document.querySelectorAll('[data-dash-tile]')).map((el) => (el as HTMLElement).dataset.dashTile))
-      .toEqual(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'])
+      .toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
     expect(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount)).toEqual(['19', '4', '8', '2', '2', '3'])
     expect(tile('open').textContent).toContain('+3 in the last 14 days')
     expect(tile('hot').textContent).toContain('3 urgent + important · 1 Focus')
@@ -92,7 +92,7 @@ describe('DashboardWidget — the design sample', () => {
   it('reports the open count for the tab and its counts for Copy summary', () => {
     setup(tabWith({ listTiles: [1] }))
     expect(lastResult?.countLabel).toBe('19')
-    expect(lastResult?.summary.plain).toBe('Open 19 · Hot 4 · Urgent 8 · Overdue 2 · Follow-up due 2 · Focus 3\nWaiting on 2')
+    expect(lastResult?.summary.plain).toBe('Open 19 · Hot 4 · Focus 3 · Urgent 8 · Overdue 2 · Follow-up due 2\nWaiting on 2')
   })
 
   it('“+ Add list tile” shows when the host can open Customize', () => {
@@ -217,7 +217,7 @@ describe('DashboardWidget — screen filter', () => {
     expect(tile('overdue').textContent).toContain('Nothing overdue')
     expect(tile('focus').textContent).toContain('None due today')
     expect(lastResult?.countLabel).toBe('5 of 19')
-    expect(lastResult?.summary.plain).toBe('Open 5 of 19 · Hot 1 of 4 · Urgent 1 of 8 · Overdue 0 of 2 · Follow-up due 0 of 2 · Focus 1 of 3')
+    expect(lastResult?.summary.plain).toBe('Open 5 of 19 · Hot 1 of 4 · Focus 1 of 3 · Urgent 1 of 8 · Overdue 0 of 2 · Follow-up due 0 of 2')
     expect(sectionCount('hot')).toBe('1 of 4')
     expect(sectionCount('status')).toBe('5 of 19 open')
   })

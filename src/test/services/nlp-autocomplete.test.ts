@@ -89,7 +89,7 @@ describe('command list', () => {
   it('lists every command, in order, with the footer', () => {
     const view = at('Call legal /')
     expect(view?.header).toBe('Commands')
-    expect(labels(view)).toEqual(['/urgent', '/important', '/focus', '/due', '/followup', '/repeat', '/status'])
+    expect(labels(view)).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/repeat', '/status'])
     expect(view?.footer).toBe(true)
     expect(view?.anchor).toBe(11)
   })

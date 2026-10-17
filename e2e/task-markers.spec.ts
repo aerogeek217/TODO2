@@ -31,7 +31,7 @@ test('rows show the urgent mark, the clock (urgent by due date), important and f
   })
   const marks = (title: string) => row(widget, title).getByTestId('task-markers').locator('[role="img"]')
   await expect(marks('Flagged')).toHaveCount(3)
-  expect(await marks('Flagged').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))).toEqual(['Urgent', 'Important', 'Focus'])
+  expect(await marks('Flagged').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')))).toEqual(['Focus', 'Urgent', 'Important'])
   await expect(row(widget, 'Due soon').getByRole('img', { name: 'Urgent: due soon' })).toBeVisible()
   await expect(row(widget, 'Overdue').getByRole('img', { name: 'Urgent: due soon' })).toBeVisible()
   await expect(row(widget, 'Later').getByTestId('task-markers')).toHaveCount(0)
@@ -116,7 +116,7 @@ test('the top-bar Markers filter (after Status) keeps tasks with every ticked ma
   await page.getByRole('checkbox', { name: 'Focus' }).click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Important focus'])
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Markers filter: Important +1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Markers filter: Focus +1' })).toBeVisible()
   await expect(page.locator('[data-filter-row]')).toHaveAttribute('data-filtered', 'true')
 
   await page.getByRole('button', { name: 'Clear markers filter' }).click()

@@ -4,7 +4,7 @@ import { rowTitles } from './fixtures/seed'
 
 /**
  * Hot: a derived marker from Settings' Hot rule (lines joined by OR, each an
- * AND of Urgent / Important / Focus; default (Urgent AND Important) OR
+ * AND of Focus / Urgent / Important; default (Urgent AND Important) OR
  * Focus). The Markers filter offers Hot first; ticking it greys out the
  * single markers. Editing the rule in Settings › Task defaults re-filters a
  * list filtered on Hot at once.
@@ -25,7 +25,7 @@ test('the Markers picker: Hot first, greying the others; Urgent + Important AND'
 
   await page.getByRole('button', { name: 'Markers filter' }).click()
   const picker = page.getByRole('group', { name: 'Markers' })
-  await expect(picker.getByRole('checkbox')).toHaveText(['Hot', 'Urgent', 'Important', 'Focus'])
+  await expect(picker.getByRole('checkbox')).toHaveText(['Hot', 'Focus', 'Urgent', 'Important'])
 
   // Urgent + Important: tasks with both (Urgent includes urgent by due date).
   await picker.getByRole('checkbox', { name: 'Urgent' }).click()

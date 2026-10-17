@@ -317,7 +317,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
       .toEqual(['Set due date', 'Set follow-up', 'Assign people', 'Add tag', 'Complete', 'More', 'Delete', 'Clear selection'])
     const menu = openMore()
     expect(Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((b) => b.getAttribute('data-menu-label')))
-      .toEqual(['Followed up', 'Urgent', 'Important', 'Focus'])
+      .toEqual(['Followed up', 'Focus', 'Urgent', 'Important'])
   })
 
   it('⋯ More › Focus puts every selected task in focus, then takes them out', async () => {
