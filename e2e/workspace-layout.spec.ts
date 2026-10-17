@@ -225,6 +225,53 @@ test.describe('saved layouts', () => {
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   })
 
+  test('New layout: an empty, unsaved Untitled layout; Save stores it, Discard goes back', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns, second] })
+    const picker = page.getByTestId('layout-picker')
+    await picker.click()
+    await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
+    await expect(picker).toHaveAccessibleName('Layout: Untitled layout')
+    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expect(page.getByText('This layout is empty')).toBeVisible()
+    expect(await wsShape(page)).toEqual([])
+
+    // The picker lists it, checked and marked New; Discard goes back to Main.
+    await picker.click()
+    await expect(page.getByRole('menuitemradio', { name: /Untitled layout/ })).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByRole('menuitemradio', { name: /Untitled layout/ })).toContainText('New')
+    await page.getByRole('menuitem', { name: 'Discard changes' }).click()
+    await expect(picker).toHaveAccessibleName('Layout: Main')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+
+    // Again, then Save: it's stored and stays after a reload.
+    await picker.click()
+    await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
+    await page.getByRole('button', { name: 'Notes' }).first().click()
+    await saveButton(page).click()
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await page.reload()
+    await expect(picker).toHaveAccessibleName('Layout: Untitled layout')
+    await picker.click()
+    await expect(page.getByRole('menuitemradio')).toHaveText(['Main', 'Second', 'Untitled layout'])
+  })
+
+  test('New layout with unsaved changes asks Save / Discard / Cancel first', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns] })
+    await wsTab(page, 'eisTab').click()
+    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await page.getByTestId('layout-picker').click()
+    await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
+    await expect(dialog).toContainText('You’re starting a new layout.')
+    await dialog.getByRole('button', { name: 'Discard' }).click()
+    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Untitled layout')
+    // Main lost the discarded change.
+    await page.getByTestId('layout-picker').click()
+    await page.getByRole('menuitemradio', { name: 'Main' }).click()
+    await page.getByRole('dialog', { name: /Save changes to layout “Untitled layout”/ }).getByRole('button', { name: 'Discard' }).click()
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+  })
+
   test('switching with Discard drops the change', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await wsTab(page, 'eisTab').click()

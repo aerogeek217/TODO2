@@ -166,6 +166,15 @@ export const DEFAULT_LAYOUT_NAME = 'Default'
 
 export const LAYOUT_NAME_MAX = 200
 
+/** Name of a new layout (the layout picker's New layout). */
+export const NEW_LAYOUT_NAME = 'Untitled layout'
+
+/**
+ * The id of a new layout while it isn't stored yet (stored ids start at 1);
+ * saving it gives it a real id.
+ */
+export const UNSAVED_LAYOUT_ID = 0
+
 /** Default weight of a new column / cell. */
 export const DEFAULT_WEIGHT = 1
 

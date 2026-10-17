@@ -3,6 +3,8 @@ import { layoutRepository, type ReadLayout } from '../data/layout-repository'
 import { useUndoStore } from './undo-store'
 import {
   LAYOUT_NAME_MAX,
+  NEW_LAYOUT_NAME,
+  UNSAVED_LAYOUT_ID,
   createTab,
   type PersistedWorkspaceLayout,
   type TabConfigOf,
@@ -44,6 +46,9 @@ type Layout = PersistedWorkspaceLayout
  *   (last write wins) — it never makes the layout dirty.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
  *   unsaved changes first.
+ * - `newLayout()` opens an empty `Untitled layout` that isn't stored until
+ *   it's saved (`saved` is `null`, its id `UNSAVED_LAYOUT_ID`); discarding it
+ *   goes back to the layout open before.
  */
 export interface WorkspaceState {
   /** Saved layouts, oldest first (the picker's order). */
@@ -51,8 +56,10 @@ export interface WorkspaceState {
   activeLayoutId: number | null
   /** The open layout as edited (`null` until `init`). */
   working: Layout | null
-  /** The open layout as stored. */
+  /** The open layout as stored; `null` for a new layout not saved yet. */
   saved: Layout | null
+  /** While a new layout is open: the layout open before it, which Discard goes back to. */
+  previousLayoutId: number | null
   /**
    * The working copy has structural changes that the stored layout doesn't:
    * edits since the last save, or a repair made when the layout was read.
@@ -75,8 +82,11 @@ export interface WorkspaceState {
   init: () => Promise<void>
   /** Opens a layout, dropping the working copy. Unknown id → no-op. */
   load: (id: number) => Promise<void>
+  /** Opens a new, empty, unsaved layout (`Untitled layout`), dropping the working copy. */
+  newLayout: () => void
   /**
-   * Writes the working copy over the saved layout. Resolves `false` when the
+   * Writes the working copy over the saved layout (a new layout: stores it
+   * under its name and opens it). Resolves `false` when the
    * write failed — the layout stays unsaved and the snackbar says so; never
    * rejects (as `saveAs` → `null`, `rename` → `false`).
    */
@@ -86,9 +96,12 @@ export interface WorkspaceState {
    * from stays as last saved. Returns the new id, or `null` for an empty name.
    */
   saveAs: (name: string) => Promise<number | null>
-  /** Reverts the working copy to the saved layout. */
+  /** Reverts the working copy to the saved layout; a new layout is dropped for the one open before. */
   discard: () => void
-  /** Renames a layout (not a layout change: never dirty). Empty name → `false`. */
+  /**
+   * Renames a layout (not a layout change: never dirty). Empty name → `false`.
+   * The new, unsaved layout (`UNSAVED_LAYOUT_ID`) is renamed in memory.
+   */
   rename: (id: number, name: string) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
@@ -222,7 +235,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    */
   function open(read: ReadLayout, layouts: Layout[], repairedIds: ReadonlySet<number>): void {
     const { layout, fixes } = read
-    set({ layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout, isDirty: repairedIds.has(layout.id), hydrated: true })
+    set({
+      layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout,
+      isDirty: repairedIds.has(layout.id), hydrated: true, previousLayoutId: null,
+    })
     if (fixes.length > 0) reportRepair(layout, fixes)
   }
 
@@ -231,6 +247,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     activeLayoutId: null,
     working: null,
     saved: null,
+    previousLayoutId: null,
     isDirty: false,
     repairedIds: new Set(),
     hydrated: false,
@@ -260,9 +277,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
     },
 
+    newLayout() {
+      const { activeLayoutId, previousLayoutId } = get()
+      const now = new Date()
+      set({
+        working: { id: UNSAVED_LAYOUT_ID, name: NEW_LAYOUT_NAME, columns: [], createdAt: now, modifiedAt: now },
+        saved: null,
+        activeLayoutId: null,
+        // A new layout over a new layout still goes back to the stored one.
+        previousLayoutId: activeLayoutId ?? previousLayoutId,
+        isDirty: true,
+      })
+    },
+
     async save() {
-      const { working } = get()
+      const { working, saved: stored } = get()
       if (!working) return false
+      if (!stored) return (await get().saveAs(working.name)) !== null
       const next: Layout = { ...working, modifiedAt: new Date() }
       // Saved only once the write has landed: a failed write leaves the
       // layout unsaved (and says so) rather than lost on the next reload.
@@ -316,19 +347,36 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         saved,
         isDirty: !layoutStructureEqual(working.columns, saved.columns),
         hydrated: true,
+        previousLayoutId: null,
       })
       return id
     },
 
     discard() {
-      const { saved } = get()
-      if (!saved) return
-      set({ working: saved, isDirty: get().repairedIds.has(saved.id) })
+      const { saved, working, layouts, previousLayoutId, repairedIds } = get()
+      if (!saved) {
+        if (!working) return
+        // A new layout: back to the layout open before it.
+        const previous = layouts.find((l) => l.id === previousLayoutId) ?? mostRecentlyUsed(layouts)
+        if (!previous) return
+        set({
+          working: previous, saved: previous, activeLayoutId: previous.id,
+          isDirty: repairedIds.has(previous.id), previousLayoutId: null,
+        })
+        return
+      }
+      set({ working: saved, isDirty: repairedIds.has(saved.id) })
     },
 
     async rename(id, name) {
       const clean = cleanName(name)
       if (!clean) return false
+      const current = get().working
+      if (id === UNSAVED_LAYOUT_ID) {
+        if (!current || get().saved) return false
+        set({ working: { ...current, name: clean } })
+        return true
+      }
       const read = await layoutRepository.get(id)
       if (!read) return false
       // Only the name: a layout repaired when read keeps its stored row.

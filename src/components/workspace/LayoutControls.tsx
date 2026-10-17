@@ -4,26 +4,30 @@ import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { UnsavedPrompt } from './UnsavedPrompt'
-import { ChevronDownIcon, CopyIcon, LayoutIcon, PencilIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
+import { ChevronDownIcon, CopyIcon, LayoutIcon, PencilIcon, PlusIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
 
 type Pending =
   | { kind: 'switch'; id: number; name: string }
+  | { kind: 'new' }
   | { kind: 'save-as' }
   | { kind: 'rename' }
   | { kind: 'delete' }
 
 /**
- * Top-bar layout chrome on the workspace: the layout picker (switch, save,
- * save as, discard, rename, delete) and the save button, lit while the open
- * layout has unsaved changes. Switching away from unsaved changes (to the
- * layout or to a list) asks Save / Discard / Cancel first.
+ * Top-bar layout chrome on the workspace: the layout picker (switch, new,
+ * save, save as, discard, rename, delete) and the save button, lit while the
+ * open layout has unsaved changes. Switching away from unsaved changes (to
+ * the layout or to a list) — to another layout or a new one — asks Save /
+ * Discard / Cancel first. A new layout is unsaved until saved; deleting it
+ * just drops it.
  */
 export function LayoutControls() {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const working = useWorkspaceStore((s) => s.working)
   const isDirty = useWorkspaceStore((s) => s.isDirty)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
+  const isNew = useWorkspaceStore((s) => s.working !== null && s.saved === null)
   const unsavedLists = useUnsavedListIds()
   const [menuOpen, setMenuOpen] = useState(false)
   const [pending, setPending] = useState<Pending | null>(null)
@@ -38,6 +42,10 @@ export function LayoutControls() {
     if (isDirty || unsavedLists.length > 0) setPending({ kind: 'switch', id, name: targetName })
     else void store().load(id)
   }
+  const startNew = () => {
+    if (isDirty || unsavedLists.length > 0) setPending({ kind: 'new' })
+    else store().newLayout()
+  }
 
   const entries: MenuEntry[] = [
     { kind: 'label', text: 'Layouts' },
@@ -50,7 +58,10 @@ export function LayoutControls() {
       note: l.id === activeLayoutId && isDirty ? 'Edited' : undefined,
       onSelect: () => switchTo(l.id, l.name),
     })),
+    // The new layout, until it's saved.
+    ...(isNew ? [{ kind: 'item' as const, label: name, icon: <LayoutIcon />, radio: true, checked: true, note: 'New' }] : []),
     { kind: 'separator' },
+    { kind: 'item', label: 'New layout', icon: <PlusIcon />, onSelect: startNew },
     { kind: 'item', label: 'Save changes', icon: <SaveIcon />, disabled: !isDirty, onSelect: () => { void store().save() } },
     { kind: 'item', label: 'Save as new layout…', icon: <CopyIcon />, onSelect: () => setPending({ kind: 'save-as' }) },
     { kind: 'item', label: 'Discard changes', icon: <RevertIcon />, disabled: !isDirty, onSelect: () => store().discard() },
@@ -61,7 +72,7 @@ export function LayoutControls() {
       label: 'Delete layout…',
       icon: <TrashIcon />,
       danger: true,
-      disabled: layouts.length <= 1,
+      disabled: !isNew && layouts.length <= 1,
       onSelect: () => setPending({ kind: 'delete' }),
     },
   ]
@@ -115,6 +126,15 @@ export function LayoutControls() {
           onCancel={close}
         />
       )}
+      {pending?.kind === 'new' && (
+        <UnsavedPrompt
+          lead="You’re starting a new layout."
+          layout={isDirty}
+          listIds={unsavedLists}
+          onDone={() => { close(); store().newLayout() }}
+          onCancel={close}
+        />
+      )}
       {pending?.kind === 'save-as' && (
         <LayoutNameDialog
           title="Save as new layout"
@@ -124,19 +144,23 @@ export function LayoutControls() {
           onCancel={close}
         />
       )}
-      {pending?.kind === 'rename' && activeLayoutId != null && (
+      {pending?.kind === 'rename' && (
         <LayoutNameDialog
           title="Rename layout"
           confirmLabel="Rename"
           initialName={name}
-          onConfirm={(n) => { close(); void store().rename(activeLayoutId, n) }}
+          onConfirm={(n) => { close(); void store().rename(working.id, n) }}
           onCancel={close}
         />
       )}
-      {pending?.kind === 'delete' && activeLayoutId != null && (
+      {pending?.kind === 'delete' && (
         <DeleteLayoutDialog
           layoutName={name}
-          onConfirm={() => { close(); void store().delete(activeLayoutId) }}
+          onConfirm={() => {
+            close()
+            if (isNew) store().discard()
+            else if (activeLayoutId != null) void store().delete(activeLayoutId)
+          }}
           onCancel={close}
         />
       )}

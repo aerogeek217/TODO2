@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { createTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { createTab, UNSAVED_LAYOUT_ID, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
@@ -220,6 +220,48 @@ describe('saved layouts', () => {
     expect(row.name).toBe('Morning')
     expect(row.columns).toHaveLength(2)
     expect(await ws().rename(id!, '')).toBe(false)
+  })
+
+  it('newLayout opens an empty, unsaved Untitled layout that nothing stores yet', async () => {
+    const [a] = await seedAndInit(twoColumns('A'))
+    ws().newLayout()
+    expect(ws()).toMatchObject({ activeLayoutId: null, saved: null, isDirty: true, previousLayoutId: a })
+    expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID, name: 'Untitled layout', columns: [] })
+    expect(await db.layouts.count()).toBe(1)
+    expect(await layoutRepository.getActiveId()).toBe(a)
+    // Edits stay in memory.
+    ws().addWidget('notes', { kind: 'layout' })
+    expect(ws().working!.columns).toHaveLength(1)
+    expect(await db.layouts.count()).toBe(1)
+  })
+
+  it('saving a new layout stores it under its name and opens it', async () => {
+    await seedAndInit(twoColumns('A'))
+    ws().newLayout()
+    expect(await ws().rename(UNSAVED_LAYOUT_ID, 'Planning')).toBe(true)
+    expect(await db.layouts.count()).toBe(1)
+    ws().addWidget('notes', { kind: 'layout' })
+    expect(await ws().save()).toBe(true)
+    const id = ws().activeLayoutId
+    expect(id).not.toBeNull()
+    expect(ws()).toMatchObject({ isDirty: false, previousLayoutId: null })
+    expect(ws().working!.name).toBe('Planning')
+    expect((await stored(id!)).columns).toHaveLength(1)
+    expect(await layoutRepository.getActiveId()).toBe(id)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['A', 'Planning'])
+  })
+
+  it('discarding a new layout goes back to the layout open before', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    await ws().load(b!)
+    ws().newLayout()
+    ws().newLayout()
+    expect(ws().previousLayoutId).toBe(b)
+    ws().discard()
+    expect(ws()).toMatchObject({ activeLayoutId: b, isDirty: false, previousLayoutId: null })
+    expect(ws().working!.name).toBe('B')
+    expect(ws().saved!.id).toBe(b)
+    expect(a).toBeDefined()
   })
 
   it('delete refuses the last layout; deleting the open one opens the most recently used', async () => {
