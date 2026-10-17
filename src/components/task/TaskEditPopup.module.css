@@ -463,11 +463,6 @@
   border-color: var(--color-tint-16);
 }
 
-.personSelect option {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-}
-
 /* ── Priority Menu ── */
 
 .priorityWrapper {

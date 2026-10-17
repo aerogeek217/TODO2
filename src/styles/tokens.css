@@ -459,3 +459,11 @@ textarea:focus-visible {
 input {
   font-family: inherit;
 }
+
+/* A native drop-down's open list can't show a select's translucent fill, so
+ * every option sits on the opaque surface colour with the primary text. */
+select option,
+select optgroup {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}

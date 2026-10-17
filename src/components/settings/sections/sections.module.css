@@ -169,11 +169,6 @@
   box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg);
 }
 
-.select option {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-}
-
 /* A bare label in the left column (rows whose component renders its own label). */
 .labelInline {
   composes: label;
