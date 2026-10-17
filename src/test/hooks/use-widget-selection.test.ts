@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type React from 'react'
 import { useUIStore } from '../../stores/ui-store'
 import { useWidgetSelection } from '../../hooks/use-widget-selection'
 import { rowKey, type ScopedRow } from '../../utils/scoped-selection'
@@ -8,11 +7,6 @@ import { rowKey, type ScopedRow } from '../../utils/scoped-selection'
 const ROWS: ScopedRow[] = [1, 2, 3, 4].map((id) => ({ key: rowKey('s', id), todoId: id }))
 const NONE = { shift: false, ctrl: false }
 const ids = () => [...useUIStore.getState().selectedTodoIds].sort()
-
-/** A click event whose target / currentTarget are the given elements. */
-function clickOn(target: Element, currentTarget: Element): React.MouseEvent {
-  return { target, currentTarget } as unknown as React.MouseEvent
-}
 
 beforeEach(() => {
   useUIStore.setState(useUIStore.getInitialState(), true)
@@ -38,25 +32,6 @@ describe('useWidgetSelection', () => {
     rows = ROWS
     act(() => result.current.onSelect(rowKey('s', 4), 4, NONE))
     expect(ids()).toEqual([4])
-  })
-
-  it('a click on empty space (the widget, or a named empty area) clears only its own selection', () => {
-    const widget = document.createElement('div')
-    const body = document.createElement('div')
-    const row = document.createElement('div')
-    widget.append(body)
-    body.append(row)
-    const { result } = renderHook(() => useWidgetSelection('tab-a', () => ROWS))
-    act(() => result.current.onSelect(rowKey('s', 1), 1, NONE))
-
-    act(() => result.current.clearOnEmptySpace(clickOn(row, widget), body))
-    expect(ids()).toEqual([1])
-    act(() => result.current.clearOnEmptySpace(clickOn(body, widget), body))
-    expect(ids()).toEqual([])
-
-    act(() => useUIStore.getState().setScopedSelection('tab-b', { ids: new Set([2]), anchorKey: 'tab-b:2', cursorKey: 'tab-b:2', cursorTodoId: 2 }))
-    act(() => result.current.clearOnEmptySpace(clickOn(widget, widget)))
-    expect(ids()).toEqual([2])
   })
 
   it('drops its selection when the widget unmounts', () => {

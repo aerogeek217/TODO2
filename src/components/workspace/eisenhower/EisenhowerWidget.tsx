@@ -424,7 +424,7 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
       stacked && collapsed.has(q) ? [] : quadrants[q].map((t) => ({ key: rowKey(q, t.id), todoId: t.id }))),
     [quadrants, stacked, collapsed],
   )
-  const { inScope, selectedIds, cursorKey, onSelect, clearOnEmptySpace } = useWidgetSelection(tab.id, () => rows)
+  const { inScope, selectedIds, cursorKey, onSelect } = useWidgetSelection(tab.id, () => rows)
 
   const toggle = (q: EisenhowerQuadrant, collapse: boolean) => {
     const next = EISENHOWER_QUADRANTS.filter((x) => (x === q ? collapse : collapsed.has(x)))
@@ -449,8 +449,6 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
       data-layout={stacked ? 'stacked' : 'grid'}
       data-dragging={drag ? 'true' : undefined}
       data-selection-scope={isMobile ? undefined : tab.id}
-      // A click on empty space clears this widget's selection.
-      onClick={clearOnEmptySpace}
     >
       {EISENHOWER_QUADRANTS.map((q) => (
         <Quadrant

@@ -8,7 +8,7 @@ export function UndoSnackbar() {
   if (!snackbar) return null
 
   return (
-    <div className={styles.snackbar}>
+    <div className={styles.snackbar} data-keeps-selection>
       <span className={snackbar.notice ? styles.notice : styles.message}>{snackbar.description}</span>
       {!snackbar.notice && (
         <button

@@ -83,6 +83,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
       role="toolbar"
       aria-label="Selected tasks"
       data-testid="list-bulk-bar"
+      data-keeps-selection
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >

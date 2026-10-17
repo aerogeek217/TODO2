@@ -21,6 +21,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
 import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignments-for-todos'
+import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import { dropDescription } from '../utils/eisenhower'
@@ -102,6 +103,7 @@ function useWorkspaceData(): void {
     void useListDefinitionStore.getState().ensureLoaded()
   }, [])
   useEntityAssignmentsForLoadedTodos()
+  useClearSelectionOnOutsideClick()
 }
 
 /**

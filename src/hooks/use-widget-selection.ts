@@ -18,11 +18,6 @@ export interface WidgetSelection {
   cursorKey: string | null
   /** A row click: one task, Ctrl toggles, Shift selects the range from the anchor. */
   onSelect: (key: string, todoId: number, mods: RowSelectMods) => void
-  /**
-   * The widget's click handler: a click on its own element (or on one of
-   * `emptyAreas`) — empty space, not a row — clears its selection.
-   */
-  clearOnEmptySpace: (e: React.MouseEvent, ...emptyAreas: Array<Element | null>) => void
 }
 
 /**
@@ -30,7 +25,8 @@ export interface WidgetSelection {
  * one widget owns the selection at a time (`scope` = its tab id), rows are
  * addressed by occurrence (`utils/scoped-selection`), and the selection goes
  * when the widget unmounts. `getRows` returns the rows in display order at
- * the time of a click.
+ * the time of a click. A click outside the rows clears the selection
+ * (`use-clear-selection-on-outside-click`, mounted by the workspace).
  */
 export function useWidgetSelection(scope: string, getRows: () => readonly ScopedRow[]): WidgetSelection {
   const inScope = useUIStore((s) => s.selectionScope === scope)
@@ -51,11 +47,5 @@ export function useWidgetSelection(scope: string, getRows: () => readonly Scoped
     if (next) ui.setScopedSelection(scope, next)
   }, [scope, getRowsRef])
 
-  const clearOnEmptySpace = useCallback((e: React.MouseEvent, ...emptyAreas: Array<Element | null>) => {
-    const ui = useUIStore.getState()
-    if (ui.selectionScope !== scope) return
-    if (e.target === e.currentTarget || emptyAreas.some((el) => el != null && el === e.target)) ui.clearSelection()
-  }, [scope])
-
-  return { inScope, selectedIds, cursorKey, onSelect, clearOnEmptySpace }
+  return { inScope, selectedIds, cursorKey, onSelect }
 }

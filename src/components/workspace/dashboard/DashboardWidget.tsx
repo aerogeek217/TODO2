@@ -167,7 +167,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
     sizeRef(el)
   }, [sizeRef])
   // Rows sit in sections of their own: read them from the page at click time.
-  const { inScope, selectedIds, cursorKey, onSelect, clearOnEmptySpace } = useWidgetSelection(
+  const { inScope, selectedIds, cursorKey, onSelect } = useWidgetSelection(
     tab.id,
     () => (rootRef.current ? readScopeRows(rootRef.current) : []),
   )
@@ -219,8 +219,6 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
       data-dashboard={tab.id}
       data-layout={wide ? 'grid' : 'column'}
       data-selection-scope={isMobile ? undefined : tab.id}
-      // A click on empty space clears this widget's selection.
-      onClick={clearOnEmptySpace}
     >
       {config.tiles.length > 0 && (
         <div className={styles.tiles} aria-label="Tiles" role="group" data-tile-rows={tileRows}>

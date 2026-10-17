@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, wsTab } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsListWidget, wsTab } from './fixtures/workspace'
 
 /**
  * A list widget's row selection goes away with the widget: after switching
@@ -102,4 +102,71 @@ test('list, Eisenhower and dashboard rows select alike; one widget at a time', a
   // The dashboard's click took the selection from the Eisenhower widget.
   await expect(selected).toHaveCount(1)
   await expect(widgets[2]!.root.locator('[data-selected="true"]')).toHaveCount(1)
+})
+
+/**
+ * A row selection goes when the user clicks anywhere that isn't a row: the
+ * top bar, another widget, a cell header, the workspace between cells. Clicks
+ * on rows, the bulk bar and its menus keep it, and so does a drag (here a
+ * divider resize, whose release lands outside any row).
+ */
+test('a click outside the rows clears the selection; rows, the bulk bar, menus and drags keep it', async ({ page }) => {
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'Tasks' }],
+    tasks: [{ title: 'alpha' }, { title: 'bravo' }, { title: 'charlie' }],
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] }, { id: 'k3', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
+      ],
+    }],
+  })
+  const list = wsListWidget(page, 'list')
+  const title = (t: string) => list.locator('[data-todo-id]').filter({ hasText: t }).locator(`span[title="${t}"]`)
+  const selected = page.locator('[data-selected="true"]')
+  const bulkBar = page.getByTestId('list-bulk-bar')
+  const selectTwo = async () => {
+    await title('alpha').click()
+    await title('bravo').click({ modifiers: ['Control'] })
+    await expect(selected).toHaveCount(2)
+  }
+
+  // Kept: another row click changes it; the bulk bar and its menu keep it.
+  await selectTwo()
+  await bulkBar.getByRole('button', { name: 'More', exact: true }).click()
+  await expect(page.getByRole('menu')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await bulkBar.getByText('2 selected').click()
+  await expect(selected).toHaveCount(2)
+
+  // Kept: a drag that ends outside the rows (a divider resize).
+  const divider = page.locator('[data-ws-divider]').first()
+  const d = await divider.boundingBox()
+  if (!d) throw new Error('no divider')
+  await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 60, y: d.y + d.height / 2 })
+  await expect(selected).toHaveCount(2)
+
+  // Cleared: the top bar's search box.
+  await page.getByRole('textbox', { name: 'Search tasks' }).click()
+  await expect(selected).toHaveCount(0)
+  await expect(bulkBar).toHaveCount(0)
+
+  // Cleared: another widget's tab.
+  await selectTwo()
+  await wsTab(page, 'eis').click()
+  await expect(selected).toHaveCount(0)
+
+  // Cleared: another widget's body.
+  await selectTwo()
+  await page.locator('[data-eisenhower="eis"]').click({ position: { x: 4, y: 4 } })
+  await expect(selected).toHaveCount(0)
+
+  // Cleared: the list's own cell header.
+  await selectTwo()
+  const header = await wsCell(page, 'k1').locator('[role="tablist"]').boundingBox()
+  if (!header) throw new Error('no tab strip')
+  await page.mouse.click(header.x + header.width - 60, header.y + header.height / 2)
+  await expect(selected).toHaveCount(0)
 })

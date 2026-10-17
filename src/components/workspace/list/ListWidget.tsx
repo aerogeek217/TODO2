@@ -122,7 +122,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const ranks = useListRanks(definition.id)
   const names = useChipNames()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const bodyRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ person: GroupPerson; at: { x: number; y: number } } | null>(null)
@@ -174,7 +173,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     ),
     [displaySections, collapsedKeys, grouped],
   )
-  const { inScope, selectedIds, cursorKey, onSelect: onRowSelect, clearOnEmptySpace } = useWidgetSelection(tab.id, () => rows)
+  const { inScope, selectedIds, cursorKey, onSelect: onRowSelect } = useWidgetSelection(tab.id, () => rows)
 
   // ── Drag: reorder (manual / switch to manual) and cross-group reassign ──
   const listId = definition.id
@@ -328,7 +327,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   } else {
     const sourceLabel = drag ? sections.find((s) => s.key === drag.source.sectionKey)?.label : undefined
     body = (
-      <div ref={bodyRef} className={styles.body}>
+      <div className={styles.body}>
         {grouped ? displaySections.map((section) => {
           const isCollapsed = collapsedKeys.has(section.key)
           const crossTarget = drag?.target?.cross === true && drag.target.sectionKey === section.key
@@ -398,12 +397,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       {showFilterRow && (
         <ListFilterRow tabId={tab.id} definition={definition} screenChips={screenChips} hasListChips={listChips.length > 0} />
       )}
-      <div
-        ref={scrollRef}
-        className={styles.scroll}
-        // A click on empty space clears this widget's selection.
-        onClick={(e) => clearOnEmptySpace(e, bodyRef.current)}
-      >
+      <div ref={scrollRef} className={styles.scroll}>
         {body}
       </div>
       {truncatedCount > 0 && (
