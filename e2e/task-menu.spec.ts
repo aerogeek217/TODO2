@@ -109,17 +109,25 @@ test.describe('task menu', () => {
 
   test('tooltip: the follow-up pill tooltip opens after 400 ms, not before', async ({ page }) => {
     const pill = taskRowByTitle(page, 'alpha').locator('[data-pill="followup"]')
+    // Timed in the page from the pointer entering the pill (the event that
+    // starts the delay) — not from a later evaluate, whose start lags the
+    // hover by however long the round trip takes.
+    await pill.evaluate((el) => {
+      const w = window as Window & { tooltipShownAfter?: number }
+      el.addEventListener('pointerenter', () => {
+        const enteredAt = performance.now()
+        const tick = () => {
+          if (document.querySelector('[role="tooltip"]')) w.tooltipShownAfter = performance.now() - enteredAt
+          else requestAnimationFrame(tick)
+        }
+        tick()
+      }, { once: true })
+    })
     await pill.hover()
-    const shownAt = await page.evaluate(() => new Promise<number>((resolve) => {
-      const start = performance.now()
-      const tick = () => {
-        if (document.querySelector('[role="tooltip"]')) resolve(performance.now() - start)
-        else requestAnimationFrame(tick)
-      }
-      tick()
-    }))
-    // Hover happened just before `start`, so the remaining wait is a bit under 400 ms.
-    expect(shownAt).toBeGreaterThan(250)
+    const shownAfter = await (await page.waitForFunction(
+      () => (window as Window & { tooltipShownAfter?: number }).tooltipShownAfter,
+    )).jsonValue()
+    expect(shownAfter).toBeGreaterThanOrEqual(395)
     const tip = page.getByRole('tooltip')
     await expect(tip).toContainText('Next follow-up')
     await expect(tip).toContainText('Never followed up')
