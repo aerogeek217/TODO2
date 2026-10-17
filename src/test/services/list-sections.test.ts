@@ -3,7 +3,6 @@ import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy } 
 import {
   buildListSections,
   listSortComparator,
-  truncateSections,
   type ListSectionsContext,
   type ListSectionsSpec,
   type Section,
@@ -580,58 +579,3 @@ describe('buildListSections — accents and sentinels', () => {
   })
 })
 
-
-describe('truncateSections', () => {
-  const mkSection = (key: string, ids: number[]): Section => ({
-    key,
-    label: key,
-    todos: ids.map((id) => makeTodo({ id })),
-  })
-
-  it('returns all sections when the limit exceeds total count', () => {
-    const sections = [mkSection('a', [1, 2]), mkSection('b', [3])]
-    const { displaySections, truncatedCount } = truncateSections(sections, 10)
-    expect(truncatedCount).toBe(0)
-    expect(displaySections).toHaveLength(2)
-    expect(displaySections[0]!.todos).toHaveLength(2)
-    expect(displaySections[1]!.todos).toHaveLength(1)
-  })
-
-  it('slices the section that straddles the cap', () => {
-    const sections = [mkSection('a', [1, 2, 3]), mkSection('b', [4, 5, 6])]
-    const { displaySections, truncatedCount } = truncateSections(sections, 4)
-    expect(truncatedCount).toBe(2)
-    expect(displaySections).toHaveLength(2)
-    expect(displaySections[0]!.todos.map((t) => t.id)).toEqual([1, 2, 3])
-    expect(displaySections[1]!.todos.map((t) => t.id)).toEqual([4])
-  })
-
-  it('drops entire tail sections after the cap', () => {
-    const sections = [mkSection('a', [1, 2]), mkSection('b', [3, 4]), mkSection('c', [5, 6])]
-    const { displaySections, truncatedCount } = truncateSections(sections, 2)
-    expect(truncatedCount).toBe(4)
-    expect(displaySections).toHaveLength(1)
-    expect(displaySections[0]!.todos.map((t) => t.id)).toEqual([1, 2])
-  })
-
-  it('preserves label, key, and accentColor on the sliced section', () => {
-    const sections: Section[] = [{
-      key: 'a',
-      label: 'Alpha',
-      accentColor: '#abc',
-      todos: [makeTodo({ id: 1 }), makeTodo({ id: 2 })],
-    }]
-    const { displaySections } = truncateSections(sections, 1)
-    expect(displaySections[0]!.key).toBe('a')
-    expect(displaySections[0]!.label).toBe('Alpha')
-    expect(displaySections[0]!.accentColor).toBe('#abc')
-    expect(displaySections[0]!.todos).toHaveLength(1)
-  })
-
-  it('cap of 0 drops everything', () => {
-    const sections = [mkSection('a', [1, 2]), mkSection('b', [3])]
-    const { displaySections, truncatedCount } = truncateSections(sections, 0)
-    expect(displaySections).toHaveLength(0)
-    expect(truncatedCount).toBe(3)
-  })
-})

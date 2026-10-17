@@ -139,20 +139,12 @@ describe('ListWidget', () => {
     expect(screen.getByText('No tasks in this list')).toBeInTheDocument()
   })
 
-  it('hard cap: first N, a Showing N of M line, and switch to scroll edits the list', () => {
-    const { result } = setup(def({ maxTasks: 2 }))
-    expect(titles()).toEqual(['Alice task', 'Bob task'])
-    expect(result()?.countLabel).toBe('2 of 3')
-    expect(screen.getByText(/Showing 2 of 3/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'switch to scroll' }))
-    expect(useListDraftStore.getState().drafts[7]?.limitMode).toBe('scroll')
+  it('shows every task, even with a stored cap: no "Showing N of M" line', () => {
+    const { result } = setup(def({ maxTasks: 2, limitMode: 'hard' }))
     expect(titles()).toHaveLength(3)
-  })
-
-  it('scroll mode shows every task', () => {
-    setup(def({ maxTasks: 1, limitMode: 'scroll' }))
-    expect(titles()).toHaveLength(3)
+    expect(result()?.countLabel).toBe('3')
     expect(screen.queryByText(/Showing/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
   })
 
   it('groups collapse on their own; a person’s group doesn’t repeat their avatar', () => {

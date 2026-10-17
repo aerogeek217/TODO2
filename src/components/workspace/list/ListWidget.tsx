@@ -16,7 +16,6 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import {
   isUngroupedSectionKey,
   listSortComparator,
-  truncateSections,
   type Section,
 } from '../../../services/list-sections'
 import { predicateToFilterDefaults } from '../../../utils/filter-defaults'
@@ -59,9 +58,9 @@ import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
-  /** `N`, `shown of total` when screen filters or a hard cap hide tasks, or `—` while the prompt is unanswered. */
+  /** `N`, `shown of total` when screen filters hide tasks, or `—` while the prompt is unanswered. */
   countLabel: string
-  /** The sections shown (after the hard cap), for Copy tasks. */
+  /** The sections shown, for Copy tasks. */
   sections: readonly Section[]
 }
 
@@ -81,8 +80,8 @@ function uniqueCount(sections: readonly Section[]): number {
 
 /**
  * A workspace list widget: the list's prompt row, a filter row (screen
- * filters, then the list's own filters), its groups and a footer (hard-cap
- * line, Add task). Shows the list's unsaved draft when it has one; the screen
+ * filters, then the list's own filters), its groups and a footer (Add
+ * task). Shows the list's unsaved draft when it has one; the screen
  * (top-bar) filter narrows it too (`composeScreenFilter`).
  */
 export function ListWidget({ tab, onResult }: ListWidgetProps) {
@@ -136,19 +135,14 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   )
 
   const sections = list?.sections ?? EMPTY_SECTIONS
-  const hardCap = definition.maxTasks != null && (definition.limitMode ?? 'hard') === 'hard' ? definition.maxTasks : null
-  const { displaySections, truncatedCount } = useMemo(
-    () => (hardCap != null ? truncateSections([...sections], hardCap) : { displaySections: [...sections], truncatedCount: 0 }),
-    [sections, hardCap],
-  )
-  const shown = useMemo(() => uniqueCount(displaySections), [displaySections])
+  const shown = useMemo(() => uniqueCount(sections), [sections])
   const total = list?.todos.length ?? 0
   const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
 
   const onResultRef = useLatestRef(onResult)
   useEffect(() => {
-    onResultRef.current?.({ countLabel, sections: displaySections })
-  }, [countLabel, displaySections, onResultRef])
+    onResultRef.current?.({ countLabel, sections: sections })
+  }, [countLabel, sections, onResultRef])
 
   const predicate = definition.membership.predicate
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
@@ -171,10 +165,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
-    () => displaySections.flatMap((section) =>
+    () => sections.flatMap((section) =>
       grouped && collapsedKeys.has(section.key) ? [] : section.todos.map((t) => ({ key: rowKey(section.key, t.id), todoId: t.id })),
     ),
-    [displaySections, collapsedKeys, grouped],
+    [sections, collapsedKeys, grouped],
   )
   const { inScope, selectedIds, cursorKey, onSelect: onRowSelect } = useWidgetSelection(tab.id, () => rows)
 
@@ -332,7 +326,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   } else {
     const sourceLabel = drag ? sections.find((s) => s.key === drag.source.sectionKey)?.label : undefined
     const groups = (
-      grouped ? displaySections.map((section) => {
+      grouped ? sections.map((section) => {
         const isCollapsed = collapsedKeys.has(section.key)
         const crossTarget = drag?.target?.cross === true && drag.target.sectionKey === section.key
         const person = isMobile ? null : groupPerson(groupedBy, section)
@@ -371,7 +365,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             {!isCollapsed && renderSectionRows(section)}
           </div>
         )
-      }) : displaySections.map((section) => (
+      }) : sections.map((section) => (
         <div key={section.key} data-list-section={section.key}>
           {renderSectionRows(section)}
         </div>
@@ -388,7 +382,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     )
   }
 
-  const footerHeight = (truncatedCount > 0 ? 30 : 0) + (canAddTask ? 32 : 0)
+  const footerHeight = canAddTask ? 32 : 0
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 
   return (
@@ -412,18 +406,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       <div ref={scrollRef} className={styles.scroll}>
         {body}
       </div>
-      {truncatedCount > 0 && (
-        <div className={styles.capLine}>
-          Showing {shown} of {total} —
-          <button
-            type="button"
-            className={styles.smallButton}
-            onClick={() => useListDraftStore.getState().edit(definition.id, (d) => ({ ...d, limitMode: 'scroll' }))}
-          >
-            switch to scroll
-          </button>
-        </div>
-      )}
       {canAddTask && (
         <button
           type="button"

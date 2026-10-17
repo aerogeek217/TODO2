@@ -198,18 +198,6 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   await expect(wsListWidget(page, 't1')).toContainText('Pick a person to show this list')
 })
 
-test('a hard cap shows the first N with a switch to scroll', async ({ page }) => {
-  await seedWorkspace(page, {
-    ...team,
-    listDefinitions: [{ name: 'Team', maxTasks: 1 }, { name: 'Other' }],
-  })
-  await expect(rows(page, 't1')).toHaveCount(1)
-  await expect(wsTab(page, 't1')).toContainText('1 of 2')
-  await wsListWidget(page, 't1').getByRole('button', { name: 'switch to scroll' }).click()
-  await expect(rows(page, 't1')).toHaveCount(2)
-  await expect(wsCell(page, 'k1').getByTestId('save-list')).toBeVisible()
-})
-
 test('narrow widgets: a narrower due column, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 800 })
   await seedWorkspace(page, {

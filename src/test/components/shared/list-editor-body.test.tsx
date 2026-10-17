@@ -50,17 +50,10 @@ describe('<ListEditorBody>', () => {
     expect(groups).toEqual(['none', 'deadline', 'followup', 'people', 'status', 'tag'])
   })
 
-  it('sets max tasks and its limit mode; clearing removes the cap', () => {
-    const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ maxTasks: 5 })} onChange={onChange} />)
-    const max = screen.getByLabelText('Max tasks') as HTMLInputElement
-    expect(max.value).toBe('5')
-    fireEvent.change(max, { target: { value: '12' } })
-    expect(last(onChange).maxTasks).toBe(12)
-    fireEvent.change(max, { target: { value: '' } })
-    expect(last(onChange).maxTasks).toBeUndefined()
-    fireEvent.click(screen.getByRole('radio', { name: 'Scroll' }))
-    expect(last(onChange).limitMode).toBe('scroll')
+  it('has no Max tasks control: a list shows all its tasks', () => {
+    render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} />)
+    expect(screen.queryByLabelText('Max tasks')).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: 'When over the max' })).toBeNull()
   })
 
   it('toggles show completed in the predicate', () => {

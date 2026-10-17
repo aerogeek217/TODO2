@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import type {
   PersistedListDefinition,
   RuntimeFilterField,
@@ -25,25 +25,12 @@ const PROMPT_EDITOR_LABEL: Record<RuntimeFilterField | 'none', string> = { ...PR
 
 /**
  * The list editor's form: name, filters (the same chips as a list widget's
- * filter row, plus Show completed), group by, sort by, max tasks and the
- * prompt field. Edits the caller's draft; the dialog saves it.
+ * filter row, plus Show completed), group by, sort by and the prompt
+ * field. Edits the caller's draft; the dialog saves it.
  */
 export function ListEditorBody({ draft, onChange }: ListEditorBodyProps) {
   const idBase = useId()
   const predicate = draft.membership.predicate
-  const limitMode = draft.limitMode ?? 'hard'
-  const [maxText, setMaxText] = useState(draft.maxTasks != null ? String(draft.maxTasks) : '')
-
-  const setMax = (text: string) => {
-    if (!/^\d*$/.test(text)) return
-    setMaxText(text)
-    const n = text === '' ? 0 : Number(text)
-    const next = { ...draft }
-    if (n < 1) delete next.maxTasks
-    else next.maxTasks = Math.min(n, 10000)
-    onChange(next)
-  }
-
   const setRuntimeFilter = (value: RuntimeFilterField | 'none') => {
     if (value === 'none') {
       if (!draft.runtimeFilter) return
@@ -115,32 +102,6 @@ export function ListEditorBody({ draft, onChange }: ListEditorBodyProps) {
           {choicesWith<TodoSortBy>(LIST_SORT_CHOICES, draft.sort).map((s) => <option key={s} value={s}>{SORT_LABEL[s]}</option>)}
         </select>
       </label>
-
-      <div className={styles.row}>
-        <label className={styles.label} htmlFor={`${idBase}-max`}>Max tasks</label>
-        <input
-          id={`${idBase}-max`}
-          className={styles.maxInput}
-          inputMode="numeric"
-          placeholder="All"
-          value={maxText}
-          onChange={(e) => setMax(e.target.value)}
-        />
-        <div className={styles.segmented} role="radiogroup" aria-label="When over the max">
-          {(['hard', 'scroll'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              role="radio"
-              aria-checked={limitMode === mode}
-              className={`${styles.segment} ${limitMode === mode ? styles.segmentOn : ''}`}
-              onClick={() => onChange({ ...draft, limitMode: mode })}
-            >
-              {mode === 'hard' ? 'Hard cap' : 'Scroll'}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <label className={styles.row} htmlFor={`${idBase}-prompt`}>
         <span className={styles.label}>Prompt for</span>

@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import type { TodoGroupBy, TodoSortBy } from '../../../models/todo-sort-group'
@@ -87,8 +87,8 @@ function AddFilterMenu({ listDefinitionId, at, onClose }: { listDefinitionId: nu
 }
 
 /**
- * List options: group, sort, max tasks, prompt field, filters and show
- * completed. Every control edits the list definition (unsaved until saved).
+ * List options: group, sort, prompt field, filters and show completed.
+ * Every control edits the list definition (unsaved until saved).
  */
 function ListOptionsPopover({ def, at, onClose }: { def: PersistedListDefinition; at: PopoverPoint; onClose: () => void }) {
   const open = useListWidgetStore((s) => s.openPopover)
@@ -104,21 +104,6 @@ function ListOptionsPopover({ def, at, onClose }: { def: PersistedListDefinition
   })
   const edit = (fn: (d: PersistedListDefinition) => PersistedListDefinition) => useListDraftStore.getState().edit(def.id, fn)
   const predicate = def.membership.predicate
-  const limitMode = def.limitMode ?? 'hard'
-  const [maxText, setMaxText] = useState(def.maxTasks != null ? String(def.maxTasks) : '')
-
-  const setMax = (text: string) => {
-    if (!/^\d*$/.test(text)) return
-    setMaxText(text)
-    const n = text === '' ? null : Number(text)
-    edit((d) => {
-      const next = { ...d }
-      if (n == null || n < 1) delete next.maxTasks
-      else next.maxTasks = Math.min(n, 10000)
-      return next
-    })
-  }
-
   const setPrompt = (value: RuntimeFilterField | 'none') => edit((d) => {
     const next = { ...d }
     if (value === 'none') delete next.runtimeFilter
@@ -163,31 +148,6 @@ function ListOptionsPopover({ def, at, onClose }: { def: PersistedListDefinition
           {sortChoices.map((s) => <option key={s} value={s}>{SORT_LABEL[s]}</option>)}
         </select>
       </label>
-      <div className={styles.row}>
-        <label className={styles.label} htmlFor={`${idBase}-max`}>Max tasks</label>
-        <input
-          id={`${idBase}-max`}
-          className={styles.maxInput}
-          inputMode="numeric"
-          placeholder="All"
-          value={maxText}
-          onChange={(e) => setMax(e.target.value)}
-        />
-        <div className={styles.segmented} role="radiogroup" aria-label="When over the max">
-          {(['hard', 'scroll'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              role="radio"
-              aria-checked={limitMode === mode}
-              className={`${styles.segment} ${limitMode === mode ? styles.segmentOn : ''}`}
-              onClick={() => edit((d) => ({ ...d, limitMode: mode }))}
-            >
-              {mode === 'hard' ? 'Hard' : 'Scroll'}
-            </button>
-          ))}
-        </div>
-      </div>
       <label className={styles.row} htmlFor={`${idBase}-prompt`}>
         <span className={styles.label}>Prompt</span>
         <select

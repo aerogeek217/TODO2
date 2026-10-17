@@ -223,29 +223,3 @@ export function buildListSections(
   }
   return sections
 }
-
-/**
- * Walk sections in order and truncate at the tail so the total task count
- * doesn't exceed `maxTasks`. Returns the clipped sections and how many tasks
- * were hidden.
- */
-export function truncateSections(sections: Section[], maxTasks: number): { displaySections: Section[]; truncatedCount: number } {
-  let remaining = maxTasks
-  let dropped = 0
-  const out: Section[] = []
-  for (const s of sections) {
-    if (remaining <= 0) {
-      dropped += s.todos.length
-      continue
-    }
-    if (s.todos.length <= remaining) {
-      out.push(s)
-      remaining -= s.todos.length
-    } else {
-      out.push({ ...s, todos: s.todos.slice(0, remaining) })
-      dropped += s.todos.length - remaining
-      remaining = 0
-    }
-  }
-  return { displaySections: out, truncatedCount: dropped }
-}
