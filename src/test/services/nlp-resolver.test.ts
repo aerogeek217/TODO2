@@ -1,10 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { resolveInput, resolveTags, resolveUnmatchedPeople, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
-import { TagLimitError } from '../../utils/tags'
 import type { Person, Status, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
-import { useUndoStore } from '../../stores/undo-store'
 
 function makeMockTagStore(initialTags: Tag[] = []): TagStoreLike & { nextId: number } {
   const tags: Tag[] = initialTags.map((t) => ({ ...t }))
@@ -212,21 +210,7 @@ describe('resolveTags', () => {
     expect(tagStore.tags).toHaveLength(0)
   })
 
-  it('catches TagLimitError, shows its message in the snackbar, and returns ids resolved so far', async () => {
-    const tagStore: TagStoreLike = {
-      tags: [{ id: 1, name: 'existing', color: '#aaa' }],
-      async add(): Promise<number> {
-        throw new TagLimitError('Tag limit reached (1) — delete unused tags in Settings → People, statuses & tags.')
-      },
-    }
-    // 'existing' resolves via lookup (no `add` call). 'neu' hits the limit
-    // — loop should break and return [1] rather than throwing.
-    const ids = await resolveTags(['existing', 'neu', 'alsofail'], { tagStore })
-    expect(ids).toEqual([1])
-    expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: expect.stringMatching(/tag limit/i) })
-  })
-
-  it('rethrows non-TagLimitError errors from tag-store.add', async () => {
+  it('rethrows a failed tag-store.add', async () => {
     const tagStore: TagStoreLike = {
       tags: [],
       async add(): Promise<number> {

@@ -1,8 +1,6 @@
 import type { Person, RecurrenceType, Status, Tag } from '../models'
 import { removeSpans, type CommandProblem, type ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { TagLimitError } from '../utils/tags'
-import { useUndoStore } from '../stores/undo-store'
 
 export interface ResolvedInput {
   /** The task title: the text without its recognised tokens. An unknown
@@ -93,14 +91,12 @@ export interface TagStoreLike {
  * Look up each parsed `#foo` name in the tag registry (case-insensitive) and
  * assign the existing tag; for misses, create a new tag with
  * `DEFAULT_ENTITY_COLOR` and use the new id. Returns ids in input order,
- * deduped. Empty / whitespace-only names are skipped. When the tag limit
- * stops it, `ctx.onLimit` gets the message (default: the snackbar notice) —
- * a caller whose own undo step comes next passes one, since that step's
- * snackbar would replace the notice.
+ * deduped. Empty / whitespace-only names are skipped. A failed create
+ * rejects (the caller reports it).
  */
 export async function resolveTags(
   names: readonly string[],
-  ctx: { tagStore: TagStoreLike; onLimit?: (message: string) => void },
+  ctx: { tagStore: TagStoreLike },
 ): Promise<number[]> {
   const ids: number[] = []
   const seen = new Set<number>()
@@ -117,20 +113,8 @@ export async function resolveTags(
       id = existing?.id
     }
     if (id === undefined) {
-      try {
-        id = await ctx.tagStore.add(trimmed, DEFAULT_ENTITY_COLOR)
-        createdByLower.set(lower, id)
-      } catch (e) {
-        if (e instanceof TagLimitError) {
-          // The task is still created, without the tags past the limit: say
-          // so. Once the ceiling is hit every later create would throw too,
-          // so stop and return the ids resolved so far.
-          if (ctx.onLimit) ctx.onLimit(e.message)
-          else useUndoStore.getState().notify(e.message)
-          break
-        }
-        throw e
-      }
+      id = await ctx.tagStore.add(trimmed, DEFAULT_ENTITY_COLOR)
+      createdByLower.set(lower, id)
     }
     if (id !== undefined && !seen.has(id)) {
       ids.push(id)

@@ -6,8 +6,6 @@ import { createAssignmentActions, type LoadAssignmentsOptions } from './assignme
 import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from './undoable'
-import { useSettingsStore } from './settings-store'
-import { TagLimitError } from '../utils/tags'
 
 interface TagState {
   tags: Tag[]
@@ -83,12 +81,6 @@ export const useTagStore = create<TagState>((set, get) => {
           (t) => t.name.trim().toLowerCase() === target && t.id !== undefined,
         )
         if (existing?.id != null) return existing.id
-        const { maxTags } = useSettingsStore.getState()
-        if (get().tags.length >= maxTags) {
-          throw new TagLimitError(
-            `Tag limit reached (${maxTags}) — delete unused tags in Settings → People, statuses & tags.`,
-          )
-        }
         const id = await tagRepository.getOrCreate(trimmed, color)
         if (!get().tags.some((t) => t.id === id)) {
           set({ tags: [...get().tags, { id, name: trimmed, color }] })

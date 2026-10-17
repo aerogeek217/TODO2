@@ -17,6 +17,7 @@ export const SETTING_KEYS = {
   seededAssignedStatusId: 'seededAssignedStatusId',
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',
+  /** No longer read (tags have no cap); a stored row stays valid until a schema step drops it. */
   maxTags: 'maxTags',
   /** Default next-follow-up interval for new tasks / "Followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',

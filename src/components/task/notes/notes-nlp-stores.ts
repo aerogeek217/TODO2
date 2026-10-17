@@ -9,7 +9,6 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
-import { TagLimitError } from '../../../utils/tags'
 import type { NotesNlpConfig } from './notes-nlp'
 
 /** `build(list)`, recomputed only when the list itself changes. */
@@ -52,7 +51,7 @@ export function storeNotesNlpConfig(): NotesNlpConfig {
       try {
         await (trigger === '@' ? usePersonStore.getState().getOrCreate(name) : useTagStore.getState().add(name))
       } catch (err: unknown) {
-        throw new Error(err instanceof TagLimitError ? err.message : `Couldn't create ${trigger}${name}`, { cause: err })
+        throw new Error(`Couldn't create ${trigger}${name}`, { cause: err })
       }
     },
     subscribe: (listener) => {

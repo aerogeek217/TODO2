@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { ChipSelector, type ChipItem } from '../../../components/shared/ChipSelector'
+import { useUndoStore } from '../../../stores/undo-store'
 
 const people: ChipItem[] = [
   { id: 4, name: 'Sam Lee', initials: 'SL', color: '#5b6abf' },
@@ -130,6 +131,17 @@ describe('ChipSelector', () => {
     type('Zed')
     fireEvent.click(screen.getByRole('option', { name: 'Create "Zed"' }))
     expect(onCreate).toHaveBeenCalledWith('Zed')
+  })
+
+  it('a create that fails says so in the snackbar', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    renderPicker({ onCreate: () => Promise.reject(new Error('write failed')) })
+    type('Zed')
+    key('Enter')
+    await vi.waitFor(() => {
+      expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Couldn\'t create "Zed".' })
+    })
+    expect(warn).toHaveBeenCalled()
   })
 
   it('Esc calls onClose and does not reach outer handlers', () => {

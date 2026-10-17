@@ -34,10 +34,6 @@ import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-/** Default ceiling for the tag registry. No Settings UI exposes this yet;
- * override by writing a `maxTags` row to the settings repo. */
-const DEFAULT_MAX_TAGS = 500
-
 export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 
@@ -49,10 +45,6 @@ interface SettingsState {
   seededAssignedStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
-  /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
-   * reaches this value. Guards against runaway `#tag` creation from NLP input.
-   */
-  maxTags: number
   /** Next follow-up for new tasks and after "Followed up" = today + this. */
   followupDefaultInterval: FollowupInterval
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
@@ -212,7 +204,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   seededAssignedStatusId: null,
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
-  maxTags: DEFAULT_MAX_TAGS,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
@@ -233,7 +224,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
-      let maxTags: number = DEFAULT_MAX_TAGS
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
@@ -260,9 +250,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.weekStartsOn) {
           const parsed = Number(row.value)
           if (isValidWeekStart(parsed)) weekStartsOn = parsed
-        } else if (row.key === SETTING_KEYS.maxTags) {
-          const parsed = Number(row.value)
-          if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
         } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
@@ -277,7 +264,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))

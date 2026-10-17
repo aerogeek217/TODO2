@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useId, useLayoutEffect } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './ChipSelector.module.css'
 import { byName } from '../../utils/sort-order'
+import { useUndoStore } from '../../stores/undo-store'
 
 export interface ChipItem {
   id: number
@@ -15,8 +16,11 @@ interface ChipSelectorProps {
   items: ChipItem[]
   selectedIds: Set<number>
   onToggle: (id: number) => void
-  /** Offers `Create "<query>"` when the query matches no name exactly (any case). */
-  onCreate?: (name: string) => void
+  /**
+   * Offers `Create "<query>"` when the query matches no name exactly (any
+   * case). A returned promise that rejects is reported in the snackbar.
+   */
+  onCreate?: (name: string) => void | Promise<unknown>
   placeholder?: string
   /** Esc closes the picker (the host owns the open state). */
   onClose?: () => void
@@ -115,7 +119,13 @@ export function ChipSelector({
     if (!onCreate) return
     setQuery('')
     setActiveChoice(null)
-    onCreate(name)
+    const result = onCreate(name)
+    if (result instanceof Promise) {
+      result.catch((err: unknown) => {
+        console.warn('[chip-selector] create failed', err)
+        useUndoStore.getState().notify(`Couldn't create "${name}".`)
+      })
+    }
   }
 
   const activate = (row: Row | undefined) => {

@@ -104,7 +104,7 @@ export function TagChipSelector({
                 .map((t) => ({ id: t.id!, name: t.name, color: t.color }))}
               selectedIds={assignedIds}
               onToggle={onToggle}
-              onCreate={(name) => { void onCreate(name) }}
+              onCreate={onCreate}
               onClose={close}
               placeholder="Search tags..."
             />

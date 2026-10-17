@@ -846,7 +846,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     { key: 'defaultProjectGroupBy', value: 'status' },
     { key: 'defaultProjectId', value: '1' },
     { key: 'horizonSlots', value: JSON.stringify([1, 2, 3, 4, 5]) },
-    { key: 'maxTags', value: '3' },
     { key: 'seededAssignedStatusId', value: String(IDS.statuses.assigned) },
     { key: 'seededFollowupStatusId', value: String(IDS.statuses.followup) },
     { key: 'selectedHorizonDefId', value: '1' },

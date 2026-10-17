@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useTagStore } from '../../stores/tag-store'
-import { TagLimitError } from '../../utils/tags'
 import { useSettingsStore } from '../../stores/settings-store'
 import { newTodoUid } from '../../utils/todo-uid'
 
@@ -9,7 +8,6 @@ beforeEach(async () => {
   await db.delete()
   await db.open()
   useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
-  useSettingsStore.setState({ maxTags: 500 })
 })
 
 async function addTodo(title = 'Task'): Promise<number> {
@@ -42,16 +40,14 @@ describe('useTagStore', () => {
     expect(useTagStore.getState().tags[0]!.color).toBe('#ff0000')
   })
 
-  it('add throws TagLimitError when tags.length >= settings.maxTags', async () => {
-    useSettingsStore.setState({ maxTags: 2 })
+  it('add has no cap: a stored maxTags row is ignored', async () => {
+    await db.settings.put({ key: 'maxTags', value: '2' })
+    await useSettingsStore.getState().load()
     await useTagStore.getState().add('one')
     await useTagStore.getState().add('two')
-    await expect(useTagStore.getState().add('three')).rejects.toBeInstanceOf(TagLimitError)
-    await expect(useTagStore.getState().add('three')).rejects.toThrow(/tag limit/i)
-    // Store state unchanged beyond the configured ceiling.
-    expect(useTagStore.getState().tags).toHaveLength(2)
-    // No row persisted to the registry either.
-    expect(await db.tags.count()).toBe(2)
+    await useTagStore.getState().add('three')
+    expect(useTagStore.getState().tags.map((t) => t.name)).toEqual(['one', 'two', 'three'])
+    expect(await db.tags.count()).toBe(3)
   })
 
   it('add is idempotent — returns existing id on case-insensitive match', async () => {
