@@ -1,5 +1,6 @@
 import { widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 
@@ -21,6 +22,25 @@ export function useTabTitle(tab: LayoutTab | undefined): string {
       : undefined,
   )
   return tab ? tabTitle(tab, listName) : ''
+}
+
+/** A list name not used by any saved list: "New list", "New list 2", … */
+function freshListName(): string {
+  const taken = new Set(useListDefinitionStore.getState().listDefinitions.map((d) => d.name.toLowerCase()))
+  let name = 'New list'
+  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New list ${n}`
+  return name
+}
+
+/**
+ * "Create new list…" in a list picker: saves a blank list, hands its id to
+ * `show` (which puts it in a tab), then opens that list's own editor.
+ */
+export function createListThenEdit(show: (listDefinitionId: number) => void): void {
+  void useListDefinitionStore.getState().add({ name: freshListName() }).then((id) => {
+    show(id)
+    useUIStore.getState().openListEditorDialog(id)
+  })
 }
 
 /** Adds a widget tab of `kind` at `target` (a list tab with its list). Returns the new tab's id. */

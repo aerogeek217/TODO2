@@ -1,20 +1,10 @@
 import { useRef, useState } from 'react'
 import { WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useUIStore } from '../../stores/ui-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { WidgetKindIcon } from '../shared/icons'
-import { useAddWidget } from './widget-hooks'
-
-/** A list name not used by any saved list: "New list", "New list 2", … */
-function freshListName(): string {
-  const taken = new Set(useListDefinitionStore.getState().listDefinitions.map((d) => d.name.toLowerCase()))
-  let name = 'New list'
-  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New list ${n}`
-  return name
-}
+import { createListThenEdit, useAddWidget } from './widget-hooks'
 
 interface AddWidgetFlowProps {
   target: LayoutDropTarget
@@ -27,7 +17,7 @@ interface AddWidgetFlowProps {
 /**
  * Adds a widget at `target`: picks the kind (unless `kind` is given), then —
  * for a list — which saved list to show ("Create new" makes a blank list and
- * opens the list editor on it). A list tab is never added without a list.
+ * opens that list's editor). A list tab is never added without a list.
  */
 export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowProps) {
   const [step, setStep] = useState<'kind' | 'list'>(kind != null && WIDGET_KIND_SPECS[kind].showsList ? 'list' : 'kind')
@@ -60,12 +50,7 @@ export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowPr
       y={anchor.y}
       header="Add list"
       onSelect={(id) => { add('lens', target, id) }}
-      onCreateNew={() => {
-        void useListDefinitionStore.getState().add({ name: freshListName() }).then((id) => {
-          add('lens', target, id)
-          useUIStore.getState().openListsEditor(id)
-        })
-      }}
+      onCreateNew={() => createListThenEdit((id) => add('lens', target, id))}
       onClose={onClose}
     />
   )

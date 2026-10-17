@@ -15,7 +15,7 @@ import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
-import { useTabTitle } from './widget-hooks'
+import { createListThenEdit, useTabTitle } from './widget-hooks'
 import { SaveListButton } from './list/SaveListButton'
 import { pointBelow } from '../shared/filters/popover-point'
 import { UnsavedPrompt } from './UnsavedPrompt'
@@ -84,7 +84,7 @@ function DropZones({ zone, accepts }: { zone: 'top' | 'middle' | 'bottom'; accep
   )
 }
 
-/** "Change widget → List": pick the list first, so a list tab always has one. */
+/** "Change widget → List": pick (or create) the list first, so a list tab always has one. */
 function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor: { x: number; y: number }; onClose: () => void }) {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   return (
@@ -93,7 +93,7 @@ function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor:
       y={anchor.y}
       header="Show list"
       onSelect={(id) => changeTabKind(tabId, 'lens', { listDefinitionId: id })}
-      onCreateNew={() => useUIStore.getState().openListsEditor()}
+      onCreateNew={() => createListThenEdit((id) => changeTabKind(tabId, 'lens', { listDefinitionId: id }))}
       onClose={onClose}
     />
   )
