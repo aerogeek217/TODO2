@@ -708,7 +708,7 @@ class FileStorageService {
     }
 
     // Every path that rewrites the file at a newer schema (confirmed upgrade,
-    // below-floor confirm, conflict "Use file" with an older file) lands
+    // below-floor confirm, conflict "Keep <file>" with an older file) lands
     // here: back up the raw text BEFORE anything changes on either side.
     if (prepared.upgraded && !(await this.backupFileText(text, true))) return
     // A current-version file the import trimmed (parts dropped with a

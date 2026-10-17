@@ -53,7 +53,7 @@ async function addTodo(page: Page, title: string) {
   await writeStores(page, { add: { todos: [{ uid: crypto.randomUUID(), title, isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }] } })
 }
 
-test('attaching a file that differs from a non-empty browser asks first; cancel and "Use browser data" behave', async ({ page }) => {
+test('attaching a file that differs from a non-empty browser asks first; cancel and "Keep browser data" behave', async ({ page }) => {
   await stubPicker(page)
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
@@ -93,10 +93,27 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   const titles = ((await dumpDb(page)).todos as Array<{ title: string }>).map((t) => t.title)
   expect(titles).toEqual(['Browser task'])
 
-  // Retry → asked again → keep the browser's data.
+  // Retry → asked again → keep the browser's data, by keyboard: the cards are
+  // a radio group with nothing picked; the one confirm is named after the pick.
   await banner.getByRole('button', { name: 'Retry' }).click()
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: 'Use browser data' }).click()
+  const browserCard = dialog.getByRole('radio', { name: /This browser/ })
+  const fileCard = dialog.getByRole('radio', { name: /\.json/ })
+  await expect(browserCard).toBeFocused()
+  await expect(browserCard).not.toBeChecked()
+  await expect(fileCard).not.toBeChecked()
+  await expect(dialog.getByRole('button', { name: 'Pick a version' })).toBeDisabled()
+  await page.keyboard.press('ArrowRight')
+  await expect(fileCard).toBeChecked()
+  await expect(dialog.getByRole('button', { name: /^Keep .+\.json$/ })).toBeEnabled()
+  await page.keyboard.press('ArrowLeft')
+  await expect(browserCard).toBeChecked()
+  await page.keyboard.press('Tab')
+  await expect(dialog.getByRole('button', { name: 'Cancel (pause sync)' })).toBeFocused()
+  await page.keyboard.press('Tab')
+  const keep = dialog.getByRole('button', { name: 'Keep browser data' })
+  await expect(keep).toBeFocused()
+  await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
   await expect(banner).toBeHidden()
 

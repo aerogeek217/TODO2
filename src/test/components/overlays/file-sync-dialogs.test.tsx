@@ -19,7 +19,7 @@ const info: SyncConflictInfo = {
 }
 
 describe('SyncConflictDialog', () => {
-  it('shows both sides and maps buttons to choices', () => {
+  it('shows both sides as cards, nothing picked; the one confirm is off until a card is picked', () => {
     const onChoose = vi.fn()
     render(<SyncConflictDialog info={info} onChoose={onChoose} />)
 
@@ -30,10 +30,32 @@ describe('SyncConflictDialog', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('the file was also changed elsewhere')
     expect(screen.getByRole('dialog')).toHaveTextContent('Nothing has changed yet')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use file' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Use browser data' }))
+    const group = screen.getByRole('radiogroup', { name: 'Version to keep' })
+    expect(group).toBe(sides)
+    const browser = screen.getByRole('radio', { name: /This browser/ })
+    const file = screen.getByRole('radio', { name: /todo2-data\.json/ })
+    expect(browser).not.toBeChecked()
+    expect(file).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Pick a version' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /^Use / })).toBeNull()
+
+    fireEvent.click(screen.getByText('This browser'))
+    expect(browser).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Keep browser data' })).toBeEnabled()
+    fireEvent.click(screen.getByText('todo2-data.json'))
+    expect(file).toBeChecked()
+    expect(browser).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep todo2-data.json' }))
+    expect(onChoose.mock.calls.map((c) => c[0])).toEqual(['file'])
+  })
+
+  it('Keep browser data and Cancel (pause sync) map to their choices', () => {
+    const onChoose = vi.fn()
+    render(<SyncConflictDialog info={info} onChoose={onChoose} />)
+    fireEvent.click(screen.getByRole('radio', { name: /This browser/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Keep browser data' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel (pause sync)' }))
-    expect(onChoose.mock.calls.map((c) => c[0])).toEqual(['file', 'browser', 'cancel'])
+    expect(onChoose.mock.calls.map((c) => c[0])).toEqual(['browser', 'cancel'])
   })
 
   it('Escape cancels (stays paused)', () => {
