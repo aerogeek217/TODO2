@@ -341,6 +341,20 @@ describe('useUndoStore', () => {
     expect(useUndoStore.getState().snackbar).toBeNull()
   })
 
+  it('a snackbar timer only ends its own snackbar — not one shown after the store was put back', () => {
+    // The test setup puts every store back to its initial state before each
+    // test; a timer started earlier must not clear a later test's snackbar.
+    useUndoStore.getState().notify('Earlier notice')
+    useUndoStore.getState().push(makeEntry('Earlier undo'), true)
+    useUndoStore.setState(useUndoStore.getInitialState(), true)
+    vi.advanceTimersByTime(4000)
+    useUndoStore.getState().notify('Later notice')
+    vi.advanceTimersByTime(4500) // past both earlier timers, not the later one
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Later notice', notice: true })
+    vi.advanceTimersByTime(4000)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
   it('an undoable push replaces a notice', () => {
     useUndoStore.getState().notify('notice')
     useUndoStore.getState().push(makeEntry('action1'), true)

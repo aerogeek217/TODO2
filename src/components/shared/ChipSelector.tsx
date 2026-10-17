@@ -119,13 +119,11 @@ export function ChipSelector({
     if (!onCreate) return
     setQuery('')
     setActiveChoice(null)
-    const result = onCreate(name)
-    if (result instanceof Promise) {
-      result.catch((err: unknown) => {
-        console.warn('[chip-selector] create failed', err)
-        useUndoStore.getState().notify(`Couldn't create "${name}".`)
-      })
-    }
+    // Any returned promise (or thenable) that rejects is reported.
+    Promise.resolve(onCreate(name)).catch((err: unknown) => {
+      console.warn('[chip-selector] create failed', err)
+      useUndoStore.getState().notify(`Couldn't create "${name}".`)
+    })
   }
 
   const activate = (row: Row | undefined) => {
