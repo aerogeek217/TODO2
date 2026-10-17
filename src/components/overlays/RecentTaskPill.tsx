@@ -10,7 +10,6 @@
  *   • interact with the inline `<TaskRow>` exactly as on any other surface
  *     (status, people, dates, tags, notes, inline-edit title; double-click
  *     opens the full editor)
- *   • click "+ Focus" to one-shot put it in focus
  *   • click × to dismiss immediately
  *
  * Render lifetime is keyed on `recentlyCreated.key` so a fresh creation
@@ -48,13 +47,6 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
     openEdit(id)
   }
 
-  const inFocus = todo.focus === true
-  const handleAddToFocus = () => {
-    if (inFocus) return
-    void useTodoStore.getState().bulkSetFocus([todoId], true)
-    clearRecent()
-  }
-
   return (
     <div
       className={styles.pill}
@@ -70,15 +62,6 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
           onOpenDetail={handleOpenDetail}
         />
       </div>
-      <button
-        type="button"
-        className={styles.focusButton}
-        onClick={handleAddToFocus}
-        disabled={inFocus}
-        title={inFocus ? 'Already in focus' : 'Add to Focus'}
-      >
-        {inFocus ? '✓ Focus' : '+ Focus'}
-      </button>
       <button
         type="button"
         className={styles.dismissButton}
