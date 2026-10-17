@@ -79,3 +79,60 @@ describe('list drafts', () => {
     expect(drafts()[def.id]).toBeDefined()
   })
 })
+
+describe('list drafts kept for a reload', () => {
+  /** A reload: nothing in memory, the database and the browser's kept drafts as they were. */
+  async function reload() {
+    useListDraftStore.setState({ drafts: {} })
+    useListDefinitionStore.setState({ listDefinitions: [], loaded: false })
+    await useListDraftStore.getState().restore()
+    // The workspace loads the lists itself.
+    await useListDefinitionStore.getState().ensureLoaded()
+  }
+
+  it('an unsaved edit survives a reload, still unsaved; save and discard forget it', async () => {
+    const def = await addList('Team')
+    await useListDraftStore.getState().restore()
+    useListDraftStore.getState().edit(def.id, (d) => ({ ...d, sort: 'priority' }))
+    await reload()
+    expect(drafts()[def.id]).toMatchObject({ sort: 'priority' })
+    expect(getUnsavedListIds()).toEqual([def.id])
+    // The database never saw it.
+    expect((await db.listDefinitions.get(def.id))!.sort).toBe('manual')
+
+    useListDraftStore.getState().discard(def.id)
+    await reload()
+    expect(drafts()).toEqual({})
+
+    useListDraftStore.getState().edit(def.id, (d) => ({ ...d, sort: 'name' }))
+    await useListDraftStore.getState().save(def.id)
+    await reload()
+    expect(drafts()).toEqual({})
+    expect((await db.listDefinitions.get(def.id))!.sort).toBe('name')
+  })
+
+  it('a kept draft whose list changed since (or is gone) is dropped, not applied', async () => {
+    const a = await addList('A')
+    const b = await addList('B')
+    await useListDraftStore.getState().restore()
+    useListDraftStore.getState().edit(a.id, (d) => ({ ...d, sort: 'name' }))
+    useListDraftStore.getState().edit(b.id, (d) => ({ ...d, sort: 'name' }))
+    // Elsewhere (another tab, an import at launch): A renamed, B deleted.
+    await db.listDefinitions.update(a.id, { name: 'A2' })
+    await db.listDefinitions.delete(b.id)
+    await reload()
+    expect(drafts()).toEqual({})
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
+  })
+
+  it('nothing is written before the kept drafts were read back', async () => {
+    const def = await addList('Team')
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ [def.id]: { draft: { ...def, sort: 'name' }, base: def } }))
+    // An edit to another field before restore() must not overwrite what's kept.
+    useListDraftStore.getState().edit(def.id, (d) => ({ ...d, grouping: 'people' }))
+    expect(JSON.parse(localStorage.getItem('todo2-unsaved-lists')!)[def.id].draft.sort).toBe('name')
+    await useListDraftStore.getState().restore()
+    // What's on screen wins over what was kept.
+    expect(drafts()[def.id]).toMatchObject({ grouping: 'people', sort: 'manual' })
+  })
+})

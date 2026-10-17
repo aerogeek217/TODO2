@@ -1,11 +1,15 @@
 import { create } from 'zustand'
 import { layoutRepository, type ReadLayout } from '../data/layout-repository'
+import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
 import { useUndoStore } from './undo-store'
+import { useListDefinitionStore } from './list-definition-store'
+import { registerModuleReset } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
   NEW_LAYOUT_NAME,
   UNSAVED_LAYOUT_ID,
   createTab,
+  type LayoutColumn,
   type PersistedWorkspaceLayout,
   type TabConfigOf,
   type TabSeed,
@@ -39,8 +43,10 @@ type Layout = PersistedWorkspaceLayout
  *
  * - Structural edits (add / move / close / split / resize / tab config) change
  *   only the working copy; `isDirty` says whether it differs from the saved
- *   layout. `save()` writes it, `discard()` drops it. Nothing persists the
- *   working copy across a reload.
+ *   layout. `save()` writes it, `discard()` drops it. An edited working copy
+ *   is also kept in the browser (`data/draft-storage`, never the database),
+ *   and the first `init()` of a page load opens it again, still unsaved —
+ *   while the stored layout it was made against is unchanged.
  * - View state (active tab, collapsed cells, a tab's `viewState`) is applied
  *   to the working copy **and** written straight onto the saved layout
  *   (last write wins) — it never makes the layout dirty.
@@ -183,12 +189,106 @@ function reportWriteFailure(message: string, err: unknown): void {
   useUndoStore.getState().notify(message)
 }
 
+/** The page load's first `init` while it runs (shared by concurrent callers). */
+let firstInit: Promise<void> | null = null
+registerModuleReset(() => { firstInit = null })
+
+/** The ids of the lists a layout's list tabs show. */
+function listIdsOf(columns: readonly LayoutColumn[]): number[] {
+  const ids = new Set<number>()
+  for (const col of columns) {
+    for (const cell of col.cells) {
+      for (const tab of cell.tabs) {
+        if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
+      }
+    }
+  }
+  return [...ids]
+}
+
+/** What the browser keeps of the open layout: its edited working copy, else nothing. */
+function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftRecord | null {
+  if (!working) return null
+  if (!saved) {
+    const defs = useListDefinitionStore.getState().listDefinitions
+    const listNames: Record<string, string> = {}
+    for (const id of listIdsOf(working.columns)) listNames[id] = defs.find((d) => d.id === id)?.name ?? ''
+    return { kind: 'new', name: working.name, columns: working.columns, listNames }
+  }
+  if (layoutStructureEqual(working.columns, saved.columns)) return null
+  return { kind: 'saved', layoutId: saved.id, baseColumns: saved.columns, columns: working.columns }
+}
+
+/** Whether a kept new layout's lists are still the lists it showed (same ids, same names). */
+function listsStillMatch(listNames: Readonly<Record<string, string>>, columns: readonly LayoutColumn[]): boolean {
+  const defs = useListDefinitionStore.getState().listDefinitions
+  return listIdsOf(columns).every((id) => {
+    const def = defs.find((d) => d.id === id)
+    return def != null && listNames[id] === def.name
+  })
+}
+
 /** The ids of the read layouts that were repaired. */
 function repairedOf(reads: readonly ReadLayout[]): Set<number> {
   return new Set(reads.filter((r) => r.fixes.length > 0).map((r) => r.layout.id))
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
+  /** Keeps (or forgets) the open layout's edits in the browser, once the workspace is open. */
+  function keepDraft(): void {
+    const { hydrated, working, saved } = get()
+    if (hydrated) writeLayoutDraft(draftRecord(working, saved))
+  }
+
+  /**
+   * After the page load's first open: the kept draft of the open layout (or
+   * of a new layout) when the stored data still matches what it was made
+   * against; any other kept draft is forgotten.
+   */
+  async function reopenDraft(draft: LayoutDraftRecord | null): Promise<void> {
+    const { working, saved } = get()
+    if (!draft || !working || !saved) {
+      keepDraft()
+      return
+    }
+    if (draft.kind === 'saved') {
+      if (draft.layoutId === saved.id && layoutStructureEqual(draft.baseColumns, saved.columns)) {
+        const next: Layout = { ...working, columns: draft.columns }
+        set({ working: next, isDirty: dirty(next, saved) })
+      }
+      keepDraft()
+      return
+    }
+    await useListDefinitionStore.getState().ensureLoaded()
+    // A newer open (a layout switch, a data replace) took over meanwhile.
+    if (get().saved !== saved) return
+    if (listsStillMatch(draft.listNames, draft.columns)) {
+      const now = new Date()
+      set({
+        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, columns: draft.columns, createdAt: now, modifiedAt: now },
+        saved: null,
+        activeLayoutId: null,
+        previousLayoutId: saved.id,
+        isDirty: true,
+      })
+    }
+    keepDraft()
+  }
+
+  /** Opens the active layout (`init`); `kept` = the kept draft to take back, on the first open. */
+  async function openActive(kept: LayoutDraftRecord | null): Promise<void> {
+    const first = !get().hydrated
+    await layoutRepository.ensureDefault()
+    const reads = await layoutRepository.getAll()
+    const wanted = await layoutRepository.getActiveId()
+    const layouts = reads.map((r) => r.layout)
+    const active = layouts.find((l) => l.id === wanted) ?? mostRecentlyUsed(layouts)
+    const read = reads.find((r) => r.layout === active)
+    if (!read) return
+    open(read, layouts, repairedOf(reads))
+    if (first) await reopenDraft(kept)
+  }
+
   /** The working copy differs from the stored layout (an edit, or a repair not saved yet). */
   function dirty(working: Layout, saved: Layout | null): boolean {
     return get().repairedIds.has(working.id) || !saved || !layoutStructureEqual(working.columns, saved.columns)
@@ -201,6 +301,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const next = fn(working, idGenFor(working))
     if (next === working) return false
     set({ working: next, isDirty: dirty(next, saved) })
+    keepDraft()
     return true
   }
 
@@ -221,6 +322,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       saved: nextSaved,
       ...(nextSaved && nextSaved !== saved ? { layouts: replaceLayout(layouts, nextSaved) } : {}),
     })
+    keepDraft()
     if (nextSaved && nextSaved !== saved && !repairedIds.has(nextSaved.id)) {
       // View state is a convenience: a failed write keeps it for this session.
       await layoutRepository.put(nextSaved).catch((err: unknown) => {
@@ -240,6 +342,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       isDirty: repairedIds.has(layout.id), hydrated: true, previousLayoutId: null,
     })
     if (fixes.length > 0) reportRepair(layout, fixes)
+    keepDraft()
   }
 
   return {
@@ -252,15 +355,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     repairedIds: new Set(),
     hydrated: false,
 
-    async init() {
-      await layoutRepository.ensureDefault()
-      const reads = await layoutRepository.getAll()
-      const wanted = await layoutRepository.getActiveId()
-      const layouts = reads.map((r) => r.layout)
-      const active = layouts.find((l) => l.id === wanted) ?? mostRecentlyUsed(layouts)
-      const read = reads.find((r) => r.layout === active)
-      if (!read) return
-      open(read, layouts, repairedOf(reads))
+    init() {
+      if (get().hydrated) return openActive(null)
+      // The page load's first open takes a kept draft back. Concurrent first
+      // calls (StrictMode's double effects) share it, so the draft is read
+      // once, before any open rewrites it.
+      firstInit ??= openActive(readLayoutDraft()).finally(() => { firstInit = null })
+      return firstInit
     },
 
     async load(id) {
@@ -288,6 +389,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         previousLayoutId: activeLayoutId ?? previousLayoutId,
         isDirty: true,
       })
+      keepDraft()
     },
 
     async save() {
@@ -315,6 +417,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         repairedIds: repaired,
         layouts: replaceLayout(get().layouts, next),
       })
+      keepDraft()
       return true
     },
 
@@ -349,6 +452,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         hydrated: true,
         previousLayoutId: null,
       })
+      keepDraft()
       return id
     },
 
@@ -363,9 +467,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           working: previous, saved: previous, activeLayoutId: previous.id,
           isDirty: repairedIds.has(previous.id), previousLayoutId: null,
         })
+        keepDraft()
         return
       }
       set({ working: saved, isDirty: repairedIds.has(saved.id) })
+      keepDraft()
     },
 
     async rename(id, name) {
@@ -375,6 +481,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (id === UNSAVED_LAYOUT_ID) {
         if (!current || get().saved) return false
         set({ working: { ...current, name: clean } })
+        keepDraft()
         return true
       }
       const read = await layoutRepository.get(id)

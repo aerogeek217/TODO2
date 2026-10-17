@@ -186,7 +186,7 @@ export function copyCheckinRich(html: string, plain: string): Promise<boolean> {
  * Opens a `mailto:` link through a temporary `<a target="_blank">` click.
  * A new browsing context, not this page: navigating the page itself to a
  * `mailto:` URL runs its `beforeunload` handlers, so unsaved workspace
- * changes would prompt "Leave site?". The browser hands the link to the mail
+ * changes the browser couldn't keep would prompt "Leave site?". The browser hands the link to the mail
  * app and closes the empty tab. (A hidden iframe would be blocked by the
  * app's Content Security Policy.)
  */

@@ -4,6 +4,7 @@ import { layoutRepository } from '../../data/layout-repository'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { createTab, UNSAVED_LAYOUT_ID, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -278,5 +279,78 @@ describe('saved layouts', () => {
     expect(ws().layouts.map((l) => l.name)).toEqual(['B'])
     expect(await ws().delete(b!)).toBe(false)
     expect(await db.layouts.count()).toBe(1)
+  })
+})
+
+describe('unsaved changes kept for a reload', () => {
+  /** A reload: a fresh store opening the same database and browser storage. */
+  async function reload() {
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await ws().init()
+  }
+
+  it('an edited layout opens again, still unsaved, with the edit; the database never saw it', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().closeTab('b1')
+    await reload()
+    expect(ws()).toMatchObject({ activeLayoutId: id, isDirty: true })
+    expect(ws().working!.columns.map((c) => c.id)).toEqual(['A'])
+    expect((await stored(id!)).columns).toHaveLength(2)
+  })
+
+  it('save and discard forget it', async () => {
+    await seedAndInit(twoColumns())
+    ws().closeTab('b1')
+    ws().discard()
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    ws().closeTab('b1')
+    await ws().save()
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+  })
+
+  it('view state alone keeps nothing; edits with view state on top come back together', async () => {
+    await seedAndInit(twoColumns())
+    await ws().setActiveTab('a2')
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+    ws().closeTab('b1')
+    await ws().setActiveTab('a1')
+    await reload()
+    expect(ws().isDirty).toBe(true)
+    expect(ws().working!.columns[0]!.cells[0]!.activeTabId).toBe('a1')
+  })
+
+  it('a kept draft of a layout that changed since is dropped', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    ws().closeTab('b1')
+    // Elsewhere: the stored layout changed under the draft.
+    await db.layouts.update(a!, { columns: (await stored(b!)).columns.slice(0, 1) })
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+  })
+
+  it('a new layout comes back new and unsaved; its lists must still be the same lists', async () => {
+    const listId = await db.listDefinitions.add({
+      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dateField: 'deadline', dateRangeIncludeNoDate: false } },
+    } as never) as number
+    const [a] = await seedAndInit(twoColumns('A'))
+    await useListDefinitionStore.getState().load()
+    ws().newLayout()
+    ws().addWidget('lens', { kind: 'layout' }, { listDefinitionId: listId })
+    await reload()
+    expect(ws()).toMatchObject({ saved: null, isDirty: true, activeLayoutId: null, previousLayoutId: a })
+    expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID, name: 'Untitled layout' })
+    expect(ws().working!.columns).toHaveLength(1)
+
+    // The list it shows is another list now: dropped.
+    await db.listDefinitions.update(listId, { name: 'Someone else’s' })
+    useListDefinitionStore.setState({ listDefinitions: [], loaded: false })
+    await reload()
+    expect(ws()).toMatchObject({ activeLayoutId: a, isDirty: false })
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
 })

@@ -13,6 +13,7 @@ import { useFilterStore } from './filter-store'
 import { useWorkspaceStore } from './workspace-store'
 import { useTrendEventsStore } from './trend-events-store'
 import { useUIStore } from './ui-store'
+import { clearUnsavedDrafts } from '../data/draft-storage'
 
 /**
  * Reload every Zustand store from IndexedDB after a destructive replace
@@ -31,7 +32,11 @@ export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
   // Unsaved list edits, prompt picks and collapsed groups are keyed by ids
-  // the replaced data may reuse for other lists / tabs.
+  // the replaced data may reuse for other lists / tabs. The unsaved layout
+  // and list edits kept for a reload go too — once the workspace has opened
+  // (before that, at launch, they're from the last visit and are checked
+  // against the loaded data when it opens).
+  if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
   useListDraftStore.setState({ drafts: {} })
   useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
   // The replaced history (a table clear doesn't fire the event hooks).

@@ -139,4 +139,21 @@ describe('refreshAllStores', () => {
     expect(useNoteStore.getState().notes.get(id)?.content).toBe('imported note')
     expect(useNoteStore.getState().pending).toBeNull()
   })
+
+  it('after the workspace opened, a data replace forgets the unsaved changes kept for a reload', async () => {
+    localStorage.setItem('todo2-unsaved-layout', '{"kind":"saved"}')
+    localStorage.setItem('todo2-unsaved-lists', '{}')
+    await useWorkspaceStore.getState().init()
+    // The workspace's own open rewrote the layout key (nothing unsaved): keep one to see it go.
+    localStorage.setItem('todo2-unsaved-layout', '{"kind":"saved"}')
+    await refreshAllStores()
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
+  })
+
+  it('at launch (before the workspace opened) a sync-file load keeps them, to be checked when it opens', async () => {
+    localStorage.setItem('todo2-unsaved-lists', '{"1":{}}')
+    await refreshAllStores()
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBe('{"1":{}}')
+  })
 })

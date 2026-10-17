@@ -36,7 +36,8 @@ import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
 import { ListOptionsHost } from '../components/workspace/list/ListOptionsHost'
-import { getUnsavedListIds } from '../stores/list-draft-store'
+import { getUnsavedListIds, useListDraftStore } from '../stores/list-draft-store'
+import { unsavedDraftsKept } from '../data/draft-storage'
 import { useUnsavedListIds } from '../hooks/use-list-draft'
 import { PlusIcon, WidgetKindIcon } from '../components/shared/icons'
 import {
@@ -175,7 +176,10 @@ function useTabDragState() {
 
 /**
  * Blocks in-app navigation away from unsaved work — the layout or a list
- * definition — until the user answers; asks the browser to confirm an unload.
+ * definition — until the user answers. Closing or reloading the tab loses
+ * nothing: the unsaved changes are kept in the browser and come back unsaved
+ * (`data/draft-storage`), so the browser's generic "leave site?" prompt is
+ * asked only when they couldn't be kept (storage full or blocked).
  */
 function UnsavedNavigationGuard() {
   const isDirty = useWorkspaceStore((s) => s.isDirty)
@@ -193,6 +197,7 @@ function UnsavedNavigationGuard() {
   useEffect(() => {
     if (!unsaved) return
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (unsavedDraftsKept()) return
       e.preventDefault()
       e.returnValue = ''
     }
@@ -309,6 +314,8 @@ export function WorkspacePage() {
   // file load) has finished before any page mounts.
   useEffect(() => {
     if (!useWorkspaceStore.getState().hydrated) void useWorkspaceStore.getState().init()
+    // Unsaved list edits kept from before a reload.
+    void useListDraftStore.getState().restore()
   }, [])
 
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
