@@ -1,6 +1,8 @@
 /**
  * Workspace layouts: a row of columns, each a vertical stack of cells, each
- * cell a strip of widget tabs. Two levels only — no recursive splits.
+ * cell a strip of widget tabs — plus at most one full-width band above the
+ * columns and one below (`top` / `bottom`), each a cell spanning the
+ * workspace. Two levels only — no recursive splits, no other rows.
  *
  * Every tab carries its own settings, split in two by how they are saved:
  *
@@ -9,7 +11,7 @@
  *   from the saved layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
- *   `activeTabId` and `collapsed`.
+ *   (and a band's) `activeTabId` and `collapsed`.
  *
  * A layout stores structure only; what a widget shows (list definitions,
  * tasks, the note) lives in its own tables.
@@ -148,10 +150,44 @@ export interface LayoutColumn {
   cells: LayoutCell[]
 }
 
+/** Which band: the one above the columns or the one below. */
+export type BandEdge = 'top' | 'bottom'
+
+export const BAND_EDGES: readonly BandEdge[] = ['top', 'bottom']
+
+/** A new band's height, px (header included). */
+export const BAND_DEFAULT_HEIGHT = 160
+
+/**
+ * A full-width band above or below the columns: a cell that spans the
+ * workspace. It never splits and never holds more than one panel; a band
+ * whose last tab goes is removed (the layout's key is then absent).
+ */
+export interface LayoutBand {
+  /** Unique within the layout (columns, cells, tabs and bands share the id space). */
+  id: string
+  /**
+   * Height in px (header included) when expanded: any positive number. It
+   * stays the same when the window resizes; it is clamped to the room when
+   * drawn, and the stored value is kept.
+   */
+  height: number
+  /** Tabs in strip order; never empty. */
+  tabs: LayoutTab[]
+  /** View state. Absent (or stale) = the first tab. */
+  activeTabId?: string
+  /** View state. A collapsed band shows only its header. */
+  collapsed?: boolean
+}
+
 export interface WorkspaceLayout {
   id?: number
   name: string
   columns: LayoutColumn[]
+  /** The band above the columns; absent = none. */
+  top?: LayoutBand
+  /** The band below the columns; absent = none. */
+  bottom?: LayoutBand
   createdAt: Date
   /** Last time the layout was saved. View-state writes don't touch it. */
   modifiedAt: Date

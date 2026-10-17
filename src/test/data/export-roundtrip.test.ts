@@ -147,6 +147,8 @@ function buildSeed(): Seed {
             ],
           },
         ],
+        top: { id: 'b1', height: 112, activeTabId: 't9', collapsed: true, tabs: [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }] },
+        bottom: { id: 'b2', height: 150, tabs: [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }] },
       },
     ],
     listOrders: [
@@ -227,6 +229,9 @@ describe('export → JSON → import round-trip', () => {
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)
     expect(cells.some((c) => c.collapsed === true)).toBe(true)
     expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
+    const bands = seed.layouts.flatMap((l) => [l.top, l.bottom]).filter((b) => b !== undefined)
+    expect(bands).toHaveLength(2)
+    expect(bands.some((b) => b.activeTabId !== undefined && b.collapsed === true)).toBe(true)
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)

@@ -101,6 +101,21 @@ describe('structural edits and dirty state', () => {
     expect(ws().working!.columns).toHaveLength(3)
   })
 
+  it('a stored layout’s bands open with it and survive column edits, save and save as', async () => {
+    const top = { id: 'tb', height: 140, activeTabId: 'top2', tabs: [createTab('dashboard', 'top1'), createTab('notes', 'top2')] }
+    const bottom = { id: 'bb', height: 160, collapsed: true, tabs: [createTab('calendar', 'bot1')] }
+    const [id] = await seedAndInit(twoColumns('Daily', { top, bottom }))
+    expect(ws().working).toMatchObject({ top, bottom })
+    expect(ws().isDirty).toBe(false)
+    ws().addWidget('notes', { kind: 'column-edge', columnId: 'B', edge: 'right' })
+    expect(ws().isDirty).toBe(true)
+    await ws().save()
+    expect((await stored(id!)).columns).toHaveLength(3)
+    expect(await stored(id!)).toMatchObject({ top, bottom })
+    const copy = await ws().saveAs('Copy')
+    expect(await stored(copy!)).toMatchObject({ top, bottom })
+  })
+
   it('split / close cell / resize / tab config / change kind are layout changes', async () => {
     await seedAndInit(twoColumns())
     const cellId = ws().splitCell('kb', 'below')

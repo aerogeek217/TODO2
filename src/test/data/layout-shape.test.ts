@@ -36,7 +36,29 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
   ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
   ['details width over 4000', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: {}, viewState: { detailsWidth: 4001 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['band not an object', layoutRow([], { bottom: 'yes' }), 'bottom'],
+  ['band with no tabs', layoutRow([], { top: { id: 'b', height: 160, tabs: [] } }), 'top.tabs'],
+  ['band tabs not a list', layoutRow([], { top: { id: 'b', height: 160, tabs: {} } }), 'top.tabs'],
+  ['band without a height', layoutRow([], { top: { id: 'b', tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.height'],
+  ['band height zero', layoutRow([], { top: { id: 'b', height: 0, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.height'],
+  ['band id repeats a cell id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { top: { id: 'k', height: 160, tabs: [{ id: 't2', kind: 'notes', config: {} }] } }), 'top.id'],
+  ['band tab id repeats a tab id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { bottom: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'bottom.tabs[0].id'],
+  ['the two bands share an id', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't1', kind: 'notes', config: {} }] }, bottom: { id: 'b', height: 160, tabs: [{ id: 't2', kind: 'notes', config: {} }] } }), 'bottom.id'],
+  ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'status', config: {} }] } }), 'bottom.tabs[0].kind'],
+  ['bad band collapsed', layoutRow([], { top: { id: 'b', height: 160, collapsed: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.collapsed'],
+  ['bad band tab settings', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'calendar', config: {} }] } }), 'top.tabs[0].config.dateTypes'],
 ]
+
+/** A top band (dashboard + a list) and a bottom band (a week calendar), as the layout row stores them. */
+const BANDS = {
+  top: { id: 'b1', height: 112, activeTabId: 'bt2', tabs: [
+    { id: 'bt1', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } },
+    { id: 'bt2', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280 } },
+  ] },
+  bottom: { id: 'b2', height: 150, collapsed: true, tabs: [
+    { id: 'bt3', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week' } },
+  ] },
+}
 
 /** Columns holding every kind, an empty cell, view state and a collapsed cell. */
 const EVERY_KIND = [
@@ -94,6 +116,24 @@ describe('layouts row validation', () => {
 
   it.each(REJECTED)('rejects %s', (_label, row, field) => {
     expect(validateRow('layouts', row)).toBe(field)
+  })
+
+  it('accepts a top and a bottom band; a layout without bands needs none', () => {
+    expect(validateRow('layouts', layoutRow(EVERY_KIND, BANDS))).toBe(true)
+    expect(validateRow('layouts', layoutRow([], { top: BANDS.top }))).toBe(true)
+    expect(validateRow('layouts', layoutRow(EVERY_KIND))).toBe(true)
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(EVERY_KIND, BANDS), layoutRow([], { id: 2 })] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]).toMatchObject(BANDS)
+    expect('top' in res.data.layouts[1]!).toBe(false)
+    expect('bottom' in res.data.layouts[1]!).toBe(false)
+  })
+
+  it('import keeps only a band’s model keys and drops its stale activeTabId', () => {
+    const top = { id: 'b', height: 90.5, activeTabId: 'gone', collapsed: false, stray: 1, tabs: [{ id: 't', kind: 'notes', config: { x: 1 } }] }
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow([], { top })] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.top).toEqual({ id: 'b', height: 90.5, tabs: [{ id: 't', kind: 'notes', config: {} }] })
   })
 
   it('import keeps only model keys and drops a stale activeTabId', () => {
@@ -194,7 +234,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
   })
 
   it('a valid layout has nothing to fix, and its repair is the import pick', () => {
-    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE })
+    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, ...BANDS })
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
@@ -212,6 +252,18 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(rowFixes('layouts', row)).toEqual([
       'name reset', 'dates reset', '2 sizes reset', '3 tabs dropped', 'tab or cell settings reset', 'column dropped',
     ])
+  })
+
+  it('a bad band is dropped, a band left without tabs too; a bad height becomes the default', () => {
+    const row = layoutRow([], {
+      top: { id: 'b1', height: -5, tabs: [{ id: 't1', kind: 'notes', config: {} }, { id: 't2', kind: 'nope', config: {} }] },
+      bottom: { id: 'b2', height: 160, tabs: [{ id: 't1', kind: 'notes', config: {} }] },
+    })
+    expect(rowFixes('layouts', row)).toEqual(['size reset', '2 tabs dropped', 'band dropped'])
+    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
+    expect(repaired.top).toEqual({ id: 'b1', height: 160, tabs: [{ id: 't1', kind: 'notes', config: {} }] })
+    expect('bottom' in repaired).toBe(false)
+    expect(rowFixes('layouts', layoutRow([], { bottom: 7 }))).toEqual(['band dropped'])
   })
 
   it('any corruption of a valid layout repairs into a valid one', () => {
@@ -236,7 +288,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     }
 
     for (let i = 0; i < 2000; i++) {
-      const row = JSON.parse(JSON.stringify(layoutRow(EVERY_KIND, { lastUsedAt: DATE }))) as Record<string, unknown>
+      const row = JSON.parse(JSON.stringify(layoutRow(EVERY_KIND, { lastUsedAt: DATE, ...BANDS }))) as Record<string, unknown>
       const changes = 1 + Math.floor(random() * 3)
       for (let c = 0; c < changes; c++) {
         // The row's own id is how the audit finds it: never corrupted here.

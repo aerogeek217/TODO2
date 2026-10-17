@@ -90,7 +90,7 @@ export function countListTabs(
   return n
 }
 
-/** Every column / cell / tab id in the layout. */
+/** Every column / cell / band / tab id in the layout (new ids must not repeat one). */
 export function layoutIds(layout: WorkspaceLayout): Set<string> {
   const ids = new Set<string>()
   for (const col of layout.columns) {
@@ -99,6 +99,11 @@ export function layoutIds(layout: WorkspaceLayout): Set<string> {
       ids.add(cell.id)
       for (const tab of cell.tabs) ids.add(tab.id)
     }
+  }
+  for (const band of [layout.top, layout.bottom]) {
+    if (!band) continue
+    ids.add(band.id)
+    for (const tab of band.tabs) ids.add(tab.id)
   }
   return ids
 }

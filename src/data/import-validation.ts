@@ -12,7 +12,7 @@ import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcu
 import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-settings'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
-import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
+import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { isValidEmail, normalizeEmail } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -275,7 +275,7 @@ function checkLayout(v: unknown): CheckResult {
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
   ])
   if (fields !== true) return fields
-  return checkLayoutColumns(v.columns)
+  return checkLayoutBody(v)
 }
 
 const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
@@ -512,17 +512,20 @@ function layoutFixes(v: Raw): string[] {
   const name = layoutName(v.name).fix
   if (name) fixes.push(name)
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
-  return [...fixes, ...pickLayoutColumns(v.columns).fixes]
+  return [...fixes, ...pickLayoutBody(v).fixes]
 }
 
 function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
   // Lenient past `checkLayout` (bad dates → now, a bad last use → none), so
   // the audit can repair a stored row with it; see `layoutFixes`.
   const now = new Date()
+  const body = pickLayoutBody(v)
   return {
     id: optNum(v.id),
     name: layoutName(v.name).name,
-    columns: pickLayoutColumns(v.columns).columns,
+    columns: body.columns,
+    top: body.top,
+    bottom: body.bottom,
     createdAt: isDateLike(v.createdAt) ? toDate(v.createdAt) : now,
     modifiedAt: isDateLike(v.modifiedAt) ? toDate(v.modifiedAt) : now,
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,

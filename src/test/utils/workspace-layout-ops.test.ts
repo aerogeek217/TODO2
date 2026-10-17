@@ -4,6 +4,7 @@ import {
   addTab,
   closeCell,
   closeTab,
+  layoutIds,
   layoutStructureEqual,
   moveTab,
   patchTabConfig,
@@ -259,5 +260,26 @@ describe('layoutStructureEqual', () => {
     expect(layoutStructureEqual(l.columns, moveTab(l, 'a1', { kind: 'cell', cellId: 'ka', index: 1 }, seqIds()).columns)).toBe(false)
     expect(layoutStructureEqual(l.columns, setColumnWeights(l, { A: 3 }).columns)).toBe(false)
     expect(layoutStructureEqual(l.columns, patchTabConfig(l, 'cal', 'calendar', { dateTypes: { due: true, followup: false } }).columns)).toBe(false)
+  })
+})
+
+describe('bands', () => {
+  const withBands = (): WorkspaceLayout => ({
+    ...base(),
+    top: { id: 'tb', height: 160, tabs: [createTab('dashboard', 'top1')] },
+    bottom: { id: 'bb', height: 120, tabs: [createTab('calendar', 'bot1'), createTab('notes', 'bot2')] },
+  })
+
+  it('layoutIds holds the bands and their tabs, so a new id never repeats one', () => {
+    const ids = layoutIds(withBands())
+    for (const id of ['A', 'ka', 'a1', 'tb', 'top1', 'bb', 'bot1', 'bot2']) expect(ids.has(id), id).toBe(true)
+  })
+
+  it('column and cell edits keep the bands as they are', () => {
+    const l = withBands()
+    const moved = moveTab(addTab(l, createTab('notes', 'x'), { kind: 'layout' }, seqIds()), 'a1', { kind: 'cell', cellId: 'kd' }, seqIds())
+    expect(moved.top).toBe(l.top)
+    expect(moved.bottom).toBe(l.bottom)
+    expect(setColumnWeights(l, { A: 2 }).top).toBe(l.top)
   })
 })

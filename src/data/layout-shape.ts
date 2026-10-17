@@ -1,10 +1,13 @@
 import {
+  BAND_DEFAULT_HEIGHT,
+  BAND_EDGES,
   clampCalendarOffset,
   EISENHOWER_QUADRANTS,
   isEisenhowerQuadrant,
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
+  type LayoutBand,
   type TaskRowsViewState,
   type LayoutCell,
   type LayoutColumn,
@@ -18,11 +21,26 @@ import { normalizeDashboardConfig } from '../models/dashboard-config'
 import { isRecord } from '../utils/is-record'
 
 /**
- * Shape check + whitelist reconstruction for `WorkspaceLayout.columns`, the
- * nested part of a `layouts` row. Used by import validation (`checkLayout` /
- * `pickLayout` in `import-validation.ts`), so a layout from a file only
- * reaches Dexie with known kinds, known keys and unique ids.
+ * Shape check + whitelist reconstruction for the nested part of a `layouts`
+ * row: `WorkspaceLayout.columns` and the optional `top` / `bottom` bands.
+ * Used by import validation (`checkLayout` / `pickLayout` in
+ * `import-validation.ts`), so a layout from a file only reaches Dexie with
+ * known kinds, known keys and unique ids.
  */
+
+/** The parts of a layout row the workspace draws: its columns and bands. */
+export interface LayoutBody {
+  columns: LayoutColumn[]
+  top?: LayoutBand
+  bottom?: LayoutBand
+}
+
+/** A layout row's body as stored (unchecked). */
+export interface RawLayoutBody {
+  columns?: unknown
+  top?: unknown
+  bottom?: unknown
+}
 
 /**
  * Longest column / cell / tab id. The app's ids are short (`w-` + 8
@@ -89,20 +107,32 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   }
 }
 
-/**
- * `true` when `columns` is a valid layout body, else the path of the first
- * bad field (e.g. `columns[0].cells[1].tabs[0].kind`). Ids must be unique
- * across columns, cells and tabs. A cell may have no tabs; a column must have
- * a cell.
- */
-export function checkLayoutColumns(columns: unknown): true | string {
-  if (!Array.isArray(columns)) return 'columns'
+/** A tracker of the ids seen so far: `fresh(id)` is false for an id seen before. */
+function idTracker(): (id: string) => boolean {
   const seen = new Set<string>()
-  const fresh = (id: string): boolean => {
+  return (id) => {
     if (seen.has(id)) return false
     seen.add(id)
     return true
   }
+}
+
+/** `true` when every tab of a strip is valid, else the path of the first bad field. */
+function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) => boolean): true | string {
+  for (let t = 0; t < tabs.length; t++) {
+    const tab: unknown = tabs[t]
+    const tp = `${path}.tabs[${t}]`
+    if (!isRecord(tab)) return tp
+    if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
+    if (!isWidgetKind(tab.kind)) return `${tp}.kind`
+    const settings = checkTabSettings(tab, tab.kind, tp)
+    if (settings !== true) return settings
+  }
+  return true
+}
+
+function checkColumns(columns: unknown, fresh: (id: string) => boolean): true | string {
+  if (!Array.isArray(columns)) return 'columns'
   for (let c = 0; c < columns.length; c++) {
     const col: unknown = columns[c]
     const cp = `columns[${c}]`
@@ -119,27 +149,60 @@ export function checkLayoutColumns(columns: unknown): true | string {
       if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${kp}.activeTabId`
       if (cell.collapsed !== undefined && typeof cell.collapsed !== 'boolean') return `${kp}.collapsed`
       if (!Array.isArray(cell.tabs)) return `${kp}.tabs`
-      for (let t = 0; t < cell.tabs.length; t++) {
-        const tab: unknown = cell.tabs[t]
-        const tp = `${kp}.tabs[${t}]`
-        if (!isRecord(tab)) return tp
-        if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
-        if (!isWidgetKind(tab.kind)) return `${tp}.kind`
-        const settings = checkTabSettings(tab, tab.kind, tp)
-        if (settings !== true) return settings
-      }
+      const tabs = checkTabs(cell.tabs, kp, fresh)
+      if (tabs !== true) return tabs
     }
   }
   return true
 }
 
-/** A part `pickLayoutColumns` dropped or reset, counted. */
-type LayoutFix = 'columns' | 'column' | 'cell' | 'tab' | 'size' | 'settings'
+/** A band (absent is fine): an id, a positive height and at least one tab. */
+function checkBand(band: unknown, path: string, fresh: (id: string) => boolean): true | string {
+  if (band === undefined) return true
+  if (!isRecord(band)) return path
+  if (!isId(band.id) || !fresh(band.id)) return `${path}.id`
+  if (!isWeight(band.height)) return `${path}.height`
+  if (band.activeTabId !== undefined && !isId(band.activeTabId)) return `${path}.activeTabId`
+  if (band.collapsed !== undefined && typeof band.collapsed !== 'boolean') return `${path}.collapsed`
+  if (!Array.isArray(band.tabs) || band.tabs.length === 0) return `${path}.tabs`
+  return checkTabs(band.tabs, path, fresh)
+}
+
+/**
+ * `true` when `columns` is a valid list of columns, else the path of the
+ * first bad field (e.g. `columns[0].cells[1].tabs[0].kind`). Ids must be
+ * unique across columns, cells and tabs. A cell may have no tabs; a column
+ * must have a cell.
+ */
+export function checkLayoutColumns(columns: unknown): true | string {
+  return checkColumns(columns, idTracker())
+}
+
+/**
+ * `true` when a layout row's columns and bands are valid, else the path of
+ * the first bad field (`columns[0].weight`, `top.tabs`, …). A band is
+ * optional; one that is there needs an id, a positive height and at least one
+ * tab. Ids are unique across the columns and both bands.
+ */
+export function checkLayoutBody(body: RawLayoutBody): true | string {
+  const fresh = idTracker()
+  const columns = checkColumns(body.columns, fresh)
+  if (columns !== true) return columns
+  for (const edge of BAND_EDGES) {
+    const band = checkBand(body[edge], edge, fresh)
+    if (band !== true) return band
+  }
+  return true
+}
+
+/** A part `pickLayoutBody` dropped or reset, counted. */
+type LayoutFix = 'columns' | 'column' | 'cell' | 'band' | 'tab' | 'size' | 'settings'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   columns: ['columns reset', 'columns reset'],
   column: ['column dropped', 'columns dropped'],
   cell: ['cell dropped', 'cells dropped'],
+  band: ['band dropped', 'bands dropped'],
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
@@ -154,21 +217,37 @@ export interface PickedLayoutColumns {
   fixes: string[]
 }
 
+export interface PickedLayoutBody extends LayoutBody {
+  /**
+   * The parts `checkLayoutBody` rejects that were dropped or reset, in words
+   * (`2 tabs dropped`, `band dropped`, …); empty for a body that passes it.
+   */
+  fixes: string[]
+}
+
+/** `pickLayoutBody` for the columns alone (a layout without bands). */
+export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
+  const { columns, fixes } = pickLayoutBody({ columns: raw })
+  return { columns, fixes }
+}
+
 /**
- * Rebuilds a layout body with only the model's keys. For columns that pass
- * `checkLayoutColumns` (all import ever picks) nothing is dropped but a stale
- * `activeTabId` (= first tab), unknown dashboard ids / options, duplicate
- * collapsed quadrants, and an out-of-range calendar offset (clamped); a
- * details width is rounded.
+ * Rebuilds a layout body (columns + bands) with only the model's keys. For a
+ * body that passes `checkLayoutBody` (all import ever picks) nothing is
+ * dropped but a stale `activeTabId` (= first tab), unknown dashboard ids /
+ * options, duplicate collapsed quadrants, and an out-of-range calendar
+ * offset (clamped); a details width is rounded.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
  * the audit can repair a stored layout instead of deleting it: a column /
- * cell / tab that isn't an object, has a bad or repeated id, or (tab) an
- * unknown kind is dropped, as is a column left without cells; a bad size
- * becomes 1; bad tab settings fall back to the kind's defaults; a bad
- * `activeTabId` / `collapsed` is dropped.
+ * cell / band / tab that isn't an object, has a bad or repeated id, or (tab)
+ * an unknown kind is dropped, as is a column left without cells and a band
+ * left without tabs; a bad size becomes 1 (a band's height
+ * `BAND_DEFAULT_HEIGHT`); bad tab settings fall back to the kind's
+ * defaults; a bad `activeTabId` / `collapsed` is dropped.
  */
-export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
+export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
+  const raw = body.columns
   const counts = new Map<LayoutFix, number>()
   const fix = (what: LayoutFix) => { counts.set(what, (counts.get(what) ?? 0) + 1) }
   const seen = new Set<string>()
@@ -177,10 +256,10 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
     seen.add(id)
     return true
   }
-  const weightOf = (v: unknown): number => {
+  const weightOf = (v: unknown, fallback = DEFAULT_WEIGHT): number => {
     if (isWeight(v)) return v
     fix('size')
-    return DEFAULT_WEIGHT
+    return fallback
   }
 
   const pickTab = (tab: unknown): LayoutTab | null => {
@@ -253,6 +332,24 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
     }
   }
 
+  const pickTabs = (raw: unknown[]): LayoutTab[] => {
+    const tabs: LayoutTab[] = []
+    for (const tab of raw) {
+      const picked = pickTab(tab)
+      if (picked) tabs.push(picked)
+    }
+    return tabs
+  }
+  /** A cell's or band's view state: a known `activeTabId` and `collapsed`. */
+  const pickView = (raw: Obj, tabs: readonly LayoutTab[]): Pick<LayoutCell, 'activeTabId' | 'collapsed'> => {
+    const out: Pick<LayoutCell, 'activeTabId' | 'collapsed'> = {}
+    if (typeof raw.activeTabId === 'string' && tabs.some((t) => t.id === raw.activeTabId)) out.activeTabId = raw.activeTabId
+    else if (raw.activeTabId !== undefined && !isId(raw.activeTabId)) fix('settings')
+    if (raw.collapsed === true) out.collapsed = true
+    else if (raw.collapsed !== undefined && typeof raw.collapsed !== 'boolean') fix('settings')
+    return out
+  }
+
   const pickCell = (cell: unknown): LayoutCell | null => {
     if (!isRecord(cell) || !fresh(cell.id) || !Array.isArray(cell.tabs)) {
       fix('cell')
@@ -260,17 +357,23 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
     }
     const id = cell.id
     const weight = weightOf(cell.weight)
-    const tabs: LayoutTab[] = []
-    for (const tab of cell.tabs as unknown[]) {
-      const picked = pickTab(tab)
-      if (picked) tabs.push(picked)
+    const tabs = pickTabs(cell.tabs as unknown[])
+    return { id, weight, tabs, ...pickView(cell, tabs) }
+  }
+
+  const pickBand = (band: unknown): LayoutBand | null => {
+    if (!isRecord(band) || !fresh(band.id) || !Array.isArray(band.tabs)) {
+      fix('band')
+      return null
     }
-    const out: LayoutCell = { id, weight, tabs }
-    if (typeof cell.activeTabId === 'string' && tabs.some((t) => t.id === cell.activeTabId)) out.activeTabId = cell.activeTabId
-    else if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) fix('settings')
-    if (cell.collapsed === true) out.collapsed = true
-    else if (cell.collapsed !== undefined && typeof cell.collapsed !== 'boolean') fix('settings')
-    return out
+    const id = band.id
+    const height = weightOf(band.height, BAND_DEFAULT_HEIGHT)
+    const tabs = pickTabs(band.tabs as unknown[])
+    if (tabs.length === 0) {
+      fix('band')
+      return null
+    }
+    return { id, height, tabs, ...pickView(band, tabs) }
   }
 
   const columns: LayoutColumn[] = []
@@ -297,9 +400,16 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
     fix('columns')
   }
 
-  const fixes = [...counts].map(([what, n]) => {
+  const out: PickedLayoutBody = { columns, fixes: [] }
+  for (const edge of BAND_EDGES) {
+    if (body[edge] === undefined) continue
+    const band = pickBand(body[edge])
+    if (band) out[edge] = band
+  }
+
+  out.fixes = [...counts].map(([what, n]) => {
     const [one, many] = FIX_WORDS[what]
     return n === 1 ? one : `${n} ${many}`
   })
-  return { columns, fixes }
+  return out
 }
