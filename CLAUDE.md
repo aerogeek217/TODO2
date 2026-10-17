@@ -39,7 +39,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - CSS custom properties for design tokens in `src/styles/tokens.css`
 - No class components — functional components with hooks only
 - **TypeScript strictness**: `noUncheckedIndexedAccess` is on for production code. Prefer `array.at(idx)` or explicit `?? fallback` over `!`. Index access on tuples / known-shape Records is type-safe; runtime arrays return `T | undefined`.
-- **ESLint**: typed parsing on (`parserOptions.project: ['./tsconfig.app.json', './tsconfig.node.json', './tsconfig.test.json', './tsconfig.e2e.json']` — `tsconfig.test.json` covers `src/test/**` and is referenced by `tsc -b`, so the build type-checks the tests; `tsconfig.e2e.json` covers `e2e/**` + `playwright.config.ts` and is lint-only, not referenced by `tsc -b`); `@typescript-eslint/no-explicit-any: 'error'` outside `src/test/**`. Hand-edit casts route through typed helpers (`utils/file-picker.ts`, `restore.ts`'s `LegacyTodoRow`).
+- **ESLint**: typed parsing on (`parserOptions.project: ['./tsconfig.app.json', './tsconfig.node.json', './tsconfig.test.json', './tsconfig.e2e.json']` — `tsconfig.test.json` covers `src/test/**` and is referenced by `tsc -b`, so the build type-checks the tests; `tsconfig.e2e.json` covers `e2e/**` + `playwright.config.ts` and is lint-only, not referenced by `tsc -b`); `@typescript-eslint/no-explicit-any: 'error'` outside `src/test/**`. Hand-edit casts route through typed helpers (e.g. `utils/file-picker.ts`).
 
 ## Constraints
 - Local-first, offline — all data in IndexedDB, no backend
