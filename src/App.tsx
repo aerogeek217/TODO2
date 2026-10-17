@@ -171,8 +171,8 @@ async function expiredCompletedUids(): Promise<ReadonlySet<string> | null> {
  * uids survive a sync-file restore, ids don't) and are still expired now.
  * Read from the database, not `useTodoStore.todos` (which may not be loaded
  * yet), and re-read whenever the store reloads. Waits while a sync-file
- * prompt is open. Closing it in any way ("Not now" included) skips it until
- * the next launch or file load.
+ * prompt is open. Closing it in any way ("Not now" included) skips those
+ * tasks until the next launch.
  */
 function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<string>; onClose: () => void }) {
   const todosVersion = useTodoStore((s) => s.todosVersion)
@@ -221,6 +221,8 @@ function AppShell() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   /** uids of the completed tasks past retention at launch (for the purge prompt). */
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
+  /** uids the purge prompt already asked about this launch (any answer): a later file load doesn't ask again. */
+  const purgeAskedRef = useRef(new Set<string>())
   const location = useLocation()
   // Desktop: New task leads the top bar. Mobile: a floating + above the tab bar.
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
@@ -270,13 +272,15 @@ function AppShell() {
 
   // A sync file loaded after launch (Grant access, Attach / Open file, a
   // retry or a resolved conflict) replaced the data: ask about its expired
-  // tasks too. Runs after the stores reloaded (an earlier subscriber).
+  // tasks too — those the prompt hasn't already asked about this launch.
+  // Runs after the stores reloaded (an earlier subscriber).
   useEffect(() => {
     if (!initialized) return
     return fileStorageService.onAfterImport(async () => {
       try {
         const expired = await expiredCompletedUids()
-        if (expired) setPurgeLaunchUids(expired)
+        const fresh = [...(expired ?? [])].filter((uid) => !purgeAskedRef.current.has(uid))
+        if (fresh.length > 0) setPurgeLaunchUids(new Set(fresh))
       } catch (err) {
         console.warn('[purge] could not read expired tasks', err)
       }
@@ -395,7 +399,13 @@ function AppShell() {
 
       <AppBulkConfirmDialog />
       {purgeLaunchUids && (
-        <StartupPurgePrompt launchUids={purgeLaunchUids} onClose={() => setPurgeLaunchUids(null)} />
+        <StartupPurgePrompt
+          launchUids={purgeLaunchUids}
+          onClose={() => {
+            for (const uid of purgeLaunchUids) purgeAskedRef.current.add(uid)
+            setPurgeLaunchUids(null)
+          }}
+        />
       )}
       <AppQuickAddBar />
       <RecentTaskPill />
