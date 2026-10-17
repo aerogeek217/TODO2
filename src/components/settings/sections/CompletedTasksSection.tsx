@@ -5,6 +5,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { doneMessage, exportAndPurgeCompleted, keptMessage } from '../../../services/purge-completed'
 import { NO_BACKUP_NOTE } from '../../../stores/safety-snapshot'
 import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../../../utils/completed-at'
+import { DialogFrame } from '../../shared/Dialog'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import { plural } from './plural'
@@ -168,14 +169,13 @@ export function CompletedTasksSection() {
       </SettingRow>
 
       {showCleanup && (
-        <div className={styles.cleanupOverlay} onClick={() => { if (!busy) closeCleanup() }}>
-          <div
-            className={styles.cleanupPopup}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Delete completed tasks"
-            onClick={(e) => e.stopPropagation()}
-          >
+        // The shared frame (Esc, backdrop press, focus in / trap / back);
+        // nothing closes it while a delete runs.
+        <DialogFrame
+          onClose={() => { if (!busy) closeCleanup() }}
+          className={styles.cleanupPopup}
+          aria-label="Delete completed tasks"
+        >
             <div className={styles.cleanupTitle}>Delete completed tasks</div>
             <div className={styles.cleanupRow}>
               <span className={styles.label}>Older than</span>
@@ -219,8 +219,7 @@ export function CompletedTasksSection() {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+        </DialogFrame>
       )}
     </div>
   )

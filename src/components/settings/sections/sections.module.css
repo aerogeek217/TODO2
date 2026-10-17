@@ -381,16 +381,6 @@
 
 /* ═══ Delete completed tasks popup ═══ */
 
-.cleanupOverlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-backdrop);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-dialog);
-}
-
 .cleanupPopup {
   background: var(--color-surface-high);
   border-radius: var(--radius-lg);
