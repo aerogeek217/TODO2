@@ -42,6 +42,12 @@ export function formatDateShort(date: Date): string {
   })
 }
 
+/** `MM/DD`, zero-padded (`10/05`) — any year (the task row's due column). */
+export function formatDateNumeric(date: Date): string {
+  const d = new Date(date)
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+}
+
 /** Format as relative time: "just now", "5m ago", "3h ago", "2d ago", or "in Xd" for future */
 export function formatRelativeTime(date: Date): string {
   const now = new Date()

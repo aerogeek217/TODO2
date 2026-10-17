@@ -7,6 +7,7 @@ import {
   dateIntensity,
   resolveDateAnchor,
   resolveRelativeToken,
+  dueTooltip,
 } from '../../utils/effective-date'
 import { makeTodo } from '../helpers'
 
@@ -188,5 +189,18 @@ describe('pickTodoDate / compareTodosByDate', () => {
     const e = makeTodo({ id: 4, sortOrder: 3, dueDate: d('2026-04-01') })
     const sorted = [a, b, c, e].sort(compareTodosByDate('deadline'))
     expect(sorted.map((t) => t.id)).toEqual([4, 2, 1, 3])
+  })
+})
+
+describe('dueTooltip', () => {
+  const today = new Date(2026, 9, 17)
+  it('full date with weekday and year, the distance, and the repeat rule', () => {
+    expect(dueTooltip({ dueDate: new Date(2026, 9, 20) }, today)).toBe('Tuesday, October 20, 2026\nIn 3 days')
+    expect(dueTooltip({ dueDate: new Date(2026, 9, 17) }, today)).toBe('Saturday, October 17, 2026\nDue today')
+    expect(dueTooltip({ dueDate: new Date(2026, 9, 18) }, today)).toBe('Sunday, October 18, 2026\nDue tomorrow')
+    expect(dueTooltip({ dueDate: new Date(2026, 9, 16) }, today)).toBe('Friday, October 16, 2026\n1 day overdue')
+    expect(dueTooltip({ dueDate: new Date(2027, 0, 4), recurrenceRule: { type: 'weekly' } }, today))
+      .toBe('Monday, January 4, 2027\nIn 79 days\nRepeats every Monday')
+    expect(dueTooltip({}, today)).toBe('')
   })
 })

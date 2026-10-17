@@ -5,6 +5,7 @@ import {
   startOfToday,
   formatDate,
   formatDateShort,
+  formatDateNumeric,
   formatRelativeTime,
   toDateInputValue,
 } from '../../utils/date'
@@ -88,6 +89,14 @@ describe('formatDateShort', () => {
     const now = new Date()
     const d = new Date(now.getFullYear() - 2, 11, 31)
     expect(formatDateShort(d)).toBe(`Dec 31, ${now.getFullYear() - 2}`)
+  })
+})
+
+describe('formatDateNumeric', () => {
+  it('is MM/DD, zero-padded, in any year', () => {
+    expect(formatDateNumeric(new Date(2026, 9, 5))).toBe('10/05')
+    expect(formatDateNumeric(new Date(2026, 0, 31))).toBe('01/31')
+    expect(formatDateNumeric(new Date(2031, 11, 9))).toBe('12/09')
   })
 })
 

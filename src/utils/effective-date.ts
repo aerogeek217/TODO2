@@ -2,6 +2,7 @@ import { addDays, startOfDay, MS_PER_DAY } from './date'
 import type { TodoItem, PersistedTodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 import { bySortOrder } from './sort-order'
+import { describeRecurrence } from './recurrence'
 
 /**
  * 0 = Sunday-first week (week ends Saturday).
@@ -111,6 +112,25 @@ export function dateIntensity(days: number | null | undefined): number {
   if (days <= 0) return 1
   const f = 1 - days / 14
   return Math.max(0.15, f)
+}
+
+/**
+ * The due column's tooltip: the full date with weekday and year, how far off
+ * it is (`In 3 days`, `Due today`, `2 days overdue`), and the repeat rule.
+ * Empty without a due date.
+ */
+export function dueTooltip(t: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>, today: Date): string {
+  if (!t.dueDate) return ''
+  const due = startOfDay(new Date(t.dueDate))
+  const full = due.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const days = daysUntil(due, today) ?? 0
+  const distance = days === 0 ? 'Due today'
+    : days === 1 ? 'Due tomorrow'
+      : days > 1 ? `In ${days} days`
+        : `${-days} ${days === -1 ? 'day' : 'days'} overdue`
+  const lines = [full, distance]
+  if (t.recurrenceRule) lines.push(describeRecurrence(t.recurrenceRule, due))
+  return lines.join('\n')
 }
 
 /** The per-task date fields lists can sort and group by. */

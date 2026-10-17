@@ -1,6 +1,6 @@
 import { MARKER_KEYS, type MarkerKey, type PersistedTodoItem } from '../../models'
 import { isEffectivelyUrgent, type UrgentDueWithinDays } from '../../utils/urgency'
-import { MARKER_COLOR, MARKER_LABELS } from '../../utils/markers'
+import { MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL } from '../../utils/markers'
 import {
   addFollowupInterval,
   describeFollowupInterval,
@@ -81,7 +81,7 @@ export function markerMenuEntries(
 ): MenuEntry[] {
   const n = targets.length
   return [
-    { kind: 'label', text: 'Markers' },
+    { kind: 'label', text: MARKERS_LABEL },
     ...MARKERS.map(({ key, label, icon, color }): MenuEntry => {
       const count = markerCount(key, targets, today, range)
       const checked = n > 0 && count === n ? true : count > 0 ? 'mixed' : false

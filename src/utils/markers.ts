@@ -1,6 +1,6 @@
 import { HOT_MARKERS, MARKER_KEYS, type MarkerKey, type MarkerSet, type MarkersFilter } from '../models/filter-predicate'
 import { hasMarker, isHot, type HotRule, type MarkerFields } from './hot'
-import type { UrgentDueWithinDays } from './urgency'
+import { urgentByDateReason, urgentMark, type UrgentDueWithinDays, type UrgentMark } from './urgency'
 
 /** Display names of the task markers. */
 export const MARKER_LABELS: Record<MarkerKey, string> = {
@@ -14,6 +14,45 @@ export const MARKER_COLOR: Record<MarkerKey, string> = {
   focus: 'var(--color-marker-focus)',
   urgent: 'var(--color-marker-urgent)',
   important: 'var(--color-marker-important)',
+}
+
+/** The name of the markers as a group (menus, the task row's marker gutter). */
+export const MARKERS_LABEL = 'Markers'
+
+/** A task's markers as the row's gutter shows them. */
+export interface MarkerSummary {
+  focus: boolean
+  /** `flag` = flagged, `date` = urgent only by its due date (the ring), `null` = not urgent. */
+  urgent: UrgentMark
+  important: boolean
+  /** `Markers: Focus, Urgent (due soon)` / `No markers`. */
+  label: string
+  /** The label, plus why the due date makes it urgent. */
+  tooltip: string
+}
+
+/** What the marker gutter shows for `todo`, in marker order (Focus › Urgent › Important). */
+export function markerSummary(
+  todo: MarkerFields,
+  today: Date,
+  range: UrgentDueWithinDays,
+): MarkerSummary {
+  const urgent = urgentMark(todo, today, range)
+  const on: Record<MarkerKey, string | null> = {
+    focus: todo.focus === true ? MARKER_LABELS.focus : null,
+    urgent: urgent === 'flag' ? MARKER_LABELS.urgent : urgent === 'date' ? `${MARKER_LABELS.urgent} (due soon)` : null,
+    important: todo.important === true ? MARKER_LABELS.important : null,
+  }
+  const names = MARKER_KEYS.flatMap((k) => on[k] ?? [])
+  const label = names.length > 0 ? `${MARKERS_LABEL}: ${names.join(', ')}` : `No ${MARKERS_LABEL.toLowerCase()}`
+  const reason = urgent === 'date' ? urgentByDateReason(todo, today, range) : ''
+  return {
+    focus: on.focus !== null,
+    urgent,
+    important: on.important !== null,
+    label,
+    tooltip: reason ? `${label}\n${reason}` : label,
+  }
 }
 
 /** Display name of the Markers filter's Hot choice. */
