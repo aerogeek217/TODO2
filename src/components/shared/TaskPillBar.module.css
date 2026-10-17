@@ -58,14 +58,15 @@
 .deadlineChip {
   --date-intensity: 1;
   --fade: calc((1 - var(--date-intensity)) * 100%);
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   font-size: var(--font-size-meta);
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
   background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
-  padding: 1px 6px;
+  padding: 1px 4px;
   line-height: 14px;
   border-radius: var(--radius-chip);
   border: 1px solid transparent;
@@ -103,14 +104,18 @@
   opacity: 0.75;
 }
 
-/* × clear button inside a chip — hidden until the chip is hovered */
+/* × clear button over the chip's right end — takes no width (the chip hugs its
+ * date); hidden until the chip is hovered. */
 .chipClear {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 14px;
   height: 14px;
-  margin-left: 2px;
   border-radius: var(--radius-pill);
   font-size: 13px;
   line-height: 1;
@@ -131,7 +136,6 @@
 
 .recurrenceIndicator {
   color: var(--color-text-muted);
-  margin-right: 2px;
 }
 
 /* ═══ Compact (icon-only) date markers — used by EventRow ═══ */
