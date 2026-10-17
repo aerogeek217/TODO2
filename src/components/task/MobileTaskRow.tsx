@@ -11,7 +11,8 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
-import { TaskMarkers } from '../shared/TaskMarkers'
+import { MarkerDots } from '../shared/MarkerDots'
+import { markerSummary } from '../../utils/markers'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
 import styles from './MobileTaskRow.module.css'
@@ -78,6 +79,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     return s.statuses.find(st => st.id === todo.statusId)
   })
   const quickStatusId = useSettingsStore((s) => s.quickStatusId)
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const markers = markerSummary(todo, today, urgentRange)
 
   const people = assignedPeople ?? NO_PEOPLE
   const hasPeople = people.length > 0
@@ -127,12 +130,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           aria-label="Toggle complete"
         />
 
-        <TaskMarkers
-          todo={todo}
-          today={today}
-          size={16}
-          className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}
-        />
+        <span className={styles.markers} role="img" aria-label={markers.label}>
+          <MarkerDots summary={markers} dim={todo.isCompleted} />
+        </span>
 
         <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
@@ -186,6 +186,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             people={people}
             today={today}
             density="small"
+            dateFormat="numeric"
+            followupFlagOnly
             deadlineIntensity={deadlineIntensity}
             peopleAnchorRef={peopleRef as RefObject<HTMLDivElement | null>}
             followupAnchorRef={followupAnchorRef}

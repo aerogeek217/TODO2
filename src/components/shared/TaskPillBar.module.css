@@ -242,6 +242,13 @@
   padding-right: 2px;
 }
 
+/* Just the flag (the phone row). */
+.followupChipFlagOnly {
+  width: 20px;
+  padding: 0;
+  justify-content: center;
+}
+
 .followupChipToday,
 .followupChipOverdue {
   background: var(--color-followup-bg-strong);

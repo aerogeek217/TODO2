@@ -83,10 +83,10 @@ describe('MobileTaskRow', () => {
   // ── Date chips ────────────────────────────────────────────────────
 
   describe('date chips', () => {
-    it('shows deadline chip with formatted date', () => {
+    it('shows the due date as MM/DD', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
-      expect(screen.getByText(/Apr 11$/)).toBeInTheDocument()
+      expect(screen.getByText(/04\/11$/)).toBeInTheDocument()
     })
 
     it('renders no date chip when no due date is set', () => {
@@ -98,7 +98,7 @@ describe('MobileTaskRow', () => {
     it('shows recurrence indicator inside deadline chip when recurrenceRule is set', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
-      const chip = screen.getByText(/Apr 11/)
+      const chip = screen.getByText(/04\/11/)
       expect(chip.textContent).toContain('\u21bb')
     })
   })
@@ -255,12 +255,18 @@ describe('MobileTaskRow', () => {
       expect(mockSetFocus).toHaveBeenCalledWith(42, true)
     })
 
-    it('shows the focus marker only for a task in focus', () => {
+    it('shows the markers as the three dots, named (Focus lit only for a task in focus)', () => {
       const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
-      expect(screen.queryByRole('img', { name: 'Focus' })).not.toBeInTheDocument()
+      expect(screen.getByRole('img', { name: 'No markers' }).querySelector('[data-dot="focus"]')).not.toHaveAttribute('data-on')
       unmount()
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
-      expect(screen.getByRole('img', { name: 'Focus' })).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: 'Markers: Focus' }).querySelector('[data-dot="focus"]')).toHaveAttribute('data-on', 'true')
+    })
+
+    it('shows a set follow-up as its flag only (the day in its name)', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      const pill = screen.getByRole('button', { name: /^Follow-up: / })
+      expect(pill.textContent).toBe('')
     })
 
     it('Delete menu action routes through bulk.remove (which queues the confirm dialog)', () => {

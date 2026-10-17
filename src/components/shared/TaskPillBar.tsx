@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { CSSProperties, MouseEvent, Ref } from 'react'
 import { type PersistedTodoItem, type Person, type Status, DEFAULT_STATUS_ICON } from '../../models'
-import { formatDateShort } from '../../utils/date'
+import { formatDateNumeric, formatDateShort } from '../../utils/date'
 import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
 import { startOfDay } from '../../utils/date'
@@ -53,6 +53,8 @@ interface TaskPillPeopleProps extends PillCommon {
 interface TaskPillDatesProps extends PillCommon {
   todo: PersistedTodoItem
   today: Date
+  /** `'short'` = `Oct 20` (default), `'numeric'` = `10/20` (the phone row). */
+  dateFormat?: 'short' | 'numeric'
   deadlineIntensity?: number
   onDeadlineClick?: (e: MouseEvent) => void
   /** When provided AND interactive=true, the due-date chip shows an
@@ -70,6 +72,8 @@ interface TaskPillFollowupProps extends PillCommon {
   /** When provided (and interactive), the pill shows a × that clears only
    * `nextFollowupAt`. Touch rows and completed tasks never show it. */
   onFollowupClear?: (e: MouseEvent) => void
+  /** Just the flag, no day (the phone row; the tooltip and name carry the date). */
+  flagOnly?: boolean
 }
 
 interface TaskPillStatusProps extends PillCommon {
@@ -106,7 +110,7 @@ export const TaskPillPeople = memo(function TaskPillPeople({
 
 export const TaskPillDates = memo(function TaskPillDates({
   todo, today, interactive = true, compact = false,
-  deadlineIntensity,
+  dateFormat = 'short', deadlineIntensity,
   onDeadlineClick, onDeadlineClear,
 }: TaskPillDatesProps) {
   const hasDeadline = !!todo.dueDate
@@ -151,7 +155,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         aria-label="Edit due date"
       >
         <StatusIcon icon="clock" />
-        {formatDateShort(todo.dueDate!)}
+        {dateFormat === 'numeric' ? formatDateNumeric(todo.dueDate!) : formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
           <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
@@ -178,7 +182,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         title={deadlinePast ? 'Due date passed' : 'Due'}
       >
         <StatusIcon icon="clock" />
-        {formatDateShort(todo.dueDate!)}
+        {dateFormat === 'numeric' ? formatDateNumeric(todo.dueDate!) : formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
           <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
@@ -199,7 +203,7 @@ export const TaskPillDates = memo(function TaskPillDates({
 
 export const TaskPillFollowup = memo(function TaskPillFollowup({
   todo, today, interactive = true, compact = false, anchorRef, open = false,
-  onFollowupClick, onFollowupClear,
+  onFollowupClick, onFollowupClear, flagOnly = false,
 }: TaskPillFollowupProps) {
   const next = compact ? undefined : todo.nextFollowupAt
   const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
@@ -214,6 +218,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
     isToday ? styles.followupChipToday : '',
     showClear ? styles.followupChipWithClear : '',
     open ? styles.followupChipOpen : '',
+    flagOnly ? styles.followupChipFlagOnly : '',
   ].filter(Boolean).join(' ')
   const label = followupPillLabel(todo, today)
 
@@ -221,7 +226,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
     return (
       <span className={cls} data-followup-overdue={overdue ? 'true' : undefined} {...triggerProps}>
         <FollowupFlagIcon />
-        {label}
+        {!flagOnly && label}
         {tooltip}
       </span>
     )
@@ -240,7 +245,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       data-followup-overdue={overdue ? 'true' : undefined}
     >
       <FollowupFlagIcon />
-      <span className={styles.followupLabel}>{label}</span>
+      {!flagOnly && <span className={styles.followupLabel}>{label}</span>}
       {showClear && (
         <span
           className={styles.followupClear}
@@ -306,6 +311,10 @@ interface TaskPillBarProps extends PillCommon {
   status?: Status
   today: Date
 
+  /** The due date as `Oct 20` (default) or `10/20`. */
+  dateFormat?: 'short' | 'numeric'
+  /** The follow-up pill as just its flag. */
+  followupFlagOnly?: boolean
   /** Hide the status indicator entirely — `MobileTaskRow` renders status
    * outside the metaRow so it passes `false`. */
   showStatus?: boolean
@@ -335,7 +344,7 @@ interface TaskPillBarProps extends PillCommon {
 export const TaskPillBar = memo(function TaskPillBar({
   todo, people, status, today,
   interactive = true, compact = false, density = 'default',
-  showStatus = true,
+  dateFormat = 'short', followupFlagOnly = false, showStatus = true,
   deadlineIntensity,
   peopleAnchorRef, followupAnchorRef, statusAnchorRef,
   followupOpen, ariaHidden,
@@ -363,6 +372,7 @@ export const TaskPillBar = memo(function TaskPillBar({
         today={today}
         interactive={interactive}
         compact={compact}
+        dateFormat={dateFormat}
         deadlineIntensity={deadlineIntensity}
         onDeadlineClick={onDeadlineClick}
         onDeadlineClear={onDeadlineClear}
@@ -376,6 +386,7 @@ export const TaskPillBar = memo(function TaskPillBar({
         open={followupOpen}
         onFollowupClick={onFollowupClick}
         onFollowupClear={onFollowupClear}
+        flagOnly={followupFlagOnly}
       />
       {showStatus && (
         <TaskPillStatus

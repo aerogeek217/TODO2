@@ -234,15 +234,11 @@
 }
 
 /* Markers (Focus › Urgent › Important) between the checkbox and the title; never hidden. */
+/* The marker dots (Focus · Urgent · Important) before the title. */
 .markers {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
   flex-shrink: 0;
-}
-
-.markersDone {
-  opacity: 0.45;
 }
 
 /* Portaled person picker panel. */
