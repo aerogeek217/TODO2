@@ -8,7 +8,7 @@ import {
 } from '../../../utils/urgency'
 import type { WidgetSetting } from '../../shared/WidgetKindMenu'
 
-/** The setting's name, as Settings › Task defaults words it. */
+/** The setting's name, as Settings › Tasks words it. */
 export const URGENT_RANGE_SETTING_LABEL = 'Due date makes a task urgent'
 
 /** `only the flag counts` / `Sat 10` / `by Tue 13` — what a range means from `today`. */
@@ -39,6 +39,6 @@ export function useUrgentRangeSetting(): WidgetSetting {
       checked: r === range,
       onSelect: () => { void useSettingsStore.getState().setUrgentDueWithinDays(r) },
     })),
-    footnote: 'Overdue tasks count too. One setting for the whole app; also in Settings › Task defaults.',
+    footnote: 'Overdue tasks count too. One setting for the whole app; also in Settings › Tasks.',
   }
 }

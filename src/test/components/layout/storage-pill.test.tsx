@@ -47,14 +47,14 @@ describe('StoragePill', () => {
 
   afterEach(cleanup)
 
-  it('Local only: the popover leads to Settings → File storage', () => {
+  it('Local only: the popover leads to Settings → Database, at File storage', () => {
     useFileStorageStore.setState({ isSupported: true })
     render(<StoragePill />)
     fireEvent.click(screen.getByRole('button', { name: 'Storage: Local only' }))
     const popover = screen.getByRole('dialog', { name: 'Stored in this browser only' })
     expect(popover).toHaveTextContent('Connect a file')
     fireEvent.click(screen.getByRole('button', { name: 'Set up file storage…' }))
-    expect(useUIStore.getState()).toMatchObject({ settingsOpen: true, settingsSection: 'file-storage' })
+    expect(useUIStore.getState()).toMatchObject({ settingsOpen: true, settingsSection: 'database', settingsPart: 'file-storage' })
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -64,7 +64,7 @@ describe('StoragePill', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Storage: Local only' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('can’t sync to a file')
     fireEvent.click(screen.getByRole('button', { name: 'Import / Export…' }))
-    expect(useUIStore.getState().settingsSection).toBe('import-export')
+    expect(useUIStore.getState()).toMatchObject({ settingsSection: 'database', settingsPart: 'import-export' })
   })
 
   it('syncing: the file name, and when it last saved', () => {

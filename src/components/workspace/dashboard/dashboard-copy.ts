@@ -171,7 +171,7 @@ export function listTileHint(chips: readonly FilterChip[]): string {
 
 // ── The task dialog's words ──────────────────────────────────────────────────
 
-const SETTINGS_NOTE = '(Settings › Task Defaults)'
+const SETTINGS_NOTE = '(Settings › Tasks)'
 
 /** What a tile's dialog needs to say what the tile counts. */
 export interface TileDescriptionContext {
@@ -182,7 +182,7 @@ export interface TileDescriptionContext {
 
 /**
  * What a built-in tile counts, in words — the task dialog's line under its
- * title: `Hot = urgent and important, or in Focus (Settings › Task Defaults).`
+ * title: `Hot = urgent and important, or in Focus (Settings › Tasks).`
  */
 export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext): string {
   switch (id) {

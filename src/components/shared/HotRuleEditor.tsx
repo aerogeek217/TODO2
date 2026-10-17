@@ -166,7 +166,7 @@ export function HotRuleEditor({ variant = 'settings' }: { variant?: 'settings' |
             {addLine}
             <span className={styles.hotNow} data-testid="hot-rule-total">{total} hot now</span>
           </div>
-          <div className={styles.footnote}>One rule for the whole app; also in Settings › Task Defaults.</div>
+          <div className={styles.footnote}>One rule for the whole app; also in Settings › Tasks.</div>
         </>
       ) : (
         <>

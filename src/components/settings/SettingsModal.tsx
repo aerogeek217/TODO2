@@ -1,13 +1,15 @@
-import { useCallback, useId, useRef } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef } from 'react'
 import { useUIStore } from '../../stores/ui-store'
 import { SETTINGS_SECTIONS, settingsSection } from './sections/settings-sections'
 import { SettingsLayerContext } from './sections/settings-layer'
+import { SettingsSectionBody } from './sections/SettingsSectionBody'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './SettingsModal.module.css'
 
 /**
  * Desktop Settings: a large modal over the workspace, one section at a time
- * with the section list on the left. Opening or closing it never changes
+ * with the section list on the left; a merged section shows its parts under
+ * headings, and a deep link to a part opens the section scrolled to it. Opening or closing it never changes
  * the route, so it never triggers the unsaved-layout prompt. Esc, × or a
  * backdrop click closes it — unless an editor or dialog a section opened is
  * on top (that layer owns Esc).
@@ -31,14 +33,24 @@ function anotherLayerIsOpen(): boolean {
 
 function SettingsModalFrame() {
   const sectionId = useUIStore((s) => s.settingsSection)
+  const part = useUIStore((s) => s.settingsPart)
   const setSection = useUIStore((s) => s.setSettingsSection)
+  const contentRef = useRef<HTMLElement | null>(null)
   const close = useUIStore((s) => s.closeSettings)
   const titleId = useId()
   const sectionTitleId = useId()
   const layers = useRef(0)
   const registerLayer = useCallback((delta: 1 | -1) => { layers.current += delta }, [])
   const section = settingsSection(sectionId)
-  const Body = section.Body
+
+  // A deep link to a part: show the section scrolled to it, then forget it.
+  useLayoutEffect(() => {
+    if (!part) return
+    const content = contentRef.current
+    const el = content?.querySelector<HTMLElement>(`[data-settings-part="${part}"]`)
+    if (content && el) content.scrollTop += el.getBoundingClientRect().top - content.getBoundingClientRect().top - 8
+    useUIStore.getState().clearSettingsPart()
+  }, [part, sectionId])
 
   // A section's editor or dialog, or another overlay, owns Esc while open.
   const escapeBelongsElsewhere = useCallback(() => layers.current > 0 || anotherLayerIsOpen(), [])
@@ -78,11 +90,11 @@ function SettingsModalFrame() {
             </button>
           ))}
         </nav>
-        <section className={styles.content} aria-labelledby={sectionTitleId}>
+        <section ref={contentRef} className={styles.content} aria-labelledby={sectionTitleId}>
           <h2 id={sectionTitleId} className={styles.sectionTitle}>{section.label}</h2>
           <div className={styles.rule} />
           <SettingsLayerContext.Provider value={registerLayer}>
-            <Body key={section.id} />
+            <SettingsSectionBody key={section.id} section={section} mobile={false} />
           </SettingsLayerContext.Provider>
         </section>
       </div>

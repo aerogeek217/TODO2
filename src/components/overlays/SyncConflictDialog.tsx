@@ -93,7 +93,7 @@ export function SyncConflictDialog({ info, onChoose }: SyncConflictDialogProps) 
           ))}
         </div>
         <div className={styles.note}>
-          A backup of the side being replaced is saved first (Settings → Backups).
+          A backup of the side being replaced is saved first (Settings → Database → Backups).
           {fileOlder ? ` Either choice saves the file in the v${browser.schemaVersion} format, which older TODO2 builds can't open.` : ''}
         </div>
       </DialogBody>

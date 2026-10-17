@@ -43,7 +43,7 @@ test('a tile opens its tasks; a completed row stays, struck through, while the c
   await expect(dialog(page)).toBeVisible()
   await expect(dialog(page).getByRole('heading')).toHaveText('Hot tasks')
   await expect(dialog(page).getByTestId('task-dialog-count')).toHaveText('2')
-  await expect(dialog(page)).toContainText('Hot = urgent and important, or in Focus (Settings › Task Defaults).')
+  await expect(dialog(page)).toContainText('Hot = urgent and important, or in Focus (Settings › Tasks).')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 
   const outage = dialogRow(page, 'Fix checkout outage')

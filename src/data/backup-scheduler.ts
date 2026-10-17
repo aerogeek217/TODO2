@@ -25,7 +25,7 @@ export const BACKUPS_KEPT: Readonly<Record<BackupTrigger, number>> = {
 
 /** Shown when an automatic backup can't be stored (e.g. browser storage is full). */
 export const AUTO_BACKUP_FAILED_WARNING =
-  'The automatic backup could not be saved — browser storage may be full. Free up space, or delete old backups in Settings → Backups.'
+  'The automatic backup could not be saved — browser storage may be full. Free up space, or delete old backups in Settings → Database → Backups.'
 
 async function prune(trigger: BackupTrigger): Promise<void> {
   // Pruning is housekeeping; the new backup already exists, so don't fail on it.

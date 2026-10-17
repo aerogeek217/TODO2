@@ -111,7 +111,7 @@ export function AppendImportDialog({ fileName, candidates, busy, error, onConfir
             )
           })}
         </ul>
-        <div className={styles.note}>A backup snapshot is taken before importing (Settings → Backups).</div>
+        <div className={styles.note}>A backup snapshot is taken before importing (Settings → Database → Backups).</div>
         {error && <div className={styles.error} role="alert">{error}</div>}
       </DialogBody>
       <DialogActions>

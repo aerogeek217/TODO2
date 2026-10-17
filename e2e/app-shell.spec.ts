@@ -35,8 +35,8 @@ test('the gear opens Settings over the workspace; Esc closes it', async ({ page 
   await expect(settings.getByRole('radiogroup', { name: 'Theme' })).toBeVisible()
   await expect(page).toHaveURL(/#\/$/)
 
-  await settings.getByRole('button', { name: 'Backups', exact: true }).click()
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Backups')
+  await settings.getByRole('button', { name: 'Database', exact: true }).click()
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
   await expect(page.locator('[data-ws-area]')).toBeVisible()
@@ -44,7 +44,7 @@ test('the gear opens Settings over the workspace; Esc closes it', async ({ page 
   // Reopens on the last section viewed; G then S opens it too.
   await page.keyboard.press('g')
   await page.keyboard.press('s')
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Backups')
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
   await settings.getByRole('button', { name: 'Close settings' }).click()
   await expect(settings).toBeHidden()
 })
@@ -141,7 +141,7 @@ test('at 1180px the filters fold into a Filters menu that sets and clears a filt
   await expect(menu).toBeHidden()
 })
 
-test('the storage pill’s popover opens Settings on File storage', async ({ page }) => {
+test('the storage pill’s popover opens Settings on Database, at File storage', async ({ page }) => {
   await seedWorkspace(page, team)
   const pill = page.getByTestId('storage-pill')
   await expect(pill).toHaveAttribute('data-state', 'local')
@@ -152,10 +152,36 @@ test('the storage pill’s popover opens Settings on File storage', async ({ pag
   await popover.getByRole('button', { name: 'Set up file storage…' }).click()
   await expect(popover).toBeHidden()
   const settings = page.getByRole('dialog', { name: 'Settings' })
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('File storage')
-  await expect(settings.getByRole('button', { name: 'Attach to File' })).toBeVisible()
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
+  await expect(settings.getByRole('button', { name: 'Attach to File' })).toBeInViewport()
   // The old "stored locally" strip is gone.
   await expect(page.getByText('Your data is stored locally')).toHaveCount(0)
+})
+
+test('without file sync, the pill’s Import / Export… opens Database scrolled to that part', async ({ page }) => {
+  await page.addInitScript(() => {
+    delete (Window.prototype as unknown as Record<string, unknown>).showOpenFilePicker
+    delete (window as unknown as Record<string, unknown>).showOpenFilePicker
+  })
+  await seedWorkspace(page, team)
+  await page.getByTestId('storage-pill').click()
+  await page.getByRole('button', { name: 'Import / Export…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  const part = settings.getByRole('heading', { level: 3, name: 'Import / Export' })
+  await expect(part).toBeInViewport()
+  // The content scrolled to it: as far as it goes, or until the part is at the top.
+  const scroll = await part.evaluate((h) => {
+    const content = h.closest('section[aria-labelledby]')?.parentElement?.closest('section') as HTMLElement
+    return {
+      top: content.scrollTop,
+      max: content.scrollHeight - content.clientHeight,
+      offset: h.getBoundingClientRect().top - content.getBoundingClientRect().top,
+    }
+  })
+  expect(scroll.top).toBeGreaterThan(0)
+  expect(scroll.top >= scroll.max - 1 || scroll.offset < 40).toBe(true)
 })
 
 test('New task opens quick add', async ({ page }) => {

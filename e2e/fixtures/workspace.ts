@@ -374,18 +374,31 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
   return dialog
 }
 
+/** The headed parts of the merged Settings sections, by label: their section. */
+const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
+  'Task defaults': 'Tasks',
+  'Completed tasks': 'Tasks',
+  'File storage': 'Database',
+  Backups: 'Database',
+  'Import / Export': 'Database',
+  'Data integrity': 'Database',
+}
+
 /**
  * The Settings modal, opened with the top bar's gear unless it is already
  * open (e.g. after `gotoSettingsDeepLink`); optionally switched to a section
- * by its label.
+ * by its label — or to a merged section's part (`Backups` → Database,
+ * scrolled to its heading).
  */
 export async function openSettings(page: Page, section?: string): Promise<Locator> {
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
   if (!(await dialog.isVisible())) await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(dialog).toBeVisible()
   if (section) {
-    await dialog.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click()
-    await expect(dialog.getByRole('heading', { level: 2, name: section })).toBeVisible()
+    const nav = SETTINGS_PART_SECTION[section] ?? section
+    await dialog.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: nav, exact: true }).click()
+    await expect(dialog.getByRole('heading', { level: 2, name: nav })).toBeVisible()
+    if (nav !== section) await dialog.getByRole('heading', { level: 3, name: section, exact: true }).scrollIntoViewIfNeeded()
   }
   return dialog
 }

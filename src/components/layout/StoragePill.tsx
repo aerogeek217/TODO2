@@ -1,7 +1,7 @@
 import { useCallback, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useFileStorageStore } from '../../services/file-storage-store'
-import { useUIStore, type SettingsSectionId } from '../../stores/ui-store'
+import { useUIStore, type SettingsTarget } from '../../stores/ui-store'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { formatRelativeTime } from '../../utils/date'
 import { storagePillState, useSyncWarning } from './sync-status'
@@ -37,7 +37,7 @@ export function StoragePill() {
     onClose: close,
   })
 
-  const openSettings = (section: SettingsSectionId) => {
+  const openSettings = (section: SettingsTarget) => {
     close()
     useUIStore.getState().openSettings(section)
   }

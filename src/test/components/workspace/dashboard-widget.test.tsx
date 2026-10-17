@@ -249,7 +249,7 @@ describe('DashboardWidget — screen filter', () => {
 })
 
 describe('DashboardWidget — drill hook', () => {
-  const HOT_WORDS = 'Hot = urgent and important, or in Focus (Settings › Task Defaults).'
+  const HOT_WORDS = 'Hot = urgent and important, or in Focus (Settings › Tasks).'
   type Group = { label: string; todoIds: number[] }
 
   it('without a drill handler numbers are not buttons', () => {
@@ -268,7 +268,7 @@ describe('DashboardWidget — drill hook', () => {
     })
     fireEvent.click(tile('urgent'))
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({
-      description: 'Urgent = flagged urgent, or due within 3 days (Settings › Task Defaults).',
+      description: 'Urgent = flagged urgent, or due within 3 days (Settings › Tasks).',
       // Overdue first, then by due date, ties by sortOrder.
       source: { kind: 'todos', todoIds: [5, 6, 1, 2, 3, 7, 12, 13] },
     })

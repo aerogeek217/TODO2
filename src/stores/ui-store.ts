@@ -8,15 +8,42 @@ type EditPopupMode = 'edit' | 'create' | null
 /** The sections of the Settings modal (and the mobile Settings page), in order. */
 export type SettingsSectionId =
   | 'appearance'
-  | 'task-defaults'
+  | 'tasks'
   | 'entities'
+  | 'database'
+  | 'shortcuts'
+  | 'about'
+
+/** The headed parts of the merged sections (Tasks, Database). */
+export type SettingsPartId =
+  | 'task-defaults'
   | 'completed'
   | 'file-storage'
   | 'backups'
   | 'import-export'
   | 'data-integrity'
-  | 'shortcuts'
-  | 'about'
+
+/** The section each part sits in. */
+export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
+  'task-defaults': 'tasks',
+  completed: 'tasks',
+  'file-storage': 'database',
+  backups: 'database',
+  'import-export': 'database',
+  'data-integrity': 'database',
+}
+
+/** Where Settings can open: a section, or a part of one (shown scrolled to it). */
+export type SettingsTarget = SettingsSectionId | SettingsPartId
+
+/** A target's section, and its part when it names one. */
+export function resolveSettingsTarget(target: SettingsTarget): { section: SettingsSectionId; part: SettingsPartId | null } {
+  if (Object.hasOwn(SETTINGS_PART_SECTION, target)) {
+    const part = target as SettingsPartId
+    return { section: SETTINGS_PART_SECTION[part], part }
+  }
+  return { section: target as SettingsSectionId, part: null }
+}
 
 /** A person or tag picked from a task row's menu, and what to do with it (`entityAction`). */
 export interface EntityAction {
@@ -154,6 +181,8 @@ interface UIState {
   settingsOpen: boolean
   /** The section the Settings modal shows; kept while the app stays open. */
   settingsSection: SettingsSectionId
+  /** A part of it to scroll to (a deep link such as the storage pill's); cleared once shown. */
+  settingsPart: SettingsPartId | null
   /**
    * The email check-in dialog (`CheckinDialog`): the people ticked when it
    * opened (none from the general command). `null` = closed.
@@ -200,9 +229,12 @@ interface UIState {
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
   /** Opens the Settings modal on `section`, or on the last section viewed. */
-  openSettings: (section?: SettingsSectionId) => void
+  /** Opens Settings, on `target` (a section, or a part of one) when given. */
+  openSettings: (target?: SettingsTarget) => void
   closeSettings: () => void
-  setSettingsSection: (section: SettingsSectionId) => void
+  setSettingsSection: (target: SettingsTarget) => void
+  /** The part scroll was shown: forget it. */
+  clearSettingsPart: () => void
   /** Opens the email check-in dialog with `personIds` ticked (none by default). */
   openCheckinDialog: (personIds?: readonly number[]) => void
   closeCheckinDialog: () => void
@@ -236,6 +268,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   recentlyCreated: null,
   settingsOpen: false,
   settingsSection: 'appearance',
+  settingsPart: null,
   checkinDialog: null,
   checkinImportOpen: false,
   entityAction: null,
@@ -395,16 +428,26 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ recentlyCreated: null })
   },
 
-  openSettings(section) {
-    set({ settingsOpen: true, ...(section ? { settingsSection: section } : {}) })
+  openSettings(target) {
+    if (!target) {
+      set({ settingsOpen: true })
+      return
+    }
+    const { section, part } = resolveSettingsTarget(target)
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part })
   },
 
   closeSettings() {
     set({ settingsOpen: false })
   },
 
-  setSettingsSection(section) {
-    set({ settingsSection: section })
+  setSettingsSection(target) {
+    const { section, part } = resolveSettingsTarget(target)
+    set({ settingsSection: section, settingsPart: part })
+  },
+
+  clearSettingsPart() {
+    if (get().settingsPart !== null) set({ settingsPart: null })
   },
 
   openCheckinDialog(personIds) {

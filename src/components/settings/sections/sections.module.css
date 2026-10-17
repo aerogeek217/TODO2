@@ -498,3 +498,25 @@
   flex-direction: column;
   gap: 1px;
 }
+
+/* A merged section's part (Tasks › Completed tasks, Database › Backups, …):
+   a heading over the part's rows; a rule above every part but the first. */
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-margin-top: 8px;
+}
+
+.part + .part {
+  margin-top: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.partTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}

@@ -44,7 +44,7 @@ export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName
           <DialogBody>
             Replace the contents of <strong>{fileName}</strong> with this browser&rsquo;s
             data? The file&rsquo;s current contents are saved
-            as a backup first (Settings &rarr; Backups), then syncing resumes.
+            as a backup first (Settings &rarr; Database &rarr; Backups), then syncing resumes.
             {paused.reason === 'too-new' && (
               <div className={dialogStyles.note}>
                 The file was written by a newer version of TODO2. Overwriting it discards whatever

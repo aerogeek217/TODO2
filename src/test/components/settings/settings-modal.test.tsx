@@ -36,23 +36,46 @@ describe('SettingsModal', () => {
     expect(within(nav).getByRole('button', { name: 'Appearance' })).toHaveAttribute('aria-current', 'true')
   })
 
+  it('lists Appearance, Tasks, People statuses & tags, Database, Keyboard shortcuts, About', () => {
+    render(<SettingsModal />)
+    open()
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' })
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Appearance', 'Tasks', 'People, statuses & tags', 'Database', 'Keyboard shortcuts', 'About'])
+  })
+
   it('shows one section at a time and reopens on the last one viewed', () => {
     render(<SettingsModal />)
     open()
-    fireEvent.click(screen.getByRole('button', { name: 'File storage' }))
-    expect(sectionHeading()).toBe('File storage')
+    fireEvent.click(screen.getByRole('button', { name: 'Database' }))
+    expect(sectionHeading()).toBe('Database')
     expect(screen.queryByRole('radiogroup', { name: 'Theme' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Close settings' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     open()
-    expect(sectionHeading()).toBe('File storage')
+    expect(sectionHeading()).toBe('Database')
   })
 
-  it('opens on a given section', () => {
+  it('Tasks holds Task defaults then Completed tasks; Database File storage, Backups, Import / Export, Data integrity — each headed', () => {
+    render(<SettingsModal />)
+    open('tasks')
+    const parts = () => Array.from(screen.getByRole('dialog', { name: 'Settings' }).querySelectorAll('h3')).map((h) => h.textContent)
+    expect(parts()).toEqual(['Task defaults', 'Completed tasks'])
+    expect(screen.getByRole('region', { name: 'Completed tasks' })).toHaveAttribute('data-settings-part', 'completed')
+    fireEvent.click(screen.getByRole('button', { name: 'Database' }))
+    expect(parts()).toEqual(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
+  })
+
+  it('a deep link to a part opens its section (the old section ids still work)', () => {
     render(<SettingsModal />)
     open('import-export')
-    expect(sectionHeading()).toBe('Import / Export')
-    expect(useUIStore.getState().settingsSection).toBe('import-export')
+    expect(sectionHeading()).toBe('Database')
+    expect(useUIStore.getState().settingsSection).toBe('database')
+    // Shown: the part is forgotten, so reopening later doesn't jump again.
+    expect(useUIStore.getState().settingsPart).toBeNull()
+    act(() => useUIStore.getState().closeSettings())
+    open('completed')
+    expect(sectionHeading()).toBe('Tasks')
   })
 
   it('Esc and a backdrop click close it', () => {

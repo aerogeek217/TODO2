@@ -22,7 +22,7 @@ import {
 const HOT: TaskDialogPayload = {
   title: 'Hot tasks',
   glyph: 'hot',
-  description: 'Hot = urgent and important, or in Focus (Settings › Task Defaults).',
+  description: 'Hot = urgent and important, or in Focus (Settings › Tasks).',
   source: { kind: 'todos', todoIds: [1, 2, 3, 4] },
   fromTabId: 'dash',
 }
@@ -75,7 +75,7 @@ describe('TaskDialog', () => {
     open(HOT)
     expect(within(dialog()!).getByRole('heading').textContent).toBe('Hot tasks')
     expect(within(dialog()!).getByTestId('task-dialog-count').textContent).toBe('4')
-    expect(dialog()!.textContent).toContain('Hot = urgent and important, or in Focus (Settings › Task Defaults).')
+    expect(dialog()!.textContent).toContain('Hot = urgent and important, or in Focus (Settings › Tasks).')
     expect(rowTitles()).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy', 'Book venue for offsite'])
     // Not a list widget: no Open as tab.
     expect(within(dialog()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
