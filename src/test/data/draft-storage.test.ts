@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   clearUnsavedDrafts,
   readLayoutDraft,
@@ -21,6 +21,11 @@ function listDef(over: Partial<PersistedListDefinition> = {}): PersistedListDefi
     ...over,
   }
 }
+
+// The storage stubs below must not outlive their test: in the shared project
+// spies are only restored at file boundaries, and a `getItem` that still
+// throws makes every later read in this file come back empty.
+afterEach(() => { vi.restoreAllMocks() })
 
 describe('draft storage', () => {
   it('keeps a layout draft for the next page load, outside the database', () => {
