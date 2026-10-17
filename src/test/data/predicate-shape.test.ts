@@ -113,13 +113,22 @@ describe('checkPredicateShape', () => {
     ['showCompleted', { showCompleted: 'yes' }],
     ['searchText', { searchText: 5 }],
     ['dateRangeIncludeNoDate', { dateRangeIncludeNoDate: undefined }],
-    ['dateRangeStart', { dateRangeStart: '2026-10-01' }],
+    ['dateRangeStart', { dateRangeStart: 'not a date' }],
     ['dateRangeEnd', { dateRangeEnd: { kind: 'relative', token: 'someday' } }],
     ['dateField', { dateField: 'scheduled' }],
     ['hasDeadline', { hasDeadline: 'no' }],
     ['hasFollowup', { hasFollowup: 1 }],
   ])('names a malformed %s', (field, patch) => {
     expect(checkPredicateShape({ ...emptyPredicate(), ...patch })).toBe(field)
+  })
+
+  it('accepts the legacy ISO-string date anchor a 2026-04 build stored (pickPredicate makes it fixed)', () => {
+    const legacy = { ...emptyPredicate(), dateRangeStart: '2026-10-01T05:00:00.000Z', dateRangeEnd: '2026-10-31' }
+    expect(checkPredicateShape(legacy)).toBe(true)
+    expect(pickPredicate(legacy).predicate).toMatchObject({
+      dateRangeStart: { kind: 'fixed', iso: '2026-10-01T05:00:00.000Z' },
+      dateRangeEnd: { kind: 'fixed', iso: '2026-10-31' },
+    })
   })
 
   it('does not check what pickPredicate sanitises', () => {

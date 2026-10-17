@@ -56,8 +56,14 @@ function readAnchor(v: unknown): DateAnchor | undefined {
   return undefined
 }
 
+/**
+ * A stored anchor, or none. The legacy ISO-string form counts: a 2026-04
+ * build wrote it into stored lists (the legacy inset → list migration) and
+ * nothing rewrote those rows, so a database can still hold it;
+ * `pickPredicate` turns it into a `fixed` anchor.
+ */
 function isOptAnchor(v: unknown): boolean {
-  return v === undefined || v === null || readAnchor(v) !== undefined
+  return v === undefined || v === null || isDateLike(v) || readAnchor(v) !== undefined
 }
 
 function isDateField(v: unknown): v is DateField {
