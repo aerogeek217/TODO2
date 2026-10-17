@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem } from '../../../models'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -29,25 +29,62 @@ interface FollowupPopoverProps {
    * last follow-up; the bulk bar passes "every selected task".
    */
   followedUpToday?: boolean
+  /**
+   * What has focus on open: `followedUp` (default — ⏎ records a follow-up
+   * today) or `next` (the Next follow-up field, its value selected — opened
+   * to pick a date).
+   */
+  initialFocus?: 'followedUp' | 'next'
 }
 
 /**
  * Small popover for a task's follow-up, opened from the row's follow-up pill,
- * its empty-slot flag, or the row menu. Next follow-up takes an interval or a
- * date; quick buttons set common intervals; "Followed up" stamps the task.
- * ⏎ (valid input) or a quick button applies and closes; Esc / outside click
- * closes without change.
+ * its empty-slot flag, the row menu or the bulk bar. It opens with focus on
+ * "Followed up" (⏎ or a click stamps the task today), or on the Next
+ * follow-up field (`initialFocus: 'next'`). Next follow-up takes an interval
+ * or a date; quick buttons set common intervals. ⏎ in the field (valid
+ * input) or a quick button applies and closes; Esc / outside click closes
+ * without change. On close, focus goes back to what had it before (the
+ * trigger) unless something else took it.
  */
-export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday }: FollowupPopoverProps) {
+export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday, initialFocus = 'followedUp' }: FollowupPopoverProps) {
   const today = useToday()
   const interval = useSettingsStore((s) => s.followupDefaultInterval)
   const inputRef = useRef<HTMLInputElement>(null)
+  const followedUpRef = useRef<HTMLButtonElement>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const input = useFollowupInput(todo.nextFollowupAt, 'next', today)
   const { panelRef, style } = usePopoverAnchor({ anchor, open: true, onClose })
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el
+    panelRef(el)
+  }, [panelRef])
 
+  // Remember what had focus (the trigger — or, from a menu, what the menu
+  // handed focus back to: a passive effect runs after that), then focus in.
+  const initialFocusRef = useRef(initialFocus)
   useEffect(() => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
+    const previous = document.activeElement
+    if (previous instanceof HTMLElement && previous !== document.body && !containerRef.current?.contains(previous)) {
+      returnFocusRef.current = previous
+    }
+    if (initialFocusRef.current === 'next') {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    } else {
+      followedUpRef.current?.focus()
+    }
+  }, [])
+  // On close hand focus back, unless something else took it.
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    return () => {
+      const target = returnFocusRef.current
+      const active = document.activeElement
+      const focusIsOurs = !active || active === document.body || !active.isConnected || !!container?.contains(active)
+      if (target && target.isConnected && focusIsOurs) target.focus({ preventScroll: true })
+    }
   }, [])
 
   const apply = useCallback((date: Date | null) => {
@@ -71,7 +108,7 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
 
   return createPortal(
     <div
-      ref={panelRef}
+      ref={setPanel}
       className={styles.popover}
       style={{ position: style.position, left: style.left, top: style.top }}
       role="dialog"
@@ -139,6 +176,7 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
         ) : 'Never followed up'}
       </div>
       <button
+        ref={followedUpRef}
         type="button"
         className={`${styles.followedUpPrimary} ${doneToday ? styles.followedUpDone : ''}`}
         onClick={() => { onFollowedUp(); onClose() }}

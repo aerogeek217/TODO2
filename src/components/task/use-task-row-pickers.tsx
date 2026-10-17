@@ -51,6 +51,8 @@ export function useTaskRowPickers({
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [followupOpen, setFollowupOpen] = useState(false)
+  /** The pill / flag open the follow-up popover on "Followed up"; the menu's "Pick a date or interval…" on the date field. */
+  const [followupFocus, setFollowupFocus] = useState<'followedUp' | 'next'>('followedUp')
   const [notesOpen, setNotesOpen] = useState(false)
   const peopleRef = useRef<HTMLDivElement>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
@@ -62,6 +64,7 @@ export function useTaskRowPickers({
   const closeFollowup = useCallback(() => setFollowupOpen(false), [])
   const toggleFollowup = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    setFollowupFocus('followedUp')
     setFollowupOpen((v) => !v)
   }, [])
   const closeNotes = useCallback(() => setNotesOpen(false), [])
@@ -115,7 +118,7 @@ export function useTaskRowPickers({
     onToggleComplete: handleToggleComplete,
     onSetDueDate: ghost ? undefined : openDeadlinePicker,
     onSetFollowup: (d) => bulk.setFollowup(todo.id, d),
-    onPickFollowup: ghost ? undefined : () => setFollowupOpen(true),
+    onPickFollowup: ghost ? undefined : () => { setFollowupFocus('next'); setFollowupOpen(true) },
     onFollowedUp: () => bulk.markFollowedUp(todo.id),
     onAssignPeople: ghost ? undefined : () => setPeopleOpen(true),
     onAddTag: ghost ? undefined : () => setTagPickerOpen(true),
@@ -148,6 +151,7 @@ export function useTaskRowPickers({
           onClose={closeFollowup}
           onSetNext={(d) => bulk.setFollowup(todo.id, d)}
           onFollowedUp={() => bulk.markFollowedUp(todo.id)}
+          initialFocus={followupFocus}
         />
       )}
       {notesOpen && createPortal(

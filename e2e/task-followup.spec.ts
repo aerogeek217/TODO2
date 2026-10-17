@@ -68,7 +68,7 @@ test.describe('Task follow-up', () => {
     await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
   })
 
-  test('empty-slot flag: hidden at rest, revealed on hover, opens the popover; typing an interval + Enter sets it', async ({ page }) => {
+  test('empty-slot flag: hidden at rest, revealed on hover, opens the popover on Followed up; typing an interval in the field + Enter sets it', async ({ page }) => {
     const row = taskRowByTitle(page, 'alpha')
     const flag = row.getByRole('button', { name: 'Set follow-up', exact: true })
     await expect(flag).toBeHidden()
@@ -86,7 +86,8 @@ test.describe('Task follow-up', () => {
     await expect(pop.getByText('Never followed up')).toBeVisible()
 
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
-    await expect(input).toBeFocused()
+    await expect(pop.getByRole('button', { name: /^Followed up/ })).toBeFocused()
+    await input.click()
     await page.keyboard.type('2w')
     await expect(pop.getByText('Sat 24 Oct')).toBeVisible()
     await page.keyboard.press('Enter')
@@ -98,18 +99,17 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: null, last: null })
   })
 
-  test('pill: opens with the value selected; invalid text shows help; Esc and outside click close without change', async ({ page }) => {
+  test('pill: the field shows the value; invalid text shows help; Esc and outside click close without change', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 13)
     const row = taskRowByTitle(page, 'alpha')
     const pill = row.getByRole('button', { name: 'Follow-up: Tue 13', exact: true })
     await pill.click()
     const pop = popover(page)
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
-    await expect(input).toBeFocused()
+    await expect(pop.getByRole('button', { name: /^Followed up/ })).toBeFocused()
     await expect(input).toHaveValue('Tue 13 Oct')
     await expect(pop.getByText('in 3 days')).toBeVisible()
-    // Selected on open: typing replaces the shown date.
-    await page.keyboard.type('whenever')
+    await input.fill('whenever')
     await expect(input).toHaveValue('whenever')
     await expect(pop.getByText('Try 2w, 10d, 1m, fri, 24 Oct or 10/24')).toBeVisible()
     await page.keyboard.press('Enter')
