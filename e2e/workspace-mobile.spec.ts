@@ -167,6 +167,27 @@ test('the layout sheet switches layouts and starts at the first column', async (
   await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(0)
 })
 
+test('the layout sheet is a bottom sheet on the dialog frame: focus on the open layout, kept inside, Esc closes, focus back', async ({ page }) => {
+  await seed(page)
+  const picker = page.getByTestId('layout-picker')
+  await picker.focus()
+  await picker.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'Layouts' })
+  await expect(sheet.getByRole('button', { name: 'Weekly review' })).toBeFocused()
+  // Full width, on the bottom edge.
+  const b = await box(sheet)
+  expect(Math.round(b.x)).toBe(0)
+  expect(Math.round(b.width)).toBe(390)
+  expect(Math.round(b.y + b.height)).toBe(844)
+  // Tab stays inside (Daily → wraps to Weekly review).
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  await expect(sheet.locator(':focus')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  await expect(picker).toBeFocused()
+})
+
 test('long-pressing a list tab opens its list sheet; a list edit shows the save button', async ({ page }) => {
   await seed(page)
   // Mobile browsers turn a long press into `contextmenu`.

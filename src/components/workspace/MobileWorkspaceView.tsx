@@ -8,6 +8,7 @@ import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { UnsavedPrompt } from './UnsavedPrompt'
+import { DialogFrame } from '../shared/Dialog'
 import { SaveListButton } from './list/SaveListButton'
 import type { ListWidgetResult } from './list/ListWidget'
 import { pointBelow } from '../shared/filters/popover-point'
@@ -51,11 +52,8 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
   const isDirty = useWorkspaceStore((s) => s.isDirty)
   const unsavedLists = useUnsavedListIds()
   const [pending, setPending] = useState<{ id: number; name: string } | null>(null)
-  const sheetRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    sheetRef.current?.querySelector<HTMLButtonElement>('[aria-current="true"], button')?.focus()
-  }, [])
+  const currentRowRef = useRef<HTMLButtonElement | null>(null)
+  const firstRowRef = useRef<HTMLButtonElement | null>(null)
 
   const pick = (id: number, name: string) => {
     if (id === activeLayoutId) { onClose(); return }
@@ -65,20 +63,18 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
     onClose()
   }
 
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape' && !pending) { e.stopPropagation(); onClose() }
-  }
-
-  return createPortal(
+  return (
     <>
-      <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />
-      <div
-        ref={sheetRef}
+      {/* The shared dialog frame (Esc, a backdrop press, focus in on the open
+          layout and kept inside, focus back on close), as a bottom sheet. */}
+      <DialogFrame
+        onClose={onClose}
+        layer="overlay"
         className={styles.sheet}
-        role="dialog"
-        aria-modal="true"
+        backdropClassName={styles.backdrop}
+        style={SHEET_PLACEMENT}
         aria-labelledby="ws-layout-sheet-title"
-        onKeyDown={onKeyDown}
+        initialFocus={layouts.some((l) => l.id === activeLayoutId) ? currentRowRef : firstRowRef}
       >
         <span className={styles.handle} aria-hidden="true" />
         <h2 id="ws-layout-sheet-title" className={styles.sheetTitle}>Layouts</h2>
@@ -88,6 +84,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
             return (
               <button
                 key={l.id}
+                ref={current ? currentRowRef : l.id === layouts[0]?.id ? firstRowRef : undefined}
                 type="button"
                 className={`${styles.sheetRow} ${current ? styles.sheetRowCurrent : ''}`}
                 aria-current={current ? 'true' : undefined}
@@ -102,7 +99,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
           })}
         </div>
         <p className={styles.sheetFooter}>{WIDER_SCREEN_HINT}</p>
-      </div>
+      </DialogFrame>
       {pending && (
         <UnsavedPrompt
           lead={`You’re switching to layout “${pending.name}”.`}
@@ -118,10 +115,12 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
           onCancel={() => setPending(null)}
         />
       )}
-    </>,
-    document.body,
+    </>
   )
 }
+
+/** The frame centres its panel; a bottom sheet sits on the bottom edge, full width. */
+const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
 
 /** Mobile top bar: the layout picker (opens the sheet) and search (opens the filter sheet). */
 function MobileTopBar({ name }: { name: string }) {
