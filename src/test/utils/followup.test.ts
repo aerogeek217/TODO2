@@ -116,10 +116,10 @@ describe('labels', () => {
     expect(formatFollowupDay(day(2027, 1, 5), TODAY)).toBe('Tue 5 Jan 2027')
   })
 
-  it('overdue: "Nd late" for open tasks; completed tasks are never overdue', () => {
+  it('overdue: the day only (no "late" text) for open tasks; completed tasks are never overdue', () => {
     const t = { nextFollowupAt: day(2026, 10, 9), isCompleted: false }
     expect(isFollowupOverdue(t, TODAY)).toBe(true)
-    expect(followupPillLabel(t, TODAY)).toBe('Fri 9 · 1d late')
+    expect(followupPillLabel(t, TODAY)).toBe('Fri 9')
     const done = { ...t, isCompleted: true }
     expect(isFollowupOverdue(done, TODAY)).toBe(false)
     expect(followupPillLabel(done, TODAY)).toBe('Fri 9')

@@ -161,10 +161,11 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
   })
 
-  test('overdue follow-up: "Nd late" with the yellow ring, not the due-date magenta', async ({ page }) => {
+  test('overdue follow-up: the day only ("late" in its accessible name) with the yellow ring, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
-    const pill = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8 · 2d late', exact: true })
+    const pill = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
     await expect(pill).toHaveAttribute('data-followup-overdue', 'true')
+    await expect(pill.locator('[class*="followupLabel"]')).toHaveText('Thu 8')
     const { shadow, color } = await pill.evaluate((el) => {
       const cs = getComputedStyle(el)
       return { shadow: cs.boxShadow, color: cs.color }

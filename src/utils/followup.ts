@@ -201,17 +201,14 @@ export function formatFollowupDate(date: Date, today: Date): string {
   return d.getFullYear() !== today.getFullYear() ? `${base} ${d.getFullYear()}` : base
 }
 
-/** Row pill label: `Today`, `Tue 13`, or (overdue) `Fri 9 · 1d late`. */
+/** Pill label: `Today` or the day (`Tue 13`) — overdue too (the pill's colour and tooltip say it's late). */
 export function followupPillLabel(
   t: Pick<TodoItem, 'nextFollowupAt' | 'isCompleted'>,
   today: Date,
 ): string {
   if (!t.nextFollowupAt) return ''
-  const diff = dayDiff(t.nextFollowupAt, today)
-  if (diff === 0 && !t.isCompleted) return 'Today'
-  const day = formatFollowupDay(t.nextFollowupAt, today)
-  if (isFollowupOverdue(t, today)) return `${day} · ${-diff}d late`
-  return day
+  if (dayDiff(t.nextFollowupAt, today) === 0 && !t.isCompleted) return 'Today'
+  return formatFollowupDay(t.nextFollowupAt, today)
 }
 
 /**

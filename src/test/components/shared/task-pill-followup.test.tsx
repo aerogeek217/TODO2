@@ -40,10 +40,11 @@ describe('<TaskPillFollowup>', () => {
     expect(onClick).toHaveBeenCalledTimes(1)
   })
 
-  it('overdue: "Nd late" + overdue marker; today reads "Today"', () => {
+  it('overdue: the day without "late" text, an overdue marker, "late" in the accessible name; today reads "Today"', () => {
     render(<TaskPillFollowup todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 9) })} today={today} />)
-    const pill = screen.getByRole('button', { name: 'Follow-up: Fri 9 · 1d late' })
+    const pill = screen.getByRole('button', { name: 'Follow-up: Fri 9, late' })
     expect(pill).toHaveAttribute('data-followup-overdue', 'true')
+    expect(pill).toHaveTextContent(/^Fri 9$/)
     cleanup()
     render(<TaskPillFollowup todo={makeTodo({ id: 2, nextFollowupAt: today })} today={today} />)
     expect(screen.getByRole('button', { name: 'Follow-up: Today' })).not.toHaveAttribute('data-followup-overdue')

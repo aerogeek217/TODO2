@@ -222,7 +222,7 @@
 
 /*
  * Next follow-up: yellow flag pill. Today → stronger fill; overdue → stronger
- * fill + 1px yellow ring + "Nd late" (kept yellow so it never reads as an
+ * fill + 1px yellow ring, no "late" text (kept yellow so it never reads as an
  * overdue due date, which is magenta). The × clears only the follow-up.
  */
 .followupChip {

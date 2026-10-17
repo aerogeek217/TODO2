@@ -240,7 +240,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       className={cls}
       onClick={onFollowupClick}
       {...triggerProps}
-      aria-label={`Follow-up: ${label}`}
+      aria-label={`Follow-up: ${label}${overdue ? ', late' : ''}`}
       aria-haspopup="dialog"
       aria-expanded={open}
       data-pill="followup"
