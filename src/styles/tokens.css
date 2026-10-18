@@ -37,10 +37,7 @@
   --z-dialog: 1001;
   --z-dialog-overlay: 1002;
   --z-dialog-nested: 1003;
-  /* Escape-hatch tier for a popup portalled to <body> that must overlay any
-     host (popovers, dialogs, drag overlays) — the notes `@ # /` popup. */
-  --z-portal-popup: 9998;
-  /* Tooltips sit above everything, popups included. */
+  /* Tooltips sit above everything. */
   --z-tooltip: 10000;
 
   /* Layout */

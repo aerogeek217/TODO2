@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useLatestRef } from './use-latest-ref'
 import { useSettingsStore } from '../stores/settings-store'
 import {
@@ -27,6 +27,7 @@ export interface AutocompleteState {
 }
 
 const initialState: AutocompleteState = { visible: false, view: null, selectedIndex: 0, navigated: false, caretLeft: 0 }
+const NO_ITEMS: AutocompleteItem[] = []
 
 type TextInput = HTMLInputElement | HTMLTextAreaElement
 
@@ -72,14 +73,17 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * `completeForSubmit(value)` (the half-typed token completed to its best
  * match).
  */
-export function useNlpAutocomplete({ people, tags = [], statuses = [], commands = false, enterSubmits = false, onApply }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
+  /** The text the popup was last computed for (re-read when the candidates change). */
+  const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
   const followupDefault = useSettingsStore((s) => s.followupDefaultInterval)
   const onApplyRef = useLatestRef(onApply)
 
   const dismiss = useCallback(() => setState(initialState), [])
 
   const handleInputChange = useCallback((value: string, cursor: number, input: TextInput | null) => {
+    lastInputRef.current = { value, cursor, input }
     const view = computeAutocomplete(value, cursor, {
       people, tags, statuses, commands, followupDefault, today: new Date(),
     })
@@ -99,6 +103,14 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [], commands 
       }
     })
   }, [people, tags, statuses, commands, followupDefault])
+
+  // The candidates changed (a person renamed or deleted from a row's menu):
+  // an open popup shows the new rows at once.
+  const visibleRef = useLatestRef(state.visible)
+  useEffect(() => {
+    const last = lastInputRef.current
+    if (last && visibleRef.current) handleInputChange(last.value, last.cursor, last.input)
+  }, [handleInputChange, visibleRef])
 
   const select = useCallback((row: AutocompleteRow, input: TextInput | null) => {
     const view = state.view

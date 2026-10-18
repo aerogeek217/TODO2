@@ -24,7 +24,8 @@ import { tokenTints } from '../../../services/nlp-token-tints'
  * - The popup opens on typing (not on caret moves, so arrowing through a note
  *   full of tokens never opens it); while open, caret moves re-evaluate it and
  *   any other edit (paste, toolbar, undo, an external value) closes it, as
- *   does losing focus.
+ *   does losing focus — except to a row's person / tag menu and what it opens
+ *   (`holdNotesPopup`, until the focus is back).
  * - While open, ↑/↓ (no wrap), ⏎/Tab (pick; never a newline or tab) and Esc
  *   (closes only the popup) are taken in a window capture listener, so no
  *   host's Escape / outside handlers see them.
@@ -68,6 +69,24 @@ const reopenNotesPopup = StateEffect.define<null>()
 const setNotesPopupIndex = StateEffect.define<number>()
 /** The sources changed: re-read them (tints, an open popup). */
 export const refreshNotesNlp = StateEffect.define<null>()
+/**
+ * A row's person / tag menu opened (`true`): the popup stays open though the
+ * editor loses the focus to the menu, or to the editor / confirm it opens,
+ * until the focus comes back to the editor (or `false`, or the popup closes).
+ */
+export const holdNotesPopup = StateEffect.define<boolean>()
+
+/** Whether a row's menu holds the popup open (see `holdNotesPopup`). */
+const notesPopupHeld = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(holdNotesPopup)) value = e.value
+      if (e.is(closeNotesPopup)) value = false
+    }
+    return value
+  },
+})
 
 function evaluate(state: EditorState, prev: NotesPopupState | null): NotesPopupState | null {
   const config = state.facet(notesNlpConfig)
@@ -240,13 +259,24 @@ const tints = ViewPlugin.fromClass(class {
   }
 }, { decorations: (p) => p.decorations })
 
+/**
+ * What a focus change does to the popup: losing the focus closes it unless a
+ * row's menu holds it; getting it back ends the hold.
+ */
+export function notesPopupFocusEffect(state: EditorState, focusing: boolean): StateEffect<null> | StateEffect<boolean> | null {
+  const held = state.field(notesPopupHeld, false)
+  if (focusing) return held ? holdNotesPopup.of(false) : null
+  return held ? null : closeNotesPopup.of(null)
+}
+
 /** The notes `@ # /` popup state, keys and token tints. */
 export function notesNlp(config: NotesNlpConfig): Extension {
   return [
     notesNlpConfig.of(config),
     notesPopupField,
+    notesPopupHeld,
     popupKeys,
     tints,
-    EditorView.focusChangeEffect.of((_state, focusing) => (focusing ? null : closeNotesPopup.of(null))),
+    EditorView.focusChangeEffect.of(notesPopupFocusEffect),
   ]
 }

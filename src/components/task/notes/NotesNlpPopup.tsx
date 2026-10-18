@@ -4,7 +4,7 @@ import type { EditorView } from '@codemirror/view'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { NlpPopup } from '../../shared/NlpPopup'
-import { closeNotesPopup, pickNotesPopupRow, type NotesPopupState } from './notes-nlp'
+import { closeNotesPopup, holdNotesPopup, pickNotesPopupRow, type NotesPopupState } from './notes-nlp'
 import styles from './NotesEditor.module.css'
 
 interface AnchorRect { left: number; top: number; right: number; bottom: number }
@@ -31,7 +31,9 @@ const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
  * the trigger character (flips above near the bottom edge, clamped to the
  * viewport). It follows the caret line through every kind of scroll and
  * layout shift (a frame loop while open) and closes once the line scrolls
- * out of the editor.
+ * out of the editor. Person / tag rows have their menu (right-click, or
+ * Shift+F10 in the editor on the active row): it holds the popup open while
+ * the focus is away, and Show tasks closes the popup.
  */
 export function NotesNlpPopup({ editor, popup }: { editor: EditorView; popup: NotesPopupState }) {
   const pos = popup.lineFrom + popup.view.anchor
@@ -76,6 +78,16 @@ export function NotesNlpPopup({ editor, popup }: { editor: EditorView; popup: No
       view={popup.view}
       selectedIndex={popup.selectedIndex}
       onPick={(row) => pickNotesPopupRow(editor, row)}
+      entityMenu={{
+        keyTarget: () => editor.contentDOM,
+        // Held from the menu's opening until the focus is back in the editor —
+        // through Edit… / Delete…'s dialog too (the editor ends the hold then).
+        onOpenChange: (open) => {
+          if (open) editor.dispatch({ effects: holdNotesPopup.of(true) })
+          else requestAnimationFrame(() => { if (editor.hasFocus) editor.dispatch({ effects: holdNotesPopup.of(false) }) })
+        },
+        onShowTasks: () => editor.dispatch({ effects: closeNotesPopup.of(null) }),
+      }}
       popupRef={panelRef}
       className={styles.nlpPopup}
       style={{ position: style.position, left: style.left, top: style.top }}

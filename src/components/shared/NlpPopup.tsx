@@ -1,10 +1,26 @@
-import type { CSSProperties, Ref } from 'react'
+import { useCallback, useEffect, useId, useState, type CSSProperties, type Ref } from 'react'
 import type { AutocompleteRow, AutocompleteView } from '../../services/nlp-autocomplete'
 import { CalendarIcon, CommandIcon } from './CommandIcons'
 import { FollowupFlagIcon } from './FollowupIcons'
 import { StatusIcon } from './StatusIcon'
 import { DEFAULT_STATUS_ICON } from '../../models'
 import styles from './NlpPopup.module.css'
+import { useLatestRef } from '../../hooks/use-latest-ref'
+import { PickerEntityMenu } from './EntityMenu'
+
+/** A person / tag row's menu (Show tasks · Edit… · Delete…) on the popup's rows. */
+export interface NlpEntityMenuOptions {
+  /**
+   * The text field the popup belongs to: Shift+F10 / the context-menu key
+   * there (a `contextmenu` without the right button) opens the active row's
+   * menu under it.
+   */
+  keyTarget: () => HTMLElement | null
+  /** Called as the menu opens / closes — before the focus moves into it. */
+  onOpenChange?: (open: boolean) => void
+  /** Runs before Show tasks opens the task dialog (the host closes the popup). */
+  onShowTasks?: () => void
+}
 
 interface NlpPopupProps {
   view: AutocompleteView
@@ -14,6 +30,14 @@ interface NlpPopupProps {
   className?: string
   style?: CSSProperties
   popupRef?: Ref<HTMLDivElement>
+  /** People / tag rows get the person's / tag's menu. */
+  entityMenu?: NlpEntityMenuOptions
+}
+
+/** The person / tag a row is for, or null (create, command, value rows; statuses). */
+function rowEntity(row: AutocompleteRow | undefined): { kind: 'person' | 'tag'; id: number } | null {
+  if (row?.kind !== 'entity' || row.item.kind === 'status') return null
+  return { kind: row.item.kind, id: row.item.id }
 }
 
 /** `text` with its first `length` characters marked (the typed prefix). */
@@ -34,13 +58,57 @@ function rowKey(row: AutocompleteRow, i: number): string {
 /**
  * The task-text autocomplete popup (`@` people, `#` tags, `/` commands and
  * their arguments) for an `AutocompleteView` from `services/nlp-autocomplete`.
- * Presentational: rows are picked on mousedown (so the input keeps focus);
- * keys are the host's (`hooks/use-nlp-autocomplete`).
+ * Presentational: rows are picked on a left-button mousedown (so the input
+ * keeps focus); keys are the host's (`hooks/use-nlp-autocomplete`). With
+ * `entityMenu`, a right-click on a person / tag row — or Shift+F10 / the
+ * context-menu key in the host's field on the active one — opens its menu
+ * (`PickerEntityMenu`) without picking it; the host keeps its text and caret.
  */
-export function NlpPopup({ view, selectedIndex, onPick, className, style, popupRef }: NlpPopupProps) {
+export function NlpPopup({ view, selectedIndex, onPick, className, style, popupRef, entityMenu }: NlpPopupProps) {
+  const popupId = useId()
+  /** The person / tag whose menu is open, and where. */
+  const [menu, setMenu] = useState<{ kind: 'person' | 'tag'; id: number; x: number; y: number } | null>(null)
+  const optionsRef = useLatestRef(entityMenu)
+  const openMenu = useCallback((row: AutocompleteRow | undefined, x: number, y: number): boolean => {
+    const entity = rowEntity(row)
+    if (!entity || !optionsRef.current) return false
+    optionsRef.current.onOpenChange?.(true)
+    setMenu({ ...entity, x, y })
+    return true
+  }, [optionsRef])
+  const closeMenu = () => {
+    setMenu(null)
+    entityMenu?.onOpenChange?.(false)
+  }
+
+  // Shift+F10 / the context-menu key in the host's field: the active row's menu, under it.
+  const rowsRef = useLatestRef(view.rows)
+  const selectedRef = useLatestRef(selectedIndex)
+  const hasMenu = !!entityMenu
+  useEffect(() => {
+    const target = hasMenu ? optionsRef.current?.keyTarget() : null
+    if (!target) return
+    const onContextMenu = (e: MouseEvent) => {
+      if (e.button === 2) return // a right-click keeps the field's own menu
+      const el = document.querySelector<HTMLElement>(`[data-nlp-popup-id="${CSS.escape(popupId)}"] [data-row-index="${selectedRef.current}"]`)
+      const rect = el?.getBoundingClientRect()
+      if (openMenu(rowsRef.current[selectedRef.current], (rect?.left ?? 0) + 16, rect?.bottom ?? 0)) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    target.addEventListener('contextmenu', onContextMenu)
+    return () => target.removeEventListener('contextmenu', onContextMenu)
+  }, [hasMenu, optionsRef, openMenu, rowsRef, selectedRef, popupId])
+
   const pick = (row: AutocompleteRow) => (e: React.MouseEvent) => {
     e.preventDefault() // keep focus in the input
-    onPick(row)
+    if (e.button === 0) onPick(row)
+  }
+  const rowMenu = (row: AutocompleteRow) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu(row, e.clientX, e.clientY)
   }
 
   const renderRow = (row: AutocompleteRow, i: number) => {
@@ -49,7 +117,16 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
     switch (row.kind) {
       case 'entity':
         return (
-          <button key={rowKey(row, i)} type="button" role="option" aria-selected={active} className={cls} onMouseDown={pick(row)}>
+          <button
+            key={rowKey(row, i)}
+            type="button"
+            role="option"
+            aria-selected={active}
+            className={cls}
+            data-row-index={i}
+            onMouseDown={pick(row)}
+            onContextMenu={entityMenu ? rowMenu(row) : undefined}
+          >
             {row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
             <span className={styles.name}>{view.trigger}{row.item.name}</span>
           </button>
@@ -136,6 +213,9 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
       role="listbox"
       aria-label={view.header}
       data-nlp-popup={view.mode}
+      data-nlp-popup-id={popupId}
+      // No right-click here reaches the host behind; only person / tag rows have a menu.
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
     >
       <div className={styles.header}>
         <span>{view.header}</span>
@@ -149,6 +229,15 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
           <span className={styles.kbd}>⏎</span>
           <span>pick · or type the whole command</span>
         </div>
+      )}
+      {menu && entityMenu && (
+        <PickerEntityMenu
+          kind={menu.kind}
+          id={menu.id}
+          point={{ x: menu.x, y: menu.y }}
+          onShowTasks={entityMenu.onShowTasks}
+          onClose={closeMenu}
+        />
       )}
     </div>
   )

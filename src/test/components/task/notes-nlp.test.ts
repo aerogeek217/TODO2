@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { Person, Status } from '../../../models'
-import { notesNlp, notesPopupField, type NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
+import { closeNotesPopup, holdNotesPopup, notesNlp, notesPopupField, notesPopupFocusEffect, type NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
 import { personItems, statusItems, tagItems } from '../../../services/nlp-autocomplete'
 
 // Sat 10 Oct 2026.
@@ -225,5 +225,30 @@ describe('notes token tints', () => {
     setPeople([...PEOPLE, { id: 3, name: 'Marco', initials: 'MA' }])
     await Promise.resolve()
     expect(tints(v)).toEqual(['@Marco:chip'])
+  })
+})
+
+describe('notes autocomplete — a row’s person / tag menu holds the popup', () => {
+  it('losing focus closes the popup, except while held; closing it releases the hold', () => {
+    const { view: v } = setup('- Call ')
+    type(v, '@')
+    expect(popup(v)).not.toBeNull()
+    expect(notesPopupFocusEffect(v.state, false)?.is(closeNotesPopup)).toBe(true)
+    expect(notesPopupFocusEffect(v.state, true)).toBeNull()
+
+    v.dispatch({ effects: holdNotesPopup.of(true) })
+    expect(notesPopupFocusEffect(v.state, false)).toBeNull()
+    expect(popup(v)).not.toBeNull()
+    expect(v.state.doc.toString()).toBe('- Call @')
+
+    // The focus coming back ends the hold.
+    const back = notesPopupFocusEffect(v.state, true)
+    expect(back?.is(holdNotesPopup) && back.value).toBe(false)
+    if (back) v.dispatch({ effects: back })
+    expect(notesPopupFocusEffect(v.state, false)?.is(closeNotesPopup)).toBe(true)
+    // Closing the popup also drops a hold.
+    v.dispatch({ effects: holdNotesPopup.of(true) })
+    v.dispatch({ effects: closeNotesPopup.of(null) })
+    expect(notesPopupFocusEffect(v.state, false)?.is(closeNotesPopup)).toBe(true)
   })
 })

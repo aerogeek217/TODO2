@@ -144,8 +144,10 @@
   box-shadow: inset 2px 0 0 var(--color-accent);
 }
 
-/* The popup is portalled to the body (above dialogs and note popovers). */
+/* The popup is portalled to the body: on the top dialog tier, above the dialog
+ * or note popover it opened from (later in the page); a row's person / tag menu
+ * and the editor / confirm it opens come later still, so they cover it. */
 .nlpPopup {
   position: fixed;
-  z-index: var(--z-portal-popup);
+  z-index: var(--z-dialog-nested);
 }

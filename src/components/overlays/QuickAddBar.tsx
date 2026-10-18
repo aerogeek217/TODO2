@@ -53,6 +53,8 @@ import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { MarkerIcon } from '../shared/MarkerIcons'
 import { NlpPopup } from '../shared/NlpPopup'
+import { DialogLayerContext } from '../shared/dialog-layer'
+import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
 
@@ -474,6 +476,8 @@ export function QuickAddBar({
       const target = e.target as Node
       if (surfaceRef.current?.contains(target)) return
       if (popupRef.current?.contains(target)) return
+      // A person's / tag's menu from the popup, or the editor / confirm it opened.
+      if (surfaceRef.current && isInLayerAbove(surfaceRef.current, target)) return
       onClose()
     }
     document.addEventListener('mousedown', handler, true)
@@ -693,14 +697,19 @@ export function QuickAddBar({
       )}
       {ac.state.visible && ac.state.view &&
         createPortal(
-          <NlpPopup
-            view={ac.state.view}
-            selectedIndex={ac.state.selectedIndex}
-            onPick={(row) => ac.select(row, inputRef.current)}
-            popupRef={setPopupEl}
-            className={styles.popup}
-            style={{ top: popupStyle.top, left: popupStyle.left, width: POPUP_WIDTH_PX }}
-          />,
+          // The bar sits on the dialog tier: a person's / tag's menu leaves out
+          // Show tasks (the task dialog couldn't show above it).
+          <DialogLayerContext.Provider value="dialog">
+            <NlpPopup
+              view={ac.state.view}
+              selectedIndex={ac.state.selectedIndex}
+              onPick={(row) => ac.select(row, inputRef.current)}
+              popupRef={setPopupEl}
+              className={styles.popup}
+              style={{ top: popupStyle.top, left: popupStyle.left, width: POPUP_WIDTH_PX }}
+              entityMenu={{ keyTarget: () => inputRef.current }}
+            />
+          </DialogLayerContext.Provider>,
           document.body,
         )}
     </>
