@@ -27,8 +27,6 @@ export interface MenuItemEntry {
   note?: string
   /** A muted, wrapping line under the label (what a choice means). */
   description?: string
-  /** A small accent tag after the label (e.g. `NEW`). */
-  badge?: string
   /** Shows a submenu chevron; `onSelect` opens the caller's own submenu. */
   submenu?: boolean
   /**
@@ -380,11 +378,10 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
           >
             {radioDot && <span className={styles.radio} aria-hidden="true" />}
             {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
-            {entry.description || entry.badge ? (
+            {entry.description ? (
               <span className={styles.labelBlock}>
                 <span className={styles.labelLine}>
                   <span className={styles.label}>{entry.label}</span>
-                  {entry.badge && <span className={styles.badge}>{entry.badge}</span>}
                 </span>
                 {entry.description && <span className={styles.description}>{entry.description}</span>}
               </span>

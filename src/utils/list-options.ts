@@ -52,9 +52,6 @@ export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
   priority: 'Focus first, then Urgent + Important, Urgent, Important, none · ties by due date',
 }
 
-/** Sort choices new in this release: tagged `NEW` in the Sort menu. */
-export const NEW_SORT_CHOICES: ReadonlySet<TodoSortBy> = new Set(['priority'])
-
 /** The filter line's group · sort summary, e.g. `People · Due date`; no groups in drag order reads `Manual`. */
 export function groupSortSummary(grouping: TodoGroupBy, sort: TodoSortBy): string {
   if (grouping === 'none' && sort === 'manual') return SORT_LABEL.manual

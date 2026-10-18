@@ -10,7 +10,6 @@ import {
   LIST_GROUP_CHOICES,
   LIST_PROMPT_CHOICES,
   LIST_SORT_CHOICES,
-  NEW_SORT_CHOICES,
   PROMPT_LABEL,
   SORT_LABEL,
   SORT_NOTE,
@@ -53,7 +52,6 @@ interface Choice<T extends string> {
   value: T
   label: string
   description?: string
-  badge?: string
 }
 
 type ChoiceField = 'group' | 'sort' | 'prompt'
@@ -90,7 +88,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
   const groupChoices: Choice<TodoGroupBy>[] = choicesWith<TodoGroupBy>(LIST_GROUP_CHOICES, draft.grouping)
     .map((g) => ({ value: g, label: GROUP_LABEL[g] }))
   const sortChoices: Choice<TodoSortBy>[] = choicesWith<TodoSortBy>(LIST_SORT_CHOICES, draft.sort)
-    .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s], badge: NEW_SORT_CHOICES.has(s) ? 'NEW' : undefined }))
+    .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s] }))
   const promptChoices: Choice<RuntimeFilterField | 'none'>[] = choicesWith<RuntimeFilterField | 'none'>(LIST_PROMPT_CHOICES, promptValue)
     .map((p) => ({ value: p, label: PROMPT_EDITOR_LABEL[p] }))
 
@@ -189,7 +187,6 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
                 <span className={styles.choiceText}>
                   <span className={styles.choiceLabel}>
                     {c.label}
-                    {c.badge && <span className={styles.badge}>{c.badge}</span>}
                   </span>
                   {c.description && <span className={styles.choiceNote}>{c.description}</span>}
                 </span>
@@ -273,7 +270,6 @@ function ChoiceSelect({ labelId, label, value, choices, onPick }: {
     kind: 'item',
     label: c.label,
     description: c.description,
-    badge: c.badge,
     radio: true,
     indicator: 'radio',
     checked: c.value === value,

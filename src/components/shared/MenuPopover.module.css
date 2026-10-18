@@ -103,14 +103,6 @@
   flex: 0 1 auto;
 }
 
-.badge {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.04em;
-  color: var(--color-accent);
-}
-
 .description {
   font-size: 11px;
   line-height: 1.35;

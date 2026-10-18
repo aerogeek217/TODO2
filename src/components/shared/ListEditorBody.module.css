@@ -126,14 +126,6 @@
   background: var(--color-border-muted);
 }
 
-.badge {
-  margin-left: 6px;
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.04em;
-  color: var(--color-accent);
-}
-
 /* ── The side popover ── */
 
 .compact {
