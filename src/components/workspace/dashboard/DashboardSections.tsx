@@ -153,7 +153,6 @@ function RowsGrid({ kit, children }: { kit: DashboardRowKit; children: ReactNode
       detailsWidth={kit.detailsWidth}
       onDetailsWidthChange={kit.onDetailsWidthChange}
       liveDetailsWidth={kit.liveDetailsWidth}
-      onLiveDetailsWidthChange={kit.onLiveDetailsWidthChange}
     >
       {children}
     </TaskRowGrid>

@@ -1,5 +1,6 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { taskRowColumns, TASK_ROW } from '../../utils/task-row-columns'
+import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
 
@@ -18,13 +19,11 @@ interface TaskRowGridProps {
    */
   onDetailsWidthChange?: (width: number | undefined) => void
   /**
-   * The width while a divider is dragged, shared by every list of one tab
-   * (Eisenhower quadrants, dashboard sections) so they all follow the drag
-   * live; `null` = no drag. Without `onLiveDetailsWidthChange` the list
-   * keeps its own.
+   * The width while a divider is dragged (`null` = no drag), shared by every
+   * list of one tab (Eisenhower quadrants, dashboard sections) so they all
+   * follow the drag live. Without it the list keeps its own.
    */
-  liveDetailsWidth?: number | null
-  onLiveDetailsWidthChange?: (width: number | null) => void
+  liveDetailsWidth?: ValueStore<number | null>
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -33,19 +32,24 @@ interface TaskRowGridProps {
 /**
  * A list of `TaskRow`s sharing one set of columns: measures its own content
  * width (one ResizeObserver per list, not per row), lays the columns out from
- * it and the stored details width, and hands them to its rows. With
+ * it and the stored details width, and hands them to its rows as a store:
+ * each row writes the tracks to its own style and reads only the parts it
+ * shows (`useTaskRowTracks` / `useTaskRowColumn`). So a divider drag
+ * re-renders the grid, and a row only when a column appears or goes or its
+ * avatars / tags no longer fit the same way; the rest is layout. With
  * `onDetailsWidthChange` it draws the draggable divider between the titles
- * and the details, spanning the rows.
+ * and the details, spanning the rows; the width is written on release only.
  */
 export function TaskRowGrid({
-  detailsWidth, onDetailsWidthChange, liveDetailsWidth, onLiveDetailsWidthChange, className, style, children,
+  detailsWidth, onDetailsWidthChange, liveDetailsWidth, className, style, children,
 }: TaskRowGridProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<{ width: number; padRight: number }>({ width: 0, padRight: 0 })
   /** The width while a divider is dragged (not stored yet): the tab's shared one, or this list's own. */
-  const [ownLive, setOwnLive] = useState<number | null>(null)
-  const live = onLiveDetailsWidthChange ? (liveDetailsWidth ?? null) : ownLive
-  const setLive = onLiveDetailsWidthChange ?? setOwnLive
+  const [ownLive] = useState(() => createValueStore<number | null>(null))
+  const liveStore = liveDetailsWidth ?? ownLive
+  const live = useSyncExternalStore(liveStore.subscribe, liveStore.get)
+  const setLive = liveStore.set
   /** This list's divider is the one being dragged. */
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{ x: number; start: number; pointerId: number } | null>(null)
@@ -71,6 +75,9 @@ export function TaskRowGrid({
     () => taskRowColumns(box.width > 0 ? box.width : UNMEASURED_LIST_WIDTH, live ?? detailsWidth),
     [box.width, live, detailsWidth],
   )
+  /** The columns for the rows: published after each change (they re-render where what they show changed). */
+  const [columns] = useState(() => createValueStore(cols))
+  useLayoutEffect(() => { columns.set(cols) }, [columns, cols])
 
   const commit = (width: number | undefined) => {
     onDetailsWidthChange?.(width)
@@ -111,7 +118,7 @@ export function TaskRowGrid({
         if (!d || d.pointerId !== e.pointerId) return
         drag.current = null
         setDragging(false)
-        const width = live ?? d.start
+        const width = liveStore.get() ?? d.start
         if (width === d.start) setLive(null)
         else commit(width)
       }}
@@ -142,7 +149,7 @@ export function TaskRowGrid({
   )
 
   return (
-    <TaskRowColumnsContext.Provider value={cols}>
+    <TaskRowColumnsContext.Provider value={columns}>
       <div ref={ref} className={`${styles.grid} ${className ?? ''}`} style={style} data-task-row-grid="">
         {children}
         {divider}

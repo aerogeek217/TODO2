@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useTagStore } from '../../stores/tag-store'
 import { TaskRowColumnsContext } from '../../components/task/task-row-grid-context'
+import { createValueStore } from '../../utils/value-store'
 import { taskRowColumns } from '../../utils/task-row-columns'
 import { makeTodo, makePerson, resetEntityStores } from '../helpers'
 
@@ -122,7 +123,7 @@ describe('TaskRow', () => {
       const tags = [{ id: 1, name: 'alpha', color: '#111' }]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
       render(
-        <TaskRowColumnsContext.Provider value={taskRowColumns(300)}>
+        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(300))}>
           <TaskRow todo={makeTodo({ id: 1 })} />
         </TaskRowColumnsContext.Provider>,
       )

@@ -6,12 +6,13 @@ import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/dat
 import { dateIntensity, daysUntil, dueTooltip, isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
 import { markerSummary } from '../../utils/markers'
-import { peopleFit, tagsFit } from '../../utils/task-row-columns'
+import { peopleFit, tagsFit, type PeopleFit } from '../../utils/task-row-columns'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { MarkerDots } from '../shared/MarkerDots'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useTooltip } from '../shared/use-tooltip'
 import { tagTextWidth } from './text-width'
+import { useTaskRowColumn } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
 
 /*
@@ -118,10 +119,19 @@ export function NotesCell({ hasNotes, anchorRef, open, onToggle }: {
 
 // ── People ──────────────────────────────────────────────────────────────────
 
-export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonContextMenu, onCellContextMenu }: {
+/** How `count` avatars fit the row list's people column, read so the cell re-renders only when the fit changes. */
+function usePeopleFit(count: number): PeopleFit {
+  // One number per fit: avatars shown, doubled, plus 1 for the corner badge.
+  const key = useTaskRowColumn((c) => {
+    const fit = peopleFit(count, c.people)
+    return fit.shown * 2 + (fit.badge ? 1 : 0)
+  })
+  const shown = Math.floor(key / 2)
+  return { shown, more: count - shown, badge: key % 2 === 1 }
+}
+
+export function PeopleCell({ people, anchorRef, open, onToggle, onPersonContextMenu, onCellContextMenu }: {
   people: readonly Person[]
-  /** The people track's width, px. */
-  track: number
   anchorRef: RefObject<HTMLElement | null>
   open: boolean
   onToggle: () => void
@@ -132,7 +142,7 @@ export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonC
 }) {
   const names = people.map((p) => p.name)
   const { triggerProps, tooltip } = useTooltip(names.length > 0 ? names.join(', ') : null)
-  const fit = peopleFit(people.length, track)
+  const fit = usePeopleFit(people.length)
   const shown = people.slice(0, fit.shown)
   return (
     <button
@@ -173,10 +183,8 @@ export function PeopleCell({ people, track, anchorRef, open, onToggle, onPersonC
 
 // ── Tags ────────────────────────────────────────────────────────────────────
 
-export function TagsCell({ tags, track, anchorRef, open, onToggle, onTagContextMenu, onCellContextMenu }: {
+export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, onCellContextMenu }: {
   tags: readonly Tag[]
-  /** The tags track's width, px. */
-  track: number
   anchorRef: RefObject<HTMLButtonElement | null>
   open: boolean
   onToggle: () => void
@@ -187,7 +195,9 @@ export function TagsCell({ tags, track, anchorRef, open, onToggle, onTagContextM
 }) {
   const labels = tags.map((t) => `#${t.name}`)
   const { triggerProps, tooltip } = useTooltip(labels.length > 0 ? labels.join(' ') : null)
-  const fit = tagsFit(labels.map(tagTextWidth), track, (n) => tagTextWidth(`+${n}`))
+  // The tags shown in the row list's tags column: the cell re-renders only when that count changes.
+  const shownCount = useTaskRowColumn((c) => tagsFit(labels.map(tagTextWidth), c.tags, (n) => tagTextWidth(`+${n}`)).shown)
+  const fit = { shown: shownCount, more: tags.length - shownCount }
   const shown = tags.slice(0, fit.shown)
   return (
     <button

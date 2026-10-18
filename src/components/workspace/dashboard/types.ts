@@ -1,5 +1,6 @@
 import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
 import type { ListRowSelectMods } from '../list/ListWidgetRow'
+import type { ValueStore } from '../../../utils/value-store'
 
 /**
  * The tasks a dashboard number stands for — what clicking it opens in the
@@ -25,6 +26,5 @@ export interface DashboardRowKit {
   detailsWidth: number | undefined
   onDetailsWidthChange: (width: number | undefined) => void
   /** The width while a section's divider is dragged: every section follows it live. */
-  liveDetailsWidth: number | null
-  onLiveDetailsWidthChange: (width: number | null) => void
+  liveDetailsWidth: ValueStore<number | null>
 }

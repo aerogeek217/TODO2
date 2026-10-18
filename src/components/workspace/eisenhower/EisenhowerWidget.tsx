@@ -37,6 +37,7 @@ import { getFilterDefaults, withUrgentImportant } from '../../../utils/filter-de
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { eisenhowerQuadrantDropId, TASK_DROP_KIND } from '../../../utils/task-dnd'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
+import { createValueStore, type ValueStore } from '../../../utils/value-store'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
@@ -232,8 +233,7 @@ interface RowContext {
   detailsWidth: number | undefined
   onDetailsWidthChange: (width: number | undefined) => void
   /** The width while a quadrant's divider is dragged: every quadrant follows it live. */
-  liveDetailsWidth: number | null
-  onLiveDetailsWidthChange: (width: number | null) => void
+  liveDetailsWidth: ValueStore<number | null>
 }
 
 interface QuadrantProps {
@@ -361,7 +361,6 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
               detailsWidth={ctx.detailsWidth}
               onDetailsWidthChange={ctx.onDetailsWidthChange}
               liveDetailsWidth={ctx.liveDetailsWidth}
-              onLiveDetailsWidthChange={ctx.onLiveDetailsWidthChange}
             >
               {rows}
             </TaskRowGrid>
@@ -388,7 +387,8 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
 export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResult?: (r: EisenhowerResult) => void }) {
   const isMobile = useIsMobile()
   // A quadrant divider's width while it is dragged: every quadrant follows it live.
-  const [liveDetailsWidth, setLiveDetailsWidth] = useState<number | null>(null)
+  // (A store, not state: the drag re-renders the row lists, not the widget.)
+  const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
   const today = useToday()
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
   const todos = useTodoStore((s) => s.todos)
@@ -461,7 +461,6 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'eisenhower', { detailsWidth }),
     liveDetailsWidth,
-    onLiveDetailsWidthChange: setLiveDetailsWidth,
   }
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 

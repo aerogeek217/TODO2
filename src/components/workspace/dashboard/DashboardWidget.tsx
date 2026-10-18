@@ -11,6 +11,7 @@ import type { TileStats } from '../../../services/stats/tiles'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { readScopeRows } from '../../../utils/scoped-selection'
+import { createValueStore } from '../../../utils/value-store'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { countOf, tileSubLine, withScreenNote } from './dashboard-copy'
@@ -187,7 +188,8 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const data = useDashboardData(config)
   // A section divider's width while it is dragged: every task-row section follows it live.
-  const [liveDetailsWidth, setLiveDetailsWidth] = useState<number | null>(null)
+  // (A store, not state: the drag re-renders the row lists, not the widget.)
+  const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
   // Under the top-bar filter every dialog says it counts only what it shows.
   const onDrill: OnDashboardDrill | undefined = onDrillProp && ((d) => onDrillProp(
     data.filtered ? { ...d, description: withScreenNote(d.description) } : d,
@@ -221,7 +223,6 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'dashboard', { detailsWidth }),
     liveDetailsWidth,
-    onLiveDetailsWidthChange: setLiveDetailsWidth,
   }
 
   const wide = !isMobile && (size.width === 0 || size.width >= DASHBOARD_WIDE_MIN_PX)

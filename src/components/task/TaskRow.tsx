@@ -14,7 +14,7 @@ import { PriorityMenu } from './PriorityMenu'
 import { MenuPopover } from '../shared/MenuPopover'
 import { rowEntityMenu, rowEntityName, type RowEntity } from './entity-menu'
 import { useTaskRowPickers } from './use-task-row-pickers'
-import { useTaskRowColumns } from './task-row-grid-context'
+import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
 import {
   DueCell, FollowupCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
@@ -52,7 +52,10 @@ export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail,
 }: TaskRowProps) {
-  const cols = useTaskRowColumns()
+  // Whether the people / tags columns are there: a row re-renders when one comes or goes, not on every
+  // column change (the tracks go straight to its style, the avatar / tag fit is the cells' own).
+  const hasPeople = useTaskRowColumn((c) => c.people > 0)
+  const hasTags = useTaskRowColumn((c) => c.tags > 0)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [markersOpen, setMarkersOpen] = useState(false)
   /**
@@ -69,6 +72,7 @@ export const TaskRow = memo(function TaskRow({
   const rowRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLButtonElement>(null)
   const markersRef = useRef<HTMLButtonElement>(null)
+  useTaskRowTracks(rowRef)
   const tagsRef = useRef<HTMLButtonElement>(null)
 
   const {
@@ -83,7 +87,7 @@ export const TaskRow = memo(function TaskRow({
     peoplePickerClassName: styles.chipDropdown,
     // With its column removed, the people picker (Assign people…) opens at the row.
     fallbackPeopleAnchorRef: rowRef,
-    useFallbackPeopleAnchor: cols.people === 0,
+    useFallbackPeopleAnchor: !hasPeople,
   })
 
   const statuses = useStatusStore((s) => s.statuses)
@@ -139,7 +143,6 @@ export const TaskRow = memo(function TaskRow({
     <div
       ref={rowRef}
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
-      style={{ gridTemplateColumns: cols.template }}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
@@ -220,10 +223,9 @@ export const TaskRow = memo(function TaskRow({
       ) : (
         <>
           <NotesCell hasNotes={!!todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
-          {cols.people > 0 && (
+          {hasPeople && (
             <PeopleCell
               people={people}
-              track={cols.people}
               anchorRef={peopleRef}
               open={peopleOpen}
               onToggle={togglePeople}
@@ -231,10 +233,9 @@ export const TaskRow = memo(function TaskRow({
               onCellContextMenu={onCellContextMenu('people', people.map((p) => ({ kind: 'person', entity: p })))}
             />
           )}
-          {cols.tags > 0 && (
+          {hasTags && (
             <TagsCell
               tags={assignedTags}
-              track={cols.tags}
               anchorRef={tagsRef}
               open={tagPickerOpen}
               onToggle={toggleTagPicker}
@@ -261,8 +262,8 @@ export const TaskRow = memo(function TaskRow({
       {!ghost && tagPickerOpen && (
         <TagPicker
           // With its column removed, the tag picker (Add tag…) opens at the row.
-          anchorRef={cols.tags > 0 ? tagsRef : rowRef}
-          anchorIsInside={cols.tags > 0}
+          anchorRef={hasTags ? tagsRef : rowRef}
+          anchorIsInside={hasTags}
           assignedTags={assignedTags}
           allTags={allTags}
           onToggle={toggleTag}
