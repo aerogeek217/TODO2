@@ -11,6 +11,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
@@ -50,7 +51,7 @@ beforeEach(() => {
   resetEntityStores()
   clearFilterStore()
   useListDraftStore.setState({ drafts: {} })
-  useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
+  useListWidgetStore.setState({ picks: {}, collapsed: {} })
   useUIStore.getState().clearSelection()
   useUIStore.setState({ bulkConfirmation: null })
   useListOrderStore.setState({ ranks: new Map(), loaded: true })
@@ -124,13 +125,62 @@ describe('ListWidget', () => {
     expect(titles()).toHaveLength(3)
   })
 
-  it('the list’s own filters returning nothing: names them, Edit filters opens List options', () => {
+  it('the list’s own filters returning nothing: names them, Edit filters opens Edit list', () => {
     useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
     setup(def({}, { statusIds: [5] }))
     expect(screen.getByText('No tasks match')).toBeInTheDocument()
     expect(screen.getByText('Status Waiting')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit filters' }))
-    expect(useListWidgetStore.getState().popover).toMatchObject({ kind: 'options', listDefinitionId: 7 })
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+  })
+
+  it('the group · sort summary opens Edit list, and closes it when it is open', () => {
+    setup(def({ grouping: 'status', sort: 'priority' }, { searchText: 'task' }))
+    const summary = screen.getByTestId('list-summary')
+    expect(summary).toHaveTextContent('Status · Priority')
+    fireEvent.click(summary)
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    expect(summary).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(summary)
+    expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
+  it('an unsaved list shows its filter line even with no filters: No filters, then Revert · Save', () => {
+    setup(def())
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    const row = screen.getByTestId('list-filter-row')
+    expect(row).toHaveTextContent('No filters')
+    expect(screen.getByRole('button', { name: 'Revert list changes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save list Team' })).toBeInTheDocument()
+    // The summary reads the draft.
+    expect(screen.getByTestId('list-summary')).toHaveTextContent('None · Name')
+  })
+
+  it('Save on the filter line writes the draft; the line goes once nothing is left to show', async () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
+    expect(useListDraftStore.getState().drafts).toEqual({})
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+  })
+
+  it('Revert on the filter line drops the draft (Undo brings it back)', async () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    fireEvent.click(screen.getByTestId('revert-list'))
+    expect(useListDraftStore.getState().drafts).toEqual({})
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
+    await act(() => useUndoStore.getState().undo())
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+  })
+
+  it('a blank draft name can’t be saved from the filter line', () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: '  ' })))
+    expect(screen.getByTestId('save-list')).toBeDisabled()
   })
 
   it('an empty list without filters', () => {

@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedTaskList, TASK_LIST_TAB, wsTab } from './fixtures/workspace'
+import { openSettings, seedTaskList } from './fixtures/workspace'
 
 /**
- * List editor modal regressions.
+ * List editor modal regressions (Settings › Lists' Edit list dialog).
  *
  * Z-index: the discard-changes confirm fired by the list editor's
  * dirty guard used to render at `--z-dialog` (1001), which sat below the
@@ -20,13 +20,11 @@ import { seedTaskList, TASK_LIST_TAB, wsTab } from './fixtures/workspace'
  * meaningfully under a real viewport.
  */
 
-/** Opens the list editor from the list tab's menu (right-click → Edit list…). */
+/** Opens the list editor dialog from Settings › Lists (the list row's ⚙). */
 async function openListEditor(page: Page): Promise<void> {
-  await wsTab(page, TASK_LIST_TAB).click({ button: 'right' })
-  const menu = page.getByRole('menu', { name: 'Change widget' })
-  await expect(menu).toBeVisible()
-  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
-  await expect(menu).toHaveCount(0)
+  const settings = await openSettings(page, 'People, statuses & tags')
+  await settings.getByRole('button', { name: 'Manage lists…' }).click()
+  await page.getByRole('dialog', { name: 'Lists', exact: true }).getByTitle('Edit list').first().click()
   await expect(page.getByRole('dialog', { name: /Edit list:/ })).toBeVisible()
 }
 

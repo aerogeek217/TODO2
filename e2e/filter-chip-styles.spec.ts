@@ -78,7 +78,7 @@ for (const theme of ['dark', 'light'] as const) {
 
         await wsTab(page, 'list').click({ button: 'right' })
         await page.getByRole('menuitem', { name: 'Edit list…' }).click()
-        const form = page.getByRole('dialog', { name: /Edit list:/ })
+        const form = page.getByTestId('edit-list')
         await expect(form.getByTestId('list-filter-chip')).toHaveCount(1)
         const formLooks = await rowLooks(form)
         expect(formLooks).toEqual(LOOKS[`${theme} form`])

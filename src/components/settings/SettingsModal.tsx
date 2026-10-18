@@ -24,7 +24,6 @@ export function SettingsModal() {
 function anotherLayerIsOpen(): boolean {
   const ui = useUIStore.getState()
   return ui.listsEditorOpen
-    || ui.listEditorDialogId != null
     || ui.bulkConfirmation != null
     || ui.confirmPrompts.length > 0
     || ui.quickAddOpen

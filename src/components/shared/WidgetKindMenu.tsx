@@ -55,9 +55,11 @@ export interface WidgetKindMenuProps {
    */
   pickListForLens?: (listDefinitionId: number) => void
   /**
-   * Lens-only: when provided alongside `currentKind === 'lens'`, renders an
-   * "Edit list" action above the kind switcher. Caller binds the widget's
-   * list-definition id; the menu just forwards the click and closes.
+   * Lens-only: when provided alongside `currentKind === 'lens'`, the menu
+   * opens with the list's own items — "Edit list…", then "Change list ›"
+   * (showing `currentListName`) — then the widget actions, then "Change
+   * widget". The caller binds the widget's list; the menu forwards the click
+   * and closes.
    */
   onEditList?: () => void
   onClose: () => void
@@ -68,12 +70,7 @@ export interface WidgetKindMenuProps {
    * switcher. Each closes the menu after running.
    */
   widgetActions?: ReadonlyArray<WidgetMenuAction>
-  /**
-   * Lens-only, workspace order: when given, the menu opens with the list's
-   * own items — "List options…", "Edit list…", "Change list ›" (showing
-   * `currentListName`) — then the widget actions, then "Change widget".
-   */
-  onListOptions?: () => void
+  /** The list a list tab shows, as the note on "Change list ›". */
   currentListName?: string
   /** A setting of the widget, listed first (see {@link WidgetSetting}). */
   widgetSetting?: WidgetSetting
@@ -86,7 +83,7 @@ const SETTING_SUBMENU_WIDTH_PX = 248
 /**
  * A tab's menu (right-click or Shift+F10 / the Menu key on a tab) and the
  * add-tab menu, as a {@link MenuPopover} at the pointer: the widget's own
- * items first (a list's List options… / Edit list… / Change list ›, a
+ * items first (a list's Edit list… / Change list ›, a
  * widget setting's radio submenu, widget actions — plain items or a panel
  * beside the item), then the kinds under "Change widget" (radio items, the
  * current one checked) or "Add widget".
@@ -100,14 +97,12 @@ export function WidgetKindMenu({
   onClose,
   heading = 'Change widget',
   widgetActions,
-  onListOptions,
   currentListName,
   widgetSetting,
 }: WidgetKindMenuProps) {
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const showChangeList = currentKind === 'lens' && pickListForLens != null
-  const showEditList = currentKind === 'lens' && onEditList != null
-  const listFirst = currentKind === 'lens' && onListOptions != null
+  const listFirst = currentKind === 'lens' && onEditList != null
 
   const listChoices = useMemo<MenuEntry[]>(() => {
     if (!pickListForLens) return []
@@ -125,9 +120,6 @@ export function WidgetKindMenu({
     childrenWidth: CHANGE_LIST_WIDTH_PX,
     childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
   }
-  const editList: MenuItemEntry | null = showEditList && onEditList
-    ? { kind: 'item', label: listFirst ? 'Edit list…' : 'Edit list', icon: listFirst ? undefined : '✎', onSelect: onEditList }
-    : null
   const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => (a.panel
     ? { kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, note: a.note, panel: a.panel }
     : { kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, onSelect: a.onSelect }))
@@ -142,8 +134,7 @@ export function WidgetKindMenu({
   }))
 
   if (listFirst) {
-    entries.push({ kind: 'item', label: 'List options…', onSelect: () => onListOptions?.() })
-    if (editList) entries.push(editList)
+    entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList?.() })
     if (showChangeList) entries.push(changeList)
     entries.push({ kind: 'separator' })
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
@@ -169,10 +160,6 @@ export function WidgetKindMenu({
           ...(widgetSetting.footnote ? [{ kind: 'separator' } as const, { kind: 'note', text: widgetSetting.footnote } as const] : []),
         ],
       }, { kind: 'separator' })
-    }
-    if (editList) {
-      entries.push(editList)
-      if (actions.length === 0) entries.push({ kind: 'separator' })
     }
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
     entries.push({ kind: 'label', text: heading }, ...kinds)

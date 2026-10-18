@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, fireEvent, screen, cleanup, waitFor } from '@testing-library/react'
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
-import { useUIStore } from '../../../stores/ui-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import type { PersistedListDefinition } from '../../../models'
 
@@ -241,34 +240,25 @@ describe('WidgetKindMenu', () => {
     })
   })
 
-  describe('Edit list opens the direct dialog', () => {
-    beforeEach(() => {
-      useUIStore.setState({
-        listEditorDialogId: null,
-        listsEditorOpen: false,
-        listsEditorInitialId: null,
-      })
-    })
-
-    it('clicking Edit list when bound to openListEditorDialog opens only the dialog (no Lists manager)', () => {
-      const DEF_ID = 42
-      // Mirrors the list tab call-site binding: the "Edit list" entry calls
-      // `openListEditorDialog`, not `openListsEditor` (manager modal).
-      render(
-        <WidgetKindMenu
-          anchor={ANCHOR}
-          currentKind="lens"
-          onChangeKind={() => {}}
-          onEditList={() => useUIStore.getState().openListEditorDialog(DEF_ID)}
-          onClose={() => {}}
-        />,
-      )
-      fireEvent.click(screen.getByRole('menuitem', { name: /Edit list/ }))
-      expect(useUIStore.getState().listEditorDialogId).toBe(DEF_ID)
-      // Lists manager modal must NOT open — that's the deliberate split.
-      expect(useUIStore.getState().listsEditorOpen).toBe(false)
-      expect(useUIStore.getState().listsEditorInitialId).toBeNull()
-    })
+  it('a list tab opens with its own items: Edit list… · Change list › · actions · Change widget (no List options)', () => {
+    useListDefinitionStore.setState({ listDefinitions: [{ id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition] })
+    render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="lens"
+        onChangeKind={() => {}}
+        onEditList={() => {}}
+        pickListForLens={() => {}}
+        currentListName="First"
+        widgetActions={[{ label: 'Copy tasks', onSelect: () => {} }]}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
+      .toEqual(['Edit list…', 'Change list', 'Copy tasks'])
+    expect(screen.queryByRole('menuitem', { name: /List options/ })).toBeNull()
+    // Focus starts on Edit list….
+    expect(document.activeElement).toHaveAttribute('data-menu-label', 'Edit list…')
   })
 })
 
@@ -413,7 +403,7 @@ describe('WidgetKindMenu — Change list submenu', () => {
         currentKind="lens"
         onChangeKind={() => {}}
         pickListForLens={pick}
-        onListOptions={() => {}}
+        onEditList={() => {}}
         currentListName="First"
         onClose={onClose}
       />,

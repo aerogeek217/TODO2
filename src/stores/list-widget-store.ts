@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { DateField } from '../models/app-view'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { useWorkspaceStore } from './workspace-store'
 
@@ -13,31 +12,10 @@ export interface PopoverPoint {
 /** A filter field a list's filter picker edits. */
 export type ListFilterField = 'people' | 'tags' | 'status' | 'markers' | 'dates' | 'text'
 
-/** The open list-options popover, add-filter menu or filter picker (one at a time). */
-export type ListPopover =
-  | {
-      kind: 'options'
-      listDefinitionId: number
-      at: PopoverPoint
-      /** The tab whose control opened it (shows that control pressed). */
-      tabId?: string
-    }
-  | { kind: 'add-filter'; listDefinitionId: number; at: PopoverPoint }
-  | {
-      kind: 'picker'
-      listDefinitionId: number
-      field: ListFilterField
-      at: PopoverPoint
-      /** Adding a new filter (entity pickers start unticked). */
-      adding?: boolean
-      /** The date type the date panel opens on (default the first that filters, else Due). */
-      dateField?: DateField
-    }
-
 /**
  * State of workspace list widgets that is never saved: per-tab prompt picks
  * and collapsed groups (keyed by layout tab id, so they follow a tab that is
- * moved to another cell), and the one open list popover.
+ * moved to another cell).
  */
 interface ListWidgetState {
   /**
@@ -47,13 +25,10 @@ interface ListWidgetState {
   picks: Readonly<Record<string, number[]>>
   /** Collapsed section keys by tab id. */
   collapsed: Readonly<Record<string, readonly string[]>>
-  popover: ListPopover | null
 
   /** Sets a tab's prompt picks; an empty list clears them. */
   setPicks: (tabId: string, ids: readonly number[]) => void
   toggleGroup: (tabId: string, sectionKey: string) => void
-  openPopover: (popover: ListPopover) => void
-  closePopover: () => void
 }
 
 function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
@@ -77,7 +52,6 @@ function withoutGoneTabs<T>(byTab: Readonly<Record<string, T>>): Record<string, 
 export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
   picks: {},
   collapsed: {},
-  popover: null,
 
   setPicks(tabId, ids) {
     const next = withoutGoneTabs(get().picks)
@@ -95,13 +69,5 @@ export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
     if (keys.length > 0) next[tabId] = keys
     else delete next[tabId]
     set({ collapsed: next })
-  },
-
-  openPopover(popover) {
-    set({ popover })
-  },
-
-  closePopover() {
-    set({ popover: null })
   },
 }))

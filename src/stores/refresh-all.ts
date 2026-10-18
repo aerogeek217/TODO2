@@ -38,13 +38,15 @@ export async function refreshAllStores() {
   // against the loaded data when it opens).
   if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
   useListDraftStore.setState({ drafts: {} })
-  useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
+  useListWidgetStore.setState({ picks: {}, collapsed: {} })
   // The replaced history (a table clear doesn't fire the event hooks).
   useTrendEventsStore.getState().invalidate()
   // Selected / edited task ids and a Quick Add draft's people / tags may now
   // name other rows.
   useUIStore.getState().clearSelection()
   useUIStore.getState().closeEditPopup()
+  // Edit list names a list and a tab by id.
+  useUIStore.getState().closeListEditor()
   // Note text typed before the replace would be saved over the new note.
   useNoteStore.getState().discardPending()
   await useSettingsStore.getState().load()

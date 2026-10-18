@@ -15,7 +15,7 @@ import {
   hasNarrowingFilters,
   type FilterChipNames,
 } from '../../utils/filter-chips'
-import { choicesWith, listOptionsSummary } from '../../utils/list-options'
+import { choicesWith, groupSortSummary } from '../../utils/list-options'
 
 const people: Person[] = [{ id: 1, name: 'Alice', initials: 'A' }, { id: 2, name: 'Bob', initials: 'B' }, { id: 3, name: 'Cy', initials: 'C' }]
 const tags: Tag[] = [{ id: 1, name: 'q4', color: '#36c' }, { id: 2, name: 'home', color: '#c84' }]
@@ -220,14 +220,16 @@ describe('the Dates value (top-bar button, Filters menu, phone sheet)', () => {
   })
 })
 
-describe('list options helpers', () => {
+describe('list choice helpers', () => {
   it('choicesWith keeps a stored value that is no longer offered', () => {
     expect(choicesWith(['a', 'b'], 'b')).toEqual(['a', 'b'])
     expect(choicesWith(['a', 'b'], 'c')).toEqual(['a', 'b', 'c'])
   })
 
   it('summarises group and sort', () => {
-    expect(listOptionsSummary('people', 'deadline')).toBe('People · Due date')
-    expect(listOptionsSummary('none', 'manual')).toBe('No groups · Manual')
+    expect(groupSortSummary('people', 'deadline')).toBe('People · Due date')
+    expect(groupSortSummary('none', 'priority')).toBe('None · Priority')
+    // No groups and the drag order: just `Manual`.
+    expect(groupSortSummary('none', 'manual')).toBe('Manual')
   })
 })

@@ -9,15 +9,12 @@ import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { DialogFrame } from '../shared/Dialog'
-import { SaveListButton } from './list/SaveListButton'
 import type { ListWidgetResult } from './list/ListWidget'
-import { pointBelow } from '../shared/filters/popover-point'
-import { useIsListDirty, useUnsavedListIds } from '../../hooks/use-list-draft'
-import { useListWidgetStore } from '../../stores/list-widget-store'
+import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { copyTasksRich } from '../../services/task-copy'
-import { useTabTitle } from './widget-hooks'
+import { openEditList, useTabTitle } from './widget-hooks'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
 import styles from './MobileWorkspaceView.module.css'
@@ -212,14 +209,7 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
     sheetRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
   }, [])
   const rows: Array<{ label: string; run: () => void }> = [
-    {
-      label: 'List options…',
-      run: () => {
-        const tabEl = document.querySelector(`[data-ws-tab="${tabId}"]`)
-        if (tabEl) useListWidgetStore.getState().openPopover({ kind: 'options', listDefinitionId, at: pointBelow(tabEl) })
-      },
-    },
-    { label: 'Edit list…', run: () => useUIStore.getState().openListEditorDialog(listDefinitionId) },
+    { label: 'Edit list…', run: () => openEditList(tabId, listDefinitionId) },
     ...(result ? [{
       label: 'Copy tasks',
       run: () => {
@@ -274,8 +264,6 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
   const [rangeSheet, setRangeSheet] = useState(false)
-  const activeListId = active?.kind === 'lens' ? active.config.listDefinitionId : undefined
-  const activeListUnsaved = useIsListDirty(activeListId)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
@@ -314,9 +302,6 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
             if (collapsed) void setCellCollapsed(cell.id, false)
           }}
         />
-        {activeListUnsaved && activeListId != null && (
-          <SaveListButton listDefinitionId={activeListId} className={`${styles.cellAction} ${styles.saveList}`} />
-        )}
         {collapsed ? (
           <button
             type="button"

@@ -3,8 +3,8 @@ import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsListWidget,
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
- * their own definition is edited in place (filter row, List options) and
- * stays unsaved — dot on the tab, save button in the header, a prompt
+ * their own definition is edited in place (filter row, Edit list) and
+ * stays unsaved — dot on the tab, Revert · Save on the filter line, a prompt
  * before the edits would be lost — until saved.
  */
 
@@ -31,10 +31,16 @@ function rows(page: Page, tabId: string) {
   return wsListWidget(page, tabId).locator('[data-todo-id]')
 }
 
-async function openListOptions(page: Page, tabId: string): Promise<void> {
+async function openEditList(page: Page, tabId: string): Promise<void> {
   await wsTab(page, tabId).click({ button: 'right' })
-  await page.getByRole('menuitem', { name: 'List options…' }).click()
-  await expect(page.getByTestId('list-options')).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+  await expect(page.getByTestId('edit-list')).toBeVisible()
+}
+
+/** Picks `choice` in Edit list's `row` (Group by / Sort by / Prompt for). */
+async function pickChoice(page: Page, row: string, choice: string): Promise<void> {
+  await page.getByTestId('edit-list').getByRole('button', { name: new RegExp(`^${row}`) }).click()
+  await page.getByRole('menuitemradio', { name: new RegExp(`^${choice}`) }).click()
 }
 
 test('a completed task comes back in a list widget when the top bar shows completed tasks', async ({ page }) => {
@@ -153,7 +159,7 @@ test('a list’s date filters: a due-date range and Follow-up Has a date both na
   expect('dateField' in predicate).toBe(false)
 })
 
-test('List options from the tab menu group the list; the edit is shared by every widget showing it', async ({ page }) => {
+test('Edit list from the tab menu groups the list; the edit is shared by every widget showing it', async ({ page }) => {
   await seedWorkspace(page, {
     ...team,
     layouts: [{
@@ -164,22 +170,24 @@ test('List options from the tab menu group the list; the edit is shared by every
       ],
     }],
   })
-  await openListOptions(page, 't1')
-  await page.getByTestId('list-options').getByLabel('Group').selectOption('people')
-  await expect(page.getByTestId('list-options')).toContainText('Shared · 2 widgets')
+  await openEditList(page, 't1')
+  await pickChoice(page, 'Group by', 'People')
+  await expect(page.getByTestId('edit-list')).toContainText('Shared · 2 widgets')
   await page.keyboard.press('Escape')
+  await expect(page.getByTestId('edit-list')).toHaveCount(0)
 
   for (const tabId of ['t1', 't2']) {
     await expect(wsListWidget(page, tabId).getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
     await expect(wsTab(page, tabId).getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   }
-  await expect(wsCell(page, 'k2').getByTestId('save-list')).toHaveAttribute('title', /Shared · shown in 2 widgets/)
+  await wsCell(page, 'k2').getByTestId('save-list').hover()
+  await expect(page.getByRole('tooltip')).toHaveText(/Save list “Team”\s*Shared · shown in 2 widgets/)
 })
 
 test('switching layouts with an unsaved list asks first; Discard drops the edit', async ({ page }) => {
   await seedWorkspace(page, team)
-  await openListOptions(page, 't1')
-  await page.getByTestId('list-options').getByLabel('Sort').selectOption('name')
+  await openEditList(page, 't1')
+  await pickChoice(page, 'Sort by', 'Name')
   await page.keyboard.press('Escape')
 
   await page.getByTestId('layout-picker').click()
@@ -202,14 +210,14 @@ test('switching layouts with an unsaved list asks first; Discard drops the edit'
   await page.getByTestId('layout-picker').click()
   await page.getByRole('menuitemradio', { name: 'Main' }).click()
   await expect(wsTab(page, 't2')).toBeVisible()
-  await openListOptions(page, 't1')
-  await expect(page.getByTestId('list-options').getByLabel('Sort')).toHaveValue('manual')
+  await openEditList(page, 't1')
+  await expect(page.getByTestId('edit-list').getByRole('button', { name: /^Sort by/ })).toHaveText('Manual')
 })
 
 test('closing the last widget of an unsaved list asks first; leaving the workspace too', async ({ page }) => {
   await seedWorkspace(page, team)
-  await openListOptions(page, 't1')
-  await page.getByTestId('list-options').getByLabel('Group').selectOption('people')
+  await openEditList(page, 't1')
+  await pickChoice(page, 'Group by', 'People')
   await page.keyboard.press('Escape')
 
   // Opening Settings never asks; leaving the workspace (the phone's Settings tab) does.
@@ -274,8 +282,8 @@ test('narrow widgets: a narrower due column, the tags column gives way, the summ
   for (const w of [wide, narrow]) await expect(w.locator('[data-row-cell="followup"]')).toHaveAttribute('data-followup', 'upcoming')
   expect(Math.round((await wide.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(46)
   expect(Math.round((await narrow.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(40)
-  await expect(wide.locator('button[title="List options"]')).toBeVisible()
-  await expect(narrow.locator('button[title="List options"]')).toBeHidden()
+  await expect(wide.getByTestId('list-summary')).toBeVisible()
+  await expect(narrow.getByTestId('list-summary')).toBeHidden()
   // The tags column gives way in the narrow widget; the title keeps 80px.
   await expect(wide.getByRole('button', { name: 'Tags: home, work', exact: true })).toBeVisible()
   await expect(narrow.locator('[data-row-cell="tags"]')).toHaveCount(0)

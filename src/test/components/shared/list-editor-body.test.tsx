@@ -21,6 +21,14 @@ function last(onChange: ReturnType<typeof vi.fn>): PersistedListDefinition {
   return onChange.mock.calls.at(-1)![0] as PersistedListDefinition
 }
 
+/** Opens a select-button's radio menu (`Group by` / `Sort by` / `Prompt for`). */
+function openChoices(row: string) {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${row}`) }))
+}
+
+/** The labels of the open radio menu's choices. */
+const choiceLabels = () => screen.getAllByRole('menuitemradio').map((el) => el.getAttribute('data-menu-label'))
+
 describe('<ListEditorBody>', () => {
   afterEach(() => { cleanup() })
 
@@ -36,18 +44,22 @@ describe('<ListEditorBody>', () => {
   it('sets the sort and grouping as flat values, keeping the rest', () => {
     const onChange = vi.fn()
     render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
-    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'deadline' } })
+    openChoices('Sort by')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Due date' }))
     expect(last(onChange)).toMatchObject({ sort: 'deadline', grouping: 'none', name: 'Test list' })
-    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'people' } })
+    openChoices('Group by')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'People' }))
     expect(last(onChange).grouping).toBe('people')
   })
 
   it('offers the list choices, plus a stored sort no longer offered', () => {
     render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
-    const sorts = Array.from((screen.getByLabelText('Sort by') as HTMLSelectElement).options).map((o) => o.textContent)
-    expect(sorts).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
-    const groups = Array.from((screen.getByLabelText('Group by') as HTMLSelectElement).options).map((o) => o.value)
-    expect(groups).toEqual(['none', 'deadline', 'followup', 'people', 'status', 'tag'])
+    openChoices('Sort by')
+    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
+    expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
+    openChoices('Group by')
+    expect(choiceLabels()).toEqual(['None', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
   })
 
   it('has no Max tasks control: a list shows all its tasks', () => {
@@ -76,10 +88,43 @@ describe('<ListEditorBody>', () => {
   it('sets the prompt field, and clears it with Nothing', () => {
     const onChange = vi.fn()
     const { rerender } = render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
-    fireEvent.change(screen.getByLabelText('Prompt for'), { target: { value: 'person' } })
+    openChoices('Prompt for')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Person' }))
     expect(last(onChange).runtimeFilter).toEqual({ field: 'person' })
     rerender(<ListEditorBody draft={makeDraft({ runtimeFilter: { field: 'tag' } })} onChange={onChange} />)
-    fireEvent.change(screen.getByLabelText('Prompt for'), { target: { value: 'none' } })
+    openChoices('Prompt for')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Nothing' }))
     expect(last(onChange).runtimeFilter).toBeUndefined()
+  })
+
+  it('picking the current choice changes nothing', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
+    openChoices('Sort by')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Manual/ }))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('with the saved list, marks the rows that differ from it', () => {
+    const saved = makeDraft()
+    const draft = makeDraft({ name: 'Renamed', sort: 'priority', runtimeFilter: { field: 'person' } })
+    const { container } = render(<ListEditorBody draft={draft} saved={saved} onChange={vi.fn()} />)
+    expect(Array.from(container.querySelectorAll('[data-changed]')).map((el) => el.textContent)).toEqual(['Name', 'Sort by', 'Prompt for'])
+  })
+
+  it('phone sheet: choices are rows that open a list of radios; Show completed is a switch', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft({ grouping: 'status' })} saved={makeDraft()} onChange={onChange} variant="sheet" />)
+    const groupRow = screen.getByRole('button', { name: 'Group by: Status' })
+    expect(groupRow).toHaveAttribute('data-changed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by: Manual' }))
+    const radios = screen.getByRole('radiogroup', { name: 'Sort by' })
+    expect(radios).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: /^Priority/ }))
+    expect(last(onChange).sort).toBe('priority')
+    // Back on the form.
+    expect(screen.getByRole('button', { name: /^Group by:/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch'))
+    expect(last(onChange).membership.predicate.showCompleted).toBe(true)
   })
 })

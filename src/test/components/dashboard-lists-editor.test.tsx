@@ -8,6 +8,15 @@ import { useUIStore } from '../../stores/ui-store'
 
 /** The Edit list dialog (over the Lists modal), if open. */
 const listEditor = () => document.body.querySelector('[aria-label^="Edit list"]')
+
+/** Picks `choice` in the editor's `row` select-button (a radio menu). */
+function pickChoice(row: string, choice: string) {
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${row}`) }))
+  fireEvent.click(screen.getByRole('menuitemradio', { name: choice }))
+}
+
+/** The current value a select-button shows. */
+const choiceValue = (row: string) => screen.getByRole('button', { name: new RegExp(`^${row}`) }).textContent
 import type { PersistedListDefinition } from '../../models'
 
 vi.mock('../../data/list-definition-repository', () => ({
@@ -94,17 +103,9 @@ describe('DashboardListsEditor — runtime filter control', () => {
     )
     fireEvent.click(screen.getAllByText('⚙')[0]!)
 
-    // The runtime-filter select lives inside the dialog body (portaled to
-    // document.body). Find it via the option that includes "Person".
-    const selects = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
-    const runtimeSelect = selects.find((el) =>
-      Array.from(el.options).some((o) => o.value === 'person'),
-    )
-    expect(runtimeSelect).toBeTruthy()
-
-    // Dirty-tracked save: changing the select only touches the draft; the
-    // store call happens when the user clicks Save (now in the dialog footer).
-    fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
+    // Dirty-tracked save: a pick only touches the draft; the store call
+    // happens when the user clicks Save (in the dialog footer).
+    pickChoice('Prompt for', 'Person')
     expect(updates.length).toBe(0)
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     // Flush the microtask queue so the async update() resolves.
@@ -113,12 +114,8 @@ describe('DashboardListsEditor — runtime filter control', () => {
 
     // Save closes the dialog; re-open to flip the pick back to None.
     fireEvent.click(screen.getAllByText('⚙')[0]!)
-    const selects2 = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
-    const runtimeSelect2 = selects2.find((el) =>
-      Array.from(el.options).some((o) => o.value === 'person'),
-    )
-    expect(runtimeSelect2).toBeTruthy()
-    fireEvent.change(runtimeSelect2!, { target: { value: 'none' } })
+    expect(choiceValue('Prompt for')).toBe('Person')
+    pickChoice('Prompt for', 'Nothing')
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     await Promise.resolve()
     expect(updates.at(-1)?.runtimeFilter).toBeUndefined()
@@ -173,14 +170,8 @@ describe('DashboardListsEditor — draft dirty-gating', () => {
     )
     fireEvent.click(screen.getAllByText('⚙')[0]!)
 
-    const selects = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
-    const runtimeSelect = selects.find((el) =>
-      Array.from(el.options).some((o) => o.value === 'person'),
-    )
-    expect(runtimeSelect).toBeTruthy()
-
-    fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
-    expect(runtimeSelect!.value).toBe('person')
+    pickChoice('Prompt for', 'Person')
+    expect(choiceValue('Prompt for')).toBe('Person')
 
     // External def-level rename while the draft is dirty — mimics an
     // inline-rename path writing through the store.
@@ -192,11 +183,7 @@ describe('DashboardListsEditor — draft dirty-gating', () => {
 
     // The user's edit (`person`) is still selected — the external rename did
     // not clobber the draft's runtime filter.
-    const selects2 = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
-    const runtimeSelect2 = selects2.find((el) =>
-      Array.from(el.options).some((o) => o.value === 'person'),
-    )
-    expect(runtimeSelect2!.value).toBe('person')
+    expect(choiceValue('Prompt for')).toBe('Person')
   })
 })
 
@@ -267,13 +254,8 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
     )
     fireEvent.click(screen.getByText('⚙'))
 
-    // Dirty the draft via the runtime-filter select.
-    const selects = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
-    const runtimeSelect = selects.find((el) =>
-      Array.from(el.options).some((o) => o.value === 'person'),
-    )
-    expect(runtimeSelect).toBeTruthy()
-    fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
+    // Dirty the draft via the prompt choice.
+    pickChoice('Prompt for', 'Person')
 
     // Cancel button is in the dialog footer.
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
@@ -282,3 +264,4 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
     expect(listEditor()).not.toBeNull()
   })
 })
+

@@ -3,11 +3,8 @@ import { getActiveTab, WIDGET_KIND_SPECS, type LayoutCell } from '../../models/w
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useUIStore } from '../../stores/ui-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
-import { useIsListDirty } from '../../hooks/use-list-draft'
-import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasksRich } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
@@ -15,9 +12,7 @@ import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
-import { createListThenEdit, useTabTitle } from './widget-hooks'
-import { SaveListButton } from './list/SaveListButton'
-import { pointBelow } from '../shared/filters/popover-point'
+import { createListThenEdit, openEditList, useTabTitle } from './widget-hooks'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
@@ -94,7 +89,10 @@ function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor:
       y={anchor.y}
       header="Show list"
       onSelect={(id) => changeTabKind(tabId, 'lens', { listDefinitionId: id })}
-      onCreateNew={() => createListThenEdit((id) => changeTabKind(tabId, 'lens', { listDefinitionId: id }))}
+      onCreateNew={() => createListThenEdit((id) => {
+        changeTabKind(tabId, 'lens', { listDefinitionId: id })
+        return tabId
+      })}
       onClose={onClose}
     />
   )
@@ -155,8 +153,6 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
   const activeCount = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result.countLabel : undefined
-  const activeListId = active?.kind === 'lens' ? active.config.listDefinitionId : undefined
-  const activeListUnsaved = useIsListDirty(activeListId)
 
   /** Runs `run`, first asking about unsaved lists that would lose their last widget with `tabIds`. */
   const guarded = (tabIds: readonly string[], lead: string, run: () => void) => {
@@ -247,7 +243,6 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
         {stripHit && drag?.insertLeft != null && (
           <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
         )}
-        {activeListUnsaved && activeListId != null && <SaveListButton listDefinitionId={activeListId} className={styles.saveList} />}
         {collapsed ? (
           <button
             type="button"
@@ -340,15 +335,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
               }
             : undefined}
           onEditList={menuTab.kind === 'lens' && menuTab.config.listDefinitionId != null
-            ? () => useUIStore.getState().openListEditorDialog(menuTab.config.listDefinitionId!)
-            : undefined}
-          onListOptions={menuTab.kind === 'lens' && menuTab.config.listDefinitionId != null
-            ? () => {
-                const listDefinitionId = menuTab.config.listDefinitionId!
-                const tabEl = document.querySelector(`[data-ws-tab="${menuTab.id}"]`)
-                const at = tabEl ? pointBelow(tabEl) : { x: tabMenu.x, y: tabMenu.y, align: 'start' as const }
-                useListWidgetStore.getState().openPopover({ kind: 'options', listDefinitionId, at })
-              }
+            ? () => openEditList(menuTab.id, menuTab.config.listDefinitionId!)
             : undefined}
           currentListName={menuListName}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}

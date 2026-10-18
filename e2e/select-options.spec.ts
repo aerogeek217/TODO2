@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Native `<select>` drop-downs are readable in both themes: every option is
@@ -42,24 +42,15 @@ async function optionColours(scope: Locator) {
 }
 
 for (const theme of ['dark', 'light'] as const) {
-  test(`${theme} theme: options in the Edit list form and in Settings read on the surface colour`, async ({ page }) => {
+  test(`${theme} theme: options in Settings read on the surface colour`, async ({ page }) => {
     await seedWorkspace(page, SEED)
     await setTheme(page, theme)
-
-    await wsTab(page, 'list').click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Edit list…' }).click()
-    const form = page.getByRole('dialog', { name: /Edit list:/ })
-    const inForm = await optionColours(form)
-    expect(inForm.got.length).toBeGreaterThan(0)
-    // The surface colour is opaque, so the open list never shows through to white.
-    expect(inForm.want.background).toMatch(/^rgb\(/)
-    for (const o of inForm.got) expect(o).toEqual(inForm.want)
-    await page.keyboard.press('Escape')
-    await expect(form).toHaveCount(0)
 
     const settings = await openSettings(page, 'Task defaults')
     const inSettings = await optionColours(settings)
     expect(inSettings.got.length).toBeGreaterThan(0)
+    // The surface colour is opaque, so the open list never shows through to white.
+    expect(inSettings.want.background).toMatch(/^rgb\(/)
     for (const o of inSettings.got) expect(o).toEqual(inSettings.want)
   })
 }

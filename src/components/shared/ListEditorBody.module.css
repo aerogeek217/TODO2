@@ -1,4 +1,6 @@
-/* "Edit list" form: a 108px label column and 32px controls. */
+/* The list editor's form. `dialog` (Settings › Lists): a 108px label column
+ * and 32px controls. `.compact` (the workspace's side popover): a 62px label
+ * column and 28px controls. `.sheet` (phone): stacked, touch sizes. */
 
 .form {
   display: flex;
@@ -14,6 +16,9 @@
 }
 
 .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: 0 0 108px;
   align-self: flex-start;
   line-height: 32px;
@@ -22,31 +27,68 @@
   color: var(--color-text-secondary);
 }
 
-.input,
-.select {
-  height: 32px;
-  min-width: 0;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-inset);
-  color: var(--color-text-primary);
-  font-family: inherit;
-  font-size: var(--font-size-body);
+/* A row whose value differs from the saved list. */
+.labelChanged {
+  color: var(--color-accent);
+}
+
+.changedDot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-left: -10px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
 .input,
 .select {
   flex: 1 1 auto;
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
 }
 
 .input:focus-visible,
-.select:focus-visible {
+.select:focus-visible,
+.selectOpen {
   outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px var(--color-accent-focus);
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
 }
 
+/* An empty name can't be saved. */
+.inputError,
+.inputError:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-danger), 0 0 0 3px var(--color-danger-bg);
+}
+
+.select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.select > svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.selectValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .filters {
   display: flex;
@@ -78,3 +120,251 @@
   accent-color: var(--color-accent);
 }
 
+.rule {
+  height: 1px;
+  margin: 0 -14px;
+  background: var(--color-border-muted);
+}
+
+.badge {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+}
+
+/* ── The side popover ── */
+
+.compact {
+  gap: 10px;
+  padding: 0;
+}
+
+.compact .label {
+  white-space: nowrap;
+  flex-basis: 62px;
+  line-height: normal;
+  padding-top: 6px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.compact .labelChanged {
+  color: var(--color-accent);
+}
+
+.compact .changedDot {
+  margin-left: -9px;
+}
+
+.compact .input,
+.compact .select {
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: var(--font-size-task);
+}
+
+.compact .chips {
+  min-height: 28px;
+}
+
+.compact .check {
+  font-size: var(--font-size-task);
+}
+
+/* ── The phone sheet ── */
+
+.sheet {
+  gap: 12px;
+  padding: 0;
+}
+
+.sheet .row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.sheet .label {
+  flex: none;
+  line-height: normal;
+  color: var(--color-text-muted);
+}
+
+.sheet .labelChanged {
+  color: var(--color-accent);
+}
+
+.sheet .changedDot {
+  margin-left: 0;
+}
+
+.sheet .input {
+  height: 44px;
+  font-size: 16px;
+}
+
+.sheet .chips {
+  min-height: 32px;
+}
+
+.sheetRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheetRow,
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border-muted);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.switchRow {
+  border-bottom: none;
+}
+
+.sheetRow > svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.sheetRowLabel,
+.switchLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.sheetRowValue {
+  color: var(--color-text-secondary);
+}
+
+/* Show completed on the phone: a switch. */
+.switch {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  border-radius: 13px;
+  background: var(--color-tint-12);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-text-primary);
+  transition: transform 120ms ease;
+}
+
+.switch:checked {
+  background: var(--color-accent);
+}
+
+.switch:checked::after {
+  transform: translateX(18px);
+  background: var(--color-text-on-accent);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* A choice list (the Group by / Sort by / Prompt for rows open one). */
+.choiceHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.back {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: -12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.choiceTitle {
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+}
+
+.choiceList {
+  display: flex;
+  flex-direction: column;
+}
+
+.choiceRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 48px;
+  padding: 13px 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border-muted);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.choiceRadio {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.choiceRow[aria-checked='true'] .choiceRadio {
+  border: 5px solid var(--color-accent);
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.choiceLabel {
+  display: inline-flex;
+  align-items: center;
+}
+
+.choiceNote {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

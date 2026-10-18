@@ -46,8 +46,17 @@ export function choicesWith<T extends string>(choices: readonly T[], current: T)
   return choices.includes(current) ? choices : [...choices, current]
 }
 
-/** The list options summary, e.g. `People · Due date`. */
-export function listOptionsSummary(grouping: TodoGroupBy, sort: TodoSortBy): string {
-  const group = grouping === 'none' ? 'No groups' : (GROUP_LABEL[grouping] ?? grouping)
-  return `${group} · ${SORT_LABEL[sort] ?? sort}`
+/** A sort choice's muted note in the Sort menu. */
+export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
+  manual: 'Your drag order (per list)',
+  priority: 'Focus first, then Urgent + Important, Urgent, Important, none · ties by due date',
+}
+
+/** Sort choices new in this release: tagged `NEW` in the Sort menu. */
+export const NEW_SORT_CHOICES: ReadonlySet<TodoSortBy> = new Set(['priority'])
+
+/** The filter line's group · sort summary, e.g. `People · Due date`; no groups in drag order reads `Manual`. */
+export function groupSortSummary(grouping: TodoGroupBy, sort: TodoSortBy): string {
+  if (grouping === 'none' && sort === 'manual') return SORT_LABEL.manual
+  return `${GROUP_LABEL[grouping] ?? grouping} · ${SORT_LABEL[sort] ?? sort}`
 }

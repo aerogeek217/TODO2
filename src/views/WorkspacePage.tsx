@@ -35,7 +35,7 @@ import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
-import { ListOptionsHost } from '../components/workspace/list/ListOptionsHost'
+import { EditListHost } from '../components/workspace/list/EditList'
 import { getUnsavedListIds, useListDraftStore } from '../stores/list-draft-store'
 import { unsavedDraftsKept } from '../data/draft-storage'
 import { useUnsavedListIds } from '../hooks/use-list-draft'
@@ -62,7 +62,6 @@ import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
-import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
 import overlayStyles from '../components/workspace/DragOverlayTask.module.css'
 import styles from './WorkspacePage.module.css'
 
@@ -434,9 +433,8 @@ export function WorkspacePage() {
       {showListsEditor && (
         <DashboardListsEditor onClose={closeListsEditor} initialSelectedId={listsEditorInitialId ?? undefined} />
       )}
-      <StandaloneListEditor />
       <EntityActionHost />
-      <ListOptionsHost />
+      <EditListHost />
       <UnsavedNavigationGuard />
     </DndContext>
   )

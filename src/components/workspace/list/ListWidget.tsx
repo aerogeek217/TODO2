@@ -7,7 +7,7 @@ import { useBuiltList } from '../../../hooks/use-built-list'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
-import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
+import { useEffectiveListDefinition, useIsListDirty } from '../../../hooks/use-list-draft'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useListOrderStore, useListRanks } from '../../../stores/list-order-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -26,7 +26,7 @@ import {
   hasNarrowingFilters,
   type FilterChip,
 } from '../../../utils/filter-chips'
-import { listOptionsSummary, PROMPT_LABEL, SORT_LABEL } from '../../../utils/list-options'
+import { groupSortSummary, PROMPT_LABEL, SORT_LABEL } from '../../../utils/list-options'
 import { manualOrderComparator, planMove, seedRanks, type MoveTarget, type RankWrite } from '../../../utils/list-order'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import {
@@ -42,7 +42,6 @@ import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { ReassignDialog } from '../../overlays/ReassignDialog'
 import { ChevronDownIcon, FunnelIcon, PlusIcon, SortIcon } from '../../shared/icons'
-import { pointBelow } from '../../shared/filters/popover-point'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
@@ -51,6 +50,8 @@ import { MenuPopover } from '../../shared/MenuPopover'
 import { PersonGroupHeader } from './PersonGroupHeader'
 import { groupPerson, personGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
+import { ListDraftButtons } from './ListDraftButtons'
+import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers } from '../../../utils/markers'
 import chipStyles from '../../shared/filters/ListFilterChips.module.css'
@@ -148,7 +149,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const predicate = definition.membership.predicate
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
   const screenChips = useMemo(() => (screenActive ? filterChips(screen, names, true) : []), [screenActive, screen, names])
-  const showFilterRow = listChips.length > 0 || screenChips.length > 0
+  const unsaved = useIsListDirty(definition.id)
+  // Also while the list is unsaved: its Revert · Save sit on this line.
+  const showFilterRow = listChips.length > 0 || screenChips.length > 0 || unsaved
 
   // + Add task: only when the merged predicate names people / status / tags
   // / markers to seed the new task with (Hot seeds nothing).
@@ -317,7 +320,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           hint={describeFilters(listChips)}
           action={{
             label: 'Edit filters',
-            onClick: (el) => useListWidgetStore.getState().openPopover({ kind: 'options', listDefinitionId: definition.id, at: pointBelow(el) }),
+            onClick: () => openEditList(tab.id, definition.id),
           }}
         />
       )
@@ -402,7 +405,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         />
       )}
       {showFilterRow && (
-        <ListFilterRow tabId={tab.id} definition={definition} screenChips={screenChips} hasListChips={listChips.length > 0} />
+        <ListFilterRow tabId={tab.id} definition={definition} screenChips={screenChips} hasListChips={listChips.length > 0} unsaved={unsaved} />
       )}
       <div ref={scrollRef} className={styles.scroll}>
         {body}
@@ -476,14 +479,14 @@ function rowLook(drag: ListRowDragState | null, key: string, manual: boolean): L
 function EmptyState({ title, hint, action }: {
   title: string
   hint?: string
-  action?: { label: string; onClick: (el: HTMLElement) => void }
+  action?: { label: string; onClick: () => void }
 }) {
   return (
     <div className={styles.empty}>
       <span className={styles.emptyTitle}>{title}</span>
       {hint && <span className={styles.emptyHint}>{hint}</span>}
       {action && (
-        <button type="button" className={styles.emptyAction} onClick={(e) => action.onClick(e.currentTarget)}>
+        <button type="button" className={styles.emptyAction} onClick={action.onClick}>
           {action.label}
         </button>
       )}
@@ -498,26 +501,25 @@ function screenChipText(chip: FilterChip): string {
 
 /**
  * Screen filter chips (read-only, set in the top bar), then the list's own
- * filter chips (editing them makes the list unsaved), + Filter, and the
- * group · sort summary that opens List options.
+ * filter chips (editing them makes the list unsaved; `No filters` when an
+ * unsaved list has none), + Filter, the group · sort summary that opens
+ * Edit list, and — while the list is unsaved — Revert · Save.
  */
-function ListFilterRow({ tabId, definition, screenChips, hasListChips }: {
+function ListFilterRow({ tabId, definition, screenChips, hasListChips, unsaved }: {
   tabId: string
   definition: PersistedListDefinition
   screenChips: readonly FilterChip[]
   hasListChips: boolean
+  unsaved: boolean
 }) {
-  const popover = useListWidgetStore((s) => s.popover)
-  const open = useListWidgetStore((s) => s.openPopover)
-  const optionsOpen = popover?.kind === 'options' && popover.tabId === tabId
-  // Clicking the summary while its popover is open closes it (the popover's
-  // outside-click handler already did) instead of reopening it.
-  const wasOpen = useRef(false)
+  const editorOpen = useUIStore((s) => s.listEditor?.tabId === tabId)
+  const chipsRef = useRef<HTMLDivElement>(null)
+  const chipsOverflow = useOverflowsX(chipsRef)
   const id = definition.id
 
   return (
     <div className={styles.filterRow} data-testid="list-filter-row">
-      <div className={styles.chips}>
+      <div ref={chipsRef} className={`${styles.chips} ${chipsOverflow ? styles.chipsClipped : ''}`}>
         <PredicateChips
           predicate={definition.membership.predicate}
           onChange={(predicate) => useListDraftStore.getState().edit(id, (d) => ({ ...d, membership: { kind: 'custom', predicate } }))}
@@ -530,28 +532,47 @@ function ListFilterRow({ tabId, definition, screenChips, hasListChips }: {
                 </span>
               ))}
               {screenChips.length > 0 && hasListChips && <span className={styles.chipSep} aria-hidden="true" />}
+              {screenChips.length === 0 && !hasListChips && <span className={styles.noFilters}>No filters</span>}
             </>
           )}
         />
       </div>
       <button
         type="button"
-        className={`${chipStyles.summary} ${optionsOpen ? chipStyles.summaryOpen : ''}`}
+        className={`${chipStyles.summary} ${editorOpen ? chipStyles.summaryOpen : ''}`}
         aria-haspopup="dialog"
-        aria-expanded={optionsOpen}
-        title="List options"
-        onMouseDown={() => { wasOpen.current = optionsOpen }}
-        onClick={(e) => {
-          if (wasOpen.current) {
-            wasOpen.current = false
-            return
-          }
-          open({ kind: 'options', listDefinitionId: id, tabId, at: pointBelow(e.currentTarget, 'end') })
+        aria-expanded={editorOpen}
+        title={`Edit list “${definition.name.trim() || 'List'}”`}
+        data-testid="list-summary"
+        onClick={() => {
+          if (editorOpen) useUIStore.getState().closeListEditor()
+          else openEditList(tabId, id)
         }}
       >
-        {listOptionsSummary(definition.grouping, definition.sort)}
+        {groupSortSummary(definition.grouping, definition.sort)}
         <ChevronDownIcon />
       </button>
+      {unsaved && <ListDraftButtons listDefinitionId={id} />}
     </div>
   )
+}
+
+/** Whether the element's content is wider than it (re-checked on resize and content changes). */
+function useOverflowsX(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [overflows, setOverflows] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth + 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    const mo = new MutationObserver(check)
+    mo.observe(el, { childList: true, subtree: true, characterData: true })
+    return () => {
+      ro.disconnect()
+      mo.disconnect()
+    }
+  }, [ref])
+  return overflows
 }

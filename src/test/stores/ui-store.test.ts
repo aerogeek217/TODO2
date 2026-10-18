@@ -12,7 +12,7 @@ beforeEach(() => {
     taskDialog: null,
     listsEditorOpen: false,
     listsEditorInitialId: null,
-    listEditorDialogId: null,
+    listEditor: null,
   })
 })
 
@@ -121,28 +121,31 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().listsEditorInitialId).toBeNull()
   })
 
-  it('openListEditorDialog stores the def id; closeListEditorDialog resets it', () => {
-    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+  it('openListEditor opens Edit list for a list tab; closeListEditor closes it', () => {
+    expect(useUIStore.getState().listEditor).toBeNull()
 
-    useUIStore.getState().openListEditorDialog(7)
-    expect(useUIStore.getState().listEditorDialogId).toBe(7)
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 'tab-1' })
+    // Edit list never opens the Lists manager modal.
+    expect(useUIStore.getState().listsEditorOpen).toBe(false)
 
-    useUIStore.getState().closeListEditorDialog()
-    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+    // Another list's Edit list replaces it: one open at a time.
+    useUIStore.getState().openListEditor(8, 'tab-2')
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
+
+    useUIStore.getState().closeListEditor()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('openListEditorDialog does NOT open the Lists manager modal', () => {
-    // Direct dialog and Lists manager are deliberately separate flows: a
-    // list tab's Edit list opens only the dialog, not the manager underneath.
-    useUIStore.getState().openListEditorDialog(7)
-    expect(useUIStore.getState().listEditorDialogId).toBe(7)
-    expect(useUIStore.getState().listsEditorOpen).toBe(false)
-    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+  it('opening Settings closes Edit list (it belongs to the workspace)', () => {
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    useUIStore.getState().openSettings()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
   it('openListsEditor does NOT open the direct list-editor dialog', () => {
     useUIStore.getState().openListsEditor(7)
     expect(useUIStore.getState().listsEditorOpen).toBe(true)
-    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 })

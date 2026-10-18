@@ -3,12 +3,11 @@ import { seedWorkspace, wsCell } from './fixtures/workspace'
 
 /**
  * "Create new list…" from the add-tab list picker and from Change widget ›
- * List: the new list's tab appears and its own Edit list dialog opens over
- * the workspace — not the Lists manager — and nothing is left open after
- * Save.
+ * List: the new list's tab appears and Edit list opens beside it — not the
+ * Lists manager — editing the new list live.
  */
 
-const editListDialog = (page: Page, name: string) => page.getByRole('dialog', { name: `Edit list: ${name}` })
+const editListDialog = (page: Page, name: string) => page.getByRole('dialog', { name: `Edit list ${name}` })
 const listsManager = (page: Page) => page.getByRole('dialog', { name: 'Lists' })
 
 test('add tab › List › Create new list…: the tab appears with the list\'s own editor, and Save leaves nothing open', async ({ page }) => {
@@ -25,13 +24,20 @@ test('add tab › List › Create new list…: the tab appears with the list\'s 
   await expect(editor).toBeVisible()
   await expect(listsManager(page)).toHaveCount(0)
 
-  await editor.getByRole('button', { name: 'Save' }).click()
-  await expect(editor).toHaveCount(0)
-  await expect(listsManager(page)).toHaveCount(0)
+  const name = editor.getByRole('textbox', { name: 'Name' })
+  await expect(name).toBeFocused()
+  await name.fill('Errands')
+  await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
+  await expect(editListDialog(page, 'Errands')).toBeVisible()
+  await editListDialog(page, 'Errands').getByRole('button', { name: 'Save list' }).click()
+  await expect(editListDialog(page, 'Errands').getByRole('button', { name: 'Save list' })).toBeDisabled()
+  await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(listsManager(page)).toHaveCount(0)
+  await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
 })
 
-test('Change widget › List › Create new list…: the tab shows the new list and its own editor opens', async ({ page }) => {
+test('Change widget › List › Create new list…: the tab shows the new list and Edit list opens beside it', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Existing' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] }] }] }],

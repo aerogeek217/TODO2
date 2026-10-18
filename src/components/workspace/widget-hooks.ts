@@ -1,8 +1,9 @@
-import { widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
+import { findTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -14,14 +15,33 @@ export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
   return widgetKindLabel(tab.kind)
 }
 
-/** A tab's title (`tabTitle`), kept current. */
+/**
+ * A tab's title (`tabTitle`), kept current. A list tab shows the name as
+ * edited (the list's unsaved draft), else the saved name.
+ */
 export function useTabTitle(tab: LayoutTab | undefined): string {
-  const listName = useListDefinitionStore((s) =>
-    tab?.kind === 'lens' && tab.config.listDefinitionId != null
-      ? s.listDefinitions.find((d) => d.id === tab.config.listDefinitionId)?.name
-      : undefined,
-  )
+  const listId = tab?.kind === 'lens' ? tab.config.listDefinitionId : undefined
+  const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
+  const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name.trim() : undefined))
+  const listName = savedName != null ? (draftName || savedName) : undefined
   return tab ? tabTitle(tab, listName) : ''
+}
+
+/**
+ * Opens Edit list for a list tab: the tab is made its cell's active one and
+ * the cell expanded (so the list it previews is on screen), then the
+ * surface opens beside it.
+ */
+export function openEditList(tabId: string, listDefinitionId: number): void {
+  const ws = useWorkspaceStore.getState()
+  const working = ws.working
+  const loc = working ? findTab(working, tabId) : null
+  const cell = loc ? working?.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
+  if (cell) {
+    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
+    if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
+  }
+  useUIStore.getState().openListEditor(listDefinitionId, tabId)
 }
 
 /** A list name not used by any saved list: "New list", "New list 2", … */
@@ -34,12 +54,13 @@ function freshListName(): string {
 
 /**
  * "Create new list…" in a list picker: saves a blank list, hands its id to
- * `show` (which puts it in a tab), then opens that list's own editor.
+ * `show` (which puts it in a tab and returns that tab's id), then opens Edit
+ * list beside that tab.
  */
-export function createListThenEdit(show: (listDefinitionId: number) => void): void {
+export function createListThenEdit(show: (listDefinitionId: number) => string | null): void {
   void useListDefinitionStore.getState().add({ name: freshListName() }).then((id) => {
-    show(id)
-    useUIStore.getState().openListEditorDialog(id)
+    const tabId = show(id)
+    if (tabId != null) openEditList(tabId, id)
   })
 }
 

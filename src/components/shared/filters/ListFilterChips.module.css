@@ -86,7 +86,7 @@
 }
 
 /* The list widget's own chips: a screen filter (read-only) and the
- * group · sort summary that opens List options. */
+ * group · sort summary that opens Edit list. */
 .screenChip {
   composes: chip;
   padding-left: 6px;

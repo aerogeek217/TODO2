@@ -14,12 +14,12 @@ export interface ListEditorDialogProps {
   widgetCount?: number
   onClose: () => void
   onSave: () => void
-  /** The form body — name field, filter chips, group / sort / max / prompt. */
+  /** The form body — name field, filter chips, group / sort / prompt. */
   children: ReactNode
 }
 
 /**
- * "Edit list" dialog chrome: title, × close, the form, and a footer with
+ * "Edit list" dialog chrome (Settings › Lists): title, × close, the form, and a footer with
  * how many widgets show the list, Cancel (Esc) and Save list, on the shared
  * dialog frame (`raised` tier). Esc and the scrim close it; an Esc meant for
  * a popover open over it (a filter picker or menu) is left to that popover.

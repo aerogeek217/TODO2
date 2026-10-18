@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/sortable'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useListWidgetCount } from '../../hooks/use-list-widget-count'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { DragHandle } from '../shared/DragHandle'
 import { ConfirmDialog } from '../shared/Dialog'
@@ -87,6 +88,7 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
   }, [editingListId, sorted])
 
   const [draft, setDraft] = useListDefDraft(editingList)
+  const widgetCount = useListWidgetCount(editingListId ?? undefined)
 
   const dirty = useMemo(() => {
     if (!draft || !editingList) return false
@@ -244,10 +246,11 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
       <ListEditorDialog
         open={!!editingList && !!draft}
         list={editingList ? { id: editingList.id, name: editingList.name } : null}
+        widgetCount={widgetCount}
         onClose={handleEditorClose}
         onSave={handleEditorSave}
       >
-        {draft && <ListEditorBody draft={draft} onChange={setDraft} />}
+        {draft && editingList && <ListEditorBody draft={draft} saved={editingList} onChange={setDraft} variant="dialog" />}
       </ListEditorDialog>
     </>
   )

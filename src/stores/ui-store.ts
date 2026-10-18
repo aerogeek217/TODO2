@@ -130,15 +130,12 @@ interface UIState {
   /** Optional def id to preselect + auto-expand the ConfigPanel for. */
   listsEditorInitialId: number | null
   /**
-   * Direct list-editor dialog id — when non-null, `<StandaloneListEditor>`
-   * mounts the per-list editor dialog *without* the surrounding Lists
-   * manager modal. Drives the "Edit list" entry from a list tab's menu.
-   * The Lists manager's
-   * own row-click → dialog-on-modal flow keeps using the
-   * `listsEditorOpen` + `listsEditorInitialId` pair above; the two paths
-   * are deliberately distinct so the surfaces don't stack.
+   * The open Edit list surface (the workspace's side popover, the phone's
+   * half sheet): the list it edits and the list tab it was opened for (it
+   * sits beside that tab's panel). One at a time. Separate from the Lists
+   * manager (`listsEditorOpen`), which keeps its own modal editor.
    */
-  listEditorDialogId: number | null
+  listEditor: { listDefinitionId: number; tabId: string } | null
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
@@ -221,8 +218,8 @@ interface UIState {
   openFilterSheetSearch: () => void
   openListsEditor: (initialId?: number | null) => void
   closeListsEditor: () => void
-  openListEditorDialog: (id: number) => void
-  closeListEditorDialog: () => void
+  openListEditor: (listDefinitionId: number, tabId: string) => void
+  closeListEditor: () => void
   openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
@@ -262,7 +259,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   filterSheetFocusSearch: false,
   listsEditorOpen: false,
   listsEditorInitialId: null,
-  listEditorDialogId: null,
+  listEditor: null,
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
@@ -389,12 +386,13 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ listsEditorOpen: false, listsEditorInitialId: null })
   },
 
-  openListEditorDialog(id) {
-    set({ listEditorDialogId: id })
+  openListEditor(listDefinitionId, tabId) {
+    set({ listEditor: { listDefinitionId, tabId } })
   },
 
-  closeListEditorDialog() {
-    set({ listEditorDialogId: null })
+  closeListEditor() {
+    if (get().listEditor === null) return
+    set({ listEditor: null })
   },
 
   openQuickAdd(seed) {
@@ -429,12 +427,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSettings(target) {
+    // Edit list belongs to the workspace under the modal.
     if (!target) {
-      set({ settingsOpen: true })
+      set({ settingsOpen: true, listEditor: null })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part })
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, listEditor: null })
   },
 
   closeSettings() {

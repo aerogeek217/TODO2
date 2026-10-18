@@ -188,18 +188,42 @@ test('the layout sheet is a bottom sheet on the dialog frame: focus on the open 
   await expect(picker).toBeFocused()
 })
 
-test('long-pressing a list tab opens its list sheet; a list edit shows the save button', async ({ page }) => {
+test('long-pressing a list tab opens its list sheet; Edit list is a half sheet with the list live above it', async ({ page }) => {
   await seed(page)
   // Mobile browsers turn a long press into `contextmenu`.
   await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
-  const sheet = page.getByRole('menu', { name: 'List' })
-  await expect(sheet.getByRole('menuitem')).toHaveText(['List options…', 'Edit list…', 'Copy tasks'])
-  await sheet.getByRole('menuitem', { name: 'List options…' }).click()
-  const options = page.getByTestId('list-options')
-  await expect(options).toBeVisible()
-  await options.getByLabel('Sort').selectOption('name')
-  await expect(wsCell(page, 'a1').getByTestId('save-list')).toBeVisible()
+  const menu = page.getByRole('menu', { name: 'List' })
+  await expect(menu.getByRole('menuitem')).toHaveText(['Edit list…', 'Copy tasks'])
+  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
+
+  // A half sheet: 55% of the screen, the list's rows still on screen above it.
+  const sheet = page.getByRole('dialog', { name: 'Edit list Today' })
+  await expect(sheet).toBeVisible()
+  const s = await box(sheet)
+  expect(Math.round(s.y + s.height)).toBe(844)
+  expect(s.height).toBeGreaterThan(844 * 0.5)
+  expect(s.height).toBeLessThan(844 * 0.6)
+  const row = wsCell(page, 'a1').locator('[data-todo-id]').first()
+  expect((await box(row)).y + (await box(row)).height).toBeLessThan(s.y)
+
+  // Sort by › Name: a list of choices in the sheet; the list updates live behind it.
+  await sheet.getByRole('button', { name: 'Sort by: Manual' }).click()
+  await sheet.getByRole('radio', { name: /^Name/ }).click()
+  await expect(sheet.getByRole('button', { name: 'Sort by: Name' })).toBeVisible()
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+  await expect(wsCell(page, 'a1').locator('[data-todo-id]').first()).toContainText('Call plumber')
+
+  // A tap above the sheet closes it; the edit stays unsaved, with Revert · Save on the filter line.
+  await page.mouse.click(195, 100)
+  await expect(sheet).toHaveCount(0)
+  const line = wsCell(page, 'a1').getByTestId('list-filter-row')
+  await expect(line).toContainText('No filters')
+  await expect(line.getByTestId('save-list')).toHaveText('Save')
+  expect(Math.round((await box(line.getByTestId('save-list'))).height)).toBe(36)
+  const revert = await box(line.getByTestId('revert-list'))
+  expect([Math.round(revert.width), Math.round(revert.height)]).toEqual([36, 36])
+  await line.getByTestId('save-list').click()
+  await expect(line).toHaveCount(0)
 })
 
 test('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {

@@ -25,6 +25,10 @@ export interface MenuItemEntry {
   checked?: boolean | 'mixed'
   /** Muted trailing text (e.g. "Edited", a current date, "1 of 3"). */
   note?: string
+  /** A muted, wrapping line under the label (what a choice means). */
+  description?: string
+  /** A small accent tag after the label (e.g. `NEW`). */
+  badge?: string
   /** Shows a submenu chevron; `onSelect` opens the caller's own submenu. */
   submenu?: boolean
   /**
@@ -369,13 +373,24 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
               entry.dim ? styles.dim : '',
               expanded ? styles.itemOpen : '',
               radioDot && entry.checked === true ? styles.radioChecked : '',
+              entry.description ? styles.itemTall : '',
             ].join(' ')}
             onPointerEnter={onHoverItem ? () => onHoverItem(i, entry) : undefined}
             onClick={(e) => onSelect(entry, i, e.detail === 0)}
           >
             {radioDot && <span className={styles.radio} aria-hidden="true" />}
             {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
-            <span className={styles.label}>{entry.label}</span>
+            {entry.description || entry.badge ? (
+              <span className={styles.labelBlock}>
+                <span className={styles.labelLine}>
+                  <span className={styles.label}>{entry.label}</span>
+                  {entry.badge && <span className={styles.badge}>{entry.badge}</span>}
+                </span>
+                {entry.description && <span className={styles.description}>{entry.description}</span>}
+              </span>
+            ) : (
+              <span className={styles.label}>{entry.label}</span>
+            )}
             {entry.note && <span className={styles.note}>{entry.note}</span>}
             {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
             {entry.kbd && <kbd className={styles.kbd} aria-hidden="true">{entry.kbd}</kbd>}

@@ -49,9 +49,8 @@ test('keyboard: ArrowRight on Change list opens the flyout, Escape closes it bac
   await seedWorkspace(page, twoLists)
   await wsTab(page, 'listTab').click({ button: 'right' })
   const menu = tabMenu(page)
-  // Focus starts on the first item (List options…); Change list is third.
+  // Focus starts on the first item (Edit list…); Change list is second.
   await expect(menu.getByRole('menuitem').first()).toBeFocused()
-  await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
   const changeList = menu.getByRole('menuitem', { name: /^Change list/ })
   await expect(changeList).toBeFocused()
@@ -138,10 +137,10 @@ test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc ret
   const m = await rect(menu)
   expect(Math.round(m.x)).toBe(Math.round(t.x))
   expect(m.y).toBeGreaterThanOrEqual(t.y + t.height)
-  await expect(menu.getByRole('menuitem', { name: 'List options…' })).toBeFocused()
-  // Type-ahead: the next item starting with the key.
-  await page.keyboard.press('e')
   await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
+  // Type-ahead: the next item starting with the key.
+  await page.keyboard.press('c')
+  await expect(menu.getByRole('menuitem', { name: /^Change list/ })).toBeFocused()
   await page.keyboard.press('n')
   await expect(menu.getByRole('menuitemradio', { name: 'Notes' })).toBeFocused()
   await page.keyboard.press('Escape')

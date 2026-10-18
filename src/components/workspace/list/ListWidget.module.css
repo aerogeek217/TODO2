@@ -51,6 +51,88 @@
   background: var(--color-border);
 }
 
+/* Chips wider than their space fade out at the right (Save / Revert never hide). */
+.chipsClipped {
+  mask-image: linear-gradient(to right, #000 80%, transparent);
+}
+
+/* An unsaved list with no filters to show as chips. */
+.noFilters {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* ── An unsaved list's Revert · Save, at the filter line's end ── */
+
+.draftRule {
+  flex: none;
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--color-border);
+}
+
+.draftButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.draftButton:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.revertButton {
+  padding: 0 7px 0 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.revertButton:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.saveButton {
+  padding: 0 8px 0 6px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.saveButton:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.saveButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Narrow widgets: icon-only buttons (their tooltips name them). */
+@container (max-width: 359px) {
+  .draftButton {
+    justify-content: center;
+    width: 24px;
+    padding: 0;
+  }
+
+  .draftLabel {
+    display: none;
+  }
+}
+
 /* ── Body ───────────────────────────────────────────────────────────────── */
 
 .body {
@@ -535,6 +617,38 @@
 
 .touch .filterRow {
   height: var(--mobile-list-filter-row-height);
+}
+
+/* Phone: the summary is hidden (Edit list is in the tab's sheet); Revert is a
+ * 36px icon button, Save 36px with its label. */
+.touch .filterRow [data-testid='list-summary'] {
+  display: none;
+}
+
+.touch .draftButton {
+  height: 36px;
+  border-radius: 8px;
+  font-size: var(--font-size-body);
+}
+
+.touch .revertButton {
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  background: var(--color-tint-6);
+}
+
+.touch .revertButton .draftLabel {
+  display: none;
+}
+
+.touch .saveButton {
+  width: auto;
+  padding: 0 12px 0 10px;
+}
+
+.touch .saveButton .draftLabel {
+  display: inline;
 }
 
 .touch .groupHeader {
