@@ -59,9 +59,9 @@ const purgePrompt = (page: Page) => page.getByRole('dialog', { name: 'Delete 1 o
 /** Whether the stores launch loads have loaded (read from the app's own module instances). */
 async function storesLoaded(page: Page): Promise<{ people: boolean; tags: boolean; todos: boolean }> {
   return page.evaluate(async () => {
-    const people = (await import(/* @vite-ignore */ '/src/stores/person-store.ts')) as { usePersonStore: { getState: () => { loaded: boolean } } }
-    const tags = (await import(/* @vite-ignore */ '/src/stores/tag-store.ts')) as { useTagStore: { getState: () => { loaded: boolean } } }
-    const todos = (await import(/* @vite-ignore */ '/src/stores/todo-store.ts')) as { useTodoStore: { getState: () => { loaded: boolean } } }
+    const people = (await import(/* @vite-ignore */ '/src/stores/person-store.ts' as string)) as { usePersonStore: { getState: () => { loaded: boolean } } }
+    const tags = (await import(/* @vite-ignore */ '/src/stores/tag-store.ts' as string)) as { useTagStore: { getState: () => { loaded: boolean } } }
+    const todos = (await import(/* @vite-ignore */ '/src/stores/todo-store.ts' as string)) as { useTodoStore: { getState: () => { loaded: boolean } } }
     return {
       people: people.usePersonStore.getState().loaded,
       tags: tags.useTagStore.getState().loaded,

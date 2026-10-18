@@ -12,8 +12,8 @@ type Store = { setState: (s: Record<string, unknown>) => void; getState: () => R
 
 async function setStorage(page: Page, fileStorage: Record<string, unknown>, snapshotWarning: string | null = null) {
   await page.evaluate(async ({ fileStorage, snapshotWarning }) => {
-    const fs = (await import(/* @vite-ignore */ '/src/services/file-storage-store.ts')) as { useFileStorageStore: Store }
-    const ops = (await import(/* @vite-ignore */ '/src/stores/file-ops-store.ts')) as { useFileOpsStore: Store }
+    const fs = (await import(/* @vite-ignore */ '/src/services/file-storage-store.ts' as string)) as { useFileStorageStore: Store }
+    const ops = (await import(/* @vite-ignore */ '/src/stores/file-ops-store.ts' as string)) as { useFileOpsStore: Store }
     fs.useFileStorageStore.setState(fileStorage)
     ops.useFileOpsStore.setState({ snapshotWarning })
   }, { fileStorage, snapshotWarning })
@@ -21,7 +21,7 @@ async function setStorage(page: Page, fileStorage: Record<string, unknown>, snap
 
 async function setTheme(page: Page, mode: 'light' | 'dark') {
   await page.evaluate(async (mode) => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts')) as { useSettingsStore: { getState: () => { setThemeMode: (m: string) => Promise<void> } } }
+    const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts' as string)) as { useSettingsStore: { getState: () => { setThemeMode: (m: string) => Promise<void> } } }
     await mod.useSettingsStore.getState().setThemeMode(mode)
   }, mode)
   await expect(page.locator('html')).toHaveAttribute('data-theme', mode)

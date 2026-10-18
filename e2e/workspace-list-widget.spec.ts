@@ -153,7 +153,7 @@ test('a list’s date filters: a due-date range and Follow-up Has a date both na
   const [stored] = await readListDefinitions(page)
   const predicate = (stored!.membership as { predicate: Record<string, unknown> }).predicate
   expect(predicate.dates).toEqual({
-    deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: expect.any(String) as string } },
+    deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: expect.any(String) } },
     followup: { match: 'set' },
   })
   expect('dateField' in predicate).toBe(false)
