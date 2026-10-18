@@ -1,16 +1,5 @@
-/* Modal overlay */
-.backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-canvas-draw);
-}
-
+/* The editor modal's panel (on the shared dialog frame: EditorModal). */
 .modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
@@ -20,7 +9,6 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  z-index: var(--z-dialog);
   box-shadow: var(--shadow-modal);
 }
 
@@ -289,70 +277,6 @@
   border-color: var(--color-text-muted);
 }
 
-/* Section divider between people and orgs */
-.sectionDivider {
-  border-top: 1px solid var(--color-border);
-  margin: 12px 0 8px;
-}
-
-.sectionLabel {
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0 10px 4px;
-}
-
-/* Org label on person rows */
-.orgLabel {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-/* Org dropdown selector */
-.orgDropdownWrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.orgToggleBtn {
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 3px 8px;
-  border-radius: var(--radius-chip);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.orgToggleBtn:hover {
-  border-color: var(--color-text-muted);
-}
-
-/* PortalDropdown owns position; this rule provides visual chrome only. */
-.orgDropdownPanel {
-  width: 200px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-modal);
-  overflow: hidden;
-}
-
-/* Bumps PortalDropdown's wrapper above the People modal (z-dialog) so the
-   org chip picker isn't behind the modal it was opened from. */
-.orgDropdownPortal {
-  z-index: var(--z-dialog-overlay);
-}
-
-
 .errorHint {
   font-size: var(--font-size-meta);
   color: var(--color-danger);
@@ -458,30 +382,6 @@
   border-color: var(--color-accent);
 }
 
-/* Hidden toggle in edit row */
-.hiddenToggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.hiddenToggle input {
-  margin: 0;
-  cursor: pointer;
-}
-
-/* Hidden label in row */
-.hiddenLabel {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
 /* Icon preview in row */
 .iconPreview {
   flex-shrink: 0;
@@ -517,4 +417,29 @@
     background: transparent;
     color: var(--color-text-primary);
   }
+}
+
+/* People: the email line wraps under name + initials. */
+.editRowWrap {
+  flex-wrap: wrap;
+}
+
+.editInputEmail {
+  composes: editInput;
+  /* Its own line under the color, name and initials. */
+  flex: 1 1 100%;
+}
+
+.editInputEmail[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.email {
+  flex: 0 1 auto;
+  max-width: 45%;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

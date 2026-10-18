@@ -8,7 +8,7 @@ const now = new Date()
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useStatusStore.setState({ statuses: [], loading: false, error: null })
+  useStatusStore.setState({ statuses: [] })
   useUndoStore.getState().clear()
 })
 
@@ -136,12 +136,11 @@ describe('useStatusStore', () => {
       await useStatusStore.getState().add('Open', '#00ff00')
       const statusId = useStatusStore.getState().statuses[0]!.id!
 
-      const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
       const todoId = await db.todos.add({
-        title: 'Task', isCompleted: false,
+        uid: 'status-store-task', title: 'Task', isCompleted: false,
         sortOrder: 0, createdAt: now, modifiedAt: now,
-        canvasId, statusId,
-      } as any)
+        statusId,
+      })
 
       await useStatusStore.getState().remove(statusId)
 
@@ -155,7 +154,7 @@ describe('useStatusStore', () => {
 
       await useStatusStore.getState().remove(id)
 
-      expect(useUndoStore.getState().canUndo()).toBe(true)
+      expect(useUndoStore.getState().undoStack.length).toBeGreaterThan(0)
     })
   })
 

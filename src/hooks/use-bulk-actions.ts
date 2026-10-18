@@ -2,9 +2,8 @@ import { useCallback } from 'react'
 import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
-import type { ScheduledValue } from '../models/scheduled-value'
+import { setUrgent as setUrgentOn } from '../services/clear-urgent'
 
 /**
  * Returns the set of IDs to act on: all selected IDs if the target is
@@ -37,24 +36,44 @@ export function useBulkActions() {
     useUIStore.getState().showBulkConfirmation('delete', ids)
   }, [])
 
-  const setScheduled = useCallback((todoId: number, value: ScheduledValue | null) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useTodoStore.getState().bulkSetScheduled(ids, value)
-    } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, scheduledDate: value ?? undefined })
-    }
-  }, [])
-
   const setDeadline = useCallback((todoId: number, date: Date | null) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
       useTodoStore.getState().bulkSetDeadline(ids, date)
     } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, dueDate: date ?? undefined })
+      void useTodoStore.getState().update(todoId, { dueDate: date ?? undefined })
     }
+  }, [])
+
+  const setFollowup = useCallback((todoId: number, date: Date | null) => {
+    const ids = getTargetIds(todoId)
+    if (ids.length > 1) {
+      useTodoStore.getState().bulkSetFollowup(ids, date)
+    } else {
+      void useTodoStore.getState().update(todoId, { nextFollowupAt: date ?? undefined })
+    }
+  }, [])
+
+  /** Puts the task (or the selection it's part of) in focus, or takes it out. */
+  const setFocus = useCallback((todoId: number, on: boolean) => {
+    void useTodoStore.getState().bulkSetFocus(getTargetIds(todoId), on)
+  }, [])
+
+  /**
+   * Flags the task (or the selection it's part of) urgent, or turns Urgent
+   * off — which asks about tasks still urgent by their due date.
+   */
+  const setUrgent = useCallback((todoId: number, on: boolean) => {
+    void setUrgentOn(getTargetIds(todoId), on)
+  }, [])
+
+  /** Flags the task (or the selection it's part of) important, or clears the flag. */
+  const setImportant = useCallback((todoId: number, on: boolean) => {
+    void useTodoStore.getState().bulkSetImportant(getTargetIds(todoId), on)
+  }, [])
+
+  const markFollowedUp = useCallback((todoId: number) => {
+    useTodoStore.getState().markFollowedUp(getTargetIds(todoId))
   }, [])
 
   const setStatus = useCallback((todoId: number, statusId: number | undefined) => {
@@ -62,18 +81,7 @@ export function useBulkActions() {
     if (ids.length > 1) {
       useTodoStore.getState().bulkSetStatus(ids, statusId)
     } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, statusId, modifiedAt: new Date() })
-    }
-  }, [])
-
-  const setProject = useCallback((todoId: number, projectId: number | undefined) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useTodoStore.getState().bulkSetProject(ids, projectId)
-    } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, projectId })
+      void useTodoStore.getState().update(todoId, { statusId })
     }
   }, [])
 
@@ -92,24 +100,6 @@ export function useBulkActions() {
       usePersonStore.getState().bulkUnassignPerson(ids, personId)
     } else {
       usePersonStore.getState().unassignPerson(todoId, personId)
-    }
-  }, [])
-
-  const quickAssignOrg = useCallback((todoId: number, orgId: number) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useOrgStore.getState().bulkAssignOrg(ids, orgId)
-    } else {
-      useOrgStore.getState().assignOrg(todoId, orgId)
-    }
-  }, [])
-
-  const quickUnassignOrg = useCallback((todoId: number, orgId: number) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useOrgStore.getState().bulkUnassignOrg(ids, orgId)
-    } else {
-      useOrgStore.getState().unassignOrg(todoId, orgId)
     }
   }, [])
 
@@ -134,14 +124,15 @@ export function useBulkActions() {
   return {
     toggleComplete,
     remove,
+    setFocus,
+    setUrgent,
+    setImportant,
     setStatus,
-    setScheduled,
     setDeadline,
-    setProject,
+    setFollowup,
+    markFollowedUp,
     quickAssignPerson,
     quickUnassignPerson,
-    quickAssignOrg,
-    quickUnassignOrg,
     quickAssignTag,
     quickUnassignTag,
   }

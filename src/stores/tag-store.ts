@@ -2,60 +2,45 @@ import { create } from 'zustand'
 import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
-import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
+import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
+import { loadFresh, optimistic, updateEntityInMap, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { undoable } from '../services/undoable'
-import { useSettingsStore } from './settings-store'
-
-/**
- * Thrown when `useTagStore.add` is called while the registry is at the
- * configured ceiling (`settings.maxTags`). The message is phrased for direct
- * user surfacing; `nlp-resolver.resolveTags` catches and logs it so a single
- * runaway `#tag` input can't break the whole task-create flow.
- */
-export class TagLimitError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TagLimitError'
-  }
-}
+import { undoable } from './undoable'
 
 interface TagState {
   tags: Tag[]
   assignedTagsMap: Map<number, Tag[]>
-  loading: boolean
-  error: string | null
+  /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
+  loaded: boolean
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
   add: (name: string, color?: string) => Promise<number>
   update: (tag: Tag) => Promise<void>
   remove: (id: number) => Promise<void>
-  loadAssignments: (todoIds: number[]) => Promise<void>
+  /** How many tasks (any, loaded or not) carry the tag — read from the database, for the delete confirm. */
+  countTasks: (tagId: number) => Promise<number>
+  loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assignTag: (todoId: number, tagId: number) => Promise<void>
   unassignTag: (todoId: number, tagId: number) => Promise<void>
   bulkAssignTag: (todoIds: number[], tagId: number) => Promise<void>
   bulkUnassignTag: (todoIds: number[], tagId: number) => Promise<void>
-  getAssignedTags: (todoId: number) => Tag[]
-  /**
-   * Count todos currently tagged with `tagId`, derived from the in-memory
-   * `assignedTagsMap`. Replaces `tagRepository.getTodoCount` for editor
-   * delete-confirmation prompts. The count reflects whatever todos have had
-   * their assignments loaded — caller should ensure `loadAssignments(allIds)`
-   * has run for the visible todo set (TagEditor calls it on mount).
-   */
-  selectTodoCountByTagId: (tagId: number) => number
-  /**
-   * Build a `Map<tagId, count>` over all entries in `assignedTagsMap`.
-   * Replaces `tagRepository.getTodoCounts` for the per-row chip in TagEditor.
-   * Same caveats as `selectTodoCountByTagId`.
-   */
-  selectTodoCountsByTag: () => Map<number, number>
+}
+
+/** Tag id → number of loaded todos carrying it, from an `assignedTagsMap`. */
+export function countTodosByTag(assignedTagsMap: ReadonlyMap<number, readonly Tag[]>): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const tags of assignedTagsMap.values()) {
+    for (const tag of tags) {
+      if (tag.id == null) continue
+      counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1)
+    }
+  }
+  return counts
 }
 
 export const useTagStore = create<TagState>((set, get) => {
-  const tagEnsure = makeEnsureLoaded(() => get().load())
+  const tagEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   const assignment = createAssignmentActions(
     {
       repo: {
@@ -69,84 +54,85 @@ export const useTagStore = create<TagState>((set, get) => {
     () => get().tags,
     () => get().assignedTagsMap,
     (map) => set({ assignedTagsMap: map }),
-    set,
   )
 
   return {
     tags: [],
     assignedTagsMap: new Map(),
-    loading: false,
-    error: null,
+    loaded: false,
 
     async load() {
-      const tags = await loadWithState(set, () => tagRepository.getAll(), 'tags')
-      if (tags) set({ tags })
+      const tags = await loadFresh(() => tagRepository.getAll(), 'tags')
+      if (tags) set({ tags, loaded: true })
     },
-    ensureLoaded: () => tagEnsure.ensureLoaded(),
+    ensureLoaded: tagEnsure,
 
-    async add(name: string, color = DEFAULT_ENTITY_COLOR) {
-      const trimmed = name.trim()
-      const target = trimmed.toLowerCase()
-      const existing = get().tags.find(
-        (t) => t.name.trim().toLowerCase() === target && t.id !== undefined,
-      )
-      if (existing?.id != null) return existing.id
-      const { maxTags } = useSettingsStore.getState()
-      if (get().tags.length >= maxTags) {
-        throw new TagLimitError(
-          `Tag limit reached (${maxTags}) — delete unused tags in Settings → Tags.`,
+    add(name: string, color = DEFAULT_ENTITY_COLOR) {
+      return trackWrite(async () => {
+        const trimmed = name.trim()
+        const target = trimmed.toLowerCase()
+        const existing = get().tags.find(
+          (t) => t.name.trim().toLowerCase() === target && t.id !== undefined,
         )
-      }
-      const id = await tagRepository.getOrCreate(trimmed, color)
-      if (!get().tags.some((t) => t.id === id)) {
-        set({ tags: [...get().tags, { id, name: trimmed, color }] })
-      }
-      return id
+        if (existing?.id != null) return existing.id
+        const id = await tagRepository.getOrCreate(trimmed, color)
+        if (!get().tags.some((t) => t.id === id)) {
+          set({ tags: [...get().tags, { id, name: trimmed, color }] })
+        }
+        return id
+      })
     },
 
     async update(tag: Tag) {
-      const prevTags = get().tags
-      const prevMap = get().assignedTagsMap
+      const prev = get().tags.find((t) => t.id === tag.id)
+      const applied = { ...tag }
+      const put = (t: Tag) => set({
+        tags: get().tags.map((q) => (q.id === t.id ? t : q)),
+        assignedTagsMap: updateEntityInMap(t, get().assignedTagsMap),
+      })
       return optimistic(
-        set,
-        () => set({
-          tags: prevTags.map((t) => (t.id === tag.id ? { ...tag } : t)),
-          assignedTagsMap: updateEntityInMap(tag, prevMap),
-        }),
+        () => put(applied),
         () => tagRepository.update(tag),
-        () => set({ tags: prevTags, assignedTagsMap: prevMap }),
+        // Only this tag, and only while it still holds this edit.
+        () => { if (prev && get().tags.find((t) => t.id === tag.id) === applied) put(prev) },
         'Failed to update tag',
       )
     },
 
-    async remove(id: number) {
-      const tag = get().tags.find((t) => t.id === id)
-      const joins = await captureJoinRows([
-        { table: db.todoTags, key: 'tagId', id },
-      ])
-      await tagRepository.delete(id)
-      const prevMap = get().assignedTagsMap
-      const nextMap = new Map(
-        Array.from(prevMap, ([k, tags]) => [k, tags.filter((t) => t.id !== id)] as const),
-      )
-      set({
-        tags: get().tags.filter((t) => t.id !== id),
-        assignedTagsMap: nextMap,
-      })
-      if (tag) {
-        undoable(
-          `Delete tag "${tag.name}"`,
-          () => get().remove(id),
-          async () => {
-            await tagRepository.restoreWithJoins(tag, joins)
-            await get().load()
-            const { useTodoStore } = await import('./todo-store')
-            const todoIds = useTodoStore.getState().todos.map((t) => t.id)
-            await get().loadAssignments(todoIds)
-          },
-          true,
+    countTasks(tagId: number) {
+      return tagRepository.getTodoCount(tagId)
+    },
+
+    remove(id: number) {
+      return trackWrite(async () => {
+        const tag = get().tags.find((t) => t.id === id)
+        const joins = await captureJoinRows([
+          { table: db.todoTags, key: 'tagId', id },
+        ])
+        await tagRepository.delete(id)
+        const prevMap = get().assignedTagsMap
+        const nextMap = new Map(
+          Array.from(prevMap, ([k, tags]) => [k, tags.filter((t) => t.id !== id)] as const),
         )
-      }
+        set({
+          tags: get().tags.filter((t) => t.id !== id),
+          assignedTagsMap: nextMap,
+        })
+        if (tag) {
+          undoable(
+            `Delete tag "${tag.name}"`,
+            () => get().remove(id),
+            async () => {
+              await tagRepository.restoreWithJoins(tag, joins)
+              await get().load()
+              // The restored joins are in the database, not in the map: re-read
+              // the assignments of the tasks the map holds (its keys).
+              await get().loadAssignments([...get().assignedTagsMap.keys()], { refetch: true })
+            },
+            true,
+          )
+        }
+      })
     },
 
     loadAssignments: assignment.loadAssignments,
@@ -154,28 +140,5 @@ export const useTagStore = create<TagState>((set, get) => {
     unassignTag: assignment.unassign,
     bulkAssignTag: assignment.bulkAssign,
     bulkUnassignTag: assignment.bulkUnassign,
-
-    getAssignedTags(todoId: number) {
-      return get().assignedTagsMap.get(todoId) ?? []
-    },
-
-    selectTodoCountByTagId(tagId: number) {
-      let count = 0
-      for (const tags of get().assignedTagsMap.values()) {
-        if (tags.some((t) => t.id === tagId)) count++
-      }
-      return count
-    },
-
-    selectTodoCountsByTag() {
-      const counts = new Map<number, number>()
-      for (const tags of get().assignedTagsMap.values()) {
-        for (const tag of tags) {
-          if (tag.id == null) continue
-          counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1)
-        }
-      }
-      return counts
-    },
   }
 })

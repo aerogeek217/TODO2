@@ -1,469 +1,302 @@
 import type { RecurrenceType } from '../models'
-import { type FuzzyToken, type ScheduledValue, makeFuzzy } from '../models/scheduled-value'
-import { MS_PER_DAY } from '../utils/date'
-import { resolveFuzzy } from '../utils/effective-date'
 import { normalizeTag } from '../utils/tags'
+import {
+  COMMAND_SHAPE,
+  lookupSlashCommand,
+  parseCommandDate,
+  parseRepeatArgument,
+  takesArgument,
+  type SlashCommandName,
+} from './slash-commands'
+import { collapseWhitespace } from '../utils/text'
+
+/**
+ * Task-text parser. Only explicit tokens set metadata:
+ *  - `@name` / `@"First Last"` — people (looked up by `nlp-resolver`);
+ *    like `#` and `/`, only at the start of the text or after whitespace;
+ *  - `#tag` — tags (lookup-or-create on submit);
+ *  - slash commands (`services/slash-commands`): `/urgent`, `/important`,
+ *    `/focus`, `/due <date>`, `/followup <date|interval|none>`,
+ *    `/repeat <frequency>`, `/status <name>`.
+ * Everything else — dates, weekday names, `every week` — is plain title
+ * text. The parser is store-free; `nlp-resolver.resolveInput` matches names.
+ */
 
 export interface ParsedToken {
-  /**
-   * 'date' covers single-word date keywords (today/tomorrow/day-names); the
-   * resolver decides fuzzy-vs-precise from the value.
-   * 'fuzzy-schedule' covers multi-word fuzzy windows (this week, next month, …).
-   * 'deadline' covers explicit deadline syntax: `by <date>` / `!<date>` — resolves
-   * to a concrete `dueDate`, never fuzzy.
-   */
-  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'project' | 'recurrence' | 'tag' | 'status'
+  type: 'person' | 'tag' | 'command'
+  /** The command, for `type: 'command'`. */
+  command?: SlashCommandName
+  /** Person / tag name, or the command's argument as typed (`''` for flags). */
   value: string
   raw: string
   start: number
   end: number
 }
 
+/**
+ * Something typed that looks like a command but sets nothing:
+ *  - `unknown` — `/urgnt` (not a command; stays in the title);
+ *  - `unreadable` — the argument can't be read, or is missing (`/due frday`,
+ *    `/status` at the end; stays in the title);
+ *  - `duplicate` — a second `/due` (… `/followup`, `/repeat`, `/status`):
+ *    the first wins, later ones stay in the title;
+ *  - `ignored` — `/repeat` without a `/due` date: dropped from the title,
+ *    sets nothing (repeating is anchored on the due date);
+ *  - `unmatched` — `/status` naming no status (set by `nlp-resolver`; stays
+ *    in the title).
+ */
+export interface CommandProblem {
+  kind: 'unknown' | 'unreadable' | 'duplicate' | 'ignored' | 'unmatched'
+  command?: SlashCommandName
+  raw: string
+  start: number
+  end: number
+}
+
 export interface ParsedInput {
+  /** The text parsed (input capped at `MAX_INPUT_LENGTH`). */
+  text: string
+  /** `text` with every token removed, whitespace collapsed. */
   title: string
+  /** Recognised tokens in text order (problems excluded). */
   tokens: ParsedToken[]
-  scheduledDate?: ScheduledValue
   dueDate?: Date
+  /** From `/repeat` — only applied when there is a due date to anchor on. */
   recurrence?: RecurrenceType
   persons: string[]
-  projects: string[]
   /** User-supplied tag names in first-seen order (trimmed, original case
    * preserved). Dedup is by case-folded slug so `#Foo` and `#foo` collapse to
    * one entry — the first-seen case wins. Resolver lookup is also
    * case-insensitive (`nlp-resolver.resolveTags`). */
   tags: string[]
-  /** Raw status names from `:foo` tokens in first-seen order. Resolved against
-   * the status registry by `resolveInput`; the parser stays store-free. */
-  statuses: string[]
+  /** Raw status name from `/status`; resolved by `resolveInput`. */
+  status?: string
+  urgent: boolean
+  important: boolean
+  focus: boolean
+  /** From `/followup <date|interval>`. */
+  nextFollowupAt?: Date
+  /** `/followup none`: the task gets no next follow-up (not the default). */
+  followupNone: boolean
+  problems: CommandProblem[]
 }
 
-// `@` mentions match either a person or an org. The parser stays store-free
-// and emits `'person'`-typed tokens for both kinds; `nlp-resolver.ts` does
-// person-first lookup and falls back to org for unmatched names. The token
-// type literal is kept as `'person'` for callsite-churn reasons (the resolver
-// routes correctly without it).
-const MENTION_PATTERN = /@"([^"]+)"|@(\w+)/g
-const PROJECT_PATTERN = /\/([A-Za-z0-9_-]+)/g
+// `@` mentions name a person. Whitespace-anchored like `#tag` and `/command`
+// (group 1 = the separator), so `bob@acme.com`, `a@b` or `(@Dana` are plain
+// text. The parser stays store-free and emits `'person'`-typed tokens;
+// `nlp-resolver.ts` looks the names up.
+const MENTION_PATTERN = /(^|\s)@(?:"([^"]+)"|(\w+))/g
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input) and group 2 is the slug. Separator stays in the remaining title
 // after token removal.
 const TAG_PATTERN = /(^|\s)#([A-Za-z0-9_-]+)/g
+// Whitespace-anchored `/word` (group 2) running to whitespace or the end.
+const SLASH_PATTERN = /(^|\s)\/(\S+)/g
 
-// Whitespace-anchored :status. First char must be a letter (so a stray `:` in
-// `12:30` / `notes: thing` doesn't trip — the leading-whitespace anchor would
-// already reject the latter; the letter-start anchors the former). Resolved
-// against the status registry by the resolver — the parser only extracts.
-const STATUS_PATTERN = /(^|\s):([A-Za-z][A-Za-z0-9_-]*)\b/g
-
-// Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
-// "this week" wins overlap-dedup against any embedded day name.
-const FUZZY_SCHEDULE_PATTERN = /\b(this\s+week|next\s+week|this\s+month|next\s+month)\b/gi
-
-// Numeric date sub-phrase: MM/DD with optional /YY or /YYYY suffix. Used both
-// inside deadline syntax (`due 5/4`, `by 6/3/27`) and as the bare scheduled
-// form. Year resolution lives in `parseNumericDate` — when omitted, the parser
-// rolls forward (past MM/DD → next year).
-const NUMERIC_DATE_SUB = String.raw`\d{1,2}\/\d{1,2}(?:\/(?:\d{2}|\d{4}))?`
-
-// Shared inner date phrase for deadline syntax. Group-1 is the date text.
-const DEADLINE_DATE_INNER = String.raw`(today|tomorrow|tmr|this\s+week|next\s+week|this\s+month|next\s+month|next\s+(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|in\s+\d+\s+days?|` + NUMERIC_DATE_SUB + String.raw`)`
-
-// "by <date>" phrase deadline
-const BY_DEADLINE_PATTERN = new RegExp(String.raw`\bby\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
-
-// "due <date>" phrase deadline — mirrors `BY_DEADLINE_PATTERN`. `:due` is a
-// status name (handled by STATUS_PATTERN), so the bare-word `due` here does
-// not collide.
-const DUE_DEADLINE_PATTERN = new RegExp(String.raw`\bdue\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
-
-// "!<date>" prefix deadline (single-word forms + numeric MM/DD)
-const BANG_DEADLINE_PATTERN = new RegExp(
-  String.raw`!(today|tomorrow|tmr|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|` + NUMERIC_DATE_SUB + String.raw`)\b`,
-  'gi',
-)
-
-// Bare numeric date (MM/DD, MM/DD/YY, MM/DD/YYYY) — extracted as a `'date'`
-// token so it flows through the same scheduled-date pipeline as `today` /
-// `tomorrow` / day names. Lookbehind/lookahead reject digit-or-slash neighbours
-// so paths like `path/12/05/file` and ISO-ish `2025/12/05` don't match.
-const NUMERIC_DATE_PATTERN = /(?<![\d/.])\d{1,2}\/\d{1,2}(?:\/(?:\d{2}|\d{4}))?(?![\d/])/g
-
-function parseRelativeDate(text: string): Date | null {
-  const lower = text.toLowerCase().trim()
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-  if (lower === 'today') return today
-  if (lower === 'tomorrow' || lower === 'tmr') {
-    return new Date(today.getTime() + MS_PER_DAY)
-  }
-  if (lower === 'yesterday') {
-    return new Date(today.getTime() - MS_PER_DAY)
-  }
-
-  // "next Monday", "next friday", etc.
-  const nextDayMatch = lower.match(/^next\s+(mon|tue|wed|thu|fri|sat|sun)\w*/i)
-  if (nextDayMatch && nextDayMatch[1] != null) {
-    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-    const matchedDay = nextDayMatch[1]
-    const targetDay = dayNames.findIndex((d) => matchedDay.toLowerCase().startsWith(d))
-    if (targetDay >= 0) {
-      const result = new Date(today)
-      const currentDay = result.getDay()
-      let diff = targetDay - currentDay
-      if (diff <= 0) diff += 7
-      result.setDate(result.getDate() + diff)
-      return result
-    }
-  }
-
-  // "in N days"
-  const inDaysMatch = lower.match(/^in\s+(\d+)\s+days?$/i)
-  if (inDaysMatch && inDaysMatch[1] != null) {
-    return new Date(today.getTime() + parseInt(inDaysMatch[1]) * MS_PER_DAY)
-  }
-
-  // Day names without "next" — assume this coming one
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  const dayAbbrevs = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-  for (let i = 0; i < dayNames.length; i++) {
-    if (lower === dayNames[i] || lower === dayAbbrevs[i]) {
-      const result = new Date(today)
-      const currentDay = result.getDay()
-      let diff = i - currentDay
-      if (diff <= 0) diff += 7
-      result.setDate(result.getDate() + diff)
-      return result
-    }
-  }
-
-  // Numeric MM/DD, MM/DD/YY, MM/DD/YYYY
-  const numeric = parseNumericDate(text, today)
-  if (numeric) return numeric
-
-  return null
-}
-
-/**
- * Parse a numeric date string in MM/DD, MM/DD/YY, or MM/DD/YYYY form.
- *  - Two-digit years are interpreted as 2000–2099.
- *  - When the year is omitted, the date rolls forward: if MM/DD this year is
- *    already past, advance to next year (so on 12/5/26 "due 2/3" → 2/3/27).
- *  - Out-of-range months/days, and dates that JS would silently roll over
- *    (Feb 30 → Mar 2, Feb 29 in a non-leap year), return null.
- */
-function parseNumericDate(text: string, today: Date): Date | null {
-  const match = text.trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/)
-  if (!match) return null
-
-  const monthRaw = match[1]
-  const dayRaw = match[2]
-  const yearRaw = match[3]
-  if (monthRaw == null || dayRaw == null) return null
-
-  const month = parseInt(monthRaw, 10)
-  const day = parseInt(dayRaw, 10)
-  if (month < 1 || month > 12) return null
-  if (day < 1 || day > 31) return null
-
-  let year: number
-  if (yearRaw != null) {
-    const y = parseInt(yearRaw, 10)
-    year = yearRaw.length === 2 ? 2000 + y : y
-  } else {
-    year = today.getFullYear()
-    const candidate = new Date(year, month - 1, day)
-    if (candidate.getTime() < today.getTime()) year += 1
-  }
-
-  const result = new Date(year, month - 1, day)
-  if (result.getMonth() !== month - 1 || result.getDate() !== day) return null
-  return result
-}
-
-// Patterns that look like dates in natural text
-const DATE_KEYWORDS = /\b(today|tomorrow|tmr|yesterday|(?:next\s+)?(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|in\s+\d+\s+days?)\b/gi
-
-// Recurrence patterns: "every day", "every week", "every 2 weeks", "repeat daily", etc.
-const RECURRENCE_PATTERN = /\b(?:every\s+(?:day|week|2\s+weeks|month|quarter|year)|repeat\s+(?:daily|weekly|biweekly|monthly|quarterly|yearly))\b/gi
-
-const RECURRENCE_MAP: Record<string, RecurrenceType> = {
-  'every day': 'daily', 'every week': 'weekly', 'every 2 weeks': 'biweekly',
-  'every month': 'monthly', 'every quarter': 'quarterly', 'every year': 'yearly',
-  'repeat daily': 'daily', 'repeat weekly': 'weekly', 'repeat biweekly': 'biweekly',
-  'repeat monthly': 'monthly', 'repeat quarterly': 'quarterly', 'repeat yearly': 'yearly',
-}
-
-// Single-word date keywords that resolve to fuzzy tokens (Phase 3 A.4).
-// 'yesterday' stays precise — when a user types it they mean the literal past date.
-const FUZZY_SINGLE: Record<string, FuzzyToken> = {
-  'today': 'today',
-  'tomorrow': 'tomorrow',
-  'tmr': 'tomorrow',
-}
-
-// Normalize a deadline date phrase to a concrete Date. Fuzzy windows
-// resolve to their end-of-window date (deadline is precise-only by schema).
-// Natural-language deadline parsing pins to Monday-first weeks regardless of
-// the user's `weekStartsOn`: the parse runs at type-time and the user sees the
-// resolved chip immediately, so locking parser semantics avoids surprise drift
-// if the user later flips the setting.
-function resolveDeadlineText(text: string, today: Date): Date | null {
-  const lower = text.toLowerCase().trim().replace(/\s+/g, ' ')
-  const fuzzyMap: Record<string, FuzzyToken> = {
-    'today': 'today',
-    'tomorrow': 'tomorrow',
-    'tmr': 'tomorrow',
-    'this week': 'this-week',
-    'next week': 'next-week',
-    'this month': 'this-month',
-    'next month': 'next-month',
-  }
-  const fuzzy = fuzzyMap[lower]
-  if (fuzzy) return resolveFuzzy(fuzzy, today, 1)
-  return parseRelativeDate(text)
-}
+/** Most words a date argument may span (`Tue 13 Oct 2026`). */
+const MAX_DATE_WORDS = 4
 
 const MAX_INPUT_LENGTH = 500
 
-export function parseInput(text: string): ParsedInput {
-  text = text.slice(0, MAX_INPUT_LENGTH)
-  const tokens: ParsedToken[] = []
-  let remaining = text
+interface Word { text: string; start: number; end: number }
 
+/**
+ * The whitespace-separated words of `text` from `from`, stopping before a
+ * word that starts another token (`@`, `#`, `/`). At most `max`.
+ */
+function wordsFrom(text: string, from: number, max: number): Word[] {
+  const out: Word[] = []
+  const re = /\S+/g
+  re.lastIndex = from
+  let m: RegExpExecArray | null
+  while (out.length < max && (m = re.exec(text)) !== null) {
+    if (/^[@#/]/.test(m[0])) break
+    out.push({ text: m[0], start: m.index, end: m.index + m[0].length })
+  }
+  return out
+}
+
+/** Index of the first non-blank character at or after `from` on the same run of spaces. */
+function skipSpaces(text: string, from: number): number {
+  let i = from
+  while (i < text.length && (text[i] === ' ' || text[i] === '\t')) i++
+  return i
+}
+
+interface ArgumentMatch { value: string; end: number }
+
+/** The argument after a command ending at `nameEnd`, or null when it can't be read. */
+function readArgument(
+  command: SlashCommandName,
+  text: string,
+  nameEnd: number,
+  today: Date,
+): { arg: ArgumentMatch; date?: Date; recurrence?: RecurrenceType; none?: boolean } | null {
+  const argStart = skipSpaces(text, nameEnd)
+  if (argStart === nameEnd) return null // no space after the command
+  if (command === 'status') {
+    if (text[argStart] === '"') {
+      const close = text.indexOf('"', argStart + 1)
+      if (close < 0) return null
+      const name = text.slice(argStart + 1, close).trim()
+      return name ? { arg: { value: name, end: close + 1 } } : null
+    }
+    const [word] = wordsFrom(text, argStart, 1)
+    if (!word || word.start !== argStart) return null
+    return { arg: { value: word.text, end: word.end } }
+  }
+  if (command === 'repeat') {
+    const [word] = wordsFrom(text, argStart, 1)
+    if (!word || word.start !== argStart) return null
+    const recurrence = parseRepeatArgument(word.text)
+    return recurrence ? { arg: { value: word.text, end: word.end }, recurrence } : null
+  }
+  // due / followup: the longest run of words that reads as a date.
+  const words = wordsFrom(text, argStart, MAX_DATE_WORDS)
+  if (words[0]?.start !== argStart) return null
+  if (command === 'followup' && words[0].text.toLowerCase() === 'none') {
+    return { arg: { value: words[0].text, end: words[0].end }, none: true }
+  }
+  for (let n = words.length; n > 0; n--) {
+    const last = words[n - 1]
+    if (!last) continue
+    const value = text.slice(argStart, last.end)
+    const date = parseCommandDate(value, today)
+    if (date) return { arg: { value, end: last.end }, date }
+  }
+  return null
+}
+
+/** `text` with the given spans removed, whitespace collapsed and trimmed. */
+export function removeSpans(text: string, spans: readonly { start: number; end: number }[]): string {
+  let out = text
+  for (const s of [...spans].sort((a, b) => b.start - a.start)) {
+    out = out.slice(0, s.start) + out.slice(s.end)
+  }
+  return collapseWhitespace(out)
+}
+
+export function parseInput(input: string, today: Date = new Date()): ParsedInput {
+  const text = input.slice(0, MAX_INPUT_LENGTH)
+  const tokens: ParsedToken[] = []
+  const problems: CommandProblem[] = []
   let match: RegExpExecArray | null
 
-  // Extract @-mentions (@name or @"First Last"). Token type stays `'person'`;
-  // the resolver routes mentions to person-first / org-fallback.
+  // Slash commands first: their arguments own the words they read.
+  const seen = new Set<SlashCommandName>()
+  let dueDate: Date | undefined
+  let recurrence: RecurrenceType | undefined
+  let repeatToken: ParsedToken | undefined
+  let status: string | undefined
+  let nextFollowupAt: Date | undefined
+  let followupNone = false
+  const flags = { urgent: false, important: false, focus: false }
+  SLASH_PATTERN.lastIndex = 0
+  while ((match = SLASH_PATTERN.exec(text)) !== null) {
+    const sep = match[1] ?? ''
+    const word = match[2] ?? ''
+    const start = match.index + sep.length
+    const nameEnd = start + 1 + word.length
+    if (!COMMAND_SHAPE.test(word)) continue // a path, URL fragment, `/2`…
+    const spec = lookupSlashCommand(word)
+    if (!spec) {
+      problems.push({ kind: 'unknown', raw: text.slice(start, nameEnd), start, end: nameEnd })
+      continue
+    }
+    const command = spec.name
+    if (!takesArgument(command)) {
+      flags[command as 'urgent' | 'important' | 'focus'] = true
+      tokens.push({ type: 'command', command, value: '', raw: text.slice(start, nameEnd), start, end: nameEnd })
+      continue
+    }
+    const read = readArgument(command, text, nameEnd, today)
+    if (!read) {
+      // The argument as far as one word, for the problem line.
+      const [arg] = wordsFrom(text, skipSpaces(text, nameEnd), 1)
+      const end = arg && arg.start === skipSpaces(text, nameEnd) && arg.start > nameEnd ? arg.end : nameEnd
+      problems.push({ kind: 'unreadable', command, raw: text.slice(start, end), start, end })
+      SLASH_PATTERN.lastIndex = end
+      continue
+    }
+    const end = read.arg.end
+    if (seen.has(command)) {
+      problems.push({ kind: 'duplicate', command, raw: text.slice(start, end), start, end })
+      SLASH_PATTERN.lastIndex = end
+      continue
+    }
+    seen.add(command)
+    const token: ParsedToken = { type: 'command', command, value: read.arg.value, raw: text.slice(start, end), start, end }
+    tokens.push(token)
+    if (command === 'due') dueDate = read.date
+    if (command === 'followup') {
+      if (read.none) followupNone = true
+      else nextFollowupAt = read.date
+    }
+    if (command === 'repeat') { recurrence = read.recurrence; repeatToken = token }
+    if (command === 'status') status = read.arg.value
+    SLASH_PATTERN.lastIndex = end
+  }
+  if (repeatToken && !dueDate) {
+    tokens.splice(tokens.indexOf(repeatToken), 1)
+    // Kept on `recurrence`: a due date set elsewhere (the editor's picker)
+    // can still anchor it; with none, every applier drops it.
+    problems.push({ kind: 'ignored', command: 'repeat', raw: repeatToken.raw, start: repeatToken.start, end: repeatToken.end })
+  }
+
+  const inCommand = (start: number, end: number) =>
+    tokens.some((t) => start < t.end && end > t.start) || problems.some((p) => start < p.end && end > p.start)
+
+  // @-mentions (@name or @"First Last").
+  const persons: string[] = []
   MENTION_PATTERN.lastIndex = 0
   while ((match = MENTION_PATTERN.exec(text)) !== null) {
-    const value = match[1] ?? match[2]
-    if (value == null) continue
-    tokens.push({
-      type: 'person',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
+    const value = match[2] ?? match[3]
+    const start = match.index + (match[1]?.length ?? 0)
+    const end = match.index + match[0].length
+    if (value == null || inCommand(start, end)) continue
+    tokens.push({ type: 'person', value, raw: text.slice(start, end), start, end })
+    persons.push(value)
   }
 
-  // Extract projects (/name) — only when preceded by whitespace or at start
-  PROJECT_PATTERN.lastIndex = 0
-  while ((match = PROJECT_PATTERN.exec(text)) !== null) {
-    if (match.index > 0 && !/\s/.test(text[match.index - 1] ?? '')) continue
-    const value = match[1]
-    if (value == null) continue
-    tokens.push({
-      type: 'project',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Extract tags (#name) — whitespace-preceded or at start of input. Pushed
-  // after project extraction so `/foo` wins overlap-dedup against any
-  // hypothetical conflict; leading separator in group 1 stays in the title.
+  // Tags (#name) — whitespace-preceded or at start of input; the leading
+  // separator in group 1 stays in the title.
+  const tags: string[] = []
+  const seenTags = new Set<string>()
   TAG_PATTERN.lastIndex = 0
   while ((match = TAG_PATTERN.exec(text)) !== null) {
     const sep = match[1]
     const name = match[2]
     if (sep == null || name == null) continue
-    const sepLen = sep.length
-    const tagStart = match.index + sepLen
-    const tagEnd = tagStart + 1 + name.length
-    tokens.push({
-      type: 'tag',
-      value: name,
-      raw: text.slice(tagStart, tagEnd),
-      start: tagStart,
-      end: tagEnd,
-    })
-  }
-
-  // Extract statuses (:name) — whitespace-preceded or at start of input.
-  // Pushed before deadlines / dates so `:tomorrow` (status) wins overlap-dedup
-  // against any same-text date keyword. `!<weekday>` deadline syntax uses `!`
-  // not `:` and stays unaffected.
-  STATUS_PATTERN.lastIndex = 0
-  while ((match = STATUS_PATTERN.exec(text)) !== null) {
-    const sep = match[1]
-    const name = match[2]
-    if (sep == null || name == null) continue
-    const sepLen = sep.length
-    const statusStart = match.index + sepLen
-    const statusEnd = statusStart + 1 + name.length
-    tokens.push({
-      type: 'status',
-      value: name,
-      raw: text.slice(statusStart, statusEnd),
-      start: statusStart,
-      end: statusEnd,
-    })
-  }
-
-  // Extract explicit deadline tokens BEFORE fuzzy-schedule / date keywords so
-  // the enclosing "by <date>" / "!<date>" phrase wins overlap-dedup against
-  // the inner date text.
-  BY_DEADLINE_PATTERN.lastIndex = 0
-  while ((match = BY_DEADLINE_PATTERN.exec(text)) !== null) {
-    const value = match[1]
-    if (value == null) continue
-    tokens.push({
-      type: 'deadline',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-  DUE_DEADLINE_PATTERN.lastIndex = 0
-  while ((match = DUE_DEADLINE_PATTERN.exec(text)) !== null) {
-    const value = match[1]
-    if (value == null) continue
-    tokens.push({
-      type: 'deadline',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-  BANG_DEADLINE_PATTERN.lastIndex = 0
-  while ((match = BANG_DEADLINE_PATTERN.exec(text)) !== null) {
-    const value = match[1]
-    if (value == null) continue
-    tokens.push({
-      type: 'deadline',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Extract fuzzy schedule windows BEFORE DATE_KEYWORDS so multi-word tokens
-  // win the overlap-dedup pass against any bare day name embedded inside.
-  FUZZY_SCHEDULE_PATTERN.lastIndex = 0
-  while ((match = FUZZY_SCHEDULE_PATTERN.exec(text)) !== null) {
-    tokens.push({
-      type: 'fuzzy-schedule',
-      value: match[0].toLowerCase().replace(/\s+/g, '-'),
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Extract dates
-  DATE_KEYWORDS.lastIndex = 0
-  while ((match = DATE_KEYWORDS.exec(text)) !== null) {
-    const lower = match[0].toLowerCase()
-    if (FUZZY_SINGLE[lower] || parseRelativeDate(match[0])) {
-      tokens.push({
-        type: 'date',
-        value: match[0],
-        raw: match[0],
-        start: match.index,
-        end: match.index + match[0].length,
-      })
+    const start = match.index + sep.length
+    const end = start + 1 + name.length
+    if (inCommand(start, end)) continue
+    tokens.push({ type: 'tag', value: name, raw: text.slice(start, end), start, end })
+    // Dedup by case-folded slug (`normalizeTag`), but keep the user-supplied
+    // case (trimmed) so `#FooBar` round-trips as `FooBar`.
+    const slug = normalizeTag(name)
+    if (slug && !seenTags.has(slug)) {
+      seenTags.add(slug)
+      tags.push(name.trim())
     }
   }
 
-  // Extract bare numeric dates (MM/DD, MM/DD/YY, MM/DD/YYYY). Pushed after the
-  // deadline patterns so `due 5/4` already owns those positions; non-prefixed
-  // numeric dates land here as `'date'` tokens (scheduled-date pipeline).
-  NUMERIC_DATE_PATTERN.lastIndex = 0
-  while ((match = NUMERIC_DATE_PATTERN.exec(text)) !== null) {
-    if (!parseRelativeDate(match[0])) continue
-    tokens.push({
-      type: 'date',
-      value: match[0],
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Extract recurrence
-  RECURRENCE_PATTERN.lastIndex = 0
-  while ((match = RECURRENCE_PATTERN.exec(text)) !== null) {
-    tokens.push({
-      type: 'recurrence',
-      value: match[0].toLowerCase(),
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Remove cross-type overlaps; earlier-pushed tokens win (person/project > fuzzy-schedule > date > recurrence)
-  const deduped: ParsedToken[] = []
-  for (const token of tokens) {
-    const overlaps = deduped.some((t) => token.start < t.end && token.end > t.start)
-    if (!overlaps) deduped.push(token)
-  }
-  tokens.length = 0
-  tokens.push(...deduped)
-
-  // Sort tokens by position
   tokens.sort((a, b) => a.start - b.start)
+  problems.sort((a, b) => a.start - b.start)
+  // Recognised tokens leave the title; so does an ignored `/repeat`.
+  const removed = [...tokens, ...problems.filter((p) => p.kind === 'ignored')]
 
-  // Remove token text from title (work backwards to preserve indices)
-  const sortedDesc = [...tokens].sort((a, b) => b.start - a.start)
-  for (const token of sortedDesc) {
-    remaining = remaining.slice(0, token.start) + remaining.slice(token.end)
+  return {
+    text,
+    title: removeSpans(text, removed),
+    tokens,
+    dueDate,
+    recurrence,
+    persons,
+    tags,
+    status,
+    ...flags,
+    nextFollowupAt,
+    followupNone,
+    problems,
   }
-  const title = remaining.replace(/\s+/g, ' ').trim()
-
-  // Resolve values
-  let scheduledDate: ScheduledValue | undefined
-  let dueDate: Date | undefined
-  let recurrence: RecurrenceType | undefined
-  const persons: string[] = []
-  const projects: string[] = []
-  const tags: string[] = []
-  const statuses: string[] = []
-  const seenTags = new Set<string>()
-  const now = new Date()
-
-  for (const token of tokens) {
-    if (token.type === 'deadline' && dueDate === undefined) {
-      const parsed = resolveDeadlineText(token.value, now)
-      if (parsed) dueDate = parsed
-    }
-    if (token.type === 'fuzzy-schedule' && scheduledDate === undefined) {
-      scheduledDate = makeFuzzy(token.value as FuzzyToken, now)
-    }
-    if (token.type === 'date' && scheduledDate === undefined) {
-      const lower = token.value.toLowerCase()
-      if (FUZZY_SINGLE[lower]) {
-        scheduledDate = makeFuzzy(FUZZY_SINGLE[lower], now)
-      } else {
-        const parsed = parseRelativeDate(token.value)
-        if (parsed) scheduledDate = { kind: 'date', value: parsed }
-      }
-    }
-    if (token.type === 'recurrence' && recurrence === undefined) {
-      recurrence = RECURRENCE_MAP[token.value]
-    }
-    if (token.type === 'person') persons.push(token.value)
-    if (token.type === 'project') projects.push(token.value)
-    if (token.type === 'tag') {
-      // Dedup by case-folded slug (`normalizeTag`), but write the user-supplied
-      // case (trimmed) so `#FooBar` round-trips as `FooBar`. The resolver
-      // (`nlp-resolver.resolveTags`) also matches case-insensitively, so the
-      // registry never gets two entries for the same case-folded name.
-      const slug = normalizeTag(token.value)
-      if (slug && !seenTags.has(slug)) {
-        seenTags.add(slug)
-        tags.push(token.value.trim())
-      }
-    }
-    if (token.type === 'status') statuses.push(token.value)
-  }
-
-  return { title, tokens, scheduledDate, dueDate, recurrence, persons, projects, tags, statuses }
 }

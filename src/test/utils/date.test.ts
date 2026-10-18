@@ -3,9 +3,10 @@ import {
   MS_PER_DAY,
   startOfDay,
   startOfToday,
-  isSameDay,
   formatDate,
   formatDateShort,
+  formatDateNumeric,
+  formatDateWith,
   formatRelativeTime,
   toDateInputValue,
 } from '../../utils/date'
@@ -60,37 +61,6 @@ describe('startOfToday', () => {
   })
 })
 
-describe('isSameDay', () => {
-  it('returns true for dates on the same calendar day', () => {
-    const a = new Date(2024, 3, 10, 8, 0, 0)
-    const b = new Date(2024, 3, 10, 22, 59, 59)
-    expect(isSameDay(a, b)).toBe(true)
-  })
-
-  it('returns false for dates on different days', () => {
-    const a = new Date(2024, 3, 10)
-    const b = new Date(2024, 3, 11)
-    expect(isSameDay(a, b)).toBe(false)
-  })
-
-  it('returns false for same day different months', () => {
-    const a = new Date(2024, 3, 10)
-    const b = new Date(2024, 4, 10)
-    expect(isSameDay(a, b)).toBe(false)
-  })
-
-  it('returns false for same day different years', () => {
-    const a = new Date(2023, 3, 10)
-    const b = new Date(2024, 3, 10)
-    expect(isSameDay(a, b)).toBe(false)
-  })
-
-  it('returns true when comparing identical date objects', () => {
-    const a = new Date(2024, 0, 1)
-    expect(isSameDay(a, a)).toBe(true)
-  })
-})
-
 describe('formatDate', () => {
   it('formats a date as "Mon DD, YYYY"', () => {
     const d = new Date(2024, 0, 5) // Jan 5, 2024
@@ -120,6 +90,31 @@ describe('formatDateShort', () => {
     const now = new Date()
     const d = new Date(now.getFullYear() - 2, 11, 31)
     expect(formatDateShort(d)).toBe(`Dec 31, ${now.getFullYear() - 2}`)
+  })
+})
+
+describe('formatDateNumeric', () => {
+  it('is MM/DD, zero-padded, in any year', () => {
+    expect(formatDateNumeric(new Date(2026, 9, 5))).toBe('10/05')
+    expect(formatDateNumeric(new Date(2026, 0, 31))).toBe('01/31')
+    expect(formatDateNumeric(new Date(2031, 11, 9))).toBe('12/09')
+  })
+})
+
+describe('formatDateWith', () => {
+  it('reads as toLocaleDateString in en-US with the same options', () => {
+    const d = new Date(2026, 9, 5)
+    const cases: Intl.DateTimeFormatOptions[] = [
+      { weekday: 'short' },
+      { month: 'short' },
+      { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' },
+    ]
+    for (const options of cases) expect(formatDateWith(d, options)).toBe(d.toLocaleDateString('en-US', options))
+  })
+
+  it('an invalid date reads "Invalid Date" as toLocaleDateString does, instead of throwing', () => {
+    const bad = new Date(Number.NaN)
+    expect(formatDateWith(bad, { month: 'short' })).toBe(bad.toLocaleDateString('en-US', { month: 'short' }))
   })
 })
 

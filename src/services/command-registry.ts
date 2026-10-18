@@ -1,20 +1,30 @@
-import type { PersistedTodoItem, Project, Status } from '../models'
+import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
-import { formatShortcut } from '../utils/platform'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from '../routes'
+import { isValidEmail } from '../utils/person'
+import { byName } from '../utils/sort-order'
+import { useUndoStore } from '../stores/undo-store'
+import { useUIStore } from '../stores/ui-store'
+import { useTodoStore } from '../stores/todo-store'
+import { useSettingsStore } from '../stores/settings-store'
+import { shortcutLabel } from '../utils/shortcut-bindings'
+import type { ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 
-export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks' | 'projects'
+/** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
+export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
 
 export interface Command {
   id: string
   name: string
   shortcut?: string
+  /** Muted text on the right of the row (e.g. `4 open tasks`). */
+  hint?: string
   category: CommandCategory
   action: () => void
 }
 
 export interface CommandContext {
-  navigateTo: (path: string) => void
+  /** Opens the Settings modal. */
+  openSettings: () => void
   openQuickAdd: () => void
   /** Number of currently selected tasks */
   selectionCount: number
@@ -30,67 +40,75 @@ export interface CommandContext {
   setDateRange: (start: Date | null, end: Date | null) => void
   /** Lazy todo getter (for task search — only called when palette has a query) */
   getTodos: () => PersistedTodoItem[]
-  /** Lazy project getter (for project navigation — only called when palette has a query) */
-  getProjects: () => Project[]
-  /** Navigate to a task on canvas */
+  /** Open a task (from a palette task search hit) */
   focusTask: (todoId: number) => void
-  /** Navigate to a project on canvas */
-  focusProject: (projectId: number) => void
-  /** Fit all nodes into view */
-  fitView?: () => void
-  /** Canvas-only: create floating note */
-  createFloatingNote?: () => void
-  /** Canvas-only: toggle project navigator */
-  toggleProjectNavigator?: () => void
   /** Open keyboard shortcuts modal */
   openShortcutsModal?: () => void
   /** Statuses for bulk commands */
   getStatuses?: () => Status[]
+  /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
+  openCheckinDialog?: (personIds?: number[]) => void
+  /** Opens the check-in reply import dialog. */
+  openCheckinImport?: () => void
+  /** People, for the per-person check-in commands. */
+  getPeople?: () => readonly Person[]
+  /** Open tasks assigned per person id (people with none may be absent). */
+  getOpenTaskCounts?: () => ReadonlyMap<number, number>
 }
 
-export function createCommands(ctx: CommandContext): Command[] {
-  const cmdF = formatShortcut('Mod-F')
-  const cmdZero = formatShortcut('Mod-0')
-  const cmdSpace = formatShortcut('Mod-Space')
-  const cmdZ = formatShortcut('Mod-Z')
-  const cmdShiftZ = formatShortcut('Mod-Shift-Z')
-  const cmdA = formatShortcut('Mod-A')
-  const cmdX = formatShortcut('Mod-X')
+const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
+
+/**
+ * `Email check-in: <person>` for each person with a valid email address and at
+ * least one open task, by name; the hint counts their open tasks.
+ */
+function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) => void): Command[] {
+  const counts = ctx.getOpenTaskCounts?.() ?? new Map<number, number>()
+  return (ctx.getPeople?.() ?? [])
+    .flatMap((p) => {
+      const id = p.id
+      const n = id != null ? counts.get(id) ?? 0 : 0
+      if (id == null || n === 0 || !isValidEmail(p.email ?? '')) return []
+      return [{ id, name: p.name, n }]
+    })
+    .sort(byName)
+    .map(({ id, name, n }): Command => ({
+      id: `email-checkin-${id}`,
+      name: `Email check-in: ${name}`,
+      hint: openTasksLabel(n),
+      category: 'email',
+      action: () => open([id]),
+    }))
+}
+
+/** The palette's commands; key hints show the live keys (`overrides`: the user's shortcut changes). */
+export function createCommands(
+  ctx: CommandContext,
+  overrides: ShortcutOverrides = useSettingsStore.getState().shortcutOverrides,
+): Command[] {
+  const keys = (id: ShortcutId) => shortcutLabel(id, overrides)
   const commands: Command[] = [
     // Navigation
-    { id: 'nav-canvas', name: 'Go to Canvas', shortcut: 'G then C', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CANVAS) },
-    { id: 'nav-list', name: 'Go to List', shortcut: 'G then L', category: 'navigation', action: () => ctx.navigateTo(ROUTE_LIST) },
-    { id: 'nav-calendar', name: 'Go to Calendar', shortcut: 'G then A', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CALENDAR) },
-    { id: 'nav-settings', name: 'Go to Settings', shortcut: 'G then S', category: 'navigation', action: () => ctx.navigateTo(ROUTE_SETTINGS) },
-    { id: 'focus-filter', name: 'Focus Filters', shortcut: 'F', category: 'navigation', action: () => {
+    { id: 'open-settings', name: 'Open Settings', shortcut: keys('open-settings'), category: 'navigation', action: ctx.openSettings },
+    { id: 'focus-filter', name: 'Focus Filters', shortcut: keys('focus-filters'), category: 'navigation', action: () => {
       const filterRow = document.querySelector('[data-filter-row]')
       const firstBtn = filterRow?.querySelector('button') as HTMLElement | null
       firstBtn?.focus()
     }},
-    { id: 'focus-search', name: 'Focus Search', shortcut: cmdF, category: 'navigation', action: () => {
+    { id: 'focus-search', name: 'Focus Search', shortcut: keys('focus-search'), category: 'navigation', action: () => {
       const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement | null
       if (searchInput) { searchInput.focus(); searchInput.select() }
     }},
-    ...(ctx.fitView ? [{ id: 'fit-view', name: 'Fit All to View', shortcut: cmdZero, category: 'navigation' as CommandCategory, action: ctx.fitView }] : []),
-    ...(ctx.toggleProjectNavigator ? [{ id: 'toggle-project-nav', name: 'Toggle Project Navigator', shortcut: 'P', category: 'navigation' as CommandCategory, action: ctx.toggleProjectNavigator }] : []),
-    ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: '?', category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
+    ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: keys('show-shortcuts'), category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
 
     // Task actions
-    { id: 'new-task', name: 'New Task', shortcut: cmdSpace, category: 'task', action: ctx.openQuickAdd },
-    ...(ctx.createFloatingNote ? [{ id: 'new-floating-note', name: 'New Note', shortcut: 'N', category: 'task' as CommandCategory, action: ctx.createFloatingNote }] : []),
-    { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: async () => {
-      const { useUndoStore } = await import('../stores/undo-store')
-      useUndoStore.getState().undo()
-    }},
-    { id: 'redo', name: 'Redo', shortcut: cmdShiftZ, category: 'task', action: async () => {
-      const { useUndoStore } = await import('../stores/undo-store')
-      useUndoStore.getState().redo()
-    }},
-    { id: 'select-all', name: 'Select All Tasks', shortcut: cmdA, category: 'task', action: async () => {
+    { id: 'new-task', name: 'New Task', shortcut: keys('quick-add'), category: 'task', action: ctx.openQuickAdd },
+    { id: 'undo', name: 'Undo', shortcut: keys('undo'), category: 'task', action: () => { void useUndoStore.getState().undo() } },
+    { id: 'redo', name: 'Redo', shortcut: keys('redo'), category: 'task', action: () => { void useUndoStore.getState().redo() } },
+    { id: 'select-all', name: 'Select All Tasks', shortcut: keys('select-all'), category: 'task', action: () => {
       const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
       if (rows.length > 0) {
         const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
-        const { useUIStore } = await import('../stores/ui-store')
         useUIStore.getState().selectAll(todoIds)
       }
     }},
@@ -105,6 +123,16 @@ export function createCommands(ctx: CommandContext): Command[] {
     }},
   ]
 
+  // Email
+  const openCheckinDialog = ctx.openCheckinDialog
+  if (openCheckinDialog) {
+    commands.push({ id: 'email-checkins', name: 'Email task check-ins…', hint: 'choose people', category: 'email', action: () => openCheckinDialog() })
+  }
+  if (ctx.openCheckinImport) {
+    commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
+  }
+  if (openCheckinDialog) commands.push(...personCheckinCommands(ctx, openCheckinDialog))
+
   // Bulk actions — only when tasks are selected
   if (ctx.selectionCount === 1) {
     commands.push({
@@ -113,7 +141,6 @@ export function createCommands(ctx: CommandContext): Command[] {
         const ids = ctx.getSelectedIds()
         const onlyId = ids[0]
         if (ids.length === 1 && onlyId != null) {
-          const { useTodoStore } = await import('../stores/todo-store')
           await useTodoStore.getState().duplicate(onlyId)
         }
       },
@@ -145,16 +172,6 @@ export function createCommands(ctx: CommandContext): Command[] {
     }
     commands.push(
       { id: 'bulk-delete', name: `Delete ${label}`, category: 'bulk', action: () => ctx.bulkRemove(ctx.getSelectedIds()) },
-      { id: 'bulk-cut', name: `Cut ${label}`, shortcut: cmdX, category: 'bulk', action: async () => {
-        const ids = ctx.getSelectedIds()
-        if (ids.length > 0) {
-          const { useTodoStore } = await import('../stores/todo-store')
-          const { useUIStore } = await import('../stores/ui-store')
-          const todos = useTodoStore.getState().todos
-          const first = todos.find(t => ids.includes(t.id))
-          useUIStore.getState().cutTasks(ids, first?.projectId ?? null)
-        }
-      }},
     )
   }
 
@@ -163,7 +180,7 @@ export function createCommands(ctx: CommandContext): Command[] {
 
 /**
  * Filter-first dynamic command search — only creates Command objects for
- * todos/projects whose names match the query. Called lazily by the command
+ * todos whose titles match the query. Called lazily by the command
  * palette when the user types a search string.
  */
 export function searchDynamicCommands(query: string, ctx: CommandContext): Command[] {
@@ -171,23 +188,12 @@ export function searchDynamicCommands(query: string, ctx: CommandContext): Comma
   const q = query.toLowerCase()
   const results: Command[] = []
 
-  for (const project of ctx.getProjects()) {
-    if (project.name.toLowerCase().includes(q)) {
-      results.push({
-        id: `project-${project.id}`,
-        name: project.name,
-        category: 'projects',
-        action: () => ctx.focusProject(project.id!),
-      })
-    }
-  }
-
   for (const todo of ctx.getTodos()) {
     if (todo.title.toLowerCase().includes(q)) {
       results.push({
         id: `task-${todo.id}`,
         name: todo.title,
-        category: 'tasks',
+        category: 'search-results',
         action: () => ctx.focusTask(todo.id),
       })
     }

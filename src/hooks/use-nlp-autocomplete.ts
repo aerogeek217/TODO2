@@ -1,216 +1,156 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { useLatestRef } from './use-latest-ref'
+import { useSettingsStore } from '../stores/settings-store'
+import {
+  applyAutocompletePick,
+  bestMatchCompletion,
+  carrySelection,
+  computeAutocomplete,
+  isSelectable,
+  isVisible,
+  type AutocompleteItem,
+  type AutocompleteRow,
+  type AutocompleteView,
+} from '../services/nlp-autocomplete'
 
-/** Trigger characters that open the NLP autocomplete dropdown. */
-export const NLP_TRIGGERS = ['@', '/', '#', ':'] as const
-export type NlpTrigger = (typeof NLP_TRIGGERS)[number]
-
-const NLP_TRIGGER_SET = new Set<string>(NLP_TRIGGERS)
-
-export interface AutocompleteItem {
-  id: number
-  name: string
-  color?: string
-  kind: 'person' | 'org' | 'project' | 'tag' | 'status'
-}
+export { NLP_TRIGGERS, type NlpTrigger, type AutocompleteItem, type AutocompleteRow } from '../services/nlp-autocomplete'
 
 export interface AutocompleteState {
   visible: boolean
-  trigger: NlpTrigger | null
-  query: string
-  items: AutocompleteItem[]
+  view: AutocompleteView | null
+  /** The active row (↑/↓ move it, no wrap). */
   selectedIndex: number
-  /** Position relative to the input element */
+  /** ↑/↓ moved the active row in this list (with `enterSubmits`, ⏎ then picks it). */
+  navigated: boolean
+  /** Left offset of the trigger character within the input, for anchoring. */
   caretLeft: number
 }
 
-const initialState: AutocompleteState = {
-  visible: false,
-  trigger: null,
-  query: '',
-  items: [],
-  selectedIndex: 0,
-  caretLeft: 0,
-}
+const initialState: AutocompleteState = { visible: false, view: null, selectedIndex: 0, navigated: false, caretLeft: 0 }
+const NO_ITEMS: AutocompleteItem[] = []
+
+type TextInput = HTMLInputElement | HTMLTextAreaElement
 
 interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
-  projects?: AutocompleteItem[]
-  orgs?: AutocompleteItem[]
   tags?: AutocompleteItem[]
+  /** Statuses in Settings order (the `/status` argument). */
   statuses?: AutocompleteItem[]
+  /** `/` opens the slash-command menu (task text that is parsed on create). */
+  commands?: boolean
+  /**
+   * ⏎ belongs to the host unless ↑/↓ moved the active row: `handleKeyDown`
+   * leaves it unconsumed, and the host submits `completeForSubmit(value)`.
+   * Off: ⏎ always picks while the popup is open.
+   */
+  enterSubmits?: boolean
+  /** Writes a pick into the input: set the value, then put the caret at `cursor`. */
+  onApply: (value: string, cursor: number) => void
 }
 
-/**
- * Hook for @person autocomplete in input fields.
- * Returns state and handlers to wire into an input element.
- */
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = [], statuses = [] }: UseNlpAutocompleteOptions) {
+/** Pixel offset of `value[0, index)` in `input`'s font, clamped to the input. */
+function measureCaretLeft(input: TextInput | null, value: string, index: number): number {
+  if (!input) return 0
+  const style = getComputedStyle(input)
+  const ctx = measureCanvas?.getContext('2d')
+  if (!ctx) return 0
+  ctx.font = `${style.fontSize} ${style.fontFamily}`
+  const left = ctx.measureText(value.slice(0, index)).width - input.scrollLeft
+  return Math.max(0, Math.min(left, input.offsetWidth - 200))
+}
+
+/**
+ * The `@ # /` autocomplete popup for a React text input: wraps the pure
+ * `services/nlp-autocomplete` with popup state, caret anchoring and keys.
+ * Hosts call `handleInputChange` on every change, route keydown through
+ * `handleKeyDown` (true = consumed: prevent default, stop propagation), and
+ * render `NlpPopup` with `state`. While the popup is open Tab picks the
+ * active row; ⏎ picks it too — or, with `enterSubmits`, only after ↑/↓
+ * moved it, and otherwise goes to the host, which submits
+ * `completeForSubmit(value)` (the half-typed token completed to its best
+ * match).
+ */
+export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
-  const triggerPosRef = useRef<number>(-1)
+  /** The text the popup was last computed for (re-read when the candidates change). */
+  const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
+  const followupDefault = useSettingsStore((s) => s.followupDefaultInterval)
+  const onApplyRef = useLatestRef(onApply)
 
-  const dismiss = useCallback(() => {
-    setState(initialState)
-    triggerPosRef.current = -1
-  }, [])
+  const dismiss = useCallback(() => setState(initialState), [])
 
-  const handleInputChange = useCallback((
-    value: string,
-    cursorPos: number,
-    inputEl: HTMLInputElement | HTMLTextAreaElement | null,
-  ) => {
-    // Find the trigger character before cursor
-    const beforeCursor = value.slice(0, cursorPos)
-    // Look backwards for @, /, #, or : that isn't preceded by a word character
-    let triggerIdx = -1
-    let triggerChar: NlpTrigger | null = null
-    for (let i = beforeCursor.length - 1; i >= 0; i--) {
-      const ch = beforeCursor[i]
-      if (ch === ' ' || ch === '\t' || ch === '\n') break // whitespace before finding trigger = no trigger
-      if (ch !== undefined && NLP_TRIGGER_SET.has(ch) && (i === 0 || /\s/.test(beforeCursor[i - 1] ?? ''))) {
-        triggerIdx = i
-        triggerChar = ch as NlpTrigger
-        break
-      }
-    }
-
-    if (triggerChar === null || triggerIdx === -1) {
-      if (state.visible) dismiss()
+  const handleInputChange = useCallback((value: string, cursor: number, input: TextInput | null) => {
+    lastInputRef.current = { value, cursor, input }
+    const view = computeAutocomplete(value, cursor, {
+      people, tags, statuses, commands, followupDefault, today: new Date(),
+    })
+    if (!isVisible(view)) {
+      setState((s) => (s.visible ? initialState : s))
       return
     }
-
-    const query = beforeCursor.slice(triggerIdx + 1).toLowerCase()
-    triggerPosRef.current = triggerIdx
-
-    // `#tag` and `:status` use case-insensitive prefix match;
-    // `@person`/`/project` stay on substring match (existing behavior).
-    let filtered: AutocompleteItem[]
-    if (triggerChar === '#') {
-      filtered = query
-        ? tags.filter((item) => item.name.toLowerCase().startsWith(query))
-        : tags
-    } else if (triggerChar === ':') {
-      filtered = query
-        ? statuses.filter((item) => item.name.toLowerCase().startsWith(query))
-        : statuses
-    } else {
-      const sourceItems = triggerChar === '@' ? [...people, ...orgs] : projects
-      filtered = query
-        ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
-        : sourceItems
-    }
-
-    // Estimate caret position for dropdown positioning
-    let caretLeft = 0
-    if (inputEl) {
-      // Approximate: use a cached canvas to measure text width up to trigger
-      const style = getComputedStyle(inputEl)
-      const ctx = measureCanvas?.getContext('2d')
-      if (ctx) {
-        ctx.font = `${style.fontSize} ${style.fontFamily}`
-        caretLeft = ctx.measureText(value.slice(0, triggerIdx)).width
-        // Clamp to input width
-        const maxLeft = inputEl.offsetWidth - 200
-        if (caretLeft > maxLeft) caretLeft = maxLeft
-        if (caretLeft < 0) caretLeft = 0
+    setState((s) => {
+      // The same list narrowing keeps the active row and how it got there.
+      const sameList = s.view?.mode === view.mode && s.view.anchor === view.anchor
+      return {
+        visible: true,
+        view,
+        selectedIndex: carrySelection(s.view, s.selectedIndex, view),
+        navigated: sameList && s.navigated,
+        caretLeft: measureCaretLeft(input, value, view.anchor),
       }
-    }
-
-    // For `#`, stay visible even with no matches so we can render the
-    // "Press Enter to create #<query>" hint. `@` and `/` hide when empty.
-    const visible = filtered.length > 0 || (triggerChar === '#' && query.length > 0)
-
-    setState({
-      visible,
-      trigger: triggerChar,
-      query,
-      items: filtered.slice(0, 8),
-      selectedIndex: 0,
-      caretLeft,
     })
-  }, [people, projects, orgs, tags, statuses, state.visible, dismiss])
+  }, [people, tags, statuses, commands, followupDefault])
 
-  /**
-   * Handle keyboard events for autocomplete navigation.
-   * Returns true if the event was consumed (caller should preventDefault/stopPropagation).
-   */
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): boolean => {
-    if (!state.visible) return false
+  // The candidates changed (a person renamed or deleted from a row's menu):
+  // an open popup shows the new rows at once.
+  const visibleRef = useLatestRef(state.visible)
+  useEffect(() => {
+    const last = lastInputRef.current
+    if (last && visibleRef.current) handleInputChange(last.value, last.cursor, last.input)
+  }, [handleInputChange, visibleRef])
 
+  const select = useCallback((row: AutocompleteRow, input: TextInput | null) => {
+    const view = state.view
+    if (!view || !input) return
+    const pick = applyAutocompletePick(input.value, view, row)
+    if (!pick) return
+    onApplyRef.current(pick.value, pick.cursor)
+    if (pick.reopen) handleInputChange(pick.value, pick.cursor, input)
+    else dismiss()
+  }, [state.view, handleInputChange, dismiss, onApplyRef])
+
+  /** Keys while the popup is open. Returns true when the key was consumed. */
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<TextInput>, input: TextInput | null): boolean => {
+    if (!state.visible || !state.view) return false
+    const rows = state.view.rows
     if (e.key === 'ArrowDown') {
-      setState((s) => ({ ...s, selectedIndex: Math.min(s.selectedIndex + 1, s.items.length - 1) }))
+      setState((s) => ({ ...s, navigated: true, selectedIndex: Math.min(s.selectedIndex + 1, Math.max(0, rows.length - 1)) }))
       return true
     }
     if (e.key === 'ArrowUp') {
-      setState((s) => ({ ...s, selectedIndex: Math.max(s.selectedIndex - 1, 0) }))
+      setState((s) => ({ ...s, navigated: true, selectedIndex: Math.max(s.selectedIndex - 1, 0) }))
       return true
     }
-    if (e.key === 'Tab' || e.key === 'Enter') {
-      if (state.items.length > 0) {
-        return true // consumed — caller should call selectItem
-      }
-      // For `#` with no matches, Tab/Enter accepts the user's typed query
-      // as a create-new completion (caller calls applySelection → create path).
-      if (state.trigger === '#' && state.query.length > 0) {
-        return true
-      }
+    if (e.key === 'Enter' && enterSubmits && !state.navigated) return false
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      const row = rows[state.selectedIndex]
+      if (isSelectable(row) && row) select(row, input)
+      return true
     }
     if (e.key === 'Escape') {
       dismiss()
       return true
     }
     return false
-  }, [state.visible, state.items.length, state.trigger, state.query, dismiss])
+  }, [state.visible, state.view, state.selectedIndex, state.navigated, enterSubmits, select, dismiss])
 
-  /**
-   * Apply the selected autocomplete item into the input value.
-   * Returns the new input value and cursor position.
-   */
-  const applySelection = useCallback((
-    currentValue: string,
-    cursorPos: number,
-    item?: AutocompleteItem,
-  ): { value: string; cursor: number } | null => {
-    if (triggerPosRef.current === -1) return null
-    const triggerIdx = triggerPosRef.current
+  /** `value` with the token the popup is open on completed to its best match (unchanged when it's closed). */
+  const completeForSubmit = useCallback((value: string): string => (
+    state.visible && state.view ? bestMatchCompletion(value, state.view) : value
+  ), [state.visible, state.view])
 
-    const selected = item ?? state.items[state.selectedIndex]
-    let name: string
-    if (selected) {
-      name = selected.name
-    } else if (state.trigger === '#' && state.query.length > 0) {
-      // Create-new path: preserve the user's typed casing from the raw slice.
-      name = currentValue.slice(triggerIdx + 1, cursorPos)
-    } else {
-      return null
-    }
-
-    // Tags / statuses stay bare — `#` and `:` patterns are single-word only;
-    // people/projects quote when the name contains spaces.
-    const before = currentValue.slice(0, triggerIdx)
-    const after = currentValue.slice(cursorPos)
-    const trigger = state.trigger
-    const isBareTrigger = state.trigger === '#' || state.trigger === ':'
-    const token = isBareTrigger ? name : (name.includes(' ') ? `"${name}"` : name)
-    const newValue = `${before}${trigger}${token} ${after}`
-    const newCursor = before.length + 1 + token.length + 1 // trigger + name + space
-
-    dismiss()
-    return { value: newValue, cursor: newCursor }
-  }, [state.items, state.selectedIndex, state.trigger, state.query, dismiss])
-
-  // Clean up on unmount
-  useEffect(() => {
-    return () => { triggerPosRef.current = -1 }
-  }, [])
-
-  return {
-    state,
-    handleInputChange,
-    handleKeyDown,
-    applySelection,
-    dismiss,
-  }
+  return { state, handleInputChange, handleKeyDown, select, dismiss, completeForSubmit }
 }

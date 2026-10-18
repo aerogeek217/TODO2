@@ -1,6 +1,254 @@
-import { useEffect, useId, useRef } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
+import { createPortal } from 'react-dom'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
+import { DialogLayerContext } from './dialog-layer'
+
+/**
+ * Which tier a dialog (backdrop + panel) sits on, lowest first:
+ * - `overlay` — the big workspace dialogs (task dialog, check-ins, Settings,
+ *   Customize dashboard); row pickers and menus open above them.
+ * - `dialog` — the default for the small titled dialogs.
+ * - `raised` — the list editor, over the lists editor in Settings.
+ * - `nested` — over any other dialog (confirms asked from inside one).
+ */
+export type DialogLayer = 'overlay' | 'dialog' | 'raised' | 'nested'
+
+/** Where focus goes when the dialog opens. */
+export type DialogInitialFocus = 'first' | 'panel' | RefObject<HTMLElement | null>
+
+export interface DialogFrameProps {
+  onClose: () => void
+  children: ReactNode
+  /** The panel's look and size; the frame only centres it. */
+  className?: string
+  style?: CSSProperties
+  /** Extra class on the backdrop (e.g. a darker scrim). */
+  backdropClassName?: string
+  /** Default `dialog`. */
+  layer?: DialogLayer
+  /** Default `first`: the first focusable control, else the panel. */
+  initialFocus?: DialogInitialFocus
+  /**
+   * While this returns true, Esc is not the dialog's: a layer opened over it
+   * (an editor, a menu, a stacked prompt) or a keyboard drag inside it has
+   * the key. Layers that are dialogs themselves don't need this.
+   */
+  escapeBelongsElsewhere?: () => boolean
+  /** A backdrop press never closes the dialog. */
+  blockBackdropClose?: boolean
+  /**
+   * Render in place instead of into `document.body`. Only for a dialog
+   * opened from inside a popover whose outside-click check counts DOM
+   * containment: a portaled dialog would count as outside and close it.
+   */
+  inline?: boolean
+  'aria-labelledby'?: string
+  'aria-label'?: string
+  'aria-describedby'?: string
+  /** `data-*` hooks on the panel, without the `data-` prefix. */
+  data?: Record<string, string>
+  /** The panel element, for callers that move focus inside it. */
+  panelRef?: RefObject<HTMLDivElement | null>
+  /** The dialog's own keys (list navigation, shortcuts), before the frame's Esc / Tab; `preventDefault` claims a key. */
+  onKeyDown?: (e: ReactKeyboardEvent<HTMLDivElement>) => void
+  /**
+   * No key leaves the panel through the React tree it was opened from. Only
+   * for a dialog opened from inside a surface with its own key handling (the
+   * notes → tasks preview inside the task editor); it also hides the keys
+   * from `document` listeners such as dnd-kit's keyboard sensor.
+   */
+  stopKeys?: boolean
+}
+
+const FOCUSABLE =
+  'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+
+/** The panel's tabbable controls; where the browser lays out, only rendered ones. */
+function focusables(panel: HTMLElement): HTMLElement[] {
+  const all = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+  if (panel.getClientRects().length === 0) return all
+  return all.filter((el) => el.getClientRects().length > 0 || el === document.activeElement)
+}
+
+/** Whether `panel` is the last modal in the page (portaled dialogs append in open order). */
+function isTopmostModal(panel: HTMLElement): boolean {
+  const modals = document.querySelectorAll('[aria-modal="true"]')
+  return modals[modals.length - 1] === panel
+}
+
+/** A key that landed on the page itself: nothing is focused. */
+function isPageTarget(target: EventTarget | null): boolean {
+  return !(target instanceof Element) || target === document.body || target === document.documentElement
+}
+
+const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
+  overlay: styles.layerOverlay,
+  dialog: styles.layerDialog,
+  raised: styles.layerRaised,
+  nested: styles.layerNested,
+}
+
+/**
+ * The one modal frame: a backdrop and a centred panel (`role="dialog"`,
+ * `aria-modal`), rendered into `document.body`. Behaviour:
+ *
+ * - **Esc** closes it — from inside the panel, or with nothing focused (the
+ *   topmost dialog only). A key a layer inside already handled
+ *   (`preventDefault`), a key from a layer portaled out of the panel, and
+ *   `escapeBelongsElsewhere` leave it open. The closing Esc stops there.
+ * - **Focus** moves in on open (`initialFocus`), Tab / Shift+Tab wrap inside
+ *   the panel (Tab with nothing focused comes back in), and focus returns to
+ *   where it was when the dialog closes.
+ * - **Backdrop:** a press that starts and ends on it closes the dialog, so a
+ *   text drag that ends outside the panel doesn't.
+ * - **Keys stay in:** the panel is `data-shortcut-scope="modal"`, so no app
+ *   shortcut fires from inside it.
+ * - **Tier:** what it renders (portaled layers too) reads its `layer` with
+ *   `useDialogLayer` — e.g. a person's menu leaves out Show tasks where the
+ *   task dialog couldn't show above.
+ */
+export function DialogFrame({
+  onClose,
+  children,
+  className,
+  style,
+  backdropClassName,
+  layer = 'dialog',
+  initialFocus = 'first',
+  escapeBelongsElsewhere,
+  blockBackdropClose = false,
+  inline = false,
+  'aria-labelledby': labelledBy,
+  'aria-label': label,
+  'aria-describedby': describedBy,
+  data,
+  panelRef: outerPanelRef,
+  onKeyDown: ownKeyDown,
+  stopKeys = false,
+}: DialogFrameProps) {
+  const ownPanelRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = outerPanelRef ?? ownPanelRef
+  const onCloseRef = useLatestRef(onClose)
+  const elsewhereRef = useLatestRef(escapeBelongsElsewhere)
+  const initialFocusRef = useLatestRef(initialFocus)
+  const downOnBackdrop = useRef(false)
+  // What had the focus when the dialog opened — read before its content
+  // mounts, since an `autoFocus` control inside takes the focus first.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null)
+
+  // Focus moves in on open (unless a control inside already took it) and
+  // goes back to the opener once the dialog is gone.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (panel && !panel.contains(document.activeElement)) {
+      const target = initialFocusRef.current
+      const el = target === 'panel' ? panel
+        : target === 'first' ? focusables(panel)[0] ?? panel
+          : target.current ?? panel
+      el.focus()
+    }
+    return () => {
+      // Still in the page: a re-run (React's StrictMode), not a close.
+      if (panel?.isConnected) return
+      // Something the close opened already took the focus (a command run
+      // from the palette that opens Quick Add): leave it there.
+      const active = document.activeElement
+      if (active && active !== document.body && active.isConnected) return
+      if (opener && opener !== document.body && document.body.contains(opener)) opener.focus()
+    }
+  }, [initialFocusRef, panelRef, opener])
+
+  // Keys with nothing focused: Esc closes the topmost dialog, Tab comes back in.
+  // Bubble phase, so popovers (capture phase) and the panel's own handler come first.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || (e.key !== 'Escape' && e.key !== 'Tab')) return
+      const panel = panelRef.current
+      if (!panel || !isPageTarget(e.target) || !isTopmostModal(panel)) return
+      if (e.key === 'Escape') {
+        if (elsewhereRef.current?.()) return
+        e.preventDefault()
+        e.stopPropagation()
+        onCloseRef.current()
+        return
+      }
+      e.preventDefault()
+      const items = focusables(panel)
+      const next = e.shiftKey ? items.at(-1) : items.at(0)
+      ;(next ?? panel).focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [elsewhereRef, onCloseRef, panelRef])
+
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (stopKeys) e.stopPropagation()
+    const panel = panelRef.current
+    // Keys from a layer portaled out of the panel (a menu, a picker) are that layer's.
+    if (!panel || !(e.target instanceof Node) || !panel.contains(e.target)) return
+    ownKeyDown?.(e)
+    if (e.nativeEvent.defaultPrevented) return
+    if (e.key === 'Escape') {
+      if (elsewhereRef.current?.()) return
+      e.preventDefault()
+      e.stopPropagation()
+      onCloseRef.current()
+      return
+    }
+    if (e.key !== 'Tab') return
+    const items = focusables(panel)
+    const first = items.at(0)
+    const last = items.at(-1)
+    const active = document.activeElement
+    if (!first || !last) {
+      e.preventDefault()
+      panel.focus()
+    } else if (e.shiftKey && (active === first || active === panel)) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
+  const layerClass = LAYER_CLASS[layer] ?? ''
+  const dataAttributes = Object.fromEntries(Object.entries(data ?? {}).map(([k, v]) => [`data-${k}`, v]))
+
+  const frame = (
+    <>
+      <div
+        className={`${styles.backdrop} ${layerClass} ${backdropClassName ?? ''}`}
+        data-dialog-backdrop=""
+        onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
+        onClick={(e) => {
+          const pressed = downOnBackdrop.current
+          downOnBackdrop.current = false
+          if (!blockBackdropClose && pressed && e.target === e.currentTarget) onClose()
+        }}
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-label={label}
+        aria-describedby={describedBy}
+        tabIndex={-1}
+        className={`${styles.panel} ${layerClass} ${className ?? ''}`}
+        style={style}
+        data-shortcut-scope="modal"
+        onKeyDown={onKeyDown}
+        {...dataAttributes}
+      >
+        <DialogLayerContext.Provider value={layer}>{children}</DialogLayerContext.Provider>
+      </div>
+    </>
+  )
+  return inline ? frame : createPortal(frame, document.body)
+}
 
 export interface DialogProps {
   open: boolean
@@ -14,20 +262,18 @@ export interface DialogProps {
   blockBackdropClose?: boolean
   /** Optional ref for the element that should receive focus on mount.
    *  Defaults to the first focusable element inside the dialog. */
-  initialFocusRef?: React.RefObject<HTMLElement | null>
+  initialFocusRef?: RefObject<HTMLElement | null>
   /** Optional className applied to the dialog body wrapper. */
   className?: string
   /** Inline style escape hatch. */
   style?: CSSProperties
-  /** When true, render at --z-dialog-nested so the dialog (+ its backdrop)
-   * sits above another dialog already at --z-dialog-overlay. Used by the
-   * singleton BulkConfirmDialog. */
+  /** Sits over another dialog (`nested` tier). */
   nested?: boolean
+  /** See `DialogFrame.inline`. */
+  inline?: boolean
 }
 
-const FOCUSABLE =
-  'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
-
+/** A small titled dialog on the shared frame (confirms, prompts). */
 export function Dialog({
   open,
   onClose,
@@ -39,106 +285,25 @@ export function Dialog({
   className,
   style,
   nested = false,
+  inline = false,
 }: DialogProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const titleId = useId()
-
-  useEffect(() => {
-    if (!open) return
-    previouslyFocusedRef.current = document.activeElement as HTMLElement | null
-
-    const dialog = dialogRef.current
-    if (!dialog) return
-
-    const focusInitial = () => {
-      if (initialFocusRef?.current) {
-        initialFocusRef.current.focus()
-        return
-      }
-      const focusables = dialog.querySelectorAll<HTMLElement>(FOCUSABLE)
-      const firstFocusable = focusables[0]
-      if (firstFocusable) {
-        firstFocusable.focus()
-      } else {
-        dialog.focus()
-      }
-    }
-    focusInitial()
-
-    return () => {
-      const prev = previouslyFocusedRef.current
-      if (prev && document.body.contains(prev)) {
-        prev.focus()
-      }
-    }
-  }, [open, initialFocusRef])
-
-  useEffect(() => {
-    if (!open) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const dialog = dialogRef.current
-      if (!dialog) return
-      const focusables = Array.from(
-        dialog.querySelectorAll<HTMLElement>(FOCUSABLE)
-      )
-      if (focusables.length === 0) {
-        e.preventDefault()
-        dialog.focus()
-        return
-      }
-      const first = focusables[0]
-      const last = focusables[focusables.length - 1]
-      if (!first || !last) return
-      const active = document.activeElement as HTMLElement | null
-      if (e.shiftKey) {
-        if (active === first || !dialog.contains(active)) {
-          e.preventDefault()
-          last.focus()
-        }
-      } else {
-        if (active === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown, true)
-    return () => document.removeEventListener('keydown', handleKeyDown, true)
-  }, [open, onClose])
-
   if (!open) return null
-
   const sizeClass = size === 'lg' ? styles.sizeLg : size === 'md' ? styles.sizeMd : styles.sizeSm
-
-  const backdropClass = nested ? `${styles.backdrop} ${styles.backdropNested}` : styles.backdrop
-  const dialogClass = `${styles.dialog} ${sizeClass} ${nested ? styles.dialogNested : ''} ${className ?? ''}`
-
   return (
-    <>
-      <div
-        className={backdropClass}
-        onClick={blockBackdropClose ? undefined : onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        tabIndex={-1}
-        className={dialogClass}
-        style={style}
-      >
-        <div id={titleId} className={styles.title}>{title}</div>
-        {children}
-      </div>
-    </>
+    <DialogFrame
+      onClose={onClose}
+      layer={nested ? 'nested' : 'dialog'}
+      initialFocus={initialFocusRef ?? 'first'}
+      blockBackdropClose={blockBackdropClose}
+      inline={inline}
+      aria-labelledby={titleId}
+      className={`${styles.dialog} ${sizeClass} ${className ?? ''}`}
+      style={style}
+    >
+      <div id={titleId} className={styles.title}>{title}</div>
+      {children}
+    </DialogFrame>
   )
 }
 
@@ -160,8 +325,10 @@ export interface ConfirmDialogProps {
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
-  /** Routes through --z-dialog-nested. See `Dialog`'s `nested` prop. */
+  /** Sits over another dialog. See `Dialog`'s `nested` prop. */
   nested?: boolean
+  /** The button focused on open (so Enter picks it). Default: confirm. */
+  initialFocus?: 'confirm' | 'cancel'
 }
 
 export function ConfirmDialog({
@@ -174,13 +341,21 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   nested = false,
+  initialFocus = 'confirm',
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
   return (
-    <Dialog open={open} onClose={onCancel} title={title} initialFocusRef={confirmRef} nested={nested}>
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      title={title}
+      initialFocusRef={initialFocus === 'cancel' ? cancelRef : confirmRef}
+      nested={nested}
+    >
       <DialogBody>{message}</DialogBody>
       <DialogActions>
-        <button type="button" className={styles.cancelButton} onClick={onCancel}>
+        <button ref={cancelRef} type="button" className={styles.cancelButton} onClick={onCancel}>
           {cancelLabel}
         </button>
         <button

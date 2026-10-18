@@ -10,7 +10,6 @@
  *   • interact with the inline `<TaskRow>` exactly as on any other surface
  *     (status, people, dates, tags, notes, inline-edit title; double-click
  *     opens the full editor)
- *   • click "+ Taskboard" to one-shot add it to the singleton taskboard
  *   • click × to dismiss immediately
  *
  * Render lifetime is keyed on `recentlyCreated.key` so a fresh creation
@@ -20,8 +19,8 @@ import { useEffect } from 'react'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { TaskRow } from '../task/TaskRow'
+import { TaskRowGrid } from '../task/TaskRowGrid'
 import styles from './RecentTaskPill.module.css'
 
 export function RecentTaskPill() {
@@ -33,7 +32,6 @@ export function RecentTaskPill() {
 function RecentTaskPillBody({ todoId }: { todoId: number }) {
   const todo = useTodoStore((s) => s.todos.find((t) => t.id === todoId))
   const assignedPeople = usePersonStore((s) => s.assignedPeopleMap.get(todoId))
-  const onTaskboard = useTaskboardStore((s) => s.board?.entries.some((e) => e.todoId === todoId) ?? false)
   const clearRecent = useUIStore((s) => s.clearRecentlyCreated)
   const openEdit = useUIStore((s) => s.openEditPopup)
 
@@ -50,12 +48,6 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
     openEdit(id)
   }
 
-  const handleAddToTaskboard = () => {
-    if (onTaskboard) return
-    void useTaskboardStore.getState().add(todoId)
-    clearRecent()
-  }
-
   return (
     <div
       className={styles.pill}
@@ -64,22 +56,14 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
       onAnimationEnd={() => clearRecent()}
     >
       <span className={styles.label}>New</span>
-      <div className={styles.rowWrapper}>
+      {/* The default split: no divider here. */}
+      <TaskRowGrid className={styles.rowWrapper}>
         <TaskRow
           todo={todo}
           assignedPeople={assignedPeople}
           onOpenDetail={handleOpenDetail}
         />
-      </div>
-      <button
-        type="button"
-        className={styles.boardButton}
-        onClick={handleAddToTaskboard}
-        disabled={onTaskboard}
-        title={onTaskboard ? 'Already on taskboard' : 'Add to taskboard'}
-      >
-        {onTaskboard ? '✓ Taskboard' : '+ Taskboard'}
-      </button>
+      </TaskRowGrid>
       <button
         type="button"
         className={styles.dismissButton}

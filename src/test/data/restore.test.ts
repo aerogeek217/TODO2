@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { db } from '../../data/database'
+import { db, ALL_DATA_TABLES } from '../../data/database'
 import { restoreFromImportData } from '../../data/restore'
 import type { ImportData } from '../../data/import-validation'
 
@@ -8,28 +8,18 @@ const now = new Date()
 /** Minimal valid ImportData with one of each common entity type. */
 function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
   return {
-    canvases: [{ id: 1, name: 'Default', sortOrder: 0, createdAt: now }],
-    projects: [],
     todos: [],
     people: [],
-    listInsets: [],
     todoPeople: [],
-    todoOrgs: [],
-    personOrgs: [],
     settings: [],
-    orgs: [],
-    taskboards: [],
-    floatingTaskboards: [],
     statuses: [],
     listDefinitions: [],
     notes: [],
-    floatingCalendars: [],
-    floatingNotes: [],
-    floatingHorizons: [],
-    floatingStatus: [],
-    floatingScoreboard: [],
-    floatingSnoozeGraveyard: [],
+    tags: [],
+    todoTags: [],
     todoEvents: [],
+    layouts: [],
+    listOrders: [],
     ...overrides,
   }
 }
@@ -43,11 +33,11 @@ describe('restoreFromImportData', () => {
   describe('clears existing data', () => {
     it('replaces existing todos with imported rows', async () => {
       await db.todos.bulkAdd([
-        { title: 'Old Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+        { uid: 'u-old', title: 'Old Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
       ])
       const newData = makeImportData({
         todos: [
-          { id: 10, title: 'New Task', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
+          { id: 10, uid: 'u10', title: 'New Task', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
         ],
       })
 
@@ -59,20 +49,47 @@ describe('restoreFromImportData', () => {
       expect(todos[0]!.id).toBe(10)
     })
 
-    it('replaces existing canvases with imported rows', async () => {
-      await db.canvases.bulkAdd([
-        { name: 'Old Canvas', sortOrder: 0, createdAt: now },
-      ])
+    it('replaces existing layouts with imported rows', async () => {
+      await db.layouts.add({ name: 'Old Layout', columns: [], createdAt: now, modifiedAt: now })
       const newData = makeImportData({
-        canvases: [{ id: 5, name: 'New Canvas', sortOrder: 0, createdAt: now }],
+        layouts: [{ id: 5, name: 'New Layout', columns: [], createdAt: now, modifiedAt: now }],
       })
 
       await restoreFromImportData(newData)
 
-      const canvases = await db.canvases.toArray()
-      expect(canvases).toHaveLength(1)
-      expect(canvases[0]!.name).toBe('New Canvas')
-      expect(canvases[0]!.id).toBe(5)
+      const layouts = await db.layouts.toArray()
+      expect(layouts).toHaveLength(1)
+      expect(layouts[0]!.name).toBe('New Layout')
+      expect(layouts[0]!.id).toBe(5)
+    })
+
+    it('clears every data table, even when the import has no rows for it', async () => {
+      await db.todos.add({ id: 1, uid: 'u1', title: 'Old', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now })
+      await db.people.add({ id: 1, name: 'Alice', initials: 'AL' })
+      await db.settings.put({ key: 'themeMode', value: 'light' })
+      await db.todoPeople.add({ todoId: 1, personId: 1 })
+      await db.statuses.add({ id: 1, name: 'Old Status', color: '#aabbcc', sortOrder: 0 })
+      await db.listDefinitions.add({
+        id: 1, name: 'Old List', sortOrder: 0, sort: 'manual', grouping: 'none',
+        membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {} } },
+      })
+      await db.notes.add({ content: 'old', createdAt: now, modifiedAt: now })
+      await db.tags.add({ id: 1, name: 'old', color: '#abcdef' })
+      await db.todoTags.add({ todoId: 1, tagId: 1 })
+      await db.todoEvents.add({ todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString() })
+      await db.layouts.add({ name: 'Old Layout', columns: [], createdAt: now, modifiedAt: now })
+      await db.listOrders.add({ listDefinitionId: 1, todoId: 1, rank: 1 })
+      for (const table of ALL_DATA_TABLES) expect(await table.count(), `${table.name} seeded`).toBeGreaterThan(0)
+
+      await restoreFromImportData(makeImportData())
+
+      for (const table of ALL_DATA_TABLES) {
+        // Restore re-seeds the Assigned status and its settings pointer.
+        if (table.name === 'statuses' || table.name === 'settings') continue
+        expect(await table.count(), table.name).toBe(0)
+      }
+      expect((await db.statuses.toArray()).map((s) => s.name)).toEqual(['Assigned'])
+      expect((await db.settings.toArray()).map((s) => s.key)).toEqual(['seededAssignedStatusId'])
     })
 
     it('clears existing people when import has none', async () => {
@@ -100,7 +117,7 @@ describe('restoreFromImportData', () => {
     it('persists todoPeople join rows', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL' }],
         todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
@@ -114,7 +131,7 @@ describe('restoreFromImportData', () => {
     it('persists tag tables', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         tags: [{ id: 7, name: 'urgent', color: '#123456' }],
         todoTags: [{ id: 1, todoId: 1, tagId: 7 }],
@@ -136,7 +153,7 @@ describe('restoreFromImportData', () => {
     it('clears existing tag tables before restore', async () => {
       await db.tags.add({ name: 'stale', color: '#abcdef' })
       const data = makeImportData({
-        todos: [{ id: 1, title: 't', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now }],
+        todos: [{ id: 1, uid: 'u1', title: 't', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now }],
         tags: [{ id: 1, name: 'fresh', color: '#112233' }],
       })
 
@@ -147,40 +164,30 @@ describe('restoreFromImportData', () => {
       expect(tags[0]!.name).toBe('fresh')
     })
 
-    it('round-trips floatingHorizons placements', async () => {
+    it('round-trips manual list ranks', async () => {
       const data = makeImportData({
-        floatingHorizons: [
-          { id: 1, canvasId: 1, x: 100, y: 200, width: 520, height: 360, collapsed: true },
+        listOrders: [
+          { id: 3, listDefinitionId: 1, todoId: 1, rank: 2 },
+          { id: 4, listDefinitionId: 1, todoId: 2, rank: 1 },
         ],
       })
 
       await restoreFromImportData(data)
 
-      const placements = await db.floatingHorizons.toArray()
-      expect(placements).toHaveLength(1)
-      expect(placements[0]).toMatchObject({
-        canvasId: 1,
-        x: 100,
-        y: 200,
-        width: 520,
-        height: 360,
-        collapsed: true,
-      })
+      expect(await db.listOrders.orderBy('id').toArray()).toEqual([
+        { id: 3, listDefinitionId: 1, todoId: 1, rank: 2 },
+        { id: 4, listDefinitionId: 1, todoId: 2, rank: 1 },
+      ])
     })
 
-    it('clears existing floatingHorizons before restore', async () => {
-      await db.floatingHorizons.add({ canvasId: 1, x: 0, y: 0, width: 520, height: 360 })
+    it('clears existing list ranks before restore', async () => {
+      await db.listOrders.add({ listDefinitionId: 1, todoId: 1, rank: 1 })
 
       await restoreFromImportData(makeImportData({
-        floatingHorizons: [
-          { id: 7, canvasId: 1, x: 50, y: 60, width: 520, height: 360 },
-        ],
+        listOrders: [{ id: 7, listDefinitionId: 1, todoId: 1, rank: 5 }],
       }))
 
-      const placements = await db.floatingHorizons.toArray()
-      expect(placements).toHaveLength(1)
-      expect(placements[0]!.id).toBe(7)
-      expect(placements[0]!.x).toBe(50)
+      expect(await db.listOrders.toArray()).toEqual([{ id: 7, listDefinitionId: 1, todoId: 1, rank: 5 }])
     })
 
     it('persists imported statuses alongside auto-seeded defaults', async () => {
@@ -197,9 +204,9 @@ describe('restoreFromImportData', () => {
       const names = statuses.map(s => s.name)
       expect(names).toContain('Open')
       expect(names).toContain('Closed')
-      // ensureSeededStatuses also adds Assigned + Follow-up.
+      // ensureSeededStatuses also adds Assigned (and nothing else).
       expect(names).toContain('Assigned')
-      expect(names).toContain('Follow-up')
+      expect(names).not.toContain('Follow-up')
     })
 
     it('replaces existing statuses with imported rows', async () => {
@@ -220,36 +227,30 @@ describe('restoreFromImportData', () => {
       await restoreFromImportData(makeImportData())
 
       expect(await db.todos.count()).toBe(0)
-      expect(await db.projects.count()).toBe(0)
+      expect(await db.layouts.count()).toBe(0)
+      expect(await db.listOrders.count()).toBe(0)
       expect(await db.notes.count()).toBe(0)
-      expect(await db.orgs.count()).toBe(0)
+      expect(await db.people.count()).toBe(0)
     })
 
-    it('seeds an empty taskboard singleton when none imported', async () => {
-      await restoreFromImportData(makeImportData())
-
-      const boards = await db.taskboards.toArray()
-      expect(boards).toHaveLength(1)
-      expect(boards[0]!.entries).toEqual([])
-    })
   })
 
   describe('atomicity', () => {
-    it('writes canvases and todos in a single transaction', async () => {
-      await db.canvases.add({ name: 'Old', sortOrder: 0, createdAt: now })
+    it('writes layouts and todos in a single transaction', async () => {
+      await db.layouts.add({ name: 'Old', columns: [], createdAt: now, modifiedAt: now })
 
       const data = makeImportData({
-        canvases: [{ id: 1, name: 'Restored', sortOrder: 0, createdAt: now }],
+        layouts: [{ id: 1, name: 'Restored', columns: [], createdAt: now, modifiedAt: now }],
         todos: [
-          { id: 1, title: 'Restored Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Restored Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
       })
 
       await restoreFromImportData(data)
 
-      const canvases = await db.canvases.toArray()
-      expect(canvases).toHaveLength(1)
-      expect(canvases[0]!.name).toBe('Restored')
+      const layouts = await db.layouts.toArray()
+      expect(layouts).toHaveLength(1)
+      expect(layouts[0]!.name).toBe('Restored')
 
       const todos = await db.todos.toArray()
       expect(todos).toHaveLength(1)
@@ -262,7 +263,7 @@ describe('restoreFromImportData', () => {
       const data = makeImportData({
         statuses: [{ id: 50, name: 'Custom', color: '#abc123', sortOrder: 0 }],
         todos: [
-          { id: 1, title: 'Has status', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
+          { id: 1, uid: 'u1', title: 'Has status', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
         ],
       })
 
@@ -272,24 +273,29 @@ describe('restoreFromImportData', () => {
       expect(todo!.statusId).toBe(50)
     })
 
-    it('auto-seeds Assigned + Follow-up when import has no statuses', async () => {
+    it('does not seed list definitions when the import has none', async () => {
+      await restoreFromImportData(makeImportData({ listDefinitions: [] }))
+
+      expect(await db.listDefinitions.count()).toBe(0)
+      expect(await db.settings.get('horizonSlots')).toBeUndefined()
+    })
+
+    it('auto-seeds only Assigned when import has no statuses', async () => {
       await restoreFromImportData(makeImportData({ statuses: [] }))
 
       const statuses = await db.statuses.toArray()
-      const names = statuses.map(s => s.name)
-      expect(names).toContain('Assigned')
-      expect(names).toContain('Follow-up')
+      expect(statuses.map(s => s.name)).toEqual(['Assigned'])
+      expect(await db.settings.get('seededFollowupStatusId')).toBeUndefined()
     })
 
     it('preserves seeded status ids round-tripped through import', async () => {
       const data = makeImportData({
         statuses: [
-          { id: 10, name: 'Delegated', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
-          { id: 11, name: 'Follow-up', color: '#F5A623', sortOrder: 1, icon: 'message-bubble', hideByDefault: false },
+          { id: 10, name: 'Delegated', color: '#537FE7', sortOrder: 0, icon: 'person' },
+          { id: 11, name: 'Follow-up', color: '#F5A623', sortOrder: 1, icon: 'message-bubble' },
         ],
         settings: [
           { key: 'seededAssignedStatusId', value: '10' },
-          { key: 'seededFollowupStatusId', value: '11' },
         ],
       })
 
@@ -297,18 +303,18 @@ describe('restoreFromImportData', () => {
 
       const settings = await db.settings.toArray()
       const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
-      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
       expect(assignedId).toBe(10)
-      expect(followupId).toBe(11)
 
       const statuses = await db.statuses.toArray()
       expect(statuses.find(s => s.id === 10)!.name).toBe('Delegated')
+      // An imported "Follow-up" status is ordinary user data: kept, not re-seeded.
+      expect(statuses.map(s => s.name).sort()).toEqual(['Delegated', 'Follow-up'])
     })
 
-    it('auto-seeds the missing seeded status when only one is imported', async () => {
+    it('keeps an imported Assigned status without seeding another', async () => {
       const data = makeImportData({
         statuses: [
-          { id: 10, name: 'Assigned', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
+          { id: 10, name: 'Assigned', color: '#537FE7', sortOrder: 0, icon: 'person' },
         ],
         settings: [
           { key: 'seededAssignedStatusId', value: '10' },
@@ -320,10 +326,7 @@ describe('restoreFromImportData', () => {
       const settings = await db.settings.toArray()
       const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
       expect(assignedId).toBe(10)
-      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
-      expect(followupId).toBeGreaterThan(0)
-      const followupStatus = await db.statuses.get(followupId)
-      expect(followupStatus!.name).toBe('Follow-up')
+      expect((await db.statuses.toArray()).map(s => s.name)).toEqual(['Assigned'])
     })
   })
 
@@ -331,8 +334,8 @@ describe('restoreFromImportData', () => {
     it('a second restore over the same data produces the same database', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Task A', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
-          { id: 2, title: 'Task B', isCompleted: true, sortOrder: 1, createdAt: now, modifiedAt: now },
+          { id: 1, uid: 'u1', title: 'Task A', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 2, uid: 'u2', title: 'Task B', isCompleted: true, sortOrder: 1, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL' }],
         todoPeople: [{ id: 1, todoId: 1, personId: 1 }],

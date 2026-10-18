@@ -1,0 +1,393 @@
+/* The check-in reply import dialog: the check-in dialog's look (panel, header,
+ * footer), opened over the workspace on the task dialog's tier. */
+
+.dialog {
+  composes: dialog from './CheckinDialog.module.css';
+}
+
+.header {
+  composes: header from './CheckinDialog.module.css';
+}
+
+.title {
+  composes: title from './CheckinDialog.module.css';
+}
+
+.closeBtn {
+  composes: closeBtn from './CheckinDialog.module.css';
+}
+
+.footer {
+  composes: footer from './CheckinDialog.module.css';
+}
+
+.hint {
+  composes: hint from './CheckinDialog.module.css';
+}
+
+.footerBtn {
+  composes: footerBtn from './CheckinDialog.module.css';
+}
+
+.avatar {
+  composes: avatar from './CheckinDialog.module.css';
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.avatarEmpty {
+  background: var(--color-tint-6);
+  color: var(--color-text-muted);
+}
+
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Before a paste */
+
+.pasteTarget {
+  display: block;
+  width: 100%;
+  min-height: 160px;
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 10px;
+  background: var(--color-tint-3);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  caret-color: transparent;
+}
+
+.pasteTarget::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.pasteTarget:focus {
+  outline: none;
+  border-color: var(--color-accent-dim);
+  border-style: solid;
+}
+
+.help {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.error {
+  padding: 10px 14px;
+  border: 1px solid var(--color-danger);
+  border-radius: 8px;
+  background: var(--color-danger-bg);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-primary);
+}
+
+/* After a paste: who replied + the summary */
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.summaryText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.replyFrom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.personPick {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-regular);
+  padding: 4px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-tint-5);
+  color: var(--color-text-primary);
+}
+
+.personPickMissing {
+  border-color: var(--color-warning);
+}
+
+.counts {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.warn {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-warning);
+}
+
+/* One card per task */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--color-tint-3);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.cardTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.ref {
+  flex: none;
+  font-family: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.change {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.changeLabel {
+  flex-shrink: 0;
+  width: 78px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.changeBody {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.changeOff {
+  opacity: 0.45;
+}
+
+.fromTo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.from,
+.to {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.from {
+  color: var(--color-text-muted);
+}
+
+.to {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.arrow {
+  color: var(--color-text-muted);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+}
+
+.dotOpen {
+  background: var(--color-text-muted);
+}
+
+.dotDone {
+  background: var(--color-accent);
+}
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px 10px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+:global([data-theme="light"]) .diff {
+  background: var(--color-surface);
+}
+
+.line {
+  display: flex;
+  gap: 8px;
+  color: var(--color-text-secondary);
+}
+
+.lineText {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sign {
+  flex-shrink: 0;
+  width: 10px;
+  font-family: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+}
+
+.lineRemoved {
+  color: var(--color-text-muted);
+}
+
+.lineRemoved .lineText {
+  text-decoration: line-through;
+}
+
+.lineAdded {
+  color: var(--color-accent);
+}
+
+.followup {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 4px 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.followupHint {
+  color: var(--color-text-muted);
+}
+
+.unmatched {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.unmatched .ref {
+  color: var(--color-text-secondary);
+}
+
+.applyBtn {
+  flex: none;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.applyBtn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.applyBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.applyBtn:focus-visible,
+.againBtn:focus-visible {
+  outline: 2px solid var(--color-accent-focus);
+  outline-offset: 2px;
+}
+
+.againBtn {
+  composes: footerBtn from './CheckinDialog.module.css';
+  background: var(--color-tint-5);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

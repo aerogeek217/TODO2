@@ -1,0 +1,45 @@
+/**
+ * Who the check-in dialog lists: everyone with at least one open task
+ * assigned, plus the people it was opened for (even with none). The people
+ * it was opened for come first, in the order given; the rest by name.
+ */
+import type { PersistedPerson, Person, PersistedTodoItem } from '../../models'
+import { byName } from '../../utils/sort-order'
+
+/** How many open tasks each person has assigned (people with none are absent). */
+export function openTaskCounts(
+  todos: readonly PersistedTodoItem[],
+  assignedPeopleMap: ReadonlyMap<number, readonly Person[]>,
+): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const t of todos) {
+    if (t.isCompleted) continue
+    for (const p of assignedPeopleMap.get(t.id) ?? []) {
+      if (p.id != null) counts.set(p.id, (counts.get(p.id) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
+export function checkinRecipients(
+  people: readonly Person[],
+  todos: readonly PersistedTodoItem[],
+  assignedPeopleMap: ReadonlyMap<number, readonly Person[]>,
+  openedFor: readonly number[],
+): PersistedPerson[] {
+  const withOpenTasks = openTaskCounts(todos, assignedPeopleMap)
+  const byId = new Map<number, PersistedPerson>()
+  for (const p of people) {
+    const id = p.id
+    if (id != null) byId.set(id, { ...p, id })
+  }
+  const first = openedFor.flatMap((id) => {
+    const p = byId.get(id)
+    return p ? [p] : []
+  })
+  const firstIds = new Set(first.map((p) => p.id))
+  const rest = [...byId.values()]
+    .filter((p) => !firstIds.has(p.id) && withOpenTasks.has(p.id))
+    .sort(byName)
+  return [...first, ...rest]
+}

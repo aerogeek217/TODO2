@@ -1,0 +1,561 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { render, cleanup, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
+import { DndContext } from '@dnd-kit/core'
+import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { emptyPredicate } from '../../../models'
+import { useListDraftStore } from '../../../stores/list-draft-store'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
+import { useTodoStore } from '../../../stores/todo-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useStatusStore } from '../../../stores/status-store'
+import { useFilterStore } from '../../../stores/filter-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
+import { useListOrderStore } from '../../../stores/list-order-store'
+import { useSettingsStore } from '../../../stores/settings-store'
+import { DEFAULT_HOT_RULE } from '../../../utils/hot'
+import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
+import type { PersistedListDefinition } from '../../../models/list-definition'
+import type { LensTab } from '../../../models/workspace-layout'
+import type { Person, TodoPredicate } from '../../../models'
+import { db } from '../../../data/database'
+import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+
+const alice: Person = { id: 1, name: 'Alice', initials: 'AL', color: '#c33' }
+const bob: Person = { id: 2, name: 'Bob', initials: 'BO' }
+
+function def(over: Partial<PersistedListDefinition> = {}, predicate: Partial<TodoPredicate> = {}): PersistedListDefinition {
+  return {
+    id: 7, name: 'Team', sortOrder: 0, 
+    membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
+    sort: 'manual', grouping: 'none',
+    ...over,
+  }
+}
+
+const tab: LensTab = { id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }
+
+function setup(d: PersistedListDefinition) {
+  useListDefinitionStore.setState({ listDefinitions: [d] })
+  let result: ListWidgetResult | undefined
+  render(
+    <DndContext>
+      <ListWidget tab={tab} onResult={(r) => { result = r }} />
+    </DndContext>,
+  )
+  return { result: () => result }
+}
+
+beforeEach(() => {
+  resetEntityStores()
+  clearFilterStore()
+  useListDraftStore.setState({ drafts: {} })
+  useListWidgetStore.setState({ picks: {}, collapsed: {} })
+  useUIStore.getState().clearSelection()
+  useUIStore.setState({ bulkConfirmation: null })
+  useListOrderStore.setState({ ranks: new Map(), loaded: true })
+  useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
+  usePersonStore.setState({ people: [alice, bob], assignedPeopleMap: new Map([[1, [alice]], [2, [bob]], [3, [alice, bob]]]) })
+  useTodoStore.setState({
+    todos: [
+      makeTodo({ id: 1, title: 'Alice task', sortOrder: 1 }),
+      makeTodo({ id: 2, title: 'Bob task', sortOrder: 2 }),
+      makeTodo({ id: 3, title: 'Shared task', sortOrder: 3 }),
+      makeTodo({ id: 4, title: 'Done task', sortOrder: 4, isCompleted: true }),
+    ],
+  })
+})
+
+afterEach(() => {
+  cleanup()
+})
+
+const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[data-task-title]')?.getAttribute('data-task-title'))
+
+describe('ListWidget', () => {
+  it('a malformed stored filter loads as no filter instead of crashing the widget', async () => {
+    const stored = def({}, { personIds: 5 as unknown as number[], tags: 'x' as unknown as number[] })
+    await db.listDefinitions.put(stored)
+    try {
+      await act(() => useListDefinitionStore.getState().load())
+      expect(useListDefinitionStore.getState().listDefinitions[0]!.membership.predicate).toMatchObject({ personIds: null, tags: null })
+      render(<DndContext><ListWidget tab={tab} onResult={() => {}} /></DndContext>)
+      expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    } finally {
+      await db.listDefinitions.clear()
+    }
+  })
+
+  it('shows the list’s open tasks and reports the count', () => {
+    const { result } = setup(def())
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(result()?.countLabel).toBe('3')
+    // No filters anywhere: the filter line still shows (the way in to setting them) — No filters, + Filter,
+    // the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
+    const row = screen.getByTestId('list-filter-row')
+    expect(row).toHaveTextContent('No filters')
+    expect(within(row).getByRole('button', { name: /Filter/ })).toBeInTheDocument()
+    expect(screen.getByTestId('list-summary')).toHaveTextContent('Manual')
+    expect(screen.queryByTestId('save-list')).toBeNull()
+    expect(screen.queryByTestId('revert-list')).toBeNull()
+  })
+
+  it('the screen filter narrows it, with a read-only screen chip and a shown-of-total count', () => {
+    const { result } = setup(def())
+    act(() => useFilterStore.getState().setPersonIds(new Set([1])))
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+    expect(result()?.countLabel).toBe('2 of 3')
+    expect(screen.getByTestId('screen-filter-chip').textContent).toContain('Alice')
+  })
+
+  it('screen and list filters on the same field AND strictly', () => {
+    setup(def({}, { personIds: [2] }))
+    act(() => useFilterStore.getState().setPersonIds(new Set([1])))
+    expect(titles()).toEqual(['Shared task'])
+  })
+
+  it('Show completed in the top bar brings completed tasks back', () => {
+    setup(def())
+    expect(titles()).not.toContain('Done task')
+    act(() => useFilterStore.getState().setShowCompleted(true))
+    expect(titles()).toContain('Done task')
+  })
+
+  it('screen filters hiding everything: says so and offers to clear them', () => {
+    setup(def())
+    act(() => useFilterStore.getState().setSearchText('nothing matches this'))
+    expect(screen.getByText('All 3 tasks in this list are hidden by the screen filter.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear screen filter' }))
+    expect(useFilterStore.getState().isActive).toBe(false)
+    expect(titles()).toHaveLength(3)
+  })
+
+  it('the list’s own filters returning nothing: names them, Edit filters opens Edit list', () => {
+    useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
+    setup(def({}, { statusIds: [5] }))
+    expect(screen.getByText('No tasks match')).toBeInTheDocument()
+    expect(screen.getByText('Status Waiting')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit filters' }))
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+  })
+
+  it('the group · sort summary opens Edit list, and closes it when it is open', () => {
+    setup(def({ grouping: 'status', sort: 'priority' }, { searchText: 'task' }))
+    const summary = screen.getByTestId('list-summary')
+    expect(summary).toHaveTextContent('Status · Priority')
+    fireEvent.click(summary)
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    expect(summary).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(summary)
+    expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
+  it('an unsaved list adds Revert · Save to its filter line', () => {
+    setup(def())
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.queryByTestId('save-list')).toBeNull()
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    const row = screen.getByTestId('list-filter-row')
+    expect(row).toHaveTextContent('No filters')
+    expect(screen.getByRole('button', { name: 'Revert list changes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save list Team' })).toBeInTheDocument()
+    // The summary reads the draft.
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
+  })
+
+  it('a direction change in the draft re-sorts the rows live, shows ↓ in the summary and makes the list unsaved', () => {
+    setup(def({ sort: 'name' }))
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sortDirection: 'desc' })))
+    expect(titles()).toEqual(['Shared task', 'Bob task', 'Alice task'])
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name ↓$/)
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+  })
+
+  it('Save on the filter line writes the draft; the line stays, without Revert · Save', async () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
+    expect(useListDraftStore.getState().drafts).toEqual({})
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.queryByTestId('save-list')).toBeNull()
+  })
+
+  it('Revert on the filter line drops the draft (Undo brings it back)', async () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    fireEvent.click(screen.getByTestId('revert-list'))
+    expect(useListDraftStore.getState().drafts).toEqual({})
+    expect(screen.queryByTestId('revert-list')).toBeNull()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
+    await act(() => useUndoStore.getState().undo())
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+  })
+
+  it('a blank draft name can’t be saved from the filter line', () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: '  ' })))
+    expect(screen.getByTestId('save-list')).toBeDisabled()
+  })
+
+  it('an empty list without filters', () => {
+    useTodoStore.setState({ todos: [] })
+    setup(def())
+    expect(screen.getByText('No tasks in this list')).toBeInTheDocument()
+  })
+
+  it('shows every task: no "Showing N of M" line', () => {
+    const { result } = setup(def())
+    expect(titles()).toHaveLength(3)
+    expect(result()?.countLabel).toBe('3')
+    expect(screen.queryByText(/Showing/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
+  })
+
+  it('groups collapse on their own; a person’s group doesn’t repeat their avatar', () => {
+    setup(def({ grouping: 'people' }))
+    const groups = Array.from(document.querySelectorAll('[data-testid="list-group-name"]')).map((g) => g.textContent)
+    expect(groups).toEqual(['Alice', 'Bob'])
+    const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
+    // Shared task under Alice shows Bob's avatar only.
+    const sharedRow = Array.from(aliceGroup.querySelectorAll('[data-todo-id="3"]'))[0]!
+    expect(sharedRow.textContent).toContain('BO')
+    expect(sharedRow.textContent).not.toContain('AL')
+    fireEvent.click(aliceGroup.querySelector('button[aria-expanded]')!)
+    expect(aliceGroup.querySelectorAll('[data-todo-id]')).toHaveLength(0)
+    expect(document.querySelector('[data-list-group="person-2"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(2)
+  })
+
+  it('renders the unsaved draft, and removing a list chip edits the draft', () => {
+    useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
+    setup(def({}, { statusIds: [5] }))
+    fireEvent.click(screen.getByLabelText('Remove filter'))
+    expect(useListDraftStore.getState().drafts[7]?.membership.predicate.statusIds).toBeNull()
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.membership.predicate.statusIds).toEqual([5])
+    expect(titles()).toHaveLength(3)
+  })
+
+  it('a prompt shows its row; nothing picked = the pick-a-value state and a — count', () => {
+    const { result } = setup(def({ runtimeFilter: { field: 'person' } }))
+    expect(screen.getByText('Pick a person to show this list')).toBeInTheDocument()
+    expect(result()?.countLabel).toBe('—')
+    act(() => useListWidgetStore.getState().setPicks('t1', [2]))
+    expect(titles()).toEqual(['Bob task', 'Shared task'])
+    expect(result()?.countLabel).toBe('2')
+  })
+
+  it('picking values in the prompt picker filters the list, several picks OR-combined', () => {
+    usePersonStore.setState({
+      people: [alice, bob],
+      assignedPeopleMap: new Map([[1, [alice]], [2, [bob]]]),
+    })
+    setup(def({ runtimeFilter: { field: 'person' } }))
+    const picker = screen.getByLabelText(/Filter tasks by person/i)
+    const pick = (name: string) => {
+      fireEvent.focus(picker)
+      fireEvent.click(Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.endsWith(name))!)
+    }
+    pick('Alice')
+    expect(titles()).toEqual(['Alice task'])
+    pick('Bob')
+    expect(titles()).toEqual(['Alice task', 'Bob task'])
+  })
+
+  it('Add task shows only when the merged predicate names people / status / tags', () => {
+    setup(def())
+    expect(screen.queryByTitle('Add a task to this list')).toBeNull()
+    cleanup()
+    setup(def({}, { personIds: [1] }))
+    expect(screen.getByTitle('Add a task to this list')).toBeInTheDocument()
+  })
+})
+
+
+/** Row occurrences of the widget, in display order. */
+const rowKeys = () => Array.from(document.querySelectorAll<HTMLElement>('[data-row-key]')).map((el) => el.dataset.rowKey)
+
+function clickTitle(key: string, mods: { shiftKey?: boolean; ctrlKey?: boolean } = {}) {
+  const row = document.querySelector<HTMLElement>(`[data-row-key="${key}"]`)!
+  fireEvent.click(row.querySelector('[data-todo-id] span[data-task-title]')!, mods)
+}
+
+function press(key: string, shiftKey = false) {
+  const e = new KeyboardEvent('keydown', { key, shiftKey, cancelable: true })
+  const handler = SHORTCUT_HANDLERS[key === 'ArrowUp' ? 'select-previous' : 'select-next']
+  const ctx: ShortcutCtx = { e, callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }
+  act(() => { void handler(ctx) })
+}
+
+describe('ListWidget rows: occurrences, selection, manual order', () => {
+  // JSDOM has no scrollIntoView (the arrow keys scroll the cursor row into view).
+  const hadScroll = 'scrollIntoView' in Element.prototype
+  beforeEach(() => {
+    if (!hadScroll) Object.defineProperty(Element.prototype, 'scrollIntoView', { value: () => {}, configurable: true, writable: true })
+  })
+  afterEach(() => {
+    if (!hadScroll) delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  it('a task in two people’s groups is two rows with their own drag ids', () => {
+    setup(def({ grouping: 'people' }))
+    expect(rowKeys()).toEqual(['person-1|1', 'person-1|3', 'person-2|2', 'person-2|3'])
+    const ids = Array.from(document.querySelectorAll('[data-row-key]')).map((el) => el.getAttribute('data-drag-id'))
+    expect(new Set(ids).size).toBe(4)
+    expect(ids).toContain('lw|t1|person-1|3')
+    expect(ids).toContain('lw|t1|person-2|3')
+  })
+
+  it('click selects one; Shift extends across groups; Ctrl toggles; the cursor sits on one occurrence', () => {
+    setup(def({ grouping: 'people' }))
+    clickTitle('person-1|3')
+    expect(useUIStore.getState()).toMatchObject({ selectionScope: 't1', selectionCursorKey: 'person-1|3' })
+    expect(document.querySelector('[data-row-key="person-1|3"]')!.getAttribute('data-cursor')).toBe('true')
+    expect(document.querySelector('[data-row-key="person-2|3"]')!.getAttribute('data-cursor')).toBeNull()
+    // Selecting a task selects both its rows.
+    expect(document.querySelector('[data-row-key="person-2|3"]')!.getAttribute('data-selected')).toBe('true')
+
+    clickTitle('person-2|2', { shiftKey: true })
+    expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([2, 3])
+    expect(screen.getByTestId('list-bulk-bar').textContent).toContain('2 selected')
+
+    clickTitle('person-1|1', { ctrlKey: true })
+    expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
+  })
+
+  it('arrow keys walk the rows (each occurrence once); Shift extends; Mod-A takes the widget', () => {
+    setup(def({ grouping: 'people' }))
+    clickTitle('person-1|1')
+    press('ArrowDown')
+    expect(useUIStore.getState().selectionCursorKey).toBe('person-1|3')
+    press('ArrowDown')
+    expect(useUIStore.getState().selectionCursorKey).toBe('person-2|2')
+    press('ArrowDown')
+    // Task 3 again — its second row, not a jump back to the first.
+    expect(useUIStore.getState().selectionCursorKey).toBe('person-2|3')
+    press('ArrowUp', true)
+    expect(useUIStore.getState().selectionCursorKey).toBe('person-2|2')
+    expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([2, 3])
+    const selectAll = SHORTCUT_HANDLERS['select-all']
+    act(() => { void selectAll({ e: new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }), callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }) })
+    expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
+  })
+
+  it('selecting in another widget clears this one’s', () => {
+    setup(def())
+    clickTitle('all|1')
+    act(() => useUIStore.getState().setScopedSelection('other', { ids: new Set([2]), anchorKey: 'x|2', cursorKey: 'x|2', cursorTodoId: 2 }))
+    expect(document.querySelector('[data-row-key="all|2"]')!.getAttribute('data-selected')).toBeNull()
+    expect(document.querySelector('[data-cursor]')).toBeNull()
+  })
+
+  it('the bulk bar acts on the selection through the existing bulk paths', () => {
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|3', { shiftKey: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(useUIStore.getState().bulkConfirmation).toMatchObject({ action: 'delete', ids: [1, 2, 3] })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
+    expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
+    expect(screen.queryByTestId('list-bulk-bar')).toBeNull()
+  })
+
+  /** Opens the bulk bar's ⋯ More menu. */
+  function openMore() {
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    return screen.getByRole('menu', { name: 'More actions' })
+  }
+
+  it('the bulk bar keeps its button order and puts Followed up + Markers under ⋯ More', () => {
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    const bar = screen.getByTestId('list-bulk-bar')
+    expect(Array.from(bar.querySelectorAll(':scope > button, :scope > span > button')).map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Set due date', 'Set follow-up', 'Assign people', 'Add tag', 'Complete', 'More', 'Delete', 'Clear selection'])
+    const menu = openMore()
+    expect(Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((b) => b.getAttribute('data-menu-label')))
+      .toEqual(['Followed up', 'Focus', 'Urgent', 'Important'])
+  })
+
+  it('⋯ More › Focus puts every selected task in focus, then takes them out', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, focus: true }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2 }),
+      ],
+    })
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    openMore()
+    const focus = screen.getByRole('menuitemcheckbox', { name: /Focus/ })
+    expect(focus).toHaveAttribute('aria-checked', 'mixed')
+    expect(focus).toHaveTextContent('1 of 2')
+    await act(async () => { fireEvent.click(focus) })
+    expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([true, true])
+    openMore()
+    const remove = screen.getByRole('menuitemcheckbox', { name: /Focus/ })
+    expect(remove).toHaveAttribute('aria-checked', 'true')
+    await act(async () => { fireEvent.click(remove) })
+    expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([undefined, undefined])
+  })
+
+  it('⋯ More › Urgent / Important are tri-state; Urgent counts due dates and asks before removing them', async () => {
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, important: true }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2, dueDate: tomorrow }),
+      ],
+    })
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+
+    openMore()
+    const important = screen.getByRole('menuitemcheckbox', { name: /Important/ })
+    expect(important).toHaveAttribute('aria-checked', 'mixed')
+    await act(async () => { fireEvent.click(important) })
+    expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([true, true])
+    openMore()
+    await act(async () => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /Important/ })) })
+    expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([undefined, undefined])
+
+    // Bob's task is urgent by its due date: mixed until both are flagged.
+    openMore()
+    const urgent = screen.getByRole('menuitemcheckbox', { name: /Urgent/ })
+    expect(urgent).toHaveAttribute('aria-checked', 'mixed')
+    await act(async () => { fireEvent.click(urgent) })
+    expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([true, true])
+    openMore()
+    await act(async () => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /Urgent/ })) })
+    expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([undefined, undefined])
+    await waitFor(() => expect(useUIStore.getState().bulkConfirmation).toMatchObject({
+      ids: [2], message: '1 of 2 tasks stays urgent because of its due date.',
+    }))
+  })
+
+  it('⋯ More › Followed up stamps every selected task, and is dimmed once they all were today', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2 }),
+      ],
+    })
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    openMore()
+    const followedUp = screen.getByRole('menuitem', { name: 'Followed up' })
+    expect(followedUp).not.toHaveTextContent('Today')
+    await act(async () => { fireEvent.click(followedUp) })
+    expect(useTodoStore.getState().todos.every((t) => t.lastFollowupAt instanceof Date)).toBe(true)
+    openMore()
+    expect(screen.getByRole('menuitem', { name: /^Followed up/ })).toHaveTextContent('Today')
+  })
+
+  it('a Markers list offers + Add task (new tasks start with those markers)', () => {
+    setup(def({}, { markers: { focus: true, important: true } }))
+    expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
+  })
+
+  it('a Hot list re-filters when the Hot rule or the urgent range changes, and offers no + Add task', () => {
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, important: true, dueDate: tomorrow }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2, focus: true }),
+        makeTodo({ id: 3, title: 'Shared task', sortOrder: 3, important: true }),
+      ],
+    })
+    const { result } = setup(def({}, { markers: 'hot' }))
+    expect(titles()).toEqual(['Alice task', 'Bob task'])
+    expect(screen.queryByRole('button', { name: /Add task/ })).toBeNull()
+    act(() => useSettingsStore.setState({ hotRule: [{ important: true }] }))
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+    expect(result()?.countLabel).toBe('2')
+    act(() => useSettingsStore.setState({ hotRule: [{ urgent: true }] }))
+    expect(titles()).toEqual(['Alice task'])
+    act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
+    expect(titles()).toEqual([])
+  })
+
+  it('a manual list follows its ranks; unranked tasks come after, oldest first', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', createdAt: new Date('2026-10-01') }),
+        makeTodo({ id: 2, title: 'Bob task', createdAt: new Date('2026-10-03') }),
+        makeTodo({ id: 3, title: 'Shared task', createdAt: new Date('2026-10-02') }),
+      ],
+    })
+    useListOrderStore.setState({ ranks: new Map([[7, new Map([[2, 1]])]]), loaded: true })
+    setup(def())
+    expect(titles()).toEqual(['Bob task', 'Alice task', 'Shared task'])
+  })
+})
+
+describe('ListWidget People group headers: email check-in', () => {
+  beforeEach(() => {
+    useUIStore.setState({ checkinDialog: null, taskDialog: null })
+    useTodoStore.setState((s) => ({ todos: [...s.todos, makeTodo({ id: 5, title: 'Nobody’s task', sortOrder: 5 })] }))
+  })
+
+  const header = (key: string) => document.querySelector(`[data-list-group="${key}"] button[aria-expanded]`) as HTMLElement
+
+  it('each person’s group has an envelope that opens the check-in with them ticked; Unassigned has none', () => {
+    setup(def({ grouping: 'people' }))
+    expect(screen.getAllByRole('button', { name: /^Email check-in to / }).map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Email check-in to Alice', 'Email check-in to Bob'])
+    expect(document.querySelector('[data-list-group="unassigned"] [aria-label^="Email check-in"]')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    // The header itself still collapses its group.
+    fireEvent.click(header('person-1'))
+    expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
+  })
+
+  it('other groupings get no envelope and no menu', () => {
+    setup(def({ grouping: 'status' }))
+    expect(screen.queryByRole('button', { name: /^Email check-in to / })).toBeNull()
+    fireEvent.contextMenu(document.querySelector('[data-list-group] button[aria-expanded]')!)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('right-click on a person’s header opens its menu; Show all opens the person’s task dialog', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
+    const menu = screen.getByRole('menu', { name: 'Alice group' })
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
+      .toEqual(['Email check-in: Alice', 'Show all of Alice’s tasks'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Show all of Alice’s tasks' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Alice', personId: 1 })
+    expect(useUIStore.getState().checkinDialog).toBeNull()
+  })
+
+  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.keyDown(header('person-2'), { key: 'F10', shiftKey: true })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in: Bob' }))
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Email check-in to Alice' }), { key: 'ContextMenu' })
+    expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
+  })
+
+  it('Unassigned’s header has no menu', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.contextMenu(header('unassigned'))
+    fireEvent.keyDown(header('unassigned'), { key: 'F10', shiftKey: true })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+})

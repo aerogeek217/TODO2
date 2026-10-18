@@ -1,4 +1,4 @@
-import type { Table } from 'dexie'
+import Dexie, { type Table } from 'dexie'
 import { db } from './database'
 
 /**
@@ -34,7 +34,7 @@ type JoinTableRow<AK extends string, BK extends string> =
   & { id?: number }
 
 /**
- * DUP-9: Create assign/unassign operations for a join table.
+ * Create assign/unassign operations for a join table.
  * @param table The Dexie join table (e.g., db.todoPeople)
  * @param aKey The first foreign key field name (e.g., 'todoId')
  * @param bKey The second foreign key field name (e.g., 'personId')
@@ -74,13 +74,18 @@ export function createJoinOps<
 }
 
 /**
- * DUP-10: Build an assignment map from a join table + entity table.
+ * Build an assignment map from a join table + entity table.
  * Returns Map<linkId, Entity[]> for the given link IDs.
  * @param linkTable The join table (e.g., db.todoPeople)
  * @param entityTable The entity table (e.g., db.people)
  * @param linkIdField The field on the join table to query by (e.g., 'todoId')
  * @param entityIdField The field on the join table referencing the entity (e.g., 'personId')
  * @param linkIds The IDs to query for (e.g., todoIds)
+ *
+ * A snapshot read for the UI, always outside any open transaction
+ * (`Dexie.ignoreTransaction`): store writes inside a transaction re-render React
+ * synchronously, so effects that load assignments can start in that
+ * transaction's zone, whose scope doesn't cover these tables.
  */
 export async function buildAssignmentMap<L, E extends { id?: number }>(
   linkTable: Table<L, number>,
@@ -90,7 +95,16 @@ export async function buildAssignmentMap<L, E extends { id?: number }>(
   linkIds: number[],
 ): Promise<Map<number, E[]>> {
   if (linkIds.length === 0) return new Map()
+  return Dexie.ignoreTransaction(() => readAssignmentMap(linkTable, entityTable, linkIdField, entityIdField, linkIds))
+}
 
+async function readAssignmentMap<L, E extends { id?: number }>(
+  linkTable: Table<L, number>,
+  entityTable: Table<E, number>,
+  linkIdField: keyof L & string,
+  entityIdField: keyof L & string,
+  linkIds: number[],
+): Promise<Map<number, E[]>> {
   const links = await linkTable.where(linkIdField).anyOf(linkIds).toArray()
   const entityIds = [...new Set(links.map((l) => (l as Record<string, unknown>)[entityIdField] as number))]
   const entities = entityIds.length > 0
@@ -112,4 +126,43 @@ export async function buildAssignmentMap<L, E extends { id?: number }>(
     }
   }
   return result
+}
+
+/**
+ * Undo-restore for an entity delete (a person, a tag): re-insert the row
+ * (keeping its id, name and every field) and the captured join rows, in one
+ * transaction. A same-named entity created meanwhile (trimmed, any case — an
+ * `@ann` typed after deleting Ann) is folded into the restored one instead of
+ * leaving two: its join rows move to the restored id (one per task) and its
+ * row goes.
+ */
+export async function restoreNamedEntityWithJoins<E extends { id?: number; name: string }>(
+  entityTable: Table<E, number>,
+  entity: E,
+  link: { table: Table; entityKey: string; linkKey: string },
+  joins: JoinCapture[],
+): Promise<void> {
+  await db.transaction('rw', [entityTable, link.table, ...joins.map((j) => j.table)], async () => {
+    const target = entity.name.trim().toLowerCase()
+    const meanwhile = (await entityTable.toArray())
+      .filter((e) => e.id != null && e.id !== entity.id && e.name.trim().toLowerCase() === target)
+    await entityTable.add(entity)
+    const linked = new Set<unknown>()
+    for (const { table, rows } of joins) {
+      if (rows.length) await table.bulkAdd(rows)
+      if (table === link.table) for (const row of rows) linked.add((row as Record<string, unknown>)[link.linkKey])
+    }
+    for (const other of meanwhile) {
+      const rows = await link.table.where(link.entityKey).equals(other.id!).toArray() as Array<Record<string, unknown>>
+      for (const row of rows) {
+        const linkId = row[link.linkKey]
+        if (linked.has(linkId)) await link.table.delete(row.id as number)
+        else {
+          await link.table.update(row.id as number, { [link.entityKey]: entity.id })
+          linked.add(linkId)
+        }
+      }
+      await entityTable.delete(other.id!)
+    }
+  })
 }

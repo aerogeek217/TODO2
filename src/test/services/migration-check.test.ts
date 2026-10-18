@@ -1,10 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import {
-  checkUnsupportedOldDB,
-  detectUnsupportedImport,
-  exportCurrentDatabase,
-  SCHEMA_VERSION_KEY,
-} from '../../services/migration-check'
+import { checkUnsupportedOldDB, exportCurrentDatabase } from '../../services/migration-check'
+import { detectUnsupportedImport, SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 
 function createRawDb(version: number, setup?: (db: IDBDatabase) => void): Promise<void> {
@@ -136,7 +132,7 @@ describe('detectUnsupportedImport', () => {
     ).toBeNull()
   })
 
-  it('returns null when the embedded marker is a future version (forward-compat)', () => {
+  it('returns null for a future version (too-new is rejected by prepareImport, not here)', () => {
     expect(
       detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION + 1, todos: [] }),
     ).toBeNull()

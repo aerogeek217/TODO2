@@ -32,27 +32,58 @@
   --z-row-open: 20;
   --z-fab: 100;
   --z-overlay: 300;
-  --z-canvas-draw: 1000;
+  --z-dialog-backdrop: 1000;
   --z-popover: 1000;
   --z-dialog: 1001;
   --z-dialog-overlay: 1002;
   --z-dialog-nested: 1003;
-  /* FilteredListPopup escape-hatch tier — sits above every in-document layer
-     because it portals to <body> and must overlay any host (popovers, modals,
-     drag overlays). Keep these as the only consumers. */
-  --z-portal-popup: 9998;
-  --z-portal-popup-flyout: 9999;
+  /* Tooltips sit above everything. */
+  --z-tooltip: 10000;
 
   /* Layout */
-  --sidebar-width: 44px;
   --topbar-height: 40px;
-  --topbar-search-width-collapsed: 140px;
-  --topbar-search-width-expanded: 200px;
+  --settings-modal-width: 940px;
+  --settings-modal-height: 680px;
+  --settings-nav-width: 220px;
+
+  /* Workspace (columns of cells) */
+  --workspace-gutter: 6px;
+  --cell-header-height: 32px;
+  --cell-tab-height: 26px;
+  --column-min-width: 280px;
+  --cell-body-min-height: 80px;
+  --band-default-height: 160px;
+  --band-edge-zone: 24px;
+  --column-area-min-height: 160px;
+  --panel-ghost-width: 180px;
+  --divider-hit: 10px;
+
+  /* List widget (narrow rows below 360px of widget width — a container query) */
+  --list-filter-row-height: 36px;
+  --list-prompt-row-height: 40px;
+  --list-group-header-height: 28px;
+
+  /* Calendar widget (compact month below 480px of widget width, week rows
+     below 560px, icon-only date-type toggles below 620px — measured in JS) */
+  --cal-toolbar-height: 40px;
+  --cal-weekday-row-height: 22px;
+  --cal-entry-sm: 18px;
+  --cal-entry-md: 24px;
+  --cal-entry-touch: 44px;
+  --cal-compact-day-height: 40px;
 
   /* Mobile */
   --mobile-tab-bar-height: 56px;
   --mobile-row-min-height: 48px;
   --mobile-fab-bottom: 16px;
+  --mobile-topbar-height: 52px;
+  --mobile-column-strip-height: 40px;
+  --mobile-cell-header-height: 40px;
+  --mobile-cell-tab-height: 34px;
+  --mobile-list-filter-row-height: 48px;
+  --mobile-list-group-header-height: 36px;
+  --mobile-cal-toolbar-height: 48px;
+  --mobile-cal-compact-day-height: 48px;
   --touch-target-min: 44px;
 
   /* Transitions */
@@ -76,6 +107,9 @@
   --font-size-body: 14px;
   --font-size-meta: 12px;
   --font-size-input: 16px;
+  /* Dashboard tile counts — the one size outside the 24 / 14 / 12 scale
+     (700, -0.02em, line-height 40px, tabular figures). */
+  --font-size-display: 36px;
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
@@ -89,7 +123,7 @@
   color-scheme: dark;
 
   /* Backgrounds */
-  --color-canvas-bg: #111110;
+  --color-app-bg: #111110;
   --color-surface: #1a1918;
   --color-surface-high: #211f1e;
   --color-surface-bright: #2d2b29;
@@ -101,13 +135,26 @@
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(255, 255, 255, 0.06);
-  /* Solid background for WidgetHeader / FilteredListPopup chrome. Approximates
-     the prior `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
-     editor's color picker shows the actual rendered color. */
+  /* Solid background for the workspace cell headers (tab strips). Approximates
+     an `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
+     colour editor shows the actual rendered colour. */
   --color-header-bg: #1f2120;
 
-  /* Favorite/star marker — single value across themes for v1. */
-  --color-favorite: #e6c34d;
+  /* Task markers (shown before the title when set). */
+  --color-marker-urgent: var(--color-danger);
+  --color-marker-important: var(--color-followup);
+  --color-marker-focus: var(--color-accent);
+
+  /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
+  --eis-do-bg: rgba(238, 125, 119, 0.075);
+  --eis-schedule-bg: rgba(245, 200, 66, 0.06);
+  --eis-delegate-bg: rgba(255, 255, 255, 0.035);
+  --eis-drop-bg: rgba(0, 0, 0, 0.2);
+
+  /* Dashboard: tile / list-tile / panel fill (with an inset border-muted
+     ring) and the "Created" bars of Created vs completed. */
+  --color-dash-panel: rgba(255, 255, 255, 0.025);
+  --color-chart-created: rgba(255, 255, 255, 0.2);
 
   /* Accent */
   --color-accent: #7ec4bc;
@@ -115,17 +162,47 @@
 
   /* Danger / warning accents */
   --color-danger: #ee7d77;
+  /* Danger ghost hover, Urgent toggle on. */
+  --color-danger-bg: rgba(238, 125, 119, 0.12);
   --color-warning: #f5a623;
+  /* Sync status (storage pill, its popover, the launch question): amber =
+     waiting for you, red = something failed. Mixed from warning / danger so
+     theme colour overrides carry over; text keeps 4.5:1. */
+  --color-warning-text: var(--color-warning);
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  --color-warning-bg-strong: color-mix(in srgb, var(--color-warning) 24%, transparent);
+  --color-warning-ring: color-mix(in srgb, var(--color-warning) 35%, transparent);
+  --color-danger-text: var(--color-danger);
+  --color-danger-bg-strong: color-mix(in srgb, var(--color-danger) 22%, transparent);
+  --color-danger-ring: color-mix(in srgb, var(--color-danger) 38%, transparent);
   --color-followup: #f5c842;
+  /* Follow-up pill fills: base, strong (today / overdue / hovered ×), and the
+     1px ring that marks an overdue follow-up (distinct from overdue due dates). */
+  --color-followup-bg: rgba(245, 200, 66, 0.12);
+  --color-followup-bg-strong: rgba(245, 200, 66, 0.24);
+  --color-followup-glow: rgba(245, 200, 66, 0.3);
+
+  /* Tooltip (the light theme's is dark on purpose). */
+  --color-tooltip-bg: #2d2b29;
+  --color-tooltip-text: #ece9e6;
+  --color-tooltip-muted: #9d9891;
+  --shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08);
 
   /* Overdue / special dates */
   --color-overdue: #e86bf0;
   --color-overdue-bg: rgba(232, 107, 240, 0.12);
+  --color-overdue-bg-strong: rgba(232, 107, 240, 0.22);
   --color-overdue-glow: rgba(232, 107, 240, 0.3);
 
-  /* Scheduled / deadline chip colors (one per type, not per task) */
-  --color-scheduled: #7ec4bc;
-  --color-scheduled-bg: color-mix(in srgb, var(--color-scheduled) 15%, transparent);
+  /* Calendar widget: solid overdue entries (and text on them), past-day washes */
+  --cal-overdue-solid: #e86bf0;
+  --cal-on-overdue: #111110;
+  --cal-followup-solid: #f5c842;
+  --cal-on-followup: #111110;
+  --cal-overdue-day: rgba(232, 107, 240, 0.10);
+  --cal-followup-day: rgba(245, 200, 66, 0.08);
+
+  /* Due-date chip colors */
   --color-deadline: #e86bf0;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 12%, transparent);
 
@@ -174,18 +251,19 @@
   --color-inset: rgba(0, 0, 0, 0.18);
   --color-inset-light: rgba(0, 0, 0, 0.14);
 
+  /* Segmented control (the date filter's type tabs and Show choice) */
+  --color-seg-track: rgba(0, 0, 0, 0.22);
+  --color-seg-selected: #2d2b29;
+  --shadow-seg-selected: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.55);
+  /* Dims a workspace cell body under its drop zones while a tab is dragged over it */
+  --color-scrim: rgba(17, 17, 16, 0.74);
 
   /* Card glass */
   --color-card-glass-from: rgba(38, 36, 34, 0.97);
   --color-card-glass-to: rgba(26, 25, 24, 0.95);
-
-  /* Canvas dot */
-  --color-canvas-dot: #3a3a3a;
-  /* Out-of-bounds dim + edge line for the canvas extent overlay (CanvasView) */
-  --color-canvas-bounds-out: rgba(0, 0, 0, 0.32);
-  --color-canvas-bounds-edge: rgba(255, 255, 255, 0.16);
 
   /* Shadows */
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -208,7 +286,6 @@
   --shadow-drag-node: 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-rail: 0 0 24px rgba(0, 0, 0, 0.6);
 }
 
 /* ═══════════════════════════════════════════
@@ -218,7 +295,7 @@
   color-scheme: light;
 
   /* Backgrounds */
-  --color-canvas-bg: #f5f4f2;
+  --color-app-bg: #f5f4f2;
   --color-surface: #ffffff;
   --color-surface-high: #f0efed;
   --color-surface-bright: #e5e3e0;
@@ -230,11 +307,23 @@
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(0, 0, 0, 0.06);
-  /* Solid background for WidgetHeader / FilteredListPopup chrome. */
+  /* Solid background for the workspace cell headers (tab strips). */
   --color-header-bg: #f7fbfa;
 
-  /* Favorite/star marker — single value across themes for v1. */
-  --color-favorite: #e6c34d;
+  /* Task markers (shown before the title when set). */
+  --color-marker-urgent: var(--color-danger);
+  --color-marker-important: var(--color-followup);
+  --color-marker-focus: var(--color-accent);
+
+  /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
+  --eis-do-bg: rgba(196, 60, 53, 0.06);
+  --eis-schedule-bg: rgba(245, 200, 66, 0.10);
+  --eis-delegate-bg: rgba(0, 0, 0, 0.025);
+  --eis-drop-bg: rgba(0, 0, 0, 0.055);
+
+  /* Dashboard panel fill + "Created" bars. */
+  --color-dash-panel: rgba(0, 0, 0, 0.018);
+  --color-chart-created: rgba(0, 0, 0, 0.16);
 
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;
@@ -242,17 +331,43 @@
 
   /* Danger / warning — deepened for readability */
   --color-danger: #d94a43;
+  --color-danger-bg: rgba(196, 60, 53, 0.10);
   --color-warning: #d08a12;
-  --color-followup: #c09a15;
+  --color-warning-text: #94600a;
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  --color-warning-bg-strong: color-mix(in srgb, var(--color-warning) 24%, transparent);
+  --color-warning-ring: color-mix(in srgb, var(--color-warning) 40%, transparent);
+  --color-danger-text: #b8352f;
+  --color-danger-bg-strong: rgba(196, 60, 53, 0.18);
+  --color-danger-ring: rgba(196, 60, 53, 0.35);
+  --color-followup: #826600;
+  --color-followup-bg: rgba(245, 200, 66, 0.24);
+  --color-followup-bg-strong: rgba(245, 200, 66, 0.40);
+  --color-followup-glow: rgba(130, 102, 0, 0.3);
+
+  /* Tooltip (dark on purpose). */
+  --color-tooltip-bg: #1a1917;
+  --color-tooltip-text: #f5f4f2;
+  --color-tooltip-muted: #a8a39d;
+  --shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.25);
 
   /* Overdue */
   --color-overdue: #b838c0;
   --color-overdue-bg: rgba(184, 56, 192, 0.08);
+  --color-overdue-bg-strong: rgba(163, 44, 171, 0.16);
   --color-overdue-glow: rgba(184, 56, 192, 0.15);
 
-  /* Scheduled / deadline chip colors */
-  --color-scheduled: #3a9e93;
-  --color-scheduled-bg: color-mix(in srgb, var(--color-scheduled) 12%, transparent);
+  /* Calendar widget: solid overdue entries (and text on them), past-day washes.
+     The overdue follow-up fill stays bright yellow: the darker text yellow
+     reads brown as a fill. */
+  --cal-overdue-solid: #a32cab;
+  --cal-on-overdue: #ffffff;
+  --cal-followup-solid: #f5c842;
+  --cal-on-followup: #1a1917;
+  --cal-overdue-day: rgba(163, 44, 171, 0.07);
+  --cal-followup-day: rgba(245, 200, 66, 0.14);
+
+  /* Due-date chip colors */
   --color-deadline: #b838c0;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
 
@@ -301,18 +416,19 @@
   --color-inset: rgba(0, 0, 0, 0.04);
   --color-inset-light: rgba(0, 0, 0, 0.025);
 
+  /* Segmented control */
+  --color-seg-track: rgba(0, 0, 0, 0.06);
+  --color-seg-selected: #ffffff;
+  --shadow-seg-selected: 0 1px 2px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
+
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.35);
+  --color-scrim: rgba(245, 244, 242, 0.78);
 
   /* Card glass */
   --color-card-glass-from: rgba(255, 255, 255, 0.98);
   --color-card-glass-to: rgba(248, 247, 246, 0.96);
 
-  /* Canvas dot */
-  --color-canvas-dot: #d4d2cf;
-  /* Out-of-bounds dim + edge line for the canvas extent overlay (CanvasView) */
-  --color-canvas-bounds-out: rgba(0, 0, 0, 0.06);
-  --color-canvas-bounds-edge: rgba(0, 0, 0, 0.20);
 
   /* Shadows — lighter, subtler */
   --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
@@ -334,7 +450,6 @@
   --shadow-drag-node: 0 12px 32px rgba(0, 0, 0, 0.12);
   --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.1);
-  --shadow-rail: 0 0 16px rgba(0, 0, 0, 0.12);
 }
 
 /* ═══════════════════════════════════════════
@@ -351,7 +466,7 @@ body {
   font-family: var(--font-family);
   font-size: var(--font-size-task);
   color: var(--color-text-primary);
-  background: var(--color-canvas-bg);
+  background: var(--color-app-bg);
   line-height: 1.5;
 }
 
@@ -370,4 +485,12 @@ textarea:focus-visible {
 
 input {
   font-family: inherit;
+}
+
+/* A native drop-down's open list can't show a select's translucent fill, so
+ * every option sits on the opaque surface colour with the primary text. */
+select option,
+select optgroup {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
 }

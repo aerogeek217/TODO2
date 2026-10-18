@@ -1,19 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedCanvas } from './fixtures/seed'
+import { seedTaskList } from './fixtures/workspace'
+import { readStore, readStores } from './fixtures/db'
 
 /**
- * triage-2026-04-27-batch2 P9 — `@`-mention picker offers people AND orgs.
- *
- * Item 15 ("Can't enter order with @ using NLP") clarified to: `@` should
- * resolve to person OR org. The picker, parser, and resolver have already
- * been wired (the `@` autocomplete added orgs in `b068965`; resolver does
- * person-first / org-fallback) — this spec locks the user-facing flow:
+ * `@`-mention picker in QuickAddBar: substring-matches people, writes the
+ * picked name (quoted when it contains a space), and submit assigns the
+ * person via a `todoPeople` join.
  *
  *   1. Open QuickAddBar (Ctrl+Space).
- *   2. Type `@` and observe the popup header reads "People & Orgs", and that
- *      both kinds appear (orgs labelled `(org)`).
- *   3. Arrow-down to the org row, press Enter — picker writes `@"Org Name"`.
- *   4. Submit; assert the Dexie `todoOrgs` join row exists for the new task.
+ *   2. Type `@acme` — the popup (header "People") narrows to the person whose
+ *      name contains "acme" (`Org: Acme`, a person carrying a color).
+ *   3. Press Enter — picker writes `@"Org: Acme"`.
+ *   4. Submit; assert a Dexie `todoPeople` row links the new task to that
+ *      person.
  *
  * JSDOM is unauthoritative for the popup positioning + caret-relative
  * placement (`useNlpAutocomplete`'s `measureCanvas` reads computed style)
@@ -21,69 +20,37 @@ import { seedCanvas } from './fixtures/seed'
  */
 
 const PERSON_NAME = 'Alice Smith'
-const ORG_NAME = 'Acme Corp'
-const SECOND_ORG_NAME = 'Globex'
+const TARGET_NAME = 'Org: Acme'
+const OTHER_NAME = 'Org: Globex'
 
-async function readTodoOrgsForTitle(
-  page: Page,
-  title: string,
-): Promise<Array<{ todoId: number; orgId: number }>> {
-  return await page.evaluate(async (target) => {
-    return await new Promise<Array<{ todoId: number; orgId: number }>>(
-      (resolve, reject) => {
-        const req = indexedDB.open('todo2')
-        req.onsuccess = () => {
-          const idb = req.result
-          const tx = idb.transaction(['todos', 'todoOrgs'], 'readonly')
-          const todos = tx.objectStore('todos').getAll()
-          const joins = tx.objectStore('todoOrgs').getAll()
-          let todoId: number | null = null
-          let allJoins: Array<{ todoId: number; orgId: number }> = []
-          let pending = 2
-          const finish = () => {
-            if (--pending !== 0) return
-            const matched = todoId == null
-              ? []
-              : allJoins.filter((row) => row.todoId === todoId)
-            idb.close()
-            resolve(matched)
-          }
-          todos.onsuccess = () => {
-            const rows = todos.result as Array<{ id: number; title: string }>
-            const found = rows.find((r) => r.title === target)
-            if (found) todoId = found.id
-            finish()
-          }
-          todos.onerror = () => { idb.close(); reject(todos.error) }
-          joins.onsuccess = () => {
-            allJoins = joins.result as Array<{ todoId: number; orgId: number }>
-            finish()
-          }
-          joins.onerror = () => { idb.close(); reject(joins.error) }
-        }
-        req.onerror = () => reject(req.error)
-      },
-    )
-  }, title)
+async function readPersonIdByName(page: Page, name: string): Promise<number | null> {
+  return (await readStore<{ id: number; name: string }>(page, 'people')).find((r) => r.name === name)?.id ?? null
+}
+
+async function readTodoPeopleForTitle(page: Page, title: string): Promise<Array<{ todoId: number; personId: number }>> {
+  const { todos, todoPeople } = await readStores(page, ['todos', 'todoPeople'])
+  const todo = todos?.find((r) => r.title === title)
+  if (!todo) return []
+  return (todoPeople ?? []).filter((j) => j.todoId === todo.id) as Array<{ todoId: number; personId: number }>
 }
 
 test.describe('QuickAddBar @ mention picker', () => {
-  test('@ shows people + orgs, picking an org submits with todoOrgs join', async ({ page }) => {
-    await seedCanvas(page, {
-      people: [{ name: PERSON_NAME, initials: 'AS' }],
-      orgs: [
-        { name: ORG_NAME, initials: 'AC', color: '#ffaa33' },
-        { name: SECOND_ORG_NAME, initials: 'GX', color: '#3399ff' },
+  test('@acme finds the matching person; picking it submits with a todoPeople join', async ({ page }) => {
+    await seedTaskList(page, {
+      people: [
+        { name: PERSON_NAME, initials: 'AS' },
+        { name: TARGET_NAME, initials: 'AC', color: '#f28c4e' },
+        { name: OTHER_NAME, initials: 'GX' },
       ],
     })
 
-    // The TopBar's `@ Org ▾` filter renders only when `useOrgStore.orgs.length > 0`,
-    // so its visibility is the cheapest signal that `loadOrgs()` settled —
-    // `seedCanvas` reloads the page after writing IDB, but the app's init
-    // promise chain (`ensureDefault → initFileStorage → loadOrgs …`) races
-    // the test's first `@` keystroke. Without this gate `useNlpAutocomplete`
-    // captures a stale empty `orgs` array and the popup shows only people.
-    await expect(page.getByRole('button', { name: /@ Org/ })).toBeVisible()
+    // The top bar's People filter renders only when
+    // `usePersonStore.people.length > 0`, so its visibility is the cheapest
+    // signal that the person store has loaded. `seedTaskList` reloads the page
+    // after writing IDB, but the app's init chain races the test's first `@`
+    // keystroke; without this gate the autocomplete filters an empty list and
+    // the popup never opens.
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
 
     // Open QuickAddBar via the global hotkey.
     await page.keyboard.press('Control+Space')
@@ -93,50 +60,43 @@ test.describe('QuickAddBar @ mention picker', () => {
     const input = dialog.getByPlaceholder('New task…')
     await expect(input).toBeFocused()
 
-    // Type the title, then `@` to invoke the autocomplete picker.
+    // Type the title, then `@acme` to invoke the autocomplete picker.
     await page.keyboard.type('demo task ')
-    await page.keyboard.type('@')
+    await page.keyboard.type('@acme')
 
-    const popup = page.getByRole('listbox', { name: 'People & Orgs' })
+    const popup = page.getByRole('listbox', { name: 'People' })
     await expect(popup).toBeVisible()
+    await expect(popup.getByText('People', { exact: true })).toBeVisible()
 
-    // Person + both orgs surfaced; orgs are labelled "(org)".
-    await expect(popup.getByRole('option', { name: `@${PERSON_NAME}` })).toBeVisible()
-    await expect(
-      popup.getByRole('option', { name: `@${ORG_NAME} (org)` }),
-    ).toBeVisible()
-    await expect(
-      popup.getByRole('option', { name: `@${SECOND_ORG_NAME} (org)` }),
-    ).toBeVisible()
-
-    // ArrowDown twice → land on Globex (third item, since people sort first
-    // then orgs in store order). Confirm the selected option moves before
-    // committing — the popup uses `aria-selected` on the highlighted row.
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ArrowDown')
-    const targetOption = popup.getByRole('option', { name: `@${SECOND_ORG_NAME} (org)` })
+    // Substring match: only the person whose name contains "acme" surfaces.
+    const targetOption = popup.getByRole('option', { name: `@${TARGET_NAME}` })
+    await expect(targetOption).toBeVisible()
     await expect(targetOption).toHaveAttribute('aria-selected', 'true')
+    await expect(popup.getByRole('option')).toHaveCount(1)
 
-    await page.keyboard.press('Enter')
+    // Tab picks (⏎ would add the task at once, with the same match).
+    await page.keyboard.press('Tab')
 
-    // Picker dismisses; the input value gets the bare token (Globex has no
-    // space, so no quoting). The chip preview renders via the parser+resolver
-    // path — assert the org chip surface is visible.
+    // Picker dismisses; the name contains a space, so the token is quoted.
+    // The chip preview renders via the parser+resolver path.
     await expect(popup).toBeHidden()
-    await expect(input).toHaveValue(`demo task @${SECOND_ORG_NAME} `)
-    await expect(dialog.getByText(`@${SECOND_ORG_NAME}`)).toBeVisible()
+    await expect(input).toHaveValue(`demo task @"${TARGET_NAME}" `)
+    await expect(dialog.getByText(`@${TARGET_NAME}`, { exact: true })).toBeVisible()
 
-    // Submit — the bar closes and `applyNlpMetadata` writes the org join.
+    // Submit — the bar closes and `applyNlpMetadata` writes the person join.
     await page.keyboard.press('Enter')
     await expect(dialog).toBeHidden()
 
-    // Confirm exactly one `todoOrgs` row was written for the new task and it
-    // points at the second org id (the autoincrement makes Acme=1, Globex=2).
+    const targetId = await readPersonIdByName(page, TARGET_NAME)
+    expect(targetId).not.toBeNull()
+
+    // Exactly one `todoPeople` row for the new task, pointing at the picked
+    // person.
     await expect.poll(async () => {
-      const rows = await readTodoOrgsForTitle(page, 'demo task')
+      const rows = await readTodoPeopleForTitle(page, 'demo task')
       return rows.length
     }).toBe(1)
-    const rows = await readTodoOrgsForTitle(page, 'demo task')
-    expect(rows[0]?.orgId).toBe(2)
+    const rows = await readTodoPeopleForTitle(page, 'demo task')
+    expect(rows[0]?.personId).toBe(targetId)
   })
 })

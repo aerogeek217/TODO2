@@ -1,22 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { DateAnchor, RelativeDateToken } from '../../models'
 import { RELATIVE_DATE_TOKENS } from '../../models'
+import { RELATIVE_TOKEN_LABELS } from '../../utils/date-anchor'
 import styles from './DateAnchorInput.module.css'
-
-const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
-  'yesterday': 'Yesterday',
-  'today': 'Today',
-  'tomorrow': 'Tomorrow',
-  'start-of-week': 'Start of week',
-  'end-of-week': 'End of week',
-  'start-of-next-week': 'Start of next week',
-  'end-of-next-week': 'End of next week',
-  'start-of-month': 'Start of month',
-  'end-of-month': 'End of month',
-  'start-of-next-month': 'Start of next month',
-  'end-of-next-month': 'End of next month',
-  'end-of-month-plus-3': 'End of (month + 3)',
-}
 
 const NONE_SENTINEL = '__none__'
 const OFFSET_SENTINEL = '__offset__'
@@ -57,9 +43,9 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
   // otherwise the draft holds the input's display so the caret stays put.
   const isOffset = value?.kind === 'offset'
   const [offsetDraft, setOffsetDraft] = useState<string | null>(null)
-  useEffect(() => {
-    if (!isOffset) setOffsetDraft(null)
-  }, [isOffset])
+  // Leaving offset mode discards the draft (adjusted during render, not in an
+  // effect, so re-entering offset mode never flashes a stale draft).
+  if (!isOffset && offsetDraft !== null) setOffsetDraft(null)
   const offsetStr = isOffset
     ? offsetDraft ?? String(value.days)
     : ''

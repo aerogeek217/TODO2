@@ -1,0 +1,881 @@
+/* Calendar widget: toolbar, month grid / compact month + day list / week
+ * rows / week columns, entries, drop highlights, the +N day popover and the
+ * empty note. Layout breakpoints are measured in JS (CalendarWidget). */
+
+.widget {
+  --cal-day-fill: var(--color-tint-5);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+:global([data-theme='light']) .widget {
+  --cal-day-fill: var(--color-tint-4);
+}
+
+.body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--cal-toolbar-height);
+  padding: 0 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.iconButton:hover,
+.todayButton:hover,
+.segment:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.rangeLabel {
+  margin: 0 8px 0 6px;
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.todayButton {
+  height: 24px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.typeToggles {
+  display: inline-flex;
+  gap: 4px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.typeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.typeToggleIcon {
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+}
+
+.typeToggle[data-type='due'][aria-pressed='true'] {
+  background: var(--color-overdue-bg);
+  color: var(--color-overdue);
+  box-shadow: none;
+}
+
+.typeToggle[data-type='followup'][aria-pressed='true'] {
+  background: var(--color-followup-bg);
+  color: var(--color-followup);
+  box-shadow: none;
+}
+
+.segmented {
+  display: inline-flex;
+  height: 24px;
+  padding: 2px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-4);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.segment {
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* ── Month ───────────────────────────────────────────────────────────────── */
+
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  height: var(--cal-weekday-row-height);
+  padding: 0 6px;
+  flex-shrink: 0;
+  align-items: center;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.weekdays > span {
+  padding-left: 6px;
+}
+
+.weekdaysCentred > span {
+  padding-left: 0;
+  text-align: center;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+  padding: 0 6px 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.monthDay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px 4px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background-color: var(--cal-day-fill);
+}
+
+.monthDay.dayOutside {
+  background-color: transparent;
+}
+
+.dayNumber {
+  flex-shrink: 0;
+  padding: 0 3px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  line-height: 18px;
+  color: var(--color-text-secondary);
+}
+
+.more {
+  flex-shrink: 0;
+  height: 18px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.moreMd {
+  height: var(--cal-entry-md);
+  padding: 0 6px;
+}
+
+.more:hover,
+.moreOpen {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* ── Week rows ───────────────────────────────────────────────────────────── */
+
+.weekRows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+.weekRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  /* Grow to share the cell, never shrink over the entries: a day's entries
+   * are capped to fit instead (`weekRowsFit`), and rows at their minimum scroll. */
+  flex: 1 0 auto;
+  min-height: 40px;
+  padding: 6px 6px 6px 8px;
+  border-radius: var(--radius-md);
+  background-color: var(--cal-day-fill);
+}
+
+.dateBlock,
+.columnHeader {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+/* Fixed line heights keep a one-entry week row at its 40px minimum
+ * (`WEEK_ROWS.dateBlock` in utils/calendar-grid). */
+.dateBlock .weekdayName {
+  line-height: 12px;
+}
+
+.dateBlock .weekDate {
+  line-height: 16px;
+}
+
+.columnHeader {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  height: 32px;
+  padding: 8px 4px 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.weekdayName {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.weekDate {
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+}
+
+.weekEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.emptyDash {
+  color: var(--color-text-muted);
+  line-height: 24px;
+}
+
+/* ── Week columns ────────────────────────────────────────────────────────── */
+
+.weekColumns {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  padding: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.weekColumn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 4px 4px;
+  border-radius: var(--radius-md);
+  background-color: var(--cal-day-fill);
+}
+
+.columnEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* ── Compact month + day list ────────────────────────────────────────────── */
+
+.compactGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: var(--cal-compact-day-height);
+  gap: 2px;
+  padding: 0 6px 6px;
+  flex-shrink: 0;
+}
+
+.compactDay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 4px 0 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background-color: var(--cal-day-fill);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.compactDay.dayOutside {
+  background-color: transparent;
+}
+
+.compactNumber {
+  line-height: 18px;
+}
+
+.compactSelected {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+
+.dots {
+  display: flex;
+  gap: 3px;
+  height: 6px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.dot[data-dot='due'],
+.dot[data-dot='due-done'] {
+  background: var(--color-overdue);
+}
+
+.dot[data-dot='followup'],
+.dot[data-dot='followup-done'] {
+  background: var(--color-followup);
+}
+
+.dot[data-dot='occurrence'] {
+  box-shadow: inset 0 0 0 1.5px var(--color-overdue);
+}
+
+.dot[data-dot='due-done'],
+.dot[data-dot='followup-done'] {
+  opacity: 0.4;
+}
+
+.dayList {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.dayListHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 32px;
+  padding-top: 7px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.dayListTitle {
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.dayListToday {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+}
+
+.dayListCount {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.dayListEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── Day highlights (all layouts) ────────────────────────────────────────── */
+
+.dayOutside {
+  background-color: transparent;
+}
+
+.dayOutside .dayNumber,
+.dayOutside .compactNumber {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.washDue {
+  background-image: linear-gradient(var(--cal-overdue-day), var(--cal-overdue-day));
+}
+
+.washFollowup {
+  background-image: linear-gradient(var(--cal-followup-day), var(--cal-followup-day));
+}
+
+.dayToday {
+  background-color: var(--color-accent-bg-light);
+  box-shadow: inset 0 0 0 1px var(--color-accent-bg-medium);
+}
+
+.dayToday .weekdayName,
+.dayToday .weekDate {
+  color: var(--color-accent);
+}
+
+.todayPill {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  line-height: 18px;
+}
+
+/* While a task drag is on, every day is a target; the one under the pointer lights up. */
+.dayDragTarget {
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.dayOver,
+.dayOver.dayToday {
+  background-color: var(--color-accent-bg);
+  background-image: none;
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+
+.dropLabel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── Entries ─────────────────────────────────────────────────────────────── */
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+  height: var(--cal-entry-sm);
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-overdue-bg);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.entry:hover {
+  box-shadow: inset 0 0 0 1px var(--color-tint-12);
+}
+
+.entryMd {
+  height: var(--cal-entry-md);
+  padding: 0 6px;
+  gap: 6px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-regular);
+}
+
+.entryTouch {
+  height: var(--cal-entry-touch);
+  padding: 0 12px;
+  gap: 8px;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-regular);
+}
+
+/* Week columns: the title wraps to two lines. */
+.entryWrap {
+  height: auto;
+  align-items: flex-start;
+  padding: 4px 5px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+}
+
+.entryWrap .entryTitle {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 16px;
+}
+
+.entryWrap .entryGlyph,
+.entryWrap .entryRepeat {
+  margin-top: 2px;
+}
+
+.entryGlyph,
+.entryRepeat {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-overdue);
+}
+
+.entryTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.entry[data-state='due-today'] {
+  background: var(--color-overdue-bg-strong);
+}
+
+.entry[data-state='due-overdue'] {
+  background: var(--cal-overdue-solid);
+  color: var(--cal-on-overdue);
+  font-weight: var(--font-weight-bold);
+}
+
+.entry[data-state='followup'] {
+  background: var(--color-followup-bg);
+}
+
+.entry[data-state='followup'] .entryGlyph {
+  color: var(--color-followup);
+}
+
+.entry[data-state='followup-overdue'] {
+  background: var(--cal-followup-solid);
+  color: var(--cal-on-followup);
+  font-weight: var(--font-weight-bold);
+}
+
+.entryMd[data-state$='-overdue'],
+.entryTouch[data-state$='-overdue'],
+.entryWrap[data-state$='-overdue'] {
+  font-weight: var(--font-weight-semibold);
+}
+
+.entry[data-state$='-overdue'] .entryGlyph,
+.entry[data-state$='-overdue'] .entryRepeat,
+.entry[data-state$='-overdue'] .entryMeta {
+  color: currentColor;
+}
+
+/* A recurring occurrence: faded, italic, and it doesn't drag. */
+.entryVirtual {
+  opacity: 0.6;
+}
+
+.entryVirtual .entryTitle {
+  font-style: italic;
+  font-weight: var(--font-weight-regular);
+}
+
+.entryVirtual:active {
+  cursor: not-allowed;
+}
+
+.entryCompleted {
+  opacity: 0.6;
+}
+
+.entryCompleted .entryTitle {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
+}
+
+.entryDragging {
+  opacity: 0.3;
+}
+
+/* The lifted entry (drag overlay): the entry on a solid backing. */
+.ghost {
+  border-radius: var(--radius-md);
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-drag-overlay);
+  opacity: 0.96;
+  cursor: grabbing;
+}
+
+/* ── +N more popover ─────────────────────────────────────────────────────── */
+
+.dayPopover {
+  z-index: var(--z-dialog-nested);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 264px;
+  padding: 6px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+}
+
+:global([data-theme='light']) .dayPopover {
+  background: var(--color-surface);
+}
+
+.dayPopoverHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding-left: 4px;
+}
+
+.dayPopoverTitle {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.dayPopoverCount {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.dayPopoverClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.dayPopoverClose:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.dayPopoverEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ── Drop chooser icons ──────────────────────────────────────────────────── */
+
+.chooserDue {
+  display: inline-flex;
+  color: var(--color-overdue);
+}
+
+.chooserFollowup {
+  display: inline-flex;
+  color: var(--color-followup);
+}
+
+/* ── Empty note ──────────────────────────────────────────────────────────── */
+
+.emptyWrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.emptyNote {
+  width: 300px;
+  max-width: calc(100% - 24px);
+  padding: 14px 16px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  text-align: center;
+  pointer-events: auto;
+}
+
+:global([data-theme='light']) .emptyNote {
+  background: var(--color-surface);
+}
+
+.emptyLine1 {
+  font-size: var(--font-size-task);
+  color: var(--color-text-secondary);
+}
+
+.emptyLine2 {
+  margin-top: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.emptyAction {
+  height: 24px;
+  margin-top: 10px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.emptyAction:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+/* ── Mobile: touch sizes ─────────────────────────────────────────────────── */
+
+.widget[data-mobile='true'] {
+  --cal-toolbar-height: var(--mobile-cal-toolbar-height);
+  --cal-compact-day-height: var(--mobile-cal-compact-day-height);
+  height: auto;
+}
+
+.widget[data-mobile='true'] .toolbar {
+  gap: 0;
+  padding: 0 4px;
+}
+
+/* 40px tall touch targets; narrower than 40 so the toolbar fits a phone. */
+.widget[data-mobile='true'] .iconButton {
+  width: 32px;
+  height: 40px;
+}
+
+.widget[data-mobile='true'] .rangeLabel {
+  flex-shrink: 0;
+  margin: 0 6px 0 4px;
+}
+
+.widget[data-mobile='true'] .todayButton {
+  height: 36px;
+  padding: 0 10px;
+  font-size: var(--font-size-task);
+}
+
+.widget[data-mobile='true'] .segmented {
+  height: 36px;
+}
+
+.widget[data-mobile='true'] .segment {
+  padding: 0 10px;
+  font-size: var(--font-size-task);
+}
+
+.widget[data-mobile='true'] .dayListEntries {
+  gap: 8px;
+}

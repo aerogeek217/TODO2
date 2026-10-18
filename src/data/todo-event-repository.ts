@@ -1,46 +1,19 @@
 import { db } from './database'
-import type { TodoEvent, TodoEventType, ScheduledValue } from '../models'
+import type { TodoEvent, TodoEventType } from '../models'
 
 /**
  * Append-only `todoEvents` repository. Writes flow exclusively through
  * `todo-repository` (which composes events into the same transaction as the
- * todo write); reads power the scoreboard + snooze-graveyard widgets.
+ * todo write). The rows are an append-only history that travels with exports
+ * and task archives.
  */
 export const todoEventRepository = {
-  async add(event: Omit<TodoEvent, 'id'>): Promise<number> {
-    return db.todoEvents.add(event as TodoEvent)
-  },
-
-  async bulkAdd(events: Omit<TodoEvent, 'id'>[]): Promise<void> {
-    if (events.length === 0) return
-    await db.todoEvents.bulkAdd(events as TodoEvent[])
-  },
-
-  async byTodo(todoId: number): Promise<TodoEvent[]> {
-    return db.todoEvents.where('todoId').equals(todoId).toArray()
-  },
-
-  async getAll(): Promise<TodoEvent[]> {
-    return db.todoEvents.toArray()
-  },
-
   /**
-   * Events whose `timestamp` falls within `[from, to)` (start inclusive,
-   * end exclusive). Optional `types` filter keeps the predicate cheap when
-   * a caller only needs e.g. `'scheduled'` events.
-   *
-   * `timestamp` is a string column but ISO-8601 sorts lexically — Dexie's
-   * `between` treats string ranges as a string compare, which matches our
-   * desired semantics. Caller-supplied Dates are converted to ISO.
+   * Events at or after `from` (one indexed range read on `timestamp`),
+   * optionally only of `types`.
    */
-  async inRange(
-    from: Date,
-    to: Date,
-    types?: readonly TodoEventType[],
-  ): Promise<TodoEvent[]> {
-    const fromIso = from.toISOString()
-    const toIso = to.toISOString()
-    let collection = db.todoEvents.where('timestamp').between(fromIso, toIso, true, false)
+  async since(from: Date, types?: readonly TodoEventType[]): Promise<TodoEvent[]> {
+    let collection = db.todoEvents.where('timestamp').aboveOrEqual(from.toISOString())
     if (types && types.length > 0) {
       const typeSet = new Set<TodoEventType>(types)
       collection = collection.filter((e) => typeSet.has(e.type))
@@ -48,29 +21,24 @@ export const todoEventRepository = {
     return collection.toArray()
   },
 
-  async deleteByTodo(todoId: number): Promise<void> {
-    await db.todoEvents.where('todoId').equals(todoId).delete()
-  },
-}
-
-/**
- * Encode a `ScheduledValue | undefined` into the `fromValue` / `toValue`
- * column shape. `null` for unset; ISO string for fixed dates; `'fuzzy:<token>'`
- * for fuzzy. The fuzzy prefix disambiguates from a date string so the inverse
- * mapping (if ever needed) is unambiguous.
- */
-export function encodeScheduledValue(v: ScheduledValue | undefined | null): string | null {
-  if (v == null) return null
-  if (v.kind === 'date') {
-    if (v.value instanceof Date) return v.value.toISOString()
-    if (typeof v.value === 'string') {
-      const t = Date.parse(v.value)
-      return isNaN(t) ? null : new Date(t).toISOString()
+  /**
+   * Calls `listener` whenever an event row is added, changed or deleted
+   * (Dexie table hooks; it runs inside the writing transaction, so it must
+   * not touch the database itself). A table `clear()` does not notify.
+   * Returns the unsubscribe function.
+   */
+  onChange(listener: () => void): () => void {
+    const table = db.todoEvents
+    const notify = () => { listener() }
+    table.hook('creating').subscribe(notify)
+    table.hook('updating').subscribe(notify)
+    table.hook('deleting').subscribe(notify)
+    return () => {
+      table.hook('creating').unsubscribe(notify)
+      table.hook('updating').unsubscribe(notify)
+      table.hook('deleting').unsubscribe(notify)
     }
-    return null
-  }
-  if (v.kind === 'fuzzy') return `fuzzy:${v.token}`
-  return null
+  },
 }
 
 /** Encode a `Date | undefined` into the `fromValue` / `toValue` column shape. */
@@ -82,9 +50,4 @@ export function encodeDateValue(d: Date | undefined | null): string | null {
     return isNaN(t) ? null : new Date(t).toISOString()
   }
   return null
-}
-
-/** Two encoded scalar values are equal — used to skip no-op edits. */
-export function encodedEqual(a: string | number | null, b: string | number | null): boolean {
-  return a === b
 }

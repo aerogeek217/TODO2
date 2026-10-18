@@ -1,73 +1,95 @@
-import { useRef, useState, useCallback, useMemo, memo } from 'react'
-import { createPortal } from 'react-dom'
-import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
+import { useRef, useState, useCallback, useMemo, memo, type MouseEvent } from 'react'
+import { type PersistedTodoItem, type Person, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useProjectStore } from '../../stores/project-store'
-import { useSettingsStore } from '../../stores/settings-store'
-import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
-import { generateInitials } from '../../utils/person'
-import { startOfToday, toDateInputValue } from '../../utils/date'
-import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
-import { ChipSelector } from '../shared/ChipSelector'
+import { startOfToday } from '../../utils/date'
 import { StatusIcon } from '../shared/StatusIcon'
-import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
-import { TaskPillPeople, TaskPillDates, TaskPillStatus } from '../shared/TaskPillBar'
-import { TagChipSelector } from '../shared/TagChipSelector'
-import { DragHandle } from '../shared/DragHandle'
-import { PortalDropdown } from '../shared/PortalDropdown'
-
-import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
-import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
-import { TaskNotePopover } from './TaskNotePopover'
+import { TagPicker } from '../shared/TagChipSelector'
+import { AnchoredPicker } from '../shared/AnchoredPicker'
+import { useTooltip } from '../shared/use-tooltip'
+import { TaskMenu } from './TaskMenu'
+import { PriorityMenu } from './PriorityMenu'
+import { EntityMenu, type MenuEntity } from '../shared/EntityMenu'
+import { useTaskRowPickers } from './use-task-row-pickers'
+import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
+import { keepRowTextUnselected } from './row-events'
+import { progressNotesPreview } from '../../utils/notes-preview'
+import {
+  DueCell, FollowupCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
+} from './row-cells'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
   isSelected?: boolean
+  /** The drag overlay's copy of the row: no triggers or pickers, no hover sync. */
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
-  /** Task is in clipboard (cut) */
-  cut?: boolean
-  /** Render an `in <project>` sub-line under the title (rail lens / search). */
-  showContext?: boolean
-  /** When true, the row is rendered inside a Taskboard surface. Delete removes the task from the board instead of deleting it. */
-  onTaskboard?: boolean
 }
 
+const NO_PEOPLE: Person[] = []
+
+/**
+ * The desktop task row: one grid column per field, the same columns on every
+ * row of its list (`TaskRowGrid`; the default split outside one):
+ *
+ *   markers · checkbox · title │ notes · people · tags · due · follow-up · status
+ *
+ * Every column is always there; a click on a cell opens its picker anchored
+ * to it, and an empty cell shows its placeholder only on hover / focus — by
+ * opacity, so nothing moves. Only people and tags give way when the details
+ * are squeezed (`utils/task-row-columns`). Click selects, a click on a
+ * selected row's title edits it inline, a double-click on the title or empty
+ * space opens the editor, right-click opens the task menu at the pointer and
+ * Shift+F10 / the context-menu key under the focused cell (there is no ⋯
+ * button); the whole row is the drag source (its list wraps it).
+ */
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
-  onSelect, onOpenDetail, cut, showContext, onTaskboard,
+  onSelect, onOpenDetail,
 }: TaskRowProps) {
+  // Whether the people / tags columns are there: a row re-renders when one comes or goes, not on every
+  // column change (the tracks go straight to its style, the avatar / tag fit is the cells' own).
+  const hasPeople = useTaskRowColumn((c) => c.people > 0)
+  const hasTags = useTaskRowColumn((c) => c.tags > 0)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
-  const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
-  const [showScheduledMenu, setShowScheduledMenu] = useState(false)
-  const [showNotesPopover, setShowNotesPopover] = useState(false)
-  const statusRef = useRef<HTMLDivElement>(null)
-  const peopleRef = useRef<HTMLDivElement>(null)
-  const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
-  const deadlineInputRef = useRef<HTMLInputElement>(null)
-  const notesIconRef = useRef<HTMLButtonElement>(null)
+  const [markersOpen, setMarkersOpen] = useState(false)
+  /**
+   * The task menu: at the pointer (right-click), or under the focused cell
+   * (`menuCellRef`; Shift+F10 / the context-menu key), which gets the focus
+   * back when it closes.
+   */
+  const [menu, setMenu] = useState<{ kind: 'point'; x: number; y: number } | { kind: 'cell' } | null>(null)
+  const menuCellRef = useRef<HTMLElement | null>(null)
+  /** An avatar's / tag's menu: at the pointer, or under its cell (opened from the keyboard). */
+  const [entityMenu, setEntityMenu] = useState<
+    { entities: MenuEntity[]; at: { kind: 'point'; x: number; y: number } | { kind: 'cell'; cell: 'people' | 'tags' } } | null
+  >(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLButtonElement>(null)
+  const markersRef = useRef<HTMLButtonElement>(null)
+  useTaskRowTracks(rowRef)
+  const tagsRef = useRef<HTMLButtonElement>(null)
 
-  // Read entity lists from stores
-  const allPeople = usePersonStore((s) => s.people)
-  const allOrgs = useOrgStore((s) => s.orgs)
-  const allTags = useTagStore((s) => s.tags)
-  const projects = useProjectStore((s) => s.projects)
-  const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
-  const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
-  const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
-  const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
+  const {
+    bulk, handleToggleComplete, assignedTags, allTags, tagPickerOpen, toggleTagPicker, closeTagPicker, toggleTag, createTag,
+    peopleOpen, togglePeople, peopleRef, followupOpen, toggleFollowup, followupAnchorRef, notesOpen, toggleNotes, notesIconRef,
+    deadlineInputRef, openDeadlinePicker, onDeadlineInputChange, menuHandlers, panels,
+  } = useTaskRowPickers({
+    todo,
+    assignedPeople,
+    ghost,
+    onOpenDetail,
+    peoplePickerClassName: styles.chipDropdown,
+    // With its column removed, the people picker (Assign people…) opens at the row.
+    fallbackPeopleAnchorRef: rowRef,
+    useFallbackPeopleAnchor: !hasPeople,
+  })
+
   const statuses = useStatusStore((s) => s.statuses)
   const status = useMemo(() => {
     if (!todo.statusId) return undefined
@@ -76,100 +98,80 @@ export const TaskRow = memo(function TaskRow({
 
   // Cross-surface hover highlighting
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
-  const project = useMemo(
-    () => (showContext && todo.projectId ? projects.find(p => p.id === todo.projectId) : undefined),
-    [showContext, todo.projectId, projects],
-  )
-
-
-  // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
-  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo, onTaskboard })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
-    useTodoStore.getState().update({ ...todo, title: newTitle, modifiedAt: new Date() })
-  }, [todo])
-  const edit = useInlineEdit(todo.title, handleSaveTitle)
+    void useTodoStore.getState().update(todo.id, { title: newTitle })
+  }, [todo.id])
+  const {
+    isEditing, editTitle, setEditTitle, inputRef: titleInputRef,
+    save: saveTitle, handleKeyDown: handleTitleKeyDown, scheduleEdit, cancelScheduledEdit,
+  } = useInlineEdit(todo.title, handleSaveTitle)
+
+  // The full title in the tooltip — only when it's cut off.
+  const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(todo.title)
+  const onTitlePointerEnter = (e: React.PointerEvent<HTMLElement>) => {
+    const el = e.currentTarget
+    if (el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
+  }
 
   const today = startOfToday()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
-  const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
-  const assignedOrgs = assignedOrgsForTodo ?? []
-  const hasPeople = (assignedPeople && assignedPeople.length > 0) || assignedOrgs.length > 0
+  const people = assignedPeople ?? NO_PEOPLE
 
-  // Click-outside handlers
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
-  const closeDropdown = useCallback(() => setOpenDropdown(null), [])
-  const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
+  const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen
+    || menu !== null || entityMenu !== null
 
-  const openDeadlinePicker = useCallback(() => {
-    setTimeout(() => {
-      try { deadlineInputRef.current?.showPicker?.() } catch { deadlineInputRef.current?.focus() }
-    }, 0)
-  }, [])
-  const handleDeadlineInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value
-    bulk.setDeadline(todo.id, raw ? new Date(raw + 'T00:00:00') : null)
-  }, [bulk, todo.id])
-
-  const togglePerson = (id: number) => {
-    if (ghost) return
-    const isAssigned = assignedPeople?.some((p) => p.id === id)
-    if (isAssigned) bulk.quickUnassignPerson(todo.id, id)
-    else bulk.quickAssignPerson(todo.id, id)
+  // Right-click on an avatar / a tag: Show tasks · Edit… · Delete… for it.
+  const openEntityMenu = (e: MouseEvent, entity: MenuEntity) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setEntityMenu({ entities: [entity], at: { kind: 'point', x: e.clientX, y: e.clientY } })
   }
-
-  const toggleOrg = (orgId: number) => {
-    if (ghost) return
-    if (assignedOrgIds.has(orgId)) bulk.quickUnassignOrg(todo.id, orgId)
-    else bulk.quickAssignOrg(todo.id, orgId)
+  const onPersonContextMenu = (e: MouseEvent, person: Person) => openEntityMenu(e, { kind: 'person', entity: person })
+  const onTagContextMenu = (e: MouseEvent, tag: Tag) => openEntityMenu(e, { kind: 'tag', entity: tag })
+  // The cell's own context menu (the keyboard's, or a click beside the
+  // avatars / tags): every entry it shows; an empty cell keeps the task menu.
+  const onCellContextMenu = (cell: 'people' | 'tags', entities: MenuEntity[]) => (e: MouseEvent) => {
+    if (entities.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    setEntityMenu({ entities, at: { kind: 'cell', cell } })
   }
-
-  const handleCreatePerson = async (name: string) => {
-    if (ghost) return
-    const id = await usePersonStore.getState().add(name, generateInitials(name))
-    bulk.quickAssignPerson(todo.id, id)
-  }
-
-  const toggleTag = useCallback((tagId: number) => {
-    if (ghost) return
-    if (assignedTags.some((t) => t.id === tagId)) bulk.quickUnassignTag(todo.id, tagId)
-    else bulk.quickAssignTag(todo.id, tagId)
-  }, [ghost, assignedTags, bulk, todo.id])
-
-  const handleCreateTag = useCallback(async (name: string) => {
-    if (ghost) return
-    const id = await useTagStore.getState().add(name)
-    bulk.quickAssignTag(todo.id, id)
-  }, [ghost, bulk, todo.id])
-
-  const assignedPeopleIds = useMemo(() => new Set((assignedPeople ?? []).map(p => p.id!)), [assignedPeople])
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
+      ref={rowRef}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
+      onMouseDown={keepRowTextUnselected}
       onDoubleClick={(e) => {
         e.stopPropagation()
-        edit.cancelScheduledEdit()
-        if (!edit.isEditing) onOpenDetail?.(todo.id)
+        // A double-click on a cell opened its picker (once); only the title and empty space open the editor.
+        if (e.target instanceof Element && e.target.closest('[data-row-cell]')) return
+        cancelScheduledEdit()
+        if (!isEditing) onOpenDetail?.(todo.id)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        const tb = useTaskboardStore.getState()
-        const onBoard = tb.has(todo.id)
-        setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
+        // From the keyboard (no right button; Chromium reports -1) on a focused cell.
+        if (e.button !== 2 && e.target instanceof HTMLElement && e.target === document.activeElement && e.target !== e.currentTarget) {
+          menuCellRef.current = e.target
+          setMenu({ kind: 'cell' })
+        } else {
+          setMenu({ kind: 'point', x: e.clientX, y: e.clientY })
+        }
       }}
     >
-
-      <DragHandle className={styles.dragHandle} />
+      {ghost
+        ? <MarkerGutterStatic todo={todo} today={today} />
+        : <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
       <input
         type="checkbox"
@@ -178,242 +180,102 @@ export const TaskRow = memo(function TaskRow({
         onChange={handleToggleComplete}
         onClick={(e) => e.stopPropagation()}
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+        data-row-cell="checkbox"
       />
 
-      {edit.isEditing ? (
+      {isEditing ? (
         <input
-          ref={edit.inputRef}
+          ref={titleInputRef}
           className={styles.titleInput}
-          value={edit.editTitle}
+          value={editTitle}
           maxLength={500}
-          onChange={(e) => edit.setEditTitle(e.target.value)}
-          onBlur={edit.save}
-          onKeyDown={edit.handleKeyDown}
+          onChange={(e) => setEditTitle(e.target.value)}
+          onBlur={saveTitle}
+          onKeyDown={handleTitleKeyDown}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         />
       ) : (
-        <div className={styles.titleBlock}>
-          <span
-            className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
-            title={todo.title}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
-              } else if (isSelected) {
-                edit.scheduleEdit()
-              } else {
-                onSelect?.(todo.id, { shift: false, ctrl: false })
-              }
-            }}
-          >
-            {todo.title}
-          </span>
-          {showContext && project && (
-            <span className={styles.contextLine}>in {project.name}</span>
-          )}
-        </div>
-      )}
-
-      {/* Notes indicator — click opens inline notes popover. Sits at the
-          leftmost chip slot (just after the title) so it flows freely with
-          tags on the left while leaving people / date / status aligned in
-          their fixed-width slots on the right. */}
-      {todo.notes && !ghost && (
-        <button
-          ref={notesIconRef}
-          type="button"
-          className={styles.notesIndicator}
-          title="Edit notes"
-          aria-label="Edit notes"
-          onClick={(e) => { e.stopPropagation(); setShowNotesPopover(v => !v) }}
+        <span
+          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          data-task-title={todo.title}
+          {...titleTipProps}
+          onPointerEnter={onTitlePointerEnter}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+              onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
+            } else if (isSelected) {
+              scheduleEdit()
+            } else {
+              onSelect?.(todo.id, { shift: false, ctrl: false })
+            }
+          }}
         >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-            <path d="M9.5 1.5V5H13" />
-            <path d="M5 8h6M5 11h4" />
-          </svg>
-        </button>
-      )}
-      {todo.notes && ghost && (
-        <span className={styles.notesIndicator} title="Has notes">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-            <path d="M9.5 1.5V5H13" />
-            <path d="M5 8h6M5 11h4" />
-          </svg>
-        </span>
-      )}
-      {showNotesPopover && !ghost && createPortal(
-        <TaskNotePopover
-          todoId={todo.id}
-          anchorRef={notesIconRef}
-          onClose={() => setShowNotesPopover(false)}
-        />,
-        document.body,
-      )}
-
-      {/* Progress label with visual bar */}
-      {todo.progress && (
-        <span className={styles.progressChip}>
-          {todo.progress}
-          {(() => {
-            const m = todo.progress.match(/(\d+)\s*%/)
-            if (!m || m[1] == null) return null
-            const pct = Math.min(100, Math.max(0, parseInt(m[1])))
-            return (
-              <span className={styles.progressBarTrack}>
-                <span className={styles.progressBarFill} style={{ width: `${pct}%` }} />
-              </span>
-            )
-          })()}
+          {todo.title}
+          {titleTip}
         </span>
       )}
 
-      {/* Slots are interleaved per-chip (populated vs empty-state) instead of
-          composing the full `<TaskPillBar>`, so each chip stays in a fixed
-          JSX position regardless of which sibling is populated. Order is
-          `# tags → @ people → date → status` for both populated and empty
-          variants. */}
+      {ghost ? (
+        // The drag overlay's copy: the title and a notes mark only.
+        progressNotesPreview(todo.progress, todo.notes)
+          ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has progress or notes"><NotesGlyph /></span>
+          : null
+      ) : (
+        <>
+          <NotesCell progress={todo.progress} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
+          {hasPeople && (
+            <PeopleCell
+              people={people}
+              anchorRef={peopleRef}
+              open={peopleOpen}
+              onToggle={togglePeople}
+              onPersonContextMenu={onPersonContextMenu}
+              onCellContextMenu={onCellContextMenu('people', people.map((p) => ({ kind: 'person', entity: p })))}
+            />
+          )}
+          {hasTags && (
+            <TagsCell
+              tags={assignedTags}
+              anchorRef={tagsRef}
+              open={tagPickerOpen}
+              onToggle={toggleTagPicker}
+              onTagContextMenu={onTagContextMenu}
+              onCellContextMenu={onCellContextMenu('tags', assignedTags.map((t) => ({ kind: 'tag', entity: t })))}
+            />
+          )}
+          <DueCell
+            todo={todo}
+            today={today}
+            inputRef={deadlineInputRef}
+            onOpen={openDeadlinePicker}
+            onClear={() => bulk.setDeadline(todo.id, null)}
+            onInputChange={onDeadlineInputChange}
+          />
+          <FollowupCell todo={todo} today={today} anchorRef={followupAnchorRef} open={followupOpen} onToggle={toggleFollowup} />
+          <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />
+        </>
+      )}
 
-      {/* Slot 1 — tags. Populated chips render; empty `#` trigger is
-          hover-revealed via the `[class*="tagChipEmpty"]` rule. */}
-      {!ghost && (
-        <TagChipSelector
+      {/* The people picker, the follow-up popover and the notes popover. */}
+      {panels}
+
+      {!ghost && tagPickerOpen && (
+        <TagPicker
+          // With its column removed, the tag picker (Add tag…) opens at the row.
+          anchorRef={hasTags ? tagsRef : rowRef}
+          anchorIsInside={hasTags}
           assignedTags={assignedTags}
           allTags={allTags}
           onToggle={toggleTag}
-          onCreate={handleCreateTag}
+          onCreate={createTag}
+          onClose={closeTagPicker}
         />
       )}
 
-      {/* Slot 2 — people/orgs. Populated avatars or hover-revealed `@`
-          trigger; either way `peopleRef` anchors the popover. */}
-      {!ghost && (hasPeople ? (
-        <TaskPillPeople
-          people={assignedPeople ?? []}
-          orgs={assignedOrgs}
-          anchorRef={peopleRef}
-          onPeopleClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
-          onPersonContextMenu={(e, person) => {
-            e.preventDefault()
-            e.stopPropagation()
-            useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'person', personId: person.id!, personName: person.name })
-          }}
-          onOrgContextMenu={(e, org) => {
-            e.preventDefault()
-            e.stopPropagation()
-            useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color })
-          }}
-        />
-      ) : (
-        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
-          <button
-            className={styles.chipTrigger}
-            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
-          >
-            @
-          </button>
-        </div>
-      ))}
-
-      {/* Slot 3 — dates. Populated stack or empty calendar button.
-          `dateStackEmpty` reserves the same width so status doesn't shift
-          horizontally between rows. The hidden native `<input type="date">`
-          lives inside this slot in both cases (single `deadlineInputRef`). */}
-      {!ghost && (todo.scheduledDate || todo.dueDate ? (
-        <>
-          <TaskPillDates
-            todo={todo}
-            today={today}
-            weekStartsOn={weekStartsOn}
-            layout="stack"
-            scheduledIntensity={scheduledIntensity}
-            deadlineIntensity={deadlineIntensity}
-            scheduledAnchorRef={scheduledAnchorRef}
-            onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-            onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-            onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
-          />
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-            onChange={handleDeadlineInputChange}
-          />
-        </>
-      ) : (
-        <div className={styles.dateStackEmpty}>
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value=""
-            onChange={handleDeadlineInputChange}
-          />
-          <button
-            ref={scheduledAnchorRef}
-            type="button"
-            className={`${styles.actionBtn} ${styles.actionBtnHover}`}
-            onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-            title="Schedule or set deadline"
-          >
-            <StatusIcon icon="calendar" />
-          </button>
-        </div>
-      ))}
-
-      {/* Slot 4 — status. Always rendered; empty dot is hover-revealed via
-          the `[class*="statusDotEmpty"]` rule. */}
-      {!ghost && (
-        <TaskPillStatus
-          status={status}
-          anchorRef={statusRef}
-          onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
-        />
-      )}
-
-      {/* Portaled people/org chip selector — anchored to peopleRef. */}
-      {!ghost && openDropdown === 'people' && createPortal(
-        <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
-          <div className={styles.chipDropdown}>
-            <ChipSelector
-              items={[
-                ...allPeople.map(p => ({ id: p.id!, name: p.name })),
-                ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
-              ]}
-              selectedIds={(() => {
-                const ids = new Set(assignedPeopleIds)
-                for (const oid of assignedOrgIds) ids.add(-oid)
-                return ids
-              })()}
-              onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
-              onCreate={handleCreatePerson}
-              placeholder="Search people & orgs..."
-            />
-          </div>
-        </PortalDropdown>,
-        document.body,
-      )}
-
-      {/* Portaled scheduled-value menu — anchored to scheduledAnchorRef. */}
-      {showScheduledMenu && !ghost && createPortal(
-        <PortalDropdown anchorRef={scheduledAnchorRef} onClickOutside={closeScheduledMenu}>
-          <ScheduledValueMenu
-            value={todo.scheduledDate ?? null}
-            onChange={(v) => bulk.setScheduled(todo.id, v)}
-            onClose={closeScheduledMenu}
-            onAddDeadline={todo.dueDate ? undefined : openDeadlinePicker}
-          />
-        </PortalDropdown>,
-        document.body,
-      )}
-
-      {/* Portaled status menu — anchored to statusRef (TaskPillBar's status wrapper). */}
-      {!ghost && showStatusMenu && createPortal(
-        <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
+      {!ghost && showStatusMenu && (
+        <AnchoredPicker anchorRef={statusRef} onClose={closeStatus} closeOnEscape>
           <div className={styles.statusMenu}>
             <button
               className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
@@ -433,35 +295,35 @@ export const TaskRow = memo(function TaskRow({
               </button>
             ))}
           </div>
-        </PortalDropdown>,
-        document.body,
+        </AnchoredPicker>
       )}
 
-      {contextMenu && (
-        <CanvasContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={buildTaskRowMenuItems({
-            todo,
-            onBoard: contextMenu.onBoard,
-            onTaskboard,
-            onOpenDetail,
-            onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
-            onComplete: handleToggleComplete,
-            onDelete: handleDelete,
-          })}
-          onClose={() => setContextMenu(null)}
+      {markersOpen && (
+        <PriorityMenu
+          todo={todo}
+          anchorRef={markersRef}
+          onSetMarker={menuHandlers.onSetMarker}
+          onClose={() => setMarkersOpen(false)}
         />
       )}
 
-      {projectPicker && (
-        <ProjectPickerPopup
-          x={projectPicker.x}
-          y={projectPicker.y}
-          projectId={todo.projectId}
-          projects={projects}
-          onSelect={(id) => bulk.setProject(todo.id, id)}
-          onClose={() => setProjectPicker(null)}
+      {entityMenu && (
+        <EntityMenu
+          entities={entityMenu.entities}
+          anchorRef={entityMenu.at.kind === 'cell' ? (entityMenu.at.cell === 'people' ? peopleRef : tagsRef) : undefined}
+          point={entityMenu.at.kind === 'point' ? { x: entityMenu.at.x, y: entityMenu.at.y } : undefined}
+          closeOnScroll={entityMenu.at.kind === 'point'}
+          onClose={() => setEntityMenu(null)}
+        />
+      )}
+
+      {menu && (
+        <TaskMenu
+          todo={todo}
+          anchorRef={menu.kind === 'cell' ? menuCellRef : undefined}
+          point={menu.kind === 'point' ? { x: menu.x, y: menu.y } : undefined}
+          handlers={menuHandlers}
+          onClose={() => setMenu(null)}
         />
       )}
     </div>

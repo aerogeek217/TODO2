@@ -1,4 +1,14 @@
-export type BackupTrigger = 'auto' | 'manual' | 'pre-destructive'
+/**
+ * What made a backup: `auto` — the daily automatic snapshot (and the one at
+ * startup when that is due); `manual` — Settings → Backups → Create Backup
+ * Now; `pre-destructive` — the database before a destructive operation
+ * (import, restore, purge, bulk delete, the sync file loaded over browser
+ * data); `sync-file` — the sync file's raw text before the file is
+ * rewritten or overwritten; `sync-file-original` — the same for a file at an
+ * older schema version (what an older build wrote), never pruned. Each other
+ * kind keeps its own newest few (`data/backup-scheduler`).
+ */
+export type BackupTrigger = 'auto' | 'manual' | 'pre-destructive' | 'sync-file' | 'sync-file-original'
 
 export interface Backup {
   id?: number

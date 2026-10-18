@@ -4,13 +4,13 @@ import { createAssignmentActions } from '../../stores/assignment-helpers'
 interface E { id?: number; name: string }
 
 /**
- * Race regression for `triage-2026-04-28 P4` — QuickAdd `@person` chip
+ * Race regression — QuickAdd `@person` chip
  * not appearing on the new task row. The trigger is a TOCTOU between
- * `loadAssignments` (fired from ListView when `todosVersion` bumps) and
- * `assignPerson` (fired from `applyNlpMetadata` immediately after
+ * `loadAssignments` (fired by `useEntityAssignmentsForTodos` when `todosVersion` bumps) and
+ * `assignPerson` (fired immediately after
  * `todoStore.add`):
  *
- *   1. ListView calls `loadAssignments([newId])`. It snapshots the map,
+ *   1. The workspace calls `loadAssignments([newId])`. It snapshots the map,
  *      starts `await repo.getForTodos([newId])`.
  *   2. `assignPerson(newId, alice)` runs in parallel: optimistic write
  *      sets `map[newId] = [alice]`, then `await repo.assign`.
@@ -33,11 +33,11 @@ function makeActions(initialEntities: E[] = []) {
   const assignGate = defer<void>()
   let map = new Map<number, E[]>()
   const repo = {
-    async assign(_todoId: number, _entityId: number) {
+    async assign() {
       await assignGate.promise
     },
     async unassign() { /* unused */ },
-    async getForTodos(_todoIds: number[]) {
+    async getForTodos() {
       return fetchGate.promise
     },
   }
@@ -46,7 +46,6 @@ function makeActions(initialEntities: E[] = []) {
     () => initialEntities,
     () => map,
     (m) => { map = m },
-    (() => {}) as never,
   )
   return {
     actions,
@@ -57,14 +56,14 @@ function makeActions(initialEntities: E[] = []) {
 }
 
 describe('createAssignmentActions.loadAssignments', () => {
-  it('preserves optimistic assignments that land during the DB fetch (P4 race)', async () => {
+  it('preserves optimistic assignments that land during the DB fetch', async () => {
     const alice: E = { id: 1, name: 'Alice' }
     const ctx = makeActions([alice])
 
-    // Step 1: ListView-style load fires for the new todo id 42.
+    // Step 1: the workspace load fires for the new todo id 42.
     const loadPromise = ctx.actions.loadAssignments([42])
 
-    // Step 2: applyNlpMetadata-style assign fires before loadAssignments
+    // Step 2: an assign fired right after the create, before loadAssignments
     // resolves. The optimistic write happens synchronously inside
     // `optimistic(...)`, before `repo.assign` awaits.
     const assignPromise = ctx.actions.assign(42, 1)

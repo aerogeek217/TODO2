@@ -3,23 +3,43 @@ import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useTagStore } from '../../stores/tag-store'
+import { usePersonStore } from '../../stores/person-store'
 import { todoRepository } from '../../data/todo-repository'
+import { tagRepository } from '../../data/tag-repository'
+import { personRepository } from '../../data/person-repository'
+import { selectExpiredCompleted } from '../../utils/completed-at'
+/** What the launch prompt / Settings cleanup delete once the user confirms. */
+const purgeExpired = async (days: number) => {
+  const outcome = await useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
+  return outcome.status === 'done' ? outcome.deleted : -1
+}
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
   useUndoStore.getState().clear()
+  useSettingsStore.setState(useSettingsStore.getInitialState(), true)
+  useTagStore.setState(useTagStore.getInitialState(), true)
+  usePersonStore.setState(usePersonStore.getInitialState(), true)
 })
 
 describe('todoStore', () => {
   it('add creates a todo and updates the store', async () => {
-    await useTodoStore.getState().add('Buy milk', 1)
+    await useTodoStore.getState().add('Buy milk')
     const { todos } = useTodoStore.getState()
     expect(todos).toHaveLength(1)
     expect(todos[0]!.title).toBe('Buy milk')
-    expect(todos[0]!.canvasId).toBe(1)
     expect(todos[0]!.isCompleted).toBe(false)
+  })
+
+  it('add places the new todo after the highest sortOrder', async () => {
+    const id1 = await useTodoStore.getState().add('First')
+    await db.todos.update(id1, { sortOrder: 41 })
+    await useTodoStore.getState().loadAll()
+    const id2 = await useTodoStore.getState().add('Second')
+    expect(useTodoStore.getState().todos.find((t) => t.id === id2)!.sortOrder).toBe(42)
   })
 
   it('toggleComplete flips isCompleted', async () => {
@@ -40,31 +60,13 @@ describe('todoStore', () => {
     expect(fromDb).toBeUndefined()
   })
 
-  it('loadByCanvas loads only todos for that canvas', async () => {
-    await useTodoStore.getState().add('In 1', 1)
-    await useTodoStore.getState().add('In 2', 2)
+  it('loadAll loads every todo from the DB', async () => {
+    await useTodoStore.getState().add('One')
+    await useTodoStore.getState().add('Two')
+    useTodoStore.setState({ todos: [] })
 
-    await useTodoStore.getState().loadByCanvas(1)
-    const { todos } = useTodoStore.getState()
-    expect(todos).toHaveLength(1)
-    expect(todos[0]!.title).toBe('In 1')
-  })
-
-  it('reorder updates sortOrder', async () => {
-    const id = await useTodoStore.getState().add('Task')
-    await useTodoStore.getState().reorder(id, 99)
-    expect(useTodoStore.getState().todos[0]!.sortOrder).toBe(99)
-  })
-
-  it('addAt inserts with specific projectId and sortOrder', async () => {
-    const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
-    const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
-
-    const id = await useTodoStore.getState().addAt('Task', projectId, canvasId, 42)
-    const todo = useTodoStore.getState().todos.find(t => t.id === id)
-    expect(todo).toBeDefined()
-    expect(todo!.projectId).toBe(projectId)
-    expect(todo!.sortOrder).toBe(42)
+    await useTodoStore.getState().loadAll()
+    expect(useTodoStore.getState().todos.map((t) => t.title).sort()).toEqual(['One', 'Two'])
   })
 
   it('bulkSetCompleted marks multiple todos completed', async () => {
@@ -92,19 +94,6 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todos.find(t => t.id === id1)!.dueDate).toBeUndefined()
   })
 
-  it('bulkSetProject moves multiple todos to a project and clears it', async () => {
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
-
-    await useTodoStore.getState().bulkSetProject([id1, id2], 42)
-    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.projectId).toBe(42)
-    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.projectId).toBe(42)
-
-    await useTodoStore.getState().bulkSetProject([id1], undefined)
-    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.projectId).toBeUndefined()
-    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.projectId).toBe(42)
-  })
-
   it('bulkRemove removes multiple todos from store and DB', async () => {
     const id1 = await useTodoStore.getState().add('Task 1')
     const id2 = await useTodoStore.getState().add('Task 2')
@@ -118,20 +107,82 @@ describe('todoStore', () => {
     expect(await db.todos.get(id3)).toBeUndefined()
   })
 
+  it('undo → redo → undo of an add leaves no task behind', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    const undoStore = useUndoStore.getState()
+    await undoStore.undo()
+    await undoStore.redo()
+    expect(useTodoStore.getState().todos.map((t) => t.id)).toEqual([id])
+    expect(await db.todos.count()).toBe(1)
+    await undoStore.undo()
+    expect(useTodoStore.getState().todos).toHaveLength(0)
+    expect(await db.todos.count()).toBe(0)
+  })
+
+  it('undo → redo → undo of a duplicate leaves only the original', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    const tagId = await tagRepository.getOrCreate('ops', '#111111')
+    await tagRepository.assignTag(id, tagId)
+    const copyId = await useTodoStore.getState().duplicate(id)
+    const undoStore = useUndoStore.getState()
+    await undoStore.undo()
+    await undoStore.redo()
+    expect(useTodoStore.getState().todos.map((t) => t.id).sort()).toEqual([id, copyId].sort())
+    expect((await db.todoTags.where('todoId').equals(copyId!).toArray()).map((r) => r.tagId)).toEqual([tagId])
+    await undoStore.undo()
+    expect(useTodoStore.getState().todos.map((t) => t.id)).toEqual([id])
+    expect(await db.todos.count()).toBe(1)
+  })
+
+  it('undoing a delete brings the task back with its people and tags', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    const personId = await personRepository.insert({ name: 'Dana', initials: 'DA' })
+    const tagId = await tagRepository.getOrCreate('ops', '#111111')
+    await personRepository.assignPerson(id, personId)
+    await tagRepository.assignTag(id, tagId)
+
+    await useTodoStore.getState().remove(id)
+    expect(await db.todoTags.where('todoId').equals(id).count()).toBe(0)
+    await useUndoStore.getState().undo()
+
+    expect(useTodoStore.getState().todos.map((t) => t.id)).toEqual([id])
+    expect((await db.todoPeople.where('todoId').equals(id).toArray()).map((r) => r.personId)).toEqual([personId])
+    expect((await db.todoTags.where('todoId').equals(id).toArray()).map((r) => r.tagId)).toEqual([tagId])
+    expect(useTagStore.getState().assignedTagsMap.get(id)?.map((t) => t.id)).toEqual([tagId])
+  })
+
+  it('undoing a bulk delete brings every task back with its tags', async () => {
+    const id1 = await useTodoStore.getState().add('Task 1')
+    const id2 = await useTodoStore.getState().add('Task 2')
+    const tagA = await tagRepository.getOrCreate('a', '#111111')
+    const tagB = await tagRepository.getOrCreate('b', '#222222')
+    await tagRepository.assignTag(id1, tagA)
+    await tagRepository.assignTag(id2, tagA)
+    await tagRepository.assignTag(id2, tagB)
+
+    await useTodoStore.getState().bulkRemove([id1, id2])
+    await useUndoStore.getState().undo()
+
+    const tagsOf = async (id: number) =>
+      (await db.todoTags.where('todoId').equals(id).toArray()).map((r) => r.tagId).sort()
+    expect(useTodoStore.getState().todos.map((t) => t.id).sort()).toEqual([id1, id2].sort())
+    expect(await tagsOf(id1)).toEqual([tagA])
+    expect(await tagsOf(id2)).toEqual([tagA, tagB].sort())
+  })
+
   it('todosVersion bumps on id-set changes but not on field edits', async () => {
     // Dashboard/ListView memoize assignment-load effects on
     // `${todos.length}:${todosVersion}`, so the bump contract is load-bearing:
     // add / remove / bulkRemove / restore / purge should tick the counter,
-    // update / toggleComplete / reorder / bulk-field setters should not.
+    // update / toggleComplete / bulk-field setters should not.
     const v0 = useTodoStore.getState().todosVersion
     const id1 = await useTodoStore.getState().add('Task 1')
     const vAfterAdd = useTodoStore.getState().todosVersion
     expect(vAfterAdd).toBeGreaterThan(v0)
 
-    // Field edits (update + toggleComplete + reorder + bulkSet*) keep the
+    // Field edits (update + toggleComplete + bulkSet*) keep the
     // version pinned — those don't change the id-set.
     await useTodoStore.getState().toggleComplete(id1)
-    await useTodoStore.getState().reorder(id1, 99)
     await useTodoStore.getState().bulkSetStatus([id1], undefined)
     expect(useTodoStore.getState().todosVersion).toBe(vAfterAdd)
 
@@ -148,30 +199,7 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todosVersion).toBeGreaterThan(vAfterRemove)
   })
 
-  it('applyMutations applies projectId/sortOrder changes', async () => {
-    const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
-    const proj1 = (await db.projects.add({ name: 'P1', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
-    const proj2 = (await db.projects.add({ name: 'P2', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: new Date() })) as number
-
-    const id = await useTodoStore.getState().add('Task', canvasId, proj1)
-    await useTodoStore.getState().applyMutations([
-      { todoId: id, changes: { projectId: proj2, sortOrder: 10 } },
-    ])
-
-    const todo = useTodoStore.getState().todos.find(t => t.id === id)
-    expect(todo!.projectId).toBe(proj2)
-    expect(todo!.sortOrder).toBe(10)
-  })
-
-  it('applyMutations no-ops on empty array', async () => {
-    await useTodoStore.getState().add('Task')
-    const before = useTodoStore.getState().todos[0]!
-    await useTodoStore.getState().applyMutations([])
-    const after = useTodoStore.getState().todos[0]!
-    expect(after.sortOrder).toBe(before.sortOrder)
-  })
-
-  it('purgeExpiredCompleted removes old completed todos', async () => {
+  it('purgeCompleted (expired selection) removes old completed todos', async () => {
     const id1 = await useTodoStore.getState().add('Old done')
     const id2 = await useTodoStore.getState().add('Recent done')
     const id3 = await useTodoStore.getState().add('Not done')
@@ -180,27 +208,53 @@ describe('todoStore', () => {
     await useTodoStore.getState().toggleComplete(id1)
     await useTodoStore.getState().toggleComplete(id2)
 
-    // Backdate id1's modifiedAt
+    // Backdate id1's completion (the purge clock is completedAt)
     const oldDate = new Date()
     oldDate.setDate(oldDate.getDate() - 40)
-    await db.todos.update(id1, { modifiedAt: oldDate })
+    await db.todos.update(id1, { completedAt: oldDate })
     useTodoStore.setState({
       todos: useTodoStore.getState().todos.map(t =>
-        t.id === id1 ? { ...t, modifiedAt: oldDate } : t
+        t.id === id1 ? { ...t, completedAt: oldDate } : t
       ),
     })
 
-    const count = await useTodoStore.getState().purgeExpiredCompleted(30)
+    const count = await purgeExpired(30)
     expect(count).toBe(1)
     expect(useTodoStore.getState().todos.find(t => t.id === id1)).toBeUndefined()
     expect(useTodoStore.getState().todos.find(t => t.id === id2)).toBeDefined()
     expect(useTodoStore.getState().todos.find(t => t.id === id3)).toBeDefined()
   })
 
-  it('purgeExpiredCompleted returns 0 when nothing to purge', async () => {
+  it('purgeCompleted (expired selection) returns 0 when nothing to purge', async () => {
     await useTodoStore.getState().add('Active task')
-    const count = await useTodoStore.getState().purgeExpiredCompleted(30)
+    const count = await purgeExpired(30)
     expect(count).toBe(0)
+  })
+
+  it('duplicate copies fields, people and tags onto a new todo', async () => {
+    const id = await useTodoStore.getState().add('Original')
+    const original = useTodoStore.getState().todos.find((t) => t.id === id)!
+    const due = new Date(2026, 5, 15)
+    await useTodoStore.getState().update(original.id, { dueDate: due, notes: 'n', statusId: 3 })
+    const tagA = await tagRepository.getOrCreate('Project: Alpha', '#123456')
+    const tagB = await tagRepository.getOrCreate('urgent', '#654321')
+    await tagRepository.assignTag(id, tagA)
+    await tagRepository.assignTag(id, tagB)
+    const personId = (await db.people.add({ name: 'Ann', initials: 'A' })) as number
+    await personRepository.assignPerson(id, personId)
+
+    const newId = await useTodoStore.getState().duplicate(id)
+    expect(newId).toBeDefined()
+    expect(newId).not.toBe(id)
+    const copy = useTodoStore.getState().todos.find((t) => t.id === newId)!
+    expect(copy).toMatchObject({ title: 'Original', dueDate: due, notes: 'n', statusId: 3, isCompleted: false })
+
+    const tagIds = ((await tagRepository.getAssignedTagsForTodos([newId!])).get(newId!) ?? []).map((t) => t.id).sort()
+    expect(tagIds).toEqual([tagA, tagB].sort())
+    expect(useTagStore.getState().assignedTagsMap.get(newId!)?.map((t) => t.name).sort()).toEqual(['Project: Alpha', 'urgent'])
+    expect(((await personRepository.getAssignedPeopleForTodos([newId!])).get(newId!) ?? []).map((p) => p.id)).toEqual([personId])
+    // The original keeps its own assignments.
+    expect(((await tagRepository.getAssignedTagsForTodos([id])).get(id) ?? []).length).toBe(2)
   })
 
   describe('defaultStatusId', () => {
@@ -214,26 +268,6 @@ describe('todoStore', () => {
     it('add does not set statusId when defaultStatusId is null', async () => {
       useSettingsStore.setState({ defaultStatusId: null })
       const id = await useTodoStore.getState().add('Task without status')
-      const todo = useTodoStore.getState().todos.find(t => t.id === id)
-      expect(todo!.statusId).toBeUndefined()
-    })
-
-    it('addAt applies defaultStatusId from settings when set', async () => {
-      useSettingsStore.setState({ defaultStatusId: 5 })
-      const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
-      const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
-
-      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, 100)
-      const todo = useTodoStore.getState().todos.find(t => t.id === id)
-      expect(todo!.statusId).toBe(5)
-    })
-
-    it('addAt does not set statusId when defaultStatusId is null', async () => {
-      useSettingsStore.setState({ defaultStatusId: null })
-      const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
-      const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
-
-      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, 100)
       const todo = useTodoStore.getState().todos.find(t => t.id === id)
       expect(todo!.statusId).toBeUndefined()
     })
@@ -263,8 +297,8 @@ describe('todoStore', () => {
 
       // Act
       await expect(
-        useTodoStore.getState().update({ ...original, title: 'Changed title' })
-      ).rejects.toThrow('DB error')
+        useTodoStore.getState().update(original.id, { title: 'Changed title' })
+      ).resolves.toBe(false)
 
       // Assert
       const todo = useTodoStore.getState().todos.find((t) => t.id === id)

@@ -1,0 +1,713 @@
+{
+  "__schemaVersion": 49,
+  "todos": [
+    {
+      "title": "Send quarterly report",
+      "notes": "Include **charts**",
+      "progress": "draft done",
+      "isCompleted": false,
+      "scheduledDate": {
+        "kind": "date",
+        "value": "2026-10-12T00:00:00.000Z"
+      },
+      "dueDate": "2026-10-16T00:00:00.000Z",
+      "recurrenceRule": {
+        "type": "weekly"
+      },
+      "createdAt": "2026-09-02T10:00:00.000Z",
+      "modifiedAt": "2026-09-11T09:30:00.000Z",
+      "projectId": 1,
+      "canvasId": 1,
+      "statusId": 2,
+      "sortOrder": 0,
+      "id": 1
+    },
+    {
+      "title": "Book dentist",
+      "isCompleted": false,
+      "scheduledDate": {
+        "kind": "fuzzy",
+        "token": "next-week",
+        "setAt": "2026-09-10T09:30:00.000Z"
+      },
+      "dueDate": "2026-10-31T00:00:00.000Z",
+      "recurrenceRule": {
+        "type": "monthly",
+        "originalDayOfMonth": 31
+      },
+      "createdAt": "2026-09-03T11:00:00.000Z",
+      "modifiedAt": "2026-09-10T09:30:00.000Z",
+      "projectId": 2,
+      "canvasId": 1,
+      "sortOrder": 1,
+      "id": 2
+    },
+    {
+      "title": "Vendor contract review",
+      "isCompleted": false,
+      "createdAt": "2026-09-04T12:00:00.000Z",
+      "modifiedAt": "2026-09-04T12:00:00.000Z",
+      "projectId": 1,
+      "canvasId": 1,
+      "statusId": 1,
+      "sortOrder": 2,
+      "id": 3
+    },
+    {
+      "title": "Renew passport",
+      "isCompleted": true,
+      "scheduledDate": {
+        "kind": "fuzzy",
+        "token": "next-month",
+        "setAt": "2026-09-05T13:00:00.000Z"
+      },
+      "createdAt": "2026-09-05T13:00:00.000Z",
+      "modifiedAt": "2026-09-12T09:30:00.000Z",
+      "projectId": 2,
+      "canvasId": 1,
+      "sortOrder": 3,
+      "id": 4
+    },
+    {
+      "title": "Call Ann about #urgent offsite",
+      "isCompleted": false,
+      "createdAt": "2026-09-06T14:00:00.000Z",
+      "modifiedAt": "2026-09-14T09:30:00.000Z",
+      "sortOrder": 4,
+      "id": 5
+    },
+    {
+      "title": "Chase Globex invoice",
+      "isCompleted": false,
+      "scheduledDate": {
+        "kind": "date",
+        "value": "2026-10-09T00:00:00.000Z"
+      },
+      "createdAt": "2026-09-07T15:00:00.000Z",
+      "modifiedAt": "2026-09-07T15:00:00.000Z",
+      "projectId": 1,
+      "canvasId": 1,
+      "statusId": 2,
+      "sortOrder": 5,
+      "id": 6
+    }
+  ],
+  "projects": [
+    {
+      "name": "Work",
+      "canvasId": 1,
+      "positionX": 120,
+      "positionY": 80,
+      "width": 360,
+      "isCollapsed": false,
+      "color": "#4f8cff",
+      "sortOrder": 0,
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "groupBy": "status",
+      "groupOrder": [
+        "status:3",
+        "status:1"
+      ],
+      "id": 1
+    },
+    {
+      "name": "Home",
+      "canvasId": 1,
+      "positionX": 600,
+      "positionY": 80,
+      "isCollapsed": true,
+      "sortOrder": 1,
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "groupBy": null,
+      "id": 2
+    }
+  ],
+  "canvases": [
+    {
+      "name": "Main",
+      "sortOrder": 0,
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "id": 1
+    }
+  ],
+  "listInsets": [
+    {
+      "listDefinitionId": 3,
+      "canvasId": 1,
+      "x": 40,
+      "y": 500,
+      "width": 320,
+      "height": 300,
+      "isCollapsed": false,
+      "runtimeFilterValue": [
+        1,
+        2
+      ],
+      "id": 1
+    },
+    {
+      "listDefinitionId": 2,
+      "canvasId": 1,
+      "x": 400,
+      "y": 500,
+      "width": 320,
+      "height": 240,
+      "isCollapsed": true,
+      "id": 2
+    }
+  ],
+  "people": [
+    {
+      "name": "Ann Lee",
+      "initials": "AL",
+      "id": 1
+    },
+    {
+      "name": "Bob Stone",
+      "initials": "BS",
+      "id": 2
+    },
+    {
+      "name": "Cat Ng",
+      "initials": "CN",
+      "id": 3
+    }
+  ],
+  "settings": [
+    {
+      "key": "canvasMaxExtent",
+      "value": "20000"
+    },
+    {
+      "key": "canvasRails",
+      "value": "{\"left\":{\"orientation\":\"vertical\",\"slots\":[{\"id\":\"s-lens\",\"flex\":2,\"activeTabId\":\"t-lens\",\"tabs\":[{\"id\":\"t-lens\",\"type\":\"lens\",\"listDefinitionId\":3,\"runtimeFilterValue\":[1]},{\"id\":\"t-notes\",\"type\":\"notes\"}]},{\"id\":\"s-cal\",\"flex\":1,\"activeTabId\":\"t-cal\",\"orientation\":\"vertical\",\"weekOffset\":1,\"tabs\":[{\"id\":\"t-cal\",\"type\":\"calendar\"}]}]},\"right\":{\"orientation\":\"vertical\",\"slots\":[{\"id\":\"s-tb\",\"activeTabId\":\"t-tb\",\"tabs\":[{\"id\":\"t-tb\",\"type\":\"taskboard\"},{\"id\":\"t-hz\",\"type\":\"horizons\"}]}]},\"top\":null,\"bottom\":{\"orientation\":\"horizontal\",\"slots\":[{\"id\":\"s-stats\",\"activeTabId\":\"t-st\",\"tabs\":[{\"id\":\"t-st\",\"type\":\"status\"},{\"id\":\"t-sb\",\"type\":\"scoreboard\"},{\"id\":\"t-sg\",\"type\":\"snoozeGraveyard\"}]}]},\"widths\":{\"left\":340,\"right\":300},\"heights\":{\"bottom\":220},\"corners\":{\"sw\":\"v\"},\"collapsed\":{\"right\":true}}"
+    },
+    {
+      "key": "canvasViewport",
+      "value": "{\"x\":-120,\"y\":40,\"zoom\":0.85}"
+    },
+    {
+      "key": "color.dark.accent",
+      "value": "#4f8cff"
+    },
+    {
+      "key": "color.light.accent",
+      "value": "#1a5fd0"
+    },
+    {
+      "key": "completedRetentionDays",
+      "value": "30"
+    },
+    {
+      "key": "defaultProjectGroupBy",
+      "value": "status"
+    },
+    {
+      "key": "defaultProjectId",
+      "value": "1"
+    },
+    {
+      "key": "defaultStatusId",
+      "value": "3"
+    },
+    {
+      "key": "horizonSlots",
+      "value": "[1,2]"
+    },
+    {
+      "key": "maxTags",
+      "value": "3"
+    },
+    {
+      "key": "quickStatusId",
+      "value": "2"
+    },
+    {
+      "key": "seededAssignedStatusId",
+      "value": "1"
+    },
+    {
+      "key": "seededFollowupStatusId",
+      "value": "2"
+    },
+    {
+      "key": "selectedHorizonDefId",
+      "value": "1"
+    },
+    {
+      "key": "themeMode",
+      "value": "dark"
+    },
+    {
+      "key": "weekStartsOn",
+      "value": "1"
+    }
+  ],
+  "todoPeople": [
+    {
+      "todoId": 1,
+      "personId": 1,
+      "id": 1
+    },
+    {
+      "todoId": 3,
+      "personId": 2,
+      "id": 2
+    },
+    {
+      "todoId": 5,
+      "personId": 1,
+      "id": 3
+    }
+  ],
+  "todoOrgs": [
+    {
+      "todoId": 3,
+      "orgId": 2,
+      "id": 1
+    },
+    {
+      "todoId": 6,
+      "orgId": 1,
+      "id": 2
+    }
+  ],
+  "personOrgs": [
+    {
+      "personId": 1,
+      "orgId": 1,
+      "id": 1
+    },
+    {
+      "personId": 2,
+      "orgId": 2,
+      "id": 2
+    }
+  ],
+  "orgs": [
+    {
+      "name": "Acme",
+      "initials": "AC",
+      "color": "#e05050",
+      "id": 1
+    },
+    {
+      "name": "Globex",
+      "id": 2
+    }
+  ],
+  "taskboards": [
+    {
+      "entries": [
+        {
+          "todoId": 6,
+          "sortOrder": 0
+        },
+        {
+          "todoId": 1,
+          "sortOrder": 1
+        }
+      ],
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "updatedAt": "2026-09-15T08:00:00.000Z",
+      "id": 1
+    }
+  ],
+  "statuses": [
+    {
+      "name": "Assigned",
+      "color": "#8a8a8a",
+      "sortOrder": 0,
+      "icon": "person",
+      "hideByDefault": true,
+      "id": 1
+    },
+    {
+      "name": "Follow-up",
+      "color": "#e0a030",
+      "sortOrder": 1,
+      "icon": "message-bubble",
+      "hideByDefault": false,
+      "id": 2
+    },
+    {
+      "name": "Waiting",
+      "color": "#a070e0",
+      "sortOrder": 2,
+      "id": 3
+    }
+  ],
+  "listDefinitions": [
+    {
+      "name": "This week",
+      "sortOrder": 0,
+      "pinnedToDashboard": true,
+      "favorited": false,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "showHiddenStatuses": false,
+          "personIds": null,
+          "personFilterMode": "include-orgs",
+          "orgIds": null,
+          "orgFilterMode": "include-people",
+          "projectIds": null,
+          "statusIds": null,
+          "searchText": "",
+          "dateField": "date",
+          "dateRangeStart": {
+            "kind": "relative",
+            "token": "start-of-week"
+          },
+          "dateRangeEnd": {
+            "kind": "relative",
+            "token": "end-of-week"
+          },
+          "dateRangeIncludeNoDate": false,
+          "hasScheduled": null,
+          "hasDeadline": null,
+          "tags": null
+        }
+      },
+      "sort": "date",
+      "grouping": "none",
+      "id": 1
+    },
+    {
+      "name": "Someday",
+      "sortOrder": 1,
+      "pinnedToDashboard": true,
+      "favorited": false,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "showHiddenStatuses": false,
+          "personIds": null,
+          "personFilterMode": "include-orgs",
+          "orgIds": null,
+          "orgFilterMode": "include-people",
+          "projectIds": null,
+          "statusIds": null,
+          "searchText": "",
+          "dateField": "date",
+          "dateRangeStart": null,
+          "dateRangeEnd": null,
+          "dateRangeIncludeNoDate": false,
+          "hasScheduled": false,
+          "hasDeadline": false,
+          "tags": null
+        }
+      },
+      "sort": "manual",
+      "grouping": "none",
+      "id": 2
+    },
+    {
+      "name": "By person",
+      "sortOrder": 2,
+      "pinnedToDashboard": false,
+      "favorited": true,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": true,
+          "showHiddenStatuses": true,
+          "personIds": null,
+          "personFilterMode": "include-orgs",
+          "orgIds": null,
+          "orgFilterMode": "include-people",
+          "projectIds": null,
+          "statusIds": [
+            2,
+            3
+          ],
+          "searchText": "",
+          "dateField": "date",
+          "dateRangeStart": null,
+          "dateRangeEnd": null,
+          "dateRangeIncludeNoDate": false,
+          "hasScheduled": null,
+          "hasDeadline": null,
+          "tags": [
+            2
+          ]
+        }
+      },
+      "sort": "deadline",
+      "grouping": "people",
+      "maxTasks": 25,
+      "limitMode": "scroll",
+      "runtimeFilter": {
+        "field": "person",
+        "label": "Who"
+      },
+      "id": 3
+    },
+    {
+      "name": "Acme next 30 days",
+      "sortOrder": 3,
+      "pinnedToDashboard": false,
+      "favorited": true,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "showHiddenStatuses": false,
+          "personIds": [
+            1,
+            0
+          ],
+          "personFilterMode": "include-orgs",
+          "orgIds": [
+            1
+          ],
+          "orgFilterMode": "include-people",
+          "projectIds": [
+            1,
+            0
+          ],
+          "statusIds": null,
+          "searchText": "invoice",
+          "dateField": "deadline",
+          "dateRangeStart": {
+            "kind": "fixed",
+            "iso": "2026-10-01T00:00:00.000Z"
+          },
+          "dateRangeEnd": {
+            "kind": "offset",
+            "days": 30
+          },
+          "dateRangeIncludeNoDate": true,
+          "hasScheduled": null,
+          "hasDeadline": null,
+          "tags": null
+        }
+      },
+      "sort": "name",
+      "grouping": "project",
+      "maxTasks": 10,
+      "limitMode": "hard",
+      "runtimeFilter": {
+        "field": "tag"
+      },
+      "id": 4
+    }
+  ],
+  "notes": [
+    {
+      "content": "# Inbox\n\n- remember the thing",
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "modifiedAt": "2026-09-15T08:00:00.000Z",
+      "id": 1
+    }
+  ],
+  "floatingCalendars": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 900,
+      "y": 40,
+      "orientation": "horizontal",
+      "weekOffset": -1,
+      "id": 1
+    },
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 900,
+      "y": 340,
+      "id": 2
+    }
+  ],
+  "floatingNotes": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 1250,
+      "y": 40,
+      "id": 1
+    }
+  ],
+  "floatingTaskboards": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 1250,
+      "y": 340,
+      "collapsed": true,
+      "id": 1
+    }
+  ],
+  "floatingHorizons": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 1600,
+      "y": 40,
+      "collapsed": false,
+      "id": 1
+    }
+  ],
+  "floatingStatus": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 1600,
+      "y": 340,
+      "collapsed": true,
+      "id": 1
+    }
+  ],
+  "floatingScoreboard": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 1950,
+      "y": 40,
+      "id": 1
+    }
+  ],
+  "floatingSnoozeGraveyard": [
+    {
+      "canvasId": 1,
+      "width": 300,
+      "height": 260,
+      "x": 1950,
+      "y": 340,
+      "collapsed": false,
+      "id": 1
+    }
+  ],
+  "tags": [
+    {
+      "name": "urgent",
+      "color": "#ff3b30",
+      "id": 1
+    },
+    {
+      "name": "Q4",
+      "color": "#34c759",
+      "id": 2
+    }
+  ],
+  "todoTags": [
+    {
+      "todoId": 5,
+      "tagId": 1,
+      "id": 1
+    },
+    {
+      "todoId": 1,
+      "tagId": 2,
+      "id": 2
+    }
+  ],
+  "todoEvents": [
+    {
+      "todoId": 1,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-02T10:00:00.000Z",
+      "id": 1
+    },
+    {
+      "todoId": 2,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-03T11:00:00.000Z",
+      "id": 2
+    },
+    {
+      "todoId": 3,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-04T12:00:00.000Z",
+      "id": 3
+    },
+    {
+      "todoId": 4,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-05T13:00:00.000Z",
+      "id": 4
+    },
+    {
+      "todoId": 5,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-06T14:00:00.000Z",
+      "id": 5
+    },
+    {
+      "todoId": 6,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-07T15:00:00.000Z",
+      "id": 6
+    },
+    {
+      "todoId": 2,
+      "type": "scheduled",
+      "fromValue": "fuzzy:this-week",
+      "toValue": "fuzzy:next-week",
+      "timestamp": "2026-09-10T09:30:00.000Z",
+      "id": 7
+    },
+    {
+      "todoId": 1,
+      "type": "deadline",
+      "fromValue": "2026-10-15T00:00:00.000Z",
+      "toValue": "2026-10-16T00:00:00.000Z",
+      "timestamp": "2026-09-11T09:30:00.000Z",
+      "id": 8
+    },
+    {
+      "todoId": 1,
+      "type": "status",
+      "fromValue": 3,
+      "toValue": 2,
+      "timestamp": "2026-09-11T09:30:00.000Z",
+      "id": 9
+    },
+    {
+      "todoId": 4,
+      "type": "completed",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-12T09:30:00.000Z",
+      "id": 10
+    },
+    {
+      "todoId": 5,
+      "type": "completed",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-13T09:30:00.000Z",
+      "id": 11
+    },
+    {
+      "todoId": 5,
+      "type": "reopened",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-14T09:30:00.000Z",
+      "id": 12
+    }
+  ],
+  "exportedAt": "2026-10-01T12:00:00.000Z"
+}

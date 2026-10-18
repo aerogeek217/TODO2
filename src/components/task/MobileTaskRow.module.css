@@ -41,16 +41,6 @@
   opacity: 0.5;
 }
 
-.cut {
-  opacity: 0.35;
-}
-
-/* Ghost: filtered out by an active filter on this surface. Chips are removed
- * by the surface; this rule dims the row so it reads as "still present". */
-.row[data-ghosted] {
-  opacity: 0.45;
-}
-
 /* Line 1: primary row */
 .primaryRow {
   display: flex;
@@ -157,23 +147,6 @@
   overflow: hidden;
 }
 
-.tagChip {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  border: 1px solid;
-  white-space: nowrap;
-}
-
-.orgChip {
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: var(--radius-chip);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
 .progressChip {
   font-size: 11px;
   color: var(--color-text-muted);
@@ -236,8 +209,44 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.overflow {
-  font-size: 11px;
+/* Empty follow-up slot on touch: always shown (no hover), a round ghost flag. */
+.emptyFollowupAction {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-muted);
-  white-space: nowrap;
+  font-size: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.emptyFollowupActionOpen {
+  color: var(--color-followup);
+  box-shadow: inset 0 0 0 1px var(--color-followup);
+}
+
+/* Markers (Focus › Urgent › Important) between the checkbox and the title; never hidden. */
+/* The marker dots (Focus · Urgent · Important) before the title. */
+.markers {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Portaled person picker panel. */
+.chipDropdown {
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 4px 0;
+  box-shadow: var(--shadow-dropdown);
 }

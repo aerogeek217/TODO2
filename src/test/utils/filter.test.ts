@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { matchTodoText, toggleItem } from '../../utils/filter'
+import { groupTodosByTextMatch, matchTodoText, toggleItem } from '../../utils/filter'
 
 describe('matchTodoText', () => {
   it('returns matched=true with no fields for empty query', () => {
@@ -21,20 +21,17 @@ describe('matchTodoText', () => {
 
   it('reports multiple fields when the query matches in several places', () => {
     const r = matchTodoText({ title: 'foo bar', notes: 'foo' }, 'foo', {
-      projectName: 'foo project',
       personNames: ['Foo Person'],
-      orgNames: ['OtherOrg'],
       statusName: 'InProgress',
+      tagNames: ['foo-tag'],
     })
     expect(r.matched).toBe(true)
-    expect(r.fields).toEqual(['title', 'notes', 'project', 'person'])
+    expect(r.fields).toEqual(['title', 'notes', 'person', 'tag'])
   })
 
-  it('matches on project / person / org / status via ctx', () => {
+  it('matches on person / status via ctx', () => {
     const todo = { title: 't', notes: 'n' }
-    expect(matchTodoText(todo, 'projx', { projectName: 'ProjX' }).fields).toEqual(['project'])
     expect(matchTodoText(todo, 'alice', { personNames: ['Alice', 'Bob'] }).fields).toEqual(['person'])
-    expect(matchTodoText(todo, 'acme', { orgNames: ['Acme Corp'] }).fields).toEqual(['org'])
     expect(matchTodoText(todo, 'blocked', { statusName: 'Blocked' }).fields).toEqual(['status'])
   })
 
@@ -65,7 +62,7 @@ describe('matchTodoText', () => {
   })
 
   it('returns matched=false when nothing matches', () => {
-    const r = matchTodoText({ title: 'abc', notes: 'def' }, 'xyz', { projectName: 'nope' })
+    const r = matchTodoText({ title: 'abc', notes: 'def' }, 'xyz', { personNames: ['nope'], statusName: 'nope', tagNames: ['nope'] })
     expect(r.matched).toBe(false)
     expect(r.fields).toEqual([])
   })
@@ -83,5 +80,52 @@ describe('toggleItem (regression cover)', () => {
     expect(afterFirst).toEqual(new Set([1, 3]))
     const afterSecond = toggleItem<number>(afterFirst, 2, all)
     expect(afterSecond).toBe(null)
+  })
+})
+
+describe('groupTodosByTextMatch', () => {
+  type T = { id: number; title: string; notes?: string; isCompleted: boolean; tag?: string }
+  const ctxFor = (t: T) => ({ tagNames: t.tag ? [t.tag] : [] })
+  const ids = (xs: T[]) => xs.map((x) => x.id)
+
+  it('puts completed todos after incomplete ones within each group, keeping relative order', () => {
+    const todos: T[] = [
+      { id: 1, title: 'milk A', isCompleted: true },
+      { id: 2, title: 'milk B', isCompleted: false },
+      { id: 3, title: 'milk C', isCompleted: true },
+      { id: 4, title: 'milk D', isCompleted: false },
+      { id: 5, title: 'milk E', isCompleted: false },
+    ]
+    const g = groupTodosByTextMatch(todos, 'milk', ctxFor)
+    expect(ids(g.title)).toEqual([2, 4, 5, 1, 3])
+  })
+
+  it('orders each group independently', () => {
+    const todos: T[] = [
+      { id: 1, title: 'x', notes: 'egg', isCompleted: true, tag: 'eggs' },
+      { id: 2, title: 'egg', isCompleted: true },
+      { id: 3, title: 'y', notes: 'egg', isCompleted: false },
+      { id: 4, title: 'eggplant', isCompleted: false, tag: 'egg-tag' },
+    ]
+    const g = groupTodosByTextMatch(todos, 'egg', ctxFor)
+    expect(ids(g.title)).toEqual([4, 2])
+    expect(ids(g.notes)).toEqual([3, 1])
+    expect(ids(g.tag)).toEqual([4, 1])
+    expect(g.person).toEqual([])
+  })
+
+  it('preserves input order when nothing is completed', () => {
+    const todos: T[] = [
+      { id: 3, title: 'abc', isCompleted: false },
+      { id: 1, title: 'abd', isCompleted: false },
+      { id: 2, title: 'zzz', isCompleted: false },
+    ]
+    expect(ids(groupTodosByTextMatch(todos, 'ab', ctxFor).title)).toEqual([3, 1])
+  })
+
+  it('returns all-empty groups for an empty query', () => {
+    const g = groupTodosByTextMatch([{ id: 1, title: 'a', isCompleted: false }], '', ctxFor)
+    expect(Object.keys(g)).toEqual(['title', 'notes', 'person', 'status', 'tag'])
+    expect(Object.values(g).every((arr) => arr.length === 0)).toBe(true)
   })
 })

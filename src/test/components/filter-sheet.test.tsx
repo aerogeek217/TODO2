@@ -5,14 +5,12 @@ import { FilterSheet } from '../../components/overlays/FilterSheet'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { makePerson, makeOrg } from '../helpers'
+import { makePerson } from '../helpers'
 
 const alice = makePerson({ id: 1, name: 'Alice' })
 const bob = makePerson({ id: 2, name: 'Bob' })
-const acmeOrg = makeOrg({ id: 1, name: 'Acme' })
 
 /**
  * Renders FilterSheet inside a MemoryRouter, then opens it.
@@ -33,7 +31,6 @@ describe('FilterSheet', () => {
     useFilterStore.getState().clearAll()
     useUIStore.setState({ isFilterSheetOpen: false })
     usePersonStore.setState({ people: [alice, bob] })
-    useOrgStore.setState({ orgs: [acmeOrg] })
     useTagStore.setState({ tags: [] })
     useTodoStore.setState({ todos: [] })
   })
@@ -94,73 +91,76 @@ describe('FilterSheet', () => {
       expect(toggle).toHaveAttribute('aria-checked', 'true')
     })
 
-    it('toggles show hidden statuses filter', () => {
+    it('has no show-hidden toggle', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Show / hide'))
-      const toggle = screen.getByRole('switch', { name: 'Show hidden statuses' })
-      expect(toggle).toHaveAttribute('aria-checked', 'false')
-
-      fireEvent.click(toggle)
-      expect(useFilterStore.getState().filters.showHiddenStatuses).toBe(true)
-      expect(toggle).toHaveAttribute('aria-checked', 'true')
+      expect(screen.queryByRole('switch', { name: /hidden/i })).toBeNull()
+      expect(screen.queryByText('Show hidden')).toBeNull()
     })
   })
 
-  // ── Date range ────────────────────────────────────────────────────
+  // ── Dates ─────────────────────────────────────────────────────────
 
-  describe('date range', () => {
-    it('changes date field', () => {
+  describe('dates', () => {
+    it('picking a date type writes nothing; the range then edits that type', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      fireEvent.click(screen.getByText('Created'))
-      expect(useFilterStore.getState().filters.dateField).toBe('created')
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('tab', { name: 'Created' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({})
+      fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-01' } })
+      expect(Object.keys(useFilterStore.getState().filters.dates)).toEqual(['created'])
     })
 
     it('sets date range start from input', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      const dateInputs = document.querySelectorAll('input[type="date"]')
-      fireEvent.change(dateInputs[0]!, { target: { value: '2026-04-01' } })
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-01' } })
 
-      const { dateRangeStart } = useFilterStore.getState().filters
-      expect(dateRangeStart).not.toBeNull()
+      const due = useFilterStore.getState().filters.dates.deadline
+      const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'fixed') throw new Error('expected fixed anchor')
       expect(dateRangeStart.iso.slice(0, 10)).toBe('2026-04-01')
     })
 
     it('sets a relative-token anchor from the token dropdown', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      // First select is the date-field selector in dateFieldSelector (buttons, not a select).
-      // The real <select> elements belong to DateAnchorInput (start, end).
-      const selects = document.querySelectorAll('select')
-      fireEvent.change(selects[0]!, { target: { value: 'end-of-week' } })
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'end-of-week' } })
 
-      const { dateRangeStart } = useFilterStore.getState().filters
-      expect(dateRangeStart).not.toBeNull()
+      const due = useFilterStore.getState().filters.dates.deadline
+      const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'relative') throw new Error('expected relative anchor')
       expect(dateRangeStart.token).toBe('end-of-week')
     })
 
-    it('cycles hasScheduled tri-state null → true → false → null', () => {
+    it('Show: Has a date / No date / In range on the due date', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has scheduled/ })
-
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasScheduled).toBe(true)
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasScheduled).toBe(false)
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasScheduled).toBe(null)
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' } })
+      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'unset' } })
+      fireEvent.click(screen.getByRole('radio', { name: 'In range' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({})
     })
 
-    it('cycles hasDeadline tri-state', () => {
+    it('two types at once: the row reads both, Clear <Type> clears one', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has deadline/ })
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasDeadline).toBe(true)
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
+      fireEvent.click(screen.getByRole('tab', { name: 'Follow-up' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'unset' } })
+      expect(screen.getByText('Due + Follow-up')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Follow-up' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' } })
+    })
+
+    it('offers no scheduled-date filter', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('Dates'))
+      expect(screen.queryByRole('tab', { name: /Sched/ })).toBeNull()
+      expect(screen.queryByText('Sched.')).toBeNull()
     })
   })
 
@@ -192,16 +192,6 @@ describe('FilterSheet', () => {
       fireEvent.change(screen.getByPlaceholderText('Search people...'), { target: { value: 'Ali' } })
       expect(screen.getByText('Alice')).toBeInTheDocument()
       expect(screen.queryByText('Bob')).not.toBeInTheDocument()
-    })
-
-    it('toggles an org filter', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Orgs'))
-      fireEvent.click(screen.getByText('Acme'))
-
-      const { orgIds } = useFilterStore.getState().filters
-      expect(orgIds).not.toBeNull()
-      expect(orgIds!.has(1)).toBe(false) // Acme deselected
     })
 
     it('hides people section when no people in store', () => {

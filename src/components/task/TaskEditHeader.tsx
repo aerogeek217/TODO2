@@ -1,5 +1,5 @@
-import type { AutocompleteState, AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
-import { NlpAutocomplete } from '../shared/NlpAutocomplete'
+import type { AutocompleteRow, AutocompleteState } from '../../hooks/use-nlp-autocomplete'
+import { NlpPopup } from '../shared/NlpPopup'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditHeaderProps {
@@ -14,17 +14,19 @@ interface TaskEditHeaderProps {
   onTitleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onClose: () => void
   acState: AutocompleteState
-  onAcSelect: (item: AutocompleteItem) => void
-  onAcCreateNew?: () => void
+  onAcPick: (row: AutocompleteRow) => void
+  /** Draft mode: a dashed ring instead of the checkbox and a Draft badge. */
+  isDraft?: boolean
 }
 
 export function TaskEditHeader({
   isEdit, isCompleted, title, mode, titleRef,
   onToggleComplete, onTitleChange, onTitleBlur, onTitleKeyDown,
-  onClose, acState, onAcSelect, onAcCreateNew,
+  onClose, acState, onAcPick, isDraft = false,
 }: TaskEditHeaderProps) {
   return (
     <div className={styles.header}>
+      {isDraft && <span className={styles.draftRing} aria-hidden="true" />}
       {isEdit && (
         <input
           type="checkbox"
@@ -42,10 +44,19 @@ export function TaskEditHeader({
           onChange={onTitleChange}
           onBlur={onTitleBlur}
           onKeyDown={onTitleKeyDown}
-          placeholder={mode === 'create' ? 'New task... (@person @org #tag /project tomorrow "this week")' : 'Task title'}
+          placeholder={mode === 'create' ? 'New task… (@person #tag /command)' : 'Task title'}
         />
-        <NlpAutocomplete state={acState} onSelect={onAcSelect} onCreateNew={onAcCreateNew} />
+        {acState.visible && acState.view && (
+          <NlpPopup
+            view={acState.view}
+            selectedIndex={acState.selectedIndex}
+            onPick={onAcPick}
+            className={styles.titlePopup}
+            style={{ left: acState.caretLeft }}
+          />
+        )}
       </div>
+      {isDraft && <span className={styles.draftBadge}>Draft</span>}
       <button className={styles.closeButton} onClick={onClose} aria-label="Close">
         ×
       </button>

@@ -1,24 +1,19 @@
-import { useCanvasStore } from './canvas-store'
 import { useSettingsStore } from './settings-store'
 import { useTodoStore } from './todo-store'
-import { useProjectStore } from './project-store'
 import { usePersonStore } from './person-store'
-import { useOrgStore } from './org-store'
 import { useStatusStore } from './status-store'
 import { useTagStore } from './tag-store'
-import { useTaskboardStore } from './taskboard-store'
 import { useNoteStore } from './note-store'
+import { useListDraftStore } from './list-draft-store'
+import { useListWidgetStore } from './list-widget-store'
 import { useListDefinitionStore } from './list-definition-store'
-import { useListInsetStore } from './list-inset-store'
-import { useFloatingNoteStore } from './floating-note-store'
-import { useFloatingCalendarStore } from './floating-calendar-store'
-import { useFloatingTaskboardStore } from './floating-taskboard-store'
-import { useFloatingHorizonsStore } from './floating-horizons-store'
-import { useFloatingStatusStore } from './floating-status-store'
-import { useFloatingScoreboardStore } from './floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from './floating-snooze-graveyard-store'
+import { useListOrderStore } from './list-order-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
+import { useWorkspaceStore } from './workspace-store'
+import { useTrendEventsStore } from './trend-events-store'
+import { useUIStore } from './ui-store'
+import { clearUnsavedDrafts } from '../data/draft-storage'
 
 /**
  * Reload every Zustand store from IndexedDB after a destructive replace
@@ -30,45 +25,49 @@ import { useFilterStore } from './filter-store'
  * an entity owner and this function the single seam that knows about all
  * of them.
  *
- * `tagStore` and `listDefinitionStore` go through `load()`, not
- * `ensureLoaded()` — `makeEnsureLoaded` short-circuits on a closure-cached
- * `loaded = true`, which would silently keep the pre-import data.
+ * Every store goes through `load()`, not `ensureLoaded()` — that is a no-op
+ * once the store has loaded, which would silently keep the pre-import data.
  */
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
-  await useCanvasStore.getState().ensureDefault()
+  // Unsaved list edits, prompt picks and collapsed groups are keyed by ids
+  // the replaced data may reuse for other lists / tabs. The unsaved layout
+  // and list edits kept for a reload go too — once the workspace has opened
+  // (before that, at launch, they're from the last visit and are checked
+  // against the loaded data when it opens).
+  if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
+  useListDraftStore.setState({ drafts: {} })
+  useListWidgetStore.setState({ picks: {}, collapsed: {} })
+  // The replaced history (a table clear doesn't fire the event hooks).
+  useTrendEventsStore.getState().invalidate()
+  // Selected / edited task ids and a Quick Add draft's people / tags may now
+  // name other rows.
+  useUIStore.getState().clearSelection()
+  useUIStore.getState().closeEditPopup()
+  // Edit list names a list and a tab by id.
+  useUIStore.getState().closeListEditor()
+  // Note text typed before the replace would be saved over the new note.
+  useNoteStore.getState().discardPending()
   await useSettingsStore.getState().load()
-  const canvasId = useCanvasStore.getState().selectedCanvasId
   await Promise.all([
     useTodoStore.getState().loadAll(),
-    useProjectStore.getState().loadAll(),
     usePersonStore.getState().load(),
-    useOrgStore.getState().load(),
-    useOrgStore.getState().loadPersonOrgMap(),
     useStatusStore.getState().load(),
     useTagStore.getState().load(),
-    useTaskboardStore.getState().load(),
     useNoteStore.getState().load(),
     useListDefinitionStore.getState().load(),
-    ...(canvasId != null ? [
-      useListInsetStore.getState().loadByCanvas(canvasId),
-      useFloatingNoteStore.getState().loadByCanvas(canvasId),
-      useFloatingCalendarStore.getState().loadByCanvas(canvasId),
-      useFloatingTaskboardStore.getState().loadByCanvas(canvasId),
-      useFloatingHorizonsStore.getState().loadByCanvas(canvasId),
-      useFloatingStatusStore.getState().loadByCanvas(canvasId),
-      useFloatingScoreboardStore.getState().loadByCanvas(canvasId),
-      useFloatingSnoozeGraveyardStore.getState().loadByCanvas(canvasId),
-    ] : []),
+    useListOrderStore.getState().load(),
+    // Re-open the active layout from the replaced data (drops any unsaved
+    // working copy); untouched until the workspace has been opened once.
+    ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),
   ])
-  // Reload assignment maps after entities and todos are loaded
+  // Reload assignment maps after entities and todos are loaded. Refetch every
+  // id: the replaced tables can keep a todo's id while changing its people /
+  // tags, and the cached entries describe the old data.
   const todoIds = useTodoStore.getState().todos.map(t => t.id)
-  if (todoIds.length > 0) {
-    await Promise.all([
-      usePersonStore.getState().loadAssignments(todoIds),
-      useOrgStore.getState().loadAssignments(todoIds),
-      useTagStore.getState().loadAssignments(todoIds),
-    ])
-  }
+  await Promise.all([
+    usePersonStore.getState().loadAssignments(todoIds, { refetch: true }),
+    useTagStore.getState().loadAssignments(todoIds, { refetch: true }),
+  ])
 }

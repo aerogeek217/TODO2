@@ -1,0 +1,11 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--color-app-bg);
+}
+
+:global([data-theme="light"]) .body {
+  background: #ffffff;
+}

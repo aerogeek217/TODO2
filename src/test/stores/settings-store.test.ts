@@ -1,59 +1,54 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
-
-const DARK_DEFAULTS = {
-  accent: '#a2cfcb',
-  canvasBg: '#0e0e0e',
-  surface: '#191a1a',
-  border: '#302e2b',
-  header: '#1f2120',
-  danger: '#ee7d77',
-  warning: '#f5a623',
-  star: '#f5c842',
-  scheduled: '#7ec4bc',
-  deadline: '#e86bf0',
-} as const
-
-const LIGHT_DEFAULTS = {
-  accent: '#3a9e93',
-  canvasBg: '#f5f4f2',
-  surface: '#ffffff',
-  border: '#d9d5d0',
-  header: '#f7fbfa',
-  danger: '#d94a43',
-  warning: '#d08a12',
-  star: '#c09a15',
-  scheduled: '#3a9e93',
-  deadline: '#b838c0',
-} as const
+import { settingsRepository } from '../../data'
+import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
+import type { HotRule } from '../../utils/hot'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useSettingsStore.setState({
-    colors: { dark: { ...DARK_DEFAULTS }, light: { ...LIGHT_DEFAULTS } },
+    colors: { dark: { ...DEFAULT_THEMED_COLORS.dark }, light: { ...DEFAULT_THEMED_COLORS.light } },
     themeMode: 'dark',
-    defaultProjectId: null,
     completedRetentionDays: null,
-    defaultProjectGroupBy: 'tag',
   })
 })
 
 describe('useSettingsStore', () => {
+  it('a failed load still sets the theme on the page (the default mode)', async () => {
+    document.documentElement.removeAttribute('data-theme')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'getAll').mockRejectedValueOnce(new Error('IndexedDB unavailable'))
+    await useSettingsStore.getState().load()
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(error).toHaveBeenCalled()
+  })
+
   it('load reads color.dark.<key> and color.light.<key> rows', async () => {
     await db.settings.put({ key: 'color.dark.accent', value: '#112233' })
-    await db.settings.put({ key: 'color.light.canvasBg', value: '#fafafa' })
+    await db.settings.put({ key: 'color.light.appBg', value: '#fafafa' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().colors.dark.accent).toBe('#112233')
-    expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#fafafa')
+    expect(useSettingsStore.getState().colors.light.appBg).toBe('#fafafa')
+  })
+
+  it('load ignores colour rows whose name is not a theme colour (no prototype keys)', async () => {
+    await db.settings.put({ key: 'color.dark.constructor', value: '#123456' })
+    await db.settings.put({ key: 'color.dark.__proto__', value: '#123456' })
+    await db.settings.put({ key: 'color.light.hasOwnProperty', value: '#123456' })
+    await useSettingsStore.getState().load()
+    const { colors } = useSettingsStore.getState()
+    expect(Object.keys(colors.dark).sort()).toEqual(Object.keys(DEFAULT_THEMED_COLORS.dark).sort())
+    expect(Object.hasOwn(colors.dark, 'constructor')).toBe(false)
+    expect(typeof colors.light.hasOwnProperty).toBe('function')
   })
 
   it('load ignores invalid per-theme colors', async () => {
     await db.settings.put({ key: 'color.dark.accent', value: 'not-a-color' })
     await db.settings.put({ key: 'color.light.danger', value: 'still-not' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // default
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent) // default
     expect(useSettingsStore.getState().colors.light.danger).toBe('#d94a43') // default
   })
 
@@ -67,21 +62,21 @@ describe('useSettingsStore', () => {
   })
 
   it('setColor: dark write does not leak into light bag', async () => {
-    await useSettingsStore.getState().setColor('dark', 'canvasBg', '#222222')
-    expect(useSettingsStore.getState().colors.dark.canvasBg).toBe('#222222')
-    expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#f5f4f2')
+    await useSettingsStore.getState().setColor('dark', 'appBg', '#222222')
+    expect(useSettingsStore.getState().colors.dark.appBg).toBe('#222222')
+    expect(useSettingsStore.getState().colors.light.appBg).toBe('#f5f4f2')
   })
 
   it('setColor rejects invalid', async () => {
     await useSettingsStore.getState().setColor('dark', 'accent', 'not-valid')
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // unchanged
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent) // unchanged
   })
 
   it('resetColors(theme) restores one bag', async () => {
     await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
     await useSettingsStore.getState().setColor('light', 'accent', '#0000ff')
     await useSettingsStore.getState().resetColors('dark')
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
     expect(useSettingsStore.getState().colors.light.accent).toBe('#0000ff') // untouched
     expect(await db.settings.get('color.dark.accent')).toBeUndefined()
     expect((await db.settings.get('color.light.accent'))!.value).toBe('#0000ff')
@@ -91,27 +86,19 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
     await useSettingsStore.getState().setColor('light', 'accent', '#0000ff')
     await useSettingsStore.getState().resetColors()
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
-    expect(useSettingsStore.getState().colors.light.accent).toBe('#3a9e93')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe(DEFAULT_THEMED_COLORS.dark.accent)
+    expect(useSettingsStore.getState().colors.light.accent).toBe(DEFAULT_THEMED_COLORS.light.accent)
   })
 
   it('setThemeMode flips which override bag drives inline styles', async () => {
-    // Customize both bags to distinct values, then verify the inline canvas-bg
+    // Customize both bags to distinct values, then verify the inline app-bg
     // override flips with the resolved theme.
-    await useSettingsStore.getState().setColor('dark', 'canvasBg', '#aabbcc')
-    await useSettingsStore.getState().setColor('light', 'canvasBg', '#ddeeff')
+    await useSettingsStore.getState().setColor('dark', 'appBg', '#aabbcc')
+    await useSettingsStore.getState().setColor('light', 'appBg', '#ddeeff')
     await useSettingsStore.getState().setThemeMode('dark')
-    expect(document.documentElement.style.getPropertyValue('--color-canvas-bg')).toBe('#aabbcc')
+    expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#aabbcc')
     await useSettingsStore.getState().setThemeMode('light')
-    expect(document.documentElement.style.getPropertyValue('--color-canvas-bg')).toBe('#ddeeff')
-  })
-
-  it('setDefaultProjectId persists and clears', async () => {
-    await useSettingsStore.getState().setDefaultProjectId(42)
-    expect(useSettingsStore.getState().defaultProjectId).toBe(42)
-
-    await useSettingsStore.getState().setDefaultProjectId(null)
-    expect(useSettingsStore.getState().defaultProjectId).toBeNull()
+    expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#ddeeff')
   })
 
   it('setCompletedRetentionDays validates range', async () => {
@@ -131,245 +118,144 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().completedRetentionDays).toBeNull()
   })
 
-  it('load loads defaultProjectId from DB', async () => {
-    await db.settings.put({ key: 'defaultProjectId', value: '10' })
+  it('followupDefaultInterval defaults to 1 month, persists compactly, and ignores junk on load', async () => {
+    useSettingsStore.setState({ followupDefaultInterval: { count: 1, unit: 'm' } })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().defaultProjectId).toBe(10)
-  })
+    expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 1, unit: 'm' })
 
-  it('defaultProjectGroupBy defaults to tag', async () => {
+    await useSettingsStore.getState().setFollowupDefaultInterval({ count: 2, unit: 'w' })
+    expect((await db.settings.get('followupDefaultInterval'))!.value).toBe('2w')
+    useSettingsStore.setState({ followupDefaultInterval: { count: 1, unit: 'm' } })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('tag')
-  })
+    expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 2, unit: 'w' })
 
-  it('setDefaultProjectGroupBy persists and clears', async () => {
-    await useSettingsStore.getState().setDefaultProjectGroupBy('people')
-    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('people')
-    expect((await db.settings.get('defaultProjectGroupBy'))!.value).toBe('people')
-
-    await useSettingsStore.getState().setDefaultProjectGroupBy(null)
-    expect(useSettingsStore.getState().defaultProjectGroupBy).toBeNull()
-    expect((await db.settings.get('defaultProjectGroupBy'))!.value).toBe('')
-  })
-
-  it('load reads persisted defaultProjectGroupBy and treats empty string as null', async () => {
-    await db.settings.put({ key: 'defaultProjectGroupBy', value: 'status' })
+    await db.settings.put({ key: 'followupDefaultInterval', value: 'soon' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('status')
+    expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 1, unit: 'm' })
+  })
 
-    await db.settings.put({ key: 'defaultProjectGroupBy', value: '' })
+  it('urgentDueWithinDays defaults to 3 days, persists Off / day counts, and ignores junk on load', async () => {
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().defaultProjectGroupBy).toBeNull()
-  })
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
 
-  it('setDefaultProjectGroupBy ignores invalid values', async () => {
-    await useSettingsStore.getState().setDefaultProjectGroupBy('tag')
-    // Cast through unknown to bypass the type guard for the rejection test.
-    await useSettingsStore.getState().setDefaultProjectGroupBy('not-a-group-by' as unknown as 'tag')
-    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('tag')
-  })
-})
-
-describe('useSettingsStore.load canvasViewport parse', () => {
-  it('accepts finite numbers', async () => {
-    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 10, y: -5, zoom: 1.5 }) })
+    await useSettingsStore.getState().setUrgentDueWithinDays(null)
+    expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('off')
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasViewport).toEqual({ x: 10, y: -5, zoom: 1.5 })
-  })
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBeNull()
 
-  it('rejects Infinity (non-finite after JSON.parse of 1e999)', async () => {
-    await db.settings.put({ key: 'canvasViewport', value: '{"x":1e999,"y":0,"zoom":1}' })
+    await useSettingsStore.getState().setUrgentDueWithinDays(0)
+    expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('0')
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasViewport).toBeNull()
-  })
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBe(0)
 
-  it('rejects missing fields', async () => {
-    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 0, y: 0 }) })
+    // Out of range: not written.
+    await useSettingsStore.getState().setUrgentDueWithinDays(-2)
+    expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('0')
+
+    await db.settings.put({ key: 'urgentDueWithinDays', value: 'soon' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasViewport).toBeNull()
-  })
-})
-
-describe('useSettingsStore.setCanvasViewport debouncing', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    useSettingsStore.setState({ canvasViewport: null })
+    expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
+  it('hotRule defaults to (Urgent AND Important) OR Focus, saves normalized, and ignores junk on load', async () => {
+    const DEFAULT: HotRule = [{ urgent: true, important: true }, { focus: true }]
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
+
+    await useSettingsStore.getState().setHotRule([{ focus: true, important: true }, {}, { important: true, focus: true }, { urgent: true }])
+    expect((await db.settings.get('hotRule'))!.value).toBe('[{"important":true,"focus":true},{"urgent":true}]')
+    expect(useSettingsStore.getState().hotRule).toEqual([{ important: true, focus: true }, { urgent: true }])
+    useSettingsStore.setState({ hotRule: DEFAULT })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().hotRule).toEqual([{ important: true, focus: true }, { urgent: true }])
+
+    // No marker at all: not a rule, not written.
+    await useSettingsStore.getState().setHotRule([{}])
+    await useSettingsStore.getState().setHotRule([])
+    expect((await db.settings.get('hotRule'))!.value).toBe('[{"important":true,"focus":true},{"urgent":true}]')
+
+    await db.settings.put({ key: 'hotRule', value: '[{"warm":true}]' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
   })
 
-  it('debounces Zustand set across rapid calls', () => {
-    const store = useSettingsStore.getState()
-    store.setCanvasViewport({ x: 10, y: 20, zoom: 1 })
-    store.setCanvasViewport({ x: 11, y: 21, zoom: 1 })
-    store.setCanvasViewport({ x: 12, y: 22, zoom: 1 })
+  it('check-in open method defaults to mailto, saves, and ignores junk on load', async () => {
+    useSettingsStore.setState({ checkinOpenMethod: 'eml' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
 
-    // Before debounce fires, state is still null
-    expect(useSettingsStore.getState().canvasViewport).toBeNull()
+    await useSettingsStore.getState().setCheckinOpenMethod('eml')
+    expect((await db.settings.get('checkinOpenMethod'))!.value).toBe('eml')
+    useSettingsStore.setState({ checkinOpenMethod: 'mailto' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinOpenMethod).toBe('eml')
 
-    vi.advanceTimersByTime(150)
+    await useSettingsStore.getState().setCheckinOpenMethod('outlook' as never)
+    expect((await db.settings.get('checkinOpenMethod'))!.value).toBe('eml')
 
-    // Only the final value lands in the store
-    expect(useSettingsStore.getState().canvasViewport).toEqual({ x: 12, y: 22, zoom: 1 })
+    await db.settings.put({ key: 'checkinOpenMethod', value: 'pigeon' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
   })
 
-  it('coalesces 60 per-second calls into a single Zustand update', () => {
-    const store = useSettingsStore.getState()
-    const spy = vi.spyOn(useSettingsStore, 'setState')
+  it('check-in task scope defaults to all, saves each kind, and ignores junk on load', async () => {
+    useSettingsStore.setState({ checkinTaskScope: { kind: 'hot' } })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
 
-    // Simulate a one-second pan at 60fps
-    for (let i = 0; i < 60; i++) {
-      store.setCanvasViewport({ x: i, y: 0, zoom: 1 })
-      vi.advanceTimersByTime(16) // ~60fps
-    }
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 12 })
+    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('list:12')
+    useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: 12 })
 
-    // Flush the debounce
-    vi.advanceTimersByTime(150)
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'due-soon' })
+    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('due-soon')
 
-    // Instead of 60 setState calls, we should have very few — with 150ms
-    // trailing debounce over 16ms frames, only the final flush runs.
-    expect(spy.mock.calls.length).toBeLessThanOrEqual(1)
-    expect(useSettingsStore.getState().canvasViewport).toEqual({ x: 59, y: 0, zoom: 1 })
+    // Not a scope: not written.
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 0 })
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'later' } as never)
+    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('due-soon')
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'due-soon' })
 
-    spy.mockRestore()
-  })
-})
-
-describe('useSettingsStore.canvasRails persistence', () => {
-  beforeEach(async () => {
-    await db.delete()
-    await db.open()
-    useSettingsStore.setState({ canvasRails: null })
+    await db.settings.put({ key: 'checkinTaskScope', value: 'list:abc' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
   })
 
-  it('load parses persisted canvasRails JSON', async () => {
-    await db.settings.put({
-      key: 'canvasRails',
-      value: JSON.stringify({
-        left: null,
-        right: {
-          orientation: 'vertical',
-          slots: [{
-            id: 's1',
-            tabs: [{ id: 's1-t0', type: 'lens', listDefinitionId: 7 }],
-            activeTabId: 's1-t0',
-          }],
-        },
-        top: null,
-        bottom: null,
-      }),
+  it('keyboard shortcuts: start at the defaults, save only changes, refuse clashes, reset one or all', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({})
+
+    const set = useSettingsStore.getState().setShortcut
+    expect(await set('command-palette', [{ key: 'p', mod: true, shift: true }])).toBeNull()
+    expect(await set('open-settings', [{ key: 'g' }, { key: 'o' }])).toBeNull()
+    expect((await db.settings.get('keyboardShortcuts'))!.value).toBe('{"command-palette":"Mod-Shift-p","open-settings":"g o"}')
+
+    // A clash is refused with the reason and nothing is written.
+    expect(await set('focus-filters', [{ key: 'p', mod: true, shift: true }])).toMatch(/already used by Command Palette/)
+    expect(useSettingsStore.getState().shortcutOverrides['focus-filters']).toBeUndefined()
+
+    // Reload reads them back.
+    useSettingsStore.setState({ shortcutOverrides: {} })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({
+      'command-palette': [{ key: 'p', mod: true, shift: true }],
+      'open-settings': [{ key: 'g' }, { key: 'o' }],
     })
+
+    await useSettingsStore.getState().resetShortcut('command-palette')
+    expect((await db.settings.get('keyboardShortcuts'))!.value).toBe('{"open-settings":"g o"}')
+    await useSettingsStore.getState().resetAllShortcuts()
+    expect(await db.settings.get('keyboardShortcuts')).toBeUndefined()
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({})
+  })
+
+  it('keyboard shortcuts: load drops what the editor could not have saved', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{"focus-filters":"Mod-k","toggle-complete":"x","nope":"y"}' })
     await useSettingsStore.getState().load()
-    const rails = useSettingsStore.getState().canvasRails
-    expect(rails).not.toBeNull()
-    expect(rails!.right!.slots[0]).toEqual({
-      id: 's1',
-      tabs: [{ id: 's1-t0', type: 'lens', listDefinitionId: 7 }],
-      activeTabId: 's1-t0',
-    })
-  })
-
-  it('load leaves canvasRails null when the blob is malformed', async () => {
-    await db.settings.put({ key: 'canvasRails', value: '{not json' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasRails).toBeNull()
-  })
-})
-
-describe('useSettingsStore.setCanvasRails debouncing', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    useSettingsStore.setState({ canvasRails: null })
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  it('debounces Zustand set across rapid calls and retains only the last value', () => {
-    const store = useSettingsStore.getState()
-    const rails1 = {
-      left: null,
-      right: { orientation: 'vertical' as const, slots: [{ id: 'a', tabs: [{ id: 'a-t0', type: 'lens' as const }], activeTabId: 'a-t0' }] },
-      top: null,
-      bottom: null,
-    }
-    const rails2 = {
-      left: null,
-      right: { orientation: 'vertical' as const, slots: [{ id: 'b', tabs: [{ id: 'b-t0', type: 'notes' as const }], activeTabId: 'b-t0' }] },
-      top: null,
-      bottom: null,
-    }
-    store.setCanvasRails(rails1)
-    store.setCanvasRails(rails2)
-
-    expect(useSettingsStore.getState().canvasRails).toBeNull()
-    vi.advanceTimersByTime(150)
-    expect(useSettingsStore.getState().canvasRails).toEqual(rails2)
-  })
-})
-
-describe('useSettingsStore.setCanvasRails persistence', () => {
-  beforeEach(async () => {
-    await db.delete()
-    await db.open()
-    useSettingsStore.setState({ canvasRails: null })
-  })
-
-  it('writes the serialized rails blob to the settings repo', async () => {
-    const rails = {
-      left: null,
-      right: { orientation: 'vertical' as const, slots: [{ id: 'x', tabs: [{ id: 'x-t0', type: 'lens' as const, listDefinitionId: 5 }], activeTabId: 'x-t0' }] },
-      top: null,
-      bottom: null,
-    }
-    useSettingsStore.getState().setCanvasRails(rails)
-    await new Promise((r) => setTimeout(r, 600))
-    const row = await db.settings.get('canvasRails')
-    expect(row).toBeDefined()
-    const parsed = JSON.parse(row!.value)
-    expect(parsed.right.slots[0].id).toBe('x')
-  })
-})
-
-describe('useSettingsStore.canvasMaxExtent', () => {
-  beforeEach(() => {
-    useSettingsStore.setState({ canvasMaxExtent: 10000 })
-  })
-
-  it('defaults to 10000 on a fresh load', async () => {
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
-  })
-
-  it('round-trips via setCanvasMaxExtent', async () => {
-    await useSettingsStore.getState().setCanvasMaxExtent(5000)
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(5000)
-    const row = await db.settings.get('canvasMaxExtent')
-    expect(row?.value).toBe('5000')
-  })
-
-  it('rejects values outside [1000, 100000] (state stays unchanged)', async () => {
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
-    await useSettingsStore.getState().setCanvasMaxExtent(99999999)
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
-    await useSettingsStore.getState().setCanvasMaxExtent(0)
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
-    await useSettingsStore.getState().setCanvasMaxExtent(NaN)
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
-  })
-
-  it('load restores a persisted value', async () => {
-    await db.settings.put({ key: 'canvasMaxExtent', value: '7500' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(7500)
-  })
-
-  it('load falls back to default when the persisted value is invalid', async () => {
-    await db.settings.put({ key: 'canvasMaxExtent', value: '999999999' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+    expect(useSettingsStore.getState().shortcutOverrides).toEqual({ 'toggle-complete': [{ key: 'x' }] })
   })
 })

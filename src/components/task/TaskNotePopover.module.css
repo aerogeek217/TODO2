@@ -1,6 +1,8 @@
 .popover {
   position: fixed;
-  z-index: var(--z-dropdown);
+  /* Overlay layer: above the task dialog it may be opened from (mounted
+   * later), below an editor opened from it (Alt+T, Convert). */
+  z-index: var(--z-overlay);
   display: flex;
   flex-direction: column;
   width: 360px;
@@ -19,4 +21,47 @@
   color: var(--color-text-muted);
   background: var(--color-surface-high);
   border-top: 1px solid var(--color-border);
+}
+
+/* Progress: one line above the notes, as the task editor has it. */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.notesLabel {
+  padding: 8px 10px 0;
+}
+
+.progressInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-nav);
+  outline: none;
+  transition: border-color var(--transition-medium);
+}
+
+.progressInput:focus {
+  border-bottom-color: var(--color-accent-focus);
+}
+
+.progressInput::placeholder {
+  color: var(--color-text-muted);
 }

@@ -7,10 +7,10 @@ import {
   TaskPillStatus,
 } from '../../../components/shared/TaskPillBar'
 import type { Status } from '../../../models'
-import { makeTodo, makePerson, makeOrg } from '../../helpers'
+import { makeTodo, makePerson } from '../../helpers'
+import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 
 const today = new Date(2026, 3, 16) // Apr 16, 2026 (Thursday)
-const weekStartsOn = 1 as const
 
 const inProgress: Status = {
   id: 5,
@@ -24,10 +24,9 @@ afterEach(cleanup)
 
 describe('<TaskPillBar>', () => {
   describe('full row (default density, interactive=true)', () => {
-    it('renders people avatars + scheduled chip + deadline chip + status', () => {
+    it('renders people avatars + due-date chip + status', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
         statusId: 5,
       })
@@ -35,44 +34,35 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-          orgs={[makeOrg({ id: 9, name: 'Acme', initials: 'AC', color: '#ff0000' })]}
           status={inProgress}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
       expect(screen.getByText('AL')).toBeInTheDocument()
-      expect(screen.getByText('AC')).toBeInTheDocument()
-      expect(screen.getByText('Today')).toBeInTheDocument()
-      expect(screen.getByTitle('Deadline — click to change')).toBeInTheDocument()
+      expect(screen.getByTitle('Due — click to change')).toBeInTheDocument()
       expect(screen.getByLabelText('Status: In Progress')).toBeInTheDocument()
     })
 
-    it('renders nothing for the date block when there is no scheduled or deadline', () => {
+    it('renders nothing for the date block when there is no due date', () => {
       const todo = makeTodo({ id: 1 })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
-      expect(container.querySelector('[class*="scheduledChip"]')).toBeNull()
       expect(container.querySelector('[class*="deadlineChip"]')).toBeNull()
       expect(container.querySelector('[class*="dateStack"]')).toBeNull()
     })
 
-    it('renders no people group when there are no people or orgs', () => {
+    it('renders no people group when there are no people', () => {
       const todo = makeTodo({ id: 1 })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
       expect(container.querySelector('[class*="peopleGroup"]')).toBeNull()
@@ -84,27 +74,23 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
       expect(screen.getByLabelText('Set status')).toBeInTheDocument()
     })
 
-    it('shows the × clear button on the deadline chip when onDeadlineClear is provided', () => {
+    it('shows the × clear button on the due-date chip when onDeadlineClear is provided', () => {
       const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })
       render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
           onDeadlineClear={() => undefined}
         />,
       )
-      expect(screen.getByLabelText('Clear deadline')).toBeInTheDocument()
+      expect(screen.getByLabelText('Clear due date')).toBeInTheDocument()
     })
 
     it('omits the × clear button when onDeadlineClear is not provided', () => {
@@ -113,32 +99,25 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
-      expect(screen.queryByLabelText('Clear deadline')).toBeNull()
+      expect(screen.queryByLabelText('Clear due date')).toBeNull()
     })
 
-    it('fires the scheduled chip callback on click', () => {
-      const onScheduledClick = vi.fn()
-      const todo = makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
-      })
+    it('fires the due-date chip callback on click', () => {
+      const onDeadlineClick = vi.fn()
+      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
-          onScheduledClick={onScheduledClick}
+          onDeadlineClick={onDeadlineClick}
         />,
       )
-      fireEvent.click(container.querySelector('[class*="scheduledChip"]')!)
-      expect(onScheduledClick).toHaveBeenCalledTimes(1)
+      fireEvent.click(container.querySelector('[class*="deadlineChip"]')!)
+      expect(onDeadlineClick).toHaveBeenCalledTimes(1)
     })
 
     it('renders the recurrence indicator when recurrenceRule is set', () => {
@@ -151,30 +130,10 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
       expect(container.querySelector('[class*="recurrenceIndicator"]')).toBeInTheDocument()
-    })
-
-    it('marks the scheduled chip past when scheduled date is before today', () => {
-      const todo = makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'date', value: new Date(2026, 3, 10) },
-      })
-      const { container } = render(
-        <TaskPillBar
-          todo={todo}
-          people={[]}
-          orgs={[]}
-          today={today}
-          weekStartsOn={weekStartsOn}
-        />,
-      )
-      const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
-      expect(chip.className).toMatch(/scheduledChipPast/)
     })
 
     it('marks the deadline chip past when due date is before today', () => {
@@ -183,9 +142,7 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
         />,
       )
       const chip = container.querySelector('[class*="deadlineChip"]') as HTMLElement
@@ -197,42 +154,34 @@ describe('<TaskPillBar>', () => {
     it('renders icon-only date markers (no labels)', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
       })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
           interactive={false}
           compact
         />,
       )
-      // Markers — no scheduled-chip / deadline-chip class containers in compact
-      expect(container.querySelector('[class*="markerScheduled"]')).toBeInTheDocument()
+      // Marker — no due-date chip container in compact
       expect(container.querySelector('[class*="markerDeadline"]')).toBeInTheDocument()
-      expect(container.querySelector('[class*="scheduledChip"]')).toBeNull()
       expect(container.querySelector('[class*="deadlineChip"]')).toBeNull()
     })
 
-    it('hides org avatars in compact mode', () => {
+    it("fills person avatars with the person's color in compact mode", () => {
       const todo = makeTodo({ id: 1 })
-      const { container } = render(
+      render(
         <TaskPillBar
           todo={todo}
-          people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-          orgs={[makeOrg({ id: 9, name: 'Acme', initials: 'AC', color: '#ff0000' })]}
+          people={[makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' })]}
           today={today}
-          weekStartsOn={weekStartsOn}
           interactive={false}
           compact
         />,
       )
-      expect(screen.getByText('AL')).toBeInTheDocument()
-      expect(container.querySelector('[class*="avatarHollow"]')).toBeNull()
+      expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: '#ff0000' })
     })
   })
 
@@ -240,7 +189,6 @@ describe('<TaskPillBar>', () => {
     it('renders chips as <span>, not <button>', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
         statusId: 5,
       })
@@ -248,10 +196,8 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-          orgs={[]}
           status={inProgress}
           today={today}
-          weekStartsOn={weekStartsOn}
           interactive={false}
         />,
       )
@@ -260,14 +206,12 @@ describe('<TaskPillBar>', () => {
     })
 
     it('wraps the bar in `pointer-events: none` via barReadOnly', () => {
-      const todo = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today } })
+      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
           interactive={false}
         />,
       )
@@ -277,14 +221,12 @@ describe('<TaskPillBar>', () => {
     })
 
     it('marks the wrapper aria-hidden when ariaHidden is true', () => {
-      const todo = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today } })
+      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
-          weekStartsOn={weekStartsOn}
           interactive={false}
           ariaHidden
         />,
@@ -294,44 +236,23 @@ describe('<TaskPillBar>', () => {
     })
   })
 
-  describe('dateLayout=stack (TaskRow)', () => {
-    it('wraps scheduled+deadline in a vertical date-stack container', () => {
-      const todo = makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
-        dueDate: new Date(2026, 3, 25),
-      })
+  describe('dateFormat / followupFlagOnly (MobileTaskRow)', () => {
+    it('shows the due date as MM/DD and the follow-up as its flag only', () => {
+      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 5), nextFollowupAt: new Date(2026, 3, 25) })
       const { container } = render(
-        <TaskPillBar
-          todo={todo}
-          people={[]}
-          orgs={[]}
-          today={today}
-          weekStartsOn={weekStartsOn}
-          dateLayout="stack"
-        />,
+        <TaskPillBar todo={todo} people={[]} today={today} dateFormat="numeric" followupFlagOnly />,
       )
-      expect(container.querySelector('[class*="dateStack"]')).toBeInTheDocument()
-      expect(container.querySelector('[class*="dateStackSecondary"]')).toBeInTheDocument()
+      expect(screen.getByLabelText('Edit due date')).toHaveTextContent('04/05')
+      const followup = container.querySelector('[data-pill="followup"]') as HTMLElement
+      expect(followup.textContent).toBe('')
+      expect(followup).toHaveAccessibleName(/^Follow-up: /)
     })
 
-    it('uses inline layout by default', () => {
-      const todo = makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
-        dueDate: new Date(2026, 3, 25),
-      })
-      const { container } = render(
-        <TaskPillBar
-          todo={todo}
-          people={[]}
-          orgs={[]}
-          today={today}
-          weekStartsOn={weekStartsOn}
-        />,
-      )
-      expect(container.querySelector('[class*="dateInline"]')).toBeInTheDocument()
-      expect(container.querySelector('[class*="dateStack"]')).toBeNull()
+    it('defaults to the short date and the labelled pill', () => {
+      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25), nextFollowupAt: new Date(2026, 3, 25) })
+      const { container } = render(<TaskPillBar todo={todo} people={[]} today={today} />)
+      expect(screen.getByLabelText('Edit due date')).toHaveTextContent('Apr 25')
+      expect((container.querySelector('[data-pill="followup"]') as HTMLElement).textContent).not.toBe('')
     })
   })
 
@@ -342,10 +263,8 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           status={inProgress}
           today={today}
-          weekStartsOn={weekStartsOn}
           showStatus={false}
         />,
       )
@@ -369,14 +288,11 @@ describe('<TaskPillBar>', () => {
         path.resolve(__dirname, '../../../components/shared/TaskPillBar.tsx'),
         'utf-8',
       )
-      // Match only at-runtime references (calls / imports). Comments mentioning
-      // `useOrgStore` for context are fine; what matters is that the module
-      // never reads from any assignment store.
+      // Match only at-runtime references (calls / imports); what matters is
+      // that the module never reads from any assignment store.
       expect(file).not.toMatch(/import .*usePersonStore/)
-      expect(file).not.toMatch(/import .*useOrgStore/)
       expect(file).not.toMatch(/import .*useStatusStore/)
       expect(file).not.toMatch(/usePersonStore\(/)
-      expect(file).not.toMatch(/useOrgStore\(/)
       expect(file).not.toMatch(/useStatusStore\(/)
       expect(file).not.toMatch(/useAssignedPeopleMap/)
     })
@@ -384,18 +300,45 @@ describe('<TaskPillBar>', () => {
 })
 
 describe('<TaskPillPeople>', () => {
-  it('renders nothing when people and orgs are empty', () => {
+  it('renders nothing when people is empty', () => {
     const { container } = render(
-      <TaskPillPeople people={[]} orgs={[]} interactive={false} />,
+      <TaskPillPeople people={[]} interactive={false} />,
     )
     expect(container.firstChild).toBeNull()
+  })
+
+  it("fills each avatar with the person's own color", () => {
+    render(
+      <TaskPillPeople
+        people={[
+          makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' }),
+          makePerson({ id: 2, name: 'Bob', initials: 'BO', color: '#0000ff' }),
+        ]}
+        interactive={false}
+      />,
+    )
+    expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: '#ff0000' })
+    expect(screen.getByText('BO')).toHaveStyle({ backgroundColor: '#0000ff' })
+  })
+
+  it('falls back to NEUTRAL_PERSON_COLOR for a person without a color', () => {
+    render(
+      <TaskPillPeople
+        people={[
+          makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' }),
+          makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
+        ]}
+        interactive={false}
+      />,
+    )
+    expect(screen.getByText('BO')).toHaveStyle({ backgroundColor: NEUTRAL_PERSON_COLOR })
+    expect(screen.getByText('AL')).not.toHaveStyle({ backgroundColor: NEUTRAL_PERSON_COLOR })
   })
 
   it('uses size=sm in compact mode', () => {
     const { container } = render(
       <TaskPillPeople
         people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-        orgs={[]}
         interactive={false}
         compact
       />,
@@ -408,7 +351,6 @@ describe('<TaskPillPeople>', () => {
     const { container } = render(
       <TaskPillPeople
         people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-        orgs={[]}
         interactive={false}
         density="small"
       />,
@@ -418,40 +360,18 @@ describe('<TaskPillPeople>', () => {
 })
 
 describe('<TaskPillDates>', () => {
-  it('renders nothing when neither scheduled nor deadline is set', () => {
-    const todo = makeTodo({ id: 1 })
+  it('renders nothing when no due date is set', () => {
+    const todo = makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })
     const { container } = render(
-      <TaskPillDates todo={todo} today={today} weekStartsOn={weekStartsOn} interactive={false} />,
+      <TaskPillDates todo={todo} today={today} interactive={false} />,
     )
     expect(container.firstChild).toBeNull()
   })
 
-  // Aged-label vocabulary at the chip level (post fuzzy-schedule-aging-2026-05-09).
-  // The full vocabulary is unit-tested in `effective-date.test.ts`; here we assert
-  // the chip renders the resulting string via TaskPillBar's setAt-aware path.
-  it('renders "Last week" for fuzzy this-week stamped one week ago', () => {
-    const setAt = new Date(2026, 3, 9) // 1 week before today (Apr 16).
-    const todo = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
-    })
-    render(
-      <TaskPillDates todo={todo} today={today} weekStartsOn={weekStartsOn} interactive={false} />,
-    )
-    expect(screen.getByText('Last week')).toBeInTheDocument()
-  })
-
-  it('renders the formatted date for fuzzy this-week stamped five weeks ago', () => {
-    const setAt = new Date(2026, 2, 12) // 5 weeks before today.
-    const todo = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
-    })
-    render(
-      <TaskPillDates todo={todo} today={today} weekStartsOn={weekStartsOn} interactive={false} />,
-    )
-    // Mon-first: that week's Sunday is Mar 15.
-    expect(screen.getByText('Mar 15')).toBeInTheDocument()
+  it('renders the due date', () => {
+    const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })
+    render(<TaskPillDates todo={todo} today={today} interactive={false} />)
+    expect(screen.getByTitle('Due')).toBeInTheDocument()
   })
 })
 

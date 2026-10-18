@@ -1,0 +1,148 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-app-bg);
+}
+
+.loading {
+  margin: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.ghostWrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--cell-tab-height);
+  max-width: 200px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-drag-overlay);
+  opacity: 0.96;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  cursor: grabbing;
+}
+
+.ghostIcon {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.ghostTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ghostLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-high);
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--shadow-dropdown);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+/* A whole panel being dragged (by its header). */
+.panelGhost {
+  position: relative;
+  width: var(--panel-ghost-width);
+  border-radius: 10px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-drag-overlay), inset 0 0 0 1px var(--color-accent);
+  opacity: 0.96;
+  transform: rotate(-1.2deg);
+  overflow: hidden;
+  cursor: grabbing;
+}
+
+.panelGhostHeader {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 28px;
+  padding: 0 4px;
+  background: var(--color-header-bg);
+  border-bottom: 1px solid var(--color-border-muted);
+  overflow: hidden;
+}
+
+.panelGhostTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.panelGhostTabFirst {
+  flex-shrink: 0;
+  max-width: 60%;
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border-muted);
+  color: var(--color-text-primary);
+}
+
+.panelGhostBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 26px;
+}
+
+.panelGhostLine {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-tint-8);
+}
+
+.panelGhostLine:nth-child(2) {
+  width: 80%;
+}
+
+.panelGhostLine:nth-child(3) {
+  width: 60%;
+}
+
+.panelGhostBadge {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: 10px;
+  font-weight: 700;
+}

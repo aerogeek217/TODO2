@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import { useIsMobile } from '../../hooks/use-is-mobile'
 
 describe('useIsMobile', () => {
   let listeners: Array<() => void>
@@ -10,9 +11,9 @@ describe('useIsMobile', () => {
     listeners = []
     matches = false
 
-    // Reset the module-level singleton by re-importing
-    vi.resetModules()
-
+    // A fresh stub per test: the hook re-queries when `matchMedia` changes.
+    // (No `vi.resetModules()` — in the shared test project that would hand
+    // later files module instances still holding this file's stub.)
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       get matches() { return matches },
       media: query,
@@ -27,23 +28,20 @@ describe('useIsMobile', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('returns false when viewport is wider than 640px', async () => {
+  it('returns false when viewport is wider than 640px', () => {
     matches = false
-    const { useIsMobile } = await import('../../hooks/use-is-mobile')
     const { result } = renderHook(() => useIsMobile())
     expect(result.current).toBe(false)
   })
 
-  it('returns true when viewport is 640px or narrower', async () => {
+  it('returns true when viewport is 640px or narrower', () => {
     matches = true
-    const { useIsMobile } = await import('../../hooks/use-is-mobile')
     const { result } = renderHook(() => useIsMobile())
     expect(result.current).toBe(true)
   })
 
-  it('updates when media query changes', async () => {
+  it('updates when media query changes', () => {
     matches = false
-    const { useIsMobile } = await import('../../hooks/use-is-mobile')
     const { result } = renderHook(() => useIsMobile())
     expect(result.current).toBe(false)
 
@@ -55,9 +53,8 @@ describe('useIsMobile', () => {
     expect(result.current).toBe(true)
   })
 
-  it('unsubscribes on unmount', async () => {
+  it('unsubscribes on unmount', () => {
     matches = false
-    const { useIsMobile } = await import('../../hooks/use-is-mobile')
     const { unmount } = renderHook(() => useIsMobile())
     expect(listeners.length).toBe(1)
 
@@ -65,8 +62,7 @@ describe('useIsMobile', () => {
     expect(listeners.length).toBe(0)
   })
 
-  it('queries max-width: 640px', async () => {
-    const { useIsMobile } = await import('../../hooks/use-is-mobile')
+  it('queries max-width: 640px', () => {
     renderHook(() => useIsMobile())
     expect(window.matchMedia).toHaveBeenCalledWith('(max-width: 640px)')
   })

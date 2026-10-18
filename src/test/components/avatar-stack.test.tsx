@@ -1,12 +1,8 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { AvatarStack } from '../../components/shared/AvatarStack'
-import { useOrgStore } from '../../stores/org-store'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { makePerson } from '../helpers'
-
-beforeEach(() => {
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-})
 
 afterEach(cleanup)
 
@@ -64,17 +60,24 @@ describe('AvatarStack', () => {
     unmount()
   })
 
-  it('renders hollow variant with the avatarHollow class', () => {
-    const orgs = [{ id: 1, name: 'Acme', initials: 'AC', color: '#00ff00' }]
-    const { container } = render(<AvatarStack people={orgs} variant="hollow" />)
-    const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
-    expect(avatar.className).toMatch(/avatarHollow/i)
+  it("fills each avatar with the person's own color", () => {
+    const people = [
+      makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' }),
+      makePerson({ id: 2, name: 'Bob', initials: 'BO', color: '#0000ff' }),
+    ]
+    render(<AvatarStack people={people} />)
+    expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: '#ff0000' })
+    expect(screen.getByText('BO')).toHaveStyle({ backgroundColor: '#0000ff' })
   })
 
-  it('uses an org-oriented aria-label for the hollow variant', () => {
-    const orgs = [{ id: 1, name: 'Acme', initials: 'AC' }]
-    render(<AvatarStack people={orgs} variant="hollow" />)
-    expect(screen.getByRole('button', { name: '1 org assigned' })).toBeInTheDocument()
+  it('fills an avatar with NEUTRAL_PERSON_COLOR when the person has no color', () => {
+    const people = [
+      makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' }),
+      makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
+    ]
+    render(<AvatarStack people={people} />)
+    expect(screen.getByText('BO')).toHaveStyle({ backgroundColor: NEUTRAL_PERSON_COLOR })
+    expect(screen.getByText('AL')).not.toHaveStyle({ backgroundColor: NEUTRAL_PERSON_COLOR })
   })
 
   it('invokes onPersonContextMenu with the source person on right-click', () => {

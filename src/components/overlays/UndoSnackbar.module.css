@@ -24,6 +24,11 @@
   max-width: 300px;
 }
 
+/* A notice (no Undo) may be a sentence: wrap instead of truncating. */
+.notice {
+  max-width: min(360px, calc(100vw - 96px));
+}
+
 .undoButton {
   background: none;
   border: none;

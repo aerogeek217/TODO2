@@ -11,11 +11,13 @@ interface Props {
   onClose: () => void
   /** Ids to hide from the picker. Omit to show every def. */
   excludeIds?: number[]
+  /** Heading above the list. */
+  header?: string
 }
 
 const WIDTH_PX = 280
 
-export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds }: Props) {
+export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds, header = 'Add list' }: Props) {
   const { panelRef, style } = usePopoverAnchor({
     anchor: { kind: 'point', x, y },
     open: true,
@@ -31,7 +33,7 @@ export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose
       style={{ ...style, width: WIDTH_PX }}
     >
       <ListDefinitionPickerBody
-        header="Add list to canvas"
+        header={header}
         actionLabel="Add"
         excludeIds={excludeIds}
         onPick={(id) => { onSelect(id); onClose() }}

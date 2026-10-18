@@ -1,31 +1,49 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { TagEditor } from '../../../components/settings/TagEditor'
 import { db } from '../../../data/database'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { newTodoUid } from '../../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false, error: null })
+  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+  useTodoStore.setState({ todos: [], todosVersion: 0 })
 })
+
+const realLoad = useTagStore.getState().load
 
 afterEach(() => {
   cleanup()
+  useTagStore.setState({ load: realLoad })
 })
+
+/**
+ * Renders the editor and waits for its mount-time `load()` to finish. Without
+ * the wait, a test that edits right away races that read: the load's
+ * `set({ tags })` can land after the edit's optimistic update and put the
+ * pre-edit rows back.
+ */
+async function renderEditor() {
+  let mountLoad: Promise<void> | undefined
+  useTagStore.setState({ load: () => (mountLoad = realLoad()) })
+  const utils = render(<TagEditor onClose={() => {}} />)
+  await act(async () => { await mountLoad })
+  return utils
+}
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, isCompleted: false,
+    uid: newTodoUid(), title, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }
 
 describe('TagEditor', () => {
   it('adds a new tag via the inline form', async () => {
-    const { getByPlaceholderText, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
+    const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     fireEvent.click(getByText('+ Add Tag'))
     fireEvent.change(getByPlaceholderText('Tag name'), { target: { value: 'urgent' } })
     fireEvent.click(getByText('Add'))
@@ -38,21 +56,21 @@ describe('TagEditor', () => {
   it('rejects a case-insensitive duplicate name with an inline error', async () => {
     await useTagStore.getState().add('urgent')
 
-    const { getByPlaceholderText, getByText, findByText, container } = render(<TagEditor onClose={() => {}} />)
+    const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     await findByText('urgent')
 
     fireEvent.click(getByText('+ Add Tag'))
     fireEvent.change(getByPlaceholderText('Tag name'), { target: { value: 'URGENT' } })
     fireEvent.click(getByText('Add'))
 
-    await waitFor(() => expect(container.textContent).toMatch(/already exists/i))
+    await waitFor(() => expect(document.body.textContent).toMatch(/already exists/i))
     expect(useTagStore.getState().tags).toHaveLength(1)
   })
 
   it('edits a tag name via click-on-name', async () => {
     await useTagStore.getState().add('urgent')
 
-    const { getByDisplayValue, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
+    const { getByDisplayValue, getByText, findByText } = await renderEditor()
     const row = await findByText('urgent')
     fireEvent.click(row)
 
@@ -76,14 +94,14 @@ describe('TagEditor', () => {
     await useTodoStore.getState().loadAll()
     await useTagStore.getState().loadAssignments([todoId])
 
-    const { container, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
+    const { getByText, findByText } = await renderEditor()
     await findByText('urgent')
 
-    const deleteBtn = container.querySelector('[title="Delete"]') as HTMLButtonElement | null
+    const deleteBtn = document.body.querySelector('[title="Delete"]') as HTMLButtonElement | null
     expect(deleteBtn).not.toBeNull()
     fireEvent.click(deleteBtn!)
 
-    await waitFor(() => expect(container.textContent).toMatch(/1 task currently tagged/i))
+    await waitFor(() => expect(document.body.textContent).toMatch(/1 task currently tagged/i))
 
     fireEvent.click(getByText('Delete'))
 

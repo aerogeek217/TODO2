@@ -1,0 +1,176 @@
+/* The task dialog: a standard dialog listing the tasks behind a number, on the
+ * overlay tier so the rows' menus / popovers and the editor (nested) open
+ * above it. */
+
+.dialog {
+  width: min(660px, calc(100vw - 32px));
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-modal);
+}
+
+:global([data-theme="light"]) .dialog {
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.glyph {
+  color: var(--color-text-secondary);
+}
+
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.countBadge {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.closeBtn {
+  flex: none;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.description {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.body {
+  min-height: 0;
+  margin: 0 -8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.body [data-todo-id] {
+  cursor: pointer;
+}
+
+.empty {
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.groupDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+}
+
+.groupCount {
+  color: var(--color-text-muted);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.ghostBtn,
+.closeTextBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  white-space: nowrap;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ghostBtn {
+  margin-left: -12px;
+}
+
+.spacer + .ghostBtn,
+.ghostBtn + .ghostBtn {
+  margin-left: 0;
+}
+
+.ghostBtn:hover,
+.closeTextBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.ghostBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.kbd {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}

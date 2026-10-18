@@ -1,10 +1,11 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { TodoPredicate } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
+import { hasDateFilters } from '../../../utils/date-filters'
+import { hasMarkers } from '../../../utils/markers'
+import { byName } from '../../../utils/sort-order'
 
 export type FilterChipDensity = 'desktop' | 'mobile'
 
@@ -28,70 +29,63 @@ export interface FilterChipBarProps {
    * path so the extra slots get reset along with the predicate.
    */
   onClearAll?: () => void
+  /** Desktop: fold the filter buttons into one Filters menu (narrow windows). */
+  fold?: boolean
+  /** Desktop: the short `Completed` label for Show completed (narrow windows). */
+  compact?: boolean
 }
 
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,
-  showHiddenStatuses: false,
   personIds: null,
-  personFilterMode: 'include-orgs',
-  orgIds: null,
-  orgFilterMode: 'include-people',
-  projectIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'date',
-  dateRangeStart: null,
-  dateRangeEnd: null,
-  dateRangeIncludeNoDate: false,
-  hasScheduled: null,
-  hasDeadline: null,
+  dates: {},
+  markers: null,
   tags: null,
 }
 
-export type EntityKey = 'project' | 'people' | 'org' | 'status' | 'tags'
+export type EntityKey = 'people' | 'status' | 'tags'
 
 export function hasAnyFilter(p: TodoPredicate): boolean {
   return (
     p.showCompleted ||
-    p.showHiddenStatuses ||
     p.personIds !== null ||
-    p.orgIds !== null ||
-    p.projectIds !== null ||
     p.statusIds !== null ||
     p.searchText !== '' ||
-    p.dateRangeStart !== null ||
-    p.dateRangeEnd !== null ||
-    p.hasScheduled !== null ||
-    p.hasDeadline !== null ||
+    hasDateFilters(p.dates) ||
+    hasMarkers(p.markers) ||
     (p.tags ?? null) !== null
   )
 }
 
-export const cycleTri = (v: boolean | null): boolean | null =>
-  v === null ? true : v === true ? false : null
-export const triIcon = (v: boolean | null) => (v === null ? '—' : v === true ? '✓' : '✕')
-export const triLabel = (v: boolean | null) =>
-  v === null ? 'No filter' : v ? 'Only tasks with this field' : 'Only tasks without this field'
+/**
+ * The people a People filter is narrowed to, by name — empty when it shows
+ * everyone (no filter, or every person ticked) or no one (only None, or
+ * nothing ticked).
+ */
+export function narrowedPeople(
+  people: readonly { id?: number; name: string }[],
+  personIds: ReadonlySet<number> | null,
+): { id: number; name: string }[] {
+  if (personIds === null) return []
+  const picked = people.flatMap((p) => (p.id != null && personIds.has(p.id) ? [{ id: p.id, name: p.name }] : []))
+  if (picked.length === people.length) return []
+  return picked.sort(byName)
+}
 
 export interface FilterChipBarSharedState {
   p: TodoPredicate
   people: ReturnType<typeof usePersonStore.getState>['people']
-  orgs: ReturnType<typeof useOrgStore.getState>['orgs']
-  projects: ReturnType<typeof useProjectStore.getState>['projects']
   statuses: ReturnType<typeof useStatusStore.getState>['statuses']
   sortedTags: ReturnType<typeof useTagStore.getState>['tags']
   allTagIds: number[]
 
   personIdsSet: Set<number> | null
-  orgIdsSet: Set<number> | null
-  projectIdsSet: Set<number> | null
   statusIdsSet: Set<number> | null
   tagIdsSet: Set<number> | null
 
   peopleActive: boolean
-  orgsActive: boolean
-  projectsActive: boolean
   statusActive: boolean
   tagsActive: boolean
   dateActive: boolean
@@ -99,8 +93,6 @@ export interface FilterChipBarSharedState {
 
   update: (patch: Partial<TodoPredicate>) => void
   setPersonIds: (next: Set<number> | null) => void
-  setOrgIds: (next: Set<number> | null) => void
-  setProjectIds: (next: Set<number> | null) => void
   setStatusIds: (next: Set<number> | null) => void
   setTags: (next: Set<number> | null) => void
   clearAll: () => void
@@ -114,9 +106,8 @@ export interface FilterChipBarSharedState {
  * mobile) lives in the per-density component.
  *
  * `update` composes patches against the latest predicate we've sent — not
- * the prop from this render — so two `update` calls in one handler (e.g.
- * the Date-field button or Date-dropdown Clear, which patch dateField +
- * anchors / anchors + tri-states) don't both close over the same stale `p`.
+ * the prop from this render — so two `update` calls in one handler don't
+ * both close over the same stale `p`.
  * The ref sync via useLayoutEffect keeps the in-flight value coherent
  * across renders triggered by external store updates.
  */
@@ -133,30 +124,20 @@ export function useFilterChipBarState(
   )
 
   const people = usePersonStore((s) => s.people)
-  const orgs = useOrgStore((s) => s.orgs)
-  const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.tags)
 
   const personIdsSet = useMemo(() => (p.personIds ? new Set(p.personIds) : null), [p.personIds])
-  const orgIdsSet = useMemo(() => (p.orgIds ? new Set(p.orgIds) : null), [p.orgIds])
-  const projectIdsSet = useMemo(() => (p.projectIds ? new Set(p.projectIds) : null), [p.projectIds])
   const statusIdsSet = useMemo(() => (p.statusIds ? new Set(p.statusIds) : null), [p.statusIds])
   const tagIdsSet = useMemo(() => (p.tags ? new Set(p.tags) : null), [p.tags])
 
-  const sortedTags = useMemo(() => [...tags].sort((a, b) => a.name.localeCompare(b.name)), [tags])
+  const sortedTags = useMemo(() => [...tags].sort(byName), [tags])
   const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
 
   const peopleActive = p.personIds !== null
-  const orgsActive = p.orgIds !== null
-  const projectsActive = p.projectIds !== null
   const statusActive = p.statusIds !== null
   const tagsActive = (p.tags ?? null) !== null
-  const dateActive =
-    p.dateRangeStart !== null ||
-    p.dateRangeEnd !== null ||
-    p.hasScheduled !== null ||
-    p.hasDeadline !== null
+  const dateActive = hasDateFilters(p.dates)
   const active = hasAnyFilter(p)
 
   const inflightRef = useRef<TodoPredicate>(p)
@@ -175,14 +156,6 @@ export function useFilterChipBarState(
   const setPersonIds = useCallback(
     (next: Set<number> | null) =>
       update({ personIds: next ? Array.from(next) : null }),
-    [update],
-  )
-  const setOrgIds = useCallback(
-    (next: Set<number> | null) => update({ orgIds: next ? Array.from(next) : null }),
-    [update],
-  )
-  const setProjectIds = useCallback(
-    (next: Set<number> | null) => update({ projectIds: next ? Array.from(next) : null }),
     [update],
   )
   const setStatusIds = useCallback(
@@ -204,27 +177,19 @@ export function useFilterChipBarState(
   return {
     p,
     people,
-    orgs,
-    projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    orgIdsSet,
-    projectIdsSet,
     statusIdsSet,
     tagIdsSet,
     peopleActive,
-    orgsActive,
-    projectsActive,
     statusActive,
     tagsActive,
     dateActive,
     active,
     update,
     setPersonIds,
-    setOrgIds,
-    setProjectIds,
     setStatusIds,
     setTags,
     clearAll,

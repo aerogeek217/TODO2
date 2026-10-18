@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { resolveInput, resolveTags, type TagStoreLike } from '../../services/nlp-resolver'
+import { resolveInput, resolveTags, resolveUnmatchedPeople, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
-import { TagLimitError } from '../../stores/tag-store'
-import type { Person, Project, Org, Tag } from '../../models'
+import type { Person, Status, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 
 function makeMockTagStore(initialTags: Tag[] = []): TagStoreLike & { nextId: number } {
@@ -11,7 +10,7 @@ function makeMockTagStore(initialTags: Tag[] = []): TagStoreLike & { nextId: num
     tags,
     nextId: Math.max(0, ...tags.map((t) => t.id ?? 0)) + 1,
     async add(name: string, color = DEFAULT_ENTITY_COLOR): Promise<number> {
-      // Mirrors the real `tagStore.add` post-M1: idempotent, returns the
+      // Mirrors the real `tagStore.add`: idempotent, returns the
       // existing id on case-insensitive match instead of throwing.
       const lower = name.trim().toLowerCase()
       const existing = store.tags.find(
@@ -30,12 +29,6 @@ const people: Person[] = [
   { id: 1, name: 'John Smith', initials: 'JS' },
   { id: 2, name: 'Sarah Connor', initials: 'SC' },
   { id: 3, name: 'Mike', initials: 'M' },
-]
-
-const projects: Project[] = [
-  { id: 100, name: 'Backend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: new Date() },
-  { id: 101, name: 'Design System', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() },
-  { id: 102, name: 'Frontend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: new Date() },
 ]
 
 describe('nlp-resolver', () => {
@@ -58,93 +51,76 @@ describe('nlp-resolver', () => {
     expect(result.unmatchedPersons).toEqual(unmatched)
   })
 
-  it('preserves scheduledDate from parsed input', () => {
-    const parsed = parseInput('Task tomorrow')
+  it('passes the commands through', () => {
+    const parsed = parseInput('Buy groceries /due tomorrow /urgent /important /focus /followup 2w @John', new Date(2026, 9, 10))
     const result = resolveInput(parsed, people)
-    expect(result.scheduledDate).toBeDefined()
-    expect(result.title).toBe('Task')
+    expect(result).toMatchObject({
+      title: 'Buy groceries',
+      dueDate: new Date(2026, 9, 11),
+      urgent: true,
+      important: true,
+      focus: true,
+      nextFollowupAt: new Date(2026, 9, 24),
+      personIds: [1],
+      problems: [],
+    })
+    expect(result.followupNone).toBeUndefined()
   })
 
-  it('handles combined input with multiple token types', () => {
-    const parsed = parseInput('Buy groceries tomorrow @John')
-    const result = resolveInput(parsed, people)
-    expect(result.title).toBe('Buy groceries')
-    expect(result.scheduledDate).toBeDefined()
-    expect(result.personIds).toEqual([1])
+  it('a plain date word is title text', () => {
+    const result = resolveInput(parseInput('Task tomorrow'), people)
+    expect(result.dueDate).toBeUndefined()
+    expect(result.title).toBe('Task tomorrow')
   })
 
-  type ProjectCase = { input: string; projectId?: number; unmatched?: string[] }
+  it('keeps a /word in the resolved title', () => {
+    const parsed = parseInput('Fix bug /Backend @Mike')
+    const result = resolveInput(parsed, people)
+    expect(result.title).toBe('Fix bug /Backend')
+    expect(result.personIds).toEqual([3])
+    expect(result.problems).toEqual([expect.objectContaining({ kind: 'unknown', raw: '/Backend' })])
+  })
 
-  const projectCases: ProjectCase[] = [
-    { input: 'Fix bug /Backend', projectId: 100 },           // exact
-    { input: 'Task /Des', projectId: 101 },                  // prefix
-    { input: 'Task /Backend /Frontend', projectId: 100 },    // first-match
-    { input: 'Task /Unknown', unmatched: ['Unknown'] },
+  it('textWithoutCommands drops the commands but keeps @ and # tokens', () => {
+    const result = resolveInput(parseInput('Call @Mike /urgent about #q4 /due fri /urgnt'), people)
+    expect(result.title).toBe('Call about /urgnt')
+    expect(result.textWithoutCommands).toBe('Call @Mike about #q4 /urgnt')
+  })
+})
+
+describe('nlp-resolver — /status', () => {
+  const statuses: Status[] = [
+    { id: 10, name: 'Doing', color: '#0af', sortOrder: 0 },
+    { id: 11, name: 'Blocked', color: '#f00', sortOrder: 1 },
+    { id: 12, name: 'In progress', color: '#0f0', sortOrder: 2 },
   ]
 
-  it.each(projectCases)('resolves projects from "$input"', ({ input, projectId, unmatched = [] }) => {
-    const parsed = parseInput(input)
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(projectId)
-    expect(result.unmatchedProjects).toEqual(unmatched)
+  it.each([
+    ['/status doing', 10],
+    ['/status Doing', 10],
+    ['/status bl', 11],
+    ['/status "In progress"', 12],
+    ['/status in', 12],
+  ] as const)('%s resolves', (cmd, id) => {
+    const result = resolveInput(parseInput(`fix it ${cmd}`), people, statuses)
+    expect(result.statusId).toBe(id)
+    expect(result.title).toBe('fix it')
+    expect(result.unmatchedStatuses).toEqual([])
   })
 
-  it('resolves project alongside people', () => {
-    const parsed = parseInput('Fix bug /Backend @Mike')
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(100)
-    expect(result.personIds).toEqual([3])
-    expect(result.title).toBe('Fix bug')
+  it('an unknown name stays in the title and is reported', () => {
+    const result = resolveInput(parseInput('fix it /status typo now'), people, statuses)
+    expect(result.statusId).toBeUndefined()
+    expect(result.title).toBe('fix it /status typo now')
+    expect(result.textWithoutCommands).toBe('fix it /status typo now')
+    expect(result.unmatchedStatuses).toEqual(['typo'])
+    expect(result.problems).toEqual([expect.objectContaining({ kind: 'unmatched', command: 'status', raw: '/status typo' })])
   })
 
-  describe('org resolution', () => {
-    const orgs: Org[] = [
-      { id: 50, name: 'Acme Corp', initials: 'AC', color: '#ff0' },
-      { id: 51, name: 'Globex', color: '#0ff' },
-    ]
-
-    it('resolves @name as org when no person matches', () => {
-      const parsed = parseInput('Task @Acme')
-      const result = resolveInput(parsed, people, projects, orgs)
-      expect(result.orgIds).toEqual([50])
-      expect(result.personIds).toEqual([])
-      expect(result.unmatchedPersons).toEqual([])
-    })
-
-    it('resolves org by initials', () => {
-      const parsed = parseInput('Task @AC')
-      const result = resolveInput(parsed, people, projects, orgs)
-      expect(result.orgIds).toEqual([50])
-    })
-
-    it('person takes priority over org with same name prefix', () => {
-      const parsed = parseInput('Task @Mike')
-      const result = resolveInput(parsed, people, projects, orgs)
-      expect(result.personIds).toEqual([3])
-      expect(result.orgIds).toEqual([])
-    })
-
-    it('resolves mixed people and orgs from @tokens', () => {
-      const parsed = parseInput('Task @Mike @Globex')
-      const result = resolveInput(parsed, people, projects, orgs)
-      expect(result.personIds).toEqual([3])
-      expect(result.orgIds).toEqual([51])
-    })
-
-    it('reports truly unmatched @tokens when no person or org matches', () => {
-      const parsed = parseInput('Task @Unknown')
-      const result = resolveInput(parsed, people, projects, orgs)
-      expect(result.personIds).toEqual([])
-      expect(result.orgIds).toEqual([])
-      expect(result.unmatchedPersons).toEqual(['Unknown'])
-    })
-
-    it('returns empty orgIds when no orgs provided', () => {
-      const parsed = parseInput('Task @Acme')
-      const result = resolveInput(parsed, people, projects)
-      expect(result.orgIds).toEqual([])
-      expect(result.unmatchedPersons).toEqual(['Acme'])
-    })
+  it('without a status registry every name is unknown', () => {
+    const result = resolveInput(parseInput('fix it /status doing'), people)
+    expect(result.statusId).toBeUndefined()
+    expect(result.unmatchedStatuses).toEqual(['doing'])
   })
 })
 
@@ -234,26 +210,7 @@ describe('resolveTags', () => {
     expect(tagStore.tags).toHaveLength(0)
   })
 
-  it('catches TagLimitError, surfaces via console.error, and returns ids resolved so far', async () => {
-    const tagStore: TagStoreLike = {
-      tags: [{ id: 1, name: 'existing', color: '#aaa' }],
-      async add(): Promise<number> {
-        throw new TagLimitError('Tag limit reached (1) — delete unused tags in Settings → Tags.')
-      },
-    }
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      // 'existing' resolves via lookup (no `add` call). 'neu' hits the limit
-      // — loop should break and return [1] rather than throwing.
-      const ids = await resolveTags(['existing', 'neu', 'alsofail'], { tagStore })
-      expect(ids).toEqual([1])
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/tag limit/i))
-    } finally {
-      errorSpy.mockRestore()
-    }
-  })
-
-  it('rethrows non-TagLimitError errors from tag-store.add', async () => {
+  it('rethrows a failed tag-store.add', async () => {
     const tagStore: TagStoreLike = {
       tags: [],
       async add(): Promise<number> {
@@ -261,5 +218,41 @@ describe('resolveTags', () => {
       },
     }
     await expect(resolveTags(['neu'], { tagStore })).rejects.toThrow(/dexie write failed/)
+  })
+})
+
+describe('resolveUnmatchedPeople', () => {
+  function makePersonStore(existing: Person[] = []) {
+    const people = [...existing]
+    let nextId = 100
+    const getOrCreate = vi.fn(async (name: string) => {
+      const hit = people.find((p) => p.name.toLowerCase() === name.trim().toLowerCase())
+      if (hit?.id !== undefined) return hit.id
+      const id = nextId++
+      people.push({ id, name: name.trim(), initials: '' })
+      return id
+    })
+    return { people, getOrCreate }
+  }
+
+  it('creates each new name and returns ids in input order', async () => {
+    const personStore = makePersonStore()
+    const ids = await resolveUnmatchedPeople(['Marco', 'Marco Rossi'], { personStore })
+    expect(ids).toEqual([100, 101])
+    expect(personStore.people.map((p) => p.name)).toEqual(['Marco', 'Marco Rossi'])
+  })
+
+  it('looks each name up case-insensitively before creating', async () => {
+    const personStore = makePersonStore([{ id: 7, name: 'Dana Kim', initials: 'DK' }])
+    const ids = await resolveUnmatchedPeople(['dana kim'], { personStore })
+    expect(ids).toEqual([7])
+    expect(personStore.people).toHaveLength(1)
+  })
+
+  it('dedupes names that differ only in case, and skips blanks', async () => {
+    const personStore = makePersonStore()
+    const ids = await resolveUnmatchedPeople(['marco', '  ', 'MARCO'], { personStore })
+    expect(ids).toEqual([100])
+    expect(personStore.getOrCreate).toHaveBeenCalledTimes(1)
   })
 })

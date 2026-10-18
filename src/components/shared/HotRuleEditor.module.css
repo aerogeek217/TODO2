@@ -1,0 +1,242 @@
+/* The Hot rule editor (Settings › Task defaults): AND-lines of marker
+ * toggle chips joined by "or", live counts, + Or…, Reset to default. */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 440px;
+}
+
+.lineWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 6px 0 8px;
+  border-radius: 8px;
+  background: var(--color-inset);
+}
+
+.hasAll {
+  flex: none;
+  width: 44px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px 0 7px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.chip:hover {
+  color: var(--color-text-primary);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.chip[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.chipUrgentOn,
+.chipUrgentOn:hover {
+  background: var(--color-danger-bg);
+  box-shadow: none;
+  color: var(--color-marker-urgent);
+}
+
+.chipImportantOn,
+.chipImportantOn:hover {
+  background: var(--color-followup-bg);
+  box-shadow: none;
+  color: var(--color-marker-important);
+}
+
+.chipFocusOn,
+.chipFocusOn:hover {
+  background: var(--color-accent-bg-medium);
+  box-shadow: none;
+  color: var(--color-marker-focus);
+}
+
+.count {
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.remove,
+.removeSlot {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.remove:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.or {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.or::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--color-border-muted);
+}
+
+.addLine {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin-top: 4px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.addLine:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.addLine:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-muted);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.total b {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}
+
+.reset {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.reset:hover {
+  text-decoration: underline;
+}
+
+.reset:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The flyout form (dashboard tab menu › Hot is ›): fills its 316px panel. */
+.flyout {
+  max-width: none;
+}
+
+.flyout .line {
+  padding: 0 4px 0 6px;
+}
+
+.heading {
+  padding: 0 2px 4px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.flyoutFooter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hotNow {
+  margin-left: auto;
+  margin-top: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.footnote {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-muted);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}

@@ -1,15 +1,18 @@
+/*
+ * The desktop task row: one grid track per field, the tracks set per list
+ * (`utils/task-row-columns`, applied inline). Every column is always
+ * there; an empty cell's placeholder is shown by opacity only, so nothing
+ * moves on hover.
+ */
 .row {
-  display: flex;
+  display: grid;
+  column-gap: 5px;
   align-items: center;
-  gap: var(--space-4);
-  padding: 1px var(--space-4);
+  padding: 1px 8px 1px 6px;
   border-radius: var(--radius-chip);
   transition: background 0.1s, opacity 0.3s ease;
   position: relative;
   cursor: grab;
-  /* Fixed row height so a two-chip date stack doesn't push this row taller
-   * than a single-chip row. Tall enough to center ~23px stack (primary
-   * 14px + secondary 10px + 1px gap) with a sliver of padding. */
   min-height: 28px;
 }
 
@@ -62,53 +65,28 @@
   z-index: var(--z-row-open);
 }
 
-
 .row.completed {
   opacity: 0.4;
 }
 
-.row.cut {
-  opacity: 0.35;
-  border: 1px dashed var(--color-accent-dim);
-}
-
 /*
- * Ghost: row is filtered out by an active filter on this surface (canvas
- * ProjectNode, ListView, etc.). Chips/pill bar are removed by the surface
- * itself; the row is dimmed here so it reads as "still present, just
- * filtered out".
+ * Ghost: row is filtered out by an active filter on this surface. Chips/pill
+ * bar are removed by the surface itself; the row is dimmed here so it reads
+ * as "still present, just filtered out".
  */
 .row[data-ghosted] {
   opacity: 0.45;
 }
 
-.dragHandle {
-  display: flex;
-  align-items: center;
-  color: var(--color-text-muted);
-  opacity: 0;
-  transition: opacity 0.15s;
-  flex-shrink: 0;
-  cursor: grab;
-}
-
-.row:hover .dragHandle {
-  opacity: 0.5;
-}
-
-.row:hover .dragHandle:hover {
-  opacity: 1;
-}
-
 .checkbox {
   width: 18px;
   height: 18px;
+  margin: 0;
   appearance: none;
   border: 1.5px solid var(--color-text-muted);
   border-radius: var(--radius-checkbox);
   background: transparent;
   cursor: pointer;
-  flex-shrink: 0;
   position: relative;
   transition: border-color 0.15s, background 0.15s;
 }
@@ -185,14 +163,6 @@
   flex-shrink: 0;
 }
 
-.titleBlock {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 1px;
-}
-
 .title {
   display: block;
   font-size: var(--font-size-task);
@@ -201,15 +171,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.contextLine {
-  font-size: 10.5px;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.1;
+  padding-right: 4px;
 }
 
 .title.completedTitle {
@@ -218,7 +180,6 @@
 }
 
 .titleInput {
-  flex: 1;
   font-size: var(--font-size-task);
   color: var(--color-text-primary);
   background: transparent;
@@ -230,142 +191,15 @@
   min-width: 0;
 }
 
-/* Notes indicator — clickable button when the row isn't a ghost */
-.notesIndicator {
-  display: flex;
-  align-items: center;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-  background: transparent;
-  border: none;
-  padding: 2px;
-  margin: 0;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-
-.notesIndicator:hover {
-  color: var(--color-text);
-  background: var(--color-surface-high);
-}
-
-/* Progress chip */
-.progressChip {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  padding: 1px 6px;
-  border-radius: var(--radius-chip);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 120px;
-  flex-shrink: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.progressBarTrack {
-  display: inline-block;
-  width: 40px;
-  height: 4px;
-  background: var(--color-surface-bright);
-  border-radius: 2px;
-  overflow: hidden;
-  vertical-align: middle;
-}
-
-.progressBarFill {
-  display: block;
-  height: 100%;
-  background: var(--color-accent);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-/* Hidden native date input used by inline deadline editing (showPicker trigger).
- * The populated case anchors next to the TaskPillBar deadline chip; the
- * empty-state case anchors under the dateStackEmpty calendar button. */
+/* Hidden native date input behind the due cell (opened with showPicker). */
 .hiddenDateInput {
   position: absolute;
+  left: 0;
+  bottom: 0;
   width: 1px;
   height: 1px;
   opacity: 0;
   pointer-events: none;
-}
-
-/* Chip groups (people, tags) */
-.chipGroup {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-.chipGroupEmpty {
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.row:hover .chipGroupEmpty {
-  opacity: 1;
-}
-
-.orgChip {
-  font-size: var(--font-size-meta);
-  padding: 0 5px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100px;
-  transition: background 0.1s;
-}
-
-.orgChip:hover {
-  background: var(--color-surface-bright);
-}
-
-.tagChip {
-  font-size: var(--font-size-meta);
-  padding: 0 5px;
-  border: 1px solid;
-  border-radius: var(--radius-chip);
-  white-space: nowrap;
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity 0.1s;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100px;
-}
-
-.tagChip:hover {
-  opacity: 0.8;
-}
-
-.chipTrigger {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 1px 4px;
-  cursor: pointer;
-  border-radius: var(--radius-chip);
-  transition: color 0.15s, background 0.15s;
-}
-
-.chipTrigger:hover {
-  color: var(--color-text-primary);
-  background: var(--color-surface-bright);
 }
 
 .chipDropdown {
@@ -378,96 +212,322 @@
   min-width: 140px;
 }
 
-.tagColorInput {
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-  flex-shrink: 0;
-}
+/* ── Cells ─────────────────────────────────────────────────────────────── */
 
-.tagColorInput::-webkit-color-swatch-wrapper {
-  padding: 1px;
-}
-
-.tagColorInput::-webkit-color-swatch {
+/* A cell: a 24px button filling its track; its picker anchors to it. */
+.cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 3px;
   border: none;
-  border-radius: 2px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell:hover,
+.cellOpen {
+  background: var(--color-tint-7);
+  color: var(--color-text-secondary);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.cellCenter {
+  justify-content: center;
+  padding: 0;
 }
 
 /*
- * Empty-state slot: reserves the same width as .dateStack when no date is
- * set, so people/org avatars and the trailing status icon align vertically
- * across rows regardless of whether a date is present.
+ * An empty cell's placeholder: opacity 0 until the row is hovered or has
+ * focus or a picker open (opacity only — never `display`, so nothing moves);
+ * always shown on touch screens.
  */
-.dateStackEmpty {
+.ph {
   display: inline-flex;
-  justify-content: center;
   align-items: center;
-  flex-shrink: 0;
-  width: var(--date-slot-w, 80px);
-  position: relative;
+  opacity: 0;
+  color: var(--color-text-muted);
+  transition: opacity 0.12s;
 }
 
-/* Calendar icon (hover-reveal when no date) */
-.actionBtn {
+.row:hover .ph,
+.row:focus-within .ph,
+.rowDropdownOpen .ph {
+  opacity: 1;
+}
+
+.cell:hover .ph {
+  color: var(--color-text-secondary);
+}
+
+/* Marker gutter: three dots; the hit area reaches into the row's left padding. */
+.gutter {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  width: 5px;
+  height: 24px;
+  padding: 0;
   border: none;
-  color: var(--color-text-muted);
-  padding: 2px 4px;
+  background: transparent;
   cursor: pointer;
-  border-radius: var(--radius-chip);
+}
+
+.gutter::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+}
+
+.gutter:hover::before,
+.gutter.cellOpen::before {
+  background: var(--color-tint-7);
+}
+
+.gutter.cellOpen {
+  background: transparent;
+}
+
+.gutter:focus-visible {
+  outline: none;
+}
+
+.gutter:focus-visible::before {
+  outline: 2px solid var(--color-accent);
+}
+
+/* People: overlapping 16px avatars ringed in the row background, then "+N". */
+.avatars {
   position: relative;
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
-  transition: color 0.15s, background 0.15s;
 }
 
-.actionBtn:hover {
-  color: var(--color-text-primary);
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--color-surface);
+  color: var(--color-text-on-accent);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.avatar:first-child {
+  margin-left: 0;
+}
+
+/* "+N" on the avatar's corner when it doesn't fit beside it. */
+.avatarBadge {
+  position: absolute;
+  right: -5px;
+  top: -4px;
+  min-width: 12px;
+  height: 11px;
+  padding: 0 2px;
+  border-radius: 6px;
   background: var(--color-surface-bright);
+  color: var(--color-text-secondary);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 11px;
+  text-align: center;
 }
 
-.actionBtnHover {
+.more {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/* Tags: coloured text, no border or fill; the last shown may ellipsize. */
+.tag {
+  flex-shrink: 0;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.tagLast {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Due: MM/DD in text colour only — due soon toward the deadline colour by proximity, overdue bold. */
+.dueCell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.due {
+  --date-intensity: 0;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
+  flex: 1;
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+}
+
+.due:hover {
+  color: color-mix(in srgb, var(--color-text-secondary) var(--fade), var(--color-deadline));
+}
+
+.duePast,
+.duePast:hover {
+  color: var(--color-deadline);
+  font-weight: 700;
+}
+
+.repeat {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* × over the due cell's right end on hover — takes no width. */
+.dueClear {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-high);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
   opacity: 0;
-  transition: opacity 0.15s;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+  cursor: pointer;
 }
 
-.row:hover .actionBtnHover {
+.dueCell:hover .dueClear {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.dueClear:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* Follow-up: the flag only — upcoming outlined and muted, today filled, late filled and glowing. */
+.followup {
+  font-size: 13px;
+}
+
+.followup[data-followup="upcoming"] {
+  color: color-mix(in srgb, var(--color-followup) 55%, var(--color-text-muted));
+}
+
+.followup[data-followup="today"],
+.followup[data-followup="late"] {
+  color: var(--color-followup);
+}
+
+.followup[data-followup="late"] svg {
+  filter: drop-shadow(0 0 3px var(--color-followup-glow));
+}
+
+/* Status: the icon in its colour; empty = a dot placeholder. */
+.status {
+  font-size: 14px;
+  line-height: 0;
+}
+
+.statusDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  box-sizing: border-box;
+}
+
+/* Touch screens have no hover: placeholders stay visible. */
+@media (hover: none) {
+  .ph {
+    opacity: 1;
+  }
+}
+
+/* ── The row list and its divider ──────────────────────────────────────── */
+
+.grid {
+  position: relative;
 }
 
 /*
- * Cross-module hover-reveal: TaskPillBar's status-empty dot sits inside
- * `.row` but its class lives in TaskPillBar.module.css under a different
- * hash, so the substring matcher is the simplest cross-module hook. Only
- * applies when the row is hovered.
+ * The title / details divider: a 9px hit area centred on the gap left of the
+ * notes column, spanning the rows. A faint line while the pointer is over
+ * the list, the accent line while hovered or dragged.
  */
-.row [class*="statusDotEmpty"] {
-  opacity: 0;
-  transition: opacity 0.15s;
+.divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
 }
 
-.row:hover [class*="statusDotEmpty"] {
+.dividerLine {
+  width: 1px;
+  height: 100%;
+  background: var(--color-border-muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.grid:hover > .divider .dividerLine {
   opacity: 1;
 }
 
-/*
- * Cross-module hover-reveal for `TagChipSelector`'s empty-state `#` trigger.
- * Mirrors the statusDotEmpty hook above — the class lives in
- * TagChipSelector.module.css and is referenced via substring match. Populated
- * tag chips don't carry the `tagChipEmpty` marker class so they remain visible.
- */
-.row [class*="tagChipEmpty"] {
-  opacity: 0;
-  transition: opacity 0.15s;
+.divider:hover .dividerLine,
+.divider:focus-visible .dividerLine,
+.dividerDragging .dividerLine {
+  width: 2px;
+  background: var(--color-accent);
+  opacity: 1;
 }
 
-.row:hover [class*="tagChipEmpty"] {
-  opacity: 1;
+/* Coarse pointers: no divider (the default split). */
+@media (pointer: coarse) {
+  .divider {
+    display: none;
+  }
 }

@@ -1,0 +1,143 @@
+.actions {
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.ghost,
+.dangerGhost,
+.primary,
+.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.ghost:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.dangerGhost {
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.dangerGhost:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.kbd {
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-tint-8);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-inset);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-body);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* Combined unsaved prompt: one checked row per layout / list. */
+.unsavedItems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.unsavedItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--color-tint-4);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.unsavedItem input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.unsavedName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unsavedNote {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

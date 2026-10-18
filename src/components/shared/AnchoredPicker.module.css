@@ -1,0 +1,15 @@
+/* Placed by `usePopoverAnchor` (inline `left` / `top`). On the overlay layer:
+ * opened from a row inside an overlay (the task dialog) it mounts after it,
+ * so DOM order puts it on top; an overlay opened later (an editor) still
+ * covers it. */
+.picker {
+  position: fixed;
+  z-index: var(--z-overlay);
+}
+
+/* The children's composed dropdown styles position themselves absolutely;
+ * inside the placed wrapper they sit statically. */
+.picker > div {
+  position: static;
+  margin-top: 0;
+}

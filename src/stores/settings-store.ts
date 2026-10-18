@@ -2,27 +2,44 @@ import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
-import { parseHorizonSlots } from '../utils/horizon-slots'
 import type { WeekStart } from '../utils/effective-date'
-import type { CanvasViewport } from './ui-store'
-import type { RailsState } from '../models/canvas-rails'
-import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
-import type { ProjectGroupBy } from '../models'
-import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
+import type { FilterSettings } from '../utils/filter-match'
+import { DEFAULT_THEMED_COLORS, THEME_COLOR_VARS, parseColorSettingKey } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
-import { DEFAULT_CANVAS_MAX_EXTENT, isValidCanvasMaxExtent } from '../utils/canvas-bounds'
-
-const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
-
-export function isValidProjectGroupBy(v: unknown): v is ProjectGroupBy {
-  return typeof v === 'string' && (PROJECT_GROUP_BY_VALUES as readonly string[]).includes(v)
-}
+import {
+  DEFAULT_FOLLOWUP_INTERVAL,
+  addFollowupInterval,
+  formatFollowupInterval,
+  parseFollowupInterval,
+  type FollowupInterval,
+} from '../utils/followup'
+import {
+  DEFAULT_URGENT_DUE_WITHIN_DAYS,
+  formatUrgentDueWithinDays,
+  parseUrgentDueWithinDays,
+  type UrgentDueWithinDays,
+} from '../utils/urgency'
+import { DEFAULT_HOT_RULE, formatHotRule, normalizeHotRule, parseHotRule, type HotRule } from '../utils/hot'
+import {
+  DEFAULT_CHECKIN_OPEN_METHOD,
+  DEFAULT_CHECKIN_TASK_SCOPE,
+  formatCheckinTaskScope,
+  isCheckinOpenMethod,
+  parseCheckinTaskScope,
+  type CheckinOpenMethod,
+  type CheckinTaskScope,
+} from '../utils/checkin-settings'
+import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
+import {
+  formatShortcutOverrides,
+  readShortcutOverrides,
+  shortcutRefusal,
+  withShortcut,
+} from '../utils/shortcut-bindings'
+import { readFresh, trackWrite } from './store-helpers'
+import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-
-/** Default ceiling for the tag registry. No Settings UI exposes this yet;
- * override by writing a `maxTags` row to the settings repo. */
-const DEFAULT_MAX_TAGS = 500
 
 export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
@@ -30,54 +47,50 @@ export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 interface SettingsState {
   colors: ThemedColors
   themeMode: ThemeMode
-  defaultProjectId: number | null
   defaultStatusId: number | null
   quickStatusId: number | null
   seededAssignedStatusId: number | null
-  seededFollowupStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
-  canvasViewport: CanvasViewport | null
-  /** Ordered list of `ListDefinition.id`s the horizons widget renders as rows.
-   * Position in the array is the row's order; the defId is the row's identity. */
-  horizonSlots: number[]
-  /** Which horizon row is currently selected (drives the task list below the bars). */
-  selectedHorizonDefId: number | null
-  /** Persisted canvas rails layout (null = no persisted state). */
-  canvasRails: RailsState | null
-  /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
-   * reaches this value. Guards against runaway `#tag` creation from NLP input.
+  /** Next follow-up for new tasks and after "Followed up" = today + this. */
+  followupDefaultInterval: FollowupInterval
+  /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
+  urgentDueWithinDays: UrgentDueWithinDays
+  /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
+  hotRule: HotRule
+  /** How a check-in email opens in the mail app. */
+  checkinOpenMethod: CheckinOpenMethod
+  /**
+   * Which open tasks a check-in covers, as stored. A `list` scope may name a
+   * list that no longer exists: read it through `resolveCheckinTaskScope`.
    */
-  maxTags: number
-  /** Default groupBy seeded on every new project. `null` = no grouping. */
-  defaultProjectGroupBy: ProjectGroupBy | null
-  /** Half-side of the persisted-position bounding box. Every drag / cascade /
-   * spawn site clamps to ±N before writing to a repository so widgets cannot
-   * drift off-canvas. Configurable via SettingsPage. */
-  canvasMaxExtent: number
+  checkinTaskScope: CheckinTaskScope
+  /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
+  shortcutOverrides: ShortcutOverrides
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
   /** When `theme` is omitted, both bags reset; otherwise only the specified bag. */
   resetColors: (theme?: ThemeName) => Promise<void>
   setThemeMode: (mode: ThemeMode) => Promise<void>
-  setDefaultProjectId: (id: number | null) => Promise<void>
   setDefaultStatusId: (id: number | null) => Promise<void>
-  setQuickStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
-  setCanvasViewport: (vp: CanvasViewport) => void
-  /** Append a list-def id (or insert at `atIndex` when provided). */
-  addHorizon: (defId: number, atIndex?: number) => Promise<void>
-  /** Remove the row at `atIndex`. Selected def falls back to the new first entry (or null when empty). */
-  removeHorizon: (atIndex: number) => Promise<void>
-  reorderHorizons: (fromIndex: number, toIndex: number) => Promise<void>
-  /** Replace the def at `atIndex`. No-op when out of range. */
-  setHorizonAt: (atIndex: number, defId: number) => Promise<void>
-  setSelectedHorizonDefId: (defId: number | null) => Promise<void>
-  setCanvasRails: (rails: RailsState) => void
-  setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
-  setCanvasMaxExtent: (n: number) => Promise<void>
+  setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
+  setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
+  /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
+  setHotRule: (rule: HotRule) => Promise<void>
+  setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
+  setCheckinTaskScope: (scope: CheckinTaskScope) => Promise<void>
+  /**
+   * Gives `id` new keys. Resolves the reason when they are refused (a
+   * reserved key, or another binding's — nothing is written), else null.
+   */
+  setShortcut: (id: ShortcutId, chord: ShortcutChord) => Promise<string | null>
+  /** Puts `id` back on its default keys. */
+  resetShortcut: (id: ShortcutId) => Promise<void>
+  /** Puts every binding back on its default keys. */
+  resetAllShortcuts: () => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -102,20 +115,6 @@ function dimColor(hex: string): string {
   return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
 }
 
-/** CSS variable name for each ThemeColors key */
-const colorVarMap: Record<keyof ThemeColors, string> = {
-  accent: '--color-accent',
-  canvasBg: '--color-canvas-bg',
-  surface: '--color-surface',
-  border: '--color-border',
-  header: '--color-header-bg',
-  danger: '--color-danger',
-  warning: '--color-warning',
-  star: '--color-followup',
-  scheduled: '--color-scheduled',
-  deadline: '--color-deadline',
-}
-
 interface CustomizedColorKeys {
   dark: Set<string>
   light: Set<string>
@@ -136,7 +135,7 @@ function applyThemeOverrides(
   const root = document.documentElement
   const colors = themed[resolvedTheme]
   const bag = customizedKeys[resolvedTheme]
-  for (const [key, varName] of Object.entries(colorVarMap)) {
+  for (const [key, varName] of Object.entries(THEME_COLOR_VARS)) {
     if (bag.has(key)) {
       root.style.setProperty(varName, colors[key as keyof ThemeColors])
     } else {
@@ -182,6 +181,18 @@ function setupMediaQueryListener(mode: ThemeMode) {
   }
 }
 
+/**
+ * Stops following the OS theme and forgets the customised colour keys, for
+ * tests that share one module instance (the store's state is reset
+ * separately).
+ */
+export function resetSettingsModuleState(): void {
+  mediaQueryCleanup?.()
+  mediaQueryCleanup = null
+  customizedColorKeys = { dark: new Set(), light: new Set() }
+}
+registerModuleReset(resetSettingsModuleState)
+
 function isValidThemeMode(v: unknown): v is ThemeMode {
   return v === 'light' || v === 'dark' || v === 'system'
 }
@@ -200,96 +211,57 @@ function isValidWeekStart(n: unknown): n is WeekStart {
  * written. */
 let customizedColorKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
 
-/**
- * Build a twin-debounced setter for high-frequency settings writes (viewport,
- * rails). The inner set is debounced at `setMs`; the repo persist is debounced
- * at the longer `persistMs`. Collapses React Flow's ~60/sec onViewportChange
- * and rapid slot operations to a handful of Zustand set() + one repo.put.
- */
-function createDebouncedPersist<T>(opts: {
-  setMs: number
-  persistMs: number
-  apply: (value: T) => void
-  persist: (value: T) => void
-}): (value: T) => void {
-  let setTimer: ReturnType<typeof setTimeout> | undefined
-  let persistTimer: ReturnType<typeof setTimeout> | undefined
-  return (value: T) => {
-    if (setTimer) clearTimeout(setTimer)
-    setTimer = setTimeout(() => {
-      opts.apply(value)
-      setTimer = undefined
-    }, opts.setMs)
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => opts.persist(value), opts.persistMs)
-  }
-}
-
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: {
     dark: { ...DEFAULT_THEMED_COLORS.dark },
     light: { ...DEFAULT_THEMED_COLORS.light },
   },
   themeMode: 'dark' as ThemeMode,
-  defaultProjectId: null,
   defaultStatusId: null,
   quickStatusId: null,
   seededAssignedStatusId: null,
-  seededFollowupStatusId: null,
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
-  canvasViewport: null,
-  horizonSlots: [] as number[],
-  selectedHorizonDefId: null as number | null,
-  canvasRails: null,
-  maxTags: DEFAULT_MAX_TAGS,
-  defaultProjectGroupBy: 'tag' as ProjectGroupBy,
-  canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT,
+  followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
+  urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
+  hotRule: DEFAULT_HOT_RULE,
+  checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
+  checkinTaskScope: DEFAULT_CHECKIN_TASK_SCOPE,
+  shortcutOverrides: {},
 
   async load() {
     try {
-      const rows = await settingsRepository.getAll()
+      const rows = await readFresh(() => settingsRepository.getAll())
       const colors: ThemedColors = {
         dark: { ...DEFAULT_THEMED_COLORS.dark },
         light: { ...DEFAULT_THEMED_COLORS.light },
       }
       const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
-      let defaultProjectId: number | null = null
       let defaultStatusId: number | null = null
       let quickStatusId: number | null = null
       let seededAssignedStatusId: number | null = null
-      let seededFollowupStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
-      let canvasViewport: CanvasViewport | null = null
-      let horizonSlots: number[] = []
-      let selectedHorizonDefId: number | null = null
-      let canvasRails: RailsState | null = null
-      let maxTags: number = DEFAULT_MAX_TAGS
-      let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
-      let canvasMaxExtent: number = DEFAULT_CANVAS_MAX_EXTENT
+      let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
+      let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
+      let hotRule: HotRule = DEFAULT_HOT_RULE
+      let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
+      let checkinTaskScope: CheckinTaskScope = DEFAULT_CHECKIN_TASK_SCOPE
+      let shortcutOverrides: ShortcutOverrides = {}
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
-          const rest = row.key.slice('color.'.length)
-          if (rest.startsWith('dark.') || rest.startsWith('light.')) {
-            const theme: ThemeName = rest.startsWith('dark.') ? 'dark' : 'light'
-            const colorKey = rest.slice(theme.length + 1) as keyof ThemeColors
-            if (colorKey in colors[theme] && isValidCssColor(row.value)) {
-              colors[theme][colorKey] = row.value
-              customKeys[theme].add(colorKey)
-            }
+          const color = parseColorSettingKey(row.key)
+          if (color && isValidCssColor(row.value)) {
+            colors[color.theme][color.name] = row.value
+            customKeys[color.theme].add(color.name)
           }
-        } else if (row.key === SETTING_KEYS.defaultProjectId) {
-          defaultProjectId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.defaultStatusId) {
           defaultStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.quickStatusId) {
           quickStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.seededAssignedStatusId) {
           seededAssignedStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === SETTING_KEYS.seededFollowupStatusId) {
-          seededFollowupStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.completedRetentionDays) {
           const parsed = row.value ? Number(row.value) : null
           completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
@@ -298,223 +270,211 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.weekStartsOn) {
           const parsed = Number(row.value)
           if (isValidWeekStart(parsed)) weekStartsOn = parsed
-        } else if (row.key === SETTING_KEYS.canvasViewport) {
-          try {
-            const parsed = JSON.parse(row.value)
-            if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y) && Number.isFinite(parsed.zoom)) {
-              canvasViewport = { x: parsed.x, y: parsed.y, zoom: parsed.zoom }
-            }
-          } catch { /* ignore invalid JSON */ }
-        } else if (row.key === SETTING_KEYS.horizonSlots) {
-          horizonSlots = parseHorizonSlots(row.value)
-        } else if (row.key === SETTING_KEYS.selectedHorizonDefId) {
-          if (row.value === '' || row.value == null) selectedHorizonDefId = null
-          else {
-            const n = Number(row.value)
-            if (Number.isFinite(n)) selectedHorizonDefId = n
-          }
-        } else if (row.key === SETTING_KEYS.canvasRails) {
-          canvasRails = parseRailsState(row.value)
-        } else if (row.key === SETTING_KEYS.maxTags) {
-          const parsed = Number(row.value)
-          if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
-        } else if (row.key === SETTING_KEYS.defaultProjectGroupBy) {
-          if (row.value === '') defaultProjectGroupBy = null
-          else if (isValidProjectGroupBy(row.value)) defaultProjectGroupBy = row.value
-        } else if (row.key === SETTING_KEYS.canvasMaxExtent) {
-          const parsed = Number(row.value)
-          if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
+        } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
+          followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
+        } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
+          const parsed = parseUrgentDueWithinDays(row.value)
+          urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
+        } else if (row.key === SETTING_KEYS.hotRule) {
+          hotRule = parseHotRule(row.value) ?? DEFAULT_HOT_RULE
+        } else if (row.key === SETTING_KEYS.checkinOpenMethod) {
+          if (isCheckinOpenMethod(row.value)) checkinOpenMethod = row.value
+        } else if (row.key === SETTING_KEYS.checkinTaskScope) {
+          checkinTaskScope = parseCheckinTaskScope(row.value) ?? DEFAULT_CHECKIN_TASK_SCOPE
+        } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
+          shortcutOverrides = readShortcutOverrides(row.value).overrides
         }
       }
       customizedColorKeys = customKeys
-      if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      if (selectedHorizonDefId == null && horizonSlots.length > 0) {
-        selectedHorizonDefId = horizonSlots[0] ?? null
-      }
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizonDefId, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
     } catch (e) {
       console.error('Failed to load settings:', e)
+      // The page still gets a theme: the current (default) mode.
+      applyThemeMode(get().themeMode)
     }
   },
 
-  async setColor(theme: ThemeName, key: keyof ThemeColors, value: string) {
-    if (!isValidCssColor(value)) return
-    await settingsRepository.put(`color.${theme}.${key}`, value)
-    customizedColorKeys[theme].add(key)
-    const current = get().colors
-    const colors: ThemedColors = {
-      ...current,
-      [theme]: { ...current[theme], [key]: value },
-    }
-    set({ colors })
-    if (theme === resolveTheme(get().themeMode)) {
-      applyThemeOverrides(customizedColorKeys, colors, theme)
-    }
+  setColor(theme: ThemeName, key: keyof ThemeColors, value: string) {
+    return trackWrite(async () => {
+      if (!isValidCssColor(value)) return
+      await settingsRepository.put(`color.${theme}.${key}`, value)
+      customizedColorKeys[theme].add(key)
+      const current = get().colors
+      const colors: ThemedColors = {
+        ...current,
+        [theme]: { ...current[theme], [key]: value },
+      }
+      set({ colors })
+      if (theme === resolveTheme(get().themeMode)) {
+        applyThemeOverrides(customizedColorKeys, colors, theme)
+      }
+    })
   },
 
-  async resetColors(theme?: ThemeName) {
-    const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
-    for (const t of targets) {
-      const keys = Object.keys(DEFAULT_THEMED_COLORS[t]).map((k) => `color.${t}.${k}`)
-      await settingsRepository.bulkDelete(keys)
-      customizedColorKeys[t] = new Set()
-    }
-    const current = get().colors
-    const colors: ThemedColors = { ...current }
-    for (const t of targets) colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
-    set({ colors })
-    applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
+  resetColors(theme?: ThemeName) {
+    return trackWrite(async () => {
+      const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
+      for (const t of targets) {
+        const keys = Object.keys(DEFAULT_THEMED_COLORS[t]).map((k) => `color.${t}.${k}`)
+        await settingsRepository.bulkDelete(keys)
+        customizedColorKeys[t] = new Set()
+      }
+      const current = get().colors
+      const colors: ThemedColors = { ...current }
+      for (const t of targets) colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
+      set({ colors })
+      applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
+    })
   },
 
-  async setThemeMode(mode: ThemeMode) {
-    await settingsRepository.put(SETTING_KEYS.themeMode, mode)
-    set({ themeMode: mode })
-    applyThemeMode(mode)
-    setupMediaQueryListener(mode)
-    // Switching mode flips which `colors[theme]` bag drives the inline
-    // overrides — re-apply against the newly-resolved theme.
-    applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
+  setThemeMode(mode: ThemeMode) {
+    return trackWrite(async () => {
+      await settingsRepository.put(SETTING_KEYS.themeMode, mode)
+      set({ themeMode: mode })
+      applyThemeMode(mode)
+      setupMediaQueryListener(mode)
+      // Switching mode flips which `colors[theme]` bag drives the inline
+      // overrides — re-apply against the newly-resolved theme.
+      applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
+    })
   },
 
-  async setDefaultProjectId(id: number | null) {
-    if (id == null) {
-      await settingsRepository.delete(SETTING_KEYS.defaultProjectId)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.defaultProjectId, String(id))
-    }
-    set({ defaultProjectId: id })
+  setDefaultStatusId(id: number | null) {
+    return trackWrite(async () => {
+      if (id == null) {
+        await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
+      } else {
+        await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
+      }
+      set({ defaultStatusId: id })
+    })
   },
 
-  async setDefaultStatusId(id: number | null) {
-    if (id == null) {
-      await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
-    }
-    set({ defaultStatusId: id })
+  setWeekStartsOn(day: WeekStart) {
+    return trackWrite(async () => {
+      if (!isValidWeekStart(day)) return
+      await settingsRepository.put(SETTING_KEYS.weekStartsOn, String(day))
+      set({ weekStartsOn: day })
+    })
   },
 
-  async setQuickStatusId(id: number | null) {
-    if (id == null) {
-      await settingsRepository.delete(SETTING_KEYS.quickStatusId)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.quickStatusId, String(id))
-    }
-    set({ quickStatusId: id })
+  setCompletedRetentionDays(days: number | null) {
+    return trackWrite(async () => {
+      if (days == null) {
+        await settingsRepository.delete(SETTING_KEYS.completedRetentionDays)
+      } else if (!isValidRetentionDays(days)) {
+        return
+      } else {
+        await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
+      }
+      set({ completedRetentionDays: days })
+    })
   },
 
-  async setWeekStartsOn(day: WeekStart) {
-    if (!isValidWeekStart(day)) return
-    await settingsRepository.put(SETTING_KEYS.weekStartsOn, String(day))
-    set({ weekStartsOn: day })
+  setFollowupDefaultInterval(interval: FollowupInterval) {
+    return trackWrite(async () => {
+      const value = formatFollowupInterval(interval)
+      if (!parseFollowupInterval(value)) return
+      await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
+      set({ followupDefaultInterval: { ...interval } })
+    })
   },
 
-  async setCompletedRetentionDays(days: number | null) {
-    if (days == null) {
-      await settingsRepository.delete(SETTING_KEYS.completedRetentionDays)
-    } else if (!isValidRetentionDays(days)) {
-      return
-    } else {
-      await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
-    }
-    set({ completedRetentionDays: days })
+  setUrgentDueWithinDays(range: UrgentDueWithinDays) {
+    return trackWrite(async () => {
+      const value = formatUrgentDueWithinDays(range)
+      if (parseUrgentDueWithinDays(value) === undefined) return
+      await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
+      set({ urgentDueWithinDays: range })
+    })
   },
 
-  async addHorizon(defId: number, atIndex?: number) {
-    if (!Number.isFinite(defId)) return
-    const current = get().horizonSlots
-    const insertAt = atIndex == null ? current.length : Math.max(0, Math.min(atIndex, current.length))
-    const next = [...current.slice(0, insertAt), defId, ...current.slice(insertAt)]
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    let nextSelected = get().selectedHorizonDefId
-    if (nextSelected == null) {
-      nextSelected = next[0] ?? null
-      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, nextSelected == null ? '' : String(nextSelected))
-    }
-    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
+  setHotRule(rule: HotRule) {
+    return trackWrite(async () => {
+      const next = normalizeHotRule(rule)
+      if (next.length === 0) return
+      await settingsRepository.put(SETTING_KEYS.hotRule, formatHotRule(next))
+      set({ hotRule: next })
+    })
   },
 
-  async removeHorizon(atIndex: number) {
-    const current = get().horizonSlots
-    if (atIndex < 0 || atIndex >= current.length) return
-    const removed = current[atIndex]
-    const next = [...current.slice(0, atIndex), ...current.slice(atIndex + 1)]
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    let nextSelected = get().selectedHorizonDefId
-    if (removed != null && nextSelected === removed) {
-      nextSelected = next[0] ?? null
-      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, nextSelected == null ? '' : String(nextSelected))
-    }
-    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
+  // The check-in choices are radios: the state is set before the write so a
+  // controlled radio doesn't snap back while it is saved.
+  setCheckinOpenMethod(method: CheckinOpenMethod) {
+    return trackWrite(async () => {
+      if (!isCheckinOpenMethod(method)) return
+      const prev = get().checkinOpenMethod
+      set({ checkinOpenMethod: method })
+      try {
+        await settingsRepository.put(SETTING_KEYS.checkinOpenMethod, method)
+      } catch (e) {
+        console.error('Failed to save the check-in open method:', e)
+        set({ checkinOpenMethod: prev })
+      }
+    })
   },
 
-  async reorderHorizons(fromIndex: number, toIndex: number) {
-    const current = get().horizonSlots
-    if (fromIndex < 0 || fromIndex >= current.length) return
-    if (toIndex < 0 || toIndex >= current.length) return
-    if (fromIndex === toIndex) return
-    const next = [...current]
-    const [moved] = next.splice(fromIndex, 1)
-    if (moved == null) return
-    next.splice(toIndex, 0, moved)
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    set({ horizonSlots: next })
+  setCheckinTaskScope(scope: CheckinTaskScope) {
+    return trackWrite(async () => {
+      const value = formatCheckinTaskScope(scope)
+      const parsed = parseCheckinTaskScope(value)
+      if (!parsed) return
+      const prev = get().checkinTaskScope
+      set({ checkinTaskScope: parsed })
+      try {
+        await settingsRepository.put(SETTING_KEYS.checkinTaskScope, value)
+      } catch (e) {
+        console.error('Failed to save the check-in task scope:', e)
+        set({ checkinTaskScope: prev })
+      }
+    })
   },
 
-  async setHorizonAt(atIndex: number, defId: number) {
-    const current = get().horizonSlots
-    if (atIndex < 0 || atIndex >= current.length) return
-    if (!Number.isFinite(defId)) return
-    const prev = current[atIndex]
-    const next = [...current]
-    next[atIndex] = defId
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    let nextSelected = get().selectedHorizonDefId
-    if (prev != null && nextSelected === prev) {
-      nextSelected = defId
-      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, String(nextSelected))
-    }
-    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
+  async setShortcut(id: ShortcutId, chord: ShortcutChord) {
+    const refusal = shortcutRefusal(id, chord, get().shortcutOverrides)
+    if (refusal) return refusal
+    await writeShortcuts(withShortcut(get().shortcutOverrides, id, chord))
+    return null
   },
 
-  async setSelectedHorizonDefId(defId: number | null) {
-    if (defId != null && !Number.isFinite(defId)) return
-    await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, defId == null ? '' : String(defId))
-    set({ selectedHorizonDefId: defId })
+  resetShortcut(id: ShortcutId) {
+    return writeShortcuts(withShortcut(get().shortcutOverrides, id, null))
   },
 
-  async setDefaultProjectGroupBy(groupBy: ProjectGroupBy | null) {
-    if (groupBy != null && !isValidProjectGroupBy(groupBy)) return
-    await settingsRepository.put(SETTING_KEYS.defaultProjectGroupBy, groupBy ?? '')
-    set({ defaultProjectGroupBy: groupBy })
+  resetAllShortcuts() {
+    return writeShortcuts({})
   },
-
-  async setCanvasMaxExtent(n: number) {
-    if (!isValidCanvasMaxExtent(n)) return
-    await settingsRepository.put(SETTING_KEYS.canvasMaxExtent, String(n))
-    set({ canvasMaxExtent: n })
-  },
-
-  setCanvasRails: createDebouncedPersist<RailsState>({
-    setMs: 150,
-    persistMs: 500,
-    apply: (rails) => set({ canvasRails: rails }),
-    persist: (rails) => { settingsRepository.put(SETTING_KEYS.canvasRails, serializeRailsState(rails)) },
-  }),
-
-  // React Flow fires onViewportChange ~60/sec during pan/zoom; subscribers
-  // (CanvasView) re-render on every set(), which is wasteful since the value
-  // is only read as defaultViewport on mount. 150ms trailing debounce collapses
-  // the re-render storm to a handful while keeping getState() callers
-  // (App.createFloatingNote, FilteredListPopup) close to current — the viewport
-  // has almost always settled before these fire.
-  setCanvasViewport: createDebouncedPersist<CanvasViewport>({
-    setMs: 150,
-    persistMs: 500,
-    apply: (vp) => set({ canvasViewport: vp }),
-    persist: (vp) => { settingsRepository.put(SETTING_KEYS.canvasViewport, JSON.stringify(vp)) },
-  }),
 }))
+
+/** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */
+function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {
+  return trackWrite(async () => {
+    if (Object.keys(overrides).length === 0) {
+      await settingsRepository.delete(SETTING_KEYS.keyboardShortcuts)
+    } else {
+      await settingsRepository.put(SETTING_KEYS.keyboardShortcuts, formatShortcutOverrides(overrides))
+    }
+    useSettingsStore.setState({ shortcutOverrides: overrides })
+  })
+}
+
+/**
+ * The settings filters are evaluated with (urgent range, Hot rule, week
+ * start), as they are now. A memoized caller uses `useFilterSettings`
+ * instead, so a settings change re-runs it.
+ */
+export function currentFilterSettings(): FilterSettings {
+  const { urgentDueWithinDays, hotRule, weekStartsOn } = useSettingsStore.getState()
+  return { urgentRange: urgentDueWithinDays, hotRule, weekStartsOn }
+}
+
+/**
+ * The next follow-up a task gets when it is created (or followed up) at
+ * `now`: the day `now` falls on + the Settings default interval.
+ */
+export function defaultNextFollowup(now: Date): Date {
+  return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
+}

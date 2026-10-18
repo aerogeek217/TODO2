@@ -1,9 +1,7 @@
 /**
- * Unified sort + group dimensions for every todo-list surface (canvas
- * `ProjectNode`, `/list`, list-definitions on the dashboard / rails / floats).
- * Replaces the per-surface enums (`ListSortBy` / `ListItemSortBy` /
- * `ListGroupBy` / `ProjectGroupBy`) and the on-disk discriminated-union
- * shapes for `ListDefinition.sort` / `.grouping`.
+ * Unified sort + group dimensions for every list surface (list widgets, the
+ * list definitions they show). Stored on `ListDefinition.sort` /
+ * `.grouping` as flat literals.
  *
  * Each surface declares its supported subset as a `readonly TodoSortBy[]` /
  * `readonly TodoGroupBy[]` array (see the constants below). Adding a new
@@ -11,36 +9,31 @@
  */
 
 export type TodoSortBy =
-  | 'manual'      // sortOrder — preserves the current visual order
+  | 'manual'      // per-list manual order (ranks), else sortOrder
+  | 'priority'    // Focus, Urgent + Important, Urgent, Important, none; then due date
   | 'name'        // alphabetical title
-  | 'date'        // effective date (scheduled fallback to deadline)
-  | 'scheduled'   // scheduled date
-  | 'deadline'    // dueDate
+  | 'deadline'    // dueDate (UI label "Due")
+  | 'followup'    // nextFollowupAt
   | 'created'     // createdAt
   | 'people'      // sortOrder fallback (categorical)
-  | 'project'     // sortOrder fallback
-  | 'org'         // sortOrder fallback
   | 'status'      // sortOrder fallback
 
 export type TodoGroupBy =
   | 'none'        // flat list — no group headers
-  | 'date'        // relative date buckets on effective date (Today / This week / …)
-  | 'scheduled'   // relative buckets on scheduled date
-  | 'deadline'    // relative buckets on dueDate
+  | 'deadline'    // relative buckets on dueDate (Overdue / Today / This week / …)
+  | 'followup'    // relative buckets on nextFollowupAt
   | 'people'      // many-to-many
-  | 'project'
-  | 'org'         // direct + person→org membership
   | 'status'
   | 'tag'         // many-to-many
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
-  'manual', 'name', 'date', 'scheduled', 'deadline', 'created',
-  'people', 'project', 'org', 'status',
+  'manual', 'priority', 'name', 'deadline', 'followup', 'created',
+  'people', 'status',
 ] as const
 
 export const TODO_GROUP_BY_VALUES: readonly TodoGroupBy[] = [
-  'none', 'date', 'scheduled', 'deadline',
-  'people', 'project', 'org', 'status', 'tag',
+  'none', 'deadline', 'followup',
+  'people', 'status', 'tag',
 ] as const
 
 export function isTodoSortBy(v: unknown): v is TodoSortBy {
@@ -51,22 +44,29 @@ export function isTodoGroupBy(v: unknown): v is TodoGroupBy {
   return typeof v === 'string' && (TODO_GROUP_BY_VALUES as readonly string[]).includes(v)
 }
 
-/** Per-surface supported subsets — single source of truth for option arrays. */
-export const PROJECT_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'name', 'date', 'created'] as const
+/**
+ * Which way a sort runs. `asc` is each sort's natural order (soonest /
+ * oldest / A → Z / highest priority first); `desc` reverses its primary key
+ * only — ties keep their tie-break order, and tasks without a date stay last.
+ */
+export type TodoSortDirection = 'asc' | 'desc'
 
-export const PROJECT_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'date', 'scheduled', 'deadline', 'status', 'people', 'org', 'tag'] as const
+export const TODO_SORT_DIRECTIONS: readonly TodoSortDirection[] = ['asc', 'desc'] as const
 
-export const LIST_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'name', 'date', 'scheduled', 'deadline'] as const
+export function isTodoSortDirection(v: unknown): v is TodoSortDirection {
+  return typeof v === 'string' && (TODO_SORT_DIRECTIONS as readonly string[]).includes(v)
+}
 
-export const LIST_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'date', 'scheduled', 'deadline', 'project', 'status', 'people', 'org', 'tag'] as const
+/**
+ * Whether a sort has a direction. Manual (the user's drag order) and the
+ * sorts with no ordering of their own (People / Status fall back to manual
+ * order) have none.
+ */
+export function sortHasDirection(sortBy: TodoSortBy): boolean {
+  return sortBy !== 'manual' && sortBy !== 'people' && sortBy !== 'status' && isTodoSortBy(sortBy)
+}
 
-/** Full set for the per-list editor (it's the most permissive surface). */
-export const LIST_EDITOR_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'date', 'scheduled', 'deadline', 'project', 'status', 'people', 'org'] as const
-
-export const LIST_EDITOR_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'date', 'scheduled', 'deadline', 'project', 'status', 'people', 'org', 'tag'] as const
+/** The direction a sort runs in: `desc` only when asked for and the sort has a direction. */
+export function effectiveSortDirection(sortBy: TodoSortBy, direction: TodoSortDirection | undefined): TodoSortDirection {
+  return direction === 'desc' && sortHasDirection(sortBy) ? 'desc' : 'asc'
+}

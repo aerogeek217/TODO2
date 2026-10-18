@@ -14,6 +14,8 @@ import {
 } from '@dnd-kit/sortable'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
+import { useListWidgetCount } from '../../hooks/use-list-widget-count'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { DragHandle } from '../shared/DragHandle'
 import { ConfirmDialog } from '../shared/Dialog'
@@ -23,19 +25,13 @@ import { defsEqual } from '../../utils/list-def-equal'
 import { bySortOrder } from '../../utils/sort-order'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
+import { useListDefDraft } from '../../hooks/use-list-def-draft'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
 import local from './DashboardListsEditor.module.css'
 
 interface Props {
   onClose: () => void
-  /**
-   * When set, only definitions with these ids are shown and the "+ Add List" /
-   * per-row delete affordances are hidden. Used by the ribbon's "Edit horizons…"
-   * entry point so users can't delete a horizon's mapped list-def from here.
-   */
-  filterIds?: number[]
-  /** Override modal title (default "Lists"). */
-  title?: string
   /** When provided, mount with this definition's editor dialog already open. */
   initialSelectedId?: number
 }
@@ -43,15 +39,11 @@ interface Props {
 function SortableRow({
   def,
   onEdit,
-  onToggleFavorite,
   onDelete,
-  hideDelete,
 }: {
   def: PersistedListDefinition
   onEdit: (id: number) => void
-  onToggleFavorite: (id: number, next: boolean) => void
   onDelete: (id: number) => void
-  hideDelete?: boolean
 }) {
   const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(def.id)
   return (
@@ -66,48 +58,29 @@ function SortableRow({
       >
         ⚙
       </button>
-      <label
-        className={local.pinToggle}
-        title={def.favorited ? 'Shown in ListView Favorites' : 'Not in ListView Favorites'}
-      >
-        <input
-          type="checkbox"
-          checked={def.favorited}
-          onChange={(e) => onToggleFavorite(def.id, e.target.checked)}
-        />
-        Favorite
-      </label>
-      {!hideDelete && (
-        <div className={styles.actions}>
-          <button
-            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-            onClick={() => onDelete(def.id)}
-            title="Delete"
-          >&times;</button>
-        </div>
-      )}
+      <div className={styles.actions}>
+        <button
+          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+          onClick={() => onDelete(def.id)}
+          title="Delete"
+        >&times;</button>
+      </div>
     </div>
   )
 }
 
-export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
-  const { listDefinitions, load, add, update, setFavorited, remove, reorder } = useListDefinitionStore()
+export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
+  const { listDefinitions, load, add, update, remove, reorder } = useListDefinitionStore()
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [editingListId, setEditingListId] = useState<number | null>(initialSelectedId ?? null)
-  const [draft, setDraft] = useState<PersistedListDefinition | null>(null)
 
   useEffect(() => { load() }, [load])
 
-  const sorted = useMemo(() => {
-    const all = [...listDefinitions].sort(bySortOrder)
-    if (!filterIds) return all
-    const set = new Set(filterIds)
-    return all.filter((d) => set.has(d.id))
-  }, [listDefinitions, filterIds])
+  const sorted = useMemo(() => [...listDefinitions].sort(bySortOrder), [listDefinitions])
   const sortedIds = useMemo(() => sorted.map(d => d.id), [sorted])
 
   const editingList = useMemo(() => {
@@ -115,28 +88,11 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     return sorted.find(d => d.id === editingListId) ?? null
   }, [editingListId, sorted])
 
-  // Sync the draft when the editor opens or the upstream def changes. When
-  // the draft is clean (no pending edits), adopt the new def. When dirty,
-  // preserve the user's in-flight edits but forward externally-managed
-  // fields (favorited toggle from the dialog header, pin, sortOrder) so a
-  // header-fired favorite or a reorder doesn't get reverted on Save.
-  useEffect(() => {
-    if (!editingList) {
-      setDraft(null)
-      return
-    }
-    setDraft(prev => {
-      if (!prev || prev.id !== editingList.id) return editingList
-      const dirty = !defsEqual(prev, editingList)
-      if (!dirty) return editingList
-      return {
-        ...prev,
-        favorited: editingList.favorited,
-        pinnedToDashboard: editingList.pinnedToDashboard,
-        sortOrder: editingList.sortOrder,
-      }
-    })
-  }, [editingList])
+  const [draft, setDraft] = useListDefDraft(editingList)
+  // The editor starts from the saved list; unsaved edits to it in the
+  // workspace are replaced by a save here (never two versions of a list).
+  const hasWorkspaceDraft = useListDraftStore((s) => editingListId != null && s.drafts[editingListId] != null)
+  const widgetCount = useListWidgetCount(editingListId ?? undefined)
 
   const dirty = useMemo(() => {
     if (!draft || !editingList) return false
@@ -194,13 +150,9 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     if (dirty) {
       void update({ ...draft, name: trimmedName })
     }
+    useListDraftStore.getState().discard(draft.id)
     setEditingListId(null)
   }, [draft, dirty, update])
-
-  const handleToggleEditorFavorite = useCallback(() => {
-    if (!editingList) return
-    void setFavorited(editingList.id, !editingList.favorited)
-  }, [editingList, setFavorited])
 
   const startAdd = () => {
     setAdding(true)
@@ -221,7 +173,8 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   }
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveAdd()
-    if (e.key === 'Escape') { setAdding(false); setError('') }
+    // The row's own Esc (cancel the add): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); setAdding(false); setError('') }
   }
 
   const confirmDelete = async () => {
@@ -237,13 +190,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
 
   return (
     <>
-      <div className={styles.backdrop} onClick={handleModalClose} />
-      <div className={`${styles.modal} ${local.modalWide}`}>
-        <div className={styles.header}>
-          <div className={styles.title}>{title ?? 'Lists'}</div>
-          <button className={styles.closeBtn} onClick={handleModalClose}>&times;</button>
-        </div>
-
+      <EditorModal title="Lists" onClose={handleModalClose} className={local.modalWide}>
         <div className={styles.list}>
           {sorted.length === 0 && !adding && (
             <div className={styles.empty}>No lists yet</div>
@@ -255,16 +202,14 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
                   key={d.id}
                   def={d}
                   onEdit={handleEdit}
-                  onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
                   onDelete={(id) => { setDeleteId(id); setAdding(false) }}
-                  hideDelete={!!filterIds}
                 />
               ))}
             </SortableContext>
           </DndContext>
         </div>
 
-        {filterIds ? null : adding ? (
+        {adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
               <input
@@ -287,7 +232,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add List</button>
         )}
-      </div>
+      </EditorModal>
       {deleteId != null && (() => {
         const def = listDefinitions.find((d) => d.id === deleteId)
         if (!def) return null
@@ -305,12 +250,13 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
       })()}
       <ListEditorDialog
         open={!!editingList && !!draft}
-        list={editingList ? { id: editingList.id, name: editingList.name, favorited: editingList.favorited } : null}
+        list={editingList ? { id: editingList.id, name: editingList.name } : null}
+        widgetCount={widgetCount}
         onClose={handleEditorClose}
         onSave={handleEditorSave}
-        onToggleFavorite={handleToggleEditorFavorite}
+        notice={hasWorkspaceDraft ? 'This list has unsaved changes in the workspace. Saving here replaces them.' : undefined}
       >
-        {draft && <ListEditorBody draft={draft} onChange={setDraft} />}
+        {draft && editingList && <ListEditorBody draft={draft} saved={editingList} onChange={setDraft} variant="dialog" />}
       </ListEditorDialog>
     </>
   )

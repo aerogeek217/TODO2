@@ -1,0 +1,188 @@
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { seedWorkspace } from './fixtures/workspace'
+import { readStore, readStores, type Row } from './fixtures/db'
+
+/**
+ * Creating a task in a real browser, the three ways: Quick Add, a note's
+ * line (Convert), and the task editor (Quick Add's Details ⇥ handoff). The
+ * same text makes the same task each way — they share one rule set. Also the
+ * editor's Progress on create, and the notes' rich copy (the shared
+ * clipboard write). Real-browser because the popups, dialog stacking and
+ * the clipboard are.
+ */
+
+const LAYOUT = {
+  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] }] }] }],
+  people: [{ name: 'Ben Ortiz', initials: 'BO' }],
+  tags: ['planning'],
+}
+
+/** People, an existing and a new tag, markers and every date command; a trailing space closes the popup. */
+const TOKENS = '@Ben #planning #fresh /urgent /due tomorrow /repeat monthly /followup 2w '
+
+interface StoredTask {
+  urgent?: boolean
+  important?: boolean
+  focus?: boolean
+  statusId?: number
+  dueDate?: string
+  nextFollowupAt?: string
+  recurrence?: string
+  progress?: string
+  people: string[]
+  tags: string[]
+}
+
+/** The stored task with this title (dates as local `Y-M-D`), with its people and tag names. */
+async function readTask(page: Page, title: string): Promise<StoredTask | null> {
+  const { todos, todoPeople, people, todoTags, tags } = await readStores(page, ['todos', 'todoPeople', 'people', 'todoTags', 'tags'])
+  const t = todos?.find((r) => r.title === title)
+  if (!t) return null
+  const day = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}` : undefined)
+  const names = (joins: Row[] | undefined, key: string, rows: Row[] | undefined) => {
+    const byId = new Map((rows ?? []).map((r) => [r.id, r.name as string]))
+    return (joins ?? []).filter((j) => j.todoId === t.id).map((j) => byId.get(j[key]) ?? '?').sort()
+  }
+  return {
+    urgent: t.urgent as boolean | undefined,
+    important: t.important as boolean | undefined,
+    focus: t.focus as boolean | undefined,
+    statusId: t.statusId as number | undefined,
+    dueDate: day(t.dueDate),
+    nextFollowupAt: day(t.nextFollowupAt),
+    recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
+    progress: t.progress as string | undefined,
+    people: names(todoPeople, 'personId', people),
+    tags: names(todoTags, 'tagId', tags),
+  }
+}
+
+async function tagCount(page: Page, name: string): Promise<number> {
+  return (await readStore<{ name: string }>(page, 'tags')).filter((t) => t.name === name).length
+}
+
+/** `Y-M-D` of today + `days`, in the page's clock. */
+async function dayFromToday(page: Page, days: number): Promise<string> {
+  return await page.evaluate((n) => {
+    const t = new Date()
+    const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + n)
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+  }, days)
+}
+
+async function openQuickAdd(page: Page): Promise<{ dialog: Locator; input: Locator }> {
+  await page.keyboard.press('Control+Space')
+  const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+  await expect(dialog).toBeVisible()
+  const input = dialog.getByPlaceholder('New task…')
+  await expect(input).toBeFocused()
+  return { dialog, input }
+}
+
+const notesEditor = (page: Page) => page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
+
+test.beforeEach(async ({ page }) => {
+  await seedWorkspace(page, LAYOUT)
+})
+
+test('the same text makes the same task from Quick Add, a note’s line and the task editor', async ({ page }) => {
+  // Quick Add.
+  const quick = await openQuickAdd(page)
+  await quick.input.pressSequentially(`From quick add ${TOKENS}`)
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press('Enter')
+  await expect(quick.dialog).toBeHidden()
+  await expect.poll(() => readTask(page, 'From quick add')).not.toBeNull()
+
+  // A note's lines, through Convert's preview (one line would open the editor).
+  const editor = notesEditor(page)
+  await editor.click()
+  await page.keyboard.insertText(`- From a note ${TOKENS.trim()}
+- Another line`)
+  await page.getByRole('button', { name: 'Convert 2 bullet lines to tasks' }).click()
+  const preview = page.getByRole('dialog', { name: 'Convert to tasks' })
+  await preview.getByRole('button', { name: 'Create 2 tasks' }).click()
+  await page.getByRole('dialog', { name: /Remove 2 converted lines/ }).getByRole('button', { name: 'Remove 2 lines' }).click()
+  await expect.poll(() => readTask(page, 'From a note')).not.toBeNull()
+
+  // The task editor, handed the text by Quick Add's Details ⇥.
+  const handoff = await openQuickAdd(page)
+  await handoff.input.pressSequentially(`From the editor ${TOKENS}`)
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press('Tab')
+  await expect(handoff.dialog).toBeHidden()
+  await page.getByRole('button', { name: 'Create task' }).click()
+  await expect.poll(() => readTask(page, 'From the editor')).not.toBeNull()
+
+  const expected: StoredTask = {
+    urgent: true,
+    dueDate: await dayFromToday(page, 1),
+    nextFollowupAt: await dayFromToday(page, 14),
+    recurrence: 'monthly',
+    people: ['Ben Ortiz'],
+    tags: ['fresh', 'planning'],
+  }
+  for (const title of ['From quick add', 'From a note', 'From the editor']) {
+    expect(await readTask(page, title), title).toEqual(expected)
+  }
+  expect(await tagCount(page, 'fresh')).toBe(1)
+})
+
+test('the new-task editor keeps the Progress typed into it', async ({ page }) => {
+  const { dialog, input } = await openQuickAdd(page)
+  await input.pressSequentially('Write the report')
+  await page.keyboard.press('Tab')
+  await expect(dialog).toBeHidden()
+  await page.getByPlaceholder('e.g. 50% done, Waiting on review...').fill('Outline done')
+  await page.getByRole('button', { name: 'Create task' }).click()
+  await expect.poll(async () => (await readTask(page, 'Write the report'))?.progress).toBe('Outline done')
+})
+
+test('Copy as rich text puts the note on the clipboard as HTML and as its Markdown', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  const editor = notesEditor(page)
+  await editor.click()
+  await page.keyboard.insertText('- one\n- **two**')
+  await page.getByRole('button', { name: 'Copy as rich text' }).click()
+  // (The OS clipboard may store the line break as CRLF.)
+  await expect.poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
+    .toBe('- one\n- **two**')
+  const html = await page.evaluate(async () => {
+    const [item] = await navigator.clipboard.read()
+    return await (await item!.getType('text/html')).text()
+  })
+  expect(html).toContain('font-family: Calibri')
+  expect(html).toContain('<strong>two</strong>')
+})
+
+test('a Quick Add task is one undo step: Ctrl+Z removes it in one press, Ctrl+Shift+Z brings it back whole', async ({ page }) => {
+  const { dialog, input } = await openQuickAdd(page)
+  await input.pressSequentially(`Plan offsite ${TOKENS}`)
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeHidden()
+  await expect.poll(() => readTask(page, 'Plan offsite')).not.toBeNull()
+  const created = await readTask(page, 'Plan offsite')
+  expect(created).toMatchObject({ urgent: true, recurrence: 'monthly', people: ['Ben Ortiz'], tags: ['fresh', 'planning'] })
+
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => readTask(page, 'Plan offsite')).toBeNull()
+
+  await page.keyboard.press('Control+Shift+z')
+  await expect.poll(() => readTask(page, 'Plan offsite')).toEqual(created)
+})
+
+test('the "New" pill after Quick Add shows the task’s people and tags columns', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const quick = await openQuickAdd(page)
+  await quick.input.pressSequentially('Buy @Ben #planning ')
+  await page.keyboard.press('Enter')
+  await expect(quick.dialog).toBeHidden()
+  const pill = page.getByRole('status').filter({ has: page.locator('[data-task-title="Buy"]') })
+  await expect(pill).toBeVisible()
+  // The pill has the Quick Add bar's width, so the row isn't squeezed down to its title.
+  await expect(pill.locator('[data-person-avatar="Ben Ortiz"]')).toBeVisible()
+  await expect(pill.locator('[data-tag-name="planning"]')).toBeVisible()
+  // No ⋯ on the row: status is its last column.
+  await expect(pill.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
+})

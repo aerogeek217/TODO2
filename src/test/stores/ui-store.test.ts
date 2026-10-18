@@ -1,26 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useUIStore } from '../../stores/ui-store'
-import { AppView } from '../../models'
 
 beforeEach(() => {
   useUIStore.setState({
-    activeView: AppView.Canvas,
     selectedTodoId: null,
     selectedTodoIds: new Set(),
     selectionAnchorId: null,
     selectionFocusId: null,
-    focusedTodoId: null,
     editPopupMode: null,
     bulkConfirmation: null,
-    listGroupBy: 'date',
-    listSortBy: 'manual',
-    inlineCreateAfterId: null,
-    clipboardTodoIds: [],
-    clipboardSourceProjectId: null,
-    filteredListPopup: null,
+    taskDialog: null,
     listsEditorOpen: false,
     listsEditorInitialId: null,
-    listEditorDialogId: null,
+    listEditor: null,
   })
 })
 
@@ -47,26 +39,24 @@ describe('useUIStore', () => {
     expect(state.editPopupMode).toBeNull()
   })
 
-  it('selectOneTodo sets selectedTodoIds to {id} and sets anchor/focus/focusedTodoId', () => {
+  it('showTaskDialog opens the dialog and clears the selection; hideTaskDialog closes it', () => {
+    useUIStore.getState().setScopedSelection('tab', { ids: new Set([1, 2]), anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
+    const payload = { title: 'Hot tasks', glyph: 'hot', description: 'd', source: { kind: 'todos', todoIds: [1] } } as const
+    useUIStore.getState().showTaskDialog(payload)
+    const state = useUIStore.getState()
+    expect(state.taskDialog).toBe(payload)
+    expect(state.selectedTodoIds.size).toBe(0)
+    expect(state.selectionScope).toBeNull()
+    useUIStore.getState().hideTaskDialog()
+    expect(useUIStore.getState().taskDialog).toBeNull()
+  })
+
+  it('selectOneTodo sets selectedTodoIds to {id} and sets anchor/focus', () => {
     useUIStore.getState().selectOneTodo(5)
     const state = useUIStore.getState()
     expect(state.selectedTodoIds).toEqual(new Set([5]))
     expect(state.selectionAnchorId).toBe(5)
     expect(state.selectionFocusId).toBe(5)
-    expect(state.focusedTodoId).toBe(5)
-  })
-
-  it('toggleSelectTodo adds id and removes if present', () => {
-    useUIStore.getState().toggleSelectTodo(1)
-    expect(useUIStore.getState().selectedTodoIds.has(1)).toBe(true)
-
-    useUIStore.getState().toggleSelectTodo(2)
-    expect(useUIStore.getState().selectedTodoIds.has(1)).toBe(true)
-    expect(useUIStore.getState().selectedTodoIds.has(2)).toBe(true)
-
-    useUIStore.getState().toggleSelectTodo(1)
-    expect(useUIStore.getState().selectedTodoIds.has(1)).toBe(false)
-    expect(useUIStore.getState().selectedTodoIds.has(2)).toBe(true)
   })
 
   it('rangeSelectTodo selects range from anchor to target', () => {
@@ -102,12 +92,6 @@ describe('useUIStore', () => {
     expect(state.selectedTodoIds.size).toBe(0)
     expect(state.selectionAnchorId).toBeNull()
     expect(state.selectionFocusId).toBeNull()
-    expect(state.focusedTodoId).toBeNull()
-  })
-
-  it('setActiveView switches view', () => {
-    useUIStore.getState().setActiveView(AppView.List)
-    expect(useUIStore.getState().activeView).toBe(AppView.List)
   })
 
   it('showBulkConfirmation and clearBulkConfirmation', () => {
@@ -116,40 +100,6 @@ describe('useUIStore', () => {
 
     useUIStore.getState().clearBulkConfirmation()
     expect(useUIStore.getState().bulkConfirmation).toBeNull()
-  })
-
-  it('triggerInlineCreate and clearInlineCreate', () => {
-    useUIStore.getState().triggerInlineCreate(7)
-    expect(useUIStore.getState().inlineCreateAfterId).toBe(7)
-
-    useUIStore.getState().clearInlineCreate()
-    expect(useUIStore.getState().inlineCreateAfterId).toBeNull()
-  })
-
-  it('setListSortBy changes within-group sort', () => {
-    useUIStore.getState().setListSortBy('date')
-    expect(useUIStore.getState().listSortBy).toBe('date')
-
-    useUIStore.getState().setListSortBy('manual')
-    expect(useUIStore.getState().listSortBy).toBe('manual')
-  })
-
-  it('setListGroupBy changes grouping', () => {
-    useUIStore.getState().setListGroupBy('date')
-    expect(useUIStore.getState().listGroupBy).toBe('date')
-
-    useUIStore.getState().setListGroupBy('none')
-    expect(useUIStore.getState().listGroupBy).toBe('none')
-  })
-
-  it('cutTasks and clearClipboard', () => {
-    useUIStore.getState().cutTasks([1, 2, 3], 10)
-    expect(useUIStore.getState().clipboardTodoIds).toEqual([1, 2, 3])
-    expect(useUIStore.getState().clipboardSourceProjectId).toBe(10)
-
-    useUIStore.getState().clearClipboard()
-    expect(useUIStore.getState().clipboardTodoIds).toEqual([])
-    expect(useUIStore.getState().clipboardSourceProjectId).toBeNull()
   })
 
   it('openListsEditor stores initialId; closeListsEditor resets both', () => {
@@ -171,29 +121,31 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().listsEditorInitialId).toBeNull()
   })
 
-  it('openListEditorDialog stores the def id; closeListEditorDialog resets it', () => {
-    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+  it('openListEditor opens Edit list for a list tab; closeListEditor closes it', () => {
+    expect(useUIStore.getState().listEditor).toBeNull()
 
-    useUIStore.getState().openListEditorDialog(7)
-    expect(useUIStore.getState().listEditorDialogId).toBe(7)
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 'tab-1' })
+    // Edit list never opens the Lists manager modal.
+    expect(useUIStore.getState().listsEditorOpen).toBe(false)
 
-    useUIStore.getState().closeListEditorDialog()
-    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+    // Another list's Edit list replaces it: one open at a time.
+    useUIStore.getState().openListEditor(8, 'tab-2')
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
+
+    useUIStore.getState().closeListEditor()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('openListEditorDialog does NOT open the Lists manager modal', () => {
-    // Direct dialog and Lists manager are deliberately separate flows
-    // (triage-2026-04-26 P5 / Q7=A): a tab pill's Edit list opens only the
-    // dialog, not the manager underneath.
-    useUIStore.getState().openListEditorDialog(7)
-    expect(useUIStore.getState().listEditorDialogId).toBe(7)
-    expect(useUIStore.getState().listsEditorOpen).toBe(false)
-    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+  it('opening Settings closes Edit list (it belongs to the workspace)', () => {
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    useUIStore.getState().openSettings()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
   it('openListsEditor does NOT open the direct list-editor dialog', () => {
     useUIStore.getState().openListsEditor(7)
     expect(useUIStore.getState().listsEditorOpen).toBe(true)
-    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 })

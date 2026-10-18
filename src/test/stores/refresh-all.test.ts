@@ -1,37 +1,30 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { refreshAllStores } from '../../stores/refresh-all'
-import { useCanvasStore } from '../../stores/canvas-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useProjectStore } from '../../stores/project-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useListInsetStore } from '../../stores/list-inset-store'
-import { useFloatingNoteStore } from '../../stores/floating-note-store'
-import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../../stores/floating-horizons-store'
-import { useFloatingStatusStore } from '../../stores/floating-status-store'
-import { useFloatingScoreboardStore } from '../../stores/floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from '../../stores/floating-snooze-graveyard-store'
+import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { useUIStore } from '../../stores/ui-store'
+import { resetStores } from '../store-tracking'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
+  // A fresh database reuses ids (todo 1, person 1, …): drop the caches an
+  // earlier test filled so they can't describe this test's rows.
+  resetStores()
 })
 
 describe('refreshAllStores', () => {
-  it('invokes load/loadByCanvas on every store that has one + parity loadAssignments', async () => {
-    // Need a canvas so the per-canvas branch fires.
-    await useCanvasStore.getState().ensureDefault()
+  it('invokes load on every store that has one + parity loadAssignments', async () => {
     // Need at least one todo so the post-todos assignment loaders fire.
     await useTodoStore.getState().add('seed task')
 
@@ -39,31 +32,17 @@ describe('refreshAllStores', () => {
       // Pre-Promise.all
       undoClear: vi.spyOn(useUndoStore.getState(), 'clear'),
       filterClearAll: vi.spyOn(useFilterStore.getState(), 'clearAll'),
-      canvasEnsureDefault: vi.spyOn(useCanvasStore.getState(), 'ensureDefault'),
       settingsLoad: vi.spyOn(useSettingsStore.getState(), 'load'),
       // Promise.all — global stores
       todoLoadAll: vi.spyOn(useTodoStore.getState(), 'loadAll'),
-      projectLoadAll: vi.spyOn(useProjectStore.getState(), 'loadAll'),
       personLoad: vi.spyOn(usePersonStore.getState(), 'load'),
-      orgLoad: vi.spyOn(useOrgStore.getState(), 'load'),
-      orgLoadPersonOrgMap: vi.spyOn(useOrgStore.getState(), 'loadPersonOrgMap'),
       statusLoad: vi.spyOn(useStatusStore.getState(), 'load'),
       tagLoad: vi.spyOn(useTagStore.getState(), 'load'),
-      taskboardLoad: vi.spyOn(useTaskboardStore.getState(), 'load'),
       noteLoad: vi.spyOn(useNoteStore.getState(), 'load'),
       listDefinitionLoad: vi.spyOn(useListDefinitionStore.getState(), 'load'),
-      // Promise.all — per-canvas stores
-      listInsetLoadByCanvas: vi.spyOn(useListInsetStore.getState(), 'loadByCanvas'),
-      floatingNoteLoadByCanvas: vi.spyOn(useFloatingNoteStore.getState(), 'loadByCanvas'),
-      floatingCalendarLoadByCanvas: vi.spyOn(useFloatingCalendarStore.getState(), 'loadByCanvas'),
-      floatingTaskboardLoadByCanvas: vi.spyOn(useFloatingTaskboardStore.getState(), 'loadByCanvas'),
-      floatingHorizonsLoadByCanvas: vi.spyOn(useFloatingHorizonsStore.getState(), 'loadByCanvas'),
-      floatingStatusLoadByCanvas: vi.spyOn(useFloatingStatusStore.getState(), 'loadByCanvas'),
-      floatingScoreboardLoadByCanvas: vi.spyOn(useFloatingScoreboardStore.getState(), 'loadByCanvas'),
-      floatingSnoozeGraveyardLoadByCanvas: vi.spyOn(useFloatingSnoozeGraveyardStore.getState(), 'loadByCanvas'),
+      listOrderLoad: vi.spyOn(useListOrderStore.getState(), 'load'),
       // Post-todos assignment loaders
       personLoadAssignments: vi.spyOn(usePersonStore.getState(), 'loadAssignments'),
-      orgLoadAssignments: vi.spyOn(useOrgStore.getState(), 'loadAssignments'),
       tagLoadAssignments: vi.spyOn(useTagStore.getState(), 'loadAssignments'),
     }
 
@@ -87,5 +66,94 @@ describe('refreshAllStores', () => {
 
     expect(tagLoadSpy).toHaveBeenCalled()
     expect(listDefLoadSpy).toHaveBeenCalled()
+  })
+
+  it('re-opens the workspace layout from the replaced data once the workspace was opened', async () => {
+    await refreshAllStores()
+    expect(useWorkspaceStore.getState().hydrated).toBe(false)
+    expect(await db.layouts.count()).toBe(0)
+
+    await useWorkspaceStore.getState().init()
+    useWorkspaceStore.getState().addWidget('notes', { kind: 'layout' })
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    await db.layouts.update(useWorkspaceStore.getState().activeLayoutId!, { name: 'Imported' })
+
+    await refreshAllStores()
+    expect(useWorkspaceStore.getState()).toMatchObject({ isDirty: false })
+    expect(useWorkspaceStore.getState().working).toMatchObject({ name: 'Imported', columns: [] })
+  })
+
+  it('re-reads people and tag assignments that the replaced tables changed under a cached todo id', async () => {
+    const todoId = await useTodoStore.getState().add('kept id')
+    const aliceId = await usePersonStore.getState().add('Alice', 'AL')
+    const bobId = await usePersonStore.getState().add('Bob', 'BO')
+    const homeId = await useTagStore.getState().add('home')
+    const workId = await useTagStore.getState().add('work')
+    await db.todoPeople.add({ todoId, personId: aliceId })
+    await db.todoTags.add({ todoId, tagId: homeId })
+    await usePersonStore.getState().loadAssignments([todoId])
+    await useTagStore.getState().loadAssignments([todoId])
+    expect(usePersonStore.getState().assignedPeopleMap.get(todoId)?.map((p) => p.name)).toEqual(['Alice'])
+
+    // A restore swaps the join rows but keeps the todo's id.
+    await db.todoPeople.clear()
+    await db.todoTags.clear()
+    await db.todoPeople.add({ todoId, personId: bobId })
+    await db.todoTags.add({ todoId, tagId: workId })
+
+    await refreshAllStores()
+
+    expect(usePersonStore.getState().assignedPeopleMap.get(todoId)?.map((p) => p.name)).toEqual(['Bob'])
+    expect(useTagStore.getState().assignedTagsMap.get(todoId)?.map((t) => t.name)).toEqual(['work'])
+  })
+
+  it('clears the selection, the open editor and the Quick Add draft (their ids may now name other tasks)', async () => {
+    const ui = useUIStore.getState()
+    ui.setScopedSelection('tab-1', { ids: new Set([1, 2]), anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
+    ui.openEditPopup(1)
+    ui.setQuickAddDraft({ rawTitle: 'half typed', defaults: { personIds: [3], statusId: null, tagIds: [], markers: {} } as never })
+
+    await refreshAllStores()
+
+    const after = useUIStore.getState()
+    expect(after.selectedTodoIds.size).toBe(0)
+    expect(after.selectionScope).toBeNull()
+    expect(after.selectionAnchorId).toBeNull()
+    expect(after.editPopupMode).toBeNull()
+    expect(after.selectedTodoId).toBeNull()
+    expect(after.quickAddDraft).toBeNull()
+  })
+
+  it('drops note text not saved yet, so it is not saved over the imported note', async () => {
+    await useNoteStore.getState().load()
+    const id = useNoteStore.getState().activeId!
+    useNoteStore.getState().setContent(id, 'typed just before the import')
+
+    // The import replaces the note underneath the store.
+    await db.notes.update(id, { content: 'imported note' })
+    await refreshAllStores()
+    // Whatever save was still to come runs now.
+    await useNoteStore.getState().flush()
+
+    expect((await db.notes.get(id))?.content).toBe('imported note')
+    expect(useNoteStore.getState().notes.get(id)?.content).toBe('imported note')
+    expect(useNoteStore.getState().pending).toBeNull()
+  })
+
+  it('after the workspace opened, a data replace forgets the unsaved changes kept for a reload', async () => {
+    localStorage.setItem('todo2-unsaved-layout', '{"kind":"saved"}')
+    localStorage.setItem('todo2-unsaved-lists', '{}')
+    await useWorkspaceStore.getState().init()
+    // The workspace's own open rewrote the layout key (nothing unsaved): keep one to see it go.
+    localStorage.setItem('todo2-unsaved-layout', '{"kind":"saved"}')
+    await refreshAllStores()
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
+  })
+
+  it('at launch (before the workspace opened) a sync-file load keeps them, to be checked when it opens', async () => {
+    localStorage.setItem('todo2-unsaved-lists', '{"1":{}}')
+    await refreshAllStores()
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBe('{"1":{}}')
   })
 })

@@ -1,5 +1,4 @@
 import type { PersistedTodoItem } from '../../models'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { formatDate, formatRelativeTime } from '../../utils/date'
 import styles from './TaskEditPopup.module.css'
 
@@ -20,6 +19,8 @@ interface TaskEditFooterCreateProps {
   onClose: () => void
   onCreate: () => void
   titleValid: boolean
+  /** Draft mode: Save draft instead of Create task; nothing is stored. */
+  isDraft?: boolean
 }
 
 type TaskEditFooterProps = TaskEditFooterEditProps | TaskEditFooterCreateProps
@@ -30,6 +31,24 @@ export function TaskEditFooter(props: TaskEditFooterProps) {
   if (mode === 'edit') {
     const { todo, onDelete, onDuplicate } = props
     return <EditFooter todo={todo} onDelete={onDelete} onDuplicate={onDuplicate} onClose={onClose} />
+  }
+
+  if (props.isDraft) {
+    return (
+      <div className={`${styles.createFooter} ${styles.draftFooter}`}>
+        <span className={styles.draftNote}>Nothing is saved until you create the tasks</span>
+        <button className={styles.cancelButton} onClick={onClose}>
+          Cancel <kbd className={styles.footerKbd}>Esc</kbd>
+        </button>
+        <button
+          className={styles.saveButton}
+          disabled={!props.titleValid}
+          onClick={props.onCreate}
+        >
+          Save draft
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -54,22 +73,12 @@ interface EditFooterProps {
 }
 
 function EditFooter({ todo, onDelete, onDuplicate, onClose }: EditFooterProps) {
-  const onBoard = useTaskboardStore((s) => s.has(todo.id))
-
-  const handleToggleBoard = () => {
-    if (onBoard) void useTaskboardStore.getState().removeEntry(todo.id)
-    else void useTaskboardStore.getState().add(todo.id)
-  }
-
   return (
     <div className={styles.footer}>
       <span className={styles.timestamps}>
         Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}
       </span>
       <div className={styles.footerActions}>
-        <button className={styles.duplicateButton} onClick={handleToggleBoard}>
-          {onBoard ? 'Remove from Taskboard' : 'Add to Taskboard'}
-        </button>
         {onDuplicate && (
           <button className={styles.duplicateButton} onClick={onDuplicate}>
             Duplicate

@@ -69,10 +69,10 @@ function describeFix(issue: AuditIssue): string {
   if (issue.fix === 'delete') {
     return 'Cleanup will delete these rows.'
   }
+  if (issue.fix === 'sanitize') {
+    return 'Cleanup will drop the malformed parts of these rows, as an import would.'
+  }
   if (issue.fix === 'clear-field') {
-    if (issue.table === 'taskboards') {
-      return 'Cleanup will remove the dangling entries from each taskboard, leaving the rest of the board intact.'
-    }
     if (issue.field) {
       return `Cleanup will null out the "${issue.field}" field on these rows.`
     }

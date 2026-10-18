@@ -15,11 +15,14 @@ if (existsSync(resolve(__dirname, 'public/node_modules'))) {
 // 1. Remove type="module" (blocked on file://)
 // 2. Move script to end of body (so #root exists when it runs)
 // 3. Make paths relative
+// Runs after `viteSingleFile`'s own `order: 'post'` bundle step (listed
+// after it), so a script it already inlined — an inline module, which
+// file:// allows — is left as it is; only an external one is rewritten.
 function fileProtocolCompat(): Plugin {
   return {
     name: 'file-protocol-compat',
     enforce: 'post',
-    generateBundle(_, bundle) {
+    generateBundle: { order: 'post', handler(_, bundle) {
       for (const file of Object.values(bundle)) {
         if (file.type === 'asset' && file.fileName.endsWith('.html')) {
           let html = file.source as string
@@ -39,6 +42,20 @@ function fileProtocolCompat(): Plugin {
           file.source = html
         }
       }
+    } },
+  }
+}
+
+// The single file embeds its fonts as data: URLs; without this the CSP's
+// `font-src 'self'` blocks them and the page falls back to a system font.
+// (Its one inline script is why `script-src` keeps 'unsafe-inline'.)
+function offlineCsp(): Plugin {
+  return {
+    name: 'offline-csp',
+    transformIndexHtml(html) {
+      const from = "font-src 'self'"
+      if (!html.includes(from)) throw new Error(`offline build: index.html no longer contains ${JSON.stringify(from)}`)
+      return html.replace(from, "font-src 'self' data:")
     },
   }
 }
@@ -58,12 +75,23 @@ function renameToTodo2(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), fileProtocolCompat(), renameToTodo2()],
+  plugins: [react(), viteSingleFile(), offlineCsp(), fileProtocolCompat(), renameToTodo2()],
   base: './',
   build: {
     emptyOutDir: false,
     cssCodeSplit: false,
     modulePreload: false,
+    rolldownOptions: {
+      // viteSingleFile checks every CSP <meta> in the finished HTML, and
+      // the inlined script holds one as text (the check-in preview frame's
+      // `default-src 'none'`), so it warns that inline scripts are blocked.
+      // They aren't: `offlineCsp` keeps 'unsafe-inline' in the page's CSP,
+      // and `e2e/built-csp.spec.ts` runs this build with no CSP violation.
+      onLog(level, log, handler) {
+        if (log.plugin === 'vite:singlefile' && log.message.includes('does not allow inline <script> code')) return
+        handler(level, log)
+      },
+    },
   },
   // Override import.meta properties for single-file build compatibility.
   // import.meta.url: Must be empty string because the built file runs from file:// protocol

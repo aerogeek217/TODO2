@@ -3,113 +3,62 @@ import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import {
   todoEventRepository,
-  encodeScheduledValue,
   encodeDateValue,
 } from '../../data/todo-event-repository'
 import { makeTodo } from '../helpers'
+
+/** The events recorded for a task. */
+const eventsOf = (todoId: number) => db.todoEvents.where('todoId').equals(todoId).toArray()
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
 })
 
-describe('todoEventRepository — write/read round-trip', () => {
-  it('add + byTodo + getAll round-trip', async () => {
-    const id = await todoEventRepository.add({
-      todoId: 1, type: 'created', fromValue: null, toValue: null,
-      timestamp: new Date('2026-04-26T10:00:00Z').toISOString(),
-    })
-    expect(id).toBeGreaterThan(0)
-
-    const byTodo = await todoEventRepository.byTodo(1)
-    expect(byTodo).toHaveLength(1)
-    expect(byTodo[0]!.type).toBe('created')
-
-    const all = await todoEventRepository.getAll()
-    expect(all).toHaveLength(1)
-  })
-
-  it('inRange filters by timestamp window and optional types', async () => {
-    await todoEventRepository.bulkAdd([
-      { todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-04-01T00:00:00.000Z' },
-      { todoId: 1, type: 'scheduled', fromValue: null, toValue: '2026-04-05T00:00:00.000Z', timestamp: '2026-04-10T00:00:00.000Z' },
-      { todoId: 2, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-04-20T00:00:00.000Z' },
-      { todoId: 2, type: 'reopened', fromValue: null, toValue: null, timestamp: '2026-05-01T00:00:00.000Z' },
-    ])
-
-    const inApril = await todoEventRepository.inRange(
-      new Date('2026-04-01T00:00:00Z'),
-      new Date('2026-05-01T00:00:00Z'),
-    )
-    expect(inApril.map((e) => e.type).sort()).toEqual(['completed', 'created', 'scheduled'])
-
-    const onlyScheduled = await todoEventRepository.inRange(
-      new Date('2026-04-01T00:00:00Z'),
-      new Date('2026-05-01T00:00:00Z'),
-      ['scheduled'],
-    )
-    expect(onlyScheduled).toHaveLength(1)
-    expect(onlyScheduled[0]!.type).toBe('scheduled')
-  })
-})
-
 describe('todoRepository — emit on insert / update / complete', () => {
   it('emits a single created event on insert', async () => {
     const ts = new Date('2026-04-25T12:00:00Z')
     const id = await todoRepository.insert(makeTodo({ title: 'a', createdAt: ts, modifiedAt: ts }))
-    const events = await todoEventRepository.byTodo(id)
+    const events = await eventsOf(id)
     expect(events).toHaveLength(1)
     expect(events[0]!.type).toBe('created')
     expect(events[0]!.timestamp).toBe(ts.toISOString())
   })
 
-  it('update emits one scheduled event when scheduledDate changes', async () => {
+  it('a follow-up change emits no event (only due date / status / completion are tracked)', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.scheduledDate = { kind: 'date', value: new Date('2026-05-01T00:00:00Z') }
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { nextFollowupAt: new Date('2026-05-01T00:00:00Z') })
 
-    const events = await todoEventRepository.byTodo(id)
-    const scheduled = events.filter((e) => e.type === 'scheduled')
-    expect(scheduled).toHaveLength(1)
-    expect(scheduled[0]!.fromValue).toBeNull()
-    expect(scheduled[0]!.toValue).toBe('2026-05-01T00:00:00.000Z')
+    const events = await eventsOf(id)
+    expect(events.map((e) => e.type)).toEqual(['created'])
   })
 
-  it('update is idempotent — re-saving the same row emits nothing', async () => {
+  it('update is idempotent — re-writing tracked fields with their values emits nothing', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.scheduledDate = { kind: 'date', value: new Date('2026-05-01T00:00:00Z') }
-    await todoRepository.update(todo)
-    const before = await todoEventRepository.byTodo(id)
+    await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z') })
+    const before = await eventsOf(id)
 
-    // Re-fetch + re-save without altering tracked fields.
-    const todo2 = (await todoRepository.getById(id))!
-    todo2.title = 'rename only'
-    await todoRepository.update(todo2)
+    // The same due date again, plus an untracked field.
+    await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z'), title: 'rename only' })
 
-    const after = await todoEventRepository.byTodo(id)
+    const after = await eventsOf(id)
     expect(after.length).toBe(before.length)
   })
 
   it('update emits a deadline event when dueDate changes', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.dueDate = new Date('2026-06-01T00:00:00Z')
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { dueDate: new Date('2026-06-01T00:00:00Z') })
 
-    const deadline = (await todoEventRepository.byTodo(id)).filter((e) => e.type === 'deadline')
+    const deadline = (await eventsOf(id)).filter((e) => e.type === 'deadline')
     expect(deadline).toHaveLength(1)
     expect(deadline[0]!.toValue).toBe('2026-06-01T00:00:00.000Z')
   })
 
   it('update emits a status event when statusId changes', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.statusId = 7
-    await todoRepository.update(todo)
+    await todoRepository.update(id, { statusId: 7 })
 
-    const status = (await todoEventRepository.byTodo(id)).filter((e) => e.type === 'status')
+    const status = (await eventsOf(id)).filter((e) => e.type === 'status')
     expect(status).toHaveLength(1)
     expect(status[0]!.fromValue).toBeNull()
     expect(status[0]!.toValue).toBe(7)
@@ -118,19 +67,19 @@ describe('todoRepository — emit on insert / update / complete', () => {
   it('complete emits completed on false→true and reopened on true→false', async () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.complete(id, true)
-    let events = await todoEventRepository.byTodo(id)
+    let events = await eventsOf(id)
     expect(events.some((e) => e.type === 'completed')).toBe(true)
 
     await todoRepository.complete(id, false)
-    events = await todoEventRepository.byTodo(id)
+    events = await eventsOf(id)
     expect(events.some((e) => e.type === 'reopened')).toBe(true)
   })
 
   it('complete is idempotent — re-completing emits no event', async () => {
     const id = await todoRepository.insert(makeTodo({ isCompleted: true }))
-    const before = await todoEventRepository.byTodo(id)
+    const before = await eventsOf(id)
     await todoRepository.complete(id, true)
-    const after = await todoEventRepository.byTodo(id)
+    const after = await eventsOf(id)
     expect(after.length).toBe(before.length)
   })
 
@@ -143,9 +92,9 @@ describe('todoRepository — emit on insert / update / complete', () => {
       { todoId: id2, changes: { isCompleted: true } },
     ])
 
-    const ev1 = await todoEventRepository.byTodo(id1)
+    const ev1 = await eventsOf(id1)
     expect(ev1.some((e) => e.type === 'status' && e.toValue === 2)).toBe(true)
-    const ev2 = await todoEventRepository.byTodo(id2)
+    const ev2 = await eventsOf(id2)
     expect(ev2.some((e) => e.type === 'completed')).toBe(true)
   })
 })
@@ -153,14 +102,12 @@ describe('todoRepository — emit on insert / update / complete', () => {
 describe('todoRepository — cascade delete', () => {
   it('delete wipes every event for the todo', async () => {
     const id = await todoRepository.insert(makeTodo())
-    const todo = (await todoRepository.getById(id))!
-    todo.scheduledDate = { kind: 'date', value: new Date('2026-05-01T00:00:00Z') }
-    await todoRepository.update(todo)
-    expect((await todoEventRepository.byTodo(id)).length).toBeGreaterThan(0)
+    await todoRepository.update(id, { dueDate: new Date('2026-05-01T00:00:00Z') })
+    expect((await eventsOf(id)).length).toBeGreaterThan(1)
 
     await todoRepository.delete(id)
 
-    expect(await todoEventRepository.byTodo(id)).toHaveLength(0)
+    expect(await eventsOf(id)).toHaveLength(0)
     // The events table itself only loses rows for this todo.
     expect(await db.todoEvents.count()).toBe(0)
   })
@@ -172,22 +119,14 @@ describe('todoRepository — cascade delete', () => {
 
     await todoRepository.bulkDelete([id1, id2])
 
-    expect(await todoEventRepository.byTodo(id1)).toHaveLength(0)
-    expect(await todoEventRepository.byTodo(id2)).toHaveLength(0)
+    expect(await eventsOf(id1)).toHaveLength(0)
+    expect(await eventsOf(id2)).toHaveLength(0)
     // Survivor keeps its created event.
-    expect(await todoEventRepository.byTodo(id3)).toHaveLength(1)
+    expect(await eventsOf(id3)).toHaveLength(1)
   })
 })
 
 describe('encode helpers', () => {
-  it('encodeScheduledValue handles null / fixed-date / fuzzy', () => {
-    expect(encodeScheduledValue(undefined)).toBeNull()
-    expect(encodeScheduledValue(null)).toBeNull()
-    expect(encodeScheduledValue({ kind: 'date', value: new Date('2026-04-26T00:00:00Z') }))
-      .toBe('2026-04-26T00:00:00.000Z')
-    expect(encodeScheduledValue({ kind: 'fuzzy', token: 'this-week' })).toBe('fuzzy:this-week')
-  })
-
   it('encodeDateValue handles null and Date', () => {
     expect(encodeDateValue(undefined)).toBeNull()
     expect(encodeDateValue(new Date('2026-06-01T00:00:00Z'))).toBe('2026-06-01T00:00:00.000Z')
@@ -195,3 +134,35 @@ describe('encode helpers', () => {
 })
 
 // `runV42Migration` backfill is covered in `v42-migration.test.ts`.
+
+describe('todoEventRepository — since / onChange', () => {
+  it('since returns events at or after `from`, optionally of some types only', async () => {
+    await db.todoEvents.bulkAdd([
+      { todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-04-01T00:00:00.000Z' },
+      { todoId: 1, type: 'status', fromValue: null, toValue: 2, timestamp: '2026-04-10T00:00:00.000Z' },
+      { todoId: 2, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-04-10T00:00:00.000Z' },
+      { todoId: 2, type: 'reopened', fromValue: null, toValue: null, timestamp: '2026-05-01T00:00:00.000Z' },
+    ])
+    const all = await todoEventRepository.since(new Date('2026-04-10T00:00:00Z'))
+    expect(all.map((e) => e.type).sort()).toEqual(['completed', 'reopened', 'status'])
+    const some = await todoEventRepository.since(new Date('2026-04-10T00:00:00Z'), ['completed', 'reopened'])
+    expect(some.map((e) => e.type).sort()).toEqual(['completed', 'reopened'])
+  })
+
+  it('onChange fires on event writes (insert, complete, delete) until unsubscribed', async () => {
+    let calls = 0
+    const off = todoEventRepository.onChange(() => { calls++ })
+    try {
+      const id = await todoRepository.insert(makeTodo({ id: undefined }))
+      expect(calls).toBe(1)
+      await todoRepository.complete(id, true)
+      expect(calls).toBe(2)
+      await todoRepository.delete(id)
+      expect(calls).toBe(4)
+    } finally {
+      off()
+    }
+    await todoRepository.insert(makeTodo({ id: undefined }))
+    expect(calls).toBe(4)
+  })
+})

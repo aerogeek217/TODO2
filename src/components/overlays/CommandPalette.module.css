@@ -87,6 +87,13 @@
   text-transform: capitalize;
 }
 
+.resultHint {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .resultShortcut {
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);

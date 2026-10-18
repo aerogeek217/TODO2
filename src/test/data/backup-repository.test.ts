@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { backupRepository } from '../../data/backup-repository'
 import { makeTodo } from '../helpers'
@@ -10,9 +10,8 @@ beforeEach(async () => {
 
 describe('backupRepository', () => {
   async function seedDb() {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: new Date('2025-01-01') } as any)
-    await db.todos.add(makeTodo({ id: 1, canvasId }))
-    return canvasId
+    await db.todos.add(makeTodo({ id: 1 }))
+    await db.settings.put({ key: 'themeMode', value: 'dark' })
   }
 
   describe('createSnapshot', () => {
@@ -36,7 +35,7 @@ describe('backupRepository', () => {
       const backup = await db.backups.get(id)
       const parsed = JSON.parse(backup!.data)
       expect(parsed.todos).toHaveLength(1)
-      expect(parsed.canvases).toHaveLength(1)
+      expect(parsed.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
     })
 
     it('createSnapshot_recordsSizeBytes', async () => {
@@ -52,6 +51,66 @@ describe('backupRepository', () => {
       const backup = await db.backups.get(id)
       expect(backup!.createdAt >= before).toBe(true)
       expect(backup!.createdAt <= after).toBe(true)
+    })
+  })
+
+  describe('createSnapshot self-check', () => {
+    let unsubscribe: (() => void) | null = null
+    afterEach(() => {
+      unsubscribe?.()
+      unsubscribe = null
+      vi.restoreAllMocks()
+    })
+
+    it('createSnapshot_validData_doesNotWarn', async () => {
+      await seedDb()
+      const listener = vi.fn()
+      unsubscribe = backupRepository.onSnapshotWarning(listener)
+      await backupRepository.createSnapshot('auto')
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('createSnapshot_rowThatWouldNotRestore_savesSnapshotAndWarnsNamingTheRow', async () => {
+      await seedDb()
+      // Empty title passes Dexie but fails import validation.
+      await db.todos.add(makeTodo({ id: 2, title: '' }))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const listener = vi.fn()
+      unsubscribe = backupRepository.onSnapshotWarning(listener)
+
+      const id = await backupRepository.createSnapshot('pre-destructive')
+
+      expect(await db.backups.get(id)).toBeDefined()
+      expect(listener).toHaveBeenCalledTimes(1)
+      const message = listener.mock.calls[0]![0] as string
+      expect(message).toContain('Backup snapshot (pre-destructive) would not restore')
+      expect(message).toContain('Invalid "todos" record at index 1')
+      expect(message).toContain('bad field "title"')
+      expect(warn).toHaveBeenCalled()
+    })
+
+    it('a subscriber leaving never silences the others', async () => {
+      await db.todos.add(makeTodo({ id: 2, title: '' }))
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const stays = vi.fn()
+      unsubscribe = backupRepository.onSnapshotWarning(stays)
+      const leaves = backupRepository.onSnapshotWarning(vi.fn())
+      leaves()
+      await backupRepository.createSnapshot('auto')
+      expect(stays).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('createSnapshotFromJson', () => {
+    it('createSnapshotFromJson_storesRawTextVerbatim_evenIfUnreadable', async () => {
+      const listener = vi.fn()
+      const unsubscribe = backupRepository.onSnapshotWarning(listener)
+      const id = await backupRepository.createSnapshotFromJson('{ not json', 'pre-destructive')
+      const backup = await db.backups.get(id)
+      expect(backup?.data).toBe('{ not json')
+      expect(backup?.trigger).toBe('pre-destructive')
+      expect(listener).not.toHaveBeenCalled()
+      unsubscribe()
     })
   })
 
@@ -104,51 +163,6 @@ describe('backupRepository', () => {
     })
   })
 
-  describe('restoreSnapshot', () => {
-    it('restoreSnapshot_validSnapshot_returnsOkTrue', async () => {
-      await seedDb()
-      const id = await backupRepository.createSnapshot('auto')
-      const result = await backupRepository.restoreSnapshot(id)
-      expect(result.ok).toBe(true)
-    })
-
-    it('restoreSnapshot_validSnapshot_restoresDataToDb', async () => {
-      await seedDb()
-      const id = await backupRepository.createSnapshot('auto')
-
-      // Clear the DB between snapshot and restore
-      await db.todos.clear()
-      await db.canvases.clear()
-
-      const result = await backupRepository.restoreSnapshot(id)
-      expect(result.ok).toBe(true)
-      const todos = await db.todos.toArray()
-      expect(todos).toHaveLength(1)
-    })
-
-    it('restoreSnapshot_nonExistentId_returnsOkFalseWithError', async () => {
-      const result = await backupRepository.restoreSnapshot(9999)
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error).toContain('not found')
-      }
-    })
-
-    it('restoreSnapshot_corruptedData_returnsOkFalseWithError', async () => {
-      const id = await db.backups.add({
-        createdAt: new Date().toISOString(),
-        trigger: 'auto',
-        sizeBytes: 5,
-        data: 'NOT_JSON{{{',
-      } as any) as number
-      const result = await backupRepository.restoreSnapshot(id)
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.error).toBeTruthy()
-      }
-    })
-  })
-
   describe('deleteSnapshot', () => {
     it('deleteSnapshot_existingSnapshot_removesIt', async () => {
       const id = await backupRepository.createSnapshot('auto')
@@ -166,32 +180,67 @@ describe('backupRepository', () => {
     it('pruneSnapshots_belowKeepCount_removesNothing', async () => {
       await backupRepository.createSnapshot('auto')
       await backupRepository.createSnapshot('auto')
-      const removed = await backupRepository.pruneSnapshots(5)
+      const removed = await backupRepository.pruneSnapshots('auto', 5)
       expect(removed).toBe(0)
       const list = await backupRepository.listSnapshots()
       expect(list).toHaveLength(2)
     })
 
     it('pruneSnapshots_aboveKeepCount_removesOldest', async () => {
-      for (let i = 0; i < 5; i++) {
-        await backupRepository.createSnapshot('auto')
-      }
-      const removed = await backupRepository.pruneSnapshots(3)
+      const ids: number[] = []
+      for (let i = 0; i < 5; i++) ids.push(await backupRepository.createSnapshot('auto'))
+      const removed = await backupRepository.pruneSnapshots('auto', 3)
       expect(removed).toBe(2)
       const list = await backupRepository.listSnapshots()
-      expect(list).toHaveLength(3)
+      expect(list.map((b) => b.id).sort((a, b) => a - b)).toEqual(ids.slice(2))
     })
 
     it('pruneSnapshots_exactlyKeepCount_removesNothing', async () => {
       await backupRepository.createSnapshot('auto')
       await backupRepository.createSnapshot('auto')
-      const removed = await backupRepository.pruneSnapshots(2)
+      const removed = await backupRepository.pruneSnapshots('auto', 2)
       expect(removed).toBe(0)
     })
 
     it('pruneSnapshots_emptyDb_returnsZero', async () => {
-      const removed = await backupRepository.pruneSnapshots(10)
+      const removed = await backupRepository.pruneSnapshots('auto', 10)
       expect(removed).toBe(0)
+    })
+
+    it('prunes only the given kind: manual and sync-file backups outlive any number of others', async () => {
+      const manual = await backupRepository.createSnapshot('manual')
+      const file = await backupRepository.createSnapshotFromJson('{"raw":1}', 'sync-file')
+      for (let i = 0; i < 4; i++) {
+        await backupRepository.createSnapshot('auto')
+        await backupRepository.createSnapshot('pre-destructive')
+      }
+      await backupRepository.pruneSnapshots('auto', 1)
+      await backupRepository.pruneSnapshots('pre-destructive', 1)
+      const list = await backupRepository.listSnapshots()
+      expect(list.map((b) => b.trigger).sort()).toEqual(['auto', 'manual', 'pre-destructive', 'sync-file'])
+      expect(list.map((b) => b.id)).toEqual(expect.arrayContaining([manual, file]))
+    })
+  })
+
+  describe('newestSnapshotAt', () => {
+    it('is null without a backup of that kind', async () => {
+      await backupRepository.createSnapshot('manual')
+      expect(await backupRepository.newestSnapshotAt('auto')).toBeNull()
+    })
+
+    it('is when the newest backup of that kind was taken', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-10-01T08:00:00.000Z'))
+        await backupRepository.createSnapshot('auto')
+        vi.setSystemTime(new Date('2026-10-02T08:00:00.000Z'))
+        await backupRepository.createSnapshot('auto')
+        vi.setSystemTime(new Date('2026-10-03T08:00:00.000Z'))
+        await backupRepository.createSnapshot('manual')
+      } finally {
+        vi.useRealTimers()
+      }
+      expect((await backupRepository.newestSnapshotAt('auto'))?.toISOString()).toBe('2026-10-02T08:00:00.000Z')
     })
   })
 })

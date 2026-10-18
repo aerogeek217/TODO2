@@ -1,10 +1,13 @@
 /**
- * Notes export helpers — ported from
- * `docs/plans/design_handoff_dashboard_redesign/src/prototype-components.jsx`.
+ * Notes export helpers (Markdown ↔ HTML, rich copy).
  * Users type Markdown with light shorthand (ALL-CAPS headings, em-dash
  * bullets). `normalizeToMarkdown` folds the shorthand into canonical
  * Markdown so `mdToHtml` (and external paste targets) see a clean stream.
  */
+
+import { escapeHtml, unescapeHtml } from '../utils/html'
+import { replaceMarkdownLinks } from '../utils/markdown-links'
+import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
 
 const MAX_HEADING_LEN = 60
 const MIN_HEADING_UPPERCASE_COUNT = 3
@@ -32,22 +35,19 @@ export function normalizeToMarkdown(text: string): string {
     .join('\n')
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function escapeHtmlAttr(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+/**
+ * Drops C0 control chars (U+0000–U+001F), DEL (U+007F), and whitespace.
+ * A code-point loop rather than a `[\u0000-\u001f]` regex class, which
+ * `no-control-regex` rejects.
+ */
+function stripControlAndWhitespace(s: string): string {
+  let out = ''
+  for (const ch of s) {
+    const code = ch.charCodeAt(0)
+    if (code <= 0x1f || code === 0x7f || /\s/.test(ch)) continue
+    out += ch
+  }
+  return out
 }
 
 const SAFE_URL_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:']
@@ -69,12 +69,12 @@ export function sanitizeHref(raw: string): string {
   // Decode any leading numeric entity (hex or decimal) so `&#106;avascript:`
   // etc. can't evade the allowlist. We don't need a full entity decoder —
   // just enough to un-hide the scheme byte(s).
-  s = s.replace(/&#x?([0-9a-fA-F]+);/g, (_m, code) => {
-    const n = /^[0-9]+$/.test(code) ? parseInt(code, 10) : parseInt(code, 16)
+  s = s.replace(/&#(?:([0-9]+)|[xX]([0-9a-fA-F]+));/g, (_m, dec: string | undefined, hex: string | undefined) => {
+    const n = dec != null ? parseInt(dec, 10) : parseInt(hex ?? '', 16)
     return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : ''
   })
   // Strip ASCII whitespace + control chars (incl. \t, \n, \r, \0).
-  s = s.replace(/[\u0000-\u001f\u007f\s]/g, '')
+  s = stripControlAndWhitespace(s)
   const lower = s.toLowerCase()
   const colonIdx = lower.indexOf(':')
   const slashIdx = lower.indexOf('/')
@@ -88,20 +88,19 @@ export function sanitizeHref(raw: string): string {
 }
 
 function inlineMd(s: string): string {
-  // Every `$1` capture below is fed back through `escapeHtml` even though
-  // the outer `escapeHtml(s)` already ran. The defensive re-escape pins the
-  // invariant: a future chain reorder that lets raw `<` / `>` reach the
-  // captures (e.g. moving a transformation that emits HTML before these
-  // regexes) cannot smuggle them into the output. The double-encoding is
-  // visible (`&lt;` → `&amp;lt;`) and asserted in the test suite.
-  return escapeHtml(s)
-    .replace(/\*\*([^*]+)\*\*/g, (_m, text) => `<strong>${escapeHtml(text)}</strong>`)
-    .replace(/\*([^*]+)\*/g, (_m, text) => `<em>${escapeHtml(text)}</em>`)
-    .replace(/`([^`]+)`/g, (_m, text) => `<code>${escapeHtml(text)}</code>`)
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
-      const safe = sanitizeHref(href)
-      return `<a href="${escapeHtmlAttr(safe)}">${escapeHtml(text)}</a>`
-    })
+  // The line is escaped once, up front, so every capture below is already
+  // HTML-safe text and goes into the output as is (escaping it again would
+  // show `Dana&#39;s` in the pasted text). A link target is the exception:
+  // it is unescaped back to the raw URL, checked by `sanitizeHref`, and
+  // escaped for the attribute.
+  const marked = escapeHtml(s)
+    .replace(/\*\*([^*]+)\*\*/g, (_m, text: string) => `<strong>${text}</strong>`)
+    .replace(/\*([^*]+)\*/g, (_m, text: string) => `<em>${text}</em>`)
+    .replace(/`([^`]+)`/g, (_m, text: string) => `<code>${text}</code>`)
+  return replaceMarkdownLinks(marked, (text, href) => {
+    const safe = sanitizeHref(unescapeHtml(href))
+    return `<a href="${escapeHtml(safe)}">${text}</a>`
+  })
 }
 
 /**
@@ -121,20 +120,23 @@ export function mdToHtml(md: string): string {
   }
 
   for (const raw of lines) {
-    const line = raw.replace(/\s+$/, '')
+    const line = raw.trimEnd()
     if (!line.trim()) {
       closeList()
       continue
     }
 
-    const h = line.match(/^(#{1,3})\s+(.+)$/)
+    // The line patterns use the `s` flag: a `\r` / U+2028 left inside a line
+    // (imported notes keep them) would otherwise stop `.+`, and `(.+)$`
+    // then retried every split of the space run before it — quadratic.
+    const h = line.match(/^(#{1,3})\s+(.+)$/s)
     if (h && h[1] != null && h[2] != null) {
       closeList()
       out.push(`<h${h[1].length}>${inlineMd(h[2])}</h${h[1].length}>`)
       continue
     }
 
-    const chk = line.match(/^-\s*\[( |x|X)\]\s+(.+)$/)
+    const chk = line.match(/^-\s*\[( |x|X)\]\s+(.+)$/s)
     if (chk && chk[1] != null && chk[2] != null) {
       if (!inList) {
         out.push('<ul>')
@@ -145,7 +147,7 @@ export function mdToHtml(md: string): string {
       continue
     }
 
-    const bul = line.match(/^[-*]\s+(.+)$/)
+    const bul = line.match(/^[-*]\s+(.+)$/s)
     if (bul && bul[1] != null) {
       if (!inList) {
         out.push('<ul>')
@@ -179,6 +181,13 @@ export function htmlToMarkdown(html: string): string {
   doc.querySelectorAll('script, style, noscript').forEach((n) => n.remove())
   const out = walkNode(doc.body).replace(/\n{3,}/g, '\n\n').trim()
   return out
+}
+
+/** Drops trailing `\n`s — a loop, as `/\n+$/` is quadratic on long runs of `\n`. */
+function trimTrailingNewlines(s: string): string {
+  let end = s.length
+  while (end > 0 && s[end - 1] === '\n') end--
+  return s.slice(0, end)
 }
 
 function walkNode(node: Node): string {
@@ -217,7 +226,7 @@ function walkNode(node: Node): string {
     case 'pre': {
       // <pre><code>…</code></pre> — emit fenced block.
       const codeChild = el.querySelector(':scope > code')
-      const body = (codeChild?.textContent ?? el.textContent ?? '').replace(/\n+$/, '')
+      const body = trimTrailingNewlines(codeChild?.textContent ?? el.textContent ?? '')
       return `\n\`\`\`\n${body}\n\`\`\`\n\n`
     }
     case 'a': {
@@ -271,22 +280,5 @@ function walkNode(node: Node): string {
  */
 export async function copyNotesRich(plain: string): Promise<boolean> {
   const md = normalizeToMarkdown(plain)
-  const html = `<div style="font-family: Calibri, 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.45;">${mdToHtml(md)}</div>`
-  try {
-    const ClipItem = (globalThis as unknown as { ClipboardItem?: typeof ClipboardItem }).ClipboardItem
-    if (!ClipItem) throw new Error('ClipboardItem unsupported')
-    const item = new ClipItem({
-      'text/html': new Blob([html], { type: 'text/html' }),
-      'text/plain': new Blob([md], { type: 'text/plain' }),
-    })
-    await navigator.clipboard.write([item])
-    return true
-  } catch {
-    try {
-      await navigator.clipboard.writeText(md)
-      return true
-    } catch {
-      return false
-    }
-  }
+  return writeRichClipboard(wrapClipboardHtml(mdToHtml(md)), md)
 }

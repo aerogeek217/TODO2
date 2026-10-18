@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { Tag } from '../models'
 import { createRepository } from './create-repository'
-import { createJoinOps, buildAssignmentMap, type JoinCapture } from './join-helpers'
+import { createJoinOps, buildAssignmentMap, restoreNamedEntityWithJoins, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Tag>(db.tags, 'name')
 const todoTagOps = createJoinOps(db.todoTags, 'todoId', 'tagId')
@@ -15,12 +15,6 @@ async function findConflictingTag(name: string, excludeId?: number): Promise<Tag
 
 export const tagRepository = {
   ...base,
-
-  async insert(tag: Omit<Tag, 'id'>): Promise<number> {
-    const conflict = await findConflictingTag(tag.name)
-    if (conflict) throw new Error(`A tag named "${tag.name}" already exists`)
-    return db.tags.add(tag as Tag)
-  },
 
   /**
    * Atomic lookup-or-insert. Wraps `findConflictingTag` + `db.tags.add` in a
@@ -78,14 +72,10 @@ export const tagRepository = {
 
   /**
    * Undo-restore for `delete`: re-insert the tag row (preserving its id) plus
-   * every captured `todoTags` join row inside one transaction.
+   * every captured `todoTags` join row inside one transaction; a tag of the
+   * same name created meanwhile is folded into it (`restoreNamedEntityWithJoins`).
    */
   async restoreWithJoins(tag: Tag, joins: JoinCapture[]): Promise<void> {
-    await db.transaction('rw', [db.tags, ...joins.map(j => j.table)], async () => {
-      await db.tags.add(tag)
-      for (const { table, rows } of joins) {
-        if (rows.length) await table.bulkAdd(rows)
-      }
-    })
+    await restoreNamedEntityWithJoins(db.tags, tag, { table: db.todoTags, entityKey: 'tagId', linkKey: 'todoId' }, joins)
   },
 }

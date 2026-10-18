@@ -1,0 +1,450 @@
+/* Mobile workspace: top bar, column strip, column pager. */
+
+.root {
+  /* Space kept clear of the floating quick-add button (44px + 16px). */
+  --mobile-fab-clearance: 60px;
+  --cell-header-height: var(--mobile-cell-header-height);
+  --cell-tab-height: var(--mobile-cell-tab-height);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  background: var(--color-app-bg);
+}
+
+/* ── Top bar ── */
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--mobile-topbar-height);
+  flex-shrink: 0;
+  padding: 0 4px 0 8px;
+}
+
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: var(--touch-target-min);
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.picker:active {
+  background: var(--color-tint-8);
+}
+
+.pickerGlyph {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.pickerName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.topBarEnd {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.iconButton:active {
+  background: var(--color-tint-8);
+}
+
+/* ── Column strip ── */
+
+.strip {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: var(--mobile-column-strip-height);
+  flex-shrink: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--color-border-muted);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+.stripItem {
+  flex-shrink: 0;
+  height: 100%;
+  max-width: 200px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.stripItemActive {
+  color: var(--color-text-primary);
+}
+
+.stripItem:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -4px;
+  border-radius: var(--radius-md);
+}
+
+/* Positioned (left / width) from the pager's scroll position. */
+.underline {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+/* ── Pager ── */
+
+.pager {
+  display: flex;
+  gap: var(--ws-pager-gap);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.pager::-webkit-scrollbar {
+  display: none;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 8px 8px calc(8px + var(--mobile-fab-clearance));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* A single cell fills the column and scrolls inside itself. */
+.column:has(> .cellFill:only-child) {
+  padding-bottom: 8px;
+}
+
+/* ── Cells ── */
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-width: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.cellFill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cellHeader {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: var(--cell-header-height);
+  flex-shrink: 0;
+  padding: 0 0 0 4px;
+  background: var(--color-header-bg);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.cellCollapsed .cellHeader {
+  border-bottom: none;
+}
+
+.cellAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cell-header-height);
+  height: var(--cell-header-height);
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cellAction:active,
+.cellActionPressed {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* Sized to its content; the column scrolls. */
+.cellBody {
+  position: relative;
+  min-height: var(--cell-body-min-height);
+}
+
+/* The notes editor has no intrinsic height. */
+.cellBody[data-kind='notes'] {
+  height: 50vh;
+  height: 50dvh;
+}
+
+.cellFill .cellBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: var(--mobile-fab-clearance);
+}
+
+.cellFill .cellBody[data-kind='notes'] {
+  padding-bottom: 0;
+}
+
+/* ── Empty states ── */
+
+.emptyCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.emptyHint {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.emptyLayout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  margin: 8px;
+  padding: 24px 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  text-align: center;
+}
+
+.emptyLayoutTitle {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+/* ── Layout picker sheet ── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: var(--color-backdrop);
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  max-height: 75vh;
+  max-height: 75dvh;
+  padding: 8px 8px calc(24px + env(safe-area-inset-bottom, 0px));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-modal);
+}
+
+.handle {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  margin-bottom: 8px;
+  border-radius: 2px;
+  background: var(--color-tint-12);
+}
+
+.sheetTitle {
+  margin: 4px 12px 8px;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.sheetRows {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sheetRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sheetRow:active {
+  background: var(--color-tint-8);
+}
+
+.sheetRowCurrent {
+  background: var(--color-tint-8);
+}
+
+.sheetGlyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.sheetName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheetNote {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.sheetFootnote {
+  margin: 8px 12px 4px;
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.sheetCheck {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.sheetFooter {
+  margin: 12px 12px 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+
+/* A band's page name: a band glyph before its active tab's title. */
+.stripItemBand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stripName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bandGlyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.stripItemActive .bandGlyph {
+  color: var(--color-accent);
+}

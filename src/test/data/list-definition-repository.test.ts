@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
 import type { ListDefinition } from '../../models/list-definition'
-import { emptyPredicate } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 
 beforeEach(async () => {
   await db.delete()
@@ -13,11 +13,9 @@ function makeDef(overrides: Partial<ListDefinition> = {}): ListDefinition {
   return {
     name: 'Custom',
     sortOrder: 0,
-    pinnedToDashboard: true,
-    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: 'date',
-    grouping: { kind: 'none' },
+    sort: 'deadline',
+    grouping: 'none',
     ...overrides,
   }
 }

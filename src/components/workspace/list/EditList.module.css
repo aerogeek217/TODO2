@@ -1,0 +1,279 @@
+/* Edit list: the desktop side popover (340 wide, beside the list's panel)
+ * and the phone's half sheet. */
+
+.popover {
+  position: fixed;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-height: calc(100vh - 24px);
+  border-radius: 10px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+}
+
+:global([data-theme='light']) .popover {
+  background: var(--color-surface);
+}
+
+/* Points at the panel's tab strip; mirrored when the popover sits to the panel's left. */
+.arrow {
+  position: absolute;
+  top: 14px;
+  left: -6px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  transform: rotate(45deg);
+  box-shadow: -1px 1px 0 rgba(48, 46, 43, 0.5);
+  pointer-events: none;
+}
+
+.arrowRight {
+  left: auto;
+  right: -6px;
+  box-shadow: 1px -1px 0 rgba(48, 46, 43, 0.5);
+}
+
+:global([data-theme='light']) .arrow {
+  box-shadow: -1px 1px 0 rgba(0, 0, 0, 0.06);
+}
+
+:global([data-theme='light']) .arrowRight {
+  box-shadow: 1px -1px 0 rgba(0, 0, 0, 0.06);
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 10px 8px 4px 14px;
+}
+
+.eyebrow {
+  flex: 1 1 auto;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.close:hover,
+.close:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 4px 14px 12px;
+  overflow-y: auto;
+}
+
+.hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 10px 14px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.shared {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.footerButton {
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.footerButton:hover:not(:disabled) {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.footerSave {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.footerSave:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  filter: brightness(1.08);
+}
+
+.footerButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.footerButton:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* ── Phone: half sheet ── */
+
+/* Dims the list above the sheet without hiding it. */
+.scrim {
+  position: fixed;
+  inset: 0 0 55dvh;
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.scrimFull {
+  bottom: 0;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  height: 55vh;
+  height: 55dvh;
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  background: var(--color-surface-high);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.sheetFull {
+  height: calc(100dvh - 24px);
+}
+
+.handle {
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  margin-bottom: 8px;
+  border-radius: 2px;
+  background: var(--color-tint-12);
+  touch-action: none;
+  cursor: grab;
+}
+
+/* A bigger hit area for the handle. */
+.handle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 96px;
+  height: 28px;
+  margin: -12px 0 0 -48px;
+}
+
+.sheetHeader {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sheetTitle {
+  flex: 1 1 auto;
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+}
+
+.sheetClose {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.sheetBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px 0 12px;
+  overflow-y: auto;
+}
+
+.sheetFooter {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.sheetButton {
+  flex: 1 1 0;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.sheetSave {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.sheetButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

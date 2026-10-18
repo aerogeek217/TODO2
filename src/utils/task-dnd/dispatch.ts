@@ -1,177 +1,171 @@
 import type { DragEndEvent } from '@dnd-kit/core'
-import type { PersistedTodoItem, Taskboard, TaskboardEntry } from '../../models'
+import type { PersistedTodoItem } from '../../models'
+import type { CalendarDateType, CalendarDateTypes } from '../../models/workspace-layout'
+import { isEisenhowerQuadrant } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
-import { parseTaskboardEntryId } from './ids'
-import { TASK_DRAG_KIND, TASK_DROP_KIND } from './kinds'
+import { resolveQuadrantDrop, type FlagChange } from '../eisenhower'
+import type { UrgentDueWithinDays } from '../urgency'
+import { TASK_DROP_KIND } from './kinds'
 
-/**
- * Shape of the taskboard-store surface consumed by {@link dispatchTaskDrop}.
- * Kept narrow — just the methods needed to reorder entries, remove an entry,
- * and add at an index — so callers can pass `useTaskboardStore.getState()`
- * directly or mock the adapter in tests.
- */
-export interface TaskboardOps {
-  readonly board: Taskboard | null
-  getEntries: () => TaskboardEntry[]
-  ensureLoaded: () => Promise<Taskboard>
-  has: (todoId: number) => boolean
-  reorder: (fromIndex: number, toIndex: number) => Promise<void>
-  removeEntry: (todoId: number) => Promise<void>
-  addAt: (todoId: number, index: number) => Promise<void>
-  addMultipleAt: (todoIds: number[], index: number) => Promise<void>
+/** A list drag dropped on a day of a calendar showing both date types. */
+export interface CalendarDropChoiceRequest {
+  todo: PersistedTodoItem
+  /** Midnight of the day dropped on. */
+  date: Date
+  /** The day's calendar (its droppable `scope`). */
+  scope: string | undefined
+  /** Where the pointer was let go (viewport), when known. */
+  at: { x: number; y: number } | null
 }
 
 /**
- * Narrow reschedule surface consumed by the calendar-day branch of
- * {@link dispatchTaskDrop}. Callers supply whatever store plumbing they want
- * (typically `useTodoStore` + `buildRescheduleUpdate`); the dispatch only
- * cares about the single callback.
+ * Calendar side of {@link dispatchTaskDrop}. Callers supply the store
+ * plumbing (typically `useTodoStore` + `buildRescheduleUpdate`).
  */
 export interface CalendarOps {
-  reschedule: (todoId: number, targetDate: Date) => Promise<void>
+  /** Moves the task's `type` date to `targetDate`'s day. */
+  reschedule: (todoId: number, targetDate: Date, type: CalendarDateType) => Promise<void>
+  /**
+   * Asks which date to set when the target calendar shows both types and the
+   * drag isn't a calendar entry (which always moves its own date). Resolves
+   * `null` when the user cancels: nothing changes. Without it, the due date
+   * is set.
+   */
+  chooseType?: (request: CalendarDropChoiceRequest) => Promise<CalendarDateType | null>
+}
+
+/**
+ * Eisenhower side of {@link dispatchTaskDrop}: a task (or the selection it
+ * belongs to) dropped on a quadrant takes that quadrant's flags, unless a
+ * task urgent by its due date would leave the urgent column — then nothing
+ * changes (see `resolveQuadrantDrop`).
+ */
+export interface EisenhowerOps {
+  /** The tasks the drag moves (current copies): the dragged task, or its selection. */
+  tasksFor: (activeData: Record<string, unknown>) => PersistedTodoItem[]
+  today: () => Date
+  range: () => UrgentDueWithinDays
+  /** Writes the flag changes as one undo step. */
+  apply: (changes: FlagChange[]) => Promise<void>
 }
 
 export interface TaskDropDispatchDeps {
-  taskboard: TaskboardOps
-  /** Optional — required by surfaces that host calendar day droppables
-   * (canvas rails/floating strips, the `/calendar` route). When omitted,
-   * calendar-day drops fall through to the caller's own handler. */
+  /** Optional — required by surfaces that host calendar day droppables (the
+   * workspace). When omitted, calendar-day drops fall through to the
+   * caller's own handler. */
   calendar?: CalendarOps
-  /** Multi-drag selection (when present with >1 ids, `addMultipleAt` fires
-   * instead of `addAt`). Canvas supplies this from its selection ref;
-   * dashboard passes `null` because it doesn't support multi-drag today. */
-  multiDragIds?: ReadonlySet<number> | null
+  /** Optional — required by surfaces that host Eisenhower quadrants. */
+  eisenhower?: EisenhowerOps
+}
+
+function isDateType(v: unknown): v is CalendarDateType {
+  return v === 'due' || v === 'followup'
 }
 
 /**
- * Map a hover-over-sortable-entry into its slot in the *full* entries array.
- * dnd-kit sortable data gives a visible index only; if the taskboard has
- * hidden/completed entries filtered out, we need to map the visible position
- * back to the full array before calling `addAt`. Returns `fullEntries.length`
- * (append) when the parse fails — matches the "safe append" fallback baked
- * into `addAt` / `addMultipleAt`.
+ * Which date a calendar-day drop sets, from the drag payload and the date
+ * types the target calendar shows (`dateTypes` on the day's drop data):
+ * - a calendar showing neither date type takes no drop (`null`);
+ * - a calendar entry (`calendarDateType` on the drag) moves its own date,
+ *   whatever the target calendar shows;
+ * - otherwise the date type the target shows, or `'choose'` when it shows both.
  */
-function fullIndexForSortableDrop(
-  overId: string,
-  fullEntries: readonly { todoId: number }[],
-): number {
-  const parsed = parseTaskboardEntryId(overId)
-  if (parsed == null) return fullEntries.length
-  const idx = fullEntries.findIndex((e) => e.todoId === parsed.todoId)
-  return idx === -1 ? fullEntries.length : idx
+export function resolveCalendarDropType(
+  activeData: Record<string, unknown> | null | undefined,
+  dateTypes: CalendarDateTypes,
+): CalendarDateType | 'choose' | null {
+  if (!dateTypes.due && !dateTypes.followup) return null
+  const own = activeData?.calendarDateType
+  if (isDateType(own)) return own
+  if (dateTypes.due && dateTypes.followup) return 'choose'
+  return dateTypes.followup ? 'followup' : 'due'
+}
+
+function isDateTypes(v: unknown): v is CalendarDateTypes {
+  if (v == null || typeof v !== 'object') return false
+  const t = v as Record<string, unknown>
+  return typeof t.due === 'boolean' && typeof t.followup === 'boolean'
+}
+
+/** The viewport point a drag ended at (activator position + travel), when the activator was a pointer. */
+function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
+  const e = event.activatorEvent as { clientX?: unknown; clientY?: unknown } | null
+  if (!e || typeof e.clientX !== 'number' || typeof e.clientY !== 'number') return null
+  return { x: e.clientX + event.delta.x, y: e.clientY + event.delta.y }
 }
 
 /**
- * Shared drop dispatcher for task-shaped drags that target a taskboard. Owns
- * the three taskboard-specific branches for `use-canvas-dnd.ts:handleDragEnd`:
- *
- *   1. Taskboard entry dragged onto another entry → reorder.
- *   2. Taskboard entry dragged onto the panel's outer drop zone → move to end.
- *   3. Taskboard entry dropped anywhere else → remove from the board.
- *   4. External task dropped onto a taskboard (entry or panel) → add at the
- *      insertion index implied by dnd-kit's sortable data.
+ * Shared drop dispatcher for task-shaped drags that land on a shared drop
+ * target: a task dropped on a calendar day gets that day as its due date or
+ * next follow-up (see {@link resolveCalendarDropType}); a task dropped on an
+ * Eisenhower quadrant gets that quadrant's flags ({@link EisenhowerOps}).
  *
  * Returns `true` when the drop was handled (the caller should stop
- * processing), `false` when the drag/drop has nothing to do with a taskboard
- * (the caller should continue with its route-specific logic — e.g. canvas
- * project placement).
- *
- * Phase 5 of the DnD unification extracted this from the two call sites;
- * Phase 6 replaced the DOM-based insertion index with dnd-kit's native
- * sortable index so indicator + drop always agree and the "missing DOM →
- * prepend" failure mode from F3 disappears.
+ * processing — also when the user cancelled the date-type choice or the
+ * calendar shows no date type), `false`
+ * when the drop is not one of these targets.
  */
 export async function dispatchTaskDrop(
   event: DragEndEvent,
   deps: TaskDropDispatchDeps,
 ): Promise<boolean> {
   const { active, over } = event
-  const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
+  const activeData = active.data.current
+  const activeTodo = activeData?.todo as PersistedTodoItem | undefined
   if (!activeTodo) {
     dndLog('dispatch.no-active-todo', { activeId: active.id, overId: over?.id ?? null })
     return false
   }
 
-  const activeType = active.data.current?.type
   const overData = over?.data.current
-  const tb = deps.taskboard
 
-  // ── Calendar day drop → reschedule ──
-  // Handled before the taskboard-entry branch so dragging an entry onto a
-  // calendar day reschedules the underlying todo (and keeps the entry on
-  // the board) instead of falling into the "dropped anywhere else → remove"
-  // path below.
+  // ── Calendar day drop → set a date ──
   if (overData?.type === TASK_DROP_KIND.calendarDay && deps.calendar) {
     const date = overData.date as Date | undefined
-    if (date instanceof Date) {
-      dndLog('dispatch.calendar-day-reschedule', { todoId: activeTodo.id, date: date.toISOString() })
-      await deps.calendar.reschedule(activeTodo.id, date)
+    const dateTypes = overData.dateTypes
+    if (date instanceof Date && isDateTypes(dateTypes)) {
+      let type = resolveCalendarDropType(activeData, dateTypes)
+      if (type === null) {
+        dndLog('dispatch.calendar-day-refused', { todoId: activeTodo.id, date: date.toISOString() })
+        return true
+      }
+      if (type === 'choose') {
+        const chosen = deps.calendar.chooseType
+          ? await deps.calendar.chooseType({
+            todo: activeTodo,
+            date,
+            scope: typeof overData.scope === 'string' ? overData.scope : undefined,
+            at: dropPoint(event),
+          })
+          : 'due'
+        if (chosen == null) {
+          dndLog('dispatch.calendar-day-cancelled', { todoId: activeTodo.id, date: date.toISOString() })
+          return true
+        }
+        type = chosen
+      }
+      dndLog('dispatch.calendar-day-reschedule', { todoId: activeTodo.id, date: date.toISOString(), type })
+      await deps.calendar.reschedule(activeTodo.id, date, type)
       return true
     }
   }
 
-  // ── Taskboard entry being dragged ──
-  if (activeType === TASK_DRAG_KIND.taskboardTask) {
-    if (overData?.type === TASK_DROP_KIND.taskboardTask && over?.id != null) {
-      // `over.id` is the sortable id (e.g. `tbp-42` or `tb-7-42`); parse it
-      // into its todo id so we can resolve the full-array target index
-      // regardless of which taskboard panel owns the over entry. A malformed
-      // id (e.g. `tbp-NaN`) means this isn't a real taskboard drop — bail out
-      // so the caller can fall through to its route-specific handler.
-      const parsed = parseTaskboardEntryId(String(over.id))
-      if (parsed == null) {
-        dndLog('dispatch.taskboard-reorder.malformed-over-id', { overId: over.id })
-        return false
-      }
-      const entries = tb.getEntries()
-      const fromIndex = entries.findIndex((e) => e.todoId === activeTodo.id)
-      const toIndex = entries.findIndex((e) => e.todoId === parsed.todoId)
-      if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-        await tb.reorder(fromIndex, toIndex)
-      }
-      dndLog('dispatch.taskboard-reorder', { todoId: activeTodo.id, fromIndex, toIndex })
+  // ── Eisenhower quadrant drop → set Urgent / Important ──
+  if (overData?.type === TASK_DROP_KIND.eisenhowerQuadrant && deps.eisenhower && activeData) {
+    const quadrant = overData.quadrant
+    if (isEisenhowerQuadrant(quadrant)) {
+      const ops = deps.eisenhower
+      const tasks = ops.tasksFor(activeData)
+      const result = resolveQuadrantDrop(tasks, quadrant, ops.today(), ops.range())
+      dndLog('dispatch.eisenhower-drop', { todoIds: tasks.map((t) => t.id), quadrant, result: result.kind })
+      if (result.kind === 'apply') await ops.apply(result.changes)
       return true
     }
-    if (overData?.type === TASK_DROP_KIND.taskboard) {
-      const entries = tb.getEntries()
-      const fromIndex = entries.findIndex((e) => e.todoId === activeTodo.id)
-      if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
-        await tb.reorder(fromIndex, entries.length - 1)
-      }
-      dndLog('dispatch.taskboard-move-to-end', { todoId: activeTodo.id, fromIndex, length: entries.length })
-      return true
-    }
-    // Dropped anywhere else → remove from the singleton board.
-    if (tb.has(activeTodo.id)) await tb.removeEntry(activeTodo.id)
-    dndLog('dispatch.taskboard-remove-on-drop-off', { todoId: activeTodo.id, overType: overData?.type ?? null })
-    return true
-  }
-
-  // ── External task → taskboard add ──
-  if (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask) {
-    if (!tb.board) await tb.ensureLoaded()
-    const entries = tb.getEntries()
-    const targetIndex = overData?.type === TASK_DROP_KIND.taskboardTask && over?.id != null
-      ? fullIndexForSortableDrop(String(over.id), entries)
-      : entries.length
-    const ids = deps.multiDragIds
-    if (ids && ids.size > 1) {
-      await tb.addMultipleAt([...ids], targetIndex)
-    } else {
-      await tb.addAt(activeTodo.id, targetIndex)
-    }
-    dndLog('dispatch.taskboard-add', {
-      todoId: activeTodo.id,
-      targetIndex,
-      overType: overData?.type,
-      multi: ids?.size ?? 0,
-    })
-    return true
   }
 
   dndLog('dispatch.unhandled', {
     todoId: activeTodo.id,
-    activeType: activeType ?? null,
+    activeType: activeData?.type ?? null,
     overType: overData?.type ?? null,
     overId: over?.id ?? null,
   })

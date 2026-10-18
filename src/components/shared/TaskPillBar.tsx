@@ -1,78 +1,79 @@
 import { memo } from 'react'
 import type { CSSProperties, MouseEvent, Ref } from 'react'
-import { type PersistedTodoItem, type Person, type Org, type Status, DEFAULT_STATUS_ICON } from '../../models'
-import { formatDateShort } from '../../utils/date'
-import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
+import { type PersistedTodoItem, type Person, type Status, DEFAULT_STATUS_ICON } from '../../models'
+import { formatDateNumeric, formatDateShort } from '../../utils/date'
+import { isDeadlinePast } from '../../utils/effective-date'
+import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
+import { startOfDay } from '../../utils/date'
+import { FollowupFlagIcon } from './FollowupIcons'
+import { useTooltip } from './use-tooltip'
 import { StatusIcon } from './StatusIcon'
 import { AvatarStack } from './AvatarStack'
 import styles from './TaskPillBar.module.css'
 
 /**
- * Shared task-pill bar — replaces the parallel scheduled / deadline /
- * people / org / status chip implementations that lived inside
- * `TaskRow` / `MobileTaskRow` / `TopBar`'s `SearchResultPills` /
- * canvas calendar `EventRow` (ui-consistency-2026-04-25 P2).
+ * Shared task-pill bar — the one due-date / people / status chip
+ * implementation for `MobileTaskRow` / `TopBar`'s `SearchResultPills`
+ * (the desktop `TaskRow` has its own column cells).
  *
  * Tags: this primitive does NOT render tag chips. Tag display is the
- * separate `TagChipSelector` shared component, mounted by `TaskRow` and
- * `MobileTaskRow` adjacent to (not inside) the pill bar — adding tags here
- * would force every consumer of `TaskPillBar` (search dropdown, calendar
- * `EventRow`, etc.) to thread tags they don't render.
+ * separate `TagChipSelector` shared component, mounted by `MobileTaskRow`
+ * adjacent to (not inside) the pill bar — adding tags here
+ * would force every consumer of `TaskPillBar` (search dropdown, etc.) to
+ * thread tags they don't render.
  *
- * Perf — the consumer pre-resolves people / orgs / status and threads
- * them through; this primitive does NOT subscribe to assignment stores.
- * For very dense surfaces (the search dropdown), pass `personColorContext`
- * to let `AvatarStack` skip its own `useOrgStore` subscription too.
+ * Perf — the consumer pre-resolves people / status and threads them
+ * through; this primitive does NOT subscribe to any store.
  *
  * Composition — `<TaskPillBar>` is the default composed bar (people →
- * dates → status, the layout used by `TaskRow` / `MobileTaskRow` /
- * `SearchResultRow`). Surfaces with a different layout (calendar
- * `EventRow` puts dates before the title) compose `<TaskPillPeople>`,
- * `<TaskPillDates>`, `<TaskPillStatus>` directly.
+ * dates → follow-up → status, the layout used by `MobileTaskRow` /
+ * `SearchResultRow`). Surfaces with a different layout compose
+ * `<TaskPillPeople>`, `<TaskPillDates>`, `<TaskPillStatus>` directly.
  */
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 interface PillCommon {
   /** When false, the part renders as non-interactive `<span>`s — used
-   * inside surfaces whose row IS the click target (`SearchResultRow` and
-   * `EventRow`). */
+   * inside surfaces whose row IS the click target (`SearchResultRow`). */
   interactive?: boolean
-  /** Compact = canvas calendar strip's icon-only date markers + smaller
-   * avatars. */
+  /** Compact = icon-only date markers + smaller avatars. */
   compact?: boolean
   /** Smaller avatars even when `compact` is false (mobile). */
   density?: 'default' | 'small'
-  /** Hyperscale opt-out: when provided, AvatarStack uses these instead
-   * of subscribing to org-store. Used by the search dropdown to keep
-   * per-row subscriptions bounded. */
-  personColorContext?: { personOrgMap: Map<number, number[]>; orgs: Org[] }
 }
 
 interface TaskPillPeopleProps extends PillCommon {
   people: readonly Person[]
-  orgs: readonly Org[]
   anchorRef?: Ref<HTMLDivElement>
   onPeopleClick?: (e: MouseEvent) => void
   onPersonContextMenu?: (e: MouseEvent, person: Person) => void
-  onOrgContextMenu?: (e: MouseEvent, org: Org) => void
 }
 
 interface TaskPillDatesProps extends PillCommon {
   todo: PersistedTodoItem
   today: Date
-  weekStartsOn: 0 | 1
-  /** `'stack'` = TaskRow's vertical date column (scheduled-on-top,
-   * deadline below). `'inline'` = horizontal row (default). */
-  layout?: 'inline' | 'stack'
-  scheduledIntensity?: number
+  /** `'short'` = `Oct 20` (default), `'numeric'` = `10/20` (the phone row). */
+  dateFormat?: 'short' | 'numeric'
   deadlineIntensity?: number
-  scheduledAnchorRef?: Ref<HTMLButtonElement>
-  onScheduledClick?: (e: MouseEvent) => void
   onDeadlineClick?: (e: MouseEvent) => void
-  /** When provided AND interactive=true, the deadline chip shows an
+  /** When provided AND interactive=true, the due-date chip shows an
    * × clear button on hover. */
   onDeadlineClear?: (e: MouseEvent) => void
+}
+
+interface TaskPillFollowupProps extends PillCommon {
+  todo: PersistedTodoItem
+  today: Date
+  anchorRef?: Ref<HTMLButtonElement>
+  /** Draws the "popover open" ring. */
+  open?: boolean
+  onFollowupClick?: (e: MouseEvent) => void
+  /** When provided (and interactive), the pill shows a × that clears only
+   * `nextFollowupAt`. Touch rows and completed tasks never show it. */
+  onFollowupClear?: (e: MouseEvent) => void
+  /** Just the flag, no day (the phone row; the tooltip and name carry the date). */
+  flagOnly?: boolean
 }
 
 interface TaskPillStatusProps extends PillCommon {
@@ -81,43 +82,26 @@ interface TaskPillStatusProps extends PillCommon {
   onStatusClick?: (e: MouseEvent) => void
 }
 
-// ─── People + orgs ────────────────────────────────────────────────────────────
+// ─── People ───────────────────────────────────────────────────────────────────
 
 export const TaskPillPeople = memo(function TaskPillPeople({
-  people, orgs, interactive = true, compact = false, density = 'default',
-  personColorContext, anchorRef, onPeopleClick, onPersonContextMenu, onOrgContextMenu,
+  people, interactive = true, compact = false, density = 'default',
+  anchorRef, onPeopleClick, onPersonContextMenu,
 }: TaskPillPeopleProps) {
-  if (people.length === 0 && orgs.length === 0) return null
+  if (people.length === 0) return null
   const avatarSize = (compact || density === 'small') ? 'sm' : 'md'
   return (
-    <div ref={anchorRef} className={styles.peopleGroup}>
-      {people.length > 0 && (
-        <AvatarStack
-          people={[...people]}
-          max={compact ? 2 : 3}
-          size={avatarSize}
-          readOnly={!interactive}
-          onClick={interactive ? onPeopleClick : undefined}
-          onPersonContextMenu={interactive && onPersonContextMenu
-            ? (e, p) => onPersonContextMenu(e, p as Person)
-            : undefined}
-          colorContext={personColorContext}
-        />
-      )}
-      {!compact && orgs.length > 0 && (
-        <AvatarStack
-          people={[...orgs]}
-          max={3}
-          size={avatarSize}
-          variant="hollow"
-          readOnly={!interactive}
-          onClick={interactive ? onPeopleClick : undefined}
-          onPersonContextMenu={interactive && onOrgContextMenu
-            ? (e, o) => onOrgContextMenu(e, o as Org)
-            : undefined}
-          colorContext={personColorContext}
-        />
-      )}
+    <div ref={anchorRef} className={styles.peopleGroup} data-pill="people">
+      <AvatarStack
+        people={[...people]}
+        max={compact ? 2 : 3}
+        size={avatarSize}
+        readOnly={!interactive}
+        onClick={interactive ? onPeopleClick : undefined}
+        onPersonContextMenu={interactive && onPersonContextMenu
+          ? (e, p) => onPersonContextMenu(e, p as Person)
+          : undefined}
+      />
     </div>
   )
 })
@@ -125,30 +109,21 @@ export const TaskPillPeople = memo(function TaskPillPeople({
 // ─── Dates ────────────────────────────────────────────────────────────────────
 
 export const TaskPillDates = memo(function TaskPillDates({
-  todo, today, weekStartsOn, interactive = true, compact = false,
-  layout = 'inline', scheduledIntensity, deadlineIntensity,
-  scheduledAnchorRef, onScheduledClick, onDeadlineClick, onDeadlineClear,
+  todo, today, interactive = true, compact = false,
+  dateFormat = 'short', deadlineIntensity,
+  onDeadlineClick, onDeadlineClear,
 }: TaskPillDatesProps) {
-  const hasScheduled = !!todo.scheduledDate
   const hasDeadline = !!todo.dueDate
-  if (!hasScheduled && !hasDeadline) return null
+  if (!hasDeadline) return null
 
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
   const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
 
   if (compact) {
     return (
       <>
-        {hasDeadline && (
-          <span className={styles.markerDeadline} aria-label="Deadline">
-            <StatusIcon icon="clock" />
-          </span>
-        )}
-        {hasScheduled && (
-          <span className={styles.markerScheduled} aria-label="Scheduled">
-            <StatusIcon icon="calendar" />
-          </span>
-        )}
+        <span className={styles.markerDeadline} aria-label="Due">
+          <StatusIcon icon="clock" />
+        </span>
         {todo.recurrenceRule && (
           <span
             className={styles.markerRecurrence}
@@ -162,55 +137,25 @@ export const TaskPillDates = memo(function TaskPillDates({
     )
   }
 
-  const scheduledChipStyle: CSSProperties | undefined =
-    scheduledIntensity != null
-      ? ({ '--date-intensity': scheduledIntensity } as CSSProperties)
-      : undefined
   const deadlineChipStyle: CSSProperties | undefined =
     deadlineIntensity != null
       ? ({ '--date-intensity': deadlineIntensity } as CSSProperties)
       : undefined
 
-  const scheduledChip = hasScheduled && (
-    interactive ? (
-      <button
-        ref={scheduledAnchorRef}
-        type="button"
-        className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-        style={scheduledChipStyle}
-        onClick={onScheduledClick}
-        title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-        aria-label="Edit scheduled"
-      >
-        <StatusIcon icon="calendar" />
-        {scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}
-      </button>
-    ) : (
-      <span
-        className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-        style={scheduledChipStyle}
-        title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-      >
-        <StatusIcon icon="calendar" />
-        {scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}
-      </span>
-    )
-  )
-
-  const deadlineSecondary = hasDeadline && hasScheduled && layout === 'stack'
-  const deadlineChipClass = `${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''} ${deadlineSecondary ? styles.dateStackSecondary : ''}`
-  const deadlineChip = hasDeadline && (
+  const deadlineChipClass = `${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`
+  const deadlineChip = (
     interactive ? (
       <button
         type="button"
         className={deadlineChipClass}
         style={deadlineChipStyle}
         onClick={onDeadlineClick}
-        title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
-        aria-label="Edit deadline"
+        data-pill="due"
+        title={deadlinePast ? 'Due date passed — click to change' : 'Due — click to change'}
+        aria-label="Edit due date"
       >
         <StatusIcon icon="clock" />
-        {formatDateShort(todo.dueDate!)}
+        {dateFormat === 'numeric' ? formatDateNumeric(todo.dueDate!) : formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
           <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
@@ -221,8 +166,8 @@ export const TaskPillDates = memo(function TaskPillDates({
             className={styles.chipClear}
             role="button"
             tabIndex={-1}
-            aria-label="Clear deadline"
-            title="Clear deadline"
+            aria-label="Clear due date"
+            title="Clear due date"
             onClick={(e) => { e.stopPropagation(); onDeadlineClear(e) }}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -234,10 +179,10 @@ export const TaskPillDates = memo(function TaskPillDates({
       <span
         className={deadlineChipClass}
         style={deadlineChipStyle}
-        title={deadlinePast ? 'Deadline passed' : 'Deadline'}
+        title={deadlinePast ? 'Due date passed' : 'Due'}
       >
         <StatusIcon icon="clock" />
-        {formatDateShort(todo.dueDate!)}
+        {dateFormat === 'numeric' ? formatDateNumeric(todo.dueDate!) : formatDateShort(todo.dueDate!)}
         {todo.recurrenceRule && (
           <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
@@ -247,16 +192,75 @@ export const TaskPillDates = memo(function TaskPillDates({
     )
   )
 
-  return layout === 'stack' ? (
-    <div className={styles.dateStack}>
-      {scheduledChip}
-      {deadlineChip}
-    </div>
-  ) : (
+  return (
     <div className={styles.dateInline}>
-      {scheduledChip}
       {deadlineChip}
     </div>
+  )
+})
+
+// ─── Follow-up ────────────────────────────────────────────────────────────────
+
+export const TaskPillFollowup = memo(function TaskPillFollowup({
+  todo, today, interactive = true, compact = false, anchorRef, open = false,
+  onFollowupClick, onFollowupClear, flagOnly = false,
+}: TaskPillFollowupProps) {
+  const next = compact ? undefined : todo.nextFollowupAt
+  const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
+  if (!next) return null
+  const overdue = isFollowupOverdue(todo, today)
+  const isToday = !todo.isCompleted
+    && startOfDay(new Date(next)).getTime() === startOfDay(today).getTime()
+  const showClear = interactive && !!onFollowupClear && !todo.isCompleted
+  const cls = [
+    styles.followupChip,
+    overdue ? styles.followupChipOverdue : '',
+    isToday ? styles.followupChipToday : '',
+    showClear ? styles.followupChipWithClear : '',
+    open ? styles.followupChipOpen : '',
+    flagOnly ? styles.followupChipFlagOnly : '',
+  ].filter(Boolean).join(' ')
+  const label = followupPillLabel(todo, today)
+
+  if (!interactive) {
+    return (
+      <span className={cls} data-followup-overdue={overdue ? 'true' : undefined} {...triggerProps}>
+        <FollowupFlagIcon />
+        {!flagOnly && label}
+        {tooltip}
+      </span>
+    )
+  }
+  return (
+    <button
+      ref={anchorRef}
+      type="button"
+      className={cls}
+      onClick={onFollowupClick}
+      {...triggerProps}
+      aria-label={`Follow-up: ${label}${overdue ? ', late' : ''}`}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      data-pill="followup"
+      data-followup-overdue={overdue ? 'true' : undefined}
+    >
+      <FollowupFlagIcon />
+      {!flagOnly && <span className={styles.followupLabel}>{label}</span>}
+      {showClear && (
+        <span
+          className={styles.followupClear}
+          role="button"
+          tabIndex={-1}
+          aria-label="Clear follow-up"
+          onClick={(e) => { e.stopPropagation(); onFollowupClear(e) }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          &times;
+        </span>
+      )}
+      {tooltip}
+    </button>
   )
 })
 
@@ -297,32 +301,31 @@ export const TaskPillStatus = memo(function TaskPillStatus({
   )
 })
 
-// ─── Composed default — people → dates → status ──────────────────────────────
+// ─── Composed default — people → dates → follow-up → status ─────────────────
 
 interface TaskPillBarProps extends PillCommon {
   todo: PersistedTodoItem
   /** Pre-resolved people assignment for this todo. */
   people: readonly Person[]
-  /** Pre-resolved org assignment for this todo. */
-  orgs: readonly Org[]
   /** Pre-resolved status (or undefined). */
   status?: Status
   today: Date
-  weekStartsOn: 0 | 1
 
-  /** `'stack'` = TaskRow's vertical date column, `'inline'` (default) =
-   * horizontal flow. */
-  dateLayout?: 'inline' | 'stack'
+  /** The due date as `Oct 20` (default) or `10/20`. */
+  dateFormat?: 'short' | 'numeric'
+  /** The follow-up pill as just its flag. */
+  followupFlagOnly?: boolean
   /** Hide the status indicator entirely — `MobileTaskRow` renders status
    * outside the metaRow so it passes `false`. */
   showStatus?: boolean
 
-  scheduledIntensity?: number
   deadlineIntensity?: number
 
   peopleAnchorRef?: Ref<HTMLDivElement>
-  scheduledAnchorRef?: Ref<HTMLButtonElement>
+  followupAnchorRef?: Ref<HTMLButtonElement>
   statusAnchorRef?: Ref<HTMLDivElement>
+  /** Follow-up popover is open — draws the pill's open ring. */
+  followupOpen?: boolean
 
   /** Mark the read-only wrapper `aria-hidden="true"` — used by SearchResultRow
    * where the surrounding `<button>` carries the canonical text and the pills
@@ -331,22 +334,23 @@ interface TaskPillBarProps extends PillCommon {
 
   onPeopleClick?: (e: MouseEvent) => void
   onPersonContextMenu?: (e: MouseEvent, person: Person) => void
-  onOrgContextMenu?: (e: MouseEvent, org: Org) => void
-  onScheduledClick?: (e: MouseEvent) => void
   onDeadlineClick?: (e: MouseEvent) => void
   onDeadlineClear?: (e: MouseEvent) => void
+  onFollowupClick?: (e: MouseEvent) => void
+  onFollowupClear?: (e: MouseEvent) => void
   onStatusClick?: (e: MouseEvent) => void
 }
 
 export const TaskPillBar = memo(function TaskPillBar({
-  todo, people, orgs, status, today, weekStartsOn,
+  todo, people, status, today,
   interactive = true, compact = false, density = 'default',
-  dateLayout = 'inline', showStatus = true,
-  scheduledIntensity, deadlineIntensity, personColorContext,
-  peopleAnchorRef, scheduledAnchorRef, statusAnchorRef,
-  ariaHidden,
-  onPeopleClick, onPersonContextMenu, onOrgContextMenu,
-  onScheduledClick, onDeadlineClick, onDeadlineClear, onStatusClick,
+  dateFormat = 'short', followupFlagOnly = false, showStatus = true,
+  deadlineIntensity,
+  peopleAnchorRef, followupAnchorRef, statusAnchorRef,
+  followupOpen, ariaHidden,
+  onPeopleClick, onPersonContextMenu,
+  onDeadlineClick, onDeadlineClear,
+  onFollowupClick, onFollowupClear, onStatusClick,
 }: TaskPillBarProps) {
   // For interactive surfaces the chips ARE the click targets, so the bar
   // emits a fragment and the surface owns its own flex container. For
@@ -356,29 +360,33 @@ export const TaskPillBar = memo(function TaskPillBar({
     <>
       <TaskPillPeople
         people={people}
-        orgs={orgs}
         interactive={interactive}
         compact={compact}
         density={density}
-        personColorContext={personColorContext}
         anchorRef={peopleAnchorRef}
         onPeopleClick={onPeopleClick}
         onPersonContextMenu={onPersonContextMenu}
-        onOrgContextMenu={onOrgContextMenu}
       />
       <TaskPillDates
         todo={todo}
         today={today}
-        weekStartsOn={weekStartsOn}
         interactive={interactive}
         compact={compact}
-        layout={dateLayout}
-        scheduledIntensity={scheduledIntensity}
+        dateFormat={dateFormat}
         deadlineIntensity={deadlineIntensity}
-        scheduledAnchorRef={scheduledAnchorRef}
-        onScheduledClick={onScheduledClick}
         onDeadlineClick={onDeadlineClick}
         onDeadlineClear={onDeadlineClear}
+      />
+      <TaskPillFollowup
+        todo={todo}
+        today={today}
+        interactive={interactive}
+        compact={compact}
+        anchorRef={followupAnchorRef}
+        open={followupOpen}
+        onFollowupClick={onFollowupClick}
+        onFollowupClear={onFollowupClear}
+        flagOnly={followupFlagOnly}
       />
       {showStatus && (
         <TaskPillStatus

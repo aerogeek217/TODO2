@@ -1,11 +1,13 @@
 import { db } from './database'
+import { readDataTables } from './export-data'
+import { DATA_TABLE_NAMES, type DataTableName } from './tables'
 import {
   KNOWN_DB_TABLES,
-  KNOWN_TABLE_KEYS,
   validateRow,
   isKnownSettingKey,
+  rowFixes,
+  sanitizeRow,
 } from './import-validation'
-import { hasPreciseRecurrenceAnchor } from './recurrence-anchor'
 
 export interface AuditSample {
   /** The full offending record. JSON-serialised verbatim in the detail popup. */
@@ -32,19 +34,22 @@ export interface AuditIssue {
   table: string
   description: string
   count: number
-  /** IDs of rows to delete (join/taskboard orphans) or update (dangling FK) */
+  /** IDs of rows to delete (join orphans) or update (dangling FK) */
   ids: number[]
   /**
-   * String keys for delete-by-key tables. Used by the unknown-setting check —
-   * `db.settings` is keyed by `key`, not numeric `id`.
+   * String keys for tables keyed by string — `db.settings` is keyed by
+   * `key`, not numeric `id`. Used by the settings passes (delete or
+   * sanitize by key).
    */
   keys?: string[]
   /**
    * `'drop-store'` wipes an entire IDB object store via raw IDB (Dexie does
    * not expose deleteObjectStore at runtime; the closest safe primitive is
    * `clear()`). The empty store remains until a future schema bump.
+   * `'sanitize'` rewrites each row the way import stores it (`sanitizeRow`),
+   * dropping the malformed parts `rowFixes` names.
    */
-  fix: 'delete' | 'clear-field' | 'drop-store'
+  fix: 'delete' | 'clear-field' | 'drop-store' | 'sanitize'
   field?: string
   /**
    * Up to `MAX_SAMPLES_PER_ISSUE` of the offending rows for the detail popup.
@@ -117,14 +122,20 @@ function joinTargetTable(field: string): string {
   switch (field) {
     case 'todoId': return 'todos'
     case 'personId': return 'people'
-    case 'orgId': return 'orgs'
     case 'tagId': return 'tags'
-    case 'canvasId': return 'canvases'
-    case 'projectId': return 'projects'
     case 'statusId': return 'statuses'
+    case 'listDefinitionId': return 'listDefinitions'
     default: return field
   }
 }
+
+/**
+ * Tables whose unreadable rows cleanup repairs instead of deleting: a layout
+ * the validator rejects is rebuilt with its bad parts dropped (`sanitizeRow`
+ * → `pickLayout`), so cleanup never deletes a layout — the active one, maybe
+ * the only one, included.
+ */
+const REPAIRED_NOT_DELETED: ReadonlySet<DataTableName> = new Set<DataTableName>(['layouts'])
 
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
@@ -155,70 +166,65 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const [
-    todos, projects, canvases, people, orgs, statuses, tags,
-    todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
-    listInsets, floatingNotes, floatingCalendars, floatingTaskboards, floatingHorizons,
-    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
-    settingsRows, listDefinitions, notes,
-  ] = await Promise.all([
-    db.todos.toArray(),
-    db.projects.toArray(),
-    db.canvases.toArray(),
-    db.people.toArray(),
-    db.orgs.toArray(),
-    db.statuses.toArray(),
-    db.tags.toArray(),
-    db.todoPeople.toArray(),
-    db.todoOrgs.toArray(),
-    db.todoTags.toArray(),
-    db.personOrgs.toArray(),
-    db.taskboards.toArray(),
-    db.listInsets.toArray(),
-    db.floatingNotes.toArray(),
-    db.floatingCalendars.toArray(),
-    db.floatingTaskboards.toArray(),
-    db.floatingHorizons.toArray(),
-    db.floatingStatus.toArray(),
-    db.floatingScoreboard.toArray(),
-    db.floatingSnoozeGraveyard.toArray(),
-    db.todoEvents.toArray(),
-    db.settings.toArray(),
-    db.listDefinitions.toArray(),
-    db.notes.toArray(),
-  ])
+  const tables = await readDataTables()
+  const { todos, people, statuses, tags, todoPeople, todoTags, todoEvents, listDefinitions, listOrders } = tables
+  const settingsRows = tables.settings
 
   // --- Unknown rows in known tables ---
   // Run validateRow over every row so a forced cross-floor load surfaces any
   // pre-strip-shape data the current validators reject. Skip `settings` —
-  // it's keyed by string (`key`) rather than numeric `id`, so the two
-  // dedicated settings passes below handle it via delete-by-key: the
-  // unknown-key pass for rows whose `key` isn't recognized, and the
-  // invalid-value pass for rows whose `key` is fine but whose `value`
-  // fails the per-key value validator (legacy shapes, stale formats).
-  const knownTableRows: Partial<Record<string, unknown[]>> = {
-    canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
-    todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards,
-    statuses, listDefinitions, notes,
-    floatingCalendars, floatingNotes, floatingHorizons,
-    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
-  }
-  for (const tableKey of KNOWN_TABLE_KEYS) {
+  // it's keyed by string (`key`) rather than numeric `id`, so the
+  // dedicated settings passes below handle it by key: the unknown-key pass
+  // for rows whose `key` isn't recognized and the invalid-value pass for
+  // rows whose `value` fails the per-key validator (legacy shapes, stale
+  // formats) delete; the fixable-value pass sanitises a readable value with
+  // parts an import would drop.
+  // A layout the validator rejects is repaired, never deleted
+  // (`REPAIRED_NOT_DELETED`).
+  for (const tableKey of DATA_TABLE_NAMES) {
     if (tableKey === 'settings') continue
-    const rows = knownTableRows[tableKey] ?? []
+    const rows: readonly unknown[] = tables[tableKey]
     const badIds: number[] = []
     const badSamples: AuditSample[] = []
+    const fixIds: number[] = []
+    const fixSamples: AuditSample[] = []
+    const repairIds: number[] = []
+    const repairSamples: AuditSample[] = []
     for (const row of rows) {
       const result = validateRow(tableKey, row)
-      if (result === true) continue
+      if (result === true) {
+        // Readable, but with parts an import would drop (e.g. a malformed
+        // list filter stored before import checked them).
+        const fixes = rowFixes(tableKey, row)
+        const id = (row as { id?: number }).id
+        if (fixes.length > 0 && typeof id === 'number') {
+          fixIds.push(id)
+          if (fixSamples.length < MAX_SAMPLES_PER_ISSUE) {
+            fixSamples.push({ row: toSampleRow(row), id, note: `Cleanup: ${fixes.join(', ')}` })
+          }
+        }
+        continue
+      }
       const id = (row as { id?: number }).id
       if (typeof id !== 'number') continue
+      // `validateRow` returns the bad field name (or a short phrase like
+      // "key (unrecognized)") on failure. Strip the parenthetical so the
+      // popup can highlight the field name reliably.
+      const badField = result.replace(/\s*\(.*\)$/, '').trim()
+      if (REPAIRED_NOT_DELETED.has(tableKey)) {
+        repairIds.push(id)
+        if (repairSamples.length < MAX_SAMPLES_PER_ISSUE) {
+          repairSamples.push({
+            row: toSampleRow(row),
+            id,
+            badFields: badField ? [badField] : [],
+            note: `Schema validator rejected this row: ${result}. Cleanup: ${rowFixes(tableKey, row).join(', ')}`,
+          })
+        }
+        continue
+      }
       badIds.push(id)
       if (badSamples.length < MAX_SAMPLES_PER_ISSUE) {
-        // `validateRow` returns the bad field name (or a short phrase like
-        // "key (unrecognized)") on failure. Strip the parenthetical so the
-        // popup can highlight the field name reliably.
-        const badField = result.replace(/\s*\(.*\)$/, '').trim()
         badSamples.push({
           row: toSampleRow(row),
           id,
@@ -235,6 +241,26 @@ export async function auditData(): Promise<AuditReport> {
         ids: badIds,
         fix: 'delete',
         samples: badSamples,
+      })
+    }
+    if (fixIds.length > 0) {
+      issues.push({
+        table: tableKey,
+        description: `Rows in "${tableKey}" with malformed parts (cleanup drops those parts, as an import would)`,
+        count: fixIds.length,
+        ids: fixIds,
+        fix: 'sanitize',
+        samples: fixSamples,
+      })
+    }
+    if (repairIds.length > 0) {
+      issues.push({
+        table: tableKey,
+        description: `Rows in "${tableKey}" that the current schema cannot read (cleanup drops their bad parts and keeps the rest)`,
+        count: repairIds.length,
+        ids: repairIds,
+        fix: 'sanitize',
+        samples: repairSamples,
       })
     }
   }
@@ -260,9 +286,8 @@ export async function auditData(): Promise<AuditReport> {
 
   // --- Settings rows with recognized keys but invalid values ---
   // The store-load code silently falls back to defaults for a row whose value
-  // fails to parse (e.g. a pre-strip legacy-map-shape `horizonSlots`), so the
-  // user sees missing state — empty horizon ribbon, lost canvas viewport —
-  // and exporting the DB round-trips the bad row into a backup that
+  // fails to parse (e.g. a malformed `followupDefaultInterval`), so the user
+  // sees missing state, and exporting the DB round-trips the bad row into a backup that
   // `validateImportData` then refuses to re-import. Surface it here so the
   // audit cleanup can drop the row and let the next save re-seed.
   const invalidSettings = settingsRows
@@ -290,157 +315,86 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
+  // --- Settings rows with parts an import would drop ---
+  // Readable rows whose value import rewrites without some parts (the
+  // keyboard shortcut overrides that are unknown, refused or clashing):
+  // the same `rowFixes` / `sanitizeRow` as import, by key.
+  const fixableSettings = settingsRows
+    .filter((s) => isKnownSettingKey(s.key) && validateRow('settings', s) === true)
+    .map((s) => ({ row: s, fixes: rowFixes('settings', s) }))
+    .filter((p) => p.fixes.length > 0)
+  if (fixableSettings.length > 0) {
+    issues.push({
+      table: 'settings',
+      description: 'Settings rows with malformed parts (cleanup drops those parts, as an import would)',
+      count: fixableSettings.length,
+      ids: [],
+      keys: fixableSettings.map((p) => p.row.key),
+      fix: 'sanitize',
+      samples: fixableSettings.slice(0, MAX_SAMPLES_PER_ISSUE).map(({ row, fixes }) => ({
+        row: { key: row.key, value: row.value },
+        id: row.key,
+        badFields: ['value'],
+        note: `Cleanup: ${fixes.join(', ')}`,
+      })),
+    })
+  }
+
   const todoIds = new Set(todos.map((t) => t.id!))
-  const projectIds = new Set(projects.map((p) => p.id!))
-  const canvasIds = new Set(canvases.map((c) => c.id!))
   const personIds = new Set(people.map((p) => p.id!))
-  const orgIds = new Set(orgs.map((o) => o.id!))
   const statusIds = new Set(statuses.map((s) => s.id!))
   const tagIds = new Set(tags.map((t) => t.id!))
 
   // --- Orphaned join rows ---
 
-  // Helper: build a sample for an orphan-join row, naming which FK is missing.
-  const joinSample = (row: Record<string, unknown>, checks: { field: string; valid: boolean }[]): AuditSample => {
-    const missing = checks.filter((c) => !c.valid).map((c) => c.field)
-    const note = missing
-      .map((f) => `${f} ${String(row[f])} not in ${joinTargetTable(f)}`)
-      .join(' • ')
-    return {
-      row: toSampleRow(row),
-      id: typeof row.id === 'number' ? (row.id as number) : undefined,
-      badFields: missing,
-      note,
-    }
-  }
-
-  const orphanedTodoPeople = todoPeople.filter(
-    (r) => !todoIds.has(r.todoId) || !personIds.has(r.personId),
-  )
-  if (orphanedTodoPeople.length > 0) {
+  /**
+   * One `delete` issue for the rows of `table` with a foreign key whose
+   * target is gone (`fks`: each column and the ids it may hold); nothing when
+   * every row is whole. Each sample names the missing targets.
+   */
+  const orphanJoinRows = <R extends { id?: number }>(
+    table: string,
+    description: string,
+    rows: readonly R[],
+    fks: ReadonlyArray<{ field: keyof R & string; ids: ReadonlySet<number> }>,
+  ): void => {
+    const missingOf = (row: R) => fks.filter(({ field, ids }) => !ids.has(row[field] as number)).map((fk) => fk.field)
+    const orphans = rows.filter((r) => missingOf(r).length > 0)
+    if (orphans.length === 0) return
     issues.push({
-      table: 'todoPeople',
-      description: 'Person assignments referencing deleted todos or people',
-      count: orphanedTodoPeople.length,
-      ids: orphanedTodoPeople.map((r) => r.id!),
+      table,
+      description,
+      count: orphans.length,
+      ids: orphans.map((r) => r.id!),
       fix: 'delete',
-      samples: orphanedTodoPeople.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'personId', valid: personIds.has(r.personId) },
-        ]),
-      ),
+      samples: orphans.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) => {
+        const row = r as unknown as Record<string, unknown>
+        const missing = missingOf(r)
+        return {
+          row: toSampleRow(row),
+          id: typeof row.id === 'number' ? row.id : undefined,
+          badFields: missing,
+          note: missing.map((f) => `${f} ${String(row[f])} not in ${joinTargetTable(f)}`).join(' • '),
+        }
+      }),
     })
   }
 
-  const orphanedTodoOrgs = todoOrgs.filter(
-    (r) => !todoIds.has(r.todoId) || !orgIds.has(r.orgId),
-  )
-  if (orphanedTodoOrgs.length > 0) {
-    issues.push({
-      table: 'todoOrgs',
-      description: 'Org assignments referencing deleted todos or orgs',
-      count: orphanedTodoOrgs.length,
-      ids: orphanedTodoOrgs.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedTodoOrgs.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'orgId', valid: orgIds.has(r.orgId) },
-        ]),
-      ),
-    })
-  }
-
-  const orphanedPersonOrgs = personOrgs.filter(
-    (r) => !personIds.has(r.personId) || !orgIds.has(r.orgId),
-  )
-  if (orphanedPersonOrgs.length > 0) {
-    issues.push({
-      table: 'personOrgs',
-      description: 'Person-org memberships referencing deleted people or orgs',
-      count: orphanedPersonOrgs.length,
-      ids: orphanedPersonOrgs.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedPersonOrgs.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'personId', valid: personIds.has(r.personId) },
-          { field: 'orgId', valid: orgIds.has(r.orgId) },
-        ]),
-      ),
-    })
-  }
-
-  const orphanedTodoTags = todoTags.filter(
-    (r) => !todoIds.has(r.todoId) || !tagIds.has(r.tagId),
-  )
-  if (orphanedTodoTags.length > 0) {
-    issues.push({
-      table: 'todoTags',
-      description: 'Tag assignments referencing deleted todos or tags',
-      count: orphanedTodoTags.length,
-      ids: orphanedTodoTags.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedTodoTags.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'tagId', valid: tagIds.has(r.tagId) },
-        ]),
-      ),
-    })
-  }
-
-  const orphanedTodoEvents = todoEvents.filter((r) => !todoIds.has(r.todoId))
-  if (orphanedTodoEvents.length > 0) {
-    issues.push({
-      table: 'todoEvents',
-      description: 'Event-log entries referencing deleted todos',
-      count: orphanedTodoEvents.length,
-      ids: orphanedTodoEvents.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedTodoEvents.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-        ]),
-      ),
-    })
-  }
-
-  // Entries inside each taskboard pointing at deleted todos are reported per-board
-  // (fix: 'clear-field' writes back a filtered entries list).
-  const taskboardsWithOrphanedEntries = taskboards.filter((t) =>
-    t.entries.some((e) => !todoIds.has(e.todoId)),
-  )
-  if (taskboardsWithOrphanedEntries.length > 0) {
-    // Sample shape is one row per offending entry (not per board) so the popup
-    // can show the actual stale `todoId` rather than the surrounding board.
-    const taskboardSamples: AuditSample[] = []
-    for (const board of taskboardsWithOrphanedEntries) {
-      for (const entry of board.entries) {
-        if (todoIds.has(entry.todoId)) continue
-        if (taskboardSamples.length >= MAX_SAMPLES_PER_ISSUE) break
-        taskboardSamples.push({
-          row: { taskboardId: board.id, ...toSampleRow(entry) },
-          id: board.id,
-          badFields: ['todoId'],
-          note: `todoId ${entry.todoId} not in todos (board #${board.id})`,
-        })
-      }
-      if (taskboardSamples.length >= MAX_SAMPLES_PER_ISSUE) break
-    }
-    issues.push({
-      table: 'taskboards',
-      description: 'Taskboard entries referencing deleted todos',
-      count: taskboardsWithOrphanedEntries.reduce(
-        (n, t) => n + t.entries.filter((e) => !todoIds.has(e.todoId)).length,
-        0,
-      ),
-      ids: taskboardsWithOrphanedEntries.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'entries',
-      samples: taskboardSamples,
-    })
-  }
+  orphanJoinRows('todoPeople', 'Person assignments referencing deleted todos or people', todoPeople, [
+    { field: 'todoId', ids: todoIds },
+    { field: 'personId', ids: personIds },
+  ])
+  orphanJoinRows('todoTags', 'Tag assignments referencing deleted todos or tags', todoTags, [
+    { field: 'todoId', ids: todoIds },
+    { field: 'tagId', ids: tagIds },
+  ])
+  orphanJoinRows('listOrders', 'Manual list order entries referencing deleted todos or lists', listOrders, [
+    { field: 'todoId', ids: todoIds },
+    { field: 'listDefinitionId', ids: new Set(listDefinitions.map((d) => d.id!)) },
+  ])
+  orphanJoinRows('todoEvents', 'Event-log entries referencing deleted todos', todoEvents, [
+    { field: 'todoId', ids: todoIds },
+  ])
 
   // Helper: sample a row whose single FK column points at a deleted entity.
   // The popup highlights the dangling field and notes the missing target.
@@ -458,51 +412,7 @@ export async function auditData(): Promise<AuditReport> {
       }
     })
 
-  const floatingTaskboardsWithBadCanvas = floatingTaskboards.filter(
-    (t) => !canvasIds.has(t.canvasId),
-  )
-  if (floatingTaskboardsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingTaskboards',
-      description: 'Floating taskboards referencing deleted canvases',
-      count: floatingTaskboardsWithBadCanvas.length,
-      ids: floatingTaskboardsWithBadCanvas.map((t) => t.id!),
-      fix: 'delete',
-      samples: fkSample(floatingTaskboardsWithBadCanvas, 'canvasId'),
-    })
-  }
-
   // --- Dangling foreign keys on entities ---
-
-  const todosWithBadProject = todos.filter(
-    (t) => t.projectId != null && !projectIds.has(t.projectId),
-  )
-  if (todosWithBadProject.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Todos referencing deleted projects',
-      count: todosWithBadProject.length,
-      ids: todosWithBadProject.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'projectId',
-      samples: fkSample(todosWithBadProject, 'projectId'),
-    })
-  }
-
-  const todosWithBadCanvas = todos.filter(
-    (t) => t.canvasId != null && !canvasIds.has(t.canvasId),
-  )
-  if (todosWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Todos referencing deleted canvases',
-      count: todosWithBadCanvas.length,
-      ids: todosWithBadCanvas.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'canvasId',
-      samples: fkSample(todosWithBadCanvas, 'canvasId'),
-    })
-  }
 
   const todosWithBadStatus = todos.filter(
     (t) => t.statusId != null && !statusIds.has(t.statusId),
@@ -519,157 +429,21 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const projectsWithBadCanvas = projects.filter(
-    (p) => p.canvasId != null && !canvasIds.has(p.canvasId),
-  )
-  if (projectsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'projects',
-      description: 'Projects referencing deleted canvases',
-      count: projectsWithBadCanvas.length,
-      ids: projectsWithBadCanvas.map((p) => p.id!),
-      fix: 'clear-field',
-      field: 'canvasId',
-      samples: fkSample(projectsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const listInsetsWithBadCanvas = listInsets.filter(
-    (l) => l.canvasId != null && !canvasIds.has(l.canvasId),
-  )
-  if (listInsetsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'listInsets',
-      description: 'List insets referencing deleted canvases',
-      count: listInsetsWithBadCanvas.length,
-      ids: listInsetsWithBadCanvas.map((l) => l.id!),
-      fix: 'delete',
-      samples: fkSample(listInsetsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingNotesWithBadCanvas = floatingNotes.filter(
-    (n) => !canvasIds.has(n.canvasId),
-  )
-  if (floatingNotesWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingNotes',
-      description: 'Floating notes referencing deleted canvases',
-      count: floatingNotesWithBadCanvas.length,
-      ids: floatingNotesWithBadCanvas.map((n) => n.id!),
-      fix: 'delete',
-      samples: fkSample(floatingNotesWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingCalendarsWithBadCanvas = floatingCalendars.filter(
-    (c) => !canvasIds.has(c.canvasId),
-  )
-  if (floatingCalendarsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingCalendars',
-      description: 'Floating calendars referencing deleted canvases',
-      count: floatingCalendarsWithBadCanvas.length,
-      ids: floatingCalendarsWithBadCanvas.map((c) => c.id!),
-      fix: 'delete',
-      samples: fkSample(floatingCalendarsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingHorizonsWithBadCanvas = floatingHorizons.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingHorizonsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingHorizons',
-      description: 'Floating horizons referencing deleted canvases',
-      count: floatingHorizonsWithBadCanvas.length,
-      ids: floatingHorizonsWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingHorizonsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingStatusWithBadCanvas = floatingStatus.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingStatusWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingStatus',
-      description: 'Floating status widgets referencing deleted canvases',
-      count: floatingStatusWithBadCanvas.length,
-      ids: floatingStatusWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingStatusWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingScoreboardWithBadCanvas = floatingScoreboard.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingScoreboardWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingScoreboard',
-      description: 'Floating scoreboard widgets referencing deleted canvases',
-      count: floatingScoreboardWithBadCanvas.length,
-      ids: floatingScoreboardWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingScoreboardWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingSnoozeGraveyardWithBadCanvas = floatingSnoozeGraveyard.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingSnoozeGraveyardWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingSnoozeGraveyard',
-      description: 'Floating snooze graveyard widgets referencing deleted canvases',
-      count: floatingSnoozeGraveyardWithBadCanvas.length,
-      ids: floatingSnoozeGraveyardWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingSnoozeGraveyardWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  // --- Unplaced tasks: on a canvas but not in any project (invisible in canvas view) ---
-
-  const unplacedTasks = todos.filter(
-    (t) => t.canvasId != null && t.projectId == null,
-  )
-  if (unplacedTasks.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Tasks not assigned to any project (invisible on canvas)',
-      count: unplacedTasks.length,
-      ids: unplacedTasks.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'canvasId',
-      samples: unplacedTasks.slice(0, MAX_SAMPLES_PER_ISSUE).map((t) => ({
-        row: toSampleRow(t as unknown as Record<string, unknown>),
-        id: t.id,
-        badFields: ['canvasId', 'projectId'],
-        note: 'Has canvasId but no projectId — the canvas view filters tasks by project, so this row is invisible there',
-      })),
-    })
-  }
-
-  // --- Orphaned recurrence rules: rule set, but no precise anchor remains.
-  // `recurrenceAnchor` (services/recurrence.ts) returns null without a
-  // `dueDate` or precise `scheduledDate`, so `advanceRecurring` short-circuits
-  // and the rule never fires — the row carries dead data on disk. The
+  // --- Orphaned recurrence rules: rule set, but no due date to advance.
+  // A rule advances from the `dueDate`; without one `advanceRecurring`
+  // (services/recurrence.ts) short-circuits and the rule never fires — the row carries dead data on disk. The
   // repository invariant (`todoRepository.update` / `bulkUpdate`) catches
   // this on every new write; this audit pass catches legacy rows that
   // pre-date the invariant or were written by a path that bypassed the
   // repository (e.g. raw `db.todos.update` somewhere). `clear-field` cleanup
   // strips `recurrenceRule`, leaving the rest of the row intact.
   const orphanedRecurrence = todos.filter(
-    (t) => t.recurrenceRule != null && !hasPreciseRecurrenceAnchor(t),
+    (t) => t.recurrenceRule != null && t.dueDate == null,
   )
   if (orphanedRecurrence.length > 0) {
     issues.push({
       table: 'todos',
-      description: 'Todos with a recurrence rule but no precise anchor (rule never fires)',
+      description: 'Todos with a recurrence rule but no due date (rule never fires)',
       count: orphanedRecurrence.length,
       ids: orphanedRecurrence.map((t) => t.id!),
       fix: 'clear-field',
@@ -678,7 +452,7 @@ export async function auditData(): Promise<AuditReport> {
         row: toSampleRow(t as unknown as Record<string, unknown>),
         id: t.id,
         badFields: ['recurrenceRule'],
-        note: 'Recurrence rule has no precise anchor (no dueDate or precise scheduledDate) — the rule can never fire',
+        note: 'Recurrence rule has no anchor (no dueDate) — the rule can never fire',
       })),
     })
   }
@@ -703,8 +477,6 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   }
 
   await db.transaction('rw', db.tables, async () => {
-    // Taskboards need a special per-row entry filter rather than a blind field-clear.
-    const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))
     for (const issue of issues) {
       if (issue.fix === 'drop-store') continue
       if (issue.fix === 'delete') {
@@ -715,12 +487,12 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
           await table.bulkDelete(issue.ids)
         }
         cleaned += issue.count
-      } else if (issue.table === 'taskboards' && issue.field === 'entries') {
-        for (const id of issue.ids) {
-          const row = await db.taskboards.get(id)
-          if (!row) continue
-          const filtered = row.entries.filter((e) => todoIds.has(e.todoId))
-          await db.taskboards.update(id, { entries: filtered, updatedAt: new Date() })
+      } else if (issue.fix === 'sanitize') {
+        const table = db.table(issue.table)
+        const key = issue.table as Parameters<typeof sanitizeRow>[0]
+        for (const id of issue.keys && issue.keys.length > 0 ? issue.keys : issue.ids) {
+          const row: unknown = await table.get(id)
+          if (row !== undefined) await table.put(sanitizeRow(key, row))
         }
         cleaned += issue.count
       } else if (issue.fix === 'clear-field' && issue.field) {

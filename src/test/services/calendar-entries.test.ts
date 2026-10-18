@@ -1,96 +1,144 @@
 import { describe, it, expect } from 'vitest'
-import { buildEntries } from '../../services/calendar-entries'
-import { startOfDay, MS_PER_DAY } from '../../utils/date'
+import {
+  buildEntries,
+  calendarEntryState,
+  dayDots,
+  dayOverdueWash,
+  isEntryOverdue,
+} from '../../services/calendar-entries'
+import { dayKey, startOfDay, MS_PER_DAY } from '../../utils/date'
 import { makeTodo } from '../helpers'
 
+const DUE = { due: true, followup: false }
 const today = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
 const days = Array.from({ length: 7 }, (_, i) =>
   startOfDay(new Date(today.getTime() + (i - 3) * MS_PER_DAY)),
 )
 
 describe('buildEntries (shared)', () => {
-  it('places a precise-scheduled todo on its scheduled day', () => {
-    const t = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'date', value: today },
-    })
-    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
-    const entries = map.get(today.toISOString()) ?? []
+  it('places a todo on its due day', () => {
+    const t = makeTodo({ id: 1, dueDate: today })
+    const map = buildEntries([t], days, { dateTypes: DUE })
+    const entries = map.get(dayKey(today)) ?? []
     expect(entries.map((e) => e.todo.id)).toEqual([1])
     expect(entries[0]!.isVirtual).toBe(false)
   })
 
-  it('places a deadline-only todo on its deadline day', () => {
-    const t = makeTodo({ id: 1, dueDate: today })
-    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
-    const entries = map.get(today.toISOString()) ?? []
-    expect(entries.map((e) => e.todo.id)).toEqual([1])
+  it('places a due date with a time of day on that day', () => {
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 12 * 60 * 60 * 1000) })
+    const map = buildEntries([t], days, { dateTypes: DUE })
+    expect((map.get(dayKey(today)) ?? []).map((e) => e.todo.id)).toEqual([1])
   })
 
-  it('skips todos whose primary day is outside the visible range', () => {
-    const farOff = startOfDay(new Date(today.getTime() + 30 * MS_PER_DAY))
-    const t = makeTodo({ id: 1, dueDate: farOff })
-    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
+  it('does not place a todo that only has a next follow-up', () => {
+    const t = makeTodo({ id: 1, nextFollowupAt: today })
+    const map = buildEntries([t], days, { dateTypes: DUE })
     expect([...map.values()].flat()).toHaveLength(0)
   })
 
-  it('sortMode = effective sorts by effective date then sortOrder', () => {
-    const day = today
-    const a = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: day }, sortOrder: 30 })
-    const b = makeTodo({ id: 2, scheduledDate: { kind: 'date', value: day }, sortOrder: 10 })
-    const map = buildEntries([a, b], days, { today, weekStartsOn: 1, sortMode: 'effective' })
-    const entries = map.get(day.toISOString()) ?? []
-    expect(entries.map((e) => e.todo.id)).toEqual([2, 1])
+  it('skips todos whose due day is outside the visible range', () => {
+    const farOff = startOfDay(new Date(today.getTime() + 30 * MS_PER_DAY))
+    const t = makeTodo({ id: 1, dueDate: farOff })
+    const map = buildEntries([t], days, { dateTypes: DUE })
+    expect([...map.values()].flat()).toHaveLength(0)
   })
 
-  it('sortMode = sortOrder ignores effective date when sortOrder differs', () => {
-    const earlier = startOfDay(new Date(today.getTime() - MS_PER_DAY))
-    const later = today
-    const a = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: earlier }, sortOrder: 30 })
-    const b = makeTodo({ id: 2, scheduledDate: { kind: 'date', value: later }, sortOrder: 10 })
-    const map = buildEntries([a, b], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
-    // Each lands on a different day; sort within each day-bucket is by sortOrder
-    expect(map.get(earlier.toISOString())?.[0]?.todo.id).toBe(1)
-    expect(map.get(later.toISOString())?.[0]?.todo.id).toBe(2)
+  it('orders same-day entries by sortOrder, regardless of input order', () => {
+    const a = makeTodo({ id: 1, dueDate: today, sortOrder: 30 })
+    const b = makeTodo({ id: 2, dueDate: today, sortOrder: 10 })
+    const c = makeTodo({ id: 3, dueDate: today, sortOrder: 20 })
+    for (const input of [[a, b, c], [c, a, b]]) {
+      const entries = buildEntries(input, days, { dateTypes: DUE }).get(dayKey(today)) ?? []
+      expect(entries.map((e) => e.todo.id)).toEqual([2, 3, 1])
+    }
+  })
+
+  it('adds virtual entries for the other recurrences in range', () => {
+    const start = days[0]!
+    const t = makeTodo({ id: 1, dueDate: start, recurrenceRule: { type: 'daily' } })
+    const map = buildEntries([t], days, { dateTypes: DUE })
+    expect(map.get(dayKey(start))?.[0]?.isVirtual).toBe(false)
+    for (const d of days.slice(1)) {
+      const [entry] = map.get(dayKey(d)) ?? []
+      expect(entry?.isVirtual, d.toDateString()).toBe(true)
+      expect(entry?.todo.id).toBe(1)
+    }
   })
 
   it('emits no entries for empty days array', () => {
     const t = makeTodo({ id: 1, dueDate: today })
-    const map = buildEntries([t], [], { today, weekStartsOn: 1, sortMode: 'sortOrder' })
+    const map = buildEntries([t], [], { dateTypes: DUE })
     expect(map.size).toBe(0)
   })
+})
 
-  it('places aged fuzzy this-week on the original week\'s window-end day, not the current week\'s', () => {
-    // Regression for fuzzy-schedule-aging-2026-05-09: pre-P1, a fuzzy
-    // `this-week` always resolved to the upcoming Sunday, pinning the card
-    // to the current week's window-end. Post-P1 the resolution anchors on
-    // `setAt`, so a "this-week" picked two weeks ago places on that week's
-    // Sunday — which here is BEFORE the visible window (Wed today − 3 days).
-    // Days array spans today − 3 .. today + 3 (Sun 4/12 .. Sat 4/18).
-    // setAt 2026-04-01 (Wed) → Mon-first this-week ends Sun 4/5 (out of window).
-    const setAt = new Date(2026, 3, 1)
-    const t = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
-    })
-    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
-    expect([...map.values()].flat()).toHaveLength(0)
+const both = { due: true, followup: true }
+
+describe('buildEntries — date types', () => {
+  it('places a task once per shown date type, due before follow-up on a shared day', () => {
+    const t = makeTodo({ id: 1, dueDate: today, nextFollowupAt: today, sortOrder: 5 })
+    const u = makeTodo({ id: 2, nextFollowupAt: today, sortOrder: 1 })
+    const entries = buildEntries([u, t], days, { dateTypes: both }).get(dayKey(today)) ?? []
+    expect(entries.map((e) => [e.todo.id, e.kind])).toEqual([[1, 'due'], [2, 'followup'], [1, 'followup']])
+    expect(new Set(entries.map((e) => e.key)).size).toBe(3)
   })
 
-  it('places fuzzy tomorrow stamped today on today + 1 (within the visible window)', () => {
-    // Mirror of the aging regression above: a fresh-stamp fuzzy resolves
-    // forward via resolveFuzzyOrigin(setAt=today), so 'tomorrow' lands on
-    // today + 1 (Apr 16 = days[4]). Pre-P1 the same input would have
-    // resolved against `today` and given the same answer; this test pins
-    // the post-P1 setAt-anchored path produces a placement that's still in
-    // window.
-    const t = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'fuzzy', token: 'tomorrow', setAt: today },
-    })
-    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
-    const tomorrow = days[4]! // today + 1
-    const entries = map.get(tomorrow.toISOString()) ?? []
-    expect(entries.map((e) => e.todo.id)).toEqual([1])
+  it('follow-ups only: due dates and occurrences are left out', () => {
+    const t = makeTodo({ id: 1, dueDate: days[0], recurrenceRule: { type: 'daily' }, nextFollowupAt: days[2] })
+    const all = [...buildEntries([t], days, { dateTypes: { due: false, followup: true } }).values()].flat()
+    expect(all.map((e) => [e.kind, e.day.toISOString()])).toEqual([['followup', days[2]!.toISOString()]])
+  })
+
+  it('entries carry their day at midnight', () => {
+    const t = makeTodo({ id: 1, nextFollowupAt: new Date(today.getTime() + 15 * 3_600_000) })
+    const [entry] = buildEntries([t], days, { dateTypes: both }).get(dayKey(today)) ?? []
+    expect(entry?.day.getTime()).toBe(today.getTime())
+  })
+})
+
+describe('entry state, overdue washes and dots', () => {
+  const yesterday = days[2]!
+  const tomorrow = days[4]!
+  const entriesOn = (d: Date, todos: Parameters<typeof buildEntries>[0]) =>
+    buildEntries(todos, days, { dateTypes: both }).get(dayKey(d)) ?? []
+
+  it('states: due / due today / overdue due / follow-up / overdue follow-up', () => {
+    const [future] = entriesOn(tomorrow, [makeTodo({ id: 1, dueDate: tomorrow })])
+    const [todayDue] = entriesOn(today, [makeTodo({ id: 2, dueDate: today })])
+    const [late] = entriesOn(yesterday, [makeTodo({ id: 3, dueDate: yesterday })])
+    const [fu] = entriesOn(today, [makeTodo({ id: 4, nextFollowupAt: today })])
+    const [lateFu] = entriesOn(yesterday, [makeTodo({ id: 5, nextFollowupAt: yesterday })])
+    expect([future, todayDue, late, fu, lateFu].map((e) => calendarEntryState(e!, today)))
+      .toEqual(['due', 'due-today', 'due-overdue', 'followup', 'followup-overdue'])
+  })
+
+  it('completed tasks and occurrences are never overdue', () => {
+    const [done] = entriesOn(yesterday, [makeTodo({ id: 1, dueDate: yesterday, isCompleted: true })])
+    expect(isEntryOverdue(done!, today)).toBe(false)
+    const occurrences = entriesOn(yesterday, [makeTodo({ id: 2, dueDate: days[0], recurrenceRule: { type: 'daily' } })])
+    expect(occurrences[0]?.isVirtual).toBe(true)
+    expect(isEntryOverdue(occurrences[0]!, today)).toBe(false)
+  })
+
+  it('a past day washes due over follow-up; follow-up-only days wash yellow', () => {
+    expect(dayOverdueWash(entriesOn(yesterday, [
+      makeTodo({ id: 1, nextFollowupAt: yesterday }),
+      makeTodo({ id: 2, dueDate: yesterday }),
+    ]), today)).toBe('due')
+    expect(dayOverdueWash(entriesOn(yesterday, [makeTodo({ id: 1, nextFollowupAt: yesterday })]), today)).toBe('followup')
+    expect(dayOverdueWash(entriesOn(yesterday, [makeTodo({ id: 1, dueDate: yesterday, isCompleted: true })]), today)).toBeNull()
+  })
+
+  it('dots: up to three, a follow-up always among them', () => {
+    const e = entriesOn(today, [
+      makeTodo({ id: 1, dueDate: today, sortOrder: 1 }),
+      makeTodo({ id: 2, dueDate: today, sortOrder: 2 }),
+      makeTodo({ id: 3, dueDate: today, sortOrder: 3, isCompleted: true }),
+      makeTodo({ id: 4, nextFollowupAt: today, sortOrder: 4 }),
+    ])
+    expect(dayDots(e)).toEqual(['due', 'due', 'followup'])
+    expect(dayDots(e.slice(0, 3))).toEqual(['due', 'due', 'due-done'])
+    const occ = entriesOn(tomorrow, [makeTodo({ id: 5, dueDate: days[0], recurrenceRule: { type: 'daily' } })])
+    expect(dayDots(occ)).toEqual(['occurrence'])
   })
 })

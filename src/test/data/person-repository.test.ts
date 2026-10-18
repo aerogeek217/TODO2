@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { personRepository } from '../../data/person-repository'
-import { orgRepository } from '../../data/org-repository'
 import { captureJoinRows } from '../../data/join-helpers'
+import { newTodoUid } from '../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
@@ -38,7 +38,7 @@ describe('personRepository', () => {
   it('delete removes person AND todoPeople join entries', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, personId)
@@ -53,13 +53,13 @@ describe('personRepository', () => {
     const p1 = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const p2 = await personRepository.insert({ name: 'Bob', initials: 'B' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, p1)
     await personRepository.assignPerson(todoId, p2)
 
-    const people = await personRepository.getAssignedPeople(todoId)
+    const people = (await personRepository.getAssignedPeopleForTodos([todoId])).get(todoId) ?? []
     expect(people).toHaveLength(2)
     expect(people.map(p => p.name).sort()).toEqual(['Alice', 'Bob'])
   })
@@ -67,7 +67,7 @@ describe('personRepository', () => {
   it('assignPerson creates link; idempotent on duplicate', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -80,76 +80,37 @@ describe('personRepository', () => {
   it('unassignPerson removes link', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
     await personRepository.assignPerson(todoId, personId)
     await personRepository.unassignPerson(todoId, personId)
-    const people = await personRepository.getAssignedPeople(todoId)
+    const people = (await personRepository.getAssignedPeopleForTodos([todoId])).get(todoId) ?? []
     expect(people).toHaveLength(0)
   })
 
-  it('removeAllAssignments clears links for a todo', async () => {
-    const p1 = await personRepository.insert({ name: 'Alice', initials: 'A' })
-    const p2 = await personRepository.insert({ name: 'Bob', initials: 'B' })
-    const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
-      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
-    })) as number
-    await personRepository.assignPerson(todoId, p1)
-    await personRepository.assignPerson(todoId, p2)
-
-    await personRepository.removeAllAssignments(todoId)
-    const people = await personRepository.getAssignedPeople(todoId)
-    expect(people).toHaveLength(0)
-  })
-
-  it('getTodoIdsForPerson returns linked todo ids', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
-    const t1 = (await db.todos.add({
-      title: 'Task 1', isCompleted: false,
-      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
-    })) as number
-    const t2 = (await db.todos.add({
-      title: 'Task 2', isCompleted: false,
-      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 2,
-    })) as number
-
-    await personRepository.assignPerson(t1, personId)
-    await personRepository.assignPerson(t2, personId)
-
-    const todoIds = await personRepository.getTodoIdsForPerson(personId)
-    expect(todoIds.sort()).toEqual([t1, t2].sort())
-  })
-
-  it('restoreWithJoins re-inserts the person with id plus todoPeople + personOrgs links', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
+  it('restoreWithJoins re-inserts the person with id, color and todoPeople links', async () => {
+    const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#f28c4e' })
     const person = (await personRepository.getById(personId))!
-    const orgId = await orgRepository.insert({ name: 'Engineering' })
     const todoId = (await db.todos.add({
-      title: 'Task', isCompleted: false,
+      uid: newTodoUid(), title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, personId)
-    await orgRepository.assignPersonToOrg(personId, orgId)
 
     const joins = await captureJoinRows([
       { table: db.todoPeople, key: 'personId', id: personId },
-      { table: db.personOrgs, key: 'personId', id: personId },
     ])
 
     await personRepository.delete(personId)
     expect(await personRepository.getById(personId)).toBeUndefined()
     expect(await db.todoPeople.where('personId').equals(personId).count()).toBe(0)
-    expect(await db.personOrgs.where('personId').equals(personId).count()).toBe(0)
 
     await personRepository.restoreWithJoins(person, joins)
 
-    expect(await personRepository.getById(personId)).toMatchObject({ id: personId, name: 'Alice' })
+    expect(await personRepository.getById(personId)).toMatchObject({ id: personId, name: 'Alice', color: '#f28c4e' })
     expect(await db.todoPeople.where('personId').equals(personId).toArray())
       .toMatchObject([{ todoId, personId }])
-    expect(await db.personOrgs.where('personId').equals(personId).toArray())
-      .toMatchObject([{ personId, orgId }])
   })
 })

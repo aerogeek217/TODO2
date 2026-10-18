@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createCommands, searchDynamicCommands } from '../../services/command-registry'
 import type { CommandContext } from '../../services/command-registry'
-import { makeTodo, makeProject } from '../helpers'
+import { makeTodo } from '../helpers'
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
-    navigateTo: vi.fn(),
+    openSettings: vi.fn(),
     openQuickAdd: vi.fn(),
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
@@ -17,9 +17,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     getShowCompleted: vi.fn().mockReturnValue(false),
     setDateRange: vi.fn(),
     getTodos: () => [],
-    getProjects: () => [],
     focusTask: vi.fn(),
-    focusProject: vi.fn(),
     ...overrides,
   }
 }
@@ -31,52 +29,19 @@ beforeEach(() => {
 // ─── Navigation commands ─────────────────────────────────────────────────────
 
 describe('createCommands — navigation commands', () => {
-  it('createCommands_noSelection_includesCanvasNavCommand', () => {
+  it('createCommands_noSelection_includesOpenSettingsButNoWorkspaceNavigation', () => {
     const ctx = makeContext()
     const commands = createCommands(ctx)
-    expect(commands.some(c => c.id === 'nav-canvas')).toBe(true)
+    expect(commands.find(c => c.id === 'open-settings')?.name).toBe('Open Settings')
+    expect(commands.some(c => c.id.startsWith('nav-'))).toBe(false)
   })
 
-  it('createCommands_noSelection_includesAllFourNavigationCommands', () => {
+  it('createCommands_openSettings_actionOpensTheModal', () => {
     const ctx = makeContext()
     const commands = createCommands(ctx)
-    const navIds = commands.filter(c => c.category === 'navigation').map(c => c.id)
-    expect(navIds).toContain('nav-canvas')
-    expect(navIds).toContain('nav-list')
-    expect(navIds).toContain('nav-calendar')
-    expect(navIds).toContain('nav-settings')
-  })
-
-  it('createCommands_navCanvas_actionCallsNavigateTo', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-canvas')!
+    const cmd = commands.find(c => c.id === 'open-settings')!
     cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/')
-  })
-
-  it('createCommands_navList_actionCallsNavigateToList', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-list')!
-    cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/list')
-  })
-
-  it('createCommands_navCalendar_actionCallsNavigateToCalendar', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-calendar')!
-    cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/calendar')
-  })
-
-  it('createCommands_navSettings_actionCallsNavigateToSettings', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-settings')!
-    cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/settings')
+    expect(ctx.openSettings).toHaveBeenCalledOnce()
   })
 
   it('createCommands_noSelection_includesNewTaskCommand', () => {
@@ -216,7 +181,7 @@ describe('searchDynamicCommands — task search', () => {
     ]
     const ctx = makeContext({ getTodos: () => todos })
     const results = searchDynamicCommands('write', ctx)
-    expect(results.filter(c => c.category === 'tasks')).toHaveLength(2)
+    expect(results.filter(c => c.category === 'search-results')).toHaveLength(2)
   })
 
   it('searchDynamicCommands_withQuery_commandIdsMatchTodoIds', () => {
@@ -263,53 +228,57 @@ describe('searchDynamicCommands — task search', () => {
   })
 })
 
-// ─── searchDynamicCommands — lazy project search ─────────────────────────────
-
-describe('searchDynamicCommands — project search', () => {
-  it('searchDynamicCommands_withMatchingQuery_returnsMatchingProjects', () => {
-    const projects = [
-      makeProject({ id: 1, canvasId: 1, name: 'Backend' }),
-      makeProject({ id: 2, canvasId: 1, name: 'Frontend' }),
-    ]
-    const ctx = makeContext({ getProjects: () => projects })
-    const results = searchDynamicCommands('back', ctx)
-    expect(results.filter(c => c.category === 'projects')).toHaveLength(1)
-  })
-
-  it('searchDynamicCommands_withQuery_commandNameIsProjectName', () => {
-    const projects = [makeProject({ id: 3, canvasId: 1, name: 'My Sprint' })]
-    const ctx = makeContext({ getProjects: () => projects })
-    const results = searchDynamicCommands('sprint', ctx)
-    const cmd = results.find(c => c.id === 'project-3')!
-    expect(cmd.name).toBe('My Sprint')
-  })
-
-  it('searchDynamicCommands_withQuery_actionCallsFocusProject', () => {
-    const projects = [makeProject({ id: 4, canvasId: 1, name: 'Design' })]
-    const ctx = makeContext({ getProjects: () => projects })
-    const results = searchDynamicCommands('design', ctx)
-    const cmd = results.find(c => c.id === 'project-4')!
-    cmd.action()
-    expect(ctx.focusProject).toHaveBeenCalledWith(4)
-  })
-
-  it('searchDynamicCommands_noMatchingProjects_returnsEmpty', () => {
-    const projects = [makeProject({ id: 1, canvasId: 1, name: 'Backend' })]
-    const ctx = makeContext({ getProjects: () => projects })
-    expect(searchDynamicCommands('zzz', ctx).filter(c => c.category === 'projects')).toHaveLength(0)
-  })
-})
 
 // ─── createCommands no longer includes dynamic commands ──────────────────────
 
 describe('createCommands — no dynamic commands', () => {
-  it('createCommands_withTodosAndProjects_doesNotIncludeDynamicCommands', () => {
+  it('createCommands_withTodos_doesNotIncludeDynamicCommands', () => {
     const ctx = makeContext({
       getTodos: () => [makeTodo({ id: 1 })],
-      getProjects: () => [makeProject({ id: 1, canvasId: 1 })],
     })
     const commands = createCommands(ctx)
-    expect(commands.filter(c => c.category === 'tasks')).toHaveLength(0)
-    expect(commands.filter(c => c.category === 'projects')).toHaveLength(0)
+    expect(commands.filter(c => c.category === 'search-results')).toHaveLength(0)
+  })
+})
+
+// ─── Email check-in commands ─────────────────────────────────────────────────
+
+describe('createCommands — email check-ins', () => {
+  const people = [
+    { id: 1, name: 'Zoe Park', initials: 'ZP', email: 'zoe@example.com' },
+    { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
+    { id: 3, name: 'No Email', initials: 'NE' },
+    { id: 4, name: 'Idle Person', initials: 'IP', email: 'idle@example.com' },
+    { id: 5, name: 'Blank Email', initials: 'BE', email: '' },
+  ]
+  const counts = new Map([[1, 1], [2, 4], [3, 2], [5, 3]])
+  const emailCommands = (ctx: CommandContext) => createCommands(ctx).filter((c) => c.category === 'email')
+
+  it('createCommands_people_onePerPersonWithEmailAndOpenTasks_byName_withOpenTaskHint', () => {
+    const openCheckinDialog = vi.fn()
+    const ctx = makeContext({ openCheckinDialog, openCheckinImport: vi.fn(), getPeople: () => people, getOpenTaskCounts: () => counts })
+    expect(emailCommands(ctx).map((c) => [c.name, c.hint])).toEqual([
+      ['Email task check-ins…', 'choose people'],
+      ['Import check-in reply…', undefined],
+      ['Email check-in: Ada Lovelace', '4 open tasks'],
+      ['Email check-in: Zoe Park', '1 open task'],
+    ])
+  })
+
+  it('createCommands_personCommand_opensTheDialogWithThatPersonTicked', () => {
+    const openCheckinDialog = vi.fn()
+    const ctx = makeContext({ openCheckinDialog, getPeople: () => people, getOpenTaskCounts: () => counts })
+    createCommands(ctx).find((c) => c.id === 'email-checkin-2')!.action()
+    expect(openCheckinDialog).toHaveBeenCalledWith([2])
+  })
+
+  it('createCommands_noOpenTaskCounts_noPersonCommands', () => {
+    const ctx = makeContext({ openCheckinDialog: vi.fn(), getPeople: () => people })
+    expect(emailCommands(ctx).map((c) => c.id)).toEqual(['email-checkins'])
+  })
+
+  it('createCommands_withoutCheckinDialog_noPersonCommands', () => {
+    const ctx = makeContext({ getPeople: () => people, getOpenTaskCounts: () => counts })
+    expect(emailCommands(ctx)).toEqual([])
   })
 })

@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useFilterStore, matchesFilter, applyFilter } from '../../stores/filter-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { PersistedTodoItem } from '../../models'
-import { makeTodo } from '../helpers'
+import { applyFilterNow as applyFilter, makeTodo, matchesFilterNow as matchesFilter, patchScreenFilter } from '../helpers'
+import { useSettingsStore } from '../../stores/settings-store'
+import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 /** Short-hand: current active filter state from the store. */
 const f = () => useFilterStore.getState().filters
@@ -24,34 +27,13 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 2, isCompleted: false }))).toBe(true)
   })
 
-  it('showHiddenStatuses false hides tasks with hideByDefault statuses', () => {
-    const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
+  it('a status never hides a task on its own — only a status filter narrows by status', () => {
+    const todos = [makeTodo({ id: 1, statusId: 5 }), makeTodo({ id: 2 })] as PersistedTodoItem[]
+    const statuses = [{ id: 5, name: 'Assigned', color: '#000', sortOrder: 0, icon: 'person' as const }]
 
-    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
-  })
-
-  it('showHiddenStatuses true shows tasks with hideByDefault statuses', () => {
-    useFilterStore.getState().setShowHiddenStatuses(true)
-    const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
-  })
-
-  it('matchesFilter checks project membership', () => {
-    useFilterStore.getState().setProjectIds(new Set([7]))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, projectId: 7 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, projectId: 9 }))).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
-  })
-
-  it('matchesFilter honors no-project (0) sentinel', () => {
-    useFilterStore.getState().setProjectIds(new Set([0, 7]))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, projectId: 7 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 3, projectId: 9 }))).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }))).toBe(true)
+    expect(applyFilter(f(), todos, undefined, statuses).map((t) => t.id)).toEqual([1, 2])
+    expect(useFilterStore.getState().isActive).toBe(false)
   })
 
   it('matchesFilter checks person assignment', () => {
@@ -81,78 +63,7 @@ describe('useFilterStore', () => {
     const { filters, isActive } = useFilterStore.getState()
     expect(filters.personIds).toBe(null)
     expect(filters.showCompleted).toBe(false)
-    expect(filters.showHiddenStatuses).toBe(false)
     expect(isActive).toBe(false)
-  })
-
-  // Item 13 (triage-2026-04-27 batch 2): runtime-filter spec lives alongside
-  // the predicate inside `filter-store`, so the topbar's Clear-all path
-  // wipes both in one shot. Without this, the runtime filter input remained
-  // visible after the user cleared filters from the FilterChipBar.
-  it('clearAll also resets runtime filter spec and value', () => {
-    useFilterStore.getState().setRuntimeFilterSpec({ field: 'person' })
-    useFilterStore.getState().setRuntimeFilterValue([1, 2])
-    expect(useFilterStore.getState().runtimeFilterSpec).not.toBeNull()
-    expect(useFilterStore.getState().runtimeFilterValue).toEqual([1, 2])
-
-    useFilterStore.getState().clearAll()
-
-    expect(useFilterStore.getState().runtimeFilterSpec).toBeNull()
-    expect(useFilterStore.getState().runtimeFilterValue).toBeUndefined()
-  })
-
-  it('setRuntimeFilterSpec / setRuntimeFilterValue update independently of the predicate', () => {
-    // Setting runtime spec/value must NOT flip `isActive` — that flag tracks
-    // the predicate only. Saved-view application sets the predicate and the
-    // runtime slot in two distinct calls; bleed between the two would surprise
-    // the topbar's filter-active styling.
-    useFilterStore.getState().setRuntimeFilterSpec({ field: 'org', label: 'Team' })
-    expect(useFilterStore.getState().runtimeFilterSpec).toEqual({ field: 'org', label: 'Team' })
-    expect(useFilterStore.getState().isActive).toBe(false)
-
-    useFilterStore.getState().setRuntimeFilterValue([5])
-    expect(useFilterStore.getState().runtimeFilterValue).toEqual([5])
-    expect(useFilterStore.getState().isActive).toBe(false)
-  })
-
-  it('setOrgIds filters by direct org assignment', () => {
-    useFilterStore.getState().setOrgIds(new Set([10]))
-
-    // Task with direct org 10
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10])).toBe(true)
-    // Task with direct org 20
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20])).toBe(false)
-  })
-
-  it('setOrgIds filters by person org (assignedPersonOrgIds)', () => {
-    useFilterStore.getState().setOrgIds(new Set([10]))
-
-    // Task whose assigned person belongs to org 10
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-    // Task whose assigned person belongs to org 20
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [1], [20], [])).toBe(false)
-  })
-
-  it('setOrgIds with 0 (None): tasks with no org assignment pass', () => {
-    useFilterStore.getState().setOrgIds(new Set([0]))
-
-    // Task with no org at all
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [])).toBe(true)
-    // Task with no assigned people/orgs
-    expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
-    // Task with an org should NOT match when only 0 is in set
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [10], [10])).toBe(false)
-  })
-
-  it('combined person-org and direct-org: either match passes', () => {
-    useFilterStore.getState().setOrgIds(new Set([10, 20]))
-
-    // Only person-org match
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-    // Only direct-org match
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20])).toBe(true)
-    // Neither match
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [30], [30])).toBe(false)
   })
 
   it('setStatusIds filters by statusId', () => {
@@ -179,152 +90,146 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
   })
 
-  it('dateField defaults to date', () => {
-    expect(useFilterStore.getState().filters.dateField).toBe('date')
+  it('no date filter by default', () => {
+    expect(useFilterStore.getState().filters.dates).toEqual({})
   })
 
-  it('setDateField changes the date field', () => {
-    useFilterStore.getState().setDateField('created')
-    expect(useFilterStore.getState().filters.dateField).toBe('created')
-
-    useFilterStore.getState().setDateField('modified')
-    expect(useFilterStore.getState().filters.dateField).toBe('modified')
-
-    useFilterStore.getState().setDateField('scheduled')
-    expect(useFilterStore.getState().filters.dateField).toBe('scheduled')
-
-    useFilterStore.getState().setDateField('deadline')
-    expect(useFilterStore.getState().filters.dateField).toBe('deadline')
-  })
-
-  it('date range filters by effectiveDate when dateField is date', () => {
+  it('setDateRange sets the due-date range; both ends null removes it', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
+    expect(Object.keys(f().dates)).toEqual(['deadline'])
     expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
     expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-    // No date excluded by default
+    // No date excluded by default; a follow-up date doesn't count.
     expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 4, nextFollowupAt: new Date('2025-03-15') }))).toBe(false)
+    useFilterStore.getState().setDateRange(null, null)
+    expect(f().dates).toEqual({})
+    expect(useFilterStore.getState().isActive).toBe(false)
   })
 
-  it('date range filters by createdAt when dateField is created', () => {
-    useFilterStore.getState().setDateField('created')
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
+  describe('date filters: a clause per date type', () => {
+    const march = { match: 'range', start: { kind: 'fixed', iso: '2025-03-01' }, end: { kind: 'fixed', iso: '2025-03-31' } } as const
 
-    expect(matchesFilter(f(), makeTodo({ id: 1, createdAt: new Date('2025-03-15') }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, createdAt: new Date('2025-04-15') }))).toBe(false)
-  })
-
-  it('date range filters by modifiedAt when dateField is modified', () => {
-    useFilterStore.getState().setDateField('modified')
-    useFilterStore.getState().setDateRange(new Date('2025-06-01'), new Date('2025-06-30'))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, modifiedAt: new Date('2025-06-15') }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, modifiedAt: new Date('2025-05-15') }))).toBe(false)
-  })
-
-  it('date range filters by scheduledDate when dateField is scheduled', () => {
-    useFilterStore.getState().setDateField('scheduled')
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
-    // In-range precise scheduled
-    expect(matchesFilter(f(), makeTodo({
-      id: 1, scheduledDate: { kind: 'date', value: new Date('2025-03-15') },
-    }))).toBe(true)
-    // Out of range
-    expect(matchesFilter(f(), makeTodo({
-      id: 2, scheduledDate: { kind: 'date', value: new Date('2025-04-15') },
-    }))).toBe(false)
-    // Deadline-only task should NOT pass when dateField is scheduled
-    expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2025-03-15') }))).toBe(false)
-  })
-
-  it('aged fuzzy scheduledDate ages into past windows when dateField is scheduled', () => {
-    // Post fuzzy-schedule-aging-2026-05-09: a fuzzy this-week picked in March
-    // resolves to that week's window-end (origin-anchored), so the date-range
-    // filter for March 2025 finds it by setAt — the value never re-resolves
-    // forward to today's frame.
-    useFilterStore.getState().setDateField('scheduled')
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
-    // Aged fuzzy this-week setAt 2025-03-15 (Sat) → Mon-first this-week ends
-    // Sun 2025-03-16. Falls inside the [2025-03-01, 2025-03-31] window.
-    expect(matchesFilter(f(), makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2025-03-15') },
-    }))).toBe(true)
-    // setAt outside range — fuzzy this-week picked in May — falls outside.
-    expect(matchesFilter(f(), makeTodo({
-      id: 2,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2025-05-15') },
-    }))).toBe(false)
-  })
-
-  it('date range filters by dueDate when dateField is deadline', () => {
-    useFilterStore.getState().setDateField('deadline')
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-    // Scheduled-only task does NOT pass the deadline filter
-    expect(matchesFilter(f(), makeTodo({
-      id: 3, scheduledDate: { kind: 'date', value: new Date('2025-03-15') },
-    }))).toBe(false)
-  })
-
-  it('includeNoDate works with date dateField', () => {
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-    useFilterStore.getState().setDateRangeIncludeNoDate(true)
-
-    // No date included
-    expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
-  })
-
-  describe('hasScheduled / hasDeadline presence filters', () => {
-    it('hasScheduled=true keeps only tasks with a scheduledDate', () => {
-      useFilterStore.getState().setHasScheduled(true)
-      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+    it('a range on created / modified / follow-up reads that date', () => {
+      patchScreenFilter({ dates: { created: march } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, createdAt: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, createdAt: new Date('2025-04-15') }))).toBe(false)
+      patchScreenFilter({ dates: { modified: march } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, modifiedAt: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, modifiedAt: new Date('2025-05-15') }))).toBe(false)
+      patchScreenFilter({ dates: { followup: march } })
+      expect(matchesFilter(f(), makeTodo({ id: 1, nextFollowupAt: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-03-15') }))).toBe(false)
     })
 
-    it('hasScheduled=false keeps only tasks without a scheduledDate', () => {
-      useFilterStore.getState().setHasScheduled(false)
-      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
+    it('includeNoDate keeps tasks without the date — on the due date and on the follow-up', () => {
+      patchScreenFilter({ dates: { deadline: { ...march, includeNoDate: true } } })
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
+      patchScreenFilter({ dates: { followup: { ...march, includeNoDate: true } } })
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2025-04-15') }))).toBe(false)
     })
 
-    it('hasDeadline=true keeps only tasks with a deadline', () => {
-      useFilterStore.getState().setHasDeadline(true)
+    it('Has a date / No date', () => {
+      patchScreenFilter({ dates: { deadline: { match: 'set' } } })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
-    })
-
-    it('hasDeadline=false keeps only tasks without a deadline', () => {
-      useFilterStore.getState().setHasDeadline(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
+      patchScreenFilter({ dates: { deadline: { match: 'unset' } } })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
     })
 
-    it('null (default) disables the presence filter entirely', () => {
-      expect(f().hasScheduled).toBeNull()
-      expect(f().hasDeadline).toBeNull()
+    it('several date types: a task must pass every one (AND)', () => {
+      patchScreenFilter({ dates: { deadline: { match: 'set' }, followup: { match: 'set' }, created: march } })
+      const both = { dueDate: new Date('2026-04-20'), nextFollowupAt: new Date('2026-04-16') }
+      expect(matchesFilter(f(), makeTodo({ id: 1, ...both, createdAt: new Date('2025-03-10') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, ...both, createdAt: new Date('2025-02-10') }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 3, nextFollowupAt: new Date('2026-04-16'), createdAt: new Date('2025-03-10') }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 4, dueDate: new Date('2026-04-20'), createdAt: new Date('2025-03-10') }))).toBe(false)
+    })
+
+    it('a range with neither end filters nothing', () => {
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: null, end: null } } })
       expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
     })
+  })
 
-    it('hasScheduled and hasDeadline compose with AND', () => {
-      useFilterStore.getState().setHasScheduled(true)
-      useFilterStore.getState().setHasDeadline(true)
-      // Only the task with both should pass
-      expect(matchesFilter(f(), makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') },
-        dueDate: new Date('2026-04-20'),
-      }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2026-04-20') }))).toBe(false)
+  describe('markers filter', () => {
+    const today = new Date(2026, 9, 10)
+    const day = (offset: number) => new Date(2026, 9, 10 + offset)
+
+    beforeEach(() => {
+      useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
+    })
+
+    it('each ticked marker narrows; several AND together', () => {
+      const focused = makeTodo({ id: 1, focus: true })
+      const important = makeTodo({ id: 2, important: true })
+      const both = makeTodo({ id: 3, important: true, focus: true })
+      const plain = makeTodo({ id: 4 })
+      expect(f().markers).toBeNull()
+      for (const t of [focused, important, both, plain]) expect(matchesFilter(f(), t, undefined, today)).toBe(true)
+      patchScreenFilter({ markers: { focus: true } })
+      expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, false, true, false])
+      patchScreenFilter({ markers: { focus: true, important: true } })
+      expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([false, false, true, false])
+    })
+
+    it('Urgent means effective urgent: the flag, or due within the range (overdue included)', () => {
+      patchScreenFilter({ markers: { urgent: true } })
+      const flagged = makeTodo({ id: 1, urgent: true })
+      const overdue = makeTodo({ id: 2, dueDate: day(-2) })
+      const edge = makeTodo({ id: 3, dueDate: day(3) })
+      const later = makeTodo({ id: 4, dueDate: day(4) })
+      const doneOverdue = makeTodo({ id: 5, dueDate: day(-2), isCompleted: true })
+      useFilterStore.getState().setShowCompleted(true)
+      expect([flagged, overdue, edge, later, doneOverdue].map((t) => matchesFilter(f(), t, undefined, today)))
+        .toEqual([true, true, true, false, false])
+      // Range off: only the flag counts.
+      useSettingsStore.setState({ urgentDueWithinDays: null })
+      expect([flagged, overdue, edge].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, false, false])
+    })
+
+    it('counts as one active filter, clears with clearAll, and an emptied set is no filter', () => {
+      patchScreenFilter({ markers: { urgent: true, focus: true } })
+      expect(useFilterStore.getState().isActive).toBe(true)
+      expect(countActiveFilters(f())).toBe(1)
+      useFilterStore.getState().clearAll()
+      expect(f().markers).toBeNull()
+      patchScreenFilter({ markers: {} })
+      expect(countActiveFilters(f())).toBe(0)
+      expect(useFilterStore.getState().isActive).toBe(false)
+    })
+
+    it('Hot keeps the tasks the Settings rule makes hot, and is one active filter', () => {
+      patchScreenFilter({ markers: 'hot' })
+      expect(f().markers).toBe('hot')
+      expect(countActiveFilters(f())).toBe(1)
+      const urgentImportant = makeTodo({ id: 1, important: true, dueDate: day(1) })
+      const focused = makeTodo({ id: 2, focus: true })
+      const importantOnly = makeTodo({ id: 3, important: true })
+      const doneFocused = makeTodo({ id: 4, focus: true, isCompleted: true })
+      useFilterStore.getState().setShowCompleted(true)
+      const shown = () => [urgentImportant, focused, importantOnly, doneFocused].map((t) => matchesFilter(f(), t, undefined, today))
+      expect(shown()).toEqual([true, true, false, false])
+      useSettingsStore.setState({ hotRule: [{ important: true }] })
+      expect(shown()).toEqual([true, false, true, false])
+      // A caller's own settings win over the store's.
+      expect(matchesFilter(f(), focused, undefined, today, undefined, undefined, { urgentRange: 3, hotRule: [{ focus: true }], weekStartsOn: 0 })).toBe(true)
+      const predicate = criteriaToPredicate(f())
+      expect(predicate.markers).toBe('hot')
+      expect(predicateToCriteria(predicate).markers).toBe('hot')
+    })
+
+    it('round-trips through the predicate; a predicate without it reads as null', () => {
+      patchScreenFilter({ markers: { important: true } })
+      const predicate = criteriaToPredicate(f())
+      expect(predicate.markers).toEqual({ important: true })
+      expect(predicateToCriteria(predicate).markers).toEqual({ important: true })
+      const { markers: _drop, ...legacy } = predicate
+      void _drop
+      expect(predicateToCriteria(legacy).markers).toBeNull()
     })
   })
 
@@ -332,80 +237,56 @@ describe('useFilterStore', () => {
     it('relative end-of-week resolves to the configured weekStartsOn boundary', () => {
       // Wednesday 2026-04-15 → Monday-first week ends Sunday 2026-04-19.
       const today = new Date('2026-04-15T12:00:00')
-      useFilterStore.getState().setDateRangeAnchors(
-        null,
-        { kind: 'relative', token: 'end-of-week' },
-      )
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: null, end: { kind: 'relative', token: 'end-of-week' } } } })
 
       // Task due Sunday (2026-04-19) passes; task due next Monday (2026-04-20) fails.
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 19),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, today)).toBe(true)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 20),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, today)).toBe(false)
     })
 
     it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
       const today = new Date('2026-04-15T12:00:00')
-      useFilterStore.getState().setDateRangeAnchors(
-        { kind: 'relative', token: 'tomorrow' },
-        null,
-      )
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: { kind: 'relative', token: 'tomorrow' }, end: null } } })
       // Today-due task excluded (before tomorrow); tomorrow-due passes.
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 15),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, today)).toBe(false)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 16),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, today)).toBe(true)
     })
 
     it('fixed anchor behaves like the legacy ISO-string range', () => {
-      useFilterStore.getState().setDateRangeAnchors(
-        { kind: 'fixed', iso: '2025-03-01' },
-        { kind: 'fixed', iso: '2025-03-31' },
-      )
+      patchScreenFilter({ dates: { deadline: { match: 'range', start: { kind: 'fixed', iso: '2025-03-01' }, end: { kind: 'fixed', iso: '2025-03-31' } } } })
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
     })
   })
 
-  it('clearAll resets dateField to date', () => {
-    useFilterStore.getState().setDateField('modified')
-    useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.dateField).toBe('date')
-  })
-
-  it('clearAll resets hasScheduled / hasDeadline to null', () => {
-    useFilterStore.getState().setHasScheduled(true)
-    useFilterStore.getState().setHasDeadline(false)
+  it('clearAll clears every date type', () => {
+    patchScreenFilter({ dates: { followup: { match: 'set' }, deadline: { match: 'unset' } } })
     expect(useFilterStore.getState().isActive).toBe(true)
     useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.hasScheduled).toBeNull()
-    expect(useFilterStore.getState().filters.hasDeadline).toBeNull()
-  })
-
-  it('clearAll resets orgFilterMode to include-people', () => {
-    useFilterStore.getState().setOrgFilterMode('direct-only')
-    useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.orgFilterMode).toBe('include-people')
+    expect(useFilterStore.getState().filters.dates).toEqual({})
   })
 
   describe('tags filter', () => {
-    // Tag filters are by registry id (Phase 5). `matchesFilter` reads the
-    // `assignedTagIds` positional arg (9th) — no fallback to inline strings.
+    // Tag filters are by registry id. `matchesFilter` reads the
+    // `assignedTagIds` positional arg (6th) — no fallback to inline strings.
     const withTagIds = (ids: number[]) =>
-      // positional: filters, todo, personIds, personOrgIds, directOrgIds,
-      //             filterPersonOrgIds, statuses, today, searchCtx, assignedTagIds
+      // positional: filters, todo, personIds, today, searchCtx, assignedTagIds
       (todo: PersistedTodoItem) =>
-        matchesFilter(f(), todo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ids)
+        matchesFilter(f(), todo, undefined, undefined, undefined, ids)
 
     it('null (default) is not a filter — tagged and untagged todos pass', () => {
       expect(f().tags).toBeNull()
@@ -453,262 +334,78 @@ describe('useFilterStore', () => {
     })
   })
 
-  describe('orgFilterMode direct-only', () => {
-    it('include-people matches person-org and direct-org (default)', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-
-      // Person-org match
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-      // Direct-org match
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [10])).toBe(true)
-    })
-
-    it('direct-only ignores person-org, matches only direct-org', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
-
-      // Person-org only — should be excluded
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(false)
-      // Direct-org match
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [10])).toBe(true)
-    })
-
-    it('direct-only with task having both person-org and direct-org matches on direct', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
-
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [10])).toBe(true)
-    })
-
-    it('direct-only with None (0): no direct org passes', () => {
-      useFilterStore.getState().setOrgIds(new Set([0]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
-
-      // No direct org, but has person-org — should still pass (no direct org = None)
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-      // No org at all
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [])).toBe(true)
-    })
-
-    it('undefined orgFilterMode defaults to include-people', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-    })
-  })
-
-  describe('applyFilter integration with direct-only org mode', () => {
-    it('direct-only filters out tasks matching only via person-org', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
+  describe('applyFilter person membership', () => {
+    it('keeps only todos assigned to a filtered person', () => {
+      useFilterStore.getState().setPersonIds(new Set([5]))
       useFilterStore.getState().setShowCompleted(true)
 
       const todos = [
-        makeTodo({ id: 1 }), // person belongs to org 10 but no direct org
-        makeTodo({ id: 2 }), // has direct org 10
-        makeTodo({ id: 3 }), // no org at all
+        makeTodo({ id: 1 }), // unassigned
+        makeTodo({ id: 2 }), // person 5
+        makeTodo({ id: 3 }), // person 99 (not filtered)
       ]
       const assignedPeopleMap = new Map([
-        [1, [{ id: 1, name: 'Alice', initials: 'A', color: '#000' }]],
+        [2, [{ id: 5, name: 'Alice', initials: 'A' }]],
+        [3, [{ id: 99, name: 'Bob', initials: 'B' }]],
       ])
-      const personOrgMap = new Map([[1, [10]]]) // person 1 belongs to org 10
-      const assignedOrgsMap = new Map([
-        [2, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
 
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
+      const result = applyFilter(f(), todos, assignedPeopleMap)
 
-      // Only task 2 (direct org match) should pass; task 1 (person-org only) excluded
       expect(result.map(t => t.id)).toEqual([2])
     })
 
-    it('include-people mode includes tasks matching via person-org', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('include-people')
+    it('unassigned (0) sentinel keeps todos with no assigned person', () => {
+      useFilterStore.getState().setPersonIds(new Set([0]))
       useFilterStore.getState().setShowCompleted(true)
 
-      const todos = [
-        makeTodo({ id: 1 }), // person belongs to org 10
-        makeTodo({ id: 2 }), // has direct org 10
-      ]
+      const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
       const assignedPeopleMap = new Map([
-        [1, [{ id: 1, name: 'Alice', initials: 'A', color: '#000' }]],
+        [2, [{ id: 5, name: 'Alice', initials: 'A' }]],
       ])
-      const personOrgMap = new Map([[1, [10]]])
-      const assignedOrgsMap = new Map([
-        [2, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
 
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
+      const result = applyFilter(f(), todos, assignedPeopleMap)
 
-      // Both should pass: task 1 via person-org, task 2 via direct org
-      expect(result.map(t => t.id)).toEqual([1, 2])
-    })
-  })
-
-  describe('personFilterMode include-orgs', () => {
-    it('default direct person match still passes without filterPersonOrgIds', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      // No filterPersonOrgIds supplied — direct match only
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [5])).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [3])).toBe(false)
-    })
-
-    it('include-orgs matches tasks with direct orgs that filter person belongs to', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      // include-orgs is the default
-      // Person 5 belongs to org 10; task has direct org 10 but no direct person
-      const filterPersonOrgIds = new Set([10])
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10], filterPersonOrgIds)).toBe(true)
-      // Task with unrelated org is excluded
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20], filterPersonOrgIds)).toBe(false)
-    })
-
-    it('direct-only ignores filter-person-org expansion', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setPersonFilterMode('direct-only')
-      const filterPersonOrgIds = new Set([10])
-      // Even with filterPersonOrgIds supplied, direct-only only matches direct person
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10], filterPersonOrgIds)).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [5], [], [], filterPersonOrgIds)).toBe(true)
-    })
-
-    it('clearAll resets personFilterMode to include-orgs', () => {
-      useFilterStore.getState().setPersonFilterMode('direct-only')
-      useFilterStore.getState().clearAll()
-      expect(useFilterStore.getState().filters.personFilterMode).toBe('include-orgs')
-    })
-  })
-
-  describe('applyFilter integration with personFilterMode', () => {
-    it('include-orgs includes tasks with org matching filter-person membership', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setShowCompleted(true)
-
-      const todos = [
-        makeTodo({ id: 1 }), // no direct person, has direct org 10 (person 5's org)
-        makeTodo({ id: 2 }), // direct person 5
-        makeTodo({ id: 3 }), // direct person 99 (not filtered)
-      ]
-      const assignedPeopleMap = new Map([
-        [2, [{ id: 5, name: 'Alice', initials: 'A', color: '#000' }]],
-        [3, [{ id: 99, name: 'Bob', initials: 'B', color: '#000' }]],
-      ])
-      const personOrgMap = new Map([[5, [10]]])
-      const assignedOrgsMap = new Map([
-        [1, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
-
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
-
-      expect(result.map(t => t.id).sort()).toEqual([1, 2])
-    })
-
-    it('direct-only excludes tasks matching only via filter-person org', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setPersonFilterMode('direct-only')
-      useFilterStore.getState().setShowCompleted(true)
-
-      const todos = [
-        makeTodo({ id: 1 }), // no direct person, direct org 10
-        makeTodo({ id: 2 }), // direct person 5
-      ]
-      const assignedPeopleMap = new Map([
-        [2, [{ id: 5, name: 'Alice', initials: 'A', color: '#000' }]],
-      ])
-      const personOrgMap = new Map([[5, [10]]])
-      const assignedOrgsMap = new Map([
-        [1, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
-
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
-
-      expect(result.map(t => t.id)).toEqual([2])
+      expect(result.map(t => t.id)).toEqual([1])
     })
   })
 })
 
 describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
   it('converts Sets to arrays and DateAnchor round-trips', async () => {
-    const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
+    const { criteriaToPredicate, predicateToCriteria } = await import('../../utils/filter-criteria')
     const original = {
       showCompleted: true,
-      showHiddenStatuses: false,
       personIds: new Set([5, 10]),
-      personFilterMode: 'direct-only' as const,
-      orgIds: null,
-      orgFilterMode: 'include-people' as const,
-      projectIds: null,
       statusIds: new Set([0, 3]),
       searchText: 'x',
-      dateField: 'deadline' as const,
-      dateRangeStart: { kind: 'fixed' as const, iso: '2025-03-01T00:00:00.000Z' },
-      dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const },
-      dateRangeIncludeNoDate: true,
-      hasScheduled: true,
-      hasDeadline: null,
+      dates: {
+        deadline: { match: 'range' as const, start: { kind: 'fixed' as const, iso: '2025-03-01T00:00:00.000Z' }, end: { kind: 'relative' as const, token: 'end-of-week' as const }, includeNoDate: true },
+        followup: { match: 'set' as const },
+      },
+      markers: null,
       tags: null,
     }
 
     const serialized = criteriaToPredicate(original)
     expect(Array.isArray(serialized.personIds)).toBe(true)
     expect(serialized.personIds).toEqual([5, 10])
-    expect(serialized.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
-    expect(serialized.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
-    expect(serialized.hasScheduled).toBe(true)
-    expect(serialized.hasDeadline).toBe(null)
+    expect(serialized.dates).toEqual(original.dates)
 
     const runtime = predicateToCriteria(serialized)
     expect(runtime.personIds instanceof Set).toBe(true)
     expect([...runtime.personIds!].sort((a, b) => a - b)).toEqual([5, 10])
-    expect(runtime.dateField).toBe('deadline')
-    expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
-    expect(runtime.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
-    expect(runtime.hasScheduled).toBe(true)
+    expect(runtime.dates).toEqual(original.dates)
   })
 
   it('tags round-trip as Set ↔ array; missing field reads back as null', async () => {
-    const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
+    const { criteriaToPredicate, predicateToCriteria } = await import('../../utils/filter-criteria')
     const original = {
       showCompleted: false,
-      showHiddenStatuses: false,
       personIds: null,
-      personFilterMode: 'include-orgs' as const,
-      orgIds: null,
-      orgFilterMode: 'include-people' as const,
-      projectIds: null,
       statusIds: null,
       searchText: '',
-      dateField: 'date' as const,
-      dateRangeStart: null,
-      dateRangeEnd: null,
-      dateRangeIncludeNoDate: false,
-      hasScheduled: null,
-      hasDeadline: null,
+      dates: {},
+      markers: null,
       tags: new Set([10, 20]),
     }
     const serialized = criteriaToPredicate(original)
@@ -722,31 +419,41 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     // Back-compat: a predicate missing the `tags` key reads back as null.
     const pre = { ...serialized }
     delete (pre as { tags?: unknown }).tags
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const backCompat = predicateToCriteria(pre as any)
     expect(backCompat.tags).toBeNull()
   })
 
-  it('legacy ISO-string dateRangeStart auto-upgrades to fixed anchor', async () => {
-    const { predicateToCriteria } = await import('../../stores/filter-store')
+  it('a legacy ISO-string range end reads as a fixed anchor; clauses that filter nothing are left out', async () => {
+    const { predicateToCriteria } = await import('../../utils/filter-criteria')
     const legacy = {
       showCompleted: false,
-      showHiddenStatuses: false,
       personIds: null,
-      personFilterMode: 'include-orgs' as const,
-      orgIds: null,
-      orgFilterMode: 'include-people' as const,
       statusIds: null,
       searchText: '',
-      dateField: 'date' as const,
-      dateRangeStart: '2025-03-01' as unknown as never, // legacy string shape
-      dateRangeEnd: null,
-      dateRangeIncludeNoDate: false,
-      hasScheduled: null,
-      hasDeadline: null,
+      dates: {
+        deadline: { match: 'range', start: '2025-03-01' as unknown as never, end: null },
+        created: { match: 'set' as const },
+        followup: { match: 'range' as const, start: null, end: null, includeNoDate: true },
+      },
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const runtime = predicateToCriteria(legacy as any)
-    expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01' })
+    expect(runtime.dates).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: '2025-03-01' }, end: null } })
+  })
+})
+
+describe('countActiveFilters', () => {
+  beforeEach(() => useFilterStore.getState().clearAll())
+
+  it('is 0 with no filters', () => {
+    expect(countActiveFilters(useFilterStore.getState().filters)).toBe(0)
+  })
+
+  it('counts one per active control; the date clauses count once', () => {
+    const s = useFilterStore.getState()
+    s.setSearchText('plumber')
+    s.setShowCompleted(true)
+    patchScreenFilter({ dates: { deadline: { match: 'set' }, followup: { match: 'unset' } } })
+    expect(countActiveFilters(useFilterStore.getState().filters)).toBe(3)
+    expect(useFilterStore.getState().isActive).toBe(true)
   })
 })

@@ -1,41 +1,68 @@
+/* The frame: a backdrop and a centred panel. The tier (`layer*`) sets both
+ * z-indexes; at equal tiers the later one in the page is on top (dialogs
+ * portal into <body> in the order they open). */
 .backdrop {
   position: fixed;
   inset: 0;
-  background: var(--color-overlay);
-  z-index: var(--z-canvas-draw);
 }
 
-.dialog {
+/* The scrim colour; `:where` keeps it below a dialog's own (Settings'). */
+:where(.backdrop) {
+  background: var(--color-overlay);
+}
+
+/* Centred by auto margins, not a transform: a transformed panel would become
+ * the containing block of `position: fixed` layers stacked inside it (the
+ * Settings sections' editors). */
+.panel {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  margin: auto;
+}
+
+/* Size defaults, below any dialog's own width / height. */
+:where(.panel) {
+  width: fit-content;
+  height: fit-content;
+}
+
+.panel:focus {
+  outline: none;
+}
+
+.layerOverlay {
+  z-index: var(--z-overlay);
+}
+
+.backdrop.layerDialog {
+  z-index: var(--z-dialog-backdrop);
+}
+
+.panel.layerDialog {
+  z-index: var(--z-dialog);
+}
+
+.layerRaised {
+  z-index: var(--z-dialog-overlay);
+}
+
+/* Over another dialog (e.g. a discard-changes confirm from inside the list
+ * editor, --z-dialog-overlay): the scrim covers the parent, the panel sits
+ * on its own scrim. */
+.layerNested {
+  z-index: var(--z-dialog-nested);
+}
+
+/* The small titled dialog's look. */
+.dialog {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: 20px;
-  z-index: var(--z-dialog);
   box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   max-height: 80vh;
-}
-
-/* Nested tier — used when this dialog appears on top of another dialog
- * (e.g. discard-changes confirm fired from inside the list editor). Both
- * backdrop and dialog promote to --z-dialog-nested so the confirm scrim
- * covers the parent dialog (--z-dialog-overlay = 1002) and the dialog body
- * sits above its own scrim (later in DOM order wins at equal z-index). */
-.backdropNested {
-  z-index: var(--z-dialog-nested);
-}
-
-.dialogNested {
-  z-index: var(--z-dialog-nested);
-}
-
-.dialog:focus {
-  outline: none;
 }
 
 .sizeSm {

@@ -1,0 +1,371 @@
+/* Customize dashboard: a standard dialog (800 wide, two columns) — tiles and list
+ * tiles on the left, sections on the right. It sits on the overlay
+ * tier so its option menus and the saved-list menu open above it. */
+
+.dialog {
+  width: min(800px, calc(100vw - 32px));
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-modal);
+}
+
+:global([data-theme="light"]) .dialog {
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-left: auto;
+  margin-right: -6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.sub {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 6px 4px;
+}
+
+.groupHead:first-child {
+  padding-top: 4px;
+}
+
+.groupLabel {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.groupHint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.row:hover {
+  background: var(--color-surface-hover);
+}
+
+.rowDragging {
+  z-index: 1;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-drag-overlay);
+  cursor: grabbing;
+}
+
+/* Drag handle: dim at rest, chip tint on hover, accent while held. */
+.grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  cursor: grab;
+  touch-action: none;
+}
+
+.row:hover .grip {
+  opacity: 1;
+}
+
+.grip:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+  opacity: 1;
+}
+
+.grip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+.rowDragging .grip {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+span.check {
+  cursor: default;
+}
+
+.check input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listGlyph {
+  color: var(--color-accent);
+}
+
+.hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.empty {
+  margin: 0;
+  padding: 6px 26px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.addList {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  margin: 6px 0 0 6px;
+  padding: 0 8px 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addList:hover,
+.addList[aria-expanded='true'] {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.optionLabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.select:hover:not(:disabled) {
+  background: var(--color-tint-12);
+}
+
+.select:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.note {
+  margin: 8px 6px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.ghostBtn {
+  margin-left: -12px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ghostBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.primaryBtn {
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  opacity: 0.9;
+}
+
+.primaryBtn:focus-visible,
+.ghostBtn:focus-visible,
+.select:focus-visible,
+.addList:focus-visible,
+.remove:focus-visible,
+.closeBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 720px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

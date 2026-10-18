@@ -1,0 +1,656 @@
+/* List widget: prompt row, filter row, groups, footer. Row rules for narrow
+ * widgets (< 360px) are container queries against `.widget`. */
+
+.widget {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+.scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* ── Filter row ─────────────────────────────────────────────────────────── */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--list-filter-row-height);
+  padding: 0 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chipSep {
+  flex-shrink: 0;
+  width: 1px;
+  height: 14px;
+  background: var(--color-border);
+}
+
+/* Chips wider than their space fade out at the right (Save / Revert never hide). */
+.chipsClipped {
+  mask-image: linear-gradient(to right, #000 80%, transparent);
+}
+
+/* An unsaved list with no filters to show as chips. */
+.noFilters {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* ── An unsaved list's Revert · Save, at the filter line's end ── */
+
+.draftRule {
+  flex: none;
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--color-border);
+}
+
+.draftButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.draftButton:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.revertButton {
+  padding: 0 7px 0 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.revertButton:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.saveButton {
+  padding: 0 8px 0 6px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.saveButton:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.saveButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Narrow widgets: icon-only buttons (their tooltips name them). */
+@container (max-width: 359px) {
+  .draftButton {
+    justify-content: center;
+    width: 24px;
+    padding: 0;
+  }
+
+  .draftLabel {
+    display: none;
+  }
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+.body {
+  padding: 2px 6px 8px;
+}
+
+.group {
+  padding-top: 4px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: var(--list-group-header-height);
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupHeader:hover,
+.groupHeaderRow:hover .groupHeader {
+  background: var(--color-surface-hover);
+}
+
+/* A People group: the header keeps its full width; the envelope sits over its end. */
+.groupHeaderRow {
+  position: relative;
+}
+
+.groupHeaderWithAction {
+  padding-right: 32px;
+}
+
+.groupAction {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--color-accent-dim);
+  border-radius: 6px;
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--transition-fast);
+}
+
+.groupHeaderRow:hover .groupAction,
+.groupHeaderRow:focus-within .groupAction {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.groupAction:hover {
+  background: var(--color-accent-bg);
+}
+
+.groupChevron {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.groupCollapsed .groupChevron {
+  transform: rotate(-90deg);
+}
+
+.swatch {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.groupName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupCount {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* ── Rows: selection, cursor, drag (row states) ──────────────────────── */
+
+.row {
+  position: relative;
+  outline: none;
+}
+
+/* Consecutive selected rows share one fill; the run's ends are rounded. */
+.rowSelected {
+  background: var(--color-accent-bg-medium);
+}
+
+.rowSelFirst {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+.rowSelLast {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+/*
+ * Keyboard cursor: a ring, no fill (can sit on a selected row). Drawn above
+ * the task row, so its hover fill and separator line never cover it.
+ */
+.rowCursor::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  pointer-events: none;
+}
+
+.rowCursor:not(.rowSelected) {
+  border-radius: 6px;
+}
+
+/* A selected or cursor row draws no separator line under itself. */
+.rowSelected > [data-todo-id]::after,
+.rowCursor > [data-todo-id]::after {
+  background: transparent;
+}
+
+.rowFaded {
+  opacity: 0.5;
+}
+
+/* The dragged row while its slot shows elsewhere. */
+.rowGone {
+  height: 0;
+  overflow: hidden;
+}
+
+/* Where the dragged row lands (manual order: rows make room). */
+.dropSlot {
+  height: 32px;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+/* Drop line between rows: a 2px bar with a ring at its start. */
+.dropLine {
+  position: relative;
+  height: 0;
+  z-index: 3;
+}
+
+.dropLine::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.dropLine::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+
+/* Sorted list: the row won't land here unless the list switches to manual. */
+.dropLineSorted::before {
+  height: 0;
+  background: none;
+  border-top: 2px dashed var(--color-text-muted);
+}
+
+.dropLineSorted::after {
+  border-color: var(--color-text-muted);
+}
+
+/* Below the lifted row, which follows the pointer over the line. */
+.dropHint {
+  position: absolute;
+  left: 14px;
+  top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--color-surface-high);
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-dropdown);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Cross-group drop: the target group is outlined and says what changes. */
+.groupDropTarget {
+  border-radius: 6px;
+  background: var(--color-accent-bg-light);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.groupDropPreview {
+  margin-left: auto;
+  padding-right: 4px;
+  color: var(--color-accent);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+/* ── Bulk bar (2+ selected) ─────────────────────────────────────────────── */
+
+.bulkBar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  white-space: nowrap;
+}
+
+:global([data-theme='light']) .bulkBar {
+  background: var(--color-surface);
+}
+
+.bulkCount {
+  margin-right: 4px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.bulkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.bulkButton:hover,
+.bulkButtonOpen {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.bulkDanger {
+  color: var(--color-danger);
+}
+
+.bulkDanger:hover {
+  color: var(--color-danger);
+}
+
+.bulkSep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--color-border);
+}
+
+.bulkDate {
+  position: relative;
+  display: inline-flex;
+}
+
+.bulkDateInput {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bulkPicker {
+  min-width: 200px;
+  padding: 4px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-dropdown);
+}
+
+/* ── Switch to manual order? (popover, 330 wide) ─────────────────────── */
+
+.switchPopover {
+  z-index: var(--z-dialog-nested);
+  width: 330px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+}
+
+:global([data-theme='light']) .switchPopover {
+  background: var(--color-surface);
+}
+
+.switchTitle {
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-bold);
+}
+
+.switchBody {
+  margin: 6px 0 12px;
+  font-size: var(--font-size-meta);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.switchFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.switchCancel,
+.switchConfirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.switchCancel {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.switchCancel:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.switchConfirm {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.switchConfirm:hover {
+  filter: brightness(1.08);
+}
+
+.kbd {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-tint-8);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+
+
+.smallButton {
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.smallButton:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.addTask {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 8px 0 22px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  text-align: left;
+  cursor: pointer;
+}
+
+.addTask:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+/* ── Empty states (text only) ───────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: var(--font-size-task);
+  color: var(--color-text-secondary);
+}
+
+.emptyHint {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.emptyAction {
+  composes: smallButton;
+  height: 24px;
+  margin-top: 4px;
+}
+
+/* ── Touch (mobile) ─────────────────────────────────────────────────────── */
+
+.touch .filterRow {
+  height: var(--mobile-list-filter-row-height);
+}
+
+/* Phone: the summary is hidden (Edit list is in the tab's sheet); Revert is a
+ * 36px icon button, Save 36px with its label. */
+.touch .filterRow [data-testid='list-summary'] {
+  display: none;
+}
+
+.touch .draftButton {
+  height: 36px;
+  border-radius: 8px;
+  font-size: var(--font-size-body);
+}
+
+.touch .revertButton {
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  background: var(--color-tint-6);
+}
+
+.touch .revertButton .draftLabel {
+  display: none;
+}
+
+.touch .saveButton {
+  width: auto;
+  padding: 0 12px 0 10px;
+}
+
+.touch .saveButton .draftLabel {
+  display: inline;
+}
+
+.touch .groupHeader {
+  height: var(--mobile-list-group-header-height);
+}

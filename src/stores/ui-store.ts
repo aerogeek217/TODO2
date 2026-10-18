@@ -1,18 +1,63 @@
 import { create } from 'zustand'
-import { AppView } from '../models'
-import type { ListGroupBy, ListItemSortBy } from '../models'
+import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
+import type { ScopedSelection } from '../utils/scoped-selection'
 
 type EditPopupMode = 'edit' | 'create' | null
 
-export type AttributeFilter =
-  | { type: 'person'; personId: number; personName: string }
-  | { type: 'org'; orgId: number; orgName: string; orgColor?: string }
+/** The sections of the Settings modal (and the mobile Settings page), in order. */
+export type SettingsSectionId =
+  | 'appearance'
+  | 'tasks'
+  | 'entities'
+  | 'database'
+  | 'shortcuts'
+  | 'about'
 
-export interface FilteredListPopup {
-  x: number
-  y: number
-  filter: AttributeFilter
+/** The headed parts of the merged sections (Tasks, Database). */
+export type SettingsPartId =
+  | 'task-defaults'
+  | 'completed'
+  | 'file-storage'
+  | 'backups'
+  | 'import-export'
+  | 'data-integrity'
+
+/** The section each part sits in. */
+export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
+  'task-defaults': 'tasks',
+  completed: 'tasks',
+  'file-storage': 'database',
+  backups: 'database',
+  'import-export': 'database',
+  'data-integrity': 'database',
+}
+
+/** Where Settings can open: a section, or a part of one (shown scrolled to it). */
+export type SettingsTarget = SettingsSectionId | SettingsPartId
+
+/** A target's section, and its part when it names one. */
+export function resolveSettingsTarget(target: SettingsTarget): { section: SettingsSectionId; part: SettingsPartId | null } {
+  if (Object.hasOwn(SETTINGS_PART_SECTION, target)) {
+    const part = target as SettingsPartId
+    return { section: SETTINGS_PART_SECTION[part], part }
+  }
+  return { section: target as SettingsSectionId, part: null }
+}
+
+/** A person or tag picked from its menu (a task row's avatar / tag, a picker's option), and what to do with it (`entityAction`). */
+export interface EntityAction {
+  kind: 'person' | 'tag'
+  id: number
+  /** `edit` = its editor, opened on it; `delete` = the delete confirm. */
+  action: 'edit' | 'delete'
+}
+
+/** What Quick Add (or the editor it hands off to) starts from; see `quickAddDraft`. */
+export interface QuickAddDraftSeed {
+  rawTitle: string
+  defaults?: FilterDefaults
+  source?: string
 }
 
 export interface BulkConfirmation {
@@ -26,95 +71,77 @@ export interface BulkConfirmation {
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
-export interface CanvasViewport {
-  x: number
-  y: number
-  zoom: number
+/** A yes / no question some code is waiting on (`askConfirmation`). */
+export interface ConfirmPrompt {
+  title: string
+  message: string
+  confirmLabel: string
+  cancelLabel?: string
+  /** Renders the confirm button with danger styling. */
+  danger?: boolean
+  /** Focus (so Enter) starts on Cancel instead of the confirm button. */
+  cancelIsDefault?: boolean
 }
 
-/**
- * Kind of floating canvas widget currently being dragged. Derived from the
- * React Flow node id prefix in `CanvasView.handleNodesChange` and stashed on
- * the UI store so the rails `DockOverlay` and the Phase 2 hit-test can observe
- * an in-flight float-dock gesture without plumbing refs through the tree.
- *
- * `'lens'` is the floating list widget — `ListInsetNode` on the canvas, the
- * `lens` slot kind on rails, and the `lens` arm of `FloatDescriptor`. The
- * React Flow node id prefix is still `inset-` (see `CanvasView.INSET_PREFIX`)
- * for DOM/test stability; `floatKindForNodeId` performs the prefix→kind
- * translation. `TaskSurfaceKey` separately uses `'inset'` and `'lens'` to
- * distinguish the floating list row's drag id from a rail-docked list row's
- * — those are distinct surfaces and live in `utils/task-dnd/ids.ts`.
- */
-export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'taskboard' | 'horizons' | 'status' | 'scoreboard' | 'snoozeGraveyard'
-
-export interface FloatDragState {
-  kind: FloatDragKind
-  id: number
+interface PendingConfirmPrompt extends ConfirmPrompt {
+  resolve: (confirmed: boolean) => void
 }
 
 interface UIState {
-  activeView: AppView
   selectedTodoId: number | null
   selectedTodoIds: Set<number>
   selectionAnchorId: number | null
   selectionFocusId: number | null
-  focusedTodoId: number | null
+  /**
+   * The list widget (tab id) the selection belongs to, or `null` for a
+   * selection made on another surface. Selection lives in one widget at a
+   * time; its anchor and keyboard cursor are row occurrences
+   * (`utils/scoped-selection.ts`), since a task can show more than once.
+   */
+  selectionScope: string | null
+  selectionAnchorKey: string | null
+  selectionCursorKey: string | null
   /** Todo currently hovered on any surface — drives cross-surface hover highlighting. */
   hoveredTodoId: number | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
-  /** What the List view groups tasks by. `'none'` = flat list. */
-  listGroupBy: ListGroupBy
-  /** How the List view sorts tasks within each group (or across all when ungrouped). */
-  listSortBy: ListItemSortBy
-  inlineCreateAfterId: number | null
-  clipboardTodoIds: number[]
-  clipboardSourceProjectId: number | null
-  filteredListPopup: FilteredListPopup | null
-  /** Pending canvas target from command palette navigation */
-  pendingCanvasTarget: { x: number; y: number } | null
+  /**
+   * Questions awaiting an answer, oldest first; `ConfirmPromptHost` shows the
+   * first. Unlike `bulkConfirmation` the asker awaits the answer, and the host
+   * is mounted outside the app shell, so it also works during startup.
+   */
+  confirmPrompts: PendingConfirmPrompt[]
+  /**
+   * The task dialog (`TaskDialog`): the tasks behind a dashboard number or a
+   * person chip. `null` = closed.
+   */
+  taskDialog: TaskDialogPayload | null
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
-  /** Project navigator panel open state */
-  isProjectNavigatorOpen: boolean
-  /** Taskboard panel open state */
-  isTaskboardOpen: boolean
+  /** The filter sheet was opened from a search button: focus its search box. */
+  filterSheetFocusSearch: boolean
   /**
    * Lists editor (`DashboardListsEditor`) open state. Owned here so any
-   * component (canvas list widget's kind menu, rail lens slot, etc.) can
-   * dispatch "open editor for def N" without prop-drilling. CanvasPage
-   * subscribes and renders the modal when `listsEditorOpen` is true.
+   * component (a list tab's menu, Settings, etc.) can dispatch "open editor
+   * for def N" without prop-drilling. WorkspacePage subscribes and renders
+   * the modal when `listsEditorOpen` is true.
    */
   listsEditorOpen: boolean
   /** Optional def id to preselect + auto-expand the ConfigPanel for. */
   listsEditorInitialId: number | null
   /**
-   * Direct list-editor dialog id — when non-null, `<StandaloneListEditor>`
-   * mounts the per-list editor dialog *without* the surrounding Lists
-   * manager modal. Drives the "Edit list" entry from a tab pill / float's
-   * widget-kind menu (triage-2026-04-26 P5 / Q7=A). The Lists manager's
-   * own row-click → P2 dialog-on-modal flow keeps using the
-   * `listsEditorOpen` + `listsEditorInitialId` pair above; the two paths
-   * are deliberately distinct so the surfaces don't stack.
+   * The open Edit list surface (the workspace's side popover, the phone's
+   * half sheet): the list it edits and the list tab it was opened for (it
+   * sits beside that tab's panel). One at a time. Separate from the Lists
+   * manager (`listsEditorOpen`), which keeps its own modal editor.
    */
-  listEditorDialogId: number | null
-  /** Descriptor of the floating canvas widget currently being dragged, or null. */
-  floatDrag: FloatDragState | null
-  /**
-   * Screen-reader announcement for float-dock drag gestures — mirrors the
-   * `useRailsDragMonitor` announcer (rendered as its own `aria-live=polite`
-   * region by `RailsFrame`). Empty string = silence. Set on drag start
-   * (`Dragging <kind>`) and on successful dock (`Dropped in <zone>`); cleared
-   * when the drag ends without a dock or is cancelled.
-   */
-  floatAnnouncement: string
+  listEditor: { listDefinitionId: number; tabId: string } | null
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
    * prop-drilling. `openCreatePopup` remains the entry point for the
-   * deliberate "I want all the fields" path (right-click → New Task on the
-   * canvas) and for the bar's "Open full editor →" handoff.
+   * deliberate "I want all the fields" path and for the bar's "Open full
+   * editor →" handoff.
    */
   quickAddOpen: boolean
   /**
@@ -127,133 +154,141 @@ interface UIState {
    *    pre-fills title + parser-derived metadata. The popup clears the
    *    draft via `closeEditPopup` on its close.
    * 3. `defaults` carries pre-resolved task metadata that overrides the
-   *    active filter when seeding a new task — used by the canvas list
+   *    active filter when seeding a new task — used by the list
    *    widget's "+ Add task" affordance to plumb the list's predicate
    *    through to QuickAddBar's submit handler. When absent, the submit
    *    handler falls back to `useFilterStore.getState().filters`.
+   * 4. `source` names where the task is being added (e.g. an Eisenhower
+   *    quadrant): the bar shows `Adding to <source>`.
    */
-  quickAddDraft: { rawTitle: string; defaults?: FilterDefaults } | null
+  quickAddDraft: QuickAddDraftSeed | null
   /**
    * Most recently created task — drives the transient `RecentTaskPill`
    * overlay. The pill renders for ~5s after creation so the user can click
-   * to open the editor or one-click add it to the taskboard before it fades.
+   * to open the editor or one-click put it in focus before it fades.
    * `key` is a fresh value (Date.now) so React can remount the pill — and
    * restart its CSS animation — when a new task is created while the
    * previous pill is still visible.
    */
   recentlyCreated: { todoId: number; key: number } | null
+  /**
+   * The desktop Settings modal. It sits over the workspace and never changes
+   * the route, so opening it never triggers the unsaved-layout prompt.
+   */
+  settingsOpen: boolean
+  /** The section the Settings modal shows; kept while the app stays open. */
+  settingsSection: SettingsSectionId
+  /** A part of it to scroll to (a deep link such as the storage pill's); cleared once shown. */
+  settingsPart: SettingsPartId | null
+  /**
+   * The email check-in dialog (`CheckinDialog`): the people ticked when it
+   * opened (none from the general command). `null` = closed.
+   */
+  checkinDialog: { personIds: number[] } | null
+  /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
+  checkinImportOpen: boolean
+  /** A person's / tag's Edit… or Delete… from its menu (`EntityActionHost`); `null` = none. */
+  entityAction: EntityAction | null
 
-  setActiveView: (view: AppView) => void
-  selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
-  toggleSelectTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
-  setFocusedTodo: (id: number | null) => void
   setHoveredTodoId: (id: number | null) => void
   selectAll: (ids: number[]) => void
+  /** Sets a list widget's selection (computed by `nextScopedSelection`). */
+  setScopedSelection: (scope: string, selection: ScopedSelection) => void
   clearSelection: () => void
   showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'cancelLabel' | 'skipIds' | 'onConfirm'>>) => void
   clearBulkConfirmation: () => void
+  /** Asks `prompt`; resolves true on confirm, false on cancel / Esc / backdrop. */
+  askConfirmation: (prompt: ConfirmPrompt) => Promise<boolean>
+  /** Answers the prompt on screen (the first in `confirmPrompts`). */
+  answerConfirmation: (confirmed: boolean) => void
   openEditPopup: (todoId: number) => void
   openCreatePopup: () => void
   closeEditPopup: () => void
-  setListGroupBy: (groupBy: ListGroupBy) => void
-  setListSortBy: (sortBy: ListItemSortBy) => void
-  triggerInlineCreate: (afterTodoId: number) => void
-  clearInlineCreate: () => void
-  cutTasks: (todoIds: number[], sourceProjectId: number | null) => void
-  clearClipboard: () => void
-  showFilteredList: (x: number, y: number, filter: AttributeFilter) => void
-  hideFilteredList: () => void
-  setPendingCanvasTarget: (target: { x: number; y: number } | null) => void
+  /**
+   * Opens the task dialog. Clears the selection, so a row's actions in the
+   * dialog act on that row only.
+   */
+  showTaskDialog: (payload: TaskDialogPayload) => void
+  hideTaskDialog: () => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
-  toggleProjectNavigator: () => void
-  toggleTaskboard: () => void
-  setFloatDrag: (next: FloatDragState | null) => void
-  setFloatAnnouncement: (text: string) => void
+  /** Opens the mobile filter sheet with its search box focused. */
+  openFilterSheetSearch: () => void
   openListsEditor: (initialId?: number | null) => void
   closeListsEditor: () => void
-  openListEditorDialog: (id: number) => void
-  closeListEditorDialog: () => void
-  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults }) => void
+  openListEditor: (listDefinitionId: number, tabId: string) => void
+  closeListEditor: () => void
+  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
-  setQuickAddDraft: (draft: { rawTitle: string; defaults?: FilterDefaults } | null) => void
+  setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
+  /** Opens Settings, on `target` (a section, or a part of one) when given. */
+  openSettings: (target?: SettingsTarget) => void
+  closeSettings: () => void
+  setSettingsSection: (target: SettingsTarget) => void
+  /** The part scroll was shown: forget it. */
+  clearSettingsPart: () => void
+  /** Opens the email check-in dialog with `personIds` ticked (none by default). */
+  openCheckinDialog: (personIds?: readonly number[]) => void
+  closeCheckinDialog: () => void
+  /** Opens the check-in reply import dialog (closing the check-in dialog). */
+  openCheckinImport: () => void
+  closeCheckinImport: () => void
+  openEntityAction: (action: EntityAction) => void
+  closeEntityAction: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
-  activeView: AppView.Canvas,
   selectedTodoId: null,
   selectedTodoIds: new Set<number>(),
   selectionAnchorId: null,
   selectionFocusId: null,
-  focusedTodoId: null,
+  selectionScope: null,
+  selectionAnchorKey: null,
+  selectionCursorKey: null,
   hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
-  listGroupBy: 'date' as ListGroupBy,
-  listSortBy: 'manual' as ListItemSortBy,
-  inlineCreateAfterId: null,
-  clipboardTodoIds: [],
-  clipboardSourceProjectId: null,
-  filteredListPopup: null,
-  pendingCanvasTarget: null,
+  confirmPrompts: [],
+  taskDialog: null,
   isFilterSheetOpen: false,
-  isProjectNavigatorOpen: false,
-  isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
+  filterSheetFocusSearch: false,
   listsEditorOpen: false,
   listsEditorInitialId: null,
-  listEditorDialogId: null,
-  floatDrag: null,
-  floatAnnouncement: '',
+  listEditor: null,
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
-
-  setActiveView(view: AppView) {
-    set({ activeView: view })
-  },
-
-  selectTodo(id: number | null) {
-    set({ selectedTodoId: id })
-  },
+  settingsOpen: false,
+  settingsSection: 'appearance',
+  settingsPart: null,
+  checkinDialog: null,
+  checkinImportOpen: false,
+  entityAction: null,
 
   selectOneTodo(id: number) {
-    set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id })
-  },
-
-  toggleSelectTodo(id: number) {
-    const next = new Set(get().selectedTodoIds)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-    set({ selectedTodoIds: next, selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id })
+    set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   rangeSelectTodo(id: number, orderedIds: number[]) {
     const anchor = get().selectionAnchorId
     if (anchor == null) {
-      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id })
+      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
       return
     }
     const anchorIdx = orderedIds.indexOf(anchor)
     const targetIdx = orderedIds.indexOf(id)
     if (anchorIdx === -1 || targetIdx === -1) {
-      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, focusedTodoId: id })
+      set({ selectedTodoIds: new Set([id]), selectionAnchorId: id, selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
       return
     }
     const start = Math.min(anchorIdx, targetIdx)
     const end = Math.max(anchorIdx, targetIdx)
     const rangeIds = orderedIds.slice(start, end + 1)
-    set({ selectedTodoIds: new Set(rangeIds), selectionFocusId: id, focusedTodoId: id })
-  },
-
-  setFocusedTodo(id: number | null) {
-    set({ focusedTodoId: id })
+    set({ selectedTodoIds: new Set(rangeIds), selectionFocusId: id, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   setHoveredTodoId(id: number | null) {
@@ -263,11 +298,22 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   selectAll(ids: number[]) {
     if (ids.length === 0) return
-    set({ selectedTodoIds: new Set(ids), selectionAnchorId: ids[0], selectionFocusId: ids[ids.length - 1], focusedTodoId: ids[0] })
+    set({ selectedTodoIds: new Set(ids), selectionAnchorId: ids[0], selectionFocusId: ids[ids.length - 1], selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
+  },
+
+  setScopedSelection(scope, { ids, anchorKey, cursorKey, cursorTodoId }) {
+    set({
+      selectedTodoIds: new Set(ids),
+      selectionScope: scope,
+      selectionAnchorKey: anchorKey,
+      selectionCursorKey: cursorKey,
+      selectionAnchorId: cursorTodoId,
+      selectionFocusId: cursorTodoId,
+    })
   },
 
   clearSelection() {
-    set({ selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null, focusedTodoId: null })
+    set({ selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null, selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null })
   },
 
   showBulkConfirmation(action, ids, options) {
@@ -276,6 +322,19 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   clearBulkConfirmation() {
     set({ bulkConfirmation: null })
+  },
+
+  askConfirmation(prompt) {
+    return new Promise<boolean>((resolve) => {
+      set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, resolve }] })
+    })
+  },
+
+  answerConfirmation(confirmed) {
+    const [first, ...rest] = get().confirmPrompts
+    if (!first) return
+    set({ confirmPrompts: rest })
+    first.resolve(confirmed)
   },
 
   openEditPopup(todoId: number) {
@@ -294,70 +353,28 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ selectedTodoId: null, editPopupMode: null, quickAddDraft: null })
   },
 
-  setListGroupBy(groupBy: ListGroupBy) {
-    set({ listGroupBy: groupBy })
+  showTaskDialog(payload) {
+    set({
+      taskDialog: payload,
+      selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null,
+      selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null,
+    })
   },
 
-  setListSortBy(sortBy: ListItemSortBy) {
-    set({ listSortBy: sortBy })
-  },
-
-  triggerInlineCreate(afterTodoId: number) {
-    set({ inlineCreateAfterId: afterTodoId })
-  },
-
-  clearInlineCreate() {
-    set({ inlineCreateAfterId: null })
-  },
-
-  cutTasks(todoIds: number[], sourceProjectId: number | null) {
-    set({ clipboardTodoIds: todoIds, clipboardSourceProjectId: sourceProjectId })
-  },
-
-  clearClipboard() {
-    set({ clipboardTodoIds: [], clipboardSourceProjectId: null })
-  },
-
-  showFilteredList(x: number, y: number, filter: AttributeFilter) {
-    set({ filteredListPopup: { x, y, filter } })
-  },
-
-  hideFilteredList() {
-    set({ filteredListPopup: null })
-  },
-
-  setPendingCanvasTarget(target: { x: number; y: number } | null) {
-    set({ pendingCanvasTarget: target })
+  hideTaskDialog() {
+    set({ taskDialog: null })
   },
 
   toggleFilterSheet() {
-    set({ isFilterSheetOpen: !get().isFilterSheetOpen })
+    set({ isFilterSheetOpen: !get().isFilterSheetOpen, filterSheetFocusSearch: false })
   },
 
   setFilterSheetOpen(open: boolean) {
-    set({ isFilterSheetOpen: open })
+    set({ isFilterSheetOpen: open, filterSheetFocusSearch: false })
   },
 
-  toggleProjectNavigator() {
-    set({ isProjectNavigatorOpen: !get().isProjectNavigatorOpen })
-  },
-
-  toggleTaskboard() {
-    const next = !get().isTaskboardOpen
-    localStorage.setItem('taskboardOpen', String(next))
-    set({ isTaskboardOpen: next })
-  },
-
-  setFloatDrag(next) {
-    const cur = get().floatDrag
-    if (next === null && cur === null) return
-    if (next && cur && next.kind === cur.kind && next.id === cur.id) return
-    set({ floatDrag: next })
-  },
-
-  setFloatAnnouncement(text) {
-    if (get().floatAnnouncement === text) return
-    set({ floatAnnouncement: text })
+  openFilterSheetSearch() {
+    set({ isFilterSheetOpen: true, filterSheetFocusSearch: true })
   },
 
   openListsEditor(initialId) {
@@ -368,20 +385,25 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ listsEditorOpen: false, listsEditorInitialId: null })
   },
 
-  openListEditorDialog(id) {
-    set({ listEditorDialogId: id })
+  openListEditor(listDefinitionId, tabId) {
+    set({ listEditor: { listDefinitionId, tabId } })
   },
 
-  closeListEditorDialog() {
-    set({ listEditorDialogId: null })
+  closeListEditor() {
+    if (get().listEditor === null) return
+    set({ listEditor: null })
   },
 
   openQuickAdd(seed) {
-    let draft: { rawTitle: string; defaults?: FilterDefaults } | null = null
+    let draft: QuickAddDraftSeed | null = null
     if (typeof seed === 'string') {
       draft = { rawTitle: seed }
-    } else if (seed && (seed.rawTitle != null || seed.defaults)) {
-      draft = { rawTitle: seed.rawTitle ?? '', ...(seed.defaults ? { defaults: seed.defaults } : {}) }
+    } else if (seed && (seed.rawTitle != null || seed.defaults || seed.source)) {
+      draft = {
+        rawTitle: seed.rawTitle ?? '',
+        ...(seed.defaults ? { defaults: seed.defaults } : {}),
+        ...(seed.source ? { source: seed.source } : {}),
+      }
     }
     set({ quickAddOpen: true, quickAddDraft: draft })
   },
@@ -401,5 +423,52 @@ export const useUIStore = create<UIState>((set, get) => ({
   clearRecentlyCreated() {
     if (get().recentlyCreated === null) return
     set({ recentlyCreated: null })
+  },
+
+  openSettings(target) {
+    // Edit list belongs to the workspace under the modal.
+    if (!target) {
+      set({ settingsOpen: true, listEditor: null })
+      return
+    }
+    const { section, part } = resolveSettingsTarget(target)
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, listEditor: null })
+  },
+
+  closeSettings() {
+    set({ settingsOpen: false })
+  },
+
+  setSettingsSection(target) {
+    const { section, part } = resolveSettingsTarget(target)
+    set({ settingsSection: section, settingsPart: part })
+  },
+
+  clearSettingsPart() {
+    if (get().settingsPart !== null) set({ settingsPart: null })
+  },
+
+  openCheckinDialog(personIds) {
+    set({ checkinDialog: { personIds: [...new Set(personIds ?? [])] } })
+  },
+
+  closeCheckinDialog() {
+    set({ checkinDialog: null })
+  },
+
+  openCheckinImport() {
+    set({ checkinImportOpen: true, checkinDialog: null })
+  },
+
+  closeCheckinImport() {
+    set({ checkinImportOpen: false })
+  },
+
+  openEntityAction(action) {
+    set({ entityAction: action })
+  },
+
+  closeEntityAction() {
+    set({ entityAction: null })
   },
 }))

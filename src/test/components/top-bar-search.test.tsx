@@ -1,20 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../components/layout/TopBar'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useProjectStore } from '../../stores/project-store'
 import type { Tag } from '../../models'
-import { makePerson, makeOrg, makeProject, makeTodo } from '../helpers'
+import { makePerson, makeTodo } from '../helpers'
+import { SEARCH_DEBOUNCE_MS } from '../../constants'
 
 function renderBar() {
   return render(
-    <MemoryRouter initialEntries={['/list']}>
+    <MemoryRouter initialEntries={['/']}>
       <TopBar />
     </MemoryRouter>,
   )
@@ -23,15 +22,13 @@ function renderBar() {
 describe('TopBar grouped search', () => {
   beforeEach(() => {
     useFilterStore.getState().clearAll()
-    useTodoStore.setState({ todos: [], loading: false, error: null })
+    useTodoStore.setState({ todos: [] })
     usePersonStore.setState({
       people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
       assignedPeopleMap: new Map(),
     })
-    useOrgStore.setState({ orgs: [makeOrg({ id: 1, name: 'Acme' })], assignedOrgsMap: new Map(), personOrgMap: new Map() })
     useStatusStore.setState({ statuses: [] })
-    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-    useProjectStore.setState({ projects: [makeProject({ id: 1, canvasId: 1, name: 'Marketing' })], loading: false, error: null })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   })
 
   afterEach(cleanup)
@@ -43,12 +40,10 @@ describe('TopBar grouped search', () => {
         makeTodo({ id: 2, title: 'random', notes: 'remember to buy bread' }),
         makeTodo({ id: 3, title: 'buy stamps', notes: 'for the letters' }),
       ],
-      loading: false,
-      error: null,
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
 
     await act(async () => {
       input.focus()
@@ -69,36 +64,36 @@ describe('TopBar grouped search', () => {
     expect(within(notesGroup).getAllByRole('option')).toHaveLength(1)
   })
 
-  it('groups by project name when assigned', async () => {
+  it('"Show all" expansion resets when the query changes', async () => {
     useTodoStore.setState({
-      todos: [
-        makeTodo({ id: 1, title: 'plan Q4', projectId: 1 }),
-        makeTodo({ id: 2, title: 'review brief', projectId: 1 }),
-      ],
-      loading: false,
-      error: null,
+      todos: Array.from({ length: 7 }, (_, i) => makeTodo({ id: i + 1, title: `task ${i + 1}`, notes: '' })),
     })
-
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
-      fireEvent.change(input, { target: { value: 'market' } })
+      fireEvent.change(input, { target: { value: 'task' } })
     })
+    fireEvent.mouseDown(await screen.findByText('Show all 7'))
+    const listbox = screen.getByRole('listbox', { name: /search results/i })
+    expect(within(listbox).getAllByRole('option')).toHaveLength(7)
+    expect(screen.queryByText('Show all 7')).toBeNull()
 
-    const listbox = await screen.findByRole('listbox', { name: /search results/i })
-    const projectGroup = within(listbox).getByRole('group', { name: 'Project' })
-    expect(within(projectGroup).getAllByRole('option')).toHaveLength(2)
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'tas' } })
+    })
+    await waitFor(() => {
+      expect(within(screen.getByRole('listbox', { name: /search results/i })).getAllByRole('option')).toHaveLength(5)
+    })
+    expect(screen.getByText('Show all 7')).toBeInTheDocument()
   })
 
   it('does not show the listbox when no results match', async () => {
     useTodoStore.setState({
       todos: [makeTodo({ id: 1, title: 'hello' })],
-      loading: false,
-      error: null,
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'zzz' } })
@@ -118,8 +113,6 @@ describe('TopBar grouped search', () => {
         [1, [urgent]],
         [2, [today, urgent]],
       ]),
-      loading: false,
-      error: null,
     })
     useTodoStore.setState({
       todos: [
@@ -127,12 +120,10 @@ describe('TopBar grouped search', () => {
         makeTodo({ id: 2, title: 'pick up keys' }),
         makeTodo({ id: 3, title: 'unrelated' }),
       ],
-      loading: false,
-      error: null,
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -143,22 +134,34 @@ describe('TopBar grouped search', () => {
     expect(within(tagGroup).getAllByRole('option')).toHaveLength(2)
   })
 
+  // Regression: the previous test's pending 150 ms debounce fired during the
+  // next test (after unmount) and wrote its stale query into the filter
+  // store, which re-synced the new bar's input and unmounted the focused
+  // option — the intermittent "roving focus" failure under full-suite load.
+  it('an unmounted bar does not write its pending search into the filter store', async () => {
+    const view = renderBar()
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'zzz' } })
+    })
+    view.unmount()
+    await act(async () => { await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 100)) })
+    expect(useFilterStore.getState().filters.searchText).toBe('')
+  })
+
   it('keyboard roving focus steps into the Tags group', async () => {
     const urgent: Tag = { id: 10, name: 'urgent', color: '#f00' }
     useTagStore.setState({
       tags: [urgent],
       assignedTagsMap: new Map([[1, [urgent]]]),
-      loading: false,
-      error: null,
     })
     useTodoStore.setState({
       todos: [makeTodo({ id: 1, title: 'review budget' })],
-      loading: false,
-      error: null,
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -172,5 +175,23 @@ describe('TopBar grouped search', () => {
       fireEvent.keyDown(input, { key: 'ArrowDown' })
     })
     expect(document.activeElement).toBe(tagOption)
+  })
+})
+
+describe('TopBar search box and the filter store', () => {
+  afterEach(cleanup)
+
+  it('shows the store’s search text when it changes elsewhere (e.g. Clear all)', async () => {
+    renderBar()
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'budget' } })
+    })
+    await waitFor(() => expect(useFilterStore.getState().filters.searchText).toBe('budget'))
+    expect(input.value).toBe('budget')
+    act(() => useFilterStore.getState().clearAll())
+    expect(input.value).toBe('')
+    act(() => useFilterStore.getState().setSearchText('from elsewhere'))
+    expect(input.value).toBe('from elsewhere')
   })
 })

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup, act } from '@testing-library/react'
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { usePopoverAnchor, type PopoverAnchor } from '../../hooks/use-popover-anchor'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 
 /**
  * Hook unit tests cover the math (flip / clamp) and the lifecycle (scroll /
@@ -429,5 +430,329 @@ describe('usePopoverAnchor — reposition mode', () => {
     expect(onClose).not.toHaveBeenCalled()
     // Position unchanged — point coords are static.
     expect(panel.style.top).toBe(initialTop)
+  })
+})
+
+describe('usePopoverAnchor — anchor changes (refs synced in layout effects)', () => {
+  it('re-positions when a point anchor moves while open', () => {
+    const { getByTestId, rerender } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 100, y: 200 }}
+        open={true}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    rerender(
+      <Harness
+        anchor={{ kind: 'point', x: 300, y: 100 }}
+        open={true}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.style.left).toBe('300px')
+    expect(panel.style.top).toBe('104px')
+  })
+
+  it('opens at the new point when the anchor changes in the same render as open', () => {
+    const { getByTestId, rerender } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 10, y: 10 }}
+        open={false}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    rerender(
+      <Harness
+        anchor={{ kind: 'point', x: 400, y: 300 }}
+        open={true}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.style.left).toBe('400px')
+    expect(panel.style.top).toBe('304px')
+  })
+
+  it('calls the latest onClose after a re-render swaps the callback', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender } = render(
+      <Harness anchor={{ kind: 'point', x: 0, y: 0 }} open={true} onClose={first} />,
+    )
+    rerender(<Harness anchor={{ kind: 'point', x: 0, y: 0 }} open={true} onClose={second} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('usePopoverAnchor — rect anchor + contentKey', () => {
+  /** A panel whose ref callback is stable, so only the hook's own deps recompute. */
+  function RectHarness({ anchor, size, contentKey }: {
+    anchor: PopoverAnchor
+    size: { width: number; height: number }
+    contentKey?: string
+  }) {
+    // Synced before the hook's own layout effect re-measures.
+    const sizeRef = useLatestRef(size)
+    const { panelRef, style, placementUsed } = usePopoverAnchor({
+      anchor, open: true, onClose: () => {}, contentKey,
+    })
+    const setPanel = useCallback((el: HTMLDivElement | null) => {
+      if (el) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => makeRect(0, 0, sizeRef.current.width, sizeRef.current.height),
+        })
+      }
+      panelRef(el)
+    }, [panelRef, sizeRef])
+    return <div ref={setPanel} data-testid="panel" data-placement={placementUsed} style={style}>panel</div>
+  }
+
+  it('sits below the rect, left-aligned with it', () => {
+    const { getByTestId } = render(
+      <RectHarness anchor={{ kind: 'rect', left: 100, top: 200, right: 108, bottom: 222 }} size={{ width: 200, height: 150 }} />,
+    )
+    expect(getByTestId('panel').style.top).toBe('226px')
+    expect(getByTestId('panel').style.left).toBe('100px')
+  })
+
+  it('flips above the rect top (not over it) near the bottom edge', () => {
+    const { getByTestId } = render(
+      <RectHarness anchor={{ kind: 'rect', left: 100, top: 680, right: 108, bottom: 702 }} size={{ width: 200, height: 150 }} />,
+    )
+    expect(getByTestId('panel').dataset.placement).toBe('top-start')
+    expect(getByTestId('panel').style.top).toBe('526px') // 680 - 150 - 4
+  })
+
+  it('a new contentKey re-measures the panel (it flips once it grew)', () => {
+    const anchor: PopoverAnchor = { kind: 'rect', left: 100, top: 680, right: 108, bottom: 702 }
+    const { getByTestId, rerender } = render(
+      <RectHarness anchor={anchor} size={{ width: 200, height: 40 }} contentKey="a" />,
+    )
+    expect(getByTestId('panel').style.top).toBe('706px')
+    rerender(<RectHarness anchor={anchor} size={{ width: 200, height: 150 }} contentKey="b" />)
+    expect(getByTestId('panel').style.top).toBe('526px')
+  })
+})
+
+describe('usePopoverAnchor — beside the anchor (right-start)', () => {
+  function BesideHarness({ anchor, size }: { anchor: PopoverAnchor; size: { width: number; height: number } }) {
+    const { panelRef, style, placementUsed } = usePopoverAnchor({
+      anchor, open: true, onClose: () => {}, placement: 'right-start', offset: 2,
+    })
+    const setPanel = useCallback((el: HTMLDivElement | null) => {
+      if (el) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => makeRect(0, 0, size.width, size.height),
+        })
+      }
+      panelRef(el)
+    }, [panelRef, size.width, size.height])
+    return <div ref={setPanel} data-testid="panel" data-placement={placementUsed} style={style}>panel</div>
+  }
+
+  it('sits to the right of the anchor, tops aligned', () => {
+    const { getByTestId } = render(
+      <BesideHarness anchor={{ kind: 'rect', left: 100, top: 200, right: 300, bottom: 228 }} size={{ width: 316, height: 200 }} />,
+    )
+    expect(getByTestId('panel').style.left).toBe('302px')
+    expect(getByTestId('panel').style.top).toBe('200px')
+    expect(getByTestId('panel').dataset.placement).toBe('right-start')
+  })
+
+  it('flips to the left side when the right has no room', () => {
+    const { getByTestId } = render(
+      <BesideHarness anchor={{ kind: 'rect', left: 600, top: 200, right: 800, bottom: 228 }} size={{ width: 316, height: 200 }} />,
+    )
+    expect(getByTestId('panel').style.left).toBe('282px') // 600 - 2 - 316
+    expect(getByTestId('panel').dataset.placement).toBe('left-start')
+  })
+
+  it('near the bottom, lines up with the anchor’s bottom instead', () => {
+    const { getByTestId } = render(
+      <BesideHarness anchor={{ kind: 'rect', left: 100, top: 700, right: 300, bottom: 728 }} size={{ width: 316, height: 200 }} />,
+    )
+    expect(getByTestId('panel').style.top).toBe('528px') // 728 - 200
+  })
+})
+
+describe('usePopoverAnchor — centred placements, placed flag, Escape and anchor options', () => {
+  function OptionsHarness({ anchor, size, placement, onClose = () => {}, consumeEscape, anchorIsInside, observeSize }: {
+    anchor: PopoverAnchor
+    size: { width: number; height: number }
+    placement?: 'bottom-center' | 'top-center' | 'bottom-start'
+    onClose?: () => void
+    consumeEscape?: boolean
+    anchorIsInside?: boolean
+    observeSize?: boolean
+  }) {
+    const sizeRef = useLatestRef(size)
+    const { panelRef, style, placementUsed, placed } = usePopoverAnchor({
+      anchor, open: true, onClose, placement, offset: 6, consumeEscape, anchorIsInside, observeSize,
+    })
+    const setPanel = useCallback((el: HTMLDivElement | null) => {
+      if (el) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => makeRect(0, 0, sizeRef.current.width, sizeRef.current.height),
+        })
+      }
+      panelRef(el)
+    }, [panelRef, sizeRef])
+    return <div ref={setPanel} data-testid="panel" data-placement={placementUsed} data-placed={placed} style={style}>panel</div>
+  }
+
+  it('bottom-center centres the panel under the anchor', () => {
+    const { getByTestId } = render(
+      <OptionsHarness anchor={{ kind: 'rect', left: 400, top: 100, right: 440, bottom: 120 }} size={{ width: 100, height: 30 }} placement="bottom-center" />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.style.left).toBe('370px') // 420 - 50
+    expect(panel.style.top).toBe('126px')
+    expect(panel.dataset.placement).toBe('bottom-center')
+    expect(panel.dataset.placed).toBe('true')
+  })
+
+  it('bottom-center flips above near the bottom and is clamped at the side edges', () => {
+    const { getByTestId } = render(
+      <OptionsHarness anchor={{ kind: 'rect', left: 1000, top: 740, right: 1020, bottom: 760 }} size={{ width: 100, height: 30 }} placement="bottom-center" />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.dataset.placement).toBe('top-center')
+    expect(panel.style.top).toBe('704px') // 740 - 30 - 6
+    expect(panel.style.left).toBe('916px') // 1024 - 8 - 100
+  })
+
+  it('placed is false while a ref anchor has no element yet', () => {
+    function NoElement() {
+      const ref = useRef<HTMLElement | null>(null)
+      return <OptionsHarness anchor={{ kind: 'ref', ref }} size={{ width: 100, height: 30 }} />
+    }
+    const { getByTestId } = render(<NoElement />)
+    expect(getByTestId('panel').dataset.placed).toBe('false')
+  })
+
+  it('consumeEscape stops the Escape that closes it', () => {
+    const onClose = vi.fn()
+    const behind = vi.fn()
+    document.addEventListener('keydown', behind)
+    try {
+      render(<OptionsHarness anchor={{ kind: 'point', x: 10, y: 10 }} size={{ width: 100, height: 30 }} onClose={onClose} consumeEscape />)
+      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+      document.body.dispatchEvent(event)
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(event.defaultPrevented).toBe(true)
+      expect(behind).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', behind)
+    }
+  })
+
+  it('without consumeEscape the Escape goes on to other listeners', () => {
+    const behind = vi.fn()
+    document.addEventListener('keydown', behind)
+    try {
+      render(<OptionsHarness anchor={{ kind: 'point', x: 10, y: 10 }} size={{ width: 100, height: 30 }} />)
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+      expect(behind).toHaveBeenCalledTimes(1)
+    } finally {
+      document.removeEventListener('keydown', behind)
+    }
+  })
+
+  it('anchorIsInside={false}: a mousedown on the anchor closes it', () => {
+    function RowAnchor({ onClose }: { onClose: () => void }) {
+      const ref = useRef<HTMLDivElement | null>(null)
+      return (
+        <>
+          <div ref={ref} data-testid="row">row</div>
+          <OptionsHarness anchor={{ kind: 'ref', ref }} size={{ width: 100, height: 30 }} onClose={onClose} anchorIsInside={false} />
+        </>
+      )
+    }
+    const onClose = vi.fn()
+    const { getByTestId } = render(<RowAnchor onClose={onClose} />)
+    fireEvent.mouseDown(getByTestId('row'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('observeSize re-places the panel when it changes size', () => {
+    const callbacks: Array<() => void> = []
+    const observed: Element[] = []
+    class FakeResizeObserver {
+      constructor(cb: () => void) { callbacks.push(cb) }
+      observe(el: Element) { observed.push(el) }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    try {
+      const size = { width: 200, height: 40 }
+      const anchor: PopoverAnchor = { kind: 'rect', left: 100, top: 680, right: 108, bottom: 702 }
+      const { getByTestId } = render(<OptionsHarness anchor={anchor} size={size} observeSize />)
+      expect(getByTestId('panel').style.top).toBe('708px')
+      expect(observed).toContain(getByTestId('panel'))
+      size.height = 150
+      act(() => { for (const cb of callbacks) cb() })
+      expect(getByTestId('panel').style.top).toBe('524px') // 680 - 150 - 6
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
+describe('usePopoverAnchor — layers stacked above the panel', () => {
+  const layers: HTMLElement[] = []
+  /** A portal root added to the body: after the panel's (opened later) or before it. */
+  function addLayer(where: 'after' | 'before'): HTMLElement {
+    const layer = document.createElement('div')
+    layers.push(layer)
+    const button = document.createElement('button')
+    layer.appendChild(button)
+    if (where === 'after') document.body.appendChild(layer)
+    else document.body.insertBefore(layer, document.body.firstChild)
+    return button
+  }
+
+  afterEach(() => {
+    for (const layer of layers.splice(0)) layer.remove()
+  })
+
+  it('a mousedown in a layer opened later (a menu or dialog over it) does not close it; one in an earlier layer does', () => {
+    const onClose = vi.fn()
+    render(<Harness anchor={{ kind: 'point', x: 10, y: 10 }} open onClose={onClose} panelRect={{ width: 100, height: 100 }} />)
+    fireEvent.mouseDown(addLayer('after'))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.mouseDown(addLayer('before'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('an Escape pressed in a layer opened later is that layer’s; one with nothing focused closes it', () => {
+    const onClose = vi.fn()
+    render(<Harness anchor={{ kind: 'point', x: 10, y: 10 }} open onClose={onClose} panelRect={{ width: 100, height: 100 }} />)
+    fireEvent.keyDown(addLayer('after'), { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('an Escape with nothing focused while a dialog is open above is the dialog’s', () => {
+    const onClose = vi.fn()
+    render(<Harness anchor={{ kind: 'point', x: 10, y: 10 }} open onClose={onClose} panelRect={{ width: 100, height: 100 }} />)
+    const dialog = addLayer('after').parentElement!
+    dialog.setAttribute('aria-modal', 'true')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    dialog.removeAttribute('aria-modal')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

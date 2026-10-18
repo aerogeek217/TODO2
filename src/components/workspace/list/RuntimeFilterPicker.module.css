@@ -1,0 +1,191 @@
+/* Prompt row: a labelled multi-value field above the list. */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--list-prompt-row-height);
+  padding: 0 8px 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.label {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* Pills + input — reads as a single input. */
+.field {
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-inset);
+  cursor: text;
+}
+
+.field:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  max-width: 100%;
+  padding: 0 2px 0 6px;
+  border-radius: 4px;
+  background: var(--color-tint-12);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.chipName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipRemove {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.chipRemove:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.input {
+  flex: 1;
+  min-width: 60px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  padding: 0 2px;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Portaled to document.body — positioned via inline `left`/`top` from the
+ * picker's input-row rect. `position: fixed` keeps it pinned during window
+ * scroll/resize (the picker recomputes on those events). */
+.panel {
+  position: fixed;
+  width: 240px;
+  background: var(--color-surface-high);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-popover);
+  padding: 4px;
+}
+
+.optionList {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-nav);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.option:hover {
+  background: var(--color-surface-high);
+}
+
+.optionName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Checkbox marker — matches the TopBar dropdown's check style without
+ * importing across module boundaries. */
+.check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-surface-high);
+  position: relative;
+}
+
+.check.checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.check.checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--color-on-accent, #fff);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.empty {
+  padding: 8px 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-on-accent);
+}

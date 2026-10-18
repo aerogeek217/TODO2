@@ -53,21 +53,22 @@ describe('buildTasksPlain', () => {
     expect(out).toContain('== Has ==')
   })
 
-  it('includes status, scheduled, deadline, and people annotations', () => {
+  it('includes status, due date, follow-up, and people annotations', () => {
     const statusMap = new Map<number, Status>([[7, { id: 7, name: 'Doing', color: '#fff', sortOrder: 0 }]])
     const assignedPeopleMap = new Map([[1, [makePerson({ id: 1, name: 'Ada' }), makePerson({ id: 2, name: 'Bob' })]]])
     const todo = makeTodo({
       id: 1,
       title: 'Meeting',
       statusId: 7,
-      scheduledDate: { kind: 'fuzzy', token: 'today', setAt: new Date(2026, 3, 23) },
       dueDate: new Date(2026, 3, 25),
+      nextFollowupAt: new Date(2026, 3, 28),
     })
     const out = buildTasksPlain([{ todos: [todo] }], ctx({ statusMap, assignedPeopleMap }))
     expect(out).toContain('[ ] Meeting')
     expect(out).toContain('[Doing]')
-    expect(out).toContain('(sched: Today)')
-    expect(out).toContain('(deadline')
+    expect(out).not.toContain('sched')
+    expect(out).toContain('(due ')
+    expect(out).toContain('(follow-up ')
     expect(out).toContain('@Ada, @Bob')
   })
 })

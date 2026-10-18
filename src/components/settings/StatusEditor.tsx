@@ -24,6 +24,7 @@ import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import { bySortOrder } from '../../utils/sort-order'
+import { EditorModal } from './EditorModal'
 import styles from './EntityEditor.module.css'
 
 interface EditState {
@@ -31,7 +32,6 @@ interface EditState {
   name: string
   color: string
   icon?: StatusIconKey
-  hideByDefault?: boolean
 }
 
 interface StatusEditorProps {
@@ -45,6 +45,8 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
     anchor: { kind: 'ref', ref: triggerRef },
     open,
     onClose: () => setOpen(false),
+    // Esc closes the picker only, not the editor around it.
+    consumeEscape: true,
   })
 
   return (
@@ -94,7 +96,6 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
         <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} />
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
-      {status.hideByDefault && <span className={styles.hiddenLabel}>(hidden)</span>}
       <div className={styles.actions}>
         <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} title="Delete">&times;</button>
       </div>
@@ -110,7 +111,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [newIcon, setNewIcon] = useState<StatusIconKey | undefined>(undefined)
-  const [newHidden, setNewHidden] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
@@ -119,7 +119,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   useEffect(() => { load(); ensureTodosLoaded() }, [load, ensureTodosLoaded])
 
   const startEdit = (s: Status) => {
-    setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon, hideByDefault: s.hideByDefault })
+    setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon })
     setAdding(false)
     setDeleteId(null)
     setNameError('')
@@ -130,7 +130,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     const existing = statuses.find(s => s.id === editing.id)
     if (!existing) return
     try {
-      await update({ ...existing, name: editing.name.trim(), color: editing.color, icon: editing.icon, hideByDefault: editing.hideByDefault })
+      await update({ ...existing, name: editing.name.trim(), color: editing.color, icon: editing.icon })
       setEditing(null)
       setNameError('')
     } catch (e) {
@@ -146,18 +146,16 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     setNewName('')
     setNewColor(DEFAULT_ENTITY_COLOR)
     setNewIcon(undefined)
-    setNewHidden(false)
   }
 
   const saveAdd = async () => {
     if (!newName.trim()) return
     try {
-      await add(newName.trim(), newColor, newIcon, newHidden || undefined)
+      await add(newName.trim(), newColor, newIcon)
       setAdding(false)
       setNewName('')
       setNewColor(DEFAULT_ENTITY_COLOR)
       setNewIcon(undefined)
-      setNewHidden(false)
       setNameError('')
     } catch (e) {
       setNameError((e as Error).message)
@@ -179,12 +177,13 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveEdit()
-    if (e.key === 'Escape') setEditing(null)
+    // The row's own Esc (cancel the edit): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); setEditing(null) }
   }
 
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveAdd()
-    if (e.key === 'Escape') setAdding(false)
+    if (e.key === 'Escape') { e.preventDefault(); setAdding(false) }
   }
 
   const sorted = useMemo(
@@ -207,13 +206,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>Statuses</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
+      <EditorModal title="Statuses" onClose={onClose}>
         <input
           type="text"
           className={styles.searchInput}
@@ -246,10 +239,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                           placeholder="Status name"
                           autoFocus
                         />
-                        <label className={styles.hiddenToggle} title="Hidden statuses are excluded from default filters">
-                          <input type="checkbox" checked={ed.hideByDefault ?? false} onChange={(e) => setEditing({ ...ed, hideByDefault: e.target.checked || undefined })} />
-                          Hidden
-                        </label>
                         <div className={styles.editActions}>
                           <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
                           <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
@@ -285,10 +274,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                 placeholder="Status name"
                 autoFocus
               />
-              <label className={styles.hiddenToggle} title="Hidden statuses are excluded from default filters">
-                <input type="checkbox" checked={newHidden} onChange={(e) => setNewHidden(e.target.checked)} />
-                Hidden
-              </label>
               <div className={styles.editActions}>
                 <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
                 <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
@@ -299,7 +284,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add Status</button>
         )}
-      </div>
+      </EditorModal>
       {deleteId != null && (() => {
         const target = statuses.find((s) => s.id === deleteId)
         if (!target) return null

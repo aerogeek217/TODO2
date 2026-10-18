@@ -1,35 +1,103 @@
-import { useEffect, useState, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
-import { personRepository } from '../../data'
-import { generateInitials } from '../../utils/person'
-import { resolvePersonColor } from '../../utils/person-color'
-import { ChipSelector } from '../shared/ChipSelector'
-import { PortalDropdown } from '../shared/PortalDropdown'
-import { ConfirmDialog } from '../shared/Dialog'
+import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
+import { ColorInput } from '../shared/ColorInput'
+import { DeletePersonConfirm } from './EntityDeleteConfirm'
 import type { Person } from '../../models'
-import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
+import type { DialogLayer } from '../shared/Dialog'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
+import { byName } from '../../utils/sort-order'
 
 interface PersonEditState {
   id: number
   name: string
   initials: string
-  orgIds: number[]
+  /** Undefined = no color (neutral avatar). */
+  color: string | undefined
+  /** As typed; saved trimmed, empty = no email. */
+  email: string
+}
+
+const EMAIL_SHAPE_ERROR = "Doesn't look like an email address"
+
+/** Whether a typed email can be saved: empty, or shaped like an address. */
+function emailOk(value: string): boolean {
+  return value.trim() === '' || isValidEmail(value)
+}
+
+interface EmailFieldProps {
+  value: string
+  onChange: (value: string) => void
+  /** Show the shape error (after the field was left or a save was tried). */
+  showError: boolean
+  onBlur: () => void
+  errorId: string
+  autoFocus?: boolean
+}
+
+/** The optional email input; the shape error shows under the row. */
+function EmailField({ value, onChange, showError, onBlur, errorId, autoFocus }: EmailFieldProps) {
+  const invalid = showError && !emailOk(value)
+  return (
+    <input
+      type="email"
+      className={styles.editInputEmail}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      placeholder="Email (optional)"
+      aria-label="Email"
+      maxLength={PERSON_EMAIL_MAX}
+      aria-invalid={invalid || undefined}
+      aria-describedby={invalid ? errorId : undefined}
+      autoFocus={autoFocus}
+    />
+  )
 }
 
 interface PeopleEditorProps {
   onClose: () => void
+  /**
+   * Open straight onto this person's edit row (e.g. "Add email" in the
+   * check-in dialog, a task row's avatar menu › Edit…).
+   */
+  editPersonId?: number
+  /** The field focused on that row: `email` (default) or `name`. */
+  focusField?: 'name' | 'email'
+  /** The modal's tier (`EditorModal`). */
+  layer?: DialogLayer
 }
 
-export function PeopleEditor({ onClose }: PeopleEditorProps) {
-  const { people, load: loadPeople, add: addPerson, update: updatePerson, remove: removePerson } = usePersonStore()
-  const orgs = useOrgStore((s) => s.orgs)
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
-  const loadOrgs = useOrgStore((s) => s.load)
-  const loadPersonOrgMap = useOrgStore((s) => s.loadPersonOrgMap)
-  const setPersonOrgs = useOrgStore((s) => s.setPersonOrgs)
+/** Color picker plus a clear button; a person without a color shows the neutral swatch. */
+function PersonColorField({ color, onChange }: { color: string | undefined; onChange: (color: string | undefined) => void }) {
+  return (
+    <>
+      <ColorInput value={color ?? NEUTRAL_PERSON_COLOR} onChange={onChange} />
+      {color && (
+        <button
+          type="button"
+          className={styles.iconBtn}
+          onClick={() => onChange(undefined)}
+          title="Remove color"
+          aria-label="Remove color"
+        >
+          &times;
+        </button>
+      )}
+    </>
+  )
+}
+
+const EMAIL_ERROR_ID = 'person-email-error'
+
+function withColor(person: Omit<Person, 'color'>, color: string | undefined): Person {
+  return color ? { ...person, color } : person
+}
+
+export function PeopleEditor({ onClose, editPersonId, focusField = 'email', layer }: PeopleEditorProps) {
+  const { people, load: loadPeople, add: addPerson, update: updatePerson } = usePersonStore()
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -37,52 +105,62 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const [newName, setNewName] = useState('')
   const [newInitials, setNewInitials] = useState('')
   const [newInitialsManual, setNewInitialsManual] = useState(false)
-  const [newOrgIds, setNewOrgIds] = useState<number[]>([])
+  const [newColor, setNewColor] = useState<string | undefined>(undefined)
   const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [deleteCount, setDeleteCount] = useState(0)
   const [searchText, setSearchText] = useState('')
   const [nameError, setNameError] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  /** The email field was left (or a save was tried): its shape error may show. */
+  const [emailTouched, setEmailTouched] = useState(false)
 
-  // Org dropdown for person edit/add. The two modes are mutually exclusive
-  // (only one row is in edit/add state at a time), so a single trigger ref
-  // anchors whichever mode's `Orgs` button is currently rendered.
-  const [showOrgDropdown, setShowOrgDropdown] = useState<'edit' | 'add' | null>(null)
-  const orgToggleBtnRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { loadPeople() }, [loadPeople])
 
-  useEffect(() => { loadPeople(); loadOrgs(); loadPersonOrgMap() }, [loadPeople, loadOrgs, loadPersonOrgMap])
+  // Opened onto one person: edit that row once the person is there.
+  const [openedOnto, setOpenedOnto] = useState<number | null>(null)
+  const ontoPerson = editPersonId != null && openedOnto !== editPersonId
+    ? people.find((p) => p.id === editPersonId)
+    : undefined
+  if (ontoPerson) {
+    setOpenedOnto(editPersonId ?? null)
+    setEditing({ id: ontoPerson.id!, name: ontoPerson.name, initials: ontoPerson.initials, color: ontoPerson.color, email: ontoPerson.email ?? '' })
+    setEditInitialsManual(true)
+  }
+  const focusEmail = focusField === 'email' && editPersonId != null && editing?.id === editPersonId
 
   const clearState = () => {
     setEditing(null)
     setAdding(false)
     setDeleteId(null)
-    setShowOrgDropdown(null)
     setNameError('')
+    setEmailTouched(false)
   }
 
   // --- Person CRUD ---
 
   const startEditPerson = (p: Person) => {
     clearState()
-    setEditing({ id: p.id!, name: p.name, initials: p.initials, orgIds: personOrgMap.get(p.id!) ?? [] })
+    setEditing({ id: p.id!, name: p.name, initials: p.initials, color: p.color, email: p.email ?? '' })
     setEditInitialsManual(true) // existing person already has initials, treat as manual until changed
   }
 
   const saveEditPerson = async () => {
     if (!editing || !editing.name.trim()) return
+    if (!emailOk(editing.email)) {
+      setEmailTouched(true)
+      return
+    }
     try {
-      await updatePerson({ id: editing.id, name: editing.name.trim(), initials: editing.initials || generateInitials(editing.name) })
-      await setPersonOrgs(editing.id, editing.orgIds)
+      await updatePerson(withEmail(withColor({
+        id: editing.id,
+        name: editing.name.trim(),
+        initials: editing.initials || generateInitials(editing.name),
+      }, editing.color), editing.email))
       setEditing(null)
       setNameError('')
+      setEmailTouched(false)
     } catch (e) {
       setNameError((e as Error).message)
     }
-  }
-
-  const toggleEditOrg = (orgId: number) => {
-    if (!editing) return
-    const has = editing.orgIds.includes(orgId)
-    setEditing({ ...editing, orgIds: has ? editing.orgIds.filter((id) => id !== orgId) : [...editing.orgIds, orgId] })
   }
 
   const startAddPerson = () => {
@@ -91,116 +169,73 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     setNewName('')
     setNewInitials('')
     setNewInitialsManual(false)
-    setNewOrgIds([])
-  }
-
-  const toggleNewOrg = (orgId: number) => {
-    setNewOrgIds((prev) => prev.includes(orgId) ? prev.filter((id) => id !== orgId) : [...prev, orgId])
+    setNewColor(undefined)
+    setNewEmail('')
   }
 
   const saveAddPerson = async () => {
     if (!newName.trim()) return
+    if (!emailOk(newEmail)) {
+      setEmailTouched(true)
+      return
+    }
     try {
-      const id = await addPerson(newName.trim(), newInitials || generateInitials(newName))
-      if (newOrgIds.length > 0) {
-        await setPersonOrgs(id, newOrgIds)
-      }
+      await addPerson(newName.trim(), newInitials || generateInitials(newName), newColor, newEmail)
       setAdding(false)
       setNameError('')
+      setEmailTouched(false)
     } catch (e) {
       setNameError((e as Error).message)
     }
   }
 
-  const startDeletePerson = async (id: number) => {
+  const startDeletePerson = (id: number) => {
     clearState()
     setDeleteId(id)
-    const count = await personRepository.getTodoCountForPerson(id)
-    setDeleteCount(count)
-  }
-
-  const confirmDeletePerson = async () => {
-    if (deleteId == null) return
-    await removePerson(deleteId)
-    setDeleteId(null)
   }
 
   const handleKeyDown = (save: () => void, cancel: () => void) => (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') save()
-    if (e.key === 'Escape') cancel()
+    // The row's own Esc (cancel the edit): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); cancel() }
   }
 
   // --- Person row ---
 
-  const orgNames = (personId: number) => {
-    const ids = personOrgMap.get(personId)
-    if (!ids || ids.length === 0) return undefined
-    return ids.map((id) => orgs.find((o) => o.id === id)?.name).filter(Boolean).join(', ')
-  }
-
-  const renderOrgSelector = (selectedOrgIds: number[], onToggle: (orgId: number) => void, mode: 'edit' | 'add') => {
-    const selectedNames = selectedOrgIds.map((id) => orgs.find((o) => o.id === id)?.name).filter(Boolean)
-    const isOpen = showOrgDropdown === mode
-    return (
-      <div className={styles.orgDropdownWrap}>
-        <button
-          type="button"
-          ref={isOpen ? orgToggleBtnRef : undefined}
-          className={styles.orgToggleBtn}
-          onClick={(e) => { e.stopPropagation(); setShowOrgDropdown(isOpen ? null : mode) }}
-        >
-          {selectedNames.length > 0 ? selectedNames.join(', ') : 'Orgs'}
-        </button>
-        {isOpen && createPortal(
-          <PortalDropdown
-            anchorRef={orgToggleBtnRef}
-            onClickOutside={() => setShowOrgDropdown(null)}
-            className={styles.orgDropdownPortal}
-          >
-            <div className={styles.orgDropdownPanel}>
-              <ChipSelector
-                items={orgs.map((o) => ({ id: o.id!, name: o.name, color: o.color }))}
-                selectedIds={new Set(selectedOrgIds)}
-                onToggle={onToggle}
-                placeholder="Search orgs..."
-              />
-            </div>
-          </PortalDropdown>,
-          document.body,
-        )}
-      </div>
-    )
-  }
-
   const renderPersonRow = (p: Person) => {
-    const derived = resolvePersonColor(p.id, personOrgMap, orgs) ?? UNAFFILIATED_PERSON_COLOR
-
     if (editing && editing.id === p.id) {
       const ed = editing
       return (
         <div key={p.id}>
-          <div className={styles.editRow} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError('') })}>
-            <div className={styles.colorSwatch} style={{ background: derived }} title="Color derived from assigned org" />
-            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus />
+          <div className={`${styles.editRow} ${styles.editRowWrap}`} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError(''); setEmailTouched(false) })}>
+            <PersonColorField color={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus={!focusEmail} />
             <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
-            {orgs.length > 0 && renderOrgSelector(ed.orgIds, toggleEditOrg, 'edit')}
             <div className={styles.editActions}>
               <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
-              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError(''); setEmailTouched(false) }}>Cancel</button>
             </div>
+            <EmailField
+              value={ed.email}
+              onChange={(email) => setEditing({ ...ed, email })}
+              showError={emailTouched}
+              onBlur={() => setEmailTouched(true)}
+              errorId={EMAIL_ERROR_ID}
+              autoFocus={focusEmail}
+            />
           </div>
           {nameError && <div className={styles.errorHint}>{nameError}</div>}
+          {emailTouched && !emailOk(ed.email) && <div id={EMAIL_ERROR_ID} className={styles.errorHint}>{EMAIL_SHAPE_ERROR}</div>}
         </div>
       )
     }
 
-    const orgLabel = orgNames(p.id!)
     return (
       <div key={p.id} className={styles.row}>
-        <div className={styles.colorSwatch} style={{ background: derived }} onClick={() => startEditPerson(p)} />
+        <div className={styles.colorSwatch} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} onClick={() => startEditPerson(p)} />
         <span className={styles.nameEditable} onClick={() => startEditPerson(p)}>{p.name}</span>
+        {p.email && <span className={styles.email} title={p.email}>{p.email}</span>}
         <span className={styles.initials}>{p.initials}</span>
-        {orgLabel && <span className={styles.orgLabel}>{orgLabel}</span>}
         <div className={styles.actions}>
           <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} title="Delete">&times;</button>
         </div>
@@ -210,13 +245,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>People</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
+      <EditorModal title="People" onClose={onClose} layer={layer}>
         <input
           type="text"
           className={styles.searchInput}
@@ -230,14 +259,8 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
             const q = searchText.trim().toLowerCase()
             const filtered = q === ''
               ? people
-              : people.filter((p) => {
-                  if (p.name.toLowerCase().includes(q)) return true
-                  if (p.initials.toLowerCase().includes(q)) return true
-                  const orgIds = personOrgMap.get(p.id!)
-                  if (orgIds && orgIds.some((id) => orgs.find((o) => o.id === id)?.name.toLowerCase().includes(q))) return true
-                  return false
-                })
-            const sorted = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
+              : people.filter((p) => p.name.toLowerCase().includes(q) || p.initials.toLowerCase().includes(q))
+            const sorted = filtered.toSorted(byName)
 
             return (
               <>
@@ -252,53 +275,34 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
             )
           })()}
 
-          {adding && (() => {
-            // Preview swatch: first selected org's color (matches post-save derivation).
-            const previewColor = newOrgIds
-              .map((id) => orgs.find((o) => o.id === id)?.color)
-              .find((c): c is string => !!c)
-              ?? UNAFFILIATED_PERSON_COLOR
-            return (
+          {adding && (
             <div>
-              <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => { setAdding(false); setNameError('') })}>
-                <div className={styles.colorSwatch} style={{ background: previewColor }} title="Color derived from assigned org" />
+              <div className={`${styles.editRow} ${styles.editRowWrap}`} onKeyDown={handleKeyDown(saveAddPerson, () => { setAdding(false); setNameError(''); setEmailTouched(false) })}>
+                <PersonColorField color={newColor} onChange={setNewColor} />
                 <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)); setNameError('') }} placeholder="Name" autoFocus />
                 <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 2)) }} placeholder="AB" />
-                {orgs.length > 0 && renderOrgSelector(newOrgIds, toggleNewOrg, 'add')}
                 <div className={styles.editActions}>
                   <button className={styles.saveBtn} onClick={saveAddPerson}>Add</button>
-                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError(''); setEmailTouched(false) }}>Cancel</button>
                 </div>
+                <EmailField
+                  value={newEmail}
+                  onChange={setNewEmail}
+                  showError={emailTouched}
+                  onBlur={() => setEmailTouched(true)}
+                  errorId={EMAIL_ERROR_ID}
+                />
               </div>
               {nameError && <div className={styles.errorHint}>{nameError}</div>}
+              {emailTouched && !emailOk(newEmail) && <div id={EMAIL_ERROR_ID} className={styles.errorHint}>{EMAIL_SHAPE_ERROR}</div>}
             </div>
-            )
-          })()}
+          )}
           {!adding && (
             <button className={styles.addBtn} onClick={startAddPerson}>+ Add Person</button>
           )}
         </div>
-      </div>
-      {deleteId != null && (() => {
-        const target = people.find((p) => p.id === deleteId)
-        if (!target) return null
-        return (
-          <ConfirmDialog
-            open
-            title="Delete person"
-            message={
-              <>
-                Delete <strong>{target.name}</strong>?
-                {deleteCount > 0 && ` Assigned to ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
-              </>
-            }
-            confirmLabel="Delete"
-            danger
-            onConfirm={confirmDeletePerson}
-            onCancel={() => setDeleteId(null)}
-          />
-        )
-      })()}
+      </EditorModal>
+      {deleteId != null && <DeletePersonConfirm personId={deleteId} onDone={() => setDeleteId(null)} />}
     </>
   )
 }

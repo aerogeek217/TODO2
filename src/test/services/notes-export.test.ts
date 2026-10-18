@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref } from '../../services/notes-export'
+import { expectWithin } from '../timing'
 
 describe('normalizeToMarkdown', () => {
   it('converts ALL-CAPS lines into H2 headings', () => {
@@ -194,11 +195,8 @@ describe('notes-export XSS hardening', () => {
 
   it('mdToHtml HTML-attribute-escapes quotes in URLs', () => {
     const html = mdToHtml('[t](https://x.com/"a)')
-    // After the P3 hardening, `escapeHtml` itself now escapes `"`, so the URL's
-    // raw `"` becomes `&quot;` in the text-pass, then `escapeHtmlAttr`'s `&`
-    // pass re-escapes that `&` → `&amp;quot;`. Either way, no raw `"` reaches
-    // the attribute and the entity is safe.
-    expect(html).toContain('&amp;quot;')
+    // The URL's raw `"` is escaped once for the attribute.
+    expect(html).toContain('href="https://x.com/&quot;a"')
     expect(html).not.toMatch(/href="https:\/\/x\.com\/"a"/)
     expect(html).not.toMatch(/<a href="[^"]*"[^>]*"/) // no second `"` in attr
   })
@@ -223,37 +221,35 @@ describe('notes-export XSS hardening', () => {
     expect(md).toBe('[X](https://example.com)')
   })
 
-  it('inlineMd defensively re-escapes link text (chain-reorder safety)', () => {
+  it('inlineMd escapes link text once and keeps markup inert', () => {
     const html = mdToHtml('[<script>x](https://example.com)')
-    // No active <script> tag reaches the output regardless of chain order.
     expect(html).not.toMatch(/<script[\s>]/i)
-    // The defensive re-escape double-encodes `&lt;` → `&amp;lt;` — that marker
-    // pins the fix, so a future regression that drops the escape at the
-    // link-substitution site fails this test.
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('href="https://example.com"')
+    expect(html).toContain('<a href="https://example.com">&lt;script&gt;x</a>')
+    expect(html).not.toContain('&amp;lt;')
   })
 
-  it('inlineMd defensively re-escapes bold text (chain-reorder safety)', () => {
-    const html = mdToHtml('**<script>x**')
+  it.each([
+    ['bold', '**<script>x & y**', '<strong>&lt;script&gt;x &amp; y</strong>'],
+    ['italic', '*<script>x & y*', '<em>&lt;script&gt;x &amp; y</em>'],
+    ['code', '`<script>x & y`', '<code>&lt;script&gt;x &amp; y</code>'],
+  ])('inlineMd escapes %s text once', (_kind, md, expected) => {
+    const html = mdToHtml(md)
     expect(html).not.toMatch(/<script[\s>]/i)
-    // Same double-encode marker as the link branch — pins the fix in place.
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('<strong>')
+    expect(html).toContain(expected)
   })
 
-  it('inlineMd defensively re-escapes italic text (chain-reorder safety)', () => {
-    const html = mdToHtml('*<script>x*')
-    expect(html).not.toMatch(/<script[\s>]/i)
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('<em>')
+  it("inlineMd shows apostrophes and ampersands in formatted text as written", () => {
+    const html = mdToHtml("**Dana's Q&A** and *it's* [R&D](https://a.example/?b=1&c=2)")
+    expect(html).toContain('<strong>Dana&#39;s Q&amp;A</strong>')
+    expect(html).toContain('<em>it&#39;s</em>')
+    expect(html).toContain('<a href="https://a.example/?b=1&amp;c=2">R&amp;D</a>')
+    expect(html).not.toContain('&amp;#39;')
+    expect(html).not.toContain('&amp;amp;')
   })
 
-  it('inlineMd defensively re-escapes code text (chain-reorder safety)', () => {
-    const html = mdToHtml('`<script>x`')
-    expect(html).not.toMatch(/<script[\s>]/i)
-    expect(html).toContain('&amp;lt;')
-    expect(html).toContain('<code>')
+  it('inlineMd still blocks an entity-hidden javascript: link', () => {
+    expect(mdToHtml('[x](&#106;avascript:alert(1))')).toContain('href="#"')
+    expect(mdToHtml('[x](javascript:alert(1))')).toContain('href="#"')
   })
 
   it('escapeHtml escapes both single and double quotes (attribute-context safety)', () => {
@@ -301,5 +297,53 @@ describe('copyNotesRich', () => {
     writeTextSpy.mockRejectedValueOnce(new Error('denied'))
     const ok = await copyNotesRich('note')
     expect(ok).toBe(false)
+  })
+})
+
+describe('sanitizeHref hex entities', () => {
+  it('decodes a hex entity made only of digits as hex, not decimal', () => {
+    // `&#x70;` is `p`; read as decimal 70 it became `F`.
+    expect(sanitizeHref('htt&#x70;s://example.com')).toBe('https://example.com')
+    expect(sanitizeHref('&#X6a;avascript:alert(1)')).toBe('#')
+  })
+})
+
+describe('notes-export on long pathological lines', () => {
+  // Each input took seconds to minutes with the old regexes (quadratic
+  // backtracking); a linear pass takes milliseconds.
+  const N = 200_000
+  const within = expectWithin
+
+  it('mdToHtml: a long run of whitespace inside a line', () => {
+    within(1000, () => expect(mdToHtml(`a${' '.repeat(N)}b`)).toBe(`<p>a${' '.repeat(N)}b</p>`))
+  })
+
+  it('mdToHtml: a long run of `[` with no `]`, and of `[a](` with no `)`', () => {
+    within(1000, () => {
+      expect(mdToHtml('['.repeat(N))).toBe(`<p>${'['.repeat(N)}</p>`)
+      expect(mdToHtml('[a]('.repeat(N / 4))).toBe(`<p>${'[a]('.repeat(N / 4)}</p>`)
+    })
+  })
+
+  it('htmlToMarkdown: a <pre> with a long run of newlines before its text', () => {
+    within(1000, () => expect(htmlToMarkdown(`<pre>${'\n'.repeat(N)}x</pre>`)).toContain('x'))
+  })
+
+  it('mdToHtml: a heading / checkbox / bullet line with a long space run before a mid-line line break', () => {
+    // `.` stops at `\r` / U+2028, so `(.+)$` failed after every split of the
+    // space run (quadratic). Imported notes keep those characters.
+    for (const sep of ['\r', '\u2028']) {
+      const pad = ' '.repeat(N)
+      within(1000, () => {
+        expect(mdToHtml(`# ${pad}a${sep}b`)).toBe(`<h1>a${sep}b</h1>`)
+        expect(mdToHtml(`- [x] ${pad}a${sep}b`)).toBe(`<ul>\n<li>☑ a${sep}b</li>\n</ul>`)
+        expect(mdToHtml(`- ${pad}a${sep}b`)).toBe(`<ul>\n<li>a${sep}b</li>\n</ul>`)
+      })
+    }
+  })
+
+  it('mdToHtml still links and trims as before', () => {
+    expect(mdToHtml('see [docs](https://x.com/a&b)   ')).toBe('<p>see <a href="https://x.com/a&amp;b">docs</a></p>')
+    expect(mdToHtml('[[a](u)')).toBe('<p><a href="u">[a</a></p>')
   })
 })

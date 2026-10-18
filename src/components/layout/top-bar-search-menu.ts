@@ -1,33 +1,32 @@
 import type { PersistedTodoItem } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
-import type { ContextMenuItem } from '../../models/context-menu'
+import { setUrgent } from '../../services/clear-urgent'
+import type { TaskMenuHandlers } from '../task/task-menu-entries'
 
 /**
- * Build the context-menu items shown when a search result is right-clicked —
- * P4 of `docs/plans/features/features-batch-2026-04`.
- *
- * Mirrors the items on `TaskRow`'s menu by delegating to the shared
- * `buildTaskRowMenuItems` helper. Search-specific overrides:
- *  - Complete: hits `useTodoStore.toggleComplete` directly (search rows are
- *    not part of the multi-select), bypassing the bulk-actions expansion.
- *  - Delete: queues a single-id bulk confirmation (same — no selection
- *    expansion).
+ * The task menu's handlers for a right-clicked search result. Search rows
+ * aren't part of the selection, so every action acts on just this task, and
+ * the row has no due-date / follow-up / people / tag pickers, so those
+ * picker items are left out (the Follow-up submenu's quick intervals stay).
  */
-export function buildSearchContextMenuItems(params: {
+export function searchMenuHandlers(params: {
   todo: PersistedTodoItem
-  onBoard: boolean
   onOpen: (todoId: number) => void
-  onMoveToProject: () => void
-}): ContextMenuItem[] {
-  const { todo, onBoard, onOpen, onMoveToProject } = params
-  return buildTaskRowMenuItems({
-    todo,
-    onBoard,
-    onOpenDetail: onOpen,
-    onMoveToProject,
-    onComplete: () => { void useTodoStore.getState().toggleComplete(todo.id) },
-    onDelete: () => useUIStore.getState().showBulkConfirmation('delete', [todo.id]),
-  })
+}): TaskMenuHandlers {
+  const { todo, onOpen } = params
+  const ids = [todo.id]
+  const store = () => useTodoStore.getState()
+  return {
+    onOpen: () => onOpen(todo.id),
+    onToggleComplete: () => { void store().toggleComplete(todo.id) },
+    onSetFollowup: (date) => { void store().bulkSetFollowup(ids, date) },
+    onFollowedUp: () => { void store().markFollowedUp(ids) },
+    onSetMarker: (marker, on) => {
+      if (marker === 'urgent') void setUrgent(ids, on)
+      else if (marker === 'important') void store().bulkSetImportant(ids, on)
+      else void store().bulkSetFocus(ids, on)
+    },
+    onDelete: () => useUIStore.getState().showBulkConfirmation('delete', ids),
+  }
 }

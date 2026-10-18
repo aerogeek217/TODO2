@@ -28,3 +28,19 @@ export function readDateAnchor(v: unknown): DateAnchor | null {
   }
   return null
 }
+
+/** Labels of the relative date tokens, as the date inputs show them. */
+export const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
+  'yesterday': 'Yesterday',
+  'today': 'Today',
+  'tomorrow': 'Tomorrow',
+  'start-of-week': 'Start of week',
+  'end-of-week': 'End of week',
+  'start-of-next-week': 'Start of next week',
+  'end-of-next-week': 'End of next week',
+  'start-of-month': 'Start of month',
+  'end-of-month': 'End of month',
+  'start-of-next-month': 'Start of next month',
+  'end-of-next-month': 'End of next month',
+  'end-of-month-plus-3': 'End of (month + 3)',
+}

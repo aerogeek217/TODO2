@@ -1,0 +1,67 @@
+Updates inline below.
+
+Marcus
+
+-----Original Message-----
+From: Sample Sender <sender@example.com>
+Sent: Monday, October 12, 2026 9:14 AM
+To: Marcus Chen <marcus.chen@example.com>
+Subject: Task check-in: 4 open tasks
+
+> Hi Marcus,
+>
+> Here are the open tasks I have assigned to you. When you get a chance,
+> please reply and update the "Your update" box under each task:
+>
+> - Completed: put an x in the box when the task is finished.
+> - Progress and Notes: edit the text directly. Leave anything that hasn’t
+> changed as it is.
+>
+> Overdue
+>
+> 1. Answer Northwind’s security questionnaire  Ref 0c4d8e17
+> Due Fri, Oct 9 (3 days overdue) · Next follow-up Today · Tags #Project:
+> Northwind Rollout  #security · Also assigned Sam Ortiz
+> Your update
+> Completed: [ ]
+> Progress: section 4 done, section 7 waiting on the pen-test report from
+> Sam
+> Notes:
+> Sections 4 and 7 still open.
+> Sam has the SOC 2 letter.
+>
+> Coming up
+>
+> 2. Review the staging load-test results  Ref b71e05d9
+> Due Wed, Oct 14 · Next follow-up Today
+> Your update
+> Completed: [x]
+> Progress: 40%
+> Notes:
+>
+> 3. Draft the migration runbook  Ref 3f9a1c42
+> Due Fri, Oct 16 · Next follow-up Tue, Oct 13 · Tags #Project: Platform
+> Migration  #docs · Also assigned Nina Patel
+> Your update
+> Completed: [ ]
+> Progress:
+> Notes:
+> Cover the cutover sequence, rollback steps and who is on call.
+> Nina confirmed Saturday 06:00–08:00 for the cutover.
+> - Link the existing **DB checklist**
+> - Agreed the [rollback window](https://example.com/runbook) with Nina
+> - [ ] Dry run on staging
+>
+> 4. Renew the Contoso support contract — confirm pricing tier & seats (<50
+> users?)  Ref 9e8d7c6b
+> Next follow-up Sun, Nov 1
+> Your update
+> Completed: [ ]
+> Progress:
+> Notes:
+>
+> Thanks,
+>
+> Your reply is read back into my task list. Please keep the “Ref” lines and
+> the box labels in your reply.
+> Check-in for Marcus Chen · sent 2026-10-12

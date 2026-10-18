@@ -12,20 +12,38 @@
  */
 export const SETTING_KEYS = {
   themeMode: 'themeMode',
-  defaultProjectId: 'defaultProjectId',
   defaultStatusId: 'defaultStatusId',
   quickStatusId: 'quickStatusId',
   seededAssignedStatusId: 'seededAssignedStatusId',
-  seededFollowupStatusId: 'seededFollowupStatusId',
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',
-  canvasViewport: 'canvasViewport',
-  horizonSlots: 'horizonSlots',
-  selectedHorizonDefId: 'selectedHorizonDefId',
-  canvasRails: 'canvasRails',
-  maxTags: 'maxTags',
-  defaultProjectGroupBy: 'defaultProjectGroupBy',
-  canvasMaxExtent: 'canvasMaxExtent',
+  /** Default next-follow-up interval for new tasks / "Followed up", compact form (`1m`, `2w`, `10d`). */
+  followupDefaultInterval: 'followupDefaultInterval',
+  /**
+   * "Due date makes a task urgent": days ahead (`0` = today) or `off`.
+   * Absent = the default (3 days).
+   */
+  urgentDueWithinDays: 'urgentDueWithinDays',
+  /**
+   * Hot rule: JSON array of lines, each an object of markers set to `true`
+   * (`[{"urgent":true,"important":true},{"focus":true}]`). Absent = that default.
+   */
+  hotRule: 'hotRule',
+  /** How a check-in email opens: `mailto` (open, then paste) or `eml` (download a draft). Absent = `mailto`. */
+  checkinOpenMethod: 'checkinOpenMethod',
+  /**
+   * Which open tasks a check-in email covers: `all`, `due-soon`, `hot` or
+   * `list:<listDefinitionId>`. Absent = `all`; a deleted list reads as `all`.
+   */
+  checkinTaskScope: 'checkinTaskScope',
+  /** Id of the workspace layout that is open (a `layouts` row). */
+  activeLayoutId: 'activeLayoutId',
+  /**
+   * The user's keyboard shortcut changes: JSON object of chord texts by
+   * binding id (`{"command-palette":"Mod-Shift-p","open-settings":"g o"}`,
+   * `utils/shortcut-bindings`). Only changed bindings; absent = all defaults.
+   */
+  keyboardShortcuts: 'keyboardShortcuts',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

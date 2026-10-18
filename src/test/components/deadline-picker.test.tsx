@@ -19,7 +19,7 @@ function getDateInput(container: HTMLElement): HTMLInputElement {
 describe('DeadlinePicker', () => {
   it('renders default label when value is null', () => {
     const { container } = render(<DeadlinePicker value={null} onChange={() => {}} />)
-    expect(getTrigger(container).textContent).toContain('Deadline')
+    expect(getTrigger(container).textContent).toContain('Due date')
   })
 
   it('renders a formatted date when a value is set', () => {
@@ -57,7 +57,7 @@ describe('DeadlinePicker', () => {
   it('renders a clear affordance when a value is set, and emits null when clicked', () => {
     const onChange = vi.fn()
     const { container } = render(<DeadlinePicker value={new Date(2026, 3, 20)} onChange={onChange} />)
-    const clearBtn = container.querySelector('[title="Clear deadline"]') as HTMLElement
+    const clearBtn = container.querySelector('[title="Clear due date"]') as HTMLElement
     expect(clearBtn).toBeInTheDocument()
     fireEvent.click(clearBtn)
     expect(onChange).toHaveBeenCalledWith(null)
@@ -65,6 +65,6 @@ describe('DeadlinePicker', () => {
 
   it('does not render a clear affordance when value is null', () => {
     const { container } = render(<DeadlinePicker value={null} onChange={() => {}} />)
-    expect(container.querySelector('[title="Clear deadline"]')).toBeNull()
+    expect(container.querySelector('[title="Clear due date"]')).toBeNull()
   })
 })

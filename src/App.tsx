@@ -1,48 +1,48 @@
 import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
-import { useCanvasStore } from './stores/canvas-store'
+import { createHashRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
-import { useOrgStore } from './stores/org-store'
 import { useSettingsStore } from './stores/settings-store'
-import { useProjectStore } from './stores/project-store'
-import { useFileStorageStore } from './stores/file-storage-store'
+import { useFileStorageStore } from './services/file-storage-store'
+import { fileStorageService } from './services/file-storage'
 import { TopBar } from './components/layout/TopBar'
-import { Sidebar } from './components/layout/Sidebar'
-import { FileSyncBanner } from './components/layout/FileSyncBanner'
+import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
-import { QuickAddBar, type QuickAddDraft } from './components/overlays/QuickAddBar'
+import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './components/overlays/QuickAddBar'
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
+import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
-import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
-import { useTagStore } from './stores/tag-store'
-import { formatShortcut } from './utils/platform'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from './routes'
+import { useShortcutLabel } from './hooks/use-shortcut-label'
+import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
-import { backupScheduler } from './services/backup-scheduler'
-import { applyNlpMetadata } from './services/nlp-task-creator'
-import { getFilterDefaults, supplementWithFilterDefaults } from './utils/filter-defaults'
-import { applyRuntimeFilter } from './services/dashboard-lists'
-import { criteriaToPredicate, predicateToCriteria } from './stores/filter-store'
-import { ensureDefaultProject } from './services/ensure-default-project'
+import { openTaskCounts } from './services/checkin-email/recipients'
+import { backupScheduler } from './data/backup-scheduler'
+import { runAppStartup } from './services/app-startup'
+import { createQuickAddTask } from './services/create-task'
+import { getFilterDefaults, markerFlags } from './utils/filter-defaults'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
+import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
+import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
+import { PurgeCompletedDialog } from './components/overlays/PurgeCompletedDialog'
+import { LaunchPermissionDialog } from './components/overlays/LaunchPermissionDialog'
+import { expiredCompletedUids, listExpiredCompleted } from './services/purge-completed'
+import type { PersistedTodoItem } from './models'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
-const CanvasPage = lazy(() => import('./views/CanvasPage').then(m => ({ default: m.CanvasPage })))
-const ListView = lazy(() => import('./views/ListView').then(m => ({ default: m.ListView })))
-const CalendarView = lazy(() => import('./views/CalendarView').then(m => ({ default: m.CalendarView })))
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then(m => ({ default: m.SettingsModal })))
+const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
 import styles from './App.module.css'
 import './styles/fonts.css'
 import './styles/tokens.css'
@@ -61,11 +61,15 @@ function AppBulkConfirmDialog() {
           const [first] = ids
           if (ids.length === 1 && first != null) {
             useTodoStore.getState().remove(first)
+            closeEditPopup()
+            clearSelection()
           } else {
-            useTodoStore.getState().bulkRemove(ids)
+            // Cleared only once the delete goes ahead: cancelling at the
+            // "Continue without a backup?" question keeps the selection.
+            void useTodoStore.getState().bulkRemove(ids, {
+              beforeDelete: () => { closeEditPopup(); clearSelection() },
+            })
           }
-          closeEditPopup()
-          clearSelection()
         } else {
           useTodoStore.getState().bulkSetCompleted(ids, action === 'complete')
         }
@@ -87,11 +91,8 @@ function AppBulkConfirmDialog() {
  * QuickAddBar wrapper — wires the bar to ui-store visibility, the live data
  * stores, and the full-editor handoff path.
  *
- * Submit (P4): mirrors `CanvasPage.handleAddTask` — `addTodo` for the row,
- * then `applyNlpMetadata` for parsed people/orgs/scheduled/deadline/
- * recurrence/tags. Default project follows the same setting
- * (`useSettingsStore().defaultProjectId`) the create-popup consults today,
- * so `Ctrl+Space` lands tasks in the same place across both surfaces.
+ * Submit: `createQuickAddTask` with the defaults of where the bar was
+ * opened.
  *
  * Details / Tab handoff: stashes `{ rawTitle }` in `ui-store.quickAddDraft`,
  * closes the bar (preserving the draft), and opens the create popup. The
@@ -102,84 +103,18 @@ function AppQuickAddBar() {
   const open = useUIStore((s) => s.quickAddOpen)
   const close = useUIStore((s) => s.closeQuickAdd)
   const draft = useUIStore((s) => s.quickAddDraft)
-  const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
-  const projects = useProjectStore((s) => s.projects)
-  // List-widget handoff: if the draft carries a seeded projectId (the list's
-  // predicate narrowed to a single project), prefer that over the user's
-  // global default — so the chip the bar renders matches the project the
-  // task will actually land in.
-  const seedProjectId = draft?.defaults?.projectId
-  const defaultProject = useMemo(
-    () => {
-      const id = seedProjectId ?? defaultProjectId
-      return id != null ? projects.find((p) => p.id === id) : undefined
-    },
-    [seedProjectId, defaultProjectId, projects],
-  )
-
-  const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
-    const { resolved } = submitted
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (canvasId == null) return
-    // Filter-default seed: prefer an explicit list-predicate seed stashed on
-    // `quickAddDraft.defaults` (from a list widget's "+ Add task" path) so a
-    // canvas-level FAB invocation in a non-list context still falls through to
-    // the active topbar filter. `supplementWithFilterDefaults` only fills
-    // fields the user didn't type — so an `@person` or `/project` token always
-    // wins over the seed.
-    //
-    // Runtime filter: ListView's saved-list path keeps the runtime-prompt pick
-    // separate from the manual-criteria predicate (so saving captures only the
-    // baseline). At submit time we want the runtime entity baked into the
-    // defaults too, so a list keyed on `Tasks for {assignee}` adds new tasks
-    // assigned to whoever the user picked.
+  // Resolves false when the task couldn't be stored: the bar then stays open.
+  const handleSubmit = useCallback(async (submitted: QuickAddDraft): Promise<boolean> => {
+    // Defaults: an explicit list-predicate seed stashed on
+    // `quickAddDraft.defaults` (a list widget's "+ Add task"), else the
+    // active top-bar filter.
     const draft = useUIStore.getState().quickAddDraft
-    let fd = draft?.defaults
-    if (!fd) {
-      const filterStore = useFilterStore.getState()
-      let baseFilters = filterStore.filters
-      const { runtimeFilterSpec, runtimeFilterValue } = filterStore
-      if (runtimeFilterSpec && runtimeFilterValue && runtimeFilterValue.length > 0) {
-        const merged = applyRuntimeFilter(criteriaToPredicate(baseFilters), runtimeFilterSpec, runtimeFilterValue)
-        baseFilters = predicateToCriteria(merged)
-      }
-      fd = getFilterDefaults(baseFilters)
-    }
-    supplementWithFilterDefaults(resolved, fd)
-    // Mirror CanvasPage.handleAddTask: parse-cleaned title fed to addTodo,
-    // then applyNlpMetadata for everything the resolver pulled out. Tags ride
-    // through applyNlpMetadata's resolve-or-create path (`nlp-task-creator.ts`)
-    // so we don't need to call `resolveTags` / `assignTag` ourselves.
-    // QuickAddBar already seeds `submitted.project` from the `defaultProject`
-    // prop when no `/project` token was typed, so we only need to fall back
-    // when no default project exists at all — `ensureDefaultProject` returns
-    // the first project on this canvas (handles the "user removed the default"
-    // edge) or auto-creates an Inbox + persists it.
-    const projectId = resolved.projectId ?? submitted.project?.id ?? (await ensureDefaultProject(canvasId))
-    const id = await useTodoStore.getState().add(resolved.title || submitted.title, canvasId, projectId)
-    await applyNlpMetadata(
-      id,
-      resolved,
-      (tid) => useTodoStore.getState().todos.find((t) => t.id === tid),
-      useTodoStore.getState().update,
-      usePersonStore.getState().assignPerson,
-      useOrgStore.getState().assignOrg,
-    )
-    // Seed-default tags ride a separate channel (resolved.tags is slug-based,
-    // applyNlpMetadata calls resolveTags on it). Tag ids from a list-predicate
-    // seed / active filter are already resolved against the registry so we
-    // assign them directly. User-typed `#tag` tokens still take precedence —
-    // applyNlpMetadata applied those above; this only adds the seed ids that
-    // weren't already covered.
-    if (fd.tagIds.length > 0) {
-      const tagStore = useTagStore.getState()
-      for (const tagId of fd.tagIds) {
-        await tagStore.assignTag(id, tagId)
-      }
-    }
+    const fd = draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters)
+    const id = await createQuickAddTask(submitted, fd)
+    if (id == null) return false
     useUIStore.getState().showRecentlyCreated(id)
-    close()
-  }, [close])
+    return true
+  }, [])
 
   const handleOpenFullEditor = useCallback((submitted: QuickAddDraft) => {
     // Preserve-draft handoff: set the seed, flip the bar closed without
@@ -199,11 +134,18 @@ function AppQuickAddBar() {
     useUIStore.getState().openCreatePopup()
   }, [])
 
+  // An explicit seed (a list's "+ Add task", an Eisenhower quadrant's "+")
+  // shows its markers and source as read-only chips.
+  const preset = useMemo<QuickAddPreset | undefined>(() => {
+    if (!draft?.defaults && !draft?.source) return undefined
+    return { ...markerFlags(draft.defaults), ...(draft.source ? { source: draft.source } : {}) }
+  }, [draft])
+
   return (
     <QuickAddBar
       open={open}
       initialDraft={draft ?? undefined}
-      defaultProject={defaultProject}
+      preset={preset}
       onClose={close}
       onSubmit={handleSubmit}
       onOpenFullEditor={handleOpenFullEditor}
@@ -211,27 +153,85 @@ function AppQuickAddBar() {
   )
 }
 
+/**
+ * Prompt for completed tasks past the retention setting, at launch and
+ * again after a later sync-file load (Grant access, Attach / Open file).
+ * Lists the tasks that were expired when it was checked (`launchUids` —
+ * uids survive a sync-file restore, ids don't) and are still expired now.
+ * Read from the database, not `useTodoStore.todos` (which may not be loaded
+ * yet), and re-read whenever the store reloads. Waits while a sync-file
+ * prompt is open. Closing it in any way ("Not now" included) skips those
+ * tasks until the next launch.
+ */
+function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<string>; onClose: () => void }) {
+  const todosVersion = useTodoStore((s) => s.todosVersion)
+  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
+  const fileSyncPrompt = useFileStorageStore(
+    (s) => s.pendingLegacyImport != null || s.pendingConflict != null || s.pendingFileUpgrade != null,
+  )
+  const [tasks, setTasks] = useState<PersistedTodoItem[]>([])
+  useEffect(() => {
+    if (fileSyncPrompt || retentionDays == null) return
+    let cancelled = false
+    listExpiredCompleted(retentionDays, launchUids)
+      .then((rows) => { if (!cancelled) setTasks(rows) })
+      .catch((err) => console.warn('[purge] could not read expired tasks', err))
+    return () => { cancelled = true }
+  }, [launchUids, retentionDays, fileSyncPrompt, todosVersion])
+  if (fileSyncPrompt || retentionDays == null || tasks.length === 0) return null
+  return <PurgeCompletedDialog tasks={tasks} retentionDays={retentionDays} onDone={onClose} onDismiss={onClose} />
+}
+
+/** Both sets of uids (the prompt lists every task either asks about). */
+function mergeUids(prev: ReadonlySet<string> | null, next: ReadonlySet<string>): ReadonlySet<string> {
+  return prev ? new Set([...prev, ...next]) : next
+}
+
+/**
+ * `#/settings`: the Settings page on mobile; on desktop a deep link that
+ * opens the workspace with the Settings modal open.
+ */
+function SettingsRoute() {
+  const isMobile = useIsMobile()
+  if (isMobile) return <SettingsPage />
+  return <SettingsDeepLink />
+}
+
+function SettingsDeepLink() {
+  useEffect(() => {
+    useUIStore.getState().openSettings()
+  }, [])
+  return <Navigate to={ROUTE_WORKSPACE} replace />
+}
+
 function AppShell() {
-  const { ensureDefault } = useCanvasStore()
-  const { ensureLoaded: loadPeople } = usePersonStore()
-  const { ensureLoaded: loadOrgs } = useOrgStore()
-  const { load: loadSettings } = useSettingsStore()
-  const { initialize: initFileStorage } = useFileStorageStore()
   const isMobile = useIsMobile()
   const [initialized, setInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
-  const navigate = useNavigate()
+  /** uids of the completed tasks past retention at launch (for the purge prompt). */
+  const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
+  /** uids the purge prompt already asked about this launch (any answer): a later file load doesn't ask again. */
+  const purgeAskedRef = useRef(new Set<string>())
+  /** Set once launch's completed-task check began reading: a sync-file load from then on gets its own check. */
+  const purgeCheckStartedRef = useRef(false)
+  /** While launch waits for the sync file's permission answer the start screen shows no spinner. */
+  const launchQuestion = useFileStorageStore((s) => s.pendingLaunchPermission != null)
   const location = useLocation()
-  const showFab = location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
+  // Desktop: New task leads the top bar. Mobile: a floating + above the tab bar.
+  const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
 
-  // Reset filter sheet when viewport transitions from mobile to desktop
+  // Reset filter sheet when viewport transitions from mobile to desktop; the
+  // Settings modal is desktop only (mobile has the Settings page).
   useEffect(() => {
     if (!isMobile) {
       useUIStore.getState().setFilterSheetOpen(false)
+    } else {
+      useUIStore.getState().closeSettings()
     }
   }, [isMobile])
+  const settingsOpen = useUIStore((s) => s.settingsOpen)
 
   const lastPathRef = useRef(location.pathname)
   useEffect(() => {
@@ -241,20 +241,15 @@ function AppShell() {
   }, [location.pathname])
 
   useEffect(() => {
-    Promise.all([ensureDefault(), loadSettings()])
-      .then(() => initFileStorage())
-      .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
-      .then(async () => {
-        // Purge expired completed tasks on startup
-        const { completedRetentionDays } = useSettingsStore.getState()
-        if (completedRetentionDays != null) {
-          await useTodoStore.getState().ensureAllLoaded()
-          await useTodoStore.getState().purgeExpiredCompleted(completedRetentionDays)
-        }
-      })
-      .then(() => {
-        backupScheduler.start()
+    removeLegacySyncKeys()
+    // Waits at the sync file's step for the launch question's answer when
+    // the file needs permission (`runAppStartup`).
+    runAppStartup({ onPurgeCheck: () => { purgeCheckStartedRef.current = true } })
+      .then(({ expiredUids }) => {
+        // Completed tasks past retention are never purged silently — the
+        // prompt asks about the ones expired once the sync file was loaded
+        // (or its prompts answered), so the list reflects the data kept.
+        if (expiredUids) setPurgeLaunchUids((prev) => mergeUids(prev, expiredUids))
         setInitialized(true)
       })
       .catch((err) => {
@@ -262,57 +257,48 @@ function AppShell() {
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
-  }, [ensureDefault, loadSettings, initFileStorage, loadPeople, loadOrgs])
+  }, [])
 
-  const createFloatingNote = useCallback(() => {
-    if (location.pathname !== ROUTE_CANVAS) return
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (!canvasId) return
-    const vp = useSettingsStore.getState().canvasViewport
-    const el = document.querySelector('.react-flow')
-    const w = el?.clientWidth ?? window.innerWidth
-    const h = el?.clientHeight ?? window.innerHeight
-    const zoom = vp?.zoom ?? 1
-    const cx = (-(vp?.x ?? 0) + w / 2) / zoom
-    const cy = (-(vp?.y ?? 0) + h / 2) / zoom
-    void useFloatingNoteStore.getState().add(canvasId, cx - 120, cy - 100)
-  }, [location.pathname])
-
-  // Fit-to-view: dispatch a custom event that CanvasPage can listen to,
-  // but we can directly use the React Flow instance via the DOM for simplicity.
-  // The fitView button in the controls already exists; this wires Ctrl+0.
-  const fitView = useCallback(() => {
-    if (location.pathname !== ROUTE_CANVAS) return
-    // React Flow exposes fitView on the instance; trigger via a custom event
-    window.dispatchEvent(new CustomEvent('canvas-fit-view'))
-  }, [location.pathname])
-
-  const toggleProjectNavigator = useCallback(() => {
-    if (location.pathname !== ROUTE_CANVAS) return
-    useUIStore.getState().toggleProjectNavigator()
-  }, [location.pathname])
+  // A sync file loaded once launch's check began (Grant access, Attach /
+  // Open file, a retry or a resolved conflict) replaced the data: ask about
+  // its expired tasks too — those the prompt hasn't already asked about this
+  // launch. A load before that is covered by launch's own check. Runs after
+  // the stores reloaded (an earlier subscriber).
+  useEffect(() => {
+    return fileStorageService.onAfterImport(async () => {
+      if (!purgeCheckStartedRef.current) return
+      try {
+        const expired = await expiredCompletedUids()
+        const fresh = [...(expired ?? [])].filter((uid) => !purgeAskedRef.current.has(uid))
+        if (fresh.length > 0) setPurgeLaunchUids((prev) => mergeUids(prev, new Set(fresh)))
+      } catch (err) {
+        console.warn('[purge] could not read expired tasks', err)
+      }
+    })
+  }, [])
 
   // Global keyboard shortcuts
   useKeyboardShortcuts({
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
-    navigate,
-    createFloatingNote,
+    openSettings: () => useUIStore.getState().openSettings(),
     openShortcutsModal: () => setShowShortcuts(true),
-    fitView,
-    toggleProjectNavigator,
-    enabled: !isMobile,
+    // Nothing to act on before launch is done (the launch question is up, the stores load).
+    enabled: !isMobile && initialized,
   })
 
   const handleClosePalette = useCallback(() => setShowPalette(false), [])
 
   const todos = useTodoStore((s) => s.todos)
-  const projects = useProjectStore((s) => s.projects)
+  const people = usePersonStore((s) => s.people)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
+  const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+  const quickAddKeys = useShortcutLabel('quick-add')
 
   const commandCtx = useMemo(
     () => ({
-      navigateTo: (path: string) => navigate(path),
+      openSettings: () => useUIStore.getState().openSettings(),
       openQuickAdd: () => useUIStore.getState().openQuickAdd(),
       selectionCount,
       bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
@@ -324,32 +310,22 @@ function AppShell() {
       getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
       setDateRange: useFilterStore.getState().setDateRange,
       getTodos: () => todos,
-      getProjects: () => projects,
       focusTask: (todoId: number) => {
-        const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-        if (!todo?.projectId) return
-        const project = useProjectStore.getState().projects.find((p) => p.id === todo.projectId)
-        if (!project) return
-        useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
         useUIStore.getState().selectOneTodo(todoId)
-        navigate(ROUTE_CANVAS)
+        useUIStore.getState().openEditPopup(todoId)
       },
-      focusProject: (projectId: number) => {
-        const project = useProjectStore.getState().projects.find((p) => p.id === projectId)
-        if (!project) return
-        useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
-        navigate(ROUTE_CANVAS)
-      },
-      fitView,
-      createFloatingNote: location.pathname === ROUTE_CANVAS ? createFloatingNote : undefined,
-      toggleProjectNavigator: location.pathname === ROUTE_CANVAS ? toggleProjectNavigator : undefined,
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
+      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
+      openCheckinImport: () => useUIStore.getState().openCheckinImport(),
+      getPeople: () => people,
+      getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
     }),
-    [navigate, todos, projects, selectionCount, fitView, createFloatingNote, toggleProjectNavigator, location.pathname]
+    [todos, people, assignedPeopleMap, selectionCount]
   )
 
-  const commands = useMemo(() => createCommands(commandCtx), [commandCtx])
+  // The palette's key hints follow the user's shortcut changes.
+  const commands = useMemo(() => createCommands(commandCtx, shortcutOverrides), [commandCtx, shortcutOverrides])
   const handleSearchDynamic = useCallback(
     (query: string) => searchDynamicCommands(query, commandCtx),
     [commandCtx]
@@ -367,8 +343,10 @@ function AppShell() {
   }
 
   if (!initialized) {
+    // The start screen; the launch question (`LaunchPermissionDialog`) shows over it.
+    if (launchQuestion) return <div className={styles.initLoading} data-testid="start-screen" />
     return (
-      <div className={styles.initLoading}>
+      <div className={styles.initLoading} data-testid="start-screen">
         <div className={styles.spinner} />
         Loading…
       </div>
@@ -377,41 +355,53 @@ function AppShell() {
 
   return (
     <div className={styles.app}>
-      {!isMobile && <Sidebar />}
       <div className={styles.mainColumn}>
         {!isMobile && <TopBar />}
-        {!isMobile && <FileSyncBanner />}
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>
-            <Route path={ROUTE_CANVAS} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : (
-              <ErrorBoundary scope="Canvas">
-                <CanvasPage />
+            <Route path={ROUTE_WORKSPACE} element={
+              <ErrorBoundary scope="Workspace">
+                <WorkspacePage />
               </ErrorBoundary>
-            )} />
-            <Route path="/dashboard" element={<Navigate to={ROUTE_CANVAS} replace />} />
-            <Route path={ROUTE_LIST} element={<ListView />} />
-            <Route path={ROUTE_CALENDAR} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : <CalendarView />} />
-            <Route path={ROUTE_SETTINGS} element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to={isMobile ? ROUTE_LIST : ROUTE_CANVAS} replace />} />
+            } />
+            {LEGACY_ROUTES.map((path) => (
+              <Route key={path} path={path} element={<Navigate to={ROUTE_WORKSPACE} replace />} />
+            ))}
+            <Route path={ROUTE_SETTINGS} element={<SettingsRoute />} />
+            <Route path="*" element={<Navigate to={ROUTE_WORKSPACE} replace />} />
           </Routes>
         </Suspense>
         </div>
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} title={`New task (${formatShortcut('Mod-Space')})`}>
-            <svg width="16" height="16" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <line x1="14" y1="6" x2="14" y2="22" />
-              <line x1="6" y1="14" x2="22" y2="14" />
+          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" title={`Quick add (${quickAddKeys})`}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <line x1="9" y1="3" x2="9" y2="15" />
+              <line x1="3" y1="9" x2="15" y2="9" />
             </svg>
           </button>
         </div>
       )}
       {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {!isMobile && settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal />
+        </Suspense>
+      )}
 
       <AppBulkConfirmDialog />
+      {purgeLaunchUids && (
+        <StartupPurgePrompt
+          launchUids={purgeLaunchUids}
+          onClose={() => {
+            for (const uid of purgeLaunchUids) purgeAskedRef.current.add(uid)
+            setPurgeLaunchUids(null)
+          }}
+        />
+      )}
       <AppQuickAddBar />
       <RecentTaskPill />
       <UndoSnackbar />
@@ -421,7 +411,17 @@ function AppShell() {
   )
 }
 
+/**
+ * Data router (hash history) around the whole shell: one splat route whose
+ * element renders the shell's own `<Routes>`. A data router is what makes
+ * `useBlocker` available (navigation prompts for unsaved changes).
+ */
+function createAppRouter() {
+  return createHashRouter([{ path: '*', element: <AppShell /> }])
+}
+
 export default function App() {
+  const [router] = useState(createAppRouter)
   const [unsupportedDBInfo, setUnsupportedDBInfo] = useState<UnsupportedDBInfo | null>(null)
   const [dbVersionChecked, setDbVersionChecked] = useState(false)
 
@@ -449,27 +449,49 @@ export default function App() {
 
   return (
     <ErrorBoundary scope="App">
-      <HashRouter>
-        <AppShell />
-      </HashRouter>
+      <RouterProvider router={router} />
       <FileMigrationOverlay />
+      <ConfirmPromptHost />
     </ErrorBoundary>
   )
 }
 
+/**
+ * Sync-file prompts raised by `fileStorageService` while it waits for the user
+ * (permission at launch, below-floor file, browser/file conflict, older-file
+ * upgrade). Rendered outside AppShell so they show even while startup is
+ * still pending.
+ */
 function FileMigrationOverlay() {
   const pending = useFileStorageStore((s) => s.pendingLegacyImport)
   const confirm = useFileStorageStore((s) => s.confirmLegacyImport)
   const cancel = useFileStorageStore((s) => s.cancelLegacyImport)
+  const conflict = useFileStorageStore((s) => s.pendingConflict)
+  const resolveConflict = useFileStorageStore((s) => s.resolveConflict)
+  const upgrade = useFileStorageStore((s) => s.pendingFileUpgrade)
+  const resolveFileUpgrade = useFileStorageStore((s) => s.resolveFileUpgrade)
+  const launchPermission = useFileStorageStore((s) => s.pendingLaunchPermission)
 
-  if (!pending) return null
-
-  return (
-    <MigrationDialog
-      mode="legacy-import"
-      info={pending}
-      onProceed={confirm}
-      onCancel={cancel}
-    />
-  )
+  if (launchPermission) return <LaunchPermissionDialog prompt={launchPermission} />
+  if (pending) {
+    return (
+      <MigrationDialog
+        mode="legacy-import"
+        info={pending}
+        onProceed={confirm}
+        onCancel={cancel}
+      />
+    )
+  }
+  if (conflict) return <SyncConflictDialog info={conflict} onChoose={resolveConflict} />
+  if (upgrade) {
+    return (
+      <FileUpgradeDialog
+        info={upgrade}
+        onConfirm={() => resolveFileUpgrade(true)}
+        onCancel={() => resolveFileUpgrade(false)}
+      />
+    )
+  }
+  return null
 }

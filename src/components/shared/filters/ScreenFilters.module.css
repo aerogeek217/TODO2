@@ -1,0 +1,320 @@
+/* The top bar's screen-filter buttons, Show completed, Clear all, and the
+ * narrow-window Filters menu. The pickers keep `TopBar.module.css`'s panel
+ * styles. */
+
+.filterButton {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.filterButton:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.filterButtonActive,
+.filterButtonActive:hover {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+.filterMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 7px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.filterMain:focus-visible,
+.clearField:focus-visible,
+.completed:focus-visible,
+.menuRowMain:focus-visible,
+.menuClearAll:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.filterButtonOn .filterMain {
+  padding-right: 4px;
+}
+
+.icon {
+  display: inline-flex;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.filterButtonActive .icon {
+  color: var(--color-accent);
+}
+
+.filterLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* The Dates value (`Due today – end of next week`). */
+.filterLabelWide {
+  max-width: 260px;
+}
+
+/* A filter that is on, with its picker open. */
+.filterButtonOpen {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.filterButtonActive .chevron {
+  color: var(--color-accent);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* The 16px round × that clears one field. */
+.clearField {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-12);
+  color: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.clearField:hover {
+  background: var(--color-tint-20);
+  color: var(--color-text-primary);
+}
+
+.separator {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+/* Show completed */
+.completed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 7px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.completed svg {
+  color: var(--color-text-muted);
+}
+
+.completed:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.completedOn,
+.completedOn:hover,
+.completedOn svg {
+  color: var(--color-accent);
+}
+
+/* ═══ Filters (narrow windows) ═══ */
+
+.filtersTrigger {
+  composes: filterMain;
+  gap: 6px;
+}
+
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+}
+
+.menu {
+  width: 280px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-dialog-nested);
+}
+
+[data-theme="light"] .menu {
+  background: var(--color-surface);
+}
+
+.menuLabel {
+  padding: 6px 8px 2px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.menuRow {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+
+.menuRow:hover,
+.menuRowOpen {
+  background: var(--color-tint-6);
+}
+
+.menuRowMain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuRowName {
+  flex: 1;
+}
+
+.menuRowValue {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent);
+}
+
+.menuRowAny {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.menuRow .clearField {
+  margin-right: 8px;
+  color: var(--color-text-muted);
+}
+
+.menuSeparator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-muted);
+}
+
+.menuClearAll {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuClearAll:hover:not(:disabled) {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.menuClearAll:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── People picker footer: Email check-in ───────────────────────────────── */
+
+.checkinAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.checkinAction:hover,
+.checkinAction:focus-visible {
+  background: var(--color-accent-bg-medium);
+}
+
+.checkinHint {
+  padding: 7px 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

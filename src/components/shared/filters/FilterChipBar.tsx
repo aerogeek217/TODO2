@@ -9,8 +9,7 @@ export type { FilterChipBarProps, FilterChipDensity }
  * `density` prop. Each variant lives in its own file (`.desktop.tsx` /
  * `.mobile.tsx`) and shares predicate-management state via the
  * `useFilterChipBarState` hook in `FilterChipBar.shared.ts`. The split
- * mirrors the `TaskRow` / `MobileTaskRow` precedent — see
- * `code-review-tail-2026-05-09` P4.
+ * mirrors the `TaskRow` / `MobileTaskRow` precedent.
  */
 export function FilterChipBar(props: FilterChipBarProps) {
   if (props.density === 'mobile') return <FilterChipBarMobile {...props} />

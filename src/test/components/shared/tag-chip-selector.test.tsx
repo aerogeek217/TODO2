@@ -22,21 +22,8 @@ describe('<TagChipSelector>', () => {
       expect(screen.getByLabelText('Add tag')).toBeInTheDocument()
     })
 
-    it('marks the wrapper with the tagChipEmpty class so the row can hover-reveal it', () => {
-      const { container } = render(
-        <TagChipSelector
-          assignedTags={[]}
-          allTags={[alpha]}
-          onToggle={vi.fn()}
-          onCreate={vi.fn()}
-        />,
-      )
-      // CSS-modules hashes the class — substring-match for tagChipEmpty
-      expect(container.querySelector('[class*="tagChipEmpty"]')).not.toBeNull()
-    })
-
-    it('does NOT mark the wrapper with tagChipEmpty when tags are assigned', () => {
-      const { container } = render(
+    it('shows no # trigger once tags are assigned', () => {
+      render(
         <TagChipSelector
           assignedTags={[alpha]}
           allTags={[alpha]}
@@ -44,7 +31,7 @@ describe('<TagChipSelector>', () => {
           onCreate={vi.fn()}
         />,
       )
-      expect(container.querySelector('[class*="tagChipEmpty"]')).toBeNull()
+      expect(screen.queryByLabelText('Add tag')).toBeNull()
     })
   })
 
@@ -161,22 +148,6 @@ describe('<TagChipSelector>', () => {
       fireEvent.change(input, { target: { value: '  newtag  ' } })
       fireEvent.keyDown(input, { key: 'Enter' })
       expect(onCreate).toHaveBeenCalledWith('newtag')
-    })
-  })
-
-  describe('disabled (ghost) mode', () => {
-    it('does not open the dropdown when disabled', () => {
-      render(
-        <TagChipSelector
-          assignedTags={[alpha]}
-          allTags={[alpha, beta]}
-          onToggle={vi.fn()}
-          onCreate={vi.fn()}
-          disabled
-        />,
-      )
-      fireEvent.click(screen.getByText('#alpha'))
-      expect(screen.queryByPlaceholderText('Search tags...')).not.toBeInTheDocument()
     })
   })
 })

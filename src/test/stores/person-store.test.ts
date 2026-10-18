@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { usePersonStore } from '../../stores/person-store'
+import { newTodoUid } from '../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
+  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
 })
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, isCompleted: false,
+    uid: newTodoUid(), title, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }
@@ -29,6 +30,64 @@ describe('usePersonStore', () => {
     expect(usePersonStore.getState().people).toHaveLength(1)
     expect(usePersonStore.getState().people[0]!.name).toBe('Alice')
     expect(id).toBeGreaterThan(0)
+  })
+
+  describe('email', () => {
+    it('add stores the email trimmed, and none when blank', async () => {
+      const ann = await usePersonStore.getState().add('Ann', 'A', undefined, '  ann@example.com ')
+      const bo = await usePersonStore.getState().add('Bo', 'B', undefined, '   ')
+      expect(await db.people.get(ann)).toEqual({ id: ann, name: 'Ann', initials: 'A', email: 'ann@example.com' })
+      expect(await db.people.get(bo)).toEqual({ id: bo, name: 'Bo', initials: 'B' })
+      expect(usePersonStore.getState().people.find((p) => p.id === ann)?.email).toBe('ann@example.com')
+    })
+
+    it('update replaces, trims and clears the email', async () => {
+      const id = await usePersonStore.getState().add('Ann', 'A', undefined, 'ann@example.com')
+      await usePersonStore.getState().update({ id, name: 'Ann', initials: 'A', email: ' ann@work.example ' })
+      expect((await db.people.get(id))?.email).toBe('ann@work.example')
+      await usePersonStore.getState().update({ id, name: 'Ann', initials: 'A', email: '' })
+      const stored = await db.people.get(id)
+      expect(stored).toEqual({ id, name: 'Ann', initials: 'A' })
+      expect('email' in usePersonStore.getState().people[0]!).toBe(false)
+    })
+
+    it('people created on the fly have no email', async () => {
+      const id = await usePersonStore.getState().getOrCreate('Marco Rossi')
+      expect('email' in (await db.people.get(id))!).toBe(false)
+    })
+  })
+
+  describe('getOrCreate', () => {
+    it('creates a person with derived initials and no color', async () => {
+      const id = await usePersonStore.getState().getOrCreate('  Marco Rossi ')
+      const stored = await db.people.get(id)
+      expect(stored).toEqual({ id, name: 'Marco Rossi', initials: 'MR' })
+      expect(usePersonStore.getState().people).toEqual([stored])
+    })
+
+    it('reuses an existing person whatever the case', async () => {
+      const id = await usePersonStore.getState().add('Dana Kim', 'DK', '#f28c4e')
+      expect(await usePersonStore.getState().getOrCreate('dana KIM')).toBe(id)
+      expect(await db.people.count()).toBe(1)
+      expect(usePersonStore.getState().people).toHaveLength(1)
+    })
+
+    it('reuses a stored person the store has not loaded yet', async () => {
+      const id = (await db.people.add({ name: 'Priya Nair', initials: 'PN' })) as number
+      expect(await usePersonStore.getState().getOrCreate('PRIYA NAIR')).toBe(id)
+      expect(await db.people.count()).toBe(1)
+      expect(usePersonStore.getState().people.map((p) => p.id)).toEqual([id])
+    })
+
+    it('two concurrent creates of one name insert one row', async () => {
+      const [a, b] = await Promise.all([
+        usePersonStore.getState().getOrCreate('Sam Lee'),
+        usePersonStore.getState().getOrCreate('sam lee'),
+      ])
+      expect(a).toBe(b)
+      expect(await db.people.count()).toBe(1)
+      expect(usePersonStore.getState().people).toHaveLength(1)
+    })
   })
 
   it('update modifies in store', async () => {

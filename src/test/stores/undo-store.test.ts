@@ -234,18 +234,28 @@ describe('useUndoStore', () => {
     expect(state.undoStack).toHaveLength(0)
   })
 
-  // 15. canUndo/canRedo report based on stack contents
-  it('canUndo returns true when undoStack has entries', () => {
-    expect(useUndoStore.getState().canUndo()).toBe(false)
-    useUndoStore.getState().push(makeEntry('x'))
-    expect(useUndoStore.getState().canUndo()).toBe(true)
+  it('a group on a full stack still merges into one entry (pushes inside it never trim)', () => {
+    const store = useUndoStore.getState()
+    for (let i = 0; i < 50; i++) store.push(makeEntry(`old${i}`))
+    store.beginGroup()
+    store.push(makeEntry('a'))
+    store.push(makeEntry('b'))
+    useUndoStore.getState().endGroup('compound')
+
+    const state = useUndoStore.getState()
+    expect(state.undoStack).toHaveLength(50)
+    expect(state.undoStack.at(-1)!.description).toBe('compound')
+    expect(state.undoStack.at(-2)!.description).toBe('old49')
+    expect(state.undoStack[0]!.description).toBe('old1')
   })
 
-  it('canRedo returns true when redoStack has entries', async () => {
-    expect(useUndoStore.getState().canRedo()).toBe(false)
-    useUndoStore.getState().push(makeEntry('x'))
-    await useUndoStore.getState().undo()
-    expect(useUndoStore.getState().canRedo()).toBe(true)
+  it('pushes inside a group show no snackbar; endGroup shows the group description', () => {
+    const store = useUndoStore.getState()
+    store.beginGroup()
+    store.push(makeEntry('a'), true)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    useUndoStore.getState().endGroup('compound', true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'compound' })
   })
 
   // 16. dismissSnackbar clears snackbar and timer
@@ -315,5 +325,109 @@ describe('useUndoStore', () => {
     // Only the second timer should fire; advancing should not cause issues
     vi.advanceTimersByTime(5000)
     expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
+  it('notify shows a notice without touching the undo stack, for longer than an undo snackbar', () => {
+    const entry = makeEntry('action1')
+    useUndoStore.getState().push(entry, true)
+    useUndoStore.getState().notify('Deleted 2 completed tasks. No backup was taken.')
+
+    const state = useUndoStore.getState()
+    expect(state.snackbar).toEqual({ description: 'Deleted 2 completed tasks. No backup was taken.', notice: true })
+    expect(state.undoStack).toEqual([entry])
+    vi.advanceTimersByTime(5000)
+    expect(useUndoStore.getState().snackbar).not.toBeNull()
+    vi.advanceTimersByTime(3000)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
+  it('a snackbar timer only ends its own snackbar — not one shown after the store was put back', () => {
+    // The test setup puts every store back to its initial state before each
+    // test; a timer started earlier must not clear a later test's snackbar.
+    useUndoStore.getState().notify('Earlier notice')
+    useUndoStore.getState().push(makeEntry('Earlier undo'), true)
+    useUndoStore.setState(useUndoStore.getInitialState(), true)
+    vi.advanceTimersByTime(4000)
+    useUndoStore.getState().notify('Later notice')
+    vi.advanceTimersByTime(4500) // past both earlier timers, not the later one
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Later notice', notice: true })
+    vi.advanceTimersByTime(4000)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
+  it('an undoable push replaces a notice', () => {
+    useUndoStore.getState().notify('notice')
+    useUndoStore.getState().push(makeEntry('action1'), true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'action1' })
+  })
+})
+
+describe('useUndoStore — an undo or redo that fails', () => {
+  beforeEach(() => {
+    useUndoStore.getState().clear()
+    useUndoStore.setState({ isPerformingUndoRedo: false })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    useUndoStore.getState().clear()
+    vi.restoreAllMocks()
+  })
+
+  function failingEntry(label: string, failing: 'undo' | 'redo') {
+    let fail = true
+    const run = vi.fn(async () => { if (fail) throw new Error('write failed') })
+    const ok = vi.fn()
+    return {
+      entry: { description: label, undo: failing === 'undo' ? run : ok, redo: failing === 'redo' ? run : ok },
+      run,
+      heal: () => { fail = false },
+    }
+  }
+
+  it('a failed undo stays on the undo stack, tells the user and does not reject', async () => {
+    const { entry, run, heal } = failingEntry('Delete "Milk"', 'undo')
+    useUndoStore.getState().push(entry)
+
+    await expect(useUndoStore.getState().undo()).resolves.toBeUndefined()
+    let state = useUndoStore.getState()
+    expect(state.undoStack).toEqual([entry])
+    expect(state.redoStack).toEqual([])
+    expect(state.isPerformingUndoRedo).toBe(false)
+    expect(state.snackbar).toEqual({ description: "Couldn't undo: Delete \"Milk\"", notice: true })
+
+    // The next try runs the same entry again and, once it works, moves it.
+    heal()
+    await useUndoStore.getState().undo()
+    state = useUndoStore.getState()
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(state.undoStack).toEqual([])
+    expect(state.redoStack).toEqual([entry])
+  })
+
+  it('a failed redo stays on the redo stack, tells the user and does not reject', async () => {
+    const { entry } = failingEntry('Add "Milk"', 'redo')
+    useUndoStore.getState().push(entry)
+    await useUndoStore.getState().undo()
+
+    await expect(useUndoStore.getState().redo()).resolves.toBeUndefined()
+    const state = useUndoStore.getState()
+    expect(state.redoStack).toEqual([entry])
+    expect(state.undoStack).toEqual([])
+    expect(state.isPerformingUndoRedo).toBe(false)
+    expect(state.snackbar).toEqual({ description: "Couldn't redo: Add \"Milk\"", notice: true })
+  })
+
+  it('a failed undo goes back where it was: an entry pushed meanwhile stays on top', async () => {
+    let fail!: () => void
+    const gate = new Promise<void>((r) => { fail = r })
+    const failing = { description: 'Slow', undo: vi.fn(async () => { await gate; throw new Error('write failed') }), redo: vi.fn() }
+    const later = { description: 'Later', undo: vi.fn(), redo: vi.fn() }
+    useUndoStore.getState().push(failing)
+    const undoing = useUndoStore.getState().undo()
+    useUndoStore.getState().push(later)
+    fail()
+    await undoing
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Slow', 'Later'])
   })
 })

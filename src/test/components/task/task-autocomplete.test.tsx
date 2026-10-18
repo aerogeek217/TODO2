@@ -1,23 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskEditPopup } from '../../../components/task/TaskEditPopup'
-import { useProjectStore } from '../../../stores/project-store'
 import { useSettingsStore } from '../../../stores/settings-store'
-import { makePerson, makeOrg } from '../../helpers'
-import type { Person, Org, Tag } from '../../../models'
+import { makePerson } from '../../helpers'
+import type { Person, Tag } from '../../../models'
 
 beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
-  useProjectStore.setState({ projects: [] })
-  useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark' })
+  useSettingsStore.setState({ themeMode: 'dark' })
 })
 
 afterEach(() => cleanup())
 
-const TITLE_PLACEHOLDER = 'New task... (@person @org #tag /project tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
-const acme: Org & { id: number } = makeOrg({ id: 1, name: 'Acme' })
 // Tags kept unsorted on purpose — the component sorts alphabetically; tests assert order.
 const urgent: Tag & { id: number } = { id: 1, name: 'urgent', color: '#f00' }
 const followup: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a0' }
@@ -29,16 +26,12 @@ function renderPopup(allTags: Tag[] = [urgent, followup, backend]) {
     mode: 'create' as const,
     assignedPeople: [],
     allPeople: [alice],
-    assignedOrgs: [],
-    allOrgs: [acme],
     assignedTags: [],
     allTags,
     onClose: vi.fn(),
     onCreate,
     onAssignPerson: vi.fn(),
     onUnassignPerson: vi.fn(),
-    onAssignOrg: vi.fn(),
-    onUnassignOrg: vi.fn(),
     onAssignTag: vi.fn(),
     onUnassignTag: vi.fn(),
     onCreatePerson: vi.fn().mockResolvedValue(99),
@@ -60,16 +53,16 @@ function typeTitle(value: string) {
   return input
 }
 
-/** The popover items are buttons whose text starts with `#` — use that to
+/** The popover rows are options whose text starts with `#` — use that to
  * find them; the chip-selector's "Tags" section label collides with the
  * popover's "Tags" header, so we don't key tests off the header text. */
 function getPopoverItemTexts() {
-  return screen.getAllByRole('button')
+  return screen.queryAllByRole('option')
     .map((b) => b.textContent ?? '')
     .filter((t) => t.startsWith('#') && t !== '#')
 }
 
-describe('task title autocomplete — tags (Phase 8)', () => {
+describe('task title autocomplete — tags', () => {
   describe('open + filter', () => {
     it('typing `#` opens the tag popover with all tags sorted alphabetically', () => {
       renderPopup()

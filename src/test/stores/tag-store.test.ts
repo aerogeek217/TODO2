@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { useTagStore, TagLimitError } from '../../stores/tag-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { newTodoUid } from '../../utils/todo-uid'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-  useSettingsStore.setState({ maxTags: 500 })
+  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 })
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, isCompleted: false,
+    uid: newTodoUid(), title, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }
@@ -40,20 +40,18 @@ describe('useTagStore', () => {
     expect(useTagStore.getState().tags[0]!.color).toBe('#ff0000')
   })
 
-  it('add throws TagLimitError when tags.length >= settings.maxTags', async () => {
-    useSettingsStore.setState({ maxTags: 2 })
+  it('add has no cap: a stored maxTags row is ignored', async () => {
+    await db.settings.put({ key: 'maxTags', value: '2' })
+    await useSettingsStore.getState().load()
     await useTagStore.getState().add('one')
     await useTagStore.getState().add('two')
-    await expect(useTagStore.getState().add('three')).rejects.toBeInstanceOf(TagLimitError)
-    await expect(useTagStore.getState().add('three')).rejects.toThrow(/tag limit/i)
-    // Store state unchanged beyond the configured ceiling.
-    expect(useTagStore.getState().tags).toHaveLength(2)
-    // No row persisted to the registry either.
-    expect(await db.tags.count()).toBe(2)
+    await useTagStore.getState().add('three')
+    expect(useTagStore.getState().tags.map((t) => t.name)).toEqual(['one', 'two', 'three'])
+    expect(await db.tags.count()).toBe(3)
   })
 
   it('add is idempotent — returns existing id on case-insensitive match', async () => {
-    // Post-M1, `add` is resolve-or-create: duplicate creates no longer throw,
+    // `add` is resolve-or-create: duplicate creates no longer throw,
     // they return the existing id. Keeps the registry free of races from
     // concurrent NLP calls (see concurrent test below). Explicit UI-level
     // duplicate-rejection lives in `TagEditor` via a pre-check on `tags[]`.
@@ -171,16 +169,6 @@ describe('useTagStore', () => {
     await useTagStore.getState().unassignTag(todoId, tagId)
     expect(useTagStore.getState().assignedTagsMap.get(todoId) ?? []).toHaveLength(0)
     expect(await db.todoTags.count()).toBe(0)
-  })
-
-  it('getAssignedTags returns tags for a todoId, empty array if none', async () => {
-    const tagId = await useTagStore.getState().add('urgent')
-    const todoId = await addTodo()
-    await useTagStore.getState().loadAssignments([todoId])
-    await useTagStore.getState().assignTag(todoId, tagId)
-
-    expect(useTagStore.getState().getAssignedTags(todoId)).toHaveLength(1)
-    expect(useTagStore.getState().getAssignedTags(99999)).toEqual([])
   })
 
   it('assignment map survives a tag-store reload (round-trip via DB)', async () => {

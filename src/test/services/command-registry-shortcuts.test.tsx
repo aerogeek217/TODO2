@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createCommands, type CommandContext } from '../../services/command-registry'
+import { useSettingsStore } from '../../stores/settings-store'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -11,7 +12,7 @@ function stubPlatform(platform: string) {
 
 function makeContext(): CommandContext {
   return {
-    navigateTo: vi.fn(),
+    openSettings: vi.fn(),
     openQuickAdd: vi.fn(),
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
@@ -23,9 +24,8 @@ function makeContext(): CommandContext {
     getShowCompleted: vi.fn().mockReturnValue(false),
     setDateRange: vi.fn(),
     getTodos: vi.fn().mockReturnValue([]),
-    getProjects: vi.fn().mockReturnValue([]),
     focusTask: vi.fn(),
-    focusProject: vi.fn(),
+    openShortcutsModal: vi.fn(),
   }
 }
 
@@ -39,13 +39,29 @@ describe('command-registry shortcut labels', () => {
     stubPlatform('MacIntel')
     expect(shortcutFor('new-task')).toBe('⌘Space')
     expect(shortcutFor('select-all')).toBe('⌘A')
-    expect(shortcutFor('redo')).toBe('⌘⇧Z')
+    expect(shortcutFor('redo')).toBe('⌘Y')
   })
 
   it('renders Ctrl+ prefixed Mod shortcuts on Windows', () => {
     stubPlatform('Win32')
     expect(shortcutFor('new-task')).toBe('Ctrl+Space')
     expect(shortcutFor('select-all')).toBe('Ctrl+A')
-    expect(shortcutFor('redo')).toBe('Ctrl+Shift+Z')
+    expect(shortcutFor('redo')).toBe('Ctrl+Y')
+    expect(shortcutFor('open-settings')).toBe('G then S')
+    expect(shortcutFor('keyboard-shortcuts')).toBe('?')
+  })
+
+  it('shows the live keys of changed bindings', () => {
+    stubPlatform('Win32')
+    useSettingsStore.setState({
+      shortcutOverrides: {
+        'quick-add': [{ key: 'Space', mod: true, shift: true }],
+        'open-settings': [{ key: 'g' }, { key: 'o' }],
+        'focus-filters': [{ key: 'f', shift: true }],
+      },
+    })
+    expect(shortcutFor('new-task')).toBe('Ctrl+Shift+Space')
+    expect(shortcutFor('open-settings')).toBe('G then O')
+    expect(shortcutFor('focus-filter')).toBe('Shift+F')
   })
 })

@@ -1,30 +1,31 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
-import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
-import { makePerson, makeOrg, makeTodo, resetDb } from '../helpers'
-import type { Person, Org, Tag, PersistedTodoItem } from '../../models'
+import { useTodoStore } from '../../stores/todo-store'
+import { useUIStore } from '../../stores/ui-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { useStatusStore } from '../../stores/status-store'
+import { makePerson, makeTodo, patchScreenFilter, resetDb } from '../helpers'
+import type { Person, Tag, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
 beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
 })
 
-const TITLE_PLACEHOLDER = 'New task... (@person @org #tag /project tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
-const acmeOrg: Org & { id: number } = makeOrg({ id: 1, name: 'Acme' })
-const globexOrg: Org & { id: number } = makeOrg({ id: 2, name: 'Globex' })
 const urgentTag: Tag & { id: number } = { id: 1, name: 'urgent', color: '#f00' }
 const followupTag: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a0' }
 
 function resetStores() {
-  useProjectStore.setState({ projects: [] })
-  useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark' })
-  useTaskboardStore.setState({ board: { id: 1, entries: [], createdAt: new Date(), updatedAt: new Date() } })
+  useSettingsStore.setState({ themeMode: 'dark' })
+  useTodoStore.setState(useTodoStore.getInitialState(), true)
+  useUIStore.setState({ quickAddDraft: null })
+  useFilterStore.getState().clearAll()
 }
 
 function typeTitle(text: string) {
@@ -54,16 +55,12 @@ function renderCreateMode(overrides: Record<string, unknown> = {}) {
     mode: 'create' as const,
     assignedPeople: [],
     allPeople: [alice, bob],
-    assignedOrgs: [],
-    allOrgs: [acmeOrg, globexOrg],
     assignedTags: [],
     allTags: [urgentTag, followupTag],
     onClose,
     onCreate,
     onAssignPerson: vi.fn(),
     onUnassignPerson: vi.fn(),
-    onAssignOrg: vi.fn(),
-    onUnassignOrg: vi.fn(),
     onAssignTag: vi.fn(),
     onUnassignTag: vi.fn(),
     onCreatePerson: vi.fn().mockResolvedValue(99),
@@ -79,8 +76,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   const onUpdate = vi.fn()
   const onAssignPerson = vi.fn()
   const onUnassignPerson = vi.fn()
-  const onAssignOrg = vi.fn()
-  const onUnassignOrg = vi.fn()
   const onAssignTag = vi.fn()
   const onUnassignTag = vi.fn()
   const onCreateTag = vi.fn().mockResolvedValue(77)
@@ -90,8 +85,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     todo,
     assignedPeople: [alice],
     allPeople: [alice, bob],
-    assignedOrgs: [],
-    allOrgs: [acmeOrg, globexOrg],
     assignedTags: [],
     allTags: [urgentTag, followupTag],
     onClose: vi.fn(),
@@ -101,8 +94,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     onDelete: vi.fn(),
     onAssignPerson,
     onUnassignPerson,
-    onAssignOrg,
-    onUnassignOrg,
     onAssignTag,
     onUnassignTag,
     onCreateTag,
@@ -110,7 +101,7 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   }
 
   const result = render(<TaskEditPopup {...props} />)
-  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignOrg, onUnassignOrg, onAssignTag, onUnassignTag, onCreateTag }
+  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignTag, onUnassignTag, onCreateTag, props }
 }
 
 describe('TaskEditPopup', () => {
@@ -127,10 +118,10 @@ describe('TaskEditPopup', () => {
       const { onCreate } = renderCreateMode()
 
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
 
-      // Person chip appears with @ prefix (distinct from dropdown item)
-      expect(screen.getByText('@Alice')).toBeInTheDocument()
+      // Person chip: avatar + name, removable
+      expect(screen.getByRole('button', { name: 'Alice×' })).toBeInTheDocument()
 
       typeTitle('Test task')
       clickCreate()
@@ -142,25 +133,6 @@ describe('TaskEditPopup', () => {
       const [partial, assignments] = onCreate.mock.calls[0]!
       expect(partial.title).toBe('Test task')
       expect(assignments.personIds).toEqual([1])
-      expect(assignments.orgIds).toEqual([])
-    })
-
-    it('toggling an org includes it in onCreate assignments', async () => {
-      const { onCreate } = renderCreateMode()
-
-      openPeopleDropdown() // orgs are in the people dropdown
-      fireEvent.click(screen.getByText('Acme'))
-
-      typeTitle('Org task')
-      clickCreate()
-
-      await vi.waitFor(() => {
-        expect(onCreate).toHaveBeenCalledOnce()
-      })
-
-      const [, assignments] = onCreate.mock.calls[0]!
-      expect(assignments.orgIds).toEqual([1])
-      expect(assignments.personIds).toEqual([])
     })
 
     it('toggling a person twice removes them from pending', async () => {
@@ -168,12 +140,12 @@ describe('TaskEditPopup', () => {
 
       // Toggle Alice on
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
-      expect(screen.getByText('@Alice')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      expect(screen.getByRole('button', { name: 'Alice×' })).toBeInTheDocument()
 
       // Toggle Alice off (dropdown is still open, click Alice again in the list)
-      fireEvent.click(screen.getByText('Alice'))
-      expect(screen.queryByText('@Alice')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      expect(screen.queryByRole('button', { name: 'Alice×' })).not.toBeInTheDocument()
 
       typeTitle('No person')
       clickCreate()
@@ -191,8 +163,8 @@ describe('TaskEditPopup', () => {
 
       // Add Alice and Bob
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
-      fireEvent.click(screen.getByText('Bob'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      fireEvent.click(screen.getByRole('option', { name: 'Bob' }))
 
       typeTitle('Multi assign')
       clickCreate()
@@ -201,7 +173,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toContain(1)
       expect(assignments.personIds).toContain(2)
     })
@@ -212,9 +184,9 @@ describe('TaskEditPopup', () => {
 
       openPeopleDropdown()
 
-      const searchInput = screen.getByPlaceholderText('Search people & orgs...')
+      const searchInput = screen.getByPlaceholderText('Search or create people…')
       fireEvent.change(searchInput, { target: { value: 'Charlie' } })
-      fireEvent.click(screen.getByText('+ Create "Charlie"'))
+      fireEvent.click(screen.getByRole('option', { name: 'Create "Charlie"' }))
 
       await vi.waitFor(() => {
         expect(onCreatePerson).toHaveBeenCalledWith('Charlie')
@@ -227,21 +199,38 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toContain(50)
+    })
+
+    it('the people picker: Esc closes it without closing the editor', () => {
+      const { onClose } = renderCreateMode()
+      openPeopleDropdown()
+      const searchInput = screen.getByPlaceholderText('Search or create people…')
+      expect(searchInput).toHaveFocus()
+      fireEvent.keyDown(searchInput, { key: 'Escape' })
+      expect(screen.queryByPlaceholderText('Search or create people…')).not.toBeInTheDocument()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('an @name in the title that matches nobody offers to create it', () => {
+      renderCreateMode()
+      typeTitle('Call legal @Marco')
+      const row = screen.getByRole('option', { name: 'Press ⏎ to create @Marco' })
+      expect(row).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Marco ')
     })
 
     it('does not call the no-op assignment callbacks in create mode', () => {
       const { props } = renderCreateMode()
 
-      // Toggle person and org in the same dropdown session
+      // Toggle a person on and off in the same dropdown session
       openPeopleDropdown()
-      fireEvent.click(screen.getByText('Alice'))
-      fireEvent.click(screen.getByText('Acme'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
       expect(props.onAssignPerson).not.toHaveBeenCalled()
       expect(props.onUnassignPerson).not.toHaveBeenCalled()
-      expect(props.onAssignOrg).not.toHaveBeenCalled()
-      expect(props.onUnassignOrg).not.toHaveBeenCalled()
     })
 
     it('empty assignments are passed when no chips selected', async () => {
@@ -256,7 +245,6 @@ describe('TaskEditPopup', () => {
 
       const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toEqual([])
-      expect(assignments.orgIds).toEqual([])
     })
   })
 
@@ -268,22 +256,12 @@ describe('TaskEditPopup', () => {
       openPeopleDropdown()
 
       // Alice is already assigned — toggling should unassign
-      fireEvent.click(screen.getByText('Alice'))
+      fireEvent.click(screen.getByRole('option', { name: 'Alice' }))
       expect(onUnassignPerson).toHaveBeenCalledWith(1)
 
       // Bob is not assigned — toggling should assign
-      fireEvent.click(screen.getByText('Bob'))
+      fireEvent.click(screen.getByRole('option', { name: 'Bob' }))
       expect(onAssignPerson).toHaveBeenCalledWith(2)
-    })
-
-    it('toggling an org calls onAssignOrg/onUnassignOrg', () => {
-      const todo = makeTodo({ id: 10, title: 'Edit task' })
-      const { onAssignOrg } = renderEditMode(todo)
-
-      openPeopleDropdown()
-
-      fireEvent.click(screen.getByText('Acme'))
-      expect(onAssignOrg).toHaveBeenCalledWith(1)
     })
   })
 
@@ -304,7 +282,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [partial, assignments] = onCreate.mock.calls[0]
+      const [partial, assignments] = onCreate.mock.calls[0]!
       expect(partial.title).toBe('Tagged task')
       expect(assignments.tagIds).toEqual([1])
     })
@@ -326,7 +304,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.tagIds).toEqual([])
     })
 
@@ -338,7 +316,7 @@ describe('TaskEditPopup', () => {
 
       const searchInput = screen.getByPlaceholderText('Search tags...')
       fireEvent.change(searchInput, { target: { value: 'blocker' } })
-      fireEvent.click(screen.getByText('+ Create "blocker"'))
+      fireEvent.click(screen.getByRole('option', { name: 'Create "blocker"' }))
 
       await vi.waitFor(() => {
         expect(onCreateTag).toHaveBeenCalledWith('blocker')
@@ -351,7 +329,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.tagIds).toContain(50)
     })
 
@@ -374,7 +352,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.tagIds).toEqual([])
     })
   })
@@ -420,7 +398,7 @@ describe('TaskEditPopup', () => {
 
       const searchInput = screen.getByPlaceholderText('Search tags...')
       fireEvent.change(searchInput, { target: { value: 'newtag' } })
-      fireEvent.click(screen.getByText('+ Create "newtag"'))
+      fireEvent.click(screen.getByRole('option', { name: 'Create "newtag"' }))
 
       await vi.waitFor(() => {
         expect(onCreateTag).toHaveBeenCalledWith('newtag')
@@ -431,51 +409,255 @@ describe('TaskEditPopup', () => {
     })
   })
 
-  describe('edit mode — taskboard toggle', () => {
+  describe('Focus toggle', () => {
     beforeEach(async () => {
       await resetDb()
-      useTaskboardStore.setState({ board: null, loading: false, error: null })
+      resetStores()
     })
 
-    it('clicking Add to Taskboard adds the todo and flips the label', async () => {
-      const todo = makeTodo({ id: 42, title: 'Taskboard target' })
-      renderEditMode(todo)
+    it('edit mode: clicking Focus puts the task in focus, and again takes it out', async () => {
+      const todo = makeTodo({ id: 42, title: 'Focus target' })
+      useTodoStore.setState({ todos: [todo] })
+      const { rerender, props } = renderEditMode(todo)
 
-      expect(screen.getByText('Add to Taskboard')).toBeInTheDocument()
-      expect(useTaskboardStore.getState().has(42)).toBe(false)
-
-      await act(async () => {
-        fireEvent.click(screen.getByText('Add to Taskboard'))
-      })
-
-      await waitFor(() => {
-        expect(useTaskboardStore.getState().has(42)).toBe(true)
-      })
-      expect(screen.getByText('Remove from Taskboard')).toBeInTheDocument()
+      const toggle = screen.getByRole('button', { name: /Focus/ })
+      expect(toggle).toHaveAttribute('aria-pressed', 'false')
       expect(screen.queryByText('Add to Taskboard')).not.toBeInTheDocument()
+
+      await act(async () => { fireEvent.click(toggle) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.focus).toBe(true))
+
+      rerender(<TaskEditPopup {...props} todo={useTodoStore.getState().todos[0]!} />)
+      expect(screen.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Focus/ })) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.focus).toBeUndefined())
     })
 
-    it('clicking Remove from Taskboard removes the todo and flips the label back', async () => {
-      const todo = makeTodo({ id: 77, title: 'Already on board' })
+    it('create mode: the Focus toggle is passed to onCreate', async () => {
+      const { onCreate } = renderCreateMode()
+      typeTitle('New focused task')
+      fireEvent.click(screen.getByRole('button', { name: /Focus/ }))
+      await act(async () => { fireEvent.click(screen.getByText('Create task')) })
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'New focused task', focus: true }), expect.anything())
+    })
+
+    it('create mode: a Markers screen filter starts those toggles on', () => {
+      patchScreenFilter({ markers: { focus: true, important: true } })
+      renderCreateMode()
+      expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Important' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Urgent' })).toHaveAttribute('aria-pressed', 'false')
+    })
+  })
+
+  describe('Urgent and Important toggles', () => {
+    // Sat 10 Oct 2026; the default range: due within 3 days is urgent.
+    const today = new Date(2026, 9, 10, 9)
+    const day = (offset: number) => new Date(2026, 9, 10 + offset)
+
+    beforeEach(async () => {
+      vi.useFakeTimers({ now: today, toFake: ['Date'] })
+      await resetDb()
+      resetStores()
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
+      useUIStore.setState({ bulkConfirmation: null })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('the marker toggles read Focus › Urgent › Important', () => {
+      const todo = makeTodo({ id: 41, title: 'Order' })
+      useTodoStore.setState({ todos: [todo] })
       renderEditMode(todo)
-
-      await act(async () => {
-        await useTaskboardStore.getState().add(77)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText('Remove from Taskboard')).toBeInTheDocument()
-      })
-
-      await act(async () => {
-        fireEvent.click(screen.getByText('Remove from Taskboard'))
-      })
-
-      await waitFor(() => {
-        expect(useTaskboardStore.getState().has(77)).toBe(false)
-      })
-      expect(screen.getByText('Add to Taskboard')).toBeInTheDocument()
-      expect(screen.queryByText('Remove from Taskboard')).not.toBeInTheDocument()
+      const names = screen.getAllByRole('button')
+        .map((b) => b.textContent?.trim() ?? '')
+        .filter((t) => t === 'Focus' || t === 'Urgent' || t === 'Important')
+      expect(names).toEqual(['Focus', 'Urgent', 'Important'])
     })
+
+    it('edit mode: Urgent and Important flag the task and clear it again', async () => {
+      const todo = makeTodo({ id: 42, title: 'Flag me' })
+      useTodoStore.setState({ todos: [todo] })
+      const { rerender, props } = renderEditMode(todo)
+      const urgent = () => screen.getByRole('button', { name: 'Urgent' })
+      const important = () => screen.getByRole('button', { name: 'Important' })
+      expect(urgent()).toHaveAttribute('aria-pressed', 'false')
+      expect(important()).toHaveAttribute('aria-pressed', 'false')
+
+      await act(async () => { fireEvent.click(urgent()) })
+      await act(async () => { fireEvent.click(important()) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]).toMatchObject({ urgent: true, important: true }))
+      rerender(<TaskEditPopup {...props} todo={useTodoStore.getState().todos[0]!} />)
+      expect(urgent()).toHaveAttribute('aria-pressed', 'true')
+      expect(urgent()).toHaveAttribute('data-urgent', 'flag')
+      expect(important()).toHaveAttribute('aria-pressed', 'true')
+
+      // Flagged, no due date: the flag just clears (no prompt).
+      await act(async () => { fireEvent.click(urgent()) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.urgent).toBeUndefined())
+      expect(useUIStore.getState().bulkConfirmation).toBeNull()
+    })
+
+    it('edit mode: a task urgent only by its due date shows the clock; clearing asks to remove the date', async () => {
+      const todo = makeTodo({ id: 7, title: 'Pick up prescriptions', dueDate: day(3) })
+      useTodoStore.setState({ todos: [todo] })
+      renderEditMode(todo)
+      const urgent = screen.getByRole('button', { name: 'Urgent' })
+      expect(urgent).toHaveAttribute('aria-pressed', 'true')
+      expect(urgent).toHaveAttribute('data-urgent', 'date')
+      fireEvent.pointerEnter(urgent)
+      const tip = await screen.findByRole('tooltip', undefined, { timeout: 1500 })
+      expect(tip.textContent).toBe('Urgent: due soonDue Tue 13, within 3 days. Click to make it not urgent.')
+      fireEvent.pointerLeave(urgent)
+
+      await act(async () => { fireEvent.click(urgent) })
+      const prompt = useUIStore.getState().bulkConfirmation!
+      expect(prompt).toMatchObject({
+        action: 'custom',
+        title: 'Remove the due date?',
+        message: 'Pick up prescriptions is due Tue 13, within 3 days, so it counts as urgent. Removing the due date makes it not urgent.',
+        confirmLabel: 'Remove due date',
+        cancelLabel: 'Cancel',
+      })
+      // Nothing changed yet.
+      expect(useTodoStore.getState().todos[0]!.dueDate).toEqual(day(3))
+    })
+
+    it('create mode: the draft due date lights Urgent with the clock; clearing removes the draft date', async () => {
+      const { onCreate } = renderCreateMode()
+      typeTitle('Call plumber')
+      fireEvent.change(screen.getByTitle('Set due date').querySelector('input')!, { target: { value: '2026-10-11' } })
+      const urgent = () => screen.getByRole('button', { name: 'Urgent' })
+      expect(urgent()).toHaveAttribute('data-urgent', 'date')
+
+      fireEvent.click(urgent())
+      const prompt = useUIStore.getState().bulkConfirmation!
+      expect(prompt.title).toBe('Remove the due date?')
+      act(() => { prompt.onConfirm!() })
+      expect(urgent()).toHaveAttribute('aria-pressed', 'false')
+
+      fireEvent.click(urgent())
+      fireEvent.click(screen.getByRole('button', { name: 'Important' }))
+      await act(async () => { clickCreate() })
+      expect(onCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Call plumber', urgent: true, important: true, dueDate: undefined }),
+        expect.anything(),
+      )
+    })
+  })
+
+  describe('edit mode — due date', () => {
+    it('labels the date row "Due" and has no scheduled row', () => {
+      renderEditMode(makeTodo({ id: 5, title: 'Dated', dueDate: new Date(2026, 3, 20) }))
+      expect(screen.getByText('Due')).toBeInTheDocument()
+      expect(screen.queryByText('Deadline')).toBeNull()
+      expect(screen.queryByText('Scheduled')).toBeNull()
+    })
+
+    it('offers repeat only with a due date; clearing the due date drops the rule', () => {
+      const todo = makeTodo({
+        id: 6, title: 'Water plants', dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' },
+      })
+      const { onUpdate } = renderEditMode(todo)
+      expect(screen.getByDisplayValue('Weekly')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTitle('Clear due date'))
+      const updated = onUpdate.mock.calls.at(-1)![0] as PersistedTodoItem
+      expect(updated.dueDate).toBeUndefined()
+      expect(updated.recurrenceRule).toBeUndefined()
+      expect(screen.queryByText('No repeat')).toBeNull()
+    })
+  })
+
+  describe('slash commands', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(2026, 9, 10, 15, 30)) // Sat 10 Oct 2026
+      useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#fa0', sortOrder: 0 }] })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+      useStatusStore.setState(useStatusStore.getInitialState(), true)
+    })
+
+    it('a Quick Add handoff fills the fields and drops the commands from the title', async () => {
+      useUIStore.setState({
+        quickAddDraft: { rawTitle: 'Call legal @Alice #urgent /urgent /important /focus /due fri /repeat weekly /followup 2w /status waiting' },
+      })
+      const { onCreate } = renderCreateMode()
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Alice #urgent')
+      expect(screen.getByRole('button', { name: /Urgent/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /Important/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByText(/Waiting/)).toBeInTheDocument()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      const [partial, assignments] = onCreate.mock.calls[0]!
+      expect(partial).toMatchObject({
+        title: 'Call legal @Alice #urgent',
+        urgent: true,
+        important: true,
+        focus: true,
+        statusId: 5,
+        dueDate: new Date(2026, 9, 16),
+        nextFollowupAt: new Date(2026, 9, 24),
+      })
+      expect(partial.recurrenceRule?.type).toBe('weekly')
+      expect(assignments.personIds).toEqual([1])
+      expect(assignments.tagIds).toEqual([1])
+    })
+
+    it('a handoff with /followup none starts with no next follow-up', async () => {
+      useUIStore.setState({ quickAddDraft: { rawTitle: 'Vendor /followup none' } })
+      const { onCreate } = renderCreateMode()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      const partial = onCreate.mock.calls[0]![0]
+      expect('nextFollowupAt' in partial).toBe(true)
+      expect(partial.nextFollowupAt).toBeUndefined()
+    })
+
+    it('/ opens the command menu in the create-mode title', () => {
+      renderCreateMode()
+      typeTitle('Call /')
+      expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call /focus ')
+    })
+
+    it('/ is plain text in an existing task’s title', () => {
+      renderEditMode(makeTodo({ id: 7, title: 'Existing' }) as PersistedTodoItem)
+      fireEvent.change(screen.getByDisplayValue('Existing'), { target: { value: 'Existing /' } })
+      expect(screen.queryByRole('listbox', { name: 'Commands' })).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('TaskEditPopup — a create that fails', () => {
+  beforeEach(resetStores)
+  afterEach(cleanup)
+
+  it('stays open with every field as typed; Create task again creates and closes', async () => {
+    const onCreate = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(43)
+    const { onClose } = renderCreateMode({ onCreate })
+    typeTitle('Write report')
+    fireEvent.change(screen.getByPlaceholderText('e.g. 50% done, Waiting on review...'), { target: { value: 'Outline done' } })
+    fireEvent.click(screen.getByRole('button', { name: /Urgent/ }))
+
+    clickCreate()
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    await act(async () => {})
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Write report')
+    expect(screen.getByPlaceholderText('e.g. 50% done, Waiting on review...')).toHaveValue('Outline done')
+    expect(screen.getByRole('button', { name: /Urgent/ })).toHaveAttribute('aria-pressed', 'true')
+
+    clickCreate()
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(onCreate).toHaveBeenCalledTimes(2)
+    expect(onCreate.mock.calls[1]![0]).toEqual(onCreate.mock.calls[0]![0])
   })
 })

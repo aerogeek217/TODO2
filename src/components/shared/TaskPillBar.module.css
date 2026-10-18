@@ -1,14 +1,14 @@
 /*
- * Shared task-pill bar — used by TaskRow, MobileTaskRow, SearchResultRow,
- * EventRow. The five surfaces converged in ui-consistency-2026-04-25 P2 onto
- * one set of chip styles, with mode flags driving icon-only / read-only /
- * stacked-date variants.
+ * Shared task-pill bar — used by MobileTaskRow, the top bar's
+ * SearchResultRow and calendar entries. Every surface shares
+ * one set of chip styles, with mode flags driving icon-only / read-only
+ * variants.
  *
  * Display rule: tags never appear in the pill bar — search / filter / grouping
  * only.
  */
 
-/* ═══ People / org chip group ═══ */
+/* ═══ People chip group ═══ */
 
 .peopleGroup {
   position: relative;
@@ -19,27 +19,7 @@
   min-width: 0;
 }
 
-/* ═══ Date stack — TaskRow's vertical column ═══ */
-
-/*
- * Fixed-width date-column slot. Always the same width whether a chip,
- * chip-stack, or empty-state add-date button is rendered inside —
- * so trailing slots (status) and preceding slots (people / orgs)
- * line up vertically across rows.
- */
-.dateStack {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 1px;
-  flex-shrink: 0;
-  width: var(--date-slot-w, 80px);
-  line-height: 1;
-  position: relative;
-}
-
-/* Inline (default): scheduled and deadline sit side-by-side, no fixed width. */
+/* ═══ Dates: flow with the row, no fixed width ═══ */
 .dateInline {
   display: inline-flex;
   align-items: center;
@@ -48,83 +28,20 @@
   line-height: 1;
 }
 
-/*
- * Secondary chip in a two-chip stack: deadline when both scheduled + deadline
- * are present.
- */
-.dateStackSecondary {
-  font-size: 9.5px;
-  padding: 0 4px;
-  line-height: 10px;
-  letter-spacing: 0.1px;
-}
-
-/* × clear button inside the tight secondary chip would overflow its
- * line-height, so hide it there — users clear the primary by clicking it. */
-.dateStackSecondary .chipClear {
-  display: none;
-}
-
-/* ═══ Scheduled chip ═══ */
-
-.scheduledChip {
-  --date-intensity: 1;
-  --fade: calc((1 - var(--date-intensity)) * 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  font-size: var(--font-size-meta);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
-  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
-  padding: 1px 6px;
-  line-height: 14px;
-  border-radius: var(--radius-chip);
-  border: 1px solid transparent;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  font-family: inherit;
-  box-sizing: border-box;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Stacked-mode chip is full-width inside its column. */
-.dateStack > .scheduledChip,
-.dateStack > .deadlineChip {
-  width: 100%;
-}
-
-.scheduledChip:hover {
-  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
-}
-
-.scheduledChipPast {
-  color: var(--color-scheduled);
-  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
-  border: 1px dashed var(--color-scheduled);
-  font-weight: 600;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-scheduled) 30%, transparent);
-}
-
-.scheduledChipPast:hover {
-  background: color-mix(in srgb, var(--color-scheduled) 34%, transparent);
-}
-
-/* ═══ Deadline chip ═══ */
+/* ═══ Due-date chip ═══ */
 
 .deadlineChip {
   --date-intensity: 1;
   --fade: calc((1 - var(--date-intensity)) * 100%);
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   font-size: var(--font-size-meta);
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
   background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
-  padding: 1px 6px;
+  padding: 1px 4px;
   line-height: 14px;
   border-radius: var(--radius-chip);
   border: 1px solid transparent;
@@ -162,14 +79,18 @@
   opacity: 0.75;
 }
 
-/* × clear button inside a chip — hidden until the chip is hovered */
+/* × clear button over the chip's right end — takes no width (the chip hugs its
+ * date); hidden until the chip is hovered. */
 .chipClear {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 14px;
   height: 14px;
-  margin-left: 2px;
   border-radius: var(--radius-pill);
   font-size: 13px;
   line-height: 1;
@@ -179,8 +100,7 @@
   cursor: pointer;
 }
 
-.deadlineChip:hover .chipClear,
-.scheduledChip:hover .chipClear {
+.deadlineChip:hover .chipClear {
   opacity: 0.7;
 }
 
@@ -191,22 +111,16 @@
 
 .recurrenceIndicator {
   color: var(--color-text-muted);
-  margin-right: 2px;
 }
 
 /* ═══ Compact (icon-only) date markers — used by EventRow ═══ */
 
-.markerScheduled,
 .markerDeadline,
 .markerRecurrence {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   color: var(--color-text-muted);
-}
-
-.markerScheduled {
-  color: var(--color-scheduled);
 }
 
 .markerDeadline {
@@ -281,4 +195,98 @@
   gap: var(--space-2);
   flex-shrink: 0;
   pointer-events: none;
+}
+
+/* ═══ Follow-up pill ═══ */
+
+/*
+ * Next follow-up: yellow flag pill. Today → stronger fill; overdue → stronger
+ * fill + 1px yellow ring, no "late" text (kept yellow so it never reads as an
+ * overdue due date, which is magenta). The × clears only the follow-up.
+ */
+.followupChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-followup-bg);
+  color: var(--color-followup);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
+.followupChip svg {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* The label is what gives way when short of room; the flag and the × always
+ * show. */
+.followupLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.followupChipWithClear {
+  padding-right: 2px;
+}
+
+/* Just the flag (the phone row). */
+.followupChipFlagOnly {
+  width: 20px;
+  padding: 0;
+  justify-content: center;
+}
+
+.followupChipToday,
+.followupChipOverdue {
+  background: var(--color-followup-bg-strong);
+}
+
+.followupChipOverdue {
+  box-shadow: 0 0 0 1px var(--color-followup-glow);
+}
+
+.followupChipOpen {
+  box-shadow: inset 0 0 0 1px var(--color-followup);
+}
+
+.followupChip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.followupClear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.followupClear:hover {
+  opacity: 1;
+  background: var(--color-followup-bg-strong);
+}
+
+.followupChipOverdue .followupClear:hover {
+  background: var(--color-followup-glow);
 }

@@ -4,8 +4,8 @@
  * and expose typed accessors that return the picker function (when supported
  * by the running browser) or `undefined`.
  *
- * Hoisted by code-review-2026-04-25 P10 from four `(window as unknown as ...)`
- * cast sites in `views/SettingsPage.tsx` + `components/overlays/MigrationDialog.tsx`.
+ * The one place that casts `window` for the File System Access pickers, so
+ * callers (Settings sections, `MigrationDialog`) stay cast-free.
  */
 
 export interface FilePickerAcceptType {

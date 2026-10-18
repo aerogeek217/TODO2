@@ -1,25 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { validateImportData, isValidCssColor } from '../../data/import-validation'
+import { validateImportData, isKnownSettingKey } from '../../data/import-validation'
+import { isValidCssColor } from '../../utils/css'
 
 const now = new Date().toISOString()
 
-function makeCanvas(overrides = {}) {
-  return { id: 1, name: 'Canvas', sortOrder: 0, createdAt: now, ...overrides }
-}
+let todoUidSeq = 0
 
 function makeTodo(overrides = {}) {
   return {
-    id: 1, title: 'Task',
+    id: 1, uid: `uid-${++todoUidSeq}`, title: 'Task',
     isCompleted: false,
     createdAt: now, modifiedAt: now, sortOrder: 0,
     ...overrides,
-  }
-}
-
-function makeProject(overrides = {}) {
-  return {
-    id: 1, name: 'Proj', canvasId: 1, positionX: 0, positionY: 0,
-    isCollapsed: false, sortOrder: 0, createdAt: now, ...overrides,
   }
 }
 
@@ -31,16 +23,9 @@ function makeTag(overrides = {}) {
   return { id: 1, name: 'urgent', color: '#ff0000', ...overrides }
 }
 
-function makeListInset(overrides = {}) {
-  return {
-    id: 1, listDefinitionId: 1, canvasId: 1,
-    x: 0, y: 0, width: 320, height: 300, isCollapsed: false,
-    ...overrides,
-  }
-}
-
+/** The smallest whole database: a restore requires `todos` and `settings`. */
 function validData(overrides: Record<string, unknown> = {}) {
-  return { canvases: [makeCanvas()], ...overrides }
+  return { todos: [], settings: [], ...overrides }
 }
 
 describe('isValidCssColor', () => {
@@ -65,18 +50,49 @@ describe('validateImportData', () => {
     expect(validateImportData(null).ok).toBe(false)
   })
 
-  it('rejects missing canvases', () => {
-    expect(validateImportData({}).ok).toBe(false)
+  it('rejects a database without its tasks or settings', () => {
+    const error = 'File is not a valid TODO2 database (missing tasks or settings)'
+    expect(validateImportData({})).toEqual({ ok: false, error })
+    expect(validateImportData({ todos: [] })).toEqual({ ok: false, error })
+    expect(validateImportData({ settings: [] })).toEqual({ ok: false, error })
+    expect(validateImportData({ todos: 'x', settings: [] })).toEqual({ ok: false, error })
+    // An old export that still carries canvases is not enough on its own.
+    expect(validateImportData({ canvases: [{ id: 1, name: 'Canvas', sortOrder: 0, createdAt: now }] })).toEqual({ ok: false, error })
   })
 
-  it('rejects empty canvases array', () => {
-    expect(validateImportData({ canvases: [] }).ok).toBe(false)
+  it('accepts empty tasks + settings arrays (an empty database)', () => {
+    const result = validateImportData({ todos: [], settings: [] })
+    expect(result).toMatchObject({ ok: true, warnings: [] })
+  })
+
+  it('without requireFullDatabase, accepts task tables alone (append import)', () => {
+    const result = validateImportData({ todos: [makeTodo()] }, { requireFullDatabase: false })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.settings).toEqual([])
+  })
+
+  it('ignores tables this build no longer has (projects, canvases, list insets, floats)', () => {
+    const result = validateImportData(validData({
+      canvases: [{ id: 1 }],
+      projects: [{ id: 1, name: 'Proj' }],
+      listInsets: [{ id: 1 }],
+      floatingNotes: [{ id: 1 }],
+    }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    for (const t of ['canvases', 'projects', 'listInsets', 'floatingNotes']) expect(t in result.data, t).toBe(false)
+  })
+
+  it('drops projectId / canvasId from a todo (fields no longer exist)', () => {
+    const result = validateImportData(validData({ todos: [makeTodo({ projectId: 1, canvasId: 1 })] }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect('projectId' in result.data.todos[0]!).toBe(false)
+    expect('canvasId' in result.data.todos[0]!).toBe(false)
   })
 
   it('accepts a populated valid dataset', () => {
     const result = validateImportData({
-      canvases: [makeCanvas()],
-      projects: [makeProject()],
       todos: [makeTodo()],
       people: [makePerson()],
       tags: [makeTag()],
@@ -98,14 +114,49 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('rejects title exceeding 500 chars', () => {
-    const result = validateImportData(validData({ todos: [makeTodo({ title: 'x'.repeat(501) })] }))
-    expect(result.ok).toBe(false)
+  it('accepts a title of any length (a note line can make one over 500 chars)', () => {
+    const title = 'x'.repeat(5000)
+    const result = validateImportData(validData({ todos: [makeTodo({ title })] }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.todos[0]!.title).toBe(title)
+  })
+
+  it('quotes a long title cut to 60 characters in an error', () => {
+    const title = 't'.repeat(1000)
+    const result = validateImportData(validData({ todos: [makeTodo({ title, isCompleted: 'yes' })] }))
+    expect(result).toEqual({ ok: false, error: `Invalid "todos" record at index 0 ("${'t'.repeat(60)}…"): bad field "isCompleted"` })
   })
 
   it('rejects NaN sortOrder', () => {
     const result = validateImportData(validData({ todos: [makeTodo({ sortOrder: NaN })] }))
     expect(result.ok).toBe(false)
+  })
+
+  // uid + completedAt
+  it('rejects a todo without a uid (current-version rows always carry one)', () => {
+    for (const uid of [undefined, '', 42]) {
+      const result = validateImportData(validData({ todos: [makeTodo({ uid })] }))
+      expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "uid"' })
+    }
+  })
+
+  it('rejects duplicate todo uids, naming both rows', () => {
+    const result = validateImportData(validData({
+      todos: [makeTodo({ id: 1, uid: 'same' }), makeTodo({ id: 2 }), makeTodo({ id: 3, uid: 'same', title: 'Dup' })],
+    }))
+    expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 2 ("Dup"): duplicate uid (same as index 0)' })
+  })
+
+  it('accepts an optional completedAt and rejects a malformed one', () => {
+    const iso = '2026-10-01T09:30:00.000Z'
+    const ok = validateImportData(validData({ todos: [makeTodo({ isCompleted: true, completedAt: iso })] }))
+    expect(ok.ok).toBe(true)
+    if (ok.ok) {
+      expect(ok.data.todos[0]!.completedAt).toEqual(new Date(iso))
+      expect(ok.data.todos[0]!.uid).toMatch(/^uid-/)
+    }
+    const bad = validateImportData(validData({ todos: [makeTodo({ isCompleted: true, completedAt: 'soon' })] }))
+    expect(bad).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "completedAt"' })
   })
 
   // Person validation
@@ -160,11 +211,57 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('rejects settings with unrecognized keys', () => {
+  it('drops settings with unrecognized keys and reports them as warnings', () => {
     const result = validateImportData(validData({
-      settings: [{ key: 'some.key', value: 'some-value' }],
+      settings: [
+        { key: 'themeMode', value: 'dark' },
+        { key: 'some.key', value: 'some-value' },
+        // Over the default value cap — still reported as unrecognized, not "bad value".
+        { key: 'retired.key', value: 'x'.repeat(5000) },
+      ],
+    }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
+    expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: some.key, retired.key'])
+  })
+
+  it('still rejects a malformed settings row (missing key)', () => {
+    const result = validateImportData(validData({ settings: [{ value: 'x' }] }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('returns no warnings for a clean import', () => {
+    const result = validateImportData(validData({ settings: [{ key: 'themeMode', value: 'dark' }] }))
+    expect(result.ok && result.warnings).toEqual([])
+  })
+
+  it('lists every failing row, not just the first', () => {
+    const result = validateImportData(validData({
+      todos: [makeTodo({ id: 1, title: '' }), makeTodo({ id: 2 }), makeTodo({ id: 3, isCompleted: 'no' })],
+      people: [makePerson({ initials: '' })],
     }))
     expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/^3 invalid records: /)
+    expect(result.error).toContain('Invalid "todos" record at index 0')
+    expect(result.error).toContain('Invalid "todos" record at index 2 ("Task"): bad field "isCompleted"')
+    expect(result.error).toContain('Invalid "people" record at index 0 ("Alice"): bad field "initials"')
+  })
+
+  it('caps the listed rows and counts the rest', () => {
+    const todos = Array.from({ length: 13 }, (_, i) => makeTodo({ id: i + 1, sortOrder: 'bad' }))
+    const result = validateImportData(validData({ todos }))
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/^13 invalid records: /)
+    expect(result.error.match(/Invalid "todos" record/g)).toHaveLength(10)
+    expect(result.error).toMatch(/…and 3 more$/)
+  })
+
+  it('keeps the single-row error message unchanged', () => {
+    const result = validateImportData(validData({ todos: [makeTodo({ isCompleted: 'no' })] }))
+    expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "isCompleted"' })
   })
 
   it('accepts valid setting keys', () => {
@@ -174,239 +271,196 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  // Project.groupBy field validator (per-record). Must stay in sync with the
-  // settings-store `PROJECT_GROUP_BY_VALUES` source of truth.
-  it('accepts every ProjectGroupBy value on a project record', () => {
-    const valid = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
-    for (const groupBy of valid) {
-      const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
-      expect(result.ok, `groupBy=${groupBy}`).toBe(true)
-    }
-  })
-
-  it('accepts a project record with groupBy omitted or null', () => {
-    expect(validateImportData(validData({ projects: [makeProject()] })).ok).toBe(true)
-    expect(validateImportData(validData({ projects: [makeProject({ groupBy: null })] })).ok).toBe(true)
-  })
-
-  it('rejects a project record with an unknown groupBy', () => {
-    const bad = ['priority', 'TAG', 'random', 42]
-    for (const groupBy of bad) {
-      const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
-      expect(result.ok, `groupBy=${groupBy}`).toBe(false)
-    }
-  })
-
-  // defaultProjectGroupBy — accepts every flat TodoGroupBy literal plus the
-  // empty string sentinel.
-  it('accepts defaultProjectGroupBy with every valid TodoGroupBy value plus empty', () => {
-    const valid = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
-    for (const value of valid) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'defaultProjectGroupBy', value }],
-      }))
-      expect(result.ok).toBe(true)
-    }
-  })
-
-  it('rejects defaultProjectGroupBy with unknown values', () => {
-    const bad = ['priority', 'NaN', 'TAG', 'random-string']
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'defaultProjectGroupBy', value }],
-      }))
-      expect(result.ok).toBe(false)
-    }
-  })
-
-  // canvasViewport
-  it('accepts canvasViewport with finite x/y/zoom', () => {
+  // The canvas / project settings are gone; validation treats them like any
+  // retired key (the schema upgrade deletes them before validation runs).
+  it('drops the canvas / project settings as unrecognized', () => {
     const result = validateImportData(validData({
-      settings: [{ key: 'canvasViewport', value: JSON.stringify({ x: 10, y: -20, zoom: 1.5 }) }],
+      settings: [
+        { key: 'themeMode', value: 'dark' },
+        { key: 'defaultProjectId', value: '1' },
+        { key: 'defaultProjectGroupBy', value: 'status' },
+        { key: 'canvasViewport', value: JSON.stringify({ x: 0, y: 0, zoom: 1 }) },
+        { key: 'canvasMaxExtent', value: '20000' },
+        { key: 'canvasRails', value: JSON.stringify({ left: null, right: null, top: null, bottom: null }) },
+      ],
     }))
     expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
+    expect(result.warnings).toEqual([
+      'Ignored 5 unrecognized settings: defaultProjectId, defaultProjectGroupBy, canvasViewport, canvasMaxExtent, canvasRails',
+    ])
   })
 
-  it('rejects canvasViewport with non-finite numbers', () => {
-    const bad = [
-      JSON.stringify({ x: 'NaN', y: 0, zoom: 1 }),  // string
-      '{"x":1e999,"y":0,"zoom":1}',                   // Infinity after parse
-      JSON.stringify({ x: 0, y: 0 }),                 // missing zoom
-      JSON.stringify([1, 2, 3]),                      // array
-      'not-json',
-    ]
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'canvasViewport', value }],
-      }))
-      expect(result.ok).toBe(false)
-    }
-  })
-
-  // horizonSlots — ordered-array shape only (legacy map shape removed in P4).
-  it('accepts horizonSlots in the ordered-array shape', () => {
+  // The horizons widget's settings are gone; validation treats them like any
+  // retired key (the schema upgrade deletes them before validation runs).
+  it('drops horizonSlots / selectedHorizonDefId as unrecognized settings', () => {
     const result = validateImportData(validData({
-      settings: [{ key: 'horizonSlots', value: JSON.stringify([1, 2, 3, 4, 5]) }],
+      settings: [
+        { key: 'horizonSlots', value: '[1,2]' },
+        { key: 'selectedHorizonDefId', value: '1' },
+      ],
     }))
     expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([])
+    expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: horizonSlots, selectedHorizonDefId'])
   })
 
-  it('rejects horizonSlots with non-integer entries or non-array', () => {
-    const bad = [
-      JSON.stringify({ thisweek: 1 }),       // legacy map shape no longer accepted
-      JSON.stringify([1, 'two', 3]),
-      JSON.stringify([1, 2.5, 3]),
-      'not-json',
-    ]
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'horizonSlots', value }],
-      }))
-      expect(result.ok).toBe(false)
-    }
-  })
-
-  // selectedHorizonDefId — numeric or empty-string sentinel.
-  it('accepts selectedHorizonDefId with a numeric id', () => {
-    const result = validateImportData(validData({
-      settings: [{ key: 'selectedHorizonDefId', value: '42' }],
-    }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('accepts selectedHorizonDefId with empty string (null sentinel)', () => {
-    const result = validateImportData(validData({
-      settings: [{ key: 'selectedHorizonDefId', value: '' }],
-    }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('rejects selectedHorizonDefId when the value is not numeric', () => {
-    const result = validateImportData(validData({
-      settings: [{ key: 'selectedHorizonDefId', value: 'thisweek' }],
-    }))
-    expect(result.ok).toBe(false)
-  })
-
-  // maxTags accepted as a known setting key.
-  it('accepts maxTags setting key', () => {
+  // Tags have no cap: a maxTags row (dropped by the v64 upgrade) is an unknown key now.
+  it('drops a maxTags row in a current file as an unrecognized setting', () => {
     const result = validateImportData(validData({
       settings: [{ key: 'maxTags', value: '20' }],
     }))
-    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.settings).toEqual([])
+    expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: maxTags'])
   })
 
-  // canvasRails — slot must have tabs[] + activeTabId.
-  it('accepts structurally valid canvasRails', () => {
-    const rails = {
-      left: {
-        orientation: 'vertical',
-        slots: [{
-          id: 'a',
-          tabs: [{ id: 'a-t0', type: 'lens' }],
-          activeTabId: 'a-t0',
-        }],
-      },
-      right: null, top: null, bottom: null,
-    }
-    const result = validateImportData(validData({
-      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
-    }))
+  // Person color / RecurrenceRule validation.
+  it('person with a valid color passes and keeps it', () => {
+    const result = validateImportData(validData({ people: [makePerson({ color: '#f28c4e' })] }))
     expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.people[0]?.color).toBe('#f28c4e')
   })
 
-  it('rejects canvasRails with an invalid tab type', () => {
-    const rails = {
-      left: {
-        orientation: 'vertical',
-        slots: [{
-          id: 'a',
-          tabs: [{ id: 'a-t0', type: 'evil' }],
-          activeTabId: 'a-t0',
-        }],
-      },
-      right: null, top: null, bottom: null,
-    }
-    const result = validateImportData(validData({
-      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
-    }))
+  it('person with an invalid color fails', () => {
+    const result = validateImportData(validData({ people: [makePerson({ color: 'not-a-color' })] }))
     expect(result.ok).toBe(false)
   })
 
-  it('rejects canvasRails with a slot missing tabs[]', () => {
-    const rails = {
-      left: {
-        orientation: 'vertical',
-        slots: [{ id: 'a', kind: 'lens' }],
-      },
-      right: null, top: null, bottom: null,
-    }
-    const result = validateImportData(validData({
-      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
-    }))
-    expect(result.ok).toBe(false)
-  })
-
-  // ListInset validation — listDefinitionId is required after P4.
-  it('accepts listInset with listDefinitionId', () => {
-    const result = validateImportData(validData({
-      listInsets: [makeListInset()],
-    }))
+  it('person without a color passes', () => {
+    const result = validateImportData(validData({ people: [makePerson()] }))
     expect(result.ok).toBe(true)
+    if (result.ok) expect('color' in (result.data.people[0] ?? {})).toBe(false)
   })
 
-  it('rejects listInset missing listDefinitionId', () => {
-    const result = validateImportData(validData({
-      listInsets: [{
-        id: 1, name: 'Empty Inset', canvasId: 1, x: 0, y: 0, width: 280, height: 300, isCollapsed: false,
-      }],
-    }))
-    expect(result.ok).toBe(false)
+  describe('person email', () => {
+    it('keeps a valid address, trimmed', () => {
+      const result = validateImportData(validData({ people: [makePerson({ email: '  ann@example.com ' })] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.people[0]!.email).toBe('ann@example.com')
+      expect(result.warnings).toEqual([])
+    })
+
+    it('drops an email that is not one valid address, keeping the person, with a warning', () => {
+      const result = validateImportData(validData({
+        people: [
+          makePerson({ email: 'a@b.com,evil@x.com' }),
+          makePerson({ id: 2, name: 'Bo', email: 'not an address' }),
+          makePerson({ id: 3, name: 'Cy', email: 'cy@example.com' }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.people.map((p) => p.email)).toEqual([undefined, undefined, 'cy@example.com'])
+      expect('email' in result.data.people[0]!).toBe(false)
+      expect(result.warnings).toEqual(['Fixed 2 people: "Alice" (invalid email dropped); "Bo" (invalid email dropped)'])
+    })
+
+    it('drops an empty or blank email', () => {
+      const result = validateImportData(validData({
+        people: [makePerson({ email: '' }), makePerson({ id: 2, name: 'Bo', email: '   ' }), makePerson({ id: 3, name: 'Cy', email: null })],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) for (const p of result.data.people) expect('email' in p).toBe(false)
+    })
+
+    it('drops a non-string or over-long email instead of rejecting the file', () => {
+      for (const email of [42, true, ['a@b.co'], { at: 'b.co' }, `${'a'.repeat(250)}@b.co`]) {
+        const result = validateImportData(validData({ people: [makePerson({ email })] }))
+        if (!result.ok) throw new Error(result.error)
+        expect('email' in result.data.people[0]!, JSON.stringify(email)).toBe(false)
+        expect(result.warnings).toHaveLength(1)
+      }
+    })
   })
 
-  // Org / TodoOrg / RecurrenceRule validation.
-  it('valid org object passes validation', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Engineering' }] }))
-    expect(result.ok).toBe(true)
+  describe('check-in settings', () => {
+    it('accepts both open methods and every task scope', () => {
+      for (const [key, value] of [
+        ['checkinOpenMethod', 'mailto'], ['checkinOpenMethod', 'eml'],
+        ['checkinTaskScope', 'all'], ['checkinTaskScope', 'due-soon'], ['checkinTaskScope', 'hot'], ['checkinTaskScope', 'list:3'],
+      ]) {
+        const result = validateImportData(validData({ settings: [{ key, value }] }))
+        expect(result.ok, `${key}=${value}`).toBe(true)
+        if (result.ok) expect(result.data.settings).toEqual([{ key, value }])
+      }
+    })
+
+    it('keeps a list scope even when the file has no such list (read falls back to all)', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'list:99' }], listDefinitions: [] }))
+      expect(result.ok).toBe(true)
+    })
+
+    it('rejects other values', () => {
+      for (const [key, value, message] of [
+        ['checkinOpenMethod', 'outlook', 'checkinOpenMethod must be mailto or eml'],
+        ['checkinTaskScope', 'overdue', 'checkinTaskScope must be all, due-soon, hot or list:<id>'],
+        ['checkinTaskScope', 'list:x', 'checkinTaskScope must be all, due-soon, hot or list:<id>'],
+      ] as const) {
+        const result = validateImportData(validData({ settings: [{ key, value }] }))
+        expect(result).toEqual({ ok: false, error: expect.stringContaining(message) })
+      }
+    })
   })
 
-  it('org with missing name fails', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1 }] }))
-    expect(result.ok).toBe(false)
-  })
+  describe('keyboard shortcuts', () => {
+    const ALL_CHANGED = JSON.stringify({
+      'quick-add': 'Mod-Shift-Space',
+      'command-palette': 'Mod-Alt-p',
+      undo: 'Mod-Alt-z',
+      redo: 'Mod-Alt-y',
+      'redo-alt': 'Mod-Alt-Shift-z',
+      'select-all': 'Mod-Alt-a',
+      'show-shortcuts': 'F2',
+      'focus-search': 'Mod-Alt-f',
+      'focus-search-alt': 'Mod-Alt-s',
+      'focus-filters': 'Shift-f',
+      'open-settings': 'g o',
+      'toggle-complete': 'x',
+      'delete-selected': 'Backspace',
+    })
 
-  it('org with invalid color fails', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', color: 'not-a-color' }] }))
-    expect(result.ok).toBe(false)
-  })
+    it('is a known setting', () => {
+      expect(isKnownSettingKey('keyboardShortcuts')).toBe(true)
+    })
 
-  it('org with too-long initials fails', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: 'ABCDE' }] }))
-    expect(result.ok).toBe(false)
-  })
+    it('keeps the bindings the editor saves, however many', () => {
+      expect(ALL_CHANGED.length).toBeGreaterThan(200)
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: ALL_CHANGED }] }))
+      expect(result).toMatchObject({ ok: true, warnings: [] })
+      if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: ALL_CHANGED }])
+    })
 
-  it('org with valid initials passes', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: 'ENG' }] }))
-    expect(result.ok).toBe(true)
-  })
+    it('drops unknown, malformed, refused and clashing bindings with a warning instead of failing', () => {
+      const value = JSON.stringify({
+        nope: 'Mod-Alt-p',
+        undo: 'Mod-Mod-z',
+        'select-all': 'Mod-w',
+        'focus-filters': 'n',
+        'toggle-complete': 'n',
+        'open-settings': 'g o',
+      })
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value }] }))
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{"focus-filters":"n","open-settings":"g o"}' }])
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]).toMatch(/^Fixed the keyboard shortcuts: unknown shortcut "nope" dropped, Undo: unreadable keys dropped, Select all visible tasks: .* \(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped$/)
+    })
 
-  it('org with null/undefined initials passes', () => {
-    const r1 = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: null }] }))
-    expect(r1.ok).toBe(true)
-    const r2 = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng' }] }))
-    expect(r2.ok).toBe(true)
-  })
+    it('resets a huge value with one short warning instead of naming every part', () => {
+      const keys = Array.from({ length: 200_000 }, (_, i) => `"k${i.toString(36)}":1`)
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: `{${keys.join(',')}}` }] }))
+      expect(result).toMatchObject({ ok: true, warnings: ['Fixed the keyboard shortcuts: keyboard shortcuts too long — reset'] })
+      if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{}' }])
+    })
 
-  it('valid todoOrg object passes validation', () => {
-    const result = validateImportData(validData({ todoOrgs: [{ id: 1, todoId: 1, orgId: 1 }] }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('todoOrg with missing todoId or orgId fails', () => {
-    const result1 = validateImportData(validData({ todoOrgs: [{ id: 1, orgId: 1 }] }))
-    expect(result1.ok).toBe(false)
-    const result2 = validateImportData(validData({ todoOrgs: [{ id: 1, todoId: 1 }] }))
-    expect(result2.ok).toBe(false)
+    it('resets unreadable text with a warning', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: '{oops' }] }))
+      expect(result).toMatchObject({ ok: true, warnings: ['Fixed the keyboard shortcuts: unreadable keyboard shortcuts reset'] })
+      if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{}' }])
+    })
   })
 
   it('todo with valid recurrenceRule passes; invalid type fails', () => {
@@ -421,59 +475,46 @@ describe('validateImportData', () => {
     expect(invalidResult.ok).toBe(false)
   })
 
-  // Fuzzy ScheduledValue carries `setAt: Date` post-Dexie v49. The validator
-  // accepts Date | ISO string (round-trips through JSON export). Fuzzy values
-  // missing `setAt` still validate (legacy v48 backups) — the v49 upgrader
-  // backfills the field on import.
-  describe('fuzzy scheduledDate.setAt', () => {
-    it('accepts a fuzzy scheduledDate carrying a Date setAt', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date(2026, 4, 1) },
-        })],
-      }))
-      expect(result.ok).toBe(true)
-      if (result.ok) {
-        expect(result.data.todos[0]?.scheduledDate).toEqual({
-          kind: 'fuzzy', token: 'this-week', setAt: new Date(2026, 4, 1),
-        })
-      }
-    })
+  it('rebuilds a recurrenceRule from its known keys, dropping stray ones', () => {
+    const result = validateImportData(validData({
+      todos: [
+        makeTodo({ id: 1, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
+        makeTodo({ id: 2, recurrenceRule: { type: 'weekly', legacy: true } }),
+        makeTodo({ id: 3, recurrenceRule: null }),
+      ],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.warnings).toEqual([])
+    expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([
+      { type: 'monthly', originalDayOfMonth: 31 },
+      { type: 'weekly' },
+      undefined,
+    ])
+    expect('recurrenceRule' in result.data.todos[2]!).toBe(false)
+  })
 
-    it('accepts a fuzzy scheduledDate carrying an ISO-string setAt (post-JSON round-trip)', () => {
-      const iso = '2026-05-01T12:00:00.000Z'
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: iso },
-        })],
-      }))
-      expect(result.ok).toBe(true)
+  it('rebuilds a list membership from its known keys, dropping stray ones', () => {
+    const predicate = { showCompleted: false, searchText: '', dates: {} }
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'L', sortOrder: 0, sort: 'manual', grouping: 'none',
+        membership: { kind: 'custom', predicate: { ...predicate, stray: 1 }, legacy: 'x' },
+      }],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.warnings).toEqual([])
+    expect(result.data.listDefinitions[0]!.membership).toEqual({
+      kind: 'custom',
+      predicate: { ...predicate, personIds: null, statusIds: null },
     })
+  })
 
-    it('accepts a legacy fuzzy scheduledDate with no setAt (v48 backup)', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } })],
-      }))
-      expect(result.ok).toBe(true)
-    })
-
-    it('rejects a fuzzy scheduledDate whose setAt is a non-date string', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: 'not-a-date' },
-        })],
-      }))
-      expect(result.ok).toBe(false)
-    })
-
-    it('rejects a fuzzy scheduledDate with an unknown token', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'someday-maybe', setAt: new Date() },
-        })],
-      }))
-      expect(result.ok).toBe(false)
-    })
+  it('drops a stray scheduledDate on a todo (field no longer exists)', () => {
+    const result = validateImportData(validData({
+      todos: [makeTodo({ scheduledDate: { kind: 'date', value: new Date(2026, 4, 1) } })],
+    }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect('scheduledDate' in result.data.todos[0]!).toBe(false)
   })
 
   // Status validation.
@@ -505,11 +546,30 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('status with too-long name fails', () => {
+  it('accepts person, tag, status and list names of any length (the editors take any length)', () => {
+    const long = 'x'.repeat(5000)
     const result = validateImportData(validData({
-      statuses: [{ id: 1, name: 'x'.repeat(201), color: '#00ff00', sortOrder: 0 }],
+      people: [makePerson({ name: long })],
+      tags: [makeTag({ name: long })],
+      statuses: [{ id: 1, name: long, color: '#00ff00', sortOrder: 0 }],
+      listDefinitions: [{
+        id: 1, name: long, sortOrder: 0, 
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
+        sort: 'manual', grouping: 'none',
+      }],
     }))
-    expect(result.ok).toBe(false)
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.people[0]!.name).toBe(long)
+    expect(result.data.tags![0]!.name).toBe(long)
+    expect(result.data.statuses[0]!.name).toBe(long)
+    expect(result.data.listDefinitions[0]!.name).toBe(long)
+  })
+
+  it('still rejects an empty or non-string name', () => {
+    for (const name of ['', 42, null]) {
+      const result = validateImportData(validData({ statuses: [{ id: 1, name, color: '#00ff00', sortOrder: 0 }] }))
+      expect(result, JSON.stringify(name)).toEqual({ ok: false, error: expect.stringContaining('bad field "name"') })
+    }
   })
 
   it('multiple valid statuses pass validation', () => {
@@ -522,33 +582,193 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('listDefinition with scheduled sort + none grouping passes validation', () => {
+  it('a listDefinition sorted by priority passes validation', () => {
     const result = validateImportData(validData({
       listDefinitions: [{
-        id: 1, name: 'Scheduled', sortOrder: 0, pinnedToDashboard: true,
-        membership: {
-          kind: 'custom',
-          predicate: {
-            showCompleted: false, showHiddenStatuses: false,
-            searchText: '', dateRangeIncludeNoDate: false,
-          },
-        },
-        sort: 'scheduled',
+        id: 1, name: 'By priority', sortOrder: 0,
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
+        sort: 'priority',
         grouping: 'none',
       }],
     }))
     expect(result.ok).toBe(true)
   })
 
-  describe('listDefinition.runtimeFilter validation', () => {
-    function makeListDef(overrides: Record<string, unknown> = {}) {
-      return {
-        id: 1, name: 'List', sortOrder: 0, pinnedToDashboard: true,
+  it('listDefinition with followup sort + none grouping passes validation', () => {
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'Follow-ups', sortOrder: 0, 
         membership: {
           kind: 'custom',
           predicate: {
-            showCompleted: false, showHiddenStatuses: false,
-            searchText: '', dateRangeIncludeNoDate: false,
+            showCompleted: false,
+            searchText: '', dates: { followup: { match: 'set' } },
+          },
+        },
+        sort: 'followup',
+        grouping: 'none',
+      }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it.each([
+    ['sort', { sort: 'scheduled' }],
+    ['sort', { sort: 'date' }],
+    ['grouping', { grouping: 'scheduled' }],
+    ['grouping', { grouping: 'date' }],
+    ['sort', { sort: 'project' }],
+    ['grouping', { grouping: 'project' }],
+  ])('rejects a listDefinition with a removed %s value %o', (_field, defPatch) => {
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'Old', sortOrder: 0, 
+        membership: {
+          kind: 'custom',
+          predicate: {
+            showCompleted: false,
+            searchText: '', dates: {},
+          },
+        },
+        sort: 'manual',
+        grouping: 'none',
+        ...defPatch,
+      }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  describe('Priority filter and Hot rule', () => {
+    function listWithMarkers(markers: unknown) {
+      return {
+        id: 1, name: 'List', sortOrder: 0, 
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {}, markers } },
+        sort: 'manual', grouping: 'none',
+      }
+    }
+
+    it.each([['hot', 'hot'], ['ticked markers', { urgent: true, focus: true }], ['none', null]])(
+      'accepts a list Markers filter: %s',
+      (_name, markers) => {
+        const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
+        expect(result.ok).toBe(true)
+        if (result.ok) expect(result.data.listDefinitions[0]!.membership).toMatchObject({ predicate: { markers } })
+      },
+    )
+
+    it.each([['an unknown string', 'warm'], ['hot as a key', { hot: true }], ['a non-true value', { urgent: 'yes' }], ['an array', ['hot']]])(
+      'drops a list Markers filter with %s, with a warning',
+      (_name, markers) => {
+        const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
+        if (!result.ok) throw new Error(result.error)
+        expect(result.data.listDefinitions[0]!.membership).toMatchObject({ predicate: { markers: null } })
+        expect(result.warnings).toEqual(['Fixed 1 list: "List" (priority filter dropped)'])
+      },
+    )
+
+    it('accepts a Hot rule and stores it with duplicate lines collapsed', () => {
+      const result = validateImportData(validData({
+        settings: [{ key: 'hotRule', value: '[{"focus":true},{"important":true,"urgent":true},{"urgent":true,"important":true}]' }],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.settings).toEqual([{ key: 'hotRule', value: '[{"focus":true},{"urgent":true,"important":true}]' }])
+      }
+    })
+
+    it.each([
+      ['no lines', '[]'],
+      ['an empty line', '[{"urgent":true},{}]'],
+      ['an unknown key', '[{"urgent":true,"overdue":true}]'],
+      ['a non-true value', '[{"focus":false}]'],
+      ['text that is not JSON', 'urgent+important'],
+    ])('rejects a Hot rule with %s', (_name, value) => {
+      const result = validateImportData(validData({ settings: [{ key: 'hotRule', value }] }))
+      expect(result).toEqual({
+        ok: false,
+        error: expect.stringContaining('hotRule must be a list of lines'),
+      })
+    })
+  })
+
+  describe('list predicates: malformed filters are dropped with a warning, not rejected', () => {
+    function list(id: number, name: string, predicate: Record<string, unknown>) {
+      return {
+        id, name, sortOrder: id, sort: 'manual', grouping: 'none',
+        membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {}, ...predicate } },
+      }
+    }
+
+    it('drops a wrongly typed id filter, shortens a long text filter, and names each list in one warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [
+          list(1, 'Fine', { personIds: [1, 0], tags: null }),
+          list(2, 'Bad people', { personIds: 5, statusIds: ['x'] }),
+          list(3, 'Long text', { searchText: 'y'.repeat(600), tags: { 1: true } }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [fine, people, text] = result.data.listDefinitions.map((d) => d.membership.predicate)
+      expect(fine).toMatchObject({ personIds: [1, 0], tags: null })
+      expect(people).toMatchObject({ personIds: null, statusIds: null })
+      expect(text).toMatchObject({ searchText: 'y'.repeat(500), tags: null })
+      expect(result.warnings).toEqual([
+        'Fixed 2 lists: "Bad people" (people filter dropped, status filter dropped); "Long text" (text filter shortened, tag filter dropped)',
+      ])
+    })
+
+    it('keeps only the known predicate keys', () => {
+      const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { focus: true, legacy: 'x' })] }))
+      if (!result.ok) throw new Error(result.error)
+      const predicate = result.data.listDefinitions[0]!.membership.predicate
+      expect(Object.keys(predicate).sort()).toEqual(['dates', 'personIds', 'searchText', 'showCompleted', 'statusIds'])
+      expect(result.warnings).toEqual([])
+    })
+
+    it('drops a malformed date clause (or an unknown date type) with a warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [list(1, 'Dates', { dates: { scheduled: { match: 'set' }, deadline: { match: 'range', start: 'soon', end: null }, followup: { match: 'set' } } })],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.listDefinitions[0]!.membership.predicate.dates).toEqual({ followup: { match: 'set' } })
+      expect(result.warnings).toEqual(['Fixed 1 list: "Dates" (unknown date filter dropped, due date filter dropped)'])
+    })
+
+    it('keeps a list sort direction; an unknown one is dropped with a warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [
+          { ...list(1, 'Down', {}), sort: 'deadline', sortDirection: 'desc' },
+          { ...list(2, 'Up', {}), sort: 'name', sortDirection: 'asc' },
+          { ...list(3, 'Plain', {}), sort: 'created' },
+          { ...list(4, 'Sideways', {}), sort: 'name', sortDirection: 'sideways' },
+          { ...list(5, 'Null', {}), sort: 'name', sortDirection: null },
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [down, up, plain, sideways, nul] = result.data.listDefinitions
+      expect(down!.sortDirection).toBe('desc')
+      expect(up!.sortDirection).toBe('asc')
+      expect('sortDirection' in plain!).toBe(false)
+      expect('sortDirection' in sideways!).toBe(false)
+      expect('sortDirection' in nul!).toBe(false)
+      expect(result.warnings).toEqual(['Fixed 1 list: "Sideways" (unknown sort direction dropped)'])
+    })
+
+    it('still rejects a predicate missing its core shape', () => {
+      const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { showCompleted: 'yes' })] }))
+      expect(result).toEqual({ ok: false, error: expect.stringContaining('bad field "membership"') })
+    })
+  })
+
+  describe('listDefinition.runtimeFilter validation', () => {
+    function makeListDef(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, name: 'List', sortOrder: 0, 
+        membership: {
+          kind: 'custom',
+          predicate: {
+            showCompleted: false,
+            searchText: '', dates: {},
           },
         },
         sort: 'manual',
@@ -558,12 +778,19 @@ describe('validateImportData', () => {
     }
 
     it('accepts each known runtimeFilter field', () => {
-      for (const field of ['person', 'org', 'project', 'status', 'tag']) {
+      for (const field of ['person', 'status', 'tag']) {
         const result = validateImportData(validData({
           listDefinitions: [makeListDef({ runtimeFilter: { field } })],
         }))
         expect(result.ok, `field=${field}`).toBe(true)
       }
+    })
+
+    it('rejects a runtimeFilter on the removed project field', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'project' } })],
+      }))
+      expect(result.ok).toBe(false)
     })
 
     it('accepts runtimeFilter with optional label', () => {
@@ -573,7 +800,7 @@ describe('validateImportData', () => {
       expect(result.ok).toBe(true)
     })
 
-    it('rejects runtimeFilter with unknown field (anchor 3 — was an open door)', () => {
+    it('rejects runtimeFilter with unknown field', () => {
       const result = validateImportData(validData({
         listDefinitions: [makeListDef({ runtimeFilter: { field: 'evil', label: '<img onerror=x>' } })],
       }))
@@ -615,5 +842,61 @@ describe('validateImportData', () => {
         label: 'Assignee',
       })
     })
+  })
+})
+
+describe('validateImportData — Date revival', () => {
+  const iso = '2026-10-01T09:30:00.000Z'
+
+  it('turns every ISO-string Date field into a real Date', () => {
+    const result = validateImportData({
+      settings: [],
+      todos: [
+        makeTodo({
+          id: 1, createdAt: iso, modifiedAt: iso, dueDate: iso,
+          lastFollowupAt: iso, nextFollowupAt: iso, completedAt: iso, isCompleted: true,
+        }),
+      ],
+      notes: [{ id: 1, content: 'x', createdAt: iso, modifiedAt: iso }],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const d = result.data
+    const t1 = d.todos[0]!
+    const dates: Array<[string, unknown]> = [
+      ['todos.createdAt', t1.createdAt],
+      ['todos.modifiedAt', t1.modifiedAt],
+      ['todos.dueDate', t1.dueDate],
+      ['todos.lastFollowupAt', t1.lastFollowupAt],
+      ['todos.nextFollowupAt', t1.nextFollowupAt],
+      ['todos.completedAt', t1.completedAt],
+      ['notes.createdAt', d.notes[0]!.createdAt],
+      ['notes.modifiedAt', d.notes[0]!.modifiedAt],
+    ]
+    for (const [field, value] of dates) {
+      expect(value instanceof Date, `${field} is a Date`).toBe(true)
+      expect((value as Date).toISOString(), field).toBe(iso)
+    }
+  })
+
+  it('leaves todoEvents.timestamp a string', () => {
+    const result = validateImportData({
+      settings: [],
+      todos: [makeTodo()],
+      todoEvents: [{ id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: iso }],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.todoEvents[0]!.timestamp).toBe(iso)
+  })
+})
+
+describe('isKnownSettingKey — theme colour rows', () => {
+  it('knows color.<dark|light>.<theme colour> only', () => {
+    expect(isKnownSettingKey('color.dark.accent')).toBe(true)
+    expect(isKnownSettingKey('color.light.appBg')).toBe(true)
+    for (const key of ['color.dark.constructor', 'color.dark.__proto__', 'color.light.toString', 'color.dark.priorityHigh', 'color.dark.canvasBg', 'color.sepia.accent', 'color.dark', 'color.dark.accent.x']) {
+      expect(isKnownSettingKey(key), key).toBe(false)
+    }
   })
 })

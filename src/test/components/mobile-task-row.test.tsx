@@ -1,27 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
-import { useOrgStore } from '../../stores/org-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo, makePerson, makeOrg } from '../helpers'
+import { useTagStore } from '../../stores/tag-store'
+import { makeTodo, makePerson } from '../helpers'
 
 const mockToggleComplete = vi.fn()
 const mockRemove = vi.fn()
 const mockQuickAssignTag = vi.fn()
 const mockQuickUnassignTag = vi.fn()
+const mockSetFocus = vi.fn()
 vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: mockToggleComplete,
     remove: mockRemove,
-    setScheduled: vi.fn(),
+    setFocus: mockSetFocus,
     setDeadline: vi.fn(),
-    setProject: vi.fn(),
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignOrg: vi.fn(),
-    quickUnassignOrg: vi.fn(),
     quickAssignTag: mockQuickAssignTag,
     quickUnassignTag: mockQuickUnassignTag,
   }),
@@ -32,8 +29,7 @@ function getRow(): HTMLElement {
   return document.querySelector('[data-todo-id]') as HTMLElement
 }
 
-// April 11, 2026 — matches `vi.setSystemTime`. Fuzzy `setAt` uses this so
-// post-aging resolution lands on today's window.
+// April 11, 2026 — matches `vi.setSystemTime`.
 const TODAY = new Date(2026, 3, 11)
 
 describe('MobileTaskRow', () => {
@@ -41,7 +37,8 @@ describe('MobileTaskRow', () => {
     vi.useFakeTimers()
     vi.setSystemTime(TODAY)
     vi.clearAllMocks()
-    useOrgStore.setState({ assignedOrgsMap: new Map() })
+    // Some tests seed tag assignments for todo 1; no test may inherit them.
+    useTagStore.setState(useTagStore.getInitialState(), true)
   })
 
   afterEach(() => {
@@ -86,18 +83,13 @@ describe('MobileTaskRow', () => {
   // ── Date chips ────────────────────────────────────────────────────
 
   describe('date chips', () => {
-    it('shows deadline chip with formatted date', () => {
+    it('shows the due date as MM/DD', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
-      expect(screen.getByText(/Apr 11$/)).toBeInTheDocument()
+      expect(screen.getByText(/04\/11$/)).toBeInTheDocument()
     })
 
-    it('shows scheduled chip label for fuzzy token', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      expect(screen.getByText('Today')).toBeInTheDocument()
-    })
-
-    it('renders no date chip when neither scheduled nor due is set', () => {
+    it('renders no date chip when no due date is set', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.queryByText(/Apr/)).not.toBeInTheDocument()
       expect(screen.queryByText('Today')).not.toBeInTheDocument()
@@ -106,7 +98,7 @@ describe('MobileTaskRow', () => {
     it('shows recurrence indicator inside deadline chip when recurrenceRule is set', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
-      const chip = screen.getByText(/Apr 11/)
+      const chip = screen.getByText(/04\/11/)
       expect(chip.textContent).toContain('\u21bb')
     })
   })
@@ -137,16 +129,6 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('C')).toBeInTheDocument()
       expect(screen.getByText('+1')).toBeInTheDocument()
       expect(screen.queryByText('D')).not.toBeInTheDocument()
-    })
-
-    it('shows org initials from store via hollow AvatarStack', () => {
-      useOrgStore.setState({
-        assignedOrgsMap: new Map([[1, [makeOrg({ id: 5, name: 'Acme', initials: 'AC' })]]]),
-      })
-      const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      const hollow = container.querySelector('[class*="avatarHollow"]') as HTMLElement
-      expect(hollow).not.toBeNull()
-      expect(hollow.textContent).toBe('AC')
     })
 
     it('shows progress text and bar', () => {
@@ -196,16 +178,14 @@ describe('MobileTaskRow', () => {
     })
   })
 
-  // ── Inline tag chip (P2 — item 1) ────────────────────────────────
+  // ── Inline tag chip ──────────────────────────────────────────────
   //
-  // Triage-2026-04-27 batch 2 P2 inverted the previous "tags never render
-  // on the row" rule: now assigned tags render as `#name` chips parallel to
-  // the people/org chip pattern. Mobile shows the empty `#` trigger always
-  // (no row hover state), so it's renderable even with no other metadata.
+  // Assigned tags render as `#name` chips alongside the people avatars.
+  // Mobile shows the empty `#` trigger always (no row hover state), so
+  // it's renderable even with no other metadata.
 
   describe('inline tag chip', () => {
-    it('renders #name chips for each assigned tag', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
+    it('renders #name chips for each assigned tag', () => {
       useTagStore.setState({
         tags: [
           { id: 1, name: 'alpha', color: '#111' },
@@ -217,75 +197,34 @@ describe('MobileTaskRow', () => {
             { id: 2, name: 'beta', color: '#222' },
           ]],
         ]),
-        loading: false,
-        error: null,
       })
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
       expect(screen.getByText('#alpha')).toBeInTheDocument()
       expect(screen.getByText('#beta')).toBeInTheDocument()
     })
 
-    it('renders the empty-state # trigger when no metadata is set', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
+    it('renders the empty-state # trigger when no metadata is set', () => {
       useTagStore.setState({
         tags: [{ id: 1, name: 'alpha', color: '#111' }],
         assignedTagsMap: new Map(),
-        loading: false,
-        error: null,
       })
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.getByLabelText('Add tag')).toBeInTheDocument()
     })
   })
 
-  // ── Ghost mode ────────────────────────────────────────────────────
-  //
-  // Ghost rows used to be inert (checkbox / right-click no-op'd). Per the
-  // triage-2026-04-27-batch2 P1 decision, a ghosted task is still a real
-  // task — same checkbox + same context menu as a non-ghost row. Visual
-  // dim is the only signal that the task is filtered out (data-ghosted
-  // attribute drives the CSS rule).
-
-  describe('ghost mode', () => {
-    it('marks the row with data-ghosted', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      expect(getRow().getAttribute('data-ghosted')).toBe('')
-    })
-
-    it('does not mark a non-ghost row with data-ghosted', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(getRow().getAttribute('data-ghosted')).toBeNull()
-    })
-
-    it('checkbox toggles complete (ghost is interactive)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle complete' }))
-      expect(mockToggleComplete).toHaveBeenCalledWith(1)
-    })
-  })
-
-  // ── Phase 6 parity ────────────────────────────────────────────────
+  // ── Parity with the desktop row ───────────────────────────────────
   //
   // Mobile gains chip taps, a notes-icon trigger, and an `onContextMenu`
   // handler that mirrors the desktop right-click menu. On real touch devices
   // long-press fires the same `contextmenu` event, so the interactive surface
   // is identical to TaskRow.
 
-  describe('Phase 6 parity', () => {
-    beforeEach(() => {
-      useTaskboardStore.setState({ board: null, loading: false, error: null })
-    })
-
-    it('exposes scheduled chip as a button (tap → opens scheduled menu)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      const chip = screen.getByLabelText('Edit scheduled')
-      expect(chip.tagName).toBe('BUTTON')
-    })
-
-    it('exposes deadline chip as a button (tap → opens deadline picker)', () => {
+  describe('parity with the desktop row', () => {
+    it('exposes the due-date chip as a button (tap → opens the date picker)', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
-      const chip = screen.getByLabelText('Edit deadline')
+      const chip = screen.getByLabelText('Edit due date')
       expect(chip.tagName).toBe('BUTTON')
     })
 
@@ -301,25 +240,37 @@ describe('MobileTaskRow', () => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: /project/i })).not.toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
-    it('Add to Taskboard menu action targets the row todo', () => {
-      const add = vi.fn()
-      vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ has: () => false, add } as never)
+    it('the Focus menu item targets the row todo', () => {
+      mockSetFocus.mockClear()
       render(<MobileTaskRow todo={makeTodo({ id: 42, title: 'Foo' })} />)
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Taskboard' }))
-      expect(add).toHaveBeenCalledWith(42)
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Focus' }))
+      expect(mockSetFocus).toHaveBeenCalledWith(42, true)
+    })
+
+    it('shows the markers as the three dots, named (Focus lit only for a task in focus)', () => {
+      const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
+      expect(screen.getByRole('img', { name: 'No priority' }).querySelector('[data-dot="focus"]')).not.toHaveAttribute('data-on')
+      unmount()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
+      expect(screen.getByRole('img', { name: 'Priority: Focus' }).querySelector('[data-dot="focus"]')).toHaveAttribute('data-on', 'true')
+    })
+
+    it('shows a set follow-up as its flag only (the day in its name)', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      const pill = screen.getByRole('button', { name: /^Follow-up: / })
+      expect(pill.textContent).toBe('')
     })
 
     it('Delete menu action routes through bulk.remove (which queues the confirm dialog)', () => {
       mockRemove.mockClear()
-      vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ has: () => false, add: vi.fn(), removeEntry: vi.fn() } as never)
       render(<MobileTaskRow todo={makeTodo({ id: 7, title: 'Foo' })} />)
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
@@ -328,20 +279,27 @@ describe('MobileTaskRow', () => {
       expect(mockRemove).toHaveBeenCalledWith(7)
     })
 
-    it('opens the same context menu in ghost mode (parity with non-ghost rows)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} ghost />)
-      act(() => {
-        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
-      })
-      expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
-    })
-
     afterEach(() => {
       vi.restoreAllMocks()
       useUIStore.getState().clearBulkConfirmation?.()
+    })
+  })
+
+  describe('touch follow-up flag', () => {
+    it('an empty follow-up slot always shows its flag, which opens the follow-up popover', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Bare' })} />)
+      const flag = screen.getByRole('button', { name: 'Set follow-up' })
+      fireEvent.click(flag)
+      expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
+      expect(flag).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('rows with other metadata show the flag too, but not when a follow-up is set', () => {
+      const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
+      expect(screen.getByRole('button', { name: 'Set follow-up' })).toBeInTheDocument()
+      unmount()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      expect(screen.queryByRole('button', { name: 'Set follow-up' })).toBeNull()
     })
   })
 

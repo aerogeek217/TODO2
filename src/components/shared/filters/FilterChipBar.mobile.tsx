@@ -1,29 +1,32 @@
 import { useCallback, useState } from 'react'
-import type { OrgFilterMode, PersonFilterMode } from '../../../models'
 import { toggleItem } from '../../../utils/filter'
-import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
-import { DateAnchorInput } from '../DateAnchorInput'
-import sheet from '../../overlays/FilterSheet.module.css'
+import { datesValue } from '../../../utils/filter-chips'
+import { HotIcon, MarkerIcon } from '../MarkerIcons'
+import { MARKER_KEYS } from '../../../models'
+import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
+import sheet from './FilterChipBarMobile.module.css'
+import { DateFilterPanel } from './DateFilterPanel'
 import {
-  cycleTri,
-  triIcon,
-  triLabel,
   useFilterChipBarState,
   type EntityKey,
   type FilterChipBarProps,
 } from './FilterChipBar.shared'
+import { byName } from '../../../utils/sort-order'
 
-type MobileSection = EntityKey | 'toggles' | 'date'
+type MobileSection = EntityKey | 'markers' | 'toggles' | 'date'
 
 interface AccordionSectionProps {
   label: string
   badge?: number
+  /** A value after the label (the Dates row's `Due + Created`); `valueOn` shows it in the accent. */
+  value?: string
+  valueOn?: boolean
   open: boolean
   onToggle: () => void
   children?: React.ReactNode
 }
 
-function AccordionSection({ label, badge, open, onToggle, children }: AccordionSectionProps) {
+function AccordionSection({ label, badge, value, valueOn = false, open, onToggle, children }: AccordionSectionProps) {
   return (
     <div className={sheet.entitySection}>
       <div className={sheet.entityHeader} onClick={onToggle}>
@@ -31,6 +34,7 @@ function AccordionSection({ label, badge, open, onToggle, children }: AccordionS
           {label}
           {badge !== undefined && badge > 0 && <span className={sheet.activeCount}>{badge}</span>}
         </span>
+        {value !== undefined && <span className={`${sheet.sectionValue} ${valueOn ? sheet.sectionValueOn : ''}`}>{value}</span>}
         <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`}>▸</span>
       </div>
       {open && children}
@@ -90,7 +94,7 @@ function MobileEntityList({
       )}
       {entities
         .filter((e) => !searchText || e.name.toLowerCase().includes(searchText.toLowerCase()))
-        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .toSorted(byName)
         .map((e) => (
           <div key={e.id} className={sheet.entityItem} onClick={() => onToggle(e.id!)}>
             <span
@@ -133,26 +137,21 @@ export function FilterChipBarMobile({
   const {
     p,
     people,
-    orgs,
-    projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    orgIdsSet,
-    projectIdsSet,
     statusIdsSet,
     tagIdsSet,
-    dateActive,
     active,
     update,
     setPersonIds,
-    setOrgIds,
-    setProjectIds,
     setStatusIds,
     setTags,
     clearAll,
   } = s
+
+  const dates = datesValue(p.dates)
 
   const handleSection = (next: MobileSection) => {
     setOpenSection(openSection === next ? null : next)
@@ -163,14 +162,6 @@ export function FilterChipBarMobile({
     const allIds = [0, ...people.map((x) => x.id!)]
     setPersonIds(toggleItem(personIdsSet, personId, allIds))
   }
-  const handleOrgToggle = (orgId: number) => {
-    const allIds = [0, ...orgs.map((o) => o.id!)]
-    setOrgIds(toggleItem(orgIdsSet, orgId, allIds))
-  }
-  const handleProjectToggle = (projectId: number) => {
-    const allIds = [0, ...projects.map((x) => x.id!)]
-    setProjectIds(toggleItem(projectIdsSet, projectId, allIds))
-  }
   const handleStatusToggle = (statusId: number) => {
     const allIds = [0, ...statuses.map((st) => st.id!)]
     setStatusIds(toggleItem(statusIdsSet, statusId, allIds))
@@ -179,216 +170,55 @@ export function FilterChipBarMobile({
     setTags(toggleItem(tagIdsSet, tagId, allTagIds))
   }
 
-  const togglesActiveCount = [p.showCompleted, p.showHiddenStatuses].filter(Boolean).length
+  const hot = isHotFilter(p.markers)
+  const markersActiveCount = (hot ? 1 : 0) + activeMarkers(p.markers).length
 
   return (
     <>
-      {/* Toggles section */}
+      {/* Priority section */}
       <AccordionSection
-        label="Show / hide"
-        badge={togglesActiveCount}
-        open={openSection === 'toggles'}
-        onToggle={() => handleSection('toggles')}
+        label={MARKERS_LABEL}
+        badge={markersActiveCount}
+        open={openSection === 'markers'}
+        onToggle={() => handleSection('markers')}
       >
         <div>
+          {/* Priority: Hot, or every switched-on marker (strict AND). Hot
+              switches the single markers off and disables them. */}
           <div className={sheet.filterRow}>
             <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>👁</span>
-              Show hidden
+              <span className={sheet.filterLabelIcon} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
+              {HOT_LABEL}
             </span>
             <button
-              className={`${sheet.toggle} ${p.showHiddenStatuses ? sheet.toggleActive : ''}`}
-              onClick={() => update({ showHiddenStatuses: !p.showHiddenStatuses })}
+              className={`${sheet.toggle} ${hot ? sheet.toggleActive : ''}`}
+              onClick={() => update({ markers: toggleHot(p.markers) })}
               role="switch"
-              aria-checked={p.showHiddenStatuses}
-              aria-label="Show hidden statuses"
+              aria-checked={hot}
+              aria-label="Only hot tasks"
             />
           </div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>✓</span>
-              Completed
-            </span>
-            <button
-              className={`${sheet.toggle} ${p.showCompleted ? sheet.toggleActive : ''}`}
-              onClick={() => update({ showCompleted: !p.showCompleted })}
-              role="switch"
-              aria-checked={p.showCompleted}
-              aria-label="Show completed"
-            />
-          </div>
+          {MARKER_KEYS.map((key) => {
+            const on = activeMarkers(p.markers).includes(key)
+            return (
+              <div key={key} className={sheet.filterRow} style={hot ? { opacity: 0.4 } : undefined}>
+                <span className={sheet.filterLabel}>
+                  <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
+                  {MARKER_LABELS[key]}
+                </span>
+                <button
+                  className={`${sheet.toggle} ${on ? sheet.toggleActive : ''}`}
+                  onClick={() => update({ markers: toggleMarker(p.markers, key) })}
+                  role="switch"
+                  aria-checked={on}
+                  disabled={hot}
+                  aria-label={`Only ${MARKER_LABELS[key].toLowerCase()} tasks`}
+                />
+              </div>
+            )
+          })}
         </div>
       </AccordionSection>
-
-      {/* Date range section */}
-      <AccordionSection
-        label="Date range"
-        badge={dateActive ? 1 : 0}
-        open={openSection === 'date'}
-        onToggle={() => handleSection('date')}
-      >
-        <div className={sheet.dateSection}>
-          <div className={sheet.dateFieldSelector}>
-            {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
-              <button
-                key={field}
-                className={`${sheet.dateFieldOption} ${p.dateField === field ? sheet.dateFieldOptionActive : ''}`}
-                onClick={() => update({ dateField: field })}
-              >
-                {DATE_FIELD_LABELS_SHORT[field]}
-              </button>
-            ))}
-          </div>
-          <div className={sheet.dateInputs}>
-            <DateAnchorInput
-              value={p.dateRangeStart}
-              onChange={(v) => update({ dateRangeStart: v, dateRangeEnd: p.dateRangeEnd })}
-              aria-label="Date range start"
-            />
-            <span style={{ color: 'var(--color-text-muted)' }}>to</span>
-            <DateAnchorInput
-              value={p.dateRangeEnd}
-              onChange={(v) => update({ dateRangeStart: p.dateRangeStart, dateRangeEnd: v })}
-              aria-label="Date range end"
-            />
-          </div>
-          {p.dateField === 'date' && (
-            <div className={sheet.filterRow}>
-              <span className={sheet.filterLabel}>
-                <span className={sheet.filterLabelIcon}>∅</span>
-                Include tasks with no date
-              </span>
-              <button
-                className={`${sheet.toggle} ${p.dateRangeIncludeNoDate ? sheet.toggleActive : ''}`}
-                onClick={() => update({ dateRangeIncludeNoDate: !p.dateRangeIncludeNoDate })}
-                role="switch"
-                aria-checked={p.dateRangeIncludeNoDate}
-                aria-label="Include tasks with no date"
-              />
-            </div>
-          )}
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>📅</span>
-              Has scheduled
-            </span>
-            <button
-              className={`${sheet.triToggle} ${p.hasScheduled !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => update({ hasScheduled: cycleTri(p.hasScheduled) })}
-              aria-label={`Has scheduled: ${triLabel(p.hasScheduled)}`}
-              title={triLabel(p.hasScheduled)}
-            >
-              {triIcon(p.hasScheduled)}
-            </button>
-          </div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>⚑</span>
-              Has deadline
-            </span>
-            <button
-              className={`${sheet.triToggle} ${p.hasDeadline !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => update({ hasDeadline: cycleTri(p.hasDeadline) })}
-              aria-label={`Has deadline: ${triLabel(p.hasDeadline)}`}
-              title={triLabel(p.hasDeadline)}
-            >
-              {triIcon(p.hasDeadline)}
-            </button>
-          </div>
-        </div>
-      </AccordionSection>
-
-      {/* Projects */}
-      {projects.length > 0 && (
-        <AccordionSection
-          label="Projects"
-          badge={projectIdsSet?.size}
-          open={openSection === 'project'}
-          onToggle={() => handleSection('project')}
-        >
-          <MobileEntityList
-            entities={projects}
-            filterIds={projectIdsSet}
-            onToggle={handleProjectToggle}
-            noneLabel="No project"
-            searchPlaceholder="Search projects..."
-            searchText={entitySearch}
-            onSearchChange={setEntitySearch}
-          />
-        </AccordionSection>
-      )}
-
-      {/* People */}
-      {people.length > 0 && (
-        <AccordionSection
-          label="People"
-          badge={personIdsSet?.size}
-          open={openSection === 'people'}
-          onToggle={() => handleSection('people')}
-        >
-          <div className={sheet.dateFieldSelector}>
-            {(
-              [
-                ['include-orgs', 'Orgs'],
-                ['direct-only', 'People only'],
-              ] as [PersonFilterMode, string][]
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                className={`${sheet.dateFieldOption} ${p.personFilterMode === mode ? sheet.dateFieldOptionActive : ''}`}
-                onClick={() => update({ personFilterMode: mode })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <MobileEntityList
-            entities={people}
-            filterIds={personIdsSet}
-            onToggle={handlePersonToggle}
-            noneLabel="Unassigned"
-            searchPlaceholder="Search people..."
-            searchText={entitySearch}
-            onSearchChange={setEntitySearch}
-          />
-        </AccordionSection>
-      )}
-
-      {/* Orgs */}
-      {orgs.length > 0 && (
-        <AccordionSection
-          label="Orgs"
-          badge={orgIdsSet?.size}
-          open={openSection === 'org'}
-          onToggle={() => handleSection('org')}
-        >
-          <div className={sheet.dateFieldSelector}>
-            {(
-              [
-                ['include-people', 'People'],
-                ['direct-only', 'Org only'],
-              ] as [OrgFilterMode, string][]
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                className={`${sheet.dateFieldOption} ${p.orgFilterMode === mode ? sheet.dateFieldOptionActive : ''}`}
-                onClick={() => update({ orgFilterMode: mode })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <MobileEntityList
-            entities={orgs}
-            filterIds={orgIdsSet}
-            onToggle={handleOrgToggle}
-            noneLabel="No org"
-            searchPlaceholder="Search orgs..."
-            searchText={entitySearch}
-            onSearchChange={setEntitySearch}
-          />
-        </AccordionSection>
-      )}
 
       {/* Tags */}
       <AccordionSection
@@ -441,6 +271,39 @@ export function FilterChipBarMobile({
         </div>
       </AccordionSection>
 
+      {/* People */}
+      {people.length > 0 && (
+        <AccordionSection
+          label="People"
+          badge={personIdsSet?.size}
+          open={openSection === 'people'}
+          onToggle={() => handleSection('people')}
+        >
+          <MobileEntityList
+            entities={people}
+            filterIds={personIdsSet}
+            onToggle={handlePersonToggle}
+            noneLabel="Unassigned"
+            searchPlaceholder="Search people..."
+            searchText={entitySearch}
+            onSearchChange={setEntitySearch}
+          />
+        </AccordionSection>
+      )}
+
+      {/* Dates: the date panel at touch sizes */}
+      <AccordionSection
+        label="Dates"
+        value={dates ?? 'Any'}
+        valueOn={dates != null}
+        open={openSection === 'date'}
+        onToggle={() => handleSection('date')}
+      >
+        <div className={sheet.dateSection}>
+          <DateFilterPanel variant="sheet" dates={p.dates} onChange={(next) => update({ dates: next })} />
+        </div>
+      </AccordionSection>
+
       {/* Status */}
       {statuses.length > 0 && (
         <AccordionSection
@@ -450,9 +313,7 @@ export function FilterChipBarMobile({
           onToggle={() => handleSection('status')}
         >
           <MobileEntityList
-            entities={statuses.map((st) =>
-              st.hideByDefault ? { ...st, name: `${st.name} (hidden)` } : st,
-            )}
+            entities={statuses}
             filterIds={statusIdsSet}
             onToggle={handleStatusToggle}
             noneLabel="No status"
@@ -462,6 +323,30 @@ export function FilterChipBarMobile({
           />
         </AccordionSection>
       )}
+
+      {/* Toggles section */}
+      <AccordionSection
+        label="Show / hide"
+        badge={p.showCompleted ? 1 : 0}
+        open={openSection === 'toggles'}
+        onToggle={() => handleSection('toggles')}
+      >
+        <div>
+          <div className={sheet.filterRow}>
+            <span className={sheet.filterLabel}>
+              <span className={sheet.filterLabelIcon}>✓</span>
+              Completed
+            </span>
+            <button
+              className={`${sheet.toggle} ${p.showCompleted ? sheet.toggleActive : ''}`}
+              onClick={() => update({ showCompleted: !p.showCompleted })}
+              role="switch"
+              aria-checked={p.showCompleted}
+              aria-label="Show completed"
+            />
+          </div>
+        </div>
+      </AccordionSection>
 
       {showClearAll && active && (
         <button className={sheet.clearButton} onClick={clearAll}>

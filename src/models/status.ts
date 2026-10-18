@@ -15,7 +15,6 @@ export interface Status {
   color: string
   sortOrder: number
   icon?: StatusIconKey
-  hideByDefault?: boolean
 }
 
 /** Status with guaranteed id (post-insert from DB) */

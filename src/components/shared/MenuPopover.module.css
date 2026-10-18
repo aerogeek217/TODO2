@@ -1,0 +1,203 @@
+.menu {
+  position: fixed;
+  z-index: var(--z-dialog-nested);
+  min-width: 200px;
+  padding: 4px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-chip);
+  box-shadow: var(--shadow-dropdown);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+[data-theme="light"] .menu {
+  background: var(--color-surface);
+}
+
+.groupLabel {
+  padding: 6px 8px 2px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-task);
+  text-align: left;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.item:hover:not(:disabled),
+.item:focus-visible,
+.itemOpen {
+  background: var(--color-tint-8);
+  outline: none;
+}
+
+.item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.icon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.item:hover:not(:disabled) .icon,
+.item:focus-visible .icon,
+.itemOpen .icon {
+  color: var(--color-text-primary);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* An item with a description line: grows to fit, the radio on the first line. */
+.itemTall {
+  height: auto;
+  min-height: 28px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  align-items: flex-start;
+}
+
+.itemTall .radio {
+  margin-top: 2px;
+}
+
+.labelBlock {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.labelLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.labelLine .label {
+  flex: 0 1 auto;
+}
+
+.description {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+  white-space: normal;
+}
+
+.note {
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.check {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.danger,
+.danger .icon {
+  color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) .icon,
+.danger:focus-visible .icon {
+  color: var(--color-danger);
+}
+
+.separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-muted);
+  flex-shrink: 0;
+}
+
+/* Single-key shortcut hint; the key picks the item while the menu is open. */
+.kbd {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-tint-8);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 14px;
+}
+
+/* A nested submenu sits above its parent menu. */
+.submenu {
+  z-index: calc(var(--z-dialog-nested) + 1);
+}
+
+/* An item that would change little right now (still clickable). */
+.dim {
+  color: var(--color-text-muted);
+}
+
+/* A setting's choice (`indicator: 'radio'`): a leading 14px radio circle,
+ * filled accent on the current value, which also has the active tint. */
+.radio {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.radioChecked {
+  background: var(--color-tint-8);
+}
+
+.radioChecked .radio {
+  border: 4px solid var(--color-accent);
+}
+
+/* A muted footnote under a group of items. */
+.footnote {
+  padding: 4px 8px 6px;
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+/* A panel of controls beside its item (e.g. the dashboard's Hot rule). */
+.panel {
+  padding: 12px;
+}

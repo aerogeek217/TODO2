@@ -1,56 +1,47 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
-import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
-import { criteriaToPredicate, predicateToCriteria, matchesFilter } from '../../stores/filter-store'
-import { buildDashboardLists } from '../../services/dashboard-lists'
+import { useSettingsStore } from '../../stores/settings-store'
+import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
+import { buildList } from '../../services/build-list'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
-import { makeTodo } from '../helpers'
+import { makeTodo, matchesFilterNow as matchesFilter } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
+  useListDefinitionStore.setState({ listDefinitions: [] })
   useUndoStore.setState({ undoStack: [], redoStack: [] } as never)
+  useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
 })
 
 describe('useListDefinitionStore load', () => {
   it('load sets listDefinitions to [] when table is empty', async () => {
     await useListDefinitionStore.getState().load()
     expect(useListDefinitionStore.getState().listDefinitions).toEqual([])
-    expect(useListDefinitionStore.getState().loading).toBe(false)
-    expect(useListDefinitionStore.getState().error).toBeNull()
+    expect(useListDefinitionStore.getState().loaded).toBe(true)
   })
 
   it('load reads rows ordered by sortOrder', async () => {
     await listDefinitionRepository.insert({
       name: 'B', sortOrder: 2,
-      pinnedToDashboard: true,
-      favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: 'date',
-      grouping: 'date',
+      sort: 'deadline',
+      grouping: 'deadline',
     })
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
-      pinnedToDashboard: true,
-      favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: 'date',
+      sort: 'deadline',
       grouping: 'none',
     })
 
     await useListDefinitionStore.getState().load()
     const names = useListDefinitionStore.getState().listDefinitions.map(d => d.name)
     expect(names).toEqual(['A', 'B'])
-  })
-
-  it('load clears loading flag when complete', async () => {
-    const promise = useListDefinitionStore.getState().load()
-    expect(useListDefinitionStore.getState().loading).toBe(true)
-    await promise
-    expect(useListDefinitionStore.getState().loading).toBe(false)
   })
 })
 
@@ -64,7 +55,6 @@ describe('useListDefinitionStore mutations', () => {
       id,
       name: 'My list',
       sortOrder: 0,
-      pinnedToDashboard: true,
       membership: { kind: 'custom' },
       sort: 'manual',
       grouping: 'none',
@@ -85,24 +75,6 @@ describe('useListDefinitionStore mutations', () => {
     expect(sorted.map(d => d.sortOrder)).toEqual([0, 1, 2])
   })
 
-  it('rename updates name and persists', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Old' })
-    await useListDefinitionStore.getState().rename(id, 'New')
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.name).toBe('New')
-
-    const row = await listDefinitionRepository.getById(id)
-    expect(row?.name).toBe('New')
-  })
-
-  it('setPinned toggles pinnedToDashboard', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'X' })
-    await useListDefinitionStore.getState().setPinned(id, false)
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.pinnedToDashboard).toBe(false)
-
-    const row = await listDefinitionRepository.getById(id)
-    expect(row?.pinnedToDashboard).toBe(false)
-  })
-
   it('remove deletes and supports undo', async () => {
     const id = await useListDefinitionStore.getState().add({ name: 'Going away' })
     await useListDefinitionStore.getState().remove(id)
@@ -116,17 +88,36 @@ describe('useListDefinitionStore mutations', () => {
     expect(after[0]!.name).toBe('Going away')
   })
 
-  it('clone duplicates with a unique name', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Base' })
-    const clonedId = await useListDefinitionStore.getState().clone(id)
-    expect(clonedId).toBeGreaterThan(0)
-    const names = useListDefinitionStore.getState().listDefinitions.map(d => d.name).sort()
-    expect(names).toEqual(['Base', 'Base copy'])
+  it('remove clears a check-in scope on that list; undo brings it back, redo clears it again', async () => {
+    const id = await useListDefinitionStore.getState().add({ name: 'Check-in list' })
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
 
-    // Second clone gets "Base copy 2"
-    await useListDefinitionStore.getState().clone(id)
-    const namesAfter = useListDefinitionStore.getState().listDefinitions.map(d => d.name).sort()
-    expect(namesAfter).toContain('Base copy 2')
+    await useListDefinitionStore.getState().remove(id)
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+    expect((await db.settings.get('checkinTaskScope'))?.value).toBe('all')
+
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: id })
+    expect((await db.settings.get('checkinTaskScope'))?.value).toBe(`list:${id}`)
+
+    await useUndoStore.getState().redo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+  })
+
+  it('remove leaves a check-in scope on another list alone; undo keeps a scope changed since', async () => {
+    const keep = await useListDefinitionStore.getState().add({ name: 'Keep' })
+    const gone = await useListDefinitionStore.getState().add({ name: 'Gone' })
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: keep })
+    await useListDefinitionStore.getState().remove(gone)
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: keep })
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: keep })
+
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: gone })
+    await useListDefinitionStore.getState().remove(gone)
+    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'hot' })
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'hot' })
   })
 
   it('reorder swaps sortOrder and persists', async () => {
@@ -146,13 +137,6 @@ describe('useListDefinitionStore mutations', () => {
     const reloaded = useListDefinitionStore.getState().listDefinitions.map(d => d.id)
     expect(reloaded).toEqual([b, c, a])
   })
-
-  it('rename rejects empty name', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Keep' })
-    await expect(
-      useListDefinitionStore.getState().rename(id, '   '),
-    ).rejects.toThrow(/Name is required/)
-  })
 })
 
 describe('Save-as-preset round-trip', () => {
@@ -166,9 +150,8 @@ describe('Save-as-preset round-trip', () => {
     const id = await useListDefinitionStore.getState().add({
       name: "Alice's tasks",
       membership: { kind: 'custom', predicate },
-      sort: 'date',
-      grouping: 'date',
-      pinnedToDashboard: true,
+      sort: 'deadline',
+      grouping: 'deadline',
     })
 
     // Reload from DB to confirm persistence (no in-memory shortcut).
@@ -180,8 +163,8 @@ describe('Save-as-preset round-trip', () => {
     if (reloaded!.membership.kind === 'custom') {
       expect(reloaded!.membership.predicate.personIds).toEqual([7])
     }
-    expect(reloaded!.sort).toBe('date')
-    expect(reloaded!.grouping).toBe('date')
+    expect(reloaded!.sort).toBe('deadline')
+    expect(reloaded!.grouping).toBe('deadline')
 
     // Round-trip predicate evaluation: matchesFilter via the dashboard interpreter.
     const todos: PersistedTodoItem[] = [
@@ -193,7 +176,7 @@ describe('Save-as-preset round-trip', () => {
       [2, [7]], [3, [99]],
     ])
 
-    const lists = buildDashboardLists([reloaded!], todos, {
+    const list = buildList(reloaded!, todos, {
       today: new Date('2026-04-18T00:00:00Z'),
       weekStartsOn: 1,
       evalPredicate: (predicate, todo) => {
@@ -202,8 +185,7 @@ describe('Save-as-preset round-trip', () => {
       },
     })
 
-    expect(lists).toHaveLength(1)
-    const ids = lists[0]!.todos.map(t => t.id).sort()
+    const ids = list.todos.map(t => t.id).sort()
     expect(ids).toEqual([2])  // only id=2 has person=7
   })
 
@@ -215,8 +197,8 @@ describe('Save-as-preset round-trip', () => {
     const id = await useListDefinitionStore.getState().add({
       name: 'My preset',
       membership: { kind: 'custom', predicate: initialPredicate },
-      sort: 'date',
-      grouping: 'date',
+      sort: 'deadline',
+      grouping: 'deadline',
     })
 
     // Simulate a user editing in ListView and saving back: build a new predicate
@@ -235,10 +217,10 @@ describe('Save-as-preset round-trip', () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     await useListDefinitionStore.getState().load()
     const after = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)
-    expect(after).toBeDefined()
-    if (after!.membership.kind === 'custom') {
-      expect(after!.membership.predicate.personIds).toEqual([1, 2])
-      expect(after!.membership.predicate.showCompleted).toBe(true)
+    expect(after?.membership.kind).toBe('custom')
+    if (after?.membership.kind === 'custom') {
+      expect(after.membership.predicate.personIds).toEqual([1, 2])
+      expect(after.membership.predicate.showCompleted).toBe(true)
     }
   })
 })

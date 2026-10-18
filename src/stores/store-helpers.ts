@@ -1,97 +1,157 @@
 /**
- * Shared helpers for Zustand store patterns.
- * DUP-1: loadWithState — loading/error boilerplate
- * DUP-2: updateEntityInMap — refresh entity references in assignment maps
- * DUP-4: captureAssignments — capture person/org IDs for undo
- * DUP-5: bulkUpdateField — shared bulk field update with undo
+ * Shared helpers for Zustand store patterns:
+ * - `trackWrite` / `readFresh` — keep a `load()` from overwriting an edit made
+ *   while its read was in flight
+ * - `loadFresh` / `reportLoadFailure` — a fresh read for a store load; a
+ *   failed load is reported to the user
+ * - `makeEnsureLoaded` — load once, retry after a failure
+ * - `mutate` / `optimistic` — tracked store writes
+ * - `updateEntityInMap` — refresh entity references in assignment maps
+ * - `captureAssignments` — capture a task's people and tags for undo
+ * - `bulkUpdateField` — shared bulk field update with undo
  *
  * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
  * (`captureJoinRows`) and the per-entity repositories' `restoreWithJoins`
- * methods (org / tag / person) — store-layer undo paths consume those
+ * methods (tag / person) — store-layer undo paths consume those
  * rather than reaching into `db.X.add` directly.
  */
 
 import { personRepository } from '../data/person-repository'
-import { orgRepository } from '../data/org-repository'
+import { tagRepository } from '../data/tag-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
-import { undoable } from '../services/undoable'
+import { undoable } from './undoable'
+import { useUndoStore } from './undo-store'
+import { registerModuleReset } from '../utils/module-reset'
 
 export type SetFn = (partial: Record<string, unknown>) => void
 
+// ── Load vs. write ──────────────────────────────────────────────────────────
+//
+// A store's `load()` reads the database and then replaces its state with what
+// it read. A write that lands while that read is in flight (an optimistic edit
+// is already in the state, its database write may not be) would be wiped out
+// by the stale result. So every store write runs through `trackWrite` (the
+// `optimistic` / `mutate` helpers do it for their callers), and every load
+// reads through `readFresh`, which waits for writes in flight to settle and
+// reads again when a write started during its read.
+//
+// Rule: a tracked write must never await a `readFresh` load — the load would
+// wait for the write that is waiting for it. (Assignment-map loads don't use
+// `readFresh`; they merge with the latest map instead, so writes may call them.)
+
+/** Bumped when a tracked write starts. */
+let writesStarted = 0
+const writesInFlight = new Set<Promise<unknown>>()
+
+/** Reads in a row before `readFresh` gives up waiting for a quiet moment. */
+const MAX_FRESH_READS = 5
+
 /**
- * DUP-1: Execute a data-fetching function with loading/error state management.
- * Returns the fetched data, or undefined on error.
+ * Runs a store write — its state change and its database write — so that
+ * loads overlapping it read again once it has settled.
  */
-export async function loadWithState<T>(
-  set: SetFn,
+export function trackWrite<T>(write: () => Promise<T>): Promise<T> {
+  writesStarted++
+  const p = write()
+  writesInFlight.add(p)
+  const done = () => { writesInFlight.delete(p) }
+  p.then(done, done)
+  return p
+}
+
+/**
+ * Reads with `fetcher` once no tracked write is in flight, and reads again if
+ * a write started meanwhile, so the result already holds every write the
+ * store has applied. Use it for any read whose result replaces store state.
+ */
+export async function readFresh<T>(fetcher: () => Promise<T>): Promise<T> {
+  for (let reads = 1; ; reads++) {
+    while (writesInFlight.size > 0) await Promise.allSettled([...writesInFlight])
+    // Same tick as the empty check: no write can slip in between.
+    const started = writesStarted
+    const data = await fetcher()
+    if (writesStarted === started) return data
+    if (reads >= MAX_FRESH_READS) {
+      console.warn('[store] writes kept landing during a load; using the latest read')
+      return data
+    }
+  }
+}
+
+/** Test hook: forgets writes left in flight by a previous test file. */
+export function resetWriteTracking(): void {
+  writesInFlight.clear()
+}
+registerModuleReset(resetWriteTracking)
+
+/**
+ * A load failed: logs it and tells the user (the undo snackbar's notice), so
+ * a store left empty by a transient storage error isn't silent.
+ */
+export function reportLoadFailure(label: string, error: unknown): void {
+  console.error(`Failed to load ${label}:`, error)
+  useUndoStore.getState().notify(`Couldn't load ${label}. Reload the page to try again.`)
+}
+
+/**
+ * A store load's read: goes through `readFresh` and returns the fetched data,
+ * or undefined on error (reported with `reportLoadFailure`).
+ */
+export async function loadFresh<T>(
   fetcher: () => Promise<T>,
   label: string,
 ): Promise<T | undefined> {
-  set({ loading: true, error: null })
   try {
-    const data = await fetcher()
-    return data
+    return await readFresh(fetcher)
   } catch (e) {
-    console.error(`Failed to load ${label}:`, e)
-    set({ error: `Failed to load ${label}` })
+    reportLoadFailure(label, e)
     return undefined
-  } finally {
-    set({ loading: false })
   }
 }
 
 /**
- * Memoize a `load()` so callers (CanvasPage / ListView / CalendarView) can fire
- * `ensureLoaded()` on every mount without re-hitting IndexedDB. Concurrent
- * callers share the same in-flight promise; once the first load resolves,
- * subsequent calls are a no-op until `resetLoaded()` is invoked (e.g. after
- * an import / DB reset).
- *
- * Usage: keep one instance per store (`const ensure = makeEnsureLoaded(load)`)
- * and expose `ensure` as the store action; expose `resetLoaded()` for paths
- * that need to force a re-fetch.
+ * Memoize a `load()` so callers (pages, widgets) can fire `ensureLoaded()`
+ * on every mount without re-hitting IndexedDB. Concurrent callers share the
+ * same in-flight load; once `isLoaded()` (a store flag the load sets only
+ * when its read succeeded) is true, calls are a no-op. A failed load leaves
+ * the flag unset, so the next `ensureLoaded()` tries again. `load` reports
+ * its own failure (`loadFresh`); the returned promise never rejects.
  */
-export function makeEnsureLoaded(load: () => Promise<void>): {
-  ensureLoaded: () => Promise<void>
-  resetLoaded: () => void
-} {
-  let loaded = false
+export function makeEnsureLoaded(
+  load: () => Promise<void>,
+  isLoaded: () => boolean,
+): () => Promise<void> {
   let inflight: Promise<void> | null = null
-  return {
-    ensureLoaded() {
-      if (loaded) return Promise.resolve()
-      if (inflight) return inflight
-      const p = load()
-        .then(() => { loaded = true; inflight = null })
-        .catch((err) => { inflight = null; throw err })
-      inflight = p
-      return p
-    },
-    resetLoaded() {
-      loaded = false
-      inflight = null
-    },
+  // A load dropped by the reset finishes on its own; the next call reads again.
+  registerModuleReset(() => { inflight = null })
+  return () => {
+    if (isLoaded()) return Promise.resolve()
+    if (inflight) return inflight
+    const run: Promise<void> = load()
+      .catch((e: unknown) => { console.error('Load failed:', e) })
+      .finally(() => { if (inflight === run) inflight = null })
+    inflight = run
+    return run
   }
 }
 
 /**
- * Wrap a store mutation with error handling: clears previous error, catches failures,
- * logs them, sets error state, and re-throws so callers can handle if needed.
+ * Wrap a store mutation: logs a failure and re-throws it so callers can
+ * handle it. The mutation is a tracked write (`trackWrite`).
  */
-export async function mutate<T>(
-  set: SetFn,
+export function mutate<T>(
   fn: () => Promise<T>,
   label: string,
 ): Promise<T> {
-  set({ error: null })
-  try {
-    return await fn()
-  } catch (e) {
-    console.error(`${label}:`, e)
-    set({ error: label })
-    throw e
-  }
+  return trackWrite(async () => {
+    try {
+      return await fn()
+    } catch (e) {
+      console.error(`${label}:`, e)
+      throw e
+    }
+  })
 }
 
 /**
@@ -100,10 +160,10 @@ export async function mutate<T>(
  * rollbacks from stomping each other's state.
  *
  * Undo is only registered after successful persist. Failed operations never enter the
- * undo stack.
+ * undo stack. `apply` runs synchronously, before this returns; the whole
+ * update is a tracked write (`trackWrite`).
  */
-export async function optimistic(
-  set: SetFn,
+export function optimistic(
   apply: () => void,
   persist: () => Promise<void>,
   rollback: () => void,
@@ -115,37 +175,24 @@ export async function optimistic(
     showSnackbar?: boolean
   },
 ): Promise<void> {
-  set({ error: null })
-  apply()
-  try {
-    await persist()
-    if (undo) {
-      undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+  return trackWrite(async () => {
+    apply()
+    try {
+      await persist()
+      if (undo) {
+        undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+      }
+    } catch (e) {
+      console.error(`${label}:`, e)
+      rollback()
+      throw e
     }
-  } catch (e) {
-    console.error(`${label}:`, e)
-    rollback()
-    set({ error: label })
-    throw e
-  }
+  })
 }
 
-/**
- * Shallow-merge `patch` into the item in `list` with matching `id`. Non-matching
- * items pass through by identity. Returns a new array. Used by floating-* and
- * list-inset stores to deduplicate the `.map(i => i.id === id ? {...i, ...} : i)`
- * pattern across optimistic update + rollback paths.
- */
-export function updateItemInList<T extends { id?: number }>(
-  list: T[],
-  id: number,
-  patch: Partial<T>,
-): T[] {
-  return list.map((item) => (item.id === id ? { ...item, ...patch } : item))
-}
 
 /**
- * DUP-2: Update an entity in an assignment map (Map<todoId, Entity[]>).
+ * Update an entity in an assignment map (Map<todoId, Entity[]>).
  * When an entity is edited, all references in the map must be refreshed.
  */
 export function updateEntityInMap<E extends { id?: number }>(
@@ -161,43 +208,37 @@ export function updateEntityInMap<E extends { id?: number }>(
   return updated
 }
 
-/**
- * DUP-4: Capture current person/org assignment IDs for a todo (for undo).
- * Uses dynamic imports to avoid circular dependencies.
- */
-export async function captureAssignments(todoId: number): Promise<{
+/** A task's people and tags, captured before a delete so undo can put them back. */
+export interface CapturedAssignments {
   personIds: number[]
-  orgIds: number[]
-}> {
-  const [people, orgsMap] = await Promise.all([
-    personRepository.getAssignedPeople(todoId),
-    orgRepository.getAssignedOrgsForTodos([todoId]),
-  ])
-  return {
-    personIds: people.map((p) => p.id!),
-    orgIds: (orgsMap.get(todoId) ?? []).map((o) => o.id!),
-  }
+  tagIds: number[]
 }
 
-/**
- * DUP-4: Capture assignments for multiple todos at once.
- */
+/** Capture a task's person and tag assignment ids (for undo). */
+export async function captureAssignments(todoId: number): Promise<CapturedAssignments> {
+  const [captured] = await captureAssignmentsBulk([todoId])
+  return { personIds: captured?.personIds ?? [], tagIds: captured?.tagIds ?? [] }
+}
+
+/** Capture person and tag assignment ids for several tasks at once. */
 export async function captureAssignmentsBulk(todoIds: number[]): Promise<
-  Array<{ todoId: number; personIds: number[]; orgIds: number[] }>
+  Array<{ todoId: number } & CapturedAssignments>
 > {
-  const [pMap, oMap] = await Promise.all([
+  const [pMap, tMap] = await Promise.all([
     personRepository.getAssignedPeopleForTodos(todoIds),
-    orgRepository.getAssignedOrgsForTodos(todoIds),
+    tagRepository.getAssignedTagsForTodos(todoIds),
   ])
+  const ids = (rows: readonly { id?: number }[] | undefined) =>
+    (rows ?? []).flatMap((r) => (r.id != null ? [r.id] : []))
   return todoIds.map((todoId) => ({
     todoId,
-    personIds: (pMap.get(todoId) ?? []).map((p) => p.id!),
-    orgIds: (oMap.get(todoId) ?? []).map((o) => o.id!),
+    personIds: ids(pMap.get(todoId)),
+    tagIds: ids(tMap.get(todoId)),
   }))
 }
 
 /**
- * DUP-5: Bulk update a single field on multiple todos, with undo support.
+ * Bulk update a single field on multiple todos, with undo support.
  * Uses optimistic update: state changes immediately, DB write follows.
  */
 export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
@@ -207,23 +248,24 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   label: string,
   get: () => { todos: PersistedTodoItem[] },
   set: SetFn,
+  opts: { showSnackbar?: boolean } = {},
 ): Promise<void> {
   const prevValues = get().todos
     .filter((t) => ids.includes(t.id))
     .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   const idSet = new Set(ids)
+  // One timestamp for the store and the database write.
+  const now = new Date()
 
   await optimistic(
-    set,
     () => {
-      const now = new Date()
       set({
         todos: get().todos.map((t) =>
           idSet.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
         ),
       })
     },
-    () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } }))),
+    () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } })), now),
     () => {
       const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
       set({
@@ -236,14 +278,15 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
     label,
     {
       description: label,
-      redo: () => bulkUpdateField(ids, field, value, label, get, set),
+      redo: () => bulkUpdateField(ids, field, value, label, get, set, opts),
       undo: async () => {
-        const mutations = prevValues
-          .filter((s) => s.prev !== value)
-          .map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } }))
+        // Rows the edit changed get their value and modifiedAt back, in the
+        // database and the store alike; the others are left as they are.
+        const changed = prevValues.filter((s) => s.prev !== value)
+        const mutations = changed.map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } }))
         if (mutations.length > 0) {
           await todoRepository.bulkUpdate(mutations)
-          const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
+          const prevMap = new Map(changed.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
           set({
             todos: get().todos.map((t) => {
               const saved = prevMap.get(t.id)
@@ -252,6 +295,7 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
           })
         }
       },
+      showSnackbar: opts.showSnackbar,
     },
   )
 }

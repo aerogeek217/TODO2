@@ -1,0 +1,72 @@
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  max-width: 240px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.picker:hover {
+  background: var(--color-tint-8);
+}
+
+.pickerOpen,
+.pickerOpen:hover {
+  background: var(--color-tint-12);
+}
+
+.glyph {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.saveDirty {
+  opacity: 1;
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.saveDirty:hover {
+  background: var(--color-accent-bg);
+}
+

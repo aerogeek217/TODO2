@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useTagStore } from '../../stores/tag-store'
+import { useTagStore, countTodosByTag } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { Tag } from '../../models'
+import type { DialogLayer } from '../shared/Dialog'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
-import { ConfirmDialog } from '../shared/Dialog'
+import { DeleteTagConfirm } from './EntityDeleteConfirm'
 import styles from './EntityEditor.module.css'
+import { EditorModal } from './EditorModal'
+import { byName } from '../../utils/sort-order'
 
 interface EditState {
   id: number
@@ -15,10 +18,14 @@ interface EditState {
 
 interface TagEditorProps {
   onClose: () => void
+  /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…). */
+  editTagId?: number
+  /** The modal's tier (`EditorModal`). */
+  layer?: DialogLayer
 }
 
-export function TagEditor({ onClose }: TagEditorProps) {
-  const { tags, load, add, update, remove, loadAssignments, selectTodoCountByTagId, selectTodoCountsByTag, assignedTagsMap } = useTagStore()
+export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
+  const { tags, load, add, update, loadAssignments, assignedTagsMap } = useTagStore()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
   const todos = useTodoStore((s) => s.todos)
 
@@ -27,7 +34,6 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
   const [searchText, setSearchText] = useState('')
 
@@ -40,7 +46,15 @@ export function TagEditor({ onClose }: TagEditorProps) {
     if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
   }, [todos, loadAssignments])
 
-  const counts = useMemo(() => selectTodoCountsByTag(), [selectTodoCountsByTag, assignedTagsMap])
+  const counts = useMemo(() => countTodosByTag(assignedTagsMap), [assignedTagsMap])
+
+  // Opened onto one tag: edit that row once the tag is there.
+  const [openedOnto, setOpenedOnto] = useState<number | null>(null)
+  const ontoTag = editTagId != null && openedOnto !== editTagId ? tags.find((t) => t.id === editTagId) : undefined
+  if (ontoTag) {
+    setOpenedOnto(editTagId ?? null)
+    setEditing({ id: ontoTag.id!, name: ontoTag.name, color: ontoTag.color })
+  }
 
   const clearState = () => {
     setEditing(null)
@@ -76,7 +90,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
     const trimmed = newName.trim()
     if (!trimmed) return
     // Pre-check for duplicate-rejection UX. `tagStore.add` is idempotent
-    // post-M1 (returns the existing id silently) so the user would otherwise
+    // (returns the existing id silently) so the user would otherwise
     // see no feedback on a collision.
     const lower = trimmed.toLowerCase()
     if (tags.some((t) => t.name.trim().toLowerCase() === lower)) {
@@ -97,29 +111,23 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const startDelete = (id: number) => {
     clearState()
     setDeleteId(id)
-    setDeleteCount(selectTodoCountByTagId(id))
-  }
-
-  const confirmDelete = async () => {
-    if (deleteId == null) return
-    await remove(deleteId)
-    setDeleteId(null)
   }
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveEdit()
-    if (e.key === 'Escape') { setEditing(null); setNameError('') }
+    // The row's own Esc (cancel the edit): handled, so the modal stays.
+    if (e.key === 'Escape') { e.preventDefault(); setEditing(null); setNameError('') }
   }
 
   const handleAddKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') saveAdd()
-    if (e.key === 'Escape') { setAdding(false); setNameError('') }
+    if (e.key === 'Escape') { e.preventDefault(); setAdding(false); setNameError('') }
   }
 
   const visible = useMemo(() => {
     const q = searchText.trim().toLowerCase()
     const filtered = q === '' ? tags : tags.filter((t) => t.name.toLowerCase().includes(q))
-    return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+    return [...filtered].sort(byName)
   }, [tags, searchText])
 
   const renderRow = (tag: Tag) => {
@@ -161,13 +169,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <div className={styles.title}>Tags</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
-        </div>
-
+      <EditorModal title="Tags" onClose={onClose} layer={layer}>
         <input
           type="text"
           className={styles.searchInput}
@@ -207,27 +209,8 @@ export function TagEditor({ onClose }: TagEditorProps) {
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add Tag</button>
         )}
-      </div>
-      {deleteId != null && (() => {
-        const target = tags.find((t) => t.id === deleteId)
-        if (!target) return null
-        return (
-          <ConfirmDialog
-            open
-            title="Delete tag"
-            message={
-              <>
-                Delete <strong>{target.name}</strong>?
-                {deleteCount > 0 && ` ${deleteCount} task${deleteCount !== 1 ? 's' : ''} currently tagged.`}
-              </>
-            }
-            confirmLabel="Delete"
-            danger
-            onConfirm={confirmDelete}
-            onCancel={() => setDeleteId(null)}
-          />
-        )
-      })()}
+      </EditorModal>
+      {deleteId != null && <DeleteTagConfirm tagId={deleteId} onDone={() => setDeleteId(null)} />}
     </>
   )
 }

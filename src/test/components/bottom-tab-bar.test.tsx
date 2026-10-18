@@ -11,7 +11,7 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderTabBar(route = '/list') {
+function renderTabBar(route = '/') {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <BottomTabBar />
@@ -37,7 +37,7 @@ describe('BottomTabBar', () => {
 
   it('renders tab labels', () => {
     renderTabBar()
-    expect(screen.getByText('List')).toBeInTheDocument()
+    expect(screen.getByText('Workspace')).toBeInTheDocument()
     expect(screen.getByText('Filters')).toBeInTheDocument()
     expect(screen.getByText('Settings')).toBeInTheDocument()
   })
@@ -50,15 +50,15 @@ describe('BottomTabBar', () => {
   // ── Active tab states ─────────────────────────────────────────────
 
   describe('active states', () => {
-    it('List tab is active on /list', () => {
-      renderTabBar('/list')
+    it('Workspace tab is active on /', () => {
+      renderTabBar('/')
       const tabs = screen.getAllByRole('tab')
       expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
       expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
       expect(tabs[2]).toHaveAttribute('aria-selected', 'false')
     })
 
-    it('List tab is active on /', () => {
+    it('Workspace tab is active on /', () => {
       renderTabBar('/')
       expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
     })
@@ -71,12 +71,12 @@ describe('BottomTabBar', () => {
     })
 
     it('Filters tab is active when filter sheet is open', () => {
-      renderTabBar('/list')
+      renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       const tabs = screen.getAllByRole('tab')
       expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
-      // List tab deactivates when filter sheet is open
+      // Workspace tab deactivates when filter sheet is open
       expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
     })
 
@@ -93,14 +93,14 @@ describe('BottomTabBar', () => {
   // ── Navigation ────────────────────────────────────────────────────
 
   describe('navigation', () => {
-    it('navigates to /list when List tab clicked', () => {
+    it('navigates to the workspace (/) when Workspace tab clicked', () => {
       renderTabBar('/settings')
-      fireEvent.click(screen.getByText('List'))
-      expect(screen.getByTestId('location')).toHaveTextContent('/list')
+      fireEvent.click(screen.getByText('Workspace'))
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
     })
 
     it('navigates to /settings when Settings tab clicked', () => {
-      renderTabBar('/list')
+      renderTabBar('/')
       fireEvent.click(screen.getByText('Settings'))
       expect(screen.getByTestId('location')).toHaveTextContent('/settings')
     })
@@ -114,16 +114,16 @@ describe('BottomTabBar', () => {
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
     })
 
-    it('closes filter sheet when List tab clicked while sheet is open', () => {
-      renderTabBar('/list')
+    it('closes filter sheet when Workspace tab clicked while sheet is open', () => {
+      renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
-      fireEvent.click(screen.getByText('List'))
+      fireEvent.click(screen.getByText('Workspace'))
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
     })
 
     it('closes filter sheet when Settings tab clicked while sheet is open', () => {
-      renderTabBar('/list')
+      renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       fireEvent.click(screen.getByText('Settings'))
@@ -132,22 +132,21 @@ describe('BottomTabBar', () => {
     })
   })
 
-  // ── Filter dot indicator ──────────────────────────────────────────
+  // ── Active filter count ───────────────────────────────────────────
 
-  describe('filter dot', () => {
-    it('does not show filter dot when no filters active', () => {
+  describe('filter count badge', () => {
+    it('shows no badge when no filters are active', () => {
       renderTabBar()
-      const filtersTab = screen.getByText('Filters').closest('button')!
-      const svg = filtersTab.querySelector('svg')!
-      expect(svg.nextElementSibling).toBeNull()
+      expect(screen.queryByTestId('filter-count')).toBeNull()
+      expect(screen.getByRole('tab', { name: 'Filters' })).toBeInTheDocument()
     })
 
-    it('shows filter dot when filters are active', () => {
+    it('counts each active screen filter', () => {
       useFilterStore.getState().setSearchText('active')
+      useFilterStore.getState().setShowCompleted(true)
       renderTabBar()
-      const filtersTab = screen.getByText('Filters').closest('button')!
-      const svg = filtersTab.querySelector('svg')!
-      expect(svg.nextElementSibling).not.toBeNull()
+      expect(screen.getByTestId('filter-count')).toHaveTextContent('2')
+      expect(screen.getByRole('tab', { name: 'Filters (2 active)' })).toBeInTheDocument()
     })
   })
 })

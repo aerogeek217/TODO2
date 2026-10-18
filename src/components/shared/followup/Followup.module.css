@@ -1,0 +1,307 @@
+/*
+ * Follow-up popover (row pill / empty-slot flag / row menu) and the task
+ * editor's Follow-up group. Yellow (`--color-followup*`) marks follow-up
+ * state; overdue due dates stay magenta elsewhere.
+ */
+
+/* ═══ Popover ═══ */
+
+.popover {
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 300px;
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--color-surface-high);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+}
+
+:global([data-theme="light"]) .popover {
+  background: var(--color-surface);
+}
+
+.fieldLabel {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  margin-bottom: -4px;
+}
+
+/* ═══ Input (shared by popover + editor) ═══ */
+
+.inputWrap,
+.editorInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  padding: 0 2px 0 8px;
+}
+
+.inputWrap {
+  height: 32px;
+}
+
+.editorInputWrap {
+  flex: 0 0 176px;
+  width: 176px;
+  height: 28px;
+}
+
+.inputWrap:focus-within,
+.editorInputWrap:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.inputWrapError,
+.inputWrapError:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  padding: 0;
+}
+
+.input:focus-visible {
+  /* The wrapper draws the focus ring. */
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.inputHint {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.inputClear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.inputClear:hover {
+  color: var(--color-text-primary);
+  background: var(--color-tint-8);
+}
+
+.hiddenDateInput {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.help {
+  min-height: 0;
+  margin-top: -4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.help:empty {
+  display: none;
+}
+
+.helpDate {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.helpError {
+  color: var(--color-danger);
+}
+
+/* ═══ Quick interval buttons ═══ */
+
+.quickRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.quickButton {
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.quickButton:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+.separator {
+  height: 1px;
+  margin: 0 -12px;
+  background: var(--color-border-muted);
+}
+
+.lastLine {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.lastLine strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* ═══ "Followed up" buttons ═══ */
+
+.followedUpPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.followedUpPrimary:hover {
+  filter: brightness(1.08);
+}
+
+.followedUpHint {
+  opacity: 0.6;
+  font-weight: var(--font-weight-semibold);
+}
+
+.followedUpSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-followup-bg);
+  color: var(--color-followup);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.followedUpSecondary:hover {
+  background: var(--color-followup-bg-strong);
+}
+
+/* Already followed up today: pressing it again only moves the next date, so it
+   steps down to a quiet secondary button. */
+.followedUpPrimary.followedUpDone,
+.followedUpSecondary.followedUpDone {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  filter: none;
+}
+
+.followedUpPrimary.followedUpDone:hover,
+.followedUpSecondary.followedUpDone:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+.followedUpPrimary:focus-visible,
+.followedUpSecondary:focus-visible,
+.quickButton:focus-visible,
+.inputClear:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ═══ Editor group ═══ */
+
+.editorGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.editorHeading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 2px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-followup);
+}
+
+.editorHint {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editorHintAccent {
+  color: var(--color-accent);
+}
+
+@media (max-width: 640px) {
+  .editorInputWrap {
+    flex-basis: 150px;
+    width: 150px;
+  }
+}

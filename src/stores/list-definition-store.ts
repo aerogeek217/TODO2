@@ -7,98 +7,72 @@ import type {
   ListSort,
   PersistedListDefinition,
 } from '../models/list-definition'
-import type { TodoPredicate } from '../models'
-import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
-import { undoable } from '../services/undoable'
+import { emptyPredicate } from '../models'
+import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
+import { undoable } from './undoable'
 import { bySortOrder } from '../utils/sort-order'
+import { listOrderRepository } from '../data/list-order-repository'
+import { useListOrderStore } from './list-order-store'
+import { useSettingsStore } from './settings-store'
 
 interface AddInput {
   name: string
   membership?: ListMembership
   sort?: ListSort
   grouping?: ListGrouping
-  pinnedToDashboard?: boolean
-  favorited?: boolean
-  maxTasks?: number
-  limitMode?: 'hard' | 'scroll'
 }
 
 interface ListDefinitionState {
   listDefinitions: PersistedListDefinition[]
-  loading: boolean
-  error: string | null
+  /** A load has read the rows (a failed load leaves it false, so `ensureLoaded` retries). */
+  loaded: boolean
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
   add: (input: AddInput) => Promise<number>
   update: (def: PersistedListDefinition) => Promise<void>
-  rename: (id: number, name: string) => Promise<void>
-  setPinned: (id: number, pinned: boolean) => Promise<void>
-  setFavorited: (id: number, favorited: boolean) => Promise<void>
   remove: (id: number) => Promise<void>
-  clone: (id: number) => Promise<number | undefined>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
 }
 
-/** Empty predicate — matches all tasks aside from the standard completed/hidden gates. */
-export function emptyPredicate(): TodoPredicate {
-  return {
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  }
-}
-
-function nextSortOrder(defs: PersistedListDefinition[]): number {
-  return defs.reduce((max, d) => Math.max(max, d.sortOrder), -1) + 1
+/**
+ * A check-in scope on the deleted list goes back to all open tasks. Returns
+ * whether it pointed at the list (so undo can restore it).
+ */
+async function clearCheckinScopeFor(listDefinitionId: number): Promise<boolean> {
+  const settings = useSettingsStore.getState()
+  const scope = settings.checkinTaskScope
+  if (scope.kind !== 'list' || scope.listDefinitionId !== listDefinitionId) return false
+  await settings.setCheckinTaskScope({ kind: 'all' })
+  return true
 }
 
 export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
-  const defEnsure = makeEnsureLoaded(() => get().load())
+  const defEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
   return {
   listDefinitions: [],
-  loading: false,
-  error: null,
+  loaded: false,
 
   async load() {
-    const rows = await loadWithState(set, () => listDefinitionRepository.getAll(), 'list definitions')
-    if (rows) set({ listDefinitions: rows })
+    const rows = await loadFresh(() => listDefinitionRepository.getAll(), 'saved lists')
+    if (rows) set({ listDefinitions: rows, loaded: true })
   },
-  ensureLoaded: () => defEnsure.ensureLoaded(),
+  ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, grouping, pinnedToDashboard = true, favorited = false, maxTasks, limitMode }) {
+  async add({ name, membership, sort, grouping }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
-    const { listDefinitions } = get()
-    const entry: ListDefinition = {
+    const entry: Omit<ListDefinition, 'sortOrder'> = {
       name: trimmed,
-      sortOrder: nextSortOrder(listDefinitions),
-      pinnedToDashboard,
-      favorited,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
       sort: sort ?? 'manual',
       grouping: grouping ?? 'none',
-      ...(maxTasks != null ? { maxTasks } : {}),
-      ...(limitMode != null ? { limitMode } : {}),
     }
     return mutate(
-      set,
       async () => {
-        const id = await listDefinitionRepository.insert(entry)
-        set({ listDefinitions: [...get().listDefinitions, { ...entry, id }] })
+        // Goes last (the repository picks the sort order in its transaction).
+        const { id, sortOrder } = await listDefinitionRepository.insertLast(entry)
+        set({ listDefinitions: [...get().listDefinitions, { ...entry, sortOrder, id }] })
         return id
       },
       'Failed to add list',
@@ -106,92 +80,66 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
 
   async update(def) {
-    const prev = get().listDefinitions
+    const prev = get().listDefinitions.find(d => d.id === def.id)
+    const applied = { ...def }
+    const put = (next: PersistedListDefinition) =>
+      set({ listDefinitions: get().listDefinitions.map(d => d.id === next.id ? next : d) })
     await optimistic(
-      set,
-      () => set({ listDefinitions: prev.map(d => d.id === def.id ? { ...def } : d) }),
+      () => put(applied),
       () => listDefinitionRepository.update(def),
-      () => set({ listDefinitions: prev }),
+      // Only this list, and only while it still holds this edit.
+      () => { if (prev && get().listDefinitions.find(d => d.id === def.id) === applied) put(prev) },
       'Failed to update list',
     )
   },
 
-  async rename(id, name) {
-    const trimmed = name.trim()
-    if (!trimmed) throw new Error('Name is required')
-    const def = get().listDefinitions.find(d => d.id === id)
-    if (!def || def.name === trimmed) return
-    await get().update({ ...def, name: trimmed })
-  },
+  remove(id) {
+    return trackWrite(async () => {
+      const def = get().listDefinitions.find(d => d.id === id)
+      if (!def) return
 
-  async setPinned(id, pinned) {
-    const def = get().listDefinitions.find(d => d.id === id)
-    if (!def || def.pinnedToDashboard === pinned) return
-    await get().update({ ...def, pinnedToDashboard: pinned })
-  },
+      const ranks = await listOrderRepository.getByList(id)
+      await listDefinitionRepository.remove(id)
+      useListOrderStore.getState().forgetList(id)
+      // The lists as they are now: another write may have landed meanwhile.
+      set({ listDefinitions: get().listDefinitions.filter(d => d.id !== id) })
+      const scopeCleared = await clearCheckinScopeFor(id)
 
-  async setFavorited(id, favorited) {
-    const def = get().listDefinitions.find(d => d.id === id)
-    if (!def || def.favorited === favorited) return
-    await get().update({ ...def, favorited })
-  },
-
-  async remove(id) {
-    const prev = get().listDefinitions
-    const def = prev.find(d => d.id === id)
-    if (!def) return
-
-    await listDefinitionRepository.remove(id)
-    set({ listDefinitions: prev.filter(d => d.id !== id) })
-
-    undoable(
-      `Delete list "${def.name}"`,
-      () => get().remove(id),
-      async () => {
-        await listDefinitionRepository.restore(def)
-        await get().load()
-      },
-      true,
-    )
-  },
-
-  async clone(id) {
-    const src = get().listDefinitions.find(d => d.id === id)
-    if (!src) return undefined
-    const defs = get().listDefinitions
-    let candidate = `${src.name} copy`
-    let n = 2
-    const lower = new Set(defs.map(d => d.name.toLowerCase()))
-    while (lower.has(candidate.toLowerCase())) {
-      candidate = `${src.name} copy ${n++}`
-    }
-    return get().add({
-      name: candidate,
-      membership: src.membership,
-      sort: src.sort,
-      grouping: src.grouping,
-      pinnedToDashboard: src.pinnedToDashboard,
-      favorited: src.favorited,
-      ...(src.maxTasks != null ? { maxTasks: src.maxTasks } : {}),
-      ...(src.limitMode != null ? { limitMode: src.limitMode } : {}),
+      undoable(
+        `Delete list "${def.name}"`,
+        () => get().remove(id),
+        async () => {
+          await listDefinitionRepository.restore(def)
+          await useListOrderStore.getState().restoreRows(ranks)
+          await get().load()
+          // Undo brings back the check-in choice too, unless it was changed since.
+          const settings = useSettingsStore.getState()
+          if (scopeCleared && settings.checkinTaskScope.kind === 'all') {
+            await settings.setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
+          }
+        },
+        true,
+      )
     })
   },
 
-  async reorder(fromIndex, toIndex) {
-    const prev = get().listDefinitions
-    const sorted = [...prev].sort(bySortOrder)
-    if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
-    const [moved] = sorted.splice(fromIndex, 1)
-    if (!moved) return
-    sorted.splice(toIndex, 0, moved)
-    const updated = sorted.map((d, i) => ({ ...d, sortOrder: i }))
-    set({ listDefinitions: updated })
-    try {
-      await listDefinitionRepository.reorder(updated.map(d => d.id))
-    } catch (e) {
-      console.error('Failed to reorder list definitions:', e)
-      set({ listDefinitions: prev, error: 'Failed to reorder list definitions' })
-    }
+  reorder(fromIndex, toIndex) {
+    return trackWrite(async () => {
+      const prev = get().listDefinitions
+      const sorted = [...prev].sort(bySortOrder)
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
+      const [moved] = sorted.splice(fromIndex, 1)
+      if (!moved) return
+      sorted.splice(toIndex, 0, moved)
+      const updated = sorted.map((d, i) => ({ ...d, sortOrder: i }))
+      set({ listDefinitions: updated })
+      try {
+        await listDefinitionRepository.reorder(updated.map(d => d.id))
+      } catch (e) {
+        console.error('Failed to reorder list definitions:', e)
+        set({ listDefinitions: prev })
+      }
+    })
   },
   }
 })

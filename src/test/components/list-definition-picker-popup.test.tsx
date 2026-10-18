@@ -1,55 +1,54 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup } from '@testing-library/react'
 import { ListDefinitionPickerPopup } from '../../components/overlays/ListDefinitionPickerPopup'
-import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { emptyPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): PersistedListDefinition {
   return {
     name: `List ${overrides.id}`,
     sortOrder: overrides.id,
-    pinnedToDashboard: false,
-    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
-    grouping: { kind: 'none' },
+    grouping: 'none',
     ...overrides,
   }
 }
 
 beforeEach(() => {
-  useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
+  useListDefinitionStore.setState({ listDefinitions: [] })
 })
 
 afterEach(cleanup)
 
 describe('ListDefinitionPickerPopup', () => {
-  it('renders every list definition (pinned and unpinned alike)', () => {
+  it('renders every list definition', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Pinned one', pinnedToDashboard: true }),
-        makeDef({ id: 2, name: 'Unpinned one', pinnedToDashboard: false }),
+        makeDef({ id: 1, name: 'First list' }),
+        makeDef({ id: 2, name: 'Second list' }),
       ],
     })
     const { getByText } = render(
       <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
-    expect(getByText('Pinned one')).toBeInTheDocument()
-    expect(getByText('Unpinned one')).toBeInTheDocument()
+    expect(getByText('First list')).toBeInTheDocument()
+    expect(getByText('Second list')).toBeInTheDocument()
   })
 
-  it('shows "Add list to canvas" header and "Add" action label', () => {
+  it('shows the "Add list" header and "Add" action label', () => {
     useListDefinitionStore.setState({ listDefinitions: [makeDef({ id: 1 })] })
     const { getByText } = render(
       <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
-    expect(getByText(/add list to canvas/i)).toBeInTheDocument()
+    expect(getByText(/^add list$/i)).toBeInTheDocument()
     expect(getByText('Add')).toBeInTheDocument()
   })
 
   it('clicking an item calls onSelect with the def id and closes', () => {
     useListDefinitionStore.setState({
-      listDefinitions: [makeDef({ id: 7, name: 'Target', pinnedToDashboard: false })],
+      listDefinitions: [makeDef({ id: 7, name: 'Target' })],
     })
     const onSelect = vi.fn()
     const onClose = vi.fn()
@@ -61,8 +60,6 @@ describe('ListDefinitionPickerPopup', () => {
 
     expect(onSelect).toHaveBeenCalledWith(7)
     expect(onClose).toHaveBeenCalled()
-    // The def should NOT have been pinned as a side-effect.
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.pinnedToDashboard).toBe(false)
   })
 
   it('renders empty state when there are no defs', () => {
@@ -154,7 +151,7 @@ describe('ListDefinitionPickerPopup', () => {
         <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />,
       )
       // Header is part of the popup; clicking it should not trigger outside-click.
-      fireEvent.mouseDown(getByText(/add list to canvas/i))
+      fireEvent.mouseDown(getByText(/^add list$/i))
       expect(onClose).not.toHaveBeenCalled()
     })
   })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Person, Org, Project, Status, Tag } from '../../models'
+import type { Person, Status, Tag } from '../../models'
 import {
   getGroupKey,
   getGroupLabel,
@@ -7,17 +7,14 @@ import {
   partitionByGroup,
   type GroupingContext,
 } from '../../utils/task-grouping'
-import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { makeTodo } from '../helpers'
 
 function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
   return {
     assignedPeopleMap: new Map(),
-    assignedOrgsMap: new Map(),
     assignedTagsMap: new Map(),
     statuses: [],
-    orgs: [],
-    personOrgMap: new Map(),
     today: new Date(2026, 0, 15),
     weekStartsOn: 1,
     ...over,
@@ -69,23 +66,6 @@ describe('getGroupKey', () => {
     })
   })
 
-  describe('org', () => {
-    it('returns array with one key per assigned org', () => {
-      const acme: Org = { id: 1, name: 'Acme' }
-      const initech: Org = { id: 2, name: 'Initech' }
-      const todo = makeTodo({ id: 10 })
-      const ctx = makeCtx({
-        assignedOrgsMap: new Map([[10, [acme, initech]]]),
-      })
-      expect(getGroupKey(todo, 'org', ctx)).toEqual(['org-1', 'org-2'])
-    })
-
-    it('returns null when no orgs assigned', () => {
-      const todo = makeTodo({ id: 10 })
-      expect(getGroupKey(todo, 'org', makeCtx())).toBeNull()
-    })
-  })
-
   describe('tag', () => {
     it('returns array with one key per assigned tag', () => {
       const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
@@ -112,42 +92,48 @@ describe('getGroupKey', () => {
     })
   })
 
-  describe('date / scheduled / deadline', () => {
+  describe('deadline / followup', () => {
     const today = new Date(2026, 0, 15)
     const yesterday = new Date(today.getTime() - 86400000)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const inTenDays = new Date(today.getTime() + 10 * 86400000)
 
-    it('buckets effective date into overdue / today / week / later', () => {
+    it('buckets the due date into overdue / today / week / later', () => {
       const ctx = makeCtx({ today })
-      expect(getGroupKey(makeTodo({ id: 1, dueDate: yesterday }), 'date', ctx)).toBe('overdue')
-      expect(getGroupKey(makeTodo({ id: 2, dueDate: today }), 'date', ctx)).toBe('today')
-      expect(getGroupKey(makeTodo({ id: 3, dueDate: inThreeDays }), 'date', ctx)).toBe('week')
-      expect(getGroupKey(makeTodo({ id: 4, dueDate: inTenDays }), 'date', ctx)).toBe('later')
-      expect(getGroupKey(makeTodo({ id: 5 }), 'date', ctx)).toBeNull()
+      expect(getGroupKey(makeTodo({ id: 1, dueDate: yesterday }), 'deadline', ctx)).toBe('overdue')
+      expect(getGroupKey(makeTodo({ id: 2, dueDate: today }), 'deadline', ctx)).toBe('today')
+      expect(getGroupKey(makeTodo({ id: 3, dueDate: inThreeDays }), 'deadline', ctx)).toBe('week')
+      expect(getGroupKey(makeTodo({ id: 4, dueDate: inTenDays }), 'deadline', ctx)).toBe('later')
+      expect(getGroupKey(makeTodo({ id: 5 }), 'deadline', ctx)).toBeNull()
     })
 
-    it('buckets scheduled date independently of deadline', () => {
+    it('buckets the next follow-up independently of the due date', () => {
       const ctx = makeCtx({ today })
-      const todo = makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'date', value: inThreeDays },
-      })
-      expect(getGroupKey(todo, 'scheduled', ctx)).toBe('week')
+      const todo = makeTodo({ id: 1, nextFollowupAt: inThreeDays })
+      expect(getGroupKey(todo, 'followup', ctx)).toBe('week')
       expect(getGroupKey(todo, 'deadline', ctx)).toBeNull()
     })
 
-    it('buckets deadline independently of scheduled', () => {
+    it('buckets the due date independently of the follow-up', () => {
       const ctx = makeCtx({ today })
       const todo = makeTodo({ id: 1, dueDate: yesterday })
       expect(getGroupKey(todo, 'deadline', ctx)).toBe('overdue')
-      expect(getGroupKey(todo, 'scheduled', ctx)).toBeNull()
+      expect(getGroupKey(todo, 'followup', ctx)).toBeNull()
     })
 
-    it('matches ListView keys (overdue / today / week / later)', () => {
+    it('"This Week" ends with the calendar week, not seven rolling days', () => {
+      // Thu 15 Jan 2026: a Monday-first week ends Sun 18 Jan.
+      const ctx = makeCtx({ today })
+      expect(getGroupKey(makeTodo({ id: 1, dueDate: new Date(2026, 0, 18) }), 'deadline', ctx)).toBe('week')
+      expect(getGroupKey(makeTodo({ id: 2, dueDate: new Date(2026, 0, 19) }), 'deadline', ctx)).toBe('later')
+      expect(getGroupKey(makeTodo({ id: 3, dueDate: new Date(2026, 0, 17) }), 'deadline', makeCtx({ today, weekStartsOn: 0 }))).toBe('week')
+      expect(getGroupKey(makeTodo({ id: 4, dueDate: new Date(2026, 0, 18) }), 'deadline', makeCtx({ today, weekStartsOn: 0 }))).toBe('later')
+    })
+
+    it('matches the list keys (overdue / today / week / later)', () => {
       const ctx = makeCtx({ today })
       const keys = [yesterday, today, inThreeDays, inTenDays].map((d) =>
-        getGroupKey(makeTodo({ id: 1, dueDate: d }), 'date', ctx),
+        getGroupKey(makeTodo({ id: 1, dueDate: d }), 'deadline', ctx),
       )
       expect(keys).toEqual(['overdue', 'today', 'week', 'later'])
     })
@@ -166,12 +152,6 @@ describe('getGroupLabel', () => {
     expect(getGroupLabel('person-1', 'people', ctx)).toBe('Alice')
   })
 
-  it('returns the org name from the assigned map', () => {
-    const acme: Org = { id: 1, name: 'Acme' }
-    const ctx = makeCtx({ assignedOrgsMap: new Map([[10, [acme]]]) })
-    expect(getGroupLabel('org-1', 'org', ctx)).toBe('Acme')
-  })
-
   it('returns the tag name from the assigned map', () => {
     const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
     const ctx = makeCtx({ assignedTagsMap: new Map([[10, [urgent]]]) })
@@ -180,10 +160,10 @@ describe('getGroupLabel', () => {
 
   it('returns the canonical date-bucket labels', () => {
     const ctx = makeCtx()
-    expect(getGroupLabel('overdue', 'date', ctx)).toBe('Overdue')
-    expect(getGroupLabel('today', 'scheduled', ctx)).toBe('Today')
+    expect(getGroupLabel('overdue', 'deadline', ctx)).toBe('Overdue')
+    expect(getGroupLabel('today', 'followup', ctx)).toBe('Today')
     expect(getGroupLabel('week', 'deadline', ctx)).toBe('This Week')
-    expect(getGroupLabel('later', 'date', ctx)).toBe('Later')
+    expect(getGroupLabel('later', 'followup', ctx)).toBe('Later')
   })
 
   it('returns empty string for unknown keys', () => {
@@ -199,36 +179,32 @@ describe('getGroupColor', () => {
     expect(getGroupColor('status-2', 'status', ctx)).toBe('#a00')
   })
 
-  it('returns the org color from the assigned map', () => {
-    const acme: Org = { id: 1, name: 'Acme', color: '#abc' }
-    const ctx = makeCtx({ assignedOrgsMap: new Map([[10, [acme]]]) })
-    expect(getGroupColor('org-1', 'org', ctx)).toBe('#abc')
-  })
-
   it('returns the tag color from the assigned map', () => {
     const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
     const ctx = makeCtx({ assignedTagsMap: new Map([[10, [urgent]]]) })
     expect(getGroupColor('tag-1', 'tag', ctx)).toBe('#f00')
   })
 
-  it('resolves the person color through their first assigned org', () => {
-    const acme: Org = { id: 1, name: 'Acme', color: '#abc' }
-    const ctx = makeCtx({
-      orgs: [acme],
-      personOrgMap: new Map([[7, [1]]]),
-    })
+  it('returns the person color from the assigned map', () => {
+    const alice: Person = { id: 7, name: 'Alice', initials: 'A', color: '#abc' }
+    const ctx = makeCtx({ assignedPeopleMap: new Map([[10, [alice]]]) })
     expect(getGroupColor('person-7', 'people', ctx)).toBe('#abc')
   })
 
-  it('falls back to UNAFFILIATED_PERSON_COLOR for a person with no org', () => {
-    const ctx = makeCtx({ orgs: [], personOrgMap: new Map() })
-    expect(getGroupColor('person-7', 'people', ctx)).toBe(UNAFFILIATED_PERSON_COLOR)
+  it('falls back to NEUTRAL_PERSON_COLOR for a person with no color', () => {
+    const alice: Person = { id: 7, name: 'Alice', initials: 'A' }
+    const ctx = makeCtx({ assignedPeopleMap: new Map([[10, [alice]]]) })
+    expect(getGroupColor('person-7', 'people', ctx)).toBe(NEUTRAL_PERSON_COLOR)
+  })
+
+  it('falls back to NEUTRAL_PERSON_COLOR for a person missing from the assigned map', () => {
+    const ctx = makeCtx()
+    expect(getGroupColor('person-7', 'people', ctx)).toBe(NEUTRAL_PERSON_COLOR)
   })
 
   it('returns undefined for date-bucket dimensions', () => {
     const ctx = makeCtx()
-    expect(getGroupColor('overdue', 'date', ctx)).toBeUndefined()
-    expect(getGroupColor('today', 'scheduled', ctx)).toBeUndefined()
+    expect(getGroupColor('overdue', 'followup', ctx)).toBeUndefined()
     expect(getGroupColor('week', 'deadline', ctx)).toBeUndefined()
   })
 
@@ -336,19 +312,6 @@ describe('partitionByGroup', () => {
     expect(result.groups.map((g) => g.label)).toEqual(['Alpha', 'Mu', 'Zeta'])
   })
 
-  it('places a todo into multiple org groups when assigned to multiple orgs', () => {
-    const acme: Org = { id: 1, name: 'Acme' }
-    const initech: Org = { id: 2, name: 'Initech' }
-    const todos = [makeTodo({ id: 10 })]
-    const ctx = makeCtx({
-      assignedOrgsMap: new Map([[10, [acme, initech]]]),
-    })
-    const result = partitionByGroup(todos, 'org', ctx)
-    expect(result.groups).toHaveLength(2)
-    expect(result.groups[0]!.label).toBe('Acme')
-    expect(result.groups[1]!.label).toBe('Initech')
-  })
-
   it('groups by tag with untagged routed to ungrouped', () => {
     const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
     const followup: Tag = { id: 2, name: 'followup', color: '#0f0' }
@@ -419,7 +382,7 @@ describe('partitionByGroup', () => {
       makeTodo({ id: 4, dueDate: inThreeDays }), // week
       makeTodo({ id: 5 }),                     // ungrouped
     ]
-    const result = partitionByGroup(todos, 'date', makeCtx({ today }))
+    const result = partitionByGroup(todos, 'deadline', makeCtx({ today }))
     expect(result.ungrouped.map((t) => t.id)).toEqual([5])
     expect(result.groups.map((g) => g.key)).toEqual(['overdue', 'today', 'week', 'later'])
     expect(result.groups.map((g) => g.label)).toEqual([
@@ -430,78 +393,30 @@ describe('partitionByGroup', () => {
     ])
   })
 
-  it('uses scheduledDate (not dueDate) for the scheduled dimension', () => {
+  it('uses nextFollowupAt (not dueDate) for the followup dimension', () => {
     const today = new Date(2026, 0, 15)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const todos = [
-      makeTodo({ id: 1, scheduledDate: { kind: 'date', value: inThreeDays } }),
+      makeTodo({ id: 1, nextFollowupAt: inThreeDays }),
     ]
-    const result = partitionByGroup(todos, 'scheduled', makeCtx({ today }))
+    const result = partitionByGroup(todos, 'followup', makeCtx({ today }))
     expect(result.groups[0]!.key).toBe('week')
     expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([1])
   })
 
-  it('uses dueDate (not scheduledDate) for the deadline dimension', () => {
+  it('uses dueDate (not nextFollowupAt) for the deadline dimension', () => {
     const today = new Date(2026, 0, 15)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const todos = [
-      makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'date', value: inThreeDays },
-      }),
+      makeTodo({ id: 1, nextFollowupAt: inThreeDays }),
     ]
     const result = partitionByGroup(todos, 'deadline', makeCtx({ today }))
     expect(result.groups).toHaveLength(0)
     expect(result.ungrouped.map((t) => t.id)).toEqual([1])
   })
-
-  describe('project axis', () => {
-    const mkProject = (id: number, name: string, sortOrder: number): Project => ({
-      id,
-      name,
-      canvasId: 1,
-      positionX: 0,
-      positionY: 0,
-      isCollapsed: false,
-      sortOrder,
-      createdAt: new Date(),
-    })
-
-    it('routes project-less todos into ungrouped, groups the rest by projectId', () => {
-      const projects = [mkProject(1, 'Alpha', 0), mkProject(2, 'Beta', 1)]
-      const todos = [
-        makeTodo({ id: 10, projectId: 1 }),
-        makeTodo({ id: 11, projectId: 2 }),
-        makeTodo({ id: 12 }),
-      ]
-      const result = partitionByGroup(todos, 'project', makeCtx({ projects }))
-      expect(result.ungrouped.map((t) => t.id)).toEqual([12])
-      expect(result.groups.map((g) => g.key)).toEqual(['project-1', 'project-2'])
-      expect(result.groups[0]!.label).toBe('Alpha')
-      expect(result.groups[1]!.label).toBe('Beta')
-    })
-
-    it('orders project groups by registry sortOrder, not first-encounter', () => {
-      const projects = [mkProject(1, 'Alpha', 2), mkProject(2, 'Beta', 0), mkProject(3, 'Charlie', 1)]
-      const todos = [
-        makeTodo({ id: 10, projectId: 1 }),
-        makeTodo({ id: 11, projectId: 2 }),
-        makeTodo({ id: 12, projectId: 3 }),
-      ]
-      const result = partitionByGroup(todos, 'project', makeCtx({ projects }))
-      expect(result.groups.map((g) => g.label)).toEqual(['Beta', 'Charlie', 'Alpha'])
-    })
-
-    it('returns empty label when ctx.projects is missing (caller resolves at site)', () => {
-      const todos = [makeTodo({ id: 10, projectId: 1 })]
-      const result = partitionByGroup(todos, 'project', makeCtx())
-      expect(result.groups.map((g) => g.key)).toEqual(['project-1'])
-      expect(result.groups[0]!.label).toBe('')
-    })
-  })
 })
 
-describe('partitionByGroup — prioritizeGroupKeys (filter-aware ordering, P5)', () => {
+describe('partitionByGroup — prioritizeGroupKeys (filter-aware ordering)', () => {
   it('pulls prioritized people keys to the front in caller order', () => {
     const zeta: Person = { id: 3, name: 'Zeta', initials: 'Z' }
     const alpha: Person = { id: 4, name: 'Alpha', initials: 'A' }
@@ -553,26 +468,6 @@ describe('partitionByGroup — prioritizeGroupKeys (filter-aware ordering, P5)',
     // person-99 has no group; should be silently dropped, Alice remains.
     const result = partitionByGroup(todos, 'people', ctx, ['person-99', 'person-1'])
     expect(result.groups.map((g) => g.label)).toEqual(['Alice'])
-  })
-
-  it('prioritizes org keys when grouping by org', () => {
-    const acme: Org = { id: 1, name: 'Acme' }
-    const beta: Org = { id: 2, name: 'Beta' }
-    const charlie: Org = { id: 3, name: 'Charlie' }
-    const todos = [
-      makeTodo({ id: 10 }),
-      makeTodo({ id: 11 }),
-      makeTodo({ id: 12 }),
-    ]
-    const ctx = makeCtx({
-      assignedOrgsMap: new Map([
-        [10, [acme]],
-        [11, [beta]],
-        [12, [charlie]],
-      ]),
-    })
-    const result = partitionByGroup(todos, 'org', ctx, ['org-3'])
-    expect(result.groups.map((g) => g.label)).toEqual(['Charlie', 'Acme', 'Beta'])
   })
 
   it('prioritizes tag keys when grouping by tag', () => {
@@ -642,7 +537,7 @@ describe('partitionByGroup — prioritizeGroupKeys (filter-aware ordering, P5)',
   })
 })
 
-describe('partitionByGroup — restrictToFilterSet (visible-groups intersection, P6)', () => {
+describe('partitionByGroup — restrictToFilterSet (visible-groups intersection)', () => {
   const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
   const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
   const carol: Person = { id: 3, name: 'Carol', initials: 'C' }
@@ -658,7 +553,6 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
     const result = partitionByGroup(todos, 'people', ctx, undefined, ['person-1'])
     expect(result.groups).toHaveLength(1)
     expect(result.groups[0]!.key).toBe('person-1')
-    expect(result.groups[0]!.tier).toBe('direct')
     expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
   })
 
@@ -676,31 +570,10 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       ['person-1', 'person-2'],
     )
     expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
-    expect(result.groups.every((g) => g.tier === 'direct')).toBe(true)
     expect(result.groups[0]!.todos[0]).toBe(result.groups[1]!.todos[0])
   })
 
-  it('emits via implicit callback when direct keys miss the filter set', () => {
-    // Filter [Alice], task direct {Carol, Dave}, implicit returns {Alice}.
-    // Task emits under Alice as implicit; Carol/Dave sections never appear.
-    const todos = [makeTodo({ id: 10 })]
-    const ctx = makeCtx({
-      assignedPeopleMap: new Map([[10, [carol, dave]]]),
-    })
-    const result = partitionByGroup(
-      todos,
-      'people',
-      ctx,
-      undefined,
-      ['person-1'],
-      () => ['person-1'],
-    )
-    expect(result.groups).toHaveLength(1)
-    expect(result.groups[0]!.key).toBe('person-1')
-    expect(result.groups[0]!.tier).toBe('implicit')
-  })
-
-  it('skips a task entirely when neither direct nor implicit intersects the filter set', () => {
+  it('drops a task entirely when none of its keys intersect the filter set', () => {
     const todos = [makeTodo({ id: 10 })]
     const ctx = makeCtx({
       assignedPeopleMap: new Map([[10, [carol, dave]]]),
@@ -718,51 +591,7 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
     expect(result.ungrouped).toEqual([])
   })
 
-  it('promotes a group to direct tier when any task emits under it directly', () => {
-    // T1 direct Alice, T2 implicit-only Alice. Group Alice ends up direct.
-    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
-    const ctx = makeCtx({
-      assignedPeopleMap: new Map([
-        [10, [alice]],
-        [11, [carol]],
-      ]),
-    })
-    const result = partitionByGroup(
-      todos,
-      'people',
-      ctx,
-      undefined,
-      ['person-1'],
-      (t) => (t.id === 11 ? ['person-1'] : []),
-    )
-    expect(result.groups).toHaveLength(1)
-    expect(result.groups[0]!.tier).toBe('direct')
-    expect(result.groups[0]!.todos.map((t) => t.id).sort()).toEqual([10, 11])
-  })
-
-  it('orders [direct, implicit] tiers — direct first then implicit, preserving filter-set order', () => {
-    // Filter [Alice, Bob]. Alice is implicit-only; Bob is direct. Output:
-    // [Bob, Alice] (direct tier first, implicit at bottom).
-    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
-    const ctx = makeCtx({
-      assignedPeopleMap: new Map([
-        [10, [bob]],
-        [11, [carol]],
-      ]),
-    })
-    const result = partitionByGroup(
-      todos,
-      'people',
-      ctx,
-      undefined,
-      ['person-1', 'person-2'],
-      (t) => (t.id === 11 ? ['person-1'] : []),
-    )
-    expect(result.groups.map((g) => g.key)).toEqual(['person-2', 'person-1'])
-    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'implicit'])
-  })
-
-  it('keeps filter-set order when both keys are direct', () => {
+  it('orders groups by filter-set order, not alphabetically', () => {
     const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
     const ctx = makeCtx({
       assignedPeopleMap: new Map([
@@ -775,50 +604,19 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       'people',
       ctx,
       undefined,
-      ['person-1', 'person-2'],
+      ['person-2', 'person-1'],
     )
-    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
-    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'direct'])
-  })
-
-  it('keeps filter-set order within the implicit tier when both keys are implicit-only', () => {
-    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
-    const ctx = makeCtx({
-      assignedPeopleMap: new Map([
-        [10, [carol]],
-        [11, [dave]],
-      ]),
-    })
-    const result = partitionByGroup(
-      todos,
-      'people',
-      ctx,
-      undefined,
-      ['person-1', 'person-2'],
-      (t) => (t.id === 10 ? ['person-1'] : ['person-2']),
-    )
-    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
-    expect(result.groups.map((g) => g.tier)).toEqual(['implicit', 'implicit'])
-  })
-
-  it('reports tier="direct" for every group when restrict mode is unset (regression guard)', () => {
-    const todos = [
-      makeTodo({ id: 10, statusId: 1 }),
-      makeTodo({ id: 11, statusId: 2 }),
-    ]
-    const result = partitionByGroup(todos, 'status', makeCtx({ statuses: STATUSES }))
-    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'direct'])
+    expect(result.groups.map((g) => g.key)).toEqual(['person-2', 'person-1'])
   })
 
   it('tag analog — filter narrows visible tag sections, drops other tags', () => {
-    const x: Tag = { id: 1, name: 'x' }
-    const y: Tag = { id: 2, name: 'y' }
-    const z: Tag = { id: 3, name: 'z' }
+    const x: Tag = { id: 1, name: 'x', color: '#888' }
+    const y: Tag = { id: 2, name: 'y', color: '#888' }
+    const z: Tag = { id: 3, name: 'z', color: '#888' }
     const todos = [makeTodo({ id: 10 })]
     const ctx = makeCtx({ assignedTagsMap: new Map([[10, [x, y, z]]]) })
     const result = partitionByGroup(todos, 'tag', ctx, undefined, ['tag-1'])
     expect(result.groups.map((g) => g.key)).toEqual(['tag-1'])
-    expect(result.groups[0]!.tier).toBe('direct')
     expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
   })
 
@@ -830,29 +628,6 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
     const result = partitionByGroup(todos, 'people', ctx, undefined, ['person-1'])
     expect(result.groups).toEqual([])
     expect(result.ungrouped.map((t) => t.id)).toEqual([10])
-  })
-
-  it('emits via implicitKeysFor in restrict mode even when directKeys is empty', () => {
-    // Task with no direct people but implicitKeysFor returns a filter-matched
-    // key (e.g., task assigned only to an org whose member is in the people
-    // filter, surfaced via personFilterMode='include-orgs' upstream). Emits
-    // as implicit-tier; mirrors ListView legacy `buildPeopleSections` — the
-    // migration in P3 of grouping-bucketers-consolidation depends on this.
-    const todos = [makeTodo({ id: 10 })]
-    const ctx = makeCtx({ assignedPeopleMap: new Map() })
-    const result = partitionByGroup(
-      todos,
-      'people',
-      ctx,
-      undefined,
-      ['person-1'],
-      () => ['person-1'],
-    )
-    expect(result.ungrouped).toEqual([])
-    expect(result.groups).toHaveLength(1)
-    expect(result.groups[0]!.key).toBe('person-1')
-    expect(result.groups[0]!.tier).toBe('implicit')
-    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
   })
 
   it('ignores prioritizeGroupKeys when restrictToFilterSet drives the order', () => {

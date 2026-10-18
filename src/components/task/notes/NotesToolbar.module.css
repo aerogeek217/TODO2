@@ -1,0 +1,139 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-high);
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.btnBold {
+  font-weight: 700;
+}
+
+.btnItalic {
+  font-style: italic;
+}
+
+.sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--color-border);
+}
+
+.spacer {
+  margin-left: auto;
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.copyBtn:hover:not(:disabled) {
+  background: var(--color-surface-high);
+}
+
+.copyBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Convert: ghost, glyph + label + count badge. The label hides in a cell
+   narrower than 360px (glyph + badge only; the accessible name keeps it). */
+.toolbar {
+  container-type: inline-size;
+}
+
+.convertBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 4px 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.convertBtn:hover:not([aria-disabled="true"]) {
+  background: var(--color-surface-hover);
+}
+
+.convertBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.convertBtn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.convertBadge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.convertBtn[data-selection="true"] .convertBadge {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+@container (max-width: 359px) {
+  .convertLabel {
+    display: none;
+  }
+}

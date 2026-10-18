@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import Dexie from 'dexie'
 import { db } from '../../data/database'
 import { auditData, cleanupIssues, MAX_SAMPLES_PER_ISSUE } from '../../data/audit'
+import { emptyPredicate } from '../../models'
 import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
@@ -9,25 +10,22 @@ beforeEach(async () => {
   await db.open()
 })
 
-const now = new Date()
-
-/** Seed a canvas + project + todo so FKs are valid. Returns their IDs. */
+/** Seed a todo so join rows have a valid target. Returns its id. */
 async function seedBase() {
-  const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-  const projectId = await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: now } as any)
-  const todoId = await db.todos.add(makeTodo({ canvasId, projectId }) as any)
-  return { canvasId, projectId, todoId: todoId as number }
+  const todoId = await db.todos.add(makeTodo() as any)
+  return { todoId: todoId as number }
 }
 
 describe('auditData', () => {
   it('reports no issues on clean data', async () => {
     const { todoId } = await seedBase()
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
-    const orgId = await db.orgs.add({ name: 'Acme', color: '#00f' } as any)
     await db.todoPeople.add({ todoId, personId })
-    await db.todoOrgs.add({ todoId, orgId })
-    await db.personOrgs.add({ personId, orgId })
-    await db.taskboards.add({ entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    const listDefinitionId = await db.listDefinitions.add({
+      name: 'Focus', sortOrder: 0, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { focus: true } } },
+    })
+    await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(0)
@@ -61,21 +59,6 @@ describe('auditData', () => {
     expect(report.issues.find((i) => i.table === 'todoPeople')).toBeDefined()
   })
 
-  it('detects orphaned todoOrgs', async () => {
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-
-    const report = await auditData()
-    expect(report.issues.find((i) => i.table === 'todoOrgs')!.count).toBe(1)
-  })
-
-  it('detects orphaned personOrgs', async () => {
-    const orgId = await db.orgs.add({ name: 'Acme', color: '#00f' } as any)
-    await db.personOrgs.add({ personId: 999, orgId })
-
-    const report = await auditData()
-    expect(report.issues.find((i) => i.table === 'personOrgs')!.count).toBe(1)
-  })
-
   it('detects orphaned todoTags (deleted todo)', async () => {
     const tagId = await db.tags.add({ name: 'urgent', color: '#000' } as any)
     await db.todoTags.add({ todoId: 999, tagId })
@@ -94,89 +77,19 @@ describe('auditData', () => {
     expect(report.issues.find((i) => i.table === 'todoTags')!.count).toBe(1)
   })
 
-  it('detects floating horizons with deleted canvasId', async () => {
-    await db.floatingHorizons.add({ canvasId: 999, x: 0, y: 0, width: 520, height: 360 } as any)
+  it('detects orphaned todoEvents (deleted todo)', async () => {
+    await db.todoEvents.add({ todoId: 999, type: 'created', fromValue: null, toValue: null, timestamp: new Date().toISOString() })
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'floatingHorizons')!
+    const issue = report.issues.find((i) => i.table === 'todoEvents')!
     expect(issue.count).toBe(1)
     expect(issue.fix).toBe('delete')
-  })
-
-  it('detects orphaned taskboard entries referencing deleted todos', async () => {
-    await db.taskboards.add({
-      entries: [
-        { todoId: 999, sortOrder: 0 },
-        { todoId: 888, sortOrder: 1 },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'taskboards')!
-    expect(issue.count).toBe(2)
-    expect(issue.fix).toBe('clear-field')
   })
 
   // --- Dangling foreign keys ---
 
-  it('detects todos with deleted projectId', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId, projectId: 999 }) as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'projectId')!
-    expect(issue.count).toBe(1)
-    expect(issue.fix).toBe('clear-field')
-  })
-
-  it('detects todos with deleted canvasId', async () => {
-    await db.todos.add(makeTodo({ canvasId: 999 }) as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'canvasId')!
-    expect(issue.count).toBe(1)
-  })
-
-  it('detects projects with deleted canvasId', async () => {
-    await db.projects.add({ name: 'P', canvasId: 999, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: now } as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'projects' && i.field === 'canvasId')!
-    expect(issue.count).toBe(1)
-  })
-
-  it('detects listInsets with deleted canvasId', async () => {
-    await db.listInsets.add({ listDefinitionId: 1, canvasId: 999, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'listInsets')!
-    expect(issue.count).toBe(1)
-    expect(issue.fix).toBe('delete')
-  })
-
-  it('detects floating notes with deleted canvasId', async () => {
-    await db.floatingNotes.add({ canvasId: 999, x: 0, y: 0, width: 150, height: 150 } as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'floatingNotes')!
-    expect(issue.count).toBe(1)
-    expect(issue.fix).toBe('delete')
-  })
-
-  it('detects floating calendars with deleted canvasId', async () => {
-    await db.floatingCalendars.add({ canvasId: 999, x: 0, y: 0, width: 200, height: 200 } as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'floatingCalendars')!
-    expect(issue.count).toBe(1)
-    expect(issue.fix).toBe('delete')
-  })
-
   it('detects todos with deleted statusId', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId, statusId: 999 }) as any)
+    await db.todos.add(makeTodo({ statusId: 999 }) as any)
 
     const report = await auditData()
     const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'statusId')!
@@ -186,17 +99,15 @@ describe('auditData', () => {
   })
 
   it('ignores todos with valid statusId', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
     const statusId = await db.statuses.add({ name: 'Open', color: '#00ff00', sortOrder: 0 } as any)
-    await db.todos.add(makeTodo({ canvasId, statusId }) as any)
+    await db.todos.add(makeTodo({ statusId }) as any)
 
     const report = await auditData()
     expect(report.issues.find((i) => i.field === 'statusId')).toBeUndefined()
   })
 
   it('ignores todos with null/undefined statusId', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId }) as any)
+    await db.todos.add(makeTodo() as any)
 
     const report = await auditData()
     expect(report.issues.find((i) => i.field === 'statusId')).toBeUndefined()
@@ -206,40 +117,22 @@ describe('auditData', () => {
 
   it('detects multiple issue types in one scan', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
-    await db.todos.add(makeTodo({ projectId: 777 }) as any)
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
+    await db.listOrders.add({ listDefinitionId: 555, todoId: 999, rank: 1 })
+    await db.todos.add(makeTodo({ statusId: 777 }) as any)
 
     const report = await auditData()
     expect(report.issues.length).toBeGreaterThanOrEqual(3)
     expect(report.totalOrphans).toBeGreaterThanOrEqual(4)
   })
 
-  it('treats null projectId without canvasId as valid (no issue)', async () => {
-    await db.todos.add(makeTodo({}) as any) // no canvasId, no projectId
-
-    const report = await auditData()
-    expect(report.totalOrphans).toBe(0)
-  })
-
-  it('detects unplaced tasks (canvasId set but no projectId)', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId }) as any)
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.description.includes('not assigned to any project'))!
-    expect(issue).toBeDefined()
-    expect(issue.count).toBe(1)
-    expect(issue.fix).toBe('clear-field')
-    expect(issue.field).toBe('canvasId')
-  })
 })
 
 describe('cleanupIssues', () => {
-  it('deletes orphaned join rows and strips orphaned taskboard entries', async () => {
+  it('deletes orphaned join rows and list ranks', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    const boardId = await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
+    await db.listOrders.add({ listDefinitionId: 555, todoId: 999, rank: 1 })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(3)
@@ -248,57 +141,31 @@ describe('cleanupIssues', () => {
     expect(cleaned).toBe(3)
 
     expect(await db.todoPeople.count()).toBe(0)
-    expect(await db.todoOrgs.count()).toBe(0)
-    const board = await db.taskboards.get(boardId)
-    expect(board?.entries).toEqual([])
-  })
-
-  it('clears dangling projectId on todos', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    const todoId = await db.todos.add(makeTodo({ canvasId, projectId: 999 }) as any)
-
-    const report = await auditData()
-    await cleanupIssues(report.issues)
-
-    const todo = await db.todos.get(todoId)
-    expect(todo!.projectId).toBeUndefined()
-    expect(todo!.title).toBe('Task') // rest of todo intact (canonical makeTodo's default)
+    expect(await db.todoTags.count()).toBe(0)
+    expect(await db.listOrders.count()).toBe(0)
   })
 
   it('clears dangling statusId on todos', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    const todoId = await db.todos.add(makeTodo({ canvasId, statusId: 999 }) as any)
+    const todoId = await db.todos.add(makeTodo({ statusId: 999 }) as any)
 
     const report = await auditData()
     await cleanupIssues(report.issues)
 
     const todo = await db.todos.get(todoId)
     expect(todo!.statusId).toBeUndefined()
-    expect(todo!.title).toBe('Task')
+    expect(todo!.title).toBe('Task') // rest of todo intact (canonical makeTodo's default)
   })
 
-  it('deletes orphaned listInsets and floating notes', async () => {
-    await db.listInsets.add({ listDefinitionId: 1, canvasId: 999, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)
-    await db.floatingNotes.add({ canvasId: 999, x: 0, y: 0, width: 150, height: 150 } as any)
+  it('deletes orphaned event-log entries, keeping the rest', async () => {
+    const { todoId } = await seedBase()
+    await db.todoEvents.add({ todoId, type: 'created', fromValue: null, toValue: null, timestamp: new Date().toISOString() })
+    await db.todoEvents.add({ todoId: 999, type: 'created', fromValue: null, toValue: null, timestamp: new Date().toISOString() })
 
     const report = await auditData()
     const cleaned = await cleanupIssues(report.issues)
-    expect(cleaned).toBe(2)
+    expect(cleaned).toBe(1)
 
-    expect(await db.listInsets.count()).toBe(0)
-    expect(await db.floatingNotes.count()).toBe(0)
-  })
-
-  it('deletes orphaned todoTags and floating horizons', async () => {
-    await db.todoTags.add({ todoId: 999, tagId: 888 })
-    await db.floatingHorizons.add({ canvasId: 999, x: 0, y: 0, width: 520, height: 360 } as any)
-
-    const report = await auditData()
-    const cleaned = await cleanupIssues(report.issues)
-    expect(cleaned).toBe(2)
-
-    expect(await db.todoTags.count()).toBe(0)
-    expect(await db.floatingHorizons.count()).toBe(0)
+    expect((await db.todoEvents.toArray()).map((ev) => ev.todoId)).toEqual([todoId])
   })
 
   it('preserves valid data while cleaning orphans', async () => {
@@ -322,11 +189,9 @@ describe('cleanupIssues', () => {
   it('database is clean after cleanup', async () => {
     // Seed multiple types of orphans
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    await db.personOrgs.add({ personId: 999, orgId: 888 })
-    await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
-    // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
-    await db.todos.add(makeTodo({ projectId: 777 }) as any)
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
+    await db.listOrders.add({ listDefinitionId: 555, todoId: 999, rank: 1 })
+    await db.todos.add(makeTodo({ statusId: 777 }) as any)
 
     const report = await auditData()
     expect(report.totalOrphans).toBeGreaterThan(0)
@@ -363,30 +228,14 @@ describe('audit samples', () => {
   })
 
   it('flags the dangling FK field on a row that will be cleared', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId, projectId: 999 }) as any)
+    await db.todos.add(makeTodo({ statusId: 999 }) as any)
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.field === 'projectId')!
+    const issue = report.issues.find((i) => i.field === 'statusId')!
     expect(issue.samples).toHaveLength(1)
-    expect(issue.samples![0]!.badFields).toEqual(['projectId'])
-    expect(issue.samples![0]!.row.projectId).toBe(999)
-  })
-
-  it('returns one sample per offending taskboard entry, not per board', async () => {
-    await db.taskboards.add({
-      entries: [
-        { todoId: 999, sortOrder: 0 },
-        { todoId: 888, sortOrder: 1 },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'taskboards')!
-    expect(issue.samples).toHaveLength(2)
-    expect(issue.samples!.map((s) => s.row.todoId).sort()).toEqual([888, 999])
+    expect(issue.samples![0]!.badFields).toEqual(['statusId'])
+    expect(issue.samples![0]!.row.statusId).toBe(999)
+    expect(issue.samples![0]!.note).toBe('statusId 999 not in statuses')
   })
 
   it('caps samples at MAX_SAMPLES_PER_ISSUE while ids covers every offender', async () => {
@@ -404,14 +253,13 @@ describe('audit samples', () => {
   })
 
   it('flags the bad field for unknown-row schema rejections', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    // listInsets requires listDefinitionId + isCollapsed.
-    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+    // A person requires initials.
+    await db.people.add({ name: 'No initials' } as any)
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.description.startsWith('Rows in "listInsets"'))!
+    const issue = report.issues.find((i) => i.description.startsWith('Rows in "people"'))!
     expect(issue.samples).toHaveLength(1)
-    expect(issue.samples![0]!.badFields!.length).toBeGreaterThan(0)
+    expect(issue.samples![0]!.badFields).toEqual(['initials'])
     expect(issue.samples![0]!.note).toMatch(/Schema validator rejected/)
   })
 
@@ -430,17 +278,15 @@ describe('audit samples', () => {
 
 // --- Unknown-row detection: rows in known tables that the current schema rejects.
 // `validateRow` runs every row through its per-table validator; a row whose
-// shape no longer matches (e.g. listInset without `listDefinitionId` after the
-// v23 strip) is flagged for deletion.
+// shape the validators reject (e.g. a person without initials) is flagged for
+// deletion.
 describe('unknown-row audit', () => {
   it('detects rows in a known table that fail current schema validation', async () => {
-    // Seed a canvas so the canvas-orphan check doesn't ALSO flag this row.
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    // Bad shape: listDefinitionId + isCollapsed are required after P4.
-    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+    // Bad shape: a person requires initials.
+    await db.people.add({ name: 'No initials' } as any)
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.description.startsWith('Rows in "listInsets"'))!
+    const issue = report.issues.find((i) => i.description.startsWith('Rows in "people"'))!
     expect(issue).toBeDefined()
     expect(issue.fix).toBe('delete')
     expect(issue.count).toBe(1)
@@ -448,18 +294,127 @@ describe('unknown-row audit', () => {
   })
 
   it('cleanup removes unknown rows but preserves valid ones', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    // Bad row (missing listDefinitionId / isCollapsed)
-    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+    // Bad row (missing initials)
+    await db.people.add({ name: 'No initials' } as any)
     // Valid row
-    await db.listInsets.add({ listDefinitionId: 1, canvasId, x: 10, y: 10, width: 100, height: 100, isCollapsed: false } as any)
+    await db.people.add({ name: 'Alice', initials: 'AL' })
 
     const report = await auditData()
     await cleanupIssues(report.issues)
 
-    const remaining = await db.listInsets.toArray()
+    const remaining = await db.people.toArray()
     expect(remaining).toHaveLength(1)
-    expect(remaining[0]!.x).toBe(10)
+    expect(remaining[0]!.name).toBe('Alice')
+  })
+})
+
+// Readable rows holding a part an import would drop (stored before import
+// checked it): reported, and cleanup rewrites them the way import stores them.
+describe('sanitisable-row audit', () => {
+  const list = (name: string, predicate: Record<string, unknown>) => ({
+    name, sortOrder: 0, sort: 'manual', grouping: 'none',
+    membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
+  })
+
+  it('reports a list with a malformed filter and names what cleanup drops', async () => {
+    const id = await db.listDefinitions.add(list('Bad', { personIds: 5, markers: 'warm' }) as any)
+    await db.listDefinitions.add(list('Fine', { personIds: [1] }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped, priority filter dropped')
+  })
+
+  it('reports a list with an unknown sort direction; cleanup drops it and keeps the sort', async () => {
+    const id = await db.listDefinitions.add({ ...list('Odd', {}), sort: 'name', sortDirection: 'up' } as any)
+    await db.listDefinitions.add({ ...list('Down', {}), sort: 'name', sortDirection: 'desc' } as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: unknown sort direction dropped')
+    await cleanupIssues(report.issues)
+    const row = await db.listDefinitions.get(id)
+    expect(row).toMatchObject({ name: 'Odd', sort: 'name' })
+    expect(row && 'sortDirection' in row).toBe(false)
+  })
+
+  it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {
+    const id = await db.listDefinitions.add(list('Bad', { personIds: 5, statusIds: [2], searchText: 'x'.repeat(600) }) as any)
+
+    await cleanupIssues((await auditData()).issues)
+
+    const row = await db.listDefinitions.get(id)
+    expect(row).toMatchObject({ id, name: 'Bad', membership: { kind: 'custom', predicate: { personIds: null, statusIds: [2], searchText: 'x'.repeat(500) } } })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('reports a person whose email is not one valid address; cleanup drops just the email', async () => {
+    const id = await db.people.add({ name: 'Ann', initials: 'AN', color: '#123456', email: 'a@b.com,evil@x.com' })
+    await db.people.add({ name: 'Bo', initials: 'BO', email: 'bo@example.com' })
+
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'people', fix: 'sanitize', count: 1, ids: [id] })])
+    await cleanupIssues(report.issues)
+
+    expect(await db.people.get(id)).toEqual({ id, name: 'Ann', initials: 'AN', color: '#123456' })
+    expect((await db.people.toArray()).map((p) => p.email)).toEqual([undefined, 'bo@example.com'])
+  })
+})
+
+describe('layouts audit', () => {
+  const at = new Date('2026-09-01T09:00:00.000Z')
+  const notes = (id: string) => ({ id, kind: 'notes', config: {} })
+  const layout = (name: string, columns: unknown) => ({ name, columns, createdAt: at, modifiedAt: at })
+  const good = () => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }]
+
+  it('does not flag a valid layout', async () => {
+    await db.layouts.add(layout('Daily', good()) as any)
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('reports a layout the schema cannot read for repair, naming what cleanup drops', async () => {
+    const id = await db.layouts.add(layout('Broken', [
+      { id: 'c1', weight: 1, cells: [{ id: 'k1', weight: -1, tabs: [notes('t1'), { id: 't2', kind: 'status', config: {} }] }] },
+    ]) as any)
+    await db.layouts.add(layout('Daily', good()) as any)
+
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
+    const sample = report.issues[0]!.samples![0]!
+    expect(sample.badFields).toEqual(['columns[0].cells[0].weight'])
+    expect(sample.note).toBe('Schema validator rejected this row: columns[0].cells[0].weight. Cleanup: size reset, tab dropped')
+  })
+
+  it('cleanup repairs a corrupt active layout instead of deleting it, keeping its good parts', async () => {
+    const id = await db.layouts.add(layout('  ', [
+      { id: 'c1', weight: 2, cells: [{ id: 'k1', weight: 1, activeTabId: 't9', tabs: [notes('t1'), { id: 't1', kind: 'notes', config: {} }] }] },
+      { id: 'c2', weight: 1, cells: [] },
+      'not a column',
+    ]) as any) as number
+    await db.settings.put({ key: 'activeLayoutId', value: String(id) })
+
+    await cleanupIssues((await auditData()).issues)
+
+    expect(await db.layouts.count()).toBe(1)
+    expect(await db.settings.get('activeLayoutId')).toEqual({ key: 'activeLayoutId', value: String(id) })
+    expect(await db.layouts.get(id)).toEqual({
+      id, name: 'Layout', createdAt: at, modifiedAt: at,
+      columns: [{ id: 'c1', weight: 2, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }],
+    })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('a layout with nothing usable left is kept, empty', async () => {
+    const id = await db.layouts.add({ name: 'Only', columns: 'garbage', createdAt: 'never', modifiedAt: at } as any) as number
+
+    await cleanupIssues((await auditData()).issues)
+
+    const row = await db.layouts.get(id)
+    expect(row).toMatchObject({ id, name: 'Only', columns: [], modifiedAt: at })
+    expect(row!.createdAt).toBeInstanceOf(Date)
+    expect((await auditData()).issues).toEqual([])
   })
 })
 
@@ -493,14 +448,14 @@ describe('unknown-setting audit', () => {
 
 // --- Invalid-setting-value detection: rows in `settings` whose `key` is in
 // the build's recognised set but whose `value` fails the per-key validator
-// (e.g. a legacy-map-shape `horizonSlots` carried over from a pre-strip DB).
+// (e.g. a malformed `weekStartsOn` carried over from an older DB).
 // These slip through both the unknown-row pass (skips settings entirely) and
 // the unknown-key pass (key is recognised) — this dedicated pass closes the
 // gap so the user can drop them via audit cleanup.
 describe('invalid-setting-value audit', () => {
   it('flags a recognised settings key whose value fails the per-key validator', async () => {
-    // Legacy map shape — `horizonSlots` validator now requires an array.
-    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1 }) })
+    // `weekStartsOn` must be 0 or 1.
+    await db.settings.put({ key: 'weekStartsOn', value: '5' })
 
     const report = await auditData()
     const issue = report.issues.find((i) =>
@@ -508,15 +463,15 @@ describe('invalid-setting-value audit', () => {
     )!
     expect(issue).toBeDefined()
     expect(issue.fix).toBe('delete')
-    expect(issue.keys).toEqual(['horizonSlots'])
+    expect(issue.keys).toEqual(['weekStartsOn'])
     expect(issue.count).toBe(1)
     expect(issue.samples).toHaveLength(1)
     expect(issue.samples![0]!.badFields).toEqual(['value'])
-    expect(issue.samples![0]!.note).toMatch(/horizonSlots must be an array/)
+    expect(issue.samples![0]!.note).toMatch(/weekStartsOn must be 0 or 1/)
   })
 
   it('does not flag valid settings rows', async () => {
-    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify([1, 2, 3]) })
+    await db.settings.put({ key: 'weekStartsOn', value: '1' })
     await db.settings.put({ key: 'themeMode', value: 'dark' })
 
     const report = await auditData()
@@ -541,14 +496,14 @@ describe('invalid-setting-value audit', () => {
   })
 
   it('cleanup deletes invalid-value rows by key, leaving valid ones intact', async () => {
-    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1 }) })
+    await db.settings.put({ key: 'weekStartsOn', value: '5' })
     await db.settings.put({ key: 'themeMode', value: 'dark' })
 
     const report = await auditData()
     const cleaned = await cleanupIssues(report.issues)
     expect(cleaned).toBeGreaterThanOrEqual(1)
 
-    expect(await db.settings.get('horizonSlots')).toBeUndefined()
+    expect(await db.settings.get('weekStartsOn')).toBeUndefined()
     expect(await db.settings.get('themeMode')).toBeDefined()
   })
 })
@@ -557,6 +512,32 @@ describe('invalid-setting-value audit', () => {
 // schema does not register. We mock `db.backendDB()` to return a side Dexie
 // instance whose IDB has an extra store; that bypasses the constraint that
 // Dexie itself can only register stores at schema-version time.
+describe('sanitisable settings audit (keyboard shortcuts)', () => {
+  it('reports a shortcuts row whose unknown, refused or clashing overrides import would drop, naming each', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{"nope":"x","undo":"Mod-w","focus-filters":"n","toggle-complete":"n","open-settings":"g o"}' })
+
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['keyboardShortcuts'] })])
+    const note = report.issues[0]!.samples![0]!.note
+    expect(note).toMatch(/^Cleanup: unknown shortcut "nope" dropped, Undo: .*\(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped$/)
+  })
+
+  it('cleanup rewrites the row to what import keeps; a clean row is not reported', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{"nope":"x","focus-filters":"n","toggle-complete":"n"}' })
+
+    await cleanupIssues((await auditData()).issues)
+
+    expect(await db.settings.get('keyboardShortcuts')).toEqual({ key: 'keyboardShortcuts', value: '{"focus-filters":"n"}' })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('cleanup resets unreadable shortcuts text', async () => {
+    await db.settings.put({ key: 'keyboardShortcuts', value: '{oops' })
+    await cleanupIssues((await auditData()).issues)
+    expect(await db.settings.get('keyboardShortcuts')).toEqual({ key: 'keyboardShortcuts', value: '{}' })
+  })
+})
+
 describe('unknown-table audit', () => {
   let sideDb: Dexie | null = null
 
@@ -584,6 +565,19 @@ describe('unknown-table audit', () => {
     expect(issue.field).toBe('__store__')
   })
 
+  it('flags a store of a removed table (projects) as unknown', async () => {
+    sideDb = new Dexie('audit-unknown-' + Math.random().toString(36).slice(2))
+    sideDb.version(1).stores({ projects: '++id', todos: '++id' })
+    await sideDb.open()
+    await sideDb.table('projects').add({ name: 'Work' })
+
+    vi.spyOn(db, 'backendDB').mockReturnValue(sideDb.backendDB())
+
+    const report = await auditData()
+    const dropped = report.issues.filter((i) => i.fix === 'drop-store').map((i) => i.table)
+    expect(dropped).toEqual(['projects'])
+  })
+
   it('cleanup clears every row from an unknown store', async () => {
     sideDb = new Dexie('audit-unknown-' + Math.random().toString(36).slice(2))
     sideDb.version(1).stores({ legacyFoo: '++id' })
@@ -601,20 +595,17 @@ describe('unknown-table audit', () => {
 })
 
 // --- Orphan-recurrence-rule audit: a `recurrenceRule` is dead weight on a row
-// that has no precise anchor (`dueDate` or precise `scheduledDate`) because
-// `recurrenceAnchor` returns null and `advanceRecurring` short-circuits. The
-// repository invariant (`todoRepository.update` / `bulkUpdate`) drops the rule
-// on new writes; this audit pass detects + cleans rows that pre-date the
-// invariant or were written by a path that bypassed the repository.
+// that has no due date because a rule advances from the due date and
+// `advanceRecurring` short-circuits without one. The repository invariant
+// (`todoRepository.update` / `bulkUpdate`) drops the rule on new writes; this
+// audit pass detects + cleans rows that pre-date the invariant or were written
+// by a path that bypassed the repository.
 describe('orphan-recurrence-rule audit', () => {
-  const fuzzy = { kind: 'fuzzy' as const, token: 'this-week' as const, setAt: now }
-  const precise = { kind: 'date' as const, value: new Date(2026, 5, 1) }
+  const followup = new Date(2026, 5, 1)
 
-  it('detects a recurring task whose only schedule is fuzzy', async () => {
-    const { canvasId, projectId } = await seedBase()
+  it('detects a recurring task whose only date is a follow-up', async () => {
     await db.todos.add(makeTodo({
-      canvasId, projectId,
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'weekly' },
     }) as any)
 
@@ -625,13 +616,11 @@ describe('orphan-recurrence-rule audit', () => {
     expect(issue.fix).toBe('clear-field')
     expect(issue.samples).toHaveLength(1)
     expect(issue.samples![0]!.badFields).toEqual(['recurrenceRule'])
-    expect(issue.samples![0]!.note).toMatch(/no precise anchor/)
+    expect(issue.samples![0]!.note).toMatch(/no anchor/)
   })
 
-  it('detects a recurring task with no scheduledDate and no deadline', async () => {
-    const { canvasId, projectId } = await seedBase()
+  it('detects a recurring task with no dates at all', async () => {
     await db.todos.add(makeTodo({
-      canvasId, projectId,
       recurrenceRule: { type: 'monthly', originalDayOfMonth: 15 },
     }) as any)
 
@@ -640,23 +629,8 @@ describe('orphan-recurrence-rule audit', () => {
     expect(issue.count).toBe(1)
   })
 
-  it('does not flag a recurring task with a precise scheduledDate', async () => {
-    const { canvasId, projectId } = await seedBase()
+  it('does not flag a recurring task anchored on a due date', async () => {
     await db.todos.add(makeTodo({
-      canvasId, projectId,
-      scheduledDate: precise,
-      recurrenceRule: { type: 'weekly' },
-    }) as any)
-
-    const report = await auditData()
-    expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
-  })
-
-  it('does not flag a recurring task anchored on a deadline (even with fuzzy schedule)', async () => {
-    const { canvasId, projectId } = await seedBase()
-    await db.todos.add(makeTodo({
-      canvasId, projectId,
-      scheduledDate: fuzzy,
       dueDate: new Date(2026, 5, 10),
       recurrenceRule: { type: 'weekly' },
     }) as any)
@@ -665,11 +639,9 @@ describe('orphan-recurrence-rule audit', () => {
     expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
   })
 
-  it('does not flag a non-recurring task without an anchor', async () => {
-    const { canvasId, projectId } = await seedBase()
+  it('does not flag a non-recurring task without a due date', async () => {
     await db.todos.add(makeTodo({
-      canvasId, projectId,
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
     }) as any)
 
     const report = await auditData()
@@ -677,11 +649,9 @@ describe('orphan-recurrence-rule audit', () => {
   })
 
   it('cleanup strips recurrenceRule and leaves the rest of the row intact', async () => {
-    const { canvasId, projectId } = await seedBase()
     const todoId = await db.todos.add(makeTodo({
-      canvasId, projectId,
       title: 'Stale recurring',
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'weekly' },
     }) as any) as number
 
@@ -692,14 +662,12 @@ describe('orphan-recurrence-rule audit', () => {
     const after = await db.todos.get(todoId)
     expect(after!.recurrenceRule).toBeUndefined()
     expect(after!.title).toBe('Stale recurring')
-    expect(after!.scheduledDate).toEqual(fuzzy)
+    expect(after!.nextFollowupAt).toEqual(followup)
   })
 
   it('is idempotent: re-running audit after cleanup reports no recurrence issues', async () => {
-    const { canvasId, projectId } = await seedBase()
     await db.todos.add(makeTodo({
-      canvasId, projectId,
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'weekly' },
     }) as any)
 
@@ -719,8 +687,7 @@ describe('orphan-recurrence-rule audit', () => {
 // on an empty store).
 describe('audit idempotency with unknown items', () => {
   it('audit + cleanup twice yields no issues on the second pass', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+    await db.people.add({ name: 'No initials' } as any)
     await db.settings.put({ key: 'legacyDashboard', value: 'x' })
 
     const first = await auditData()
