@@ -92,7 +92,7 @@ const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
 
 /**
  * The one modal frame: a backdrop and a centred panel (`role="dialog"`,
- * `aria-modal`), rendered into `document.body`. Behaviour (design D0):
+ * `aria-modal`), rendered into `document.body`. Behaviour:
  *
  * - **Esc** closes it — from inside the panel, or with nothing focused (the
  *   topmost dialog only). A key a layer inside already handled
