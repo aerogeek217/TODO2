@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 /**
  * Counts how often named React components render, with no app code: a
@@ -10,6 +10,10 @@ import type { Page } from '@playwright/test'
  * (function names), so this works against `npm run dev` only.
  *
  * For checks like "a divider drag re-renders no task row": reset, act, read.
+ * It leans on React internals (the hook's `onCommitFiberRoot`, fiber
+ * `child` / `sibling` / `alternate` / `flags`), so a check of "0 renders"
+ * first proves the counter still sees renders (`expectCounterLive`) — a React
+ * change then fails loudly instead of every "0" passing.
  */
 
 declare global {
@@ -68,6 +72,16 @@ export async function installRenderCounter(page: Page, names: readonly string[])
       },
     })
   }, [...names])
+}
+
+/**
+ * Fails unless the counter has seen `name` render (its mounts count) — call
+ * after the components showed and before `resetRenderCounts`.
+ */
+export async function expectCounterLive(page: Page, name: string): Promise<void> {
+  await expect.poll(async () => (await readRenderCounts(page))[name] ?? 0, {
+    message: `the render counter saw no ${name} render: has React's DevTools hook changed?`,
+  }).toBeGreaterThan(0)
 }
 
 /** Sets every count back to 0. */

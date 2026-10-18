@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
-import { installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
+import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
 import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
 
 /**
@@ -125,6 +125,7 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   expect(await laidOutDetails(first)).toBe(262)
   await settled(widget)
   const writesBefore = await storageWrites(page)
+  await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
 
   const steps = 20
@@ -141,7 +142,9 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
     expect(await storedViewState(page) ?? {}).toEqual({})
   })
   await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 342 })
-  // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
+  // The release writes the view state: the widget re-renders once (which the
+  // counter sees — an update, not a mount), its (memoised) rows don't.
+  await expect.poll(async () => (await readRenderCounts(page)).ListWidget).toBeGreaterThan(0)
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
   for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(342)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
@@ -153,6 +156,7 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
   const eis = page.locator('[data-eisenhower="tab"]')
   await expect(eis.locator('[data-todo-id]')).toHaveCount(ROWS)
   await settled(eis)
+  await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
   await dragDivider(page, eis.locator('[data-eis-quadrant="do"]'), 40, 10, async () => {
     // Every quadrant follows (each clamped to its own room; these all have it).
@@ -171,6 +175,7 @@ test('dashboard: both task-row sections follow the drag without the widget or it
   await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'hot' }, { id: 'followup' }] } }))
   await expect(page.locator('[data-dash-section="followup"] [data-todo-id]').first()).toBeVisible()
   await settled(page.locator('[data-dash-section="followup"]'))
+  await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
   await dragDivider(page, page.locator('[data-dash-section="hot"]'), 40, 10, async () => {
     await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="hot"], [data-dash-section="followup"]', 222)
@@ -194,6 +199,7 @@ test('a column or band divider drag: no task row re-renders and the unsaved layo
   const first = widget.locator('[data-todo-id]').first()
   const titleBefore = (await box(first.locator('[data-task-title]'))).width
   const writesBefore = await storageWrites(page)
+  await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
 
   // The column divider: the list narrows live (its titles give way), nothing kept until the release.
