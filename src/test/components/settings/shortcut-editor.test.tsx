@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { Profiler } from 'react'
 import { render, screen, fireEvent, cleanup, act, waitFor } from '@testing-library/react'
 import { SettingsModal } from '../../../components/settings/SettingsModal'
+import { ShortcutEditor } from '../../../components/settings/ShortcutEditor'
 import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { db } from '../../../data/database'
@@ -104,5 +106,29 @@ describe('Settings › Keyboard shortcuts editor', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Reset all' }))
     await waitFor(() => expect(keysOf('focus-filters')).toBe('F'))
     expect(screen.getByRole('button', { name: 'Reset all…' })).toBeDisabled()
+  })
+
+  it('focus is back on Change in the same commit that shows the saved keys (not in a later effect)', async () => {
+    // A save resolves outside any event, so React renders it at default
+    // priority; effects scheduled after that commit can run after the next
+    // check of the page (a busy machine), so focus must move during the commit.
+    const seen: Array<{ keys: string | null | undefined; focusOnChange: boolean }> = []
+    render(
+      <Profiler
+        id="editor"
+        onRender={() => {
+          const change = document.querySelector('[aria-label="Change keys for Command Palette"]')
+          seen.push({ keys: document.querySelector('[data-shortcut-id="command-palette"] kbd')?.textContent, focusOnChange: change !== null && document.activeElement === change })
+        }}
+      >
+        <ShortcutEditor />
+      </Profiler>,
+    )
+    const capture = startRecording('Command Palette')
+    seen.length = 0
+    fireEvent.keyDown(capture, { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true })
+    await waitFor(() => expect(keysOf('command-palette')).toBe('Ctrl+Shift+P'))
+    const shown = seen.find((s) => s.keys === 'Ctrl+Shift+P')
+    expect(shown).toEqual({ keys: 'Ctrl+Shift+P', focusOnChange: true })
   })
 })

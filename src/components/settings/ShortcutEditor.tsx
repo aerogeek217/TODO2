@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { KeyCombo, ShortcutChord, ShortcutId } from '../../models/keyboard-shortcut'
 import { shortcutSpec } from '../../models/keyboard-shortcut'
@@ -65,7 +65,11 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
   const isRecording = recording !== null
   const id = row.id
 
-  useEffect(() => {
+  // In the commit that swaps the capture box and the Change button, so focus
+  // never lands on a removed element: a save ends the recording from an
+  // awaited write (a default-priority render), whose passive effects could
+  // run only after the page had been looked at again.
+  useLayoutEffect(() => {
     if (isRecording) {
       captureRef.current?.focus()
     } else if (refocusRef.current) {
