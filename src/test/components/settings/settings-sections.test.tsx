@@ -29,4 +29,10 @@ describe('Settings sections', () => {
     const headings = Array.from(document.querySelectorAll('h3')).map((h) => h.textContent)
     expect(headings).toEqual(['File storage', 'Import / Export'])
   })
+
+  it('the phone page opens on the section named in its route state (the storage status sheet)', () => {
+    render(<MemoryRouter initialEntries={[{ pathname: '/settings', state: { section: 'database' } }]}><SettingsPage /></MemoryRouter>)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Database')
+    expect(screen.getByRole('button', { name: 'Back to Settings' })).toBeInTheDocument()
+  })
 })

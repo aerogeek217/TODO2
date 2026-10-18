@@ -13,3 +13,8 @@ export const LEGACY_ROUTES: readonly string[] = ['/workspace', '/list', '/calend
 export type AppRoute =
   | typeof ROUTE_WORKSPACE
   | typeof ROUTE_SETTINGS
+
+/** Route state for `/settings`: the mobile Settings page opens on `section` (e.g. from the phone's storage status sheet). */
+export interface SettingsRouteState {
+  section?: 'database'
+}

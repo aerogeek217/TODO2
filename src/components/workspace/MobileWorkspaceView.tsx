@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   getActiveTab,
@@ -138,8 +138,12 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
 /** The frame centres its panel; a bottom sheet sits on the bottom edge, full width. */
 const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
 
-/** Mobile top bar: the layout picker (opens the sheet) and search (opens the filter sheet). */
-function MobileTopBar({ name }: { name: string }) {
+/**
+ * Mobile top bar: the layout picker (opens the sheet), then — at the right —
+ * the storage status (`status`, shown only while a warning is active) and
+ * search (opens the filter sheet).
+ */
+function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   return (
     <header className={styles.topBar}>
@@ -156,14 +160,17 @@ function MobileTopBar({ name }: { name: string }) {
         <span className={styles.pickerName}>{name}</span>
         <ChevronDownIcon />
       </button>
-      <button
-        type="button"
-        className={styles.iconButton}
-        aria-label="Search"
-        onClick={() => useUIStore.getState().openFilterSheetSearch()}
-      >
-        <SearchIcon />
-      </button>
+      <div className={styles.topBarEnd}>
+        {status}
+        <button
+          type="button"
+          className={styles.iconButton}
+          aria-label="Search"
+          onClick={() => useUIStore.getState().openFilterSheetSearch()}
+        >
+          <SearchIcon />
+        </button>
+      </div>
       {sheetOpen && <LayoutSheet onClose={() => setSheetOpen(false)} />}
     </header>
   )
@@ -571,12 +578,13 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
  * sideways, with a strip of their names under the top bar. Tabs switch and
  * cells collapse (view state, saved automatically); changing the layout
  * itself is desktop-only, so this view never makes unsaved changes.
+ * `status` sits in the top bar beside search (the storage status button).
  */
-export function MobileWorkspaceView({ layout }: { layout: WorkspaceLayout }) {
+export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
   const pages = pagesOf(layout)
   return (
     <div className={styles.root} data-ws-mobile>
-      <MobileTopBar name={layout.name} />
+      <MobileTopBar name={layout.name} status={status} />
       {pages.length === 0 ? (
         <div className={styles.emptyLayout} data-ws-area>
           <p className={styles.emptyLayoutTitle}>This layout is empty</p>

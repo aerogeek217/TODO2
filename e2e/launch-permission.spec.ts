@@ -240,4 +240,26 @@ test('phone: the same question, the answers as two stacked full-width buttons', 
 
   await continueWithout.click()
   await expect(purgePrompt(page)).toBeVisible()
+  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+
+  // The top bar's status button (between the layout picker and search) carries it; no strip.
+  const status = page.getByRole('button', { name: 'Storage: Permission needed' })
+  await expect(status).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  const s = (await status.boundingBox())!
+  const search = (await page.getByRole('button', { name: 'Search' }).boundingBox())!
+  const picker = (await page.getByTestId('layout-picker').boundingBox())!
+  expect(s.width).toBe(44)
+  expect(picker.x + picker.width).toBeLessThanOrEqual(s.x)
+  expect(Math.round(s.x + s.width)).toBe(Math.round(search.x))
+  await status.click()
+  const sheet = page.getByRole('dialog', { name: 'Permission needed' })
+  await expect(sheet).toContainText(`Sync to ${SYNC_FILE} is paused until your browser lets TODO2 open the file.`)
+  await expect(sheet.getByRole('button', { name: 'Grant access' })).toBeVisible()
+  const sheetBox = (await sheet.boundingBox())!
+  expect(Math.round(sheetBox.y + sheetBox.height)).toBe(844)
+  await sheet.getByRole('button', { name: 'File storage settings' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Database')
+  await expect(page.getByRole('button', { name: 'Grant Access' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible()
 })

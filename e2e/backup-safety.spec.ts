@@ -271,7 +271,7 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('launch purge: Continue without a backup says so in the snackbar (no warning strip on a phone)', async ({ page }) => {
+  test('launch purge: Continue without a backup says so in the snackbar and the top bar’s status button', async ({ page }) => {
     await installBackupFailureSwitch(page)
     await page.goto('/')
     await expect(page.getByRole('button', { name: 'Quick add' })).toBeVisible()
@@ -292,5 +292,14 @@ test.describe('phone', () => {
     await expect(page.getByText('Deleted 1 completed task. No backup was taken.')).toBeVisible()
     await expect(page.getByRole('alert').filter({ hasText: 'No backup was taken' })).toHaveCount(0)
     expect(await dbTitles(page)).toEqual([])
+    const status = page.getByRole('button', { name: 'Storage: Backup warning' })
+    await status.tap()
+    const sheet = page.getByRole('dialog', { name: 'Backup warning' })
+    await expect(sheet).toContainText('No backup was taken before deleting 1 completed task')
+    // The phone has no Backups part: Dismiss only.
+    await expect(sheet.getByRole('button', { name: 'Open Backups…' })).toHaveCount(0)
+    await sheet.getByRole('button', { name: 'Dismiss' }).tap()
+    await expect(sheet).toBeHidden()
+    await expect(status).toBeHidden()
   })
 })

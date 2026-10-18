@@ -65,7 +65,6 @@
   justify-content: center;
   width: var(--touch-target-min);
   height: var(--touch-target-min);
-  margin-left: auto;
   flex-shrink: 0;
   padding: 0;
   border: none;
@@ -74,6 +73,13 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+.topBarEnd {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .iconButton:active {

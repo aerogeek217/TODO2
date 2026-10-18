@@ -32,6 +32,7 @@ import { dropChangesLayout, dropTargetForHit, hitTestWorkspace, sameDropHit } fr
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
+import { SyncStatusButton } from '../components/layout/SyncStatusButton'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
@@ -434,7 +435,7 @@ export function WorkspacePage() {
         <PendingCalendarDropContext.Provider value={calendarChoice.pending}>
           <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
             {working
-              ? (isMobile ? <MobileWorkspaceView layout={working} /> : <WorkspaceView layout={working} />)
+              ? (isMobile ? <MobileWorkspaceView layout={working} status={<SyncStatusButton />} /> : <WorkspaceView layout={working} />)
               : hydrated ? null : <div className={styles.loading}>Loading…</div>}
           </div>
         </PendingCalendarDropContext.Provider>

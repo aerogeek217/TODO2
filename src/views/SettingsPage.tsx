@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router'
 import type { SettingsSectionId } from '../stores/ui-store'
 import { MOBILE_SETTINGS_SECTIONS, settingsSection } from '../components/settings/sections/settings-sections'
 import { SettingsSectionBody } from '../components/settings/sections/SettingsSectionBody'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/shared/icons'
+import type { SettingsRouteState } from '../routes'
 import styles from './SettingsPage.module.css'
 
 /**
@@ -10,9 +12,14 @@ import styles from './SettingsPage.module.css'
  * first (sections with a part the phone shows); tapping a section slides to
  * it — only its phone parts — with a back arrow. Desktop opens
  * the same sections in the Settings modal instead (`SettingsModal`).
+ * Navigated to with a section as route state (the status sheet's File
+ * storage settings), it opens on that section.
  */
 export function SettingsPage() {
-  const [openId, setOpenId] = useState<SettingsSectionId | null>(null)
+  const location = useLocation()
+  const [openId, setOpenId] = useState<SettingsSectionId | null>(
+    () => (location.state as SettingsRouteState | null)?.section ?? null,
+  )
 
   if (openId) {
     const section = settingsSection(openId)
