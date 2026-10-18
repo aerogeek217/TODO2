@@ -90,6 +90,11 @@
   white-space: nowrap;
 }
 
+/* An unset field (Group by): a muted placeholder where the value goes. */
+.selectPlaceholder {
+  color: var(--color-text-muted);
+}
+
 .filters {
   display: flex;
   flex-direction: column;

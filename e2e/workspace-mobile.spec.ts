@@ -223,7 +223,9 @@ test('long-pressing a list tab opens its list sheet; Edit list is a half sheet w
   const revert = await box(line.getByTestId('revert-list'))
   expect([Math.round(revert.width), Math.round(revert.height)]).toEqual([36, 36])
   await line.getByTestId('save-list').click()
-  await expect(line).toHaveCount(0)
+  // Saved: the line stays (No filters), without Revert · Save.
+  await expect(line.getByTestId('save-list')).toHaveCount(0)
+  await expect(line).toContainText('No filters')
 })
 
 test('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {

@@ -74,7 +74,7 @@ describe('Edit list', () => {
     // Priority carries its rule as a note (no "new feature" tag); Manual explains itself.
     const priority = screen.getByRole('menuitemradio', { name: /^Priority/ })
     expect(priority).not.toHaveTextContent('NEW')
-    expect(priority).toHaveTextContent('Focus first, then Urgent + Important, Urgent, Important, none · ties by due date')
+    expect(priority).toHaveTextContent('Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date')
     expect(screen.getByRole('menuitemradio', { name: /^Manual/ })).toHaveTextContent('Your drag order (per list)')
     fireEvent.click(priority)
     expect(draft()).toMatchObject({ grouping: 'status', sort: 'priority' })

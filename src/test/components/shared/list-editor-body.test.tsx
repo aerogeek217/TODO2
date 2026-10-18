@@ -59,7 +59,29 @@ describe('<ListEditorBody>', () => {
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')
-    expect(choiceLabels()).toEqual(['None', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+    expect(choiceLabels()).toEqual(['No grouping', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+  })
+
+  it('an unset Group by is a blank field with a muted "Group by…" placeholder — no "None" text', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
+    const group = screen.getByRole('button', { name: 'Group by' })
+    expect(group).toHaveTextContent('Group by…')
+    expect(group.querySelector('[data-placeholder]')).toHaveTextContent('Group by…')
+    expect(document.body).not.toHaveTextContent(/\bNone\b/)
+    // The menu's way back to no groups.
+    rerender(<ListEditorBody draft={makeDraft({ grouping: 'people' })} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: /^Group by/ })).toHaveTextContent('People')
+    openChoices('Group by')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'No grouping' }))
+    expect(last(onChange).grouping).toBe('none')
+  })
+
+  it('phone sheet: an unset Group by row shows no value', () => {
+    render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} variant="sheet" />)
+    const row = screen.getByRole('button', { name: 'Group by' })
+    expect(row.textContent).toBe('Group by')
+    expect(document.body).not.toHaveTextContent(/\bNone\b/)
   })
 
   it('has no Max tasks control: a list shows all its tasks', () => {

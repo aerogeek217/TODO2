@@ -156,8 +156,9 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
     sort: (v) => onChange({ ...draft, sort: v as TodoSortBy }),
     prompt: (v) => setPrompt(v as RuntimeFilterField | 'none'),
   }
-  const choiceSpec: { [F in ChoiceField]: { value: string; choices: readonly Choice<string>[] } } = {
-    group: { value: draft.grouping, choices: groupChoices },
+  // An unset Group by shows no value (a placeholder on desktop, nothing on the sheet's row).
+  const choiceSpec: { [F in ChoiceField]: { value: string; choices: readonly Choice<string>[]; unset?: string } } = {
+    group: { value: draft.grouping, choices: groupChoices, unset: 'none' },
     sort: { value: draft.sort, choices: sortChoices },
     prompt: { value: promptValue, choices: promptChoices },
   }
@@ -203,13 +204,15 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
         <div className={styles.sheetRows}>
           {(['group', 'sort', 'prompt'] as const).map((field) => {
             const spec = choiceSpec[field]
-            const current = spec.choices.find((c) => c.value === spec.value)?.label ?? spec.value
+            const current = spec.value === spec.unset
+              ? ''
+              : spec.choices.find((c) => c.value === spec.value)?.label ?? spec.value
             return (
               <button
                 key={field}
                 type="button"
                 className={styles.sheetRow}
-                aria-label={`${ROW_LABEL[field]}: ${current}`}
+                aria-label={current ? `${ROW_LABEL[field]}: ${current}` : ROW_LABEL[field]}
                 data-changed={changed.has(field) || undefined}
                 onClick={() => setChoiceList(field)}
               >
@@ -241,6 +244,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
             label={ROW_LABEL[field]}
             value={choiceSpec[field].value}
             choices={choiceSpec[field].choices}
+            placeholder={choiceSpec[field].value === choiceSpec[field].unset ? `${ROW_LABEL[field]}…` : undefined}
             onPick={pick[field]}
           />
         </div>
@@ -251,12 +255,17 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
 
 const CHOICE_MENU_WIDTH_PX = 242
 
-/** A select-button: the current choice + a chevron; opens a radio menu of the choices under it. */
-function ChoiceSelect({ labelId, label, value, choices, onPick }: {
+/**
+ * A select-button: the current choice + a chevron; opens a radio menu of the
+ * choices under it. With `placeholder` it shows that, muted, instead of the
+ * current choice (an unset field) and is named by its label alone.
+ */
+function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   labelId: string
   label: string
   value: string
   choices: readonly Choice<string>[]
+  placeholder?: string
   onPick: (value: string) => void
 }) {
   const ref = useRef<HTMLButtonElement | null>(null)
@@ -283,7 +292,7 @@ function ChoiceSelect({ labelId, label, value, choices, onPick }: {
         className={`${styles.select} ${open ? styles.selectOpen : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-labelledby={`${labelId} ${valueId}`}
+        aria-labelledby={placeholder ? labelId : `${labelId} ${valueId}`}
         onMouseDown={() => { wasOpen.current = open }}
         onClick={() => {
           if (wasOpen.current) {
@@ -293,7 +302,9 @@ function ChoiceSelect({ labelId, label, value, choices, onPick }: {
           setOpen(true)
         }}
       >
-        <span id={valueId} className={styles.selectValue}>{current?.label ?? value}</span>
+        {placeholder
+          ? <span className={`${styles.selectValue} ${styles.selectPlaceholder}`} data-placeholder="" aria-hidden="true">{placeholder}</span>
+          : <span id={valueId} className={styles.selectValue}>{current?.label ?? value}</span>}
         <ChevronDownIcon />
       </button>
       {open && (

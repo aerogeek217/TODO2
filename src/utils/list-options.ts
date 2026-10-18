@@ -10,8 +10,9 @@ export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', '
 /** Prompt fields a list definition offers, in menu order (`none` = no prompt). */
 export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['none', 'person', 'status', 'tag']
 
+/** Group choice labels; `none` is the menu's way back to no groups (an unset field shows a placeholder). */
 export const GROUP_LABEL: Record<TodoGroupBy, string> = {
-  none: 'None',
+  none: 'No grouping',
   deadline: 'Due date',
   followup: 'Follow-up date',
   people: 'People',
@@ -49,11 +50,15 @@ export function choicesWith<T extends string>(choices: readonly T[], current: T)
 /** A sort choice's muted note in the Sort menu. */
 export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
   manual: 'Your drag order (per list)',
-  priority: 'Focus first, then Urgent + Important, Urgent, Important, none · ties by due date',
+  priority: 'Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date',
 }
 
-/** The filter line's group · sort summary, e.g. `People · Due date`; no groups in drag order reads `Manual`. */
+/**
+ * The filter line's group · sort summary, e.g. `People · Due date`; an
+ * ungrouped list shows just its sort (`Priority`, or `Manual` in drag order).
+ */
 export function groupSortSummary(grouping: TodoGroupBy, sort: TodoSortBy): string {
-  if (grouping === 'none' && sort === 'manual') return SORT_LABEL.manual
-  return `${GROUP_LABEL[grouping] ?? grouping} · ${SORT_LABEL[sort] ?? sort}`
+  const sortLabel = SORT_LABEL[sort] ?? sort
+  if (grouping === 'none') return sortLabel
+  return `${GROUP_LABEL[grouping] ?? grouping} · ${sortLabel}`
 }

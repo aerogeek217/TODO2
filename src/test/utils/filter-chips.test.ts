@@ -226,10 +226,11 @@ describe('list choice helpers', () => {
     expect(choicesWith(['a', 'b'], 'c')).toEqual(['a', 'b', 'c'])
   })
 
-  it('summarises group and sort', () => {
+  it('summarises group and sort, never "None"', () => {
     expect(groupSortSummary('people', 'deadline')).toBe('People · Due date')
-    expect(groupSortSummary('none', 'priority')).toBe('None · Priority')
-    // No groups and the drag order: just `Manual`.
+    expect(groupSortSummary('people', 'manual')).toBe('People · Manual')
+    // No groups: just the sort (the drag order reads `Manual`).
+    expect(groupSortSummary('none', 'priority')).toBe('Priority')
     expect(groupSortSummary('none', 'manual')).toBe('Manual')
   })
 })

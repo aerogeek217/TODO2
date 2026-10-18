@@ -6,8 +6,8 @@ import { rowTitles } from './fixtures/seed'
 /**
  * Edit list: one non-modal popover beside the list's panel that edits the
  * list's shared draft live (every widget showing the list updates and shows
- * it unsaved); Revert · Save on the list's filter line, which shows whenever
- * the list is unsaved.
+ * it unsaved); Revert · Save on the list's filter line while the list is
+ * unsaved. The filter line itself always shows.
  */
 
 const editList = (page: Page) => page.getByTestId('edit-list')
@@ -94,8 +94,7 @@ test('a panel too wide for either side: the popover drops below its filter line,
 test('edits show live in every widget showing the list; the popover stays open; Save list writes and stays open', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
-  // Opened from the filter line's summary (the list has no filters: a screen filter shows the line).
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  // Opened from the filter line's summary (shown with no filters set and the list saved).
   const summary = wsListWidget(page, 't1').getByTestId('list-summary')
   await expect(summary).toHaveText('Manual')
   await summary.click()
@@ -105,6 +104,15 @@ test('edits show live in every widget showing the list; the popover stays open; 
   await expect(popover.getByRole('button', { name: 'Save list' })).toBeDisabled()
   await expect(popover.getByRole('button', { name: 'Revert' })).toBeDisabled()
   await expect(popover).toContainText('Shared · 2 widgets')
+  // Unset Group by: a blank field with a muted placeholder, no "None".
+  const group = popover.getByRole('button', { name: 'Group by', exact: true })
+  await expect(group).toHaveText('Group by…')
+  const [placeholderColour, nameColour] = await Promise.all([
+    group.locator('[data-placeholder]').evaluate((el) => getComputedStyle(el).color),
+    popover.getByRole('button', { name: /^Sort by/ }).evaluate((el) => getComputedStyle(el.querySelector('span')!).color),
+  ])
+  expect(placeholderColour).not.toBe(nameColour)
+  await expect(popover).not.toContainText('None')
 
   await pick(page, 'Group by', 'People')
   await expect(popover).toBeVisible()
@@ -135,9 +143,9 @@ test('with it open, the previewed list stays usable: rows select and drag; a cli
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   const popover = await openFromTabMenu(page, 't1')
-  await pick(page, 'Group by', 'None')
+  await pick(page, 'Group by', 'No grouping')
   await pick(page, 'Group by', 'People')
-  await pick(page, 'Group by', 'None')
+  await pick(page, 'Group by', 'No grouping')
   await pick(page, 'Sort by', 'Name')
 
   const widget = wsListWidget(page, 't1')
@@ -175,21 +183,31 @@ test('Esc closes it (after a menu inside), keeps the draft and returns focus to 
   await page.keyboard.press('Escape')
   await expect(popover).toHaveCount(0)
   await expect(summary).toBeFocused()
-  await expect(summary).toHaveText('None · Name')
+  await expect(summary).toHaveText('Name')
 })
 
-test('the filter line shows while the list is unsaved, even with no filters; Revert drops the edit with Undo; reload keeps it unsaved', async ({ page }) => {
+test('the filter line always shows (No filters + the summary); Revert · Save join it while unsaved; Revert drops the edit with Undo; reload keeps it unsaved', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   const widget = wsListWidget(page, 't1')
-  await expect(widget.getByTestId('list-filter-row')).toHaveCount(0)
+  // Saved, nothing set: the line is there — No filters, + Filter and Manual — without Revert · Save.
+  const saved = widget.getByTestId('list-filter-row')
+  await expect(saved).toBeVisible()
+  await expect(saved).toContainText('No filters')
+  await expect(saved.getByRole('button', { name: /Filter/ }).first()).toBeVisible()
+  await expect(saved.getByTestId('list-summary')).toHaveText('Manual')
+  await expect(saved.getByTestId('save-list')).toHaveCount(0)
+  await expect(saved.getByTestId('revert-list')).toHaveCount(0)
+  // It takes room above the rows: the first row starts below it.
+  const lineBox = await box(saved)
+  expect((await box(widget.locator('[data-todo-id]').first())).y).toBeGreaterThanOrEqual(lineBox.y + lineBox.height - 1)
 
   await openFromTabMenu(page, 't1')
   await pick(page, 'Sort by', 'Priority')
   await page.keyboard.press('Escape')
   const line = widget.getByTestId('list-filter-row')
   await expect(line).toContainText('No filters')
-  await expect(line.getByTestId('list-summary')).toHaveText('None · Priority')
+  await expect(line.getByTestId('list-summary')).toHaveText('Priority')
   // Order: summary · Revert · Save, at the line's right end.
   const [s, r, v] = await Promise.all([line.getByTestId('list-summary'), line.getByTestId('revert-list'), line.getByTestId('save-list')].map(box))
   expect(s!.x).toBeLessThan(r!.x)
@@ -202,18 +220,22 @@ test('the filter line shows while the list is unsaved, even with no filters; Rev
   await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).toContainText('No filters')
   await expect(wsListWidget(page, 't1').getByTestId('save-list')).toBeVisible()
 
-  // Revert: gone in every widget; Undo brings it back.
+  // Revert: Revert · Save gone in every widget (the line stays); Undo brings them back.
   await wsListWidget(page, 't1').getByTestId('revert-list').click()
-  for (const tabId of ['t1', 't2']) await expect(wsListWidget(page, tabId).getByTestId('list-filter-row')).toHaveCount(0)
+  for (const tabId of ['t1', 't2']) {
+    await expect(wsListWidget(page, tabId).getByTestId('save-list')).toHaveCount(0)
+    await expect(wsListWidget(page, tabId).getByTestId('list-summary')).toHaveText('Manual')
+  }
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(wsListWidget(page, 't2').getByTestId('save-list')).toBeVisible()
-  await expect(wsListWidget(page, 't2').getByTestId('list-summary')).toHaveText('None · Priority')
+  await expect(wsListWidget(page, 't2').getByTestId('list-summary')).toHaveText('Priority')
 
   // Revert then reload: nothing unsaved comes back.
   await wsListWidget(page, 't2').getByTestId('revert-list').click()
   await page.reload()
   await expect(wsListWidget(page, 't1')).toBeVisible()
-  await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).toHaveCount(0)
+  await expect(wsListWidget(page, 't1').getByTestId('list-summary')).toHaveText('Manual')
+  await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 })
 
 test('a narrow widget: Revert · Save become icon buttons, never hidden', async ({ page }) => {

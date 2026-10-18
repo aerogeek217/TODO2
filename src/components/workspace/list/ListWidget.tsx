@@ -150,8 +150,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
   const screenChips = useMemo(() => (screenActive ? filterChips(screen, names, true) : []), [screenActive, screen, names])
   const unsaved = useIsListDirty(definition.id)
-  // Also while the list is unsaved: its Revert · Save sit on this line.
-  const showFilterRow = listChips.length > 0 || screenChips.length > 0 || unsaved
 
   // + Add task: only when the merged predicate names people / status / tags
   // / markers to seed the new task with (Hot seeds nothing).
@@ -404,9 +402,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           onChange={(ids) => setPicks(tab.id, ids)}
         />
       )}
-      {showFilterRow && (
-        <ListFilterRow tabId={tab.id} definition={definition} screenChips={screenChips} hasListChips={listChips.length > 0} unsaved={unsaved} />
-      )}
+      <ListFilterRow tabId={tab.id} definition={definition} screenChips={screenChips} hasListChips={listChips.length > 0} unsaved={unsaved} />
       <div ref={scrollRef} className={styles.scroll}>
         {body}
       </div>
@@ -500,10 +496,11 @@ function screenChipText(chip: FilterChip): string {
 }
 
 /**
- * Screen filter chips (read-only, set in the top bar), then the list's own
- * filter chips (editing them makes the list unsaved; `No filters` when an
- * unsaved list has none), + Filter, the group · sort summary that opens
- * Edit list, and — while the list is unsaved — Revert · Save.
+ * The list's top line, always shown (the way in to setting filters, group
+ * and sort): screen filter chips (read-only, set in the top bar), then the
+ * list's own filter chips (editing them makes the list unsaved; `No filters`
+ * when there are none), + Filter, the group · sort summary that opens Edit
+ * list, and — while the list is unsaved — Revert · Save.
  */
 function ListFilterRow({ tabId, definition, screenChips, hasListChips, unsaved }: {
   tabId: string

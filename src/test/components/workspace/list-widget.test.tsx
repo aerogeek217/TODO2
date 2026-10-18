@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, screen, fireEvent, act, waitFor } from '@testing-library/react'
+import { render, cleanup, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -91,8 +91,14 @@ describe('ListWidget', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
     expect(result()?.countLabel).toBe('3')
-    // No filters anywhere: no filter row.
-    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    // No filters anywhere: the filter line still shows (the way in to setting them) — No filters, + Filter,
+    // the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
+    const row = screen.getByTestId('list-filter-row')
+    expect(row).toHaveTextContent('No filters')
+    expect(within(row).getByRole('button', { name: /Filter/ })).toBeInTheDocument()
+    expect(screen.getByTestId('list-summary')).toHaveTextContent('Manual')
+    expect(screen.queryByTestId('save-list')).toBeNull()
+    expect(screen.queryByTestId('revert-list')).toBeNull()
   })
 
   it('the screen filter narrows it, with a read-only screen chip and a shown-of-total count', () => {
@@ -145,25 +151,27 @@ describe('ListWidget', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('an unsaved list shows its filter line even with no filters: No filters, then Revert · Save', () => {
+  it('an unsaved list adds Revert · Save to its filter line', () => {
     setup(def())
-    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.queryByTestId('save-list')).toBeNull()
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
     const row = screen.getByTestId('list-filter-row')
     expect(row).toHaveTextContent('No filters')
     expect(screen.getByRole('button', { name: 'Revert list changes' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save list Team' })).toBeInTheDocument()
     // The summary reads the draft.
-    expect(screen.getByTestId('list-summary')).toHaveTextContent('None · Name')
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
   })
 
-  it('Save on the filter line writes the draft; the line goes once nothing is left to show', async () => {
+  it('Save on the filter line writes the draft; the line stays, without Revert · Save', async () => {
     setup(def())
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
     await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
     expect(useListDraftStore.getState().drafts).toEqual({})
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
-    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.queryByTestId('save-list')).toBeNull()
   })
 
   it('Revert on the filter line drops the draft (Undo brings it back)', async () => {
@@ -171,7 +179,7 @@ describe('ListWidget', () => {
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
     fireEvent.click(screen.getByTestId('revert-list'))
     expect(useListDraftStore.getState().drafts).toEqual({})
-    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(screen.queryByTestId('revert-list')).toBeNull()
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
     await act(() => useUndoStore.getState().undo())
     expect(screen.getByTestId('save-list')).toBeInTheDocument()
