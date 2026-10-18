@@ -4,6 +4,7 @@ import { defsEqual } from '../utils/list-def-equal'
 import { registerModuleReset } from '../utils/module-reset'
 import { readListDrafts, writeListDrafts, type ListDraftRecord } from '../data/draft-storage'
 import { useListDefinitionStore } from './list-definition-store'
+import { undoable } from './undoable'
 
 /**
  * Unsaved edits to list definitions ("drafts"), made from list widgets.
@@ -29,6 +30,11 @@ interface ListDraftState {
   save: (id: number) => Promise<void>
   /** Drops the draft. */
   discard: (id: number) => void
+  /**
+   * Drops the draft as an undo step (the snackbar's Undo brings it back).
+   * No draft → no-op.
+   */
+  revert: (id: number) => void
   /**
    * Takes back the drafts kept from before a reload (the workspace calls it
    * when it opens): those whose saved list still matches what they were made
@@ -104,6 +110,18 @@ export const useListDraftStore = create<ListDraftState>((set, get) => ({
     if (!(id in get().drafts)) return
     set({ drafts: without(get().drafts, id) })
     keep(get().drafts)
+  },
+
+  revert(id) {
+    const draft = get().drafts[id]
+    if (!draft) return
+    get().discard(id)
+    undoable(
+      'List changes reverted',
+      () => get().discard(id),
+      () => get().edit(id, () => draft),
+      true,
+    )
   },
 
   restore() {

@@ -4,6 +4,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { draftListIds, getUnsavedListIds, useListDraftStore } from '../../stores/list-draft-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
+import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 
 async function addList(name: string): Promise<PersistedListDefinition> {
@@ -63,6 +64,30 @@ describe('list drafts', () => {
     useListDraftStore.getState().discard(def.id)
     expect(drafts()).toEqual({})
     expect((await db.listDefinitions.get(def.id))!.sort).toBe('manual')
+  })
+
+  it('revert drops the draft and offers Undo, which brings the draft back', async () => {
+    const def = await addList('Team')
+    await useListDraftStore.getState().restore()
+    useListDraftStore.getState().edit(def.id, (d) => ({ ...d, sort: 'priority', grouping: 'status' }))
+    useListDraftStore.getState().revert(def.id)
+    expect(drafts()).toEqual({})
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
+    expect((await db.listDefinitions.get(def.id))!.sort).toBe('manual')
+
+    await useUndoStore.getState().undo()
+    expect(drafts()[def.id]).toMatchObject({ sort: 'priority', grouping: 'status' })
+    expect(JSON.parse(localStorage.getItem('todo2-unsaved-lists')!)[def.id].draft.sort).toBe('priority')
+    // Redo reverts again.
+    await useUndoStore.getState().redo()
+    expect(drafts()).toEqual({})
+  })
+
+  it('revert without a draft does nothing (no undo entry)', async () => {
+    const def = await addList('Team')
+    useListDraftStore.getState().revert(def.id)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 
   it('unknown lists are ignored; drafts of deleted lists are not unsaved', async () => {

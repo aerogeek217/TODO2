@@ -36,3 +36,24 @@ export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition
   }
   return true
 }
+
+/** A part of a list definition the list editor shows as one row. */
+export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt'
+
+/**
+ * The editor rows whose value differs between `a` and `b` (e.g. a draft and
+ * the saved list). Show completed counts as part of the filters; `sortOrder`
+ * is never compared.
+ */
+export function changedListFields(a: PersistedListDefinition, b: PersistedListDefinition): ReadonlySet<ListDefField> {
+  const out = new Set<ListDefField>()
+  if (a.name !== b.name) out.add('name')
+  if (a.membership.kind !== b.membership.kind
+    || (a.membership.kind === 'custom' && b.membership.kind === 'custom' && !predicatesEqual(a.membership.predicate, b.membership.predicate))) {
+    out.add('filters')
+  }
+  if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) out.add('group')
+  if (JSON.stringify(a.sort) !== JSON.stringify(b.sort)) out.add('sort')
+  if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) out.add('prompt')
+  return out
+}
