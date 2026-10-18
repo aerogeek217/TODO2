@@ -25,7 +25,7 @@ export interface StoragePillInput {
 /** Something waiting for the user, in the pill's order. */
 export type SyncWarning =
   | { kind: 'permission'; fileName: string; refused: boolean }
-  | { kind: 'paused'; reason: SyncPauseReason | null; message: string }
+  | { kind: 'paused'; reason: SyncPauseReason | null; message: string; fileName: string | null }
   | { kind: 'error'; message: string }
   | { kind: 'backup'; message: string }
 
@@ -52,7 +52,7 @@ export function syncWarnings(s: StoragePillInput): SyncWarning[] {
   }
   // Sync paused (unreadable / newer / older file, or a cancelled prompt):
   // nothing has been written either way until the user picks a way forward.
-  if (s.paused) out.push({ kind: 'paused', reason: s.paused.reason ?? null, message: s.paused.message })
+  if (s.paused) out.push({ kind: 'paused', reason: s.paused.reason ?? null, message: s.paused.message, fileName: s.fileName })
   if (s.error != null && s.error !== s.dismissedError && !s.needsPermission && !s.paused) {
     out.push({ kind: 'error', message: s.error })
   }
@@ -98,9 +98,14 @@ export interface SyncWarningCopy {
 
 const PAUSED_PREFIX = 'File sync paused — '
 
-/** A paused message without its `File sync paused — ` prefix, as a sentence. */
-function pausedWhy(message: string): string {
+/**
+ * A paused message without its `File sync paused — ` prefix, as a sentence:
+ * a capital first letter — unless it starts with the file's name, which is
+ * shown as it is spelled.
+ */
+function pausedWhy(message: string, fileName: string | null): string {
   const rest = message.startsWith(PAUSED_PREFIX) ? message.slice(PAUSED_PREFIX.length) : message
+  if (fileName && rest.startsWith(fileName)) return rest
   return rest.charAt(0).toUpperCase() + rest.slice(1)
 }
 
@@ -131,7 +136,7 @@ export function syncWarningCopy(w: SyncWarning): SyncWarningCopy {
         body: 'You’re working on this browser’s data. Nothing is written to the file meanwhile.',
       }
     case 'paused':
-      return { title: WARNING_TEXT.paused, why: pausedWhy(w.message), flag: null, body: pausedBody(w.reason) }
+      return { title: WARNING_TEXT.paused, why: pausedWhy(w.message, w.fileName), flag: null, body: pausedBody(w.reason) }
     case 'error':
       return {
         title: WARNING_TEXT.error,

@@ -89,13 +89,13 @@ describe('syncWarningCopy', () => {
   })
 
   it('paused: the message without its prefix, as a sentence, and the body per reason', () => {
-    const copy = (paused: StoragePillInput['paused']) => syncWarningCopy(syncWarnings({ ...base, paused })[0]!)
+    const copy = (paused: StoragePillInput['paused']) => syncWarningCopy(syncWarnings({ ...base, fileName: 'f.json', paused })[0]!)
     expect(copy(conflictPause)).toMatchObject({
       why: 'This browser and f.json have different data. Choose which version to keep.',
       body: 'Nothing has been written to either side. Retry shows the choice again; Keep browser data… overwrites the file after a backup of it.',
     })
     expect(copy({ reason: 'too-new', message: 'File sync paused — f.json was saved by a newer version of TODO2.' })).toMatchObject({
-      why: 'F.json was saved by a newer version of TODO2.',
+      why: 'f.json was saved by a newer version of TODO2.',
       body: 'Nothing has been written to either side. Update TODO2 to keep what that version saved, or keep this browser’s data.',
     })
     expect(copy({ reason: 'invalid-json', message: 'File sync paused — the file contains invalid JSON' }))
@@ -178,7 +178,7 @@ describe('StoragePill', () => {
     render(<StoragePill />)
     const pill = screen.getByRole('button', { name: 'Storage: Sync paused' })
     fireEvent.click(pill)
-    expect(screen.getByRole('dialog', { name: 'Sync paused' })).toHaveTextContent('Todo2.json was saved by a newer version of TODO2.')
+    expect(screen.getByRole('dialog', { name: 'Sync paused' })).toHaveTextContent('todo2.json was saved by a newer version of TODO2.')
 
     fireEvent.click(screen.getByRole('button', { name: 'Keep browser data…' }))
     const confirm = screen.getByRole('dialog', { name: 'Overwrite the sync file?' })
