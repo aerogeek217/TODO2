@@ -123,15 +123,27 @@ export function chordLabel(chord: ShortcutChord): string {
   return chord.map(comboLabel).join(' then ')
 }
 
-/** The key names a `keydown` stands for: its `key`, and with Ctrl / ⌘ / Alt down also its physical letter or digit. */
+/**
+ * With Ctrl / ⌘ / Alt down, the letter or digit of the key's position — only
+ * when the key didn't type a Latin letter or digit itself (Alt+T types `†` on
+ * a Mac; a Cyrillic layout types `я`). A key that types one goes by that
+ * letter: on a German keyboard Ctrl + the key labelled Y is Ctrl+Y, though it
+ * sits where QWERTY has Z.
+ */
+function physicalKey(e: KeyboardEvent): string | null {
+  if (!(e.ctrlKey || e.metaKey || e.altKey)) return null
+  if (/^[a-z0-9]$/i.test(e.key)) return null
+  const m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(e.code)
+  const physical = m?.[1] ?? m?.[2]
+  return physical ? physical.toLowerCase() : null
+}
+
+/** The key names a `keydown` stands for: its `key`, and its position's letter or digit where `physicalKey` gives one. */
 function eventKeys(e: KeyboardEvent): string[] {
   const keys = [e.key === ' ' ? 'space' : e.key.toLowerCase()]
   if (e.code === 'Space') keys.push('space')
-  if (e.ctrlKey || e.metaKey || e.altKey) {
-    const m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(e.code)
-    const physical = m?.[1] ?? m?.[2]
-    if (physical) keys.push(physical.toLowerCase())
-  }
+  const physical = physicalKey(e)
+  if (physical) keys.push(physical)
   return keys
 }
 
@@ -158,18 +170,12 @@ export function isModifierOnly(e: KeyboardEvent): boolean {
 
 /**
  * The combo a `keydown` records, or null for a key a shortcut can't use (a
- * dead key, an IME key, a media key). With Ctrl / ⌘ / Alt down a letter or
- * digit is taken from the physical key, since `e.key` is then often another
- * character (Alt+T types `†` on a Mac).
+ * dead key, an IME key, a media key). With Ctrl / ⌘ / Alt down, a key that
+ * types no Latin letter or digit is recorded by its position (`physicalKey`).
  */
 export function comboFromEvent(e: KeyboardEvent): KeyCombo | null {
   const mod = e.ctrlKey || e.metaKey
-  let key: string | null = null
-  if (mod || e.altKey) {
-    const m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(e.code)
-    const physical = m?.[1] ?? m?.[2]
-    if (physical) key = physical.toLowerCase()
-  }
+  let key: string | null = physicalKey(e)
   key ??= e.code === 'Space' ? 'Space' : canonicalKey(e.key)
   if (key === null) return null
   return {

@@ -102,6 +102,17 @@ describe('comboMatchesEvent', () => {
   it('matches a letter by its physical key when Alt changes the character', () => {
     expect(comboMatchesEvent(ev({ key: '†', code: 'KeyT', altKey: true }), { key: 't', alt: true })).toBe(true)
   })
+
+  it('goes by the letter typed, not the key position, when the key types a letter or digit', () => {
+    // German QWERTZ: the key labelled Y sits where QWERTY has Z.
+    expect(comboMatchesEvent(ev({ key: 'y', code: 'KeyZ', ctrlKey: true }), { key: 'z', mod: true })).toBe(false)
+    expect(comboMatchesEvent(ev({ key: 'y', code: 'KeyZ', ctrlKey: true }), { key: 'y', mod: true })).toBe(true)
+    // French AZERTY: A / Q and W / Z swapped.
+    expect(comboMatchesEvent(ev({ key: 'w', code: 'KeyZ', ctrlKey: true }), { key: 'z', mod: true })).toBe(false)
+    expect(comboMatchesEvent(ev({ key: 'q', code: 'KeyA', ctrlKey: true }), { key: 'a', mod: true })).toBe(false)
+    // A layout without Latin letters still reaches the shortcut by position.
+    expect(comboMatchesEvent(ev({ key: 'я', code: 'KeyZ', ctrlKey: true }), { key: 'z', mod: true })).toBe(true)
+  })
 })
 
 describe('sequenceKeyMatchesEvent', () => {
@@ -120,6 +131,11 @@ describe('comboFromEvent', () => {
   it('records punctuation without Shift and Space by name', () => {
     expect(comboFromEvent(ev({ key: '?', code: 'Slash', shiftKey: true }))).toEqual({ key: '?' })
     expect(comboFromEvent(ev({ key: ' ', code: 'Space', ctrlKey: true }))).toEqual({ key: 'Space', mod: true })
+  })
+
+  it('records the letter typed on a non-QWERTY layout', () => {
+    expect(comboFromEvent(ev({ key: 'y', code: 'KeyZ', ctrlKey: true }))).toEqual({ key: 'y', mod: true })
+    expect(comboFromEvent(ev({ key: 'я', code: 'KeyZ', ctrlKey: true }))).toEqual({ key: 'z', mod: true })
   })
 
   it('records the physical letter when Alt is down', () => {
