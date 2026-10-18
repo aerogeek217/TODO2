@@ -250,6 +250,22 @@ export interface ReadShortcutOverrides {
  * default is dropped quietly.
  */
 export function readShortcutOverrides(text: string): ReadShortcutOverrides {
+  // Every binding changed takes well under a tenth of this; anything longer
+  // came from somewhere else and isn't read part by part.
+  if (text.length > SHORTCUT_TEXT_MAX) return { overrides: {}, dropped: ['keyboard shortcuts too long — reset'] }
+  const read = readOverridesText(text)
+  if (read.dropped.length <= MAX_NAMED_DROPS) return read
+  const more = read.dropped.length - MAX_NAMED_DROPS
+  return { overrides: read.overrides, dropped: [...read.dropped.slice(0, MAX_NAMED_DROPS), `…and ${more} more dropped`] }
+}
+
+/** The longest stored shortcut text read (`readShortcutOverrides`). */
+const SHORTCUT_TEXT_MAX = 10_000
+
+/** How many dropped parts `readShortcutOverrides` names before "…and N more". */
+const MAX_NAMED_DROPS = 5
+
+function readOverridesText(text: string): ReadShortcutOverrides {
   let raw: unknown
   try {
     raw = JSON.parse(text)

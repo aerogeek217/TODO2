@@ -167,4 +167,16 @@ describe('readShortcutOverrides', () => {
   it('quietly drops an override equal to the default', () => {
     expect(readShortcutOverrides('{"open-settings":"g s"}')).toEqual({ overrides: {}, dropped: [] })
   })
+
+  it('resets text far longer than the editor could write, without reading it', () => {
+    const keys = Array.from({ length: 50_000 }, (_, i) => `"k${i}":1`)
+    expect(readShortcutOverrides(`{${keys.join(',')}}`)).toEqual({ overrides: {}, dropped: ['keyboard shortcuts too long — reset'] })
+  })
+
+  it('names at most a few dropped parts, then how many more', () => {
+    const text = JSON.stringify(Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`k${i}`, 'x'])))
+    const { dropped } = readShortcutOverrides(text)
+    expect(dropped).toHaveLength(6)
+    expect(dropped.at(-1)).toBe('…and 35 more dropped')
+  })
 })

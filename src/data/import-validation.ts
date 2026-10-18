@@ -304,7 +304,8 @@ function checkSetting(v: unknown): CheckResult {
   // as such — `validateImportData` drops those rows instead of failing.
   if (!isKnownSettingKey(v.key as string)) return UNRECOGNIZED_SETTING_KEY
   // Keyboard shortcuts: any text — the picker keeps only the bindings it can
-  // read (`settingFixes` names what it drops), so its length is bounded.
+  // read and resets an over-long text unread (`settingFixes` names what it
+  // drops, a few at most), so what is stored is short.
   if (v.key === SETTING_KEYS.keyboardShortcuts) return true
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
