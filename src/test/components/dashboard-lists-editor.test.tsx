@@ -5,6 +5,7 @@ import { DashboardListsEditor } from '../../components/settings/DashboardListsEd
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
 
 /** The Edit list dialog (over the Lists modal), if open. */
 const listEditor = () => document.body.querySelector('[aria-label^="Edit list"]')
@@ -265,3 +266,50 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
   })
 })
 
+describe('DashboardListsEditor — a list with unsaved workspace changes', () => {
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [makeDef({ id: 1, name: 'Alpha' })],
+      update: async (def: PersistedListDefinition) => {
+        useListDefinitionStore.setState({ listDefinitions: [def] })
+      },
+    } as Partial<ReturnType<typeof useListDefinitionStore.getState>> as never)
+    useListDraftStore.getState().edit(1, (d) => ({ ...d, sort: 'priority' }))
+  })
+  afterEach(() => { cleanup() })
+
+  const NOTICE = 'This list has unsaved changes in the workspace. Saving here replaces them.'
+
+  it('starts from the saved list and says so; Save also drops the workspace draft', async () => {
+    render(<MemoryRouter><DashboardListsEditor onClose={() => {}} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('⚙'))
+    expect(choiceValue('Sort by')).toBe('Manual')
+    expect(screen.getByText(NOTICE)).toBeInTheDocument()
+    pickChoice('Group by', 'Status')
+    fireEvent.click(screen.getByRole('button', { name: 'Save list' }))
+    await Promise.resolve()
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ grouping: 'status', sort: 'manual' })
+    expect(useListDraftStore.getState().drafts).toEqual({})
+  })
+
+  it('Save with nothing changed still drops the workspace draft (one version of the list)', () => {
+    render(<MemoryRouter><DashboardListsEditor onClose={() => {}} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('⚙'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save list' }))
+    expect(useListDraftStore.getState().drafts).toEqual({})
+  })
+
+  it('Cancel leaves the workspace draft alone', () => {
+    render(<MemoryRouter><DashboardListsEditor onClose={() => {}} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('⚙'))
+    fireEvent.click(screen.getByRole('button', { name: /^Cancel/ }))
+    expect(useListDraftStore.getState().drafts[1]).toMatchObject({ sort: 'priority' })
+  })
+
+  it('no notice for a list without workspace changes', () => {
+    useListDraftStore.getState().discard(1)
+    render(<MemoryRouter><DashboardListsEditor onClose={() => {}} /></MemoryRouter>)
+    fireEvent.click(screen.getByText('⚙'))
+    expect(screen.queryByText(NOTICE)).toBeNull()
+  })
+})

@@ -66,6 +66,12 @@
   padding: 4px 24px;
 }
 
+.notice {
+  margin: 0 24px 8px;
+  font-size: var(--font-size-meta);
+  color: var(--color-warning);
+}
+
 .footer {
   display: flex;
   align-items: center;

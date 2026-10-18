@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/sortable'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
 import { useListWidgetCount } from '../../hooks/use-list-widget-count'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { DragHandle } from '../shared/DragHandle'
@@ -88,6 +89,9 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
   }, [editingListId, sorted])
 
   const [draft, setDraft] = useListDefDraft(editingList)
+  // The editor starts from the saved list; unsaved edits to it in the
+  // workspace are replaced by a save here (never two versions of a list).
+  const hasWorkspaceDraft = useListDraftStore((s) => editingListId != null && s.drafts[editingListId] != null)
   const widgetCount = useListWidgetCount(editingListId ?? undefined)
 
   const dirty = useMemo(() => {
@@ -146,6 +150,7 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
     if (dirty) {
       void update({ ...draft, name: trimmedName })
     }
+    useListDraftStore.getState().discard(draft.id)
     setEditingListId(null)
   }, [draft, dirty, update])
 
@@ -249,6 +254,7 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
         widgetCount={widgetCount}
         onClose={handleEditorClose}
         onSave={handleEditorSave}
+        notice={hasWorkspaceDraft ? 'This list has unsaved changes in the workspace. Saving here replaces them.' : undefined}
       >
         {draft && editingList && <ListEditorBody draft={draft} saved={editingList} onChange={setDraft} variant="dialog" />}
       </ListEditorDialog>
