@@ -5,6 +5,16 @@ import {
   type DashboardSectionOptions,
 } from '../../../models/dashboard-config'
 import { idsByDate } from '../../../services/stats/stats-context'
+import {
+  eisenhowerQuadrantDialog,
+  eisenhowerSummaryDialog,
+  recentlyCompletedDialog,
+  staleTasksDialog,
+  tagSectionDialog,
+  tagsSectionDialog,
+} from '../../../services/task-dialog'
+import { EISENHOWER_QUADRANTS } from '../../../models/workspace-layout'
+import { QUADRANT_COLOR, QUADRANT_NAME, QUADRANT_SUBTITLE } from '../../../utils/eisenhower'
 import { bySortOrder } from '../../../utils/sort-order'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { usePersonStore } from '../../../stores/person-store'
@@ -15,7 +25,7 @@ import { StatusIcon } from '../../shared/StatusIcon'
 import { ListWidgetRow } from '../list/ListWidgetRow'
 import { useElementSize } from '../../../hooks/use-element-size'
 import {
-  countOf, hotRuleInWords, nextDayDialogWords, nextDayLabels, signed, sinceLabel, trendBucketDialogWords, trendBucketLabel,
+  countOf, hotRuleInWords, nextDayDialogWords, nextDayLabels, signed, sinceLabel, staleSubLine, trendBucketDialogWords, trendBucketLabel,
   trendRangeLabel, trendRangeWords,
 } from './dashboard-copy'
 import { tileDrill } from './dashboard-tiles'
@@ -38,7 +48,7 @@ export interface DashboardSectionProps {
 
 // ── Shared parts ────────────────────────────────────────────────────────────
 
-function Panel({ def, count, onCount, sub, extras, style, children }: {
+function Panel({ def, count, onCount, sub, extras, style, className, children }: {
   def: DashboardSectionMeta
   count?: string
   /** Opens the tasks behind the count; absent = plain text. */
@@ -46,10 +56,11 @@ function Panel({ def, count, onCount, sub, extras, style, children }: {
   sub?: string
   extras?: ReactNode
   style?: CSSProperties
+  className?: string
   children: ReactNode
 }) {
   return (
-    <section className={`${styles.panel} ${styles.surface}`} style={style} aria-label={def.title} data-dash-section={def.id}>
+    <section className={`${styles.panel} ${styles.surface}${className ? ` ${className}` : ''}`} style={style} aria-label={def.title} data-dash-section={def.id}>
       <div className={styles.panelHeader}>
         <DashGlyph name={def.glyph} color={def.glyphColor} />
         <span className={styles.panelTitle}>{def.title}</span>
@@ -545,6 +556,171 @@ export function PeopleSection({ data, options, onDrill, style }: DashboardSectio
           </div>
         </>
       )}
+    </Panel>
+  )
+}
+
+// ── Tags ────────────────────────────────────────────────────────────────────
+
+
+export function TagsSection({ data, options, onDrill, style }: DashboardSectionProps) {
+  const { shown, total } = data.tags
+  const showUntagged = options.showUntagged !== false && shown.untagged.ids.length > 0
+  const all = useMemo(() => {
+    const totalOpen = new Map(total.rows.map((r) => [r.tag.id, r.ids.length]))
+    return [
+      ...shown.rows.map((r) => ({ key: String(r.tag.id), tag: r.tag, stats: r, totalOpen: totalOpen.get(r.tag.id) ?? r.ids.length })),
+      ...(showUntagged ? [{ key: 'none', tag: null, stats: shown.untagged, totalOpen: total.untagged.ids.length }] : []),
+    ]
+  }, [shown, total, showUntagged])
+  const max = Math.max(1, ...all.map((r) => r.stats.ids.length))
+  return (
+    <Panel
+      def={SECTION_META.tags}
+      style={style}
+      className={styles.tagsPanel}
+      count={`${countOf(shown.taggedIds.length, total.taggedIds.length)} tagged`}
+      // Each tag's tasks in their own order, as a person's are.
+      onCount={onDrill ? () => onDrill(tagsSectionDialog(shown.rows.map((r) => ({ tag: r.tag, todoIds: inSortOrder(r.ids, data) })))) : undefined}
+      sub="Open tasks by tag"
+    >
+      {all.length === 0 ? (
+        <Empty title="No tagged tasks" hint="Open tasks show here by tag." />
+      ) : (
+        <>
+          <div className={`${styles.tagsGrid} ${styles.peopleHead}`}>
+            <span>Tag</span><span>Open</span><span className={styles.tagsBarCol} /><span className={styles.num}>Hot</span><span className={styles.num}>Follow-up</span>
+          </div>
+          <div className={styles.panelBody}>
+            {all.map(({ key, tag, stats, totalOpen }) => {
+              const name = tag ? `#${tag.name}` : 'No tag'
+              const open = stats.ids.length
+              const openLabel = countOf(open, totalOpen)
+              const content = (
+                <>
+                  <span className={styles.personName}>
+                    <i className={`${styles.tagDot} ${tag ? '' : styles.avatarNone}`} style={tag ? { background: tag.color } : undefined} />
+                    <span className={styles.tagName}>{name}</span>
+                  </span>
+                  <span className={`${styles.peopleBar} ${styles.tagsBarCol}`}><span style={{ width: `${Math.round((open / max) * 100)}%` }} /></span>
+                  <span className={styles.num} data-testid="dash-tag-open">{openLabel}</span>
+                  <Count n={stats.hotIds.length} color="var(--color-danger)" />
+                  <Count n={stats.followupDueIds.length} color="var(--color-followup)" />
+                </>
+              )
+              const cls = `${styles.tagsGrid} ${styles.personRow}`
+              return onDrill ? (
+                <button
+                  key={key}
+                  type="button"
+                  className={cls}
+                  data-tag-row={key}
+                  aria-label={`${name}: ${openLabel} open, ${stats.hotIds.length} hot, ${stats.followupDueIds.length} follow-up due`}
+                  onClick={() => onDrill(tagSectionDialog(tag, inSortOrder(stats.ids, data)))}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div key={key} className={cls} data-tag-row={key}>{content}</div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </Panel>
+  )
+}
+
+// ── Stale tasks ─────────────────────────────────────────────────────────────
+
+
+export function StaleSection({ data, rows, onDrill, style }: DashboardSectionProps) {
+  const { shown, total } = data.stale
+  const days = data.staleDays
+  const ids = shown.ids
+  return (
+    <Panel
+      def={SECTION_META.stale}
+      style={style}
+      count={countOf(ids.length, total.ids.length)}
+      onCount={onDrill ? () => onDrill(staleTasksDialog(ids, days)) : undefined}
+      sub={staleSubLine(days, shown.oldestDays)}
+    >
+      <div className={styles.panelBody}>
+        {ids.length === 0
+          ? <Empty title="Nothing stale" hint={`Every open task changed in the last ${days} days.`} />
+          : <RowsGrid kit={rows}><TaskRows sectionKey="stale" ids={ids} data={data} kit={rows} /></RowsGrid>}
+      </div>
+    </Panel>
+  )
+}
+
+// ── Recently completed ──────────────────────────────────────────────────────
+
+
+export function RecentSection({ data, rows, onDrill, style }: DashboardSectionProps) {
+  const { shown, total } = data.recent
+  const days = data.recentDays
+  const ids = shown.ids
+  return (
+    <Panel
+      def={SECTION_META.recent}
+      style={style}
+      count={countOf(ids.length, total.ids.length)}
+      onCount={onDrill ? () => onDrill(recentlyCompletedDialog(ids, days)) : undefined}
+      sub={`Last ${days} days`}
+    >
+      <div className={styles.panelBody}>
+        {ids.length === 0
+          ? <Empty title="Nothing completed" hint={`Tasks completed in the last ${days} days show here.`} />
+          : <RowsGrid kit={rows}><TaskRows sectionKey="recent" ids={ids} data={data} kit={rows} /></RowsGrid>}
+      </div>
+    </Panel>
+  )
+}
+
+// ── Eisenhower ──────────────────────────────────────────────────────────────
+
+
+export function EisenhowerSection({ data, onDrill, style }: DashboardSectionProps) {
+  const { shown, total } = data.eisenhower
+  const urgentRange = data.ctx.urgentRange
+  const sum = (s: typeof shown) => EISENHOWER_QUADRANTS.reduce((n, q) => n + s[q].ids.length, 0)
+  return (
+    <Panel
+      def={SECTION_META.eisenhower}
+      style={style}
+      count={`${countOf(sum(shown), sum(total))} open`}
+      onCount={onDrill ? () => onDrill(eisenhowerSummaryDialog({
+        do: shown.do.ids, schedule: shown.schedule.ids, delegate: shown.delegate.ids, drop: shown.drop.ids,
+      }, urgentRange)) : undefined}
+      sub="Urgent × important"
+    >
+      <div className={styles.matrix}>
+        {EISENHOWER_QUADRANTS.map((q) => {
+          const n = shown[q].ids.length
+          const t = total[q].ids.length
+          const byDate = shown[q].byDate
+          return (
+            <Clickable
+              key={q}
+              as="div"
+              className={styles.quadrant}
+              data-eis-cell={q}
+              label={`${QUADRANT_NAME[q]}, ${QUADRANT_SUBTITLE[q].toLowerCase()}: ${countOf(n, t)}. Show tasks`}
+              onClick={onDrill && n > 0 ? () => onDrill(eisenhowerQuadrantDialog(q, shown[q].ids, urgentRange)) : undefined}
+            >
+              <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{QUADRANT_NAME[q]}</span>
+              <span className={styles.quadrantSub}>{QUADRANT_SUBTITLE[q]}</span>
+              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
+                {n}
+                {n !== t && <span className={styles.of}>of {t}</span>}
+              </span>
+              {byDate > 0 && <span className={styles.quadrantSub}>{byDate} by due date</span>}
+            </Clickable>
+          )
+        })}
+      </div>
     </Panel>
   )
 }

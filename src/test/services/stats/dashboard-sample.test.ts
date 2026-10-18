@@ -9,6 +9,10 @@ import { computeTrend } from '../../../services/stats/trend'
 import { computePeopleStats } from '../../../services/stats/people'
 import { selectStatusBreakdown } from '../../../services/stats/status-breakdown'
 import { statsFilter } from '../../../services/stats/stats-context'
+import { computeTagStats } from '../../../services/stats/tags'
+import { computeStaleTasks } from '../../../services/stats/stale'
+import { computeRecentlyCompleted } from '../../../services/stats/recently-completed'
+import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import { emptyFilterCriteria } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
@@ -184,5 +188,42 @@ describe('dashboard sample data — top-bar Tags filter q4 (shown of total)', ()
     const people = computePeopleStats(tasks, SAMPLE_CTX)
     expect(people.rows.map((r) => [r.person.name, r.ids.length, r.hotIds.length])).toEqual([['Priya Nair', 2, 0]])
     expect([people.unassigned.ids.length, people.unassigned.hotIds.length]).toEqual([3, 1])
+  })
+})
+
+describe('dashboard sample data — the Tags, Stale tasks, Recently completed and Eisenhower sections', () => {
+  const all = screened(NO_FILTER)
+  const q4 = screened(Q4_FILTER)
+
+  it('Tags: open tasks per tag, by count then name; untagged apart', () => {
+    const tags = computeTagStats(all, SAMPLE_CTX)
+    expect(tags.rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5], ['errands', 2], ['home', 1], ['planning', 1]])
+    expect(tags.untagged.ids).toHaveLength(10)
+    // Under the q4 filter only the q4 row is left.
+    expect(computeTagStats(q4, SAMPLE_CTX).rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5]])
+  })
+
+  it('Stale tasks (14 days): the open tasks from before the window, oldest first', () => {
+    expect(computeStaleTasks(all, SAMPLE_CTX, 14)).toEqual({ ids: [17, 19], oldestDays: 39 })
+    expect(computeStaleTasks(q4, SAMPLE_CTX, 14).ids).toEqual([17])
+  })
+
+  it('Recently completed (7 days): completed since Sun 4 Oct, newest first', () => {
+    expect(titles(computeRecentlyCompleted(all, SAMPLE_CTX, 7).ids)).toEqual([
+      'Ship release notes', 'Order team swag', 'Interview debrief', 'Q4 OKR draft', 'Car service', 'Fix login bug', 'Team lunch booking',
+    ])
+    expect(titles(computeRecentlyCompleted(q4, SAMPLE_CTX, 7).ids)).toEqual(['Q4 OKR draft'])
+  })
+
+  it('Eisenhower: Do 3 · Schedule 1 · Delegate 5 · Drop 10 (Urgent 8 = Do + Delegate)', () => {
+    const quadrants = computeEisenhowerSummary(all, SAMPLE_CTX)
+    expect(titles(quadrants.do.ids)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy'])
+    expect(quadrants.do.byDate).toBe(1)
+    expect(titles(quadrants.schedule.ids)).toEqual(['Book venue for offsite'])
+    expect(quadrants.delegate.ids).toEqual([5, 6, 7, 12, 13])
+    expect(quadrants.delegate.byDate).toBe(4)
+    expect(quadrants.drop.ids).toEqual([14, 8, 15, 16, 9, 10, 11, 17, 18, 19])
+    const filtered = computeEisenhowerSummary(q4, SAMPLE_CTX)
+    expect([filtered.do.ids, filtered.schedule.ids, filtered.delegate.ids, filtered.drop.ids]).toEqual([[], [4], [7], [14, 15, 17]])
   })
 })

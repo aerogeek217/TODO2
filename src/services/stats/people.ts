@@ -24,7 +24,7 @@ export interface PeopleStats {
 }
 
 export function computePeopleStats(tasks: readonly PersistedTodoItem[], ctx: StatsContext): PeopleStats {
-  const { today, urgentRange, hotRule, assignedPeopleMap } = ctx
+  const { assignedPeopleMap } = ctx
   const byPerson = new Map<number, { person: Person & { id: number }; tasks: PersistedTodoItem[] }>()
   const unassigned: PersistedTodoItem[] = []
 
@@ -44,18 +44,25 @@ export function computePeopleStats(tasks: readonly PersistedTodoItem[], ctx: Sta
     if (seen.size === 0) unassigned.push(t)
   }
 
-  const row = (rowTasks: readonly PersistedTodoItem[]): PeopleRowStats => ({
+  const rows = [...byPerson.values()]
+    .sort((a, b) => b.tasks.length - a.tasks.length || a.person.name.localeCompare(b.person.name) || a.person.id - b.person.id)
+    .map(({ person, tasks: personTasks }) => ({ person, ...openRowStats(personTasks, ctx) }))
+
+  return { rows, unassigned: openRowStats(unassigned, ctx) }
+}
+
+/** A row of open tasks (a person's, a tag's): all of them, the hot ones, the follow-up-due ones. */
+export function openRowStats(
+  rowTasks: readonly PersistedTodoItem[],
+  ctx: Pick<StatsContext, 'today' | 'urgentRange' | 'hotRule'>,
+): PeopleRowStats {
+  const { today, urgentRange, hotRule } = ctx
+  return {
     ids: idsByDate(rowTasks, 'deadline'),
     hotIds: idsByDate(rowTasks.filter((t) => isHot(t, hotRule, today, urgentRange)), 'deadline'),
     followupDueIds: idsByDate(
       rowTasks.filter((t) => (daysUntil(t.nextFollowupAt, today) ?? 1) <= 0),
       'followup',
     ),
-  })
-
-  const rows = [...byPerson.values()]
-    .sort((a, b) => b.tasks.length - a.tasks.length || a.person.name.localeCompare(b.person.name) || a.person.id - b.person.id)
-    .map(({ person, tasks: personTasks }) => ({ person, ...row(personTasks) }))
-
-  return { rows, unassigned: row(unassigned) }
+  }
 }

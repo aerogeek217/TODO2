@@ -229,6 +229,12 @@ export function tileCatalogHint(id: keyof TileStats, ctx: { today: Date; urgentR
   }
 }
 
+/** The Stale tasks header: `Not changed in 14 days or more · oldest 39 days`. */
+export function staleSubLine(days: number, oldestDays: number | null): string {
+  const base = `Not changed in ${days} days or more`
+  return oldestDays == null ? base : `${base} · oldest ${oldestDays} days`
+}
+
 /** A dialog line under the top-bar filter: it counts only what the filter shows. */
 export function withScreenNote(description: string): string {
   return `${description} Only tasks the top-bar filter shows.`

@@ -31,6 +31,14 @@ export const QUADRANT_NAME: Record<EisenhowerQuadrant, string> = {
   drop: 'Drop',
 }
 
+/** A quadrant's label colour (its name in the widget, its heading in a task dialog). */
+export const QUADRANT_COLOR: Record<EisenhowerQuadrant, string> = {
+  do: 'var(--color-danger)',
+  schedule: 'var(--color-followup)',
+  delegate: 'var(--color-text-secondary)',
+  drop: 'var(--color-text-muted)',
+}
+
 /** The plain-words subtitle of a quadrant. */
 export const QUADRANT_SUBTITLE: Record<EisenhowerQuadrant, string> = {
   do: 'Urgent and important',

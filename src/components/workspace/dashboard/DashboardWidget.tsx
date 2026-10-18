@@ -18,7 +18,7 @@ import { countOf, tileSubLine, withScreenNote } from './dashboard-copy'
 import { TILES, tileDrill } from './dashboard-tiles'
 import { DASHBOARD_WIDE_MIN_PX, packSections, sectionRowTracks, TILES_PER_ROW } from './dashboard-layout'
 import { DASHBOARD_SECTIONS } from './dashboard-sections'
-import { buildDashboardSummary, type DashboardSummary } from './dashboard-summary'
+import { buildDashboardSummary, sectionSummaryLines, type DashboardSummary } from './dashboard-summary'
 import { DashGlyph } from '../../shared/DashGlyph'
 import { GearIcon } from '../../shared/icons'
 import { useTooltip } from '../../shared/use-tooltip'
@@ -209,9 +209,10 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   )
 
   const countLabel = countOf(data.tiles.shown.open.ids.length, data.tiles.total.open.ids.length)
+  const { tags, stale, recent, eisenhower } = data
   const summary = useMemo(
-    () => buildDashboardSummary(config.tiles, data.tiles, data.listTiles),
-    [config.tiles, data.tiles, data.listTiles],
+    () => buildDashboardSummary(config.tiles, data.tiles, data.listTiles, sectionSummaryLines(config.sections, { tags, stale, recent, eisenhower })),
+    [config.tiles, config.sections, data.tiles, data.listTiles, tags, stale, recent, eisenhower],
   )
   const onResultRef = useLatestRef(onResult)
   useEffect(() => {

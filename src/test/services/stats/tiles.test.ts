@@ -12,6 +12,7 @@ const ctx: StatsContext = {
   urgentRange: 3,
   hotRule: DEFAULT_HOT_RULE,
   assignedPeopleMap: new Map(),
+  assignedTagsMap: new Map(),
   statuses: [],
 }
 

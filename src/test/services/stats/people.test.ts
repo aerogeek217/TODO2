@@ -10,7 +10,7 @@ const amy = makePerson({ id: 2, name: 'Amy' })
 const bob = makePerson({ id: 3, name: 'Bob' })
 
 function ctx(map: Map<number, ReturnType<typeof makePerson>[]>): StatsContext {
-  return { today, weekStartsOn: 1, urgentRange: 3, hotRule: DEFAULT_HOT_RULE, assignedPeopleMap: map, statuses: [] }
+  return { today, weekStartsOn: 1, urgentRange: 3, hotRule: DEFAULT_HOT_RULE, assignedPeopleMap: map, assignedTagsMap: new Map(), statuses: [] }
 }
 
 describe('computePeopleStats', () => {

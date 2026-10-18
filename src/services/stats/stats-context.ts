@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Status } from '../../models'
+import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import { compareTodosByDate, type TodoDateField, type WeekStart } from '../../utils/effective-date'
 import type { HotRule } from '../../utils/hot'
@@ -19,6 +19,8 @@ export interface StatsContext {
   hotRule: HotRule
   /** Task id → assigned people (`person-store.assignedPeopleMap`). */
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
+  /** Task id → its tags (`tag-store.assignedTagsMap`). */
+  assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
   statuses: readonly Status[]
 }
 
