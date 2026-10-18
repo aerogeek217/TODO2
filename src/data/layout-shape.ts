@@ -8,6 +8,7 @@ import {
   pickDetailsWidth,
   type CalendarTabViewState,
   type LayoutBand,
+  type LayoutBody,
   type TaskRowsViewState,
   type LayoutCell,
   type LayoutColumn,
@@ -28,12 +29,6 @@ import { isRecord } from '../utils/is-record'
  * known kinds, known keys and unique ids.
  */
 
-/** The parts of a layout row the workspace draws: its columns and bands. */
-export interface LayoutBody {
-  columns: LayoutColumn[]
-  top?: LayoutBand
-  bottom?: LayoutBand
-}
 
 /** A layout row's body as stored (unchecked). */
 export interface RawLayoutBody {

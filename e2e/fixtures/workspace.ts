@@ -40,9 +40,21 @@ export interface WsColumnSeed {
   cells: WsCellSeed[]
 }
 
+export interface WsBandSeed {
+  id: string
+  /** Height in px (default 160). */
+  height?: number
+  tabs: WsTabSeed[]
+  activeTabId?: string
+  collapsed?: boolean
+}
+
 export interface WsLayoutSeed {
   name: string
   columns: WsColumnSeed[]
+  /** The full-width band above / below the columns. */
+  top?: WsBandSeed
+  bottom?: WsBandSeed
 }
 
 export interface WorkspaceSeed {
@@ -190,6 +202,30 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     }
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
+    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['cells'][number]['tabs'][number]
+    const buildTab = (tab: TabSeed) => {
+      const base = structuredClone(seed.newTabs[tab.kind])
+      const out: Record<string, unknown> = { ...base, id: tab.id }
+      const config = { ...(base.config as Record<string, unknown>) }
+      if (tab.kind === 'lens' && tab.listDefIdx != null) {
+        const listDefinitionId = defIds[tab.listDefIdx]
+        if (listDefinitionId != null) config.listDefinitionId = listDefinitionId
+      }
+      if (tab.kind === 'calendar') {
+        if (tab.dateTypes) config.dateTypes = tab.dateTypes
+        if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
+      }
+      if (tab.kind === 'dashboard' && tab.dashboard) {
+        const d = tab.dashboard
+        if (d.tiles) config.tiles = d.tiles
+        if (d.listTileIdxs) config.listTiles = d.listTileIdxs.map((i) => defIds[i]).filter((id) => id != null)
+        if (d.sections) config.sections = d.sections
+      }
+      if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
+      if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
+      out.config = config
+      return out
+    }
     for (const layout of seed.layouts) {
       const columns = layout.columns.map((col) => ({
         id: col.id,
@@ -199,32 +235,22 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
           weight: cell.weight ?? 1,
           activeTabId: cell.activeTabId ?? cell.tabs[0]?.id,
           ...(cell.collapsed ? { collapsed: true } : {}),
-          tabs: cell.tabs.map((tab) => {
-            const base = structuredClone(seed.newTabs[tab.kind])
-            const out: Record<string, unknown> = { ...base, id: tab.id }
-            const config = { ...(base.config as Record<string, unknown>) }
-            if (tab.kind === 'lens' && tab.listDefIdx != null) {
-              const listDefinitionId = defIds[tab.listDefIdx]
-              if (listDefinitionId != null) config.listDefinitionId = listDefinitionId
-            }
-            if (tab.kind === 'calendar') {
-              if (tab.dateTypes) config.dateTypes = tab.dateTypes
-              if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
-            }
-            if (tab.kind === 'dashboard' && tab.dashboard) {
-              const d = tab.dashboard
-              if (d.tiles) config.tiles = d.tiles
-              if (d.listTileIdxs) config.listTiles = d.listTileIdxs.map((i) => defIds[i]).filter((id) => id != null)
-              if (d.sections) config.sections = d.sections
-            }
-            if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
-            if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
-            out.config = config
-            return out
-          }),
+          tabs: cell.tabs.map(buildTab),
         })),
       }))
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, columns, createdAt: now, modifiedAt: now })
+      const bands: Record<string, unknown> = {}
+      for (const edge of ['top', 'bottom'] as const) {
+        const band = layout[edge]
+        if (!band) continue
+        bands[edge] = {
+          id: band.id,
+          height: band.height ?? 160,
+          activeTabId: band.activeTabId ?? band.tabs[0]?.id,
+          ...(band.collapsed ? { collapsed: true } : {}),
+          tabs: band.tabs.map(buildTab),
+        }
+      }
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, columns, ...bands, createdAt: now, modifiedAt: now })
       firstId ??= id
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })
@@ -320,6 +346,36 @@ export async function drag(
   await page.mouse.move(to.x, to.y, { steps: 12 })
   if (during) await during()
   await releaseDrag(page)
+}
+
+/** A panel's header handle: the empty space between its tabs and its buttons. */
+export function wsPanelHandle(page: Page, panelId: string): Locator {
+  return page.locator(`[data-ws-panel-handle="${panelId}"]`)
+}
+
+/** The band at an edge. */
+export function wsBand(page: Page, edge: 'top' | 'bottom'): Locator {
+  return page.locator(`[data-ws-band="${edge}"]`)
+}
+
+/** Tab ids of the band at `edge` (empty when there is none). */
+export async function wsBandTabs(page: Page, edge: 'top' | 'bottom'): Promise<string[]> {
+  return page.evaluate((e) =>
+    Array.from(document.querySelectorAll<HTMLElement>(`[data-ws-band="${e}"] [data-ws-tab]`)).map((t) => t.dataset.wsTab ?? ''),
+  edge)
+}
+
+/**
+ * Drags a whole panel by its header's empty space (grabbed at its centre)
+ * to `to`, checking `lifted` / `during` (if given) before releasing.
+ */
+export async function dragPanel(
+  page: Page,
+  panelId: string,
+  to: Point,
+  checks: { lifted?: () => Promise<void>; during?: () => Promise<void> } = {},
+): Promise<void> {
+  await drag(page, await pointIn(wsPanelHandle(page, panelId)), to, checks)
 }
 
 /** Drags a tab (grabbed at its centre) to (x, y), checking `during` (if given) before releasing. */

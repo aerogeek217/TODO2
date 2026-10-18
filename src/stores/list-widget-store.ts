@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { useWorkspaceStore } from './workspace-store'
+import { layoutTabs } from '../utils/workspace-layout-ops'
 
 /** Viewport point a popover hangs from, and which edge of it lines up. */
 export interface PopoverPoint {
@@ -32,7 +33,7 @@ interface ListWidgetState {
 }
 
 function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
-  for (const col of layout?.columns ?? []) for (const cell of col.cells) for (const tab of cell.tabs) into.add(tab.id)
+  if (layout) for (const tab of layoutTabs(layout)) into.add(tab.id)
 }
 
 /**

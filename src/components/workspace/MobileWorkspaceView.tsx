@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { getActiveTab, type LayoutCell, type LayoutColumn, type WorkspaceLayout } from '../../models/workspace-layout'
+import {
+  getActiveTab,
+  type BandEdge,
+  type LayoutBand,
+  type LayoutColumn,
+  type LayoutPanel,
+  type WorkspaceLayout,
+} from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
@@ -16,7 +23,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { copyTasksRich } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
+import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
 import styles from './MobileWorkspaceView.module.css'
 
 /** Gap between columns in the pager (px). */
@@ -26,11 +33,23 @@ const STRIP_ITEM_PADDING_PX = 12
 
 const WIDER_SCREEN_HINT = 'To create or edit layouts, use a wider screen.'
 
-/** A column's name: the active tab title of its first cell. */
-function useColumnName(column: LayoutColumn, index: number): string {
-  const first = column.cells[0]
+/** One pager page: a column, or a band (the top band first, the bottom band last). */
+type PagerPage =
+  | { kind: 'column'; id: string; column: LayoutColumn }
+  | { kind: 'band'; id: string; edge: BandEdge; band: LayoutBand }
+
+function pagesOf(layout: WorkspaceLayout): PagerPage[] {
+  const pages: PagerPage[] = layout.columns.map((column) => ({ kind: 'column', id: column.id, column }))
+  if (layout.top) pages.unshift({ kind: 'band', id: layout.top.id, edge: 'top', band: layout.top })
+  if (layout.bottom) pages.push({ kind: 'band', id: layout.bottom.id, edge: 'bottom', band: layout.bottom })
+  return pages
+}
+
+/** A page's name: the active tab title of its band, or of a column's first cell. */
+function usePageName(page: PagerPage, index: number): string {
+  const first = page.kind === 'band' ? page.band : page.column.cells[0]
   const title = useTabTitle(first ? getActiveTab(first) : undefined)
-  return title || `Column ${index + 1}`
+  return title || (page.kind === 'band' ? `${page.edge === 'top' ? 'Top' : 'Bottom'} band` : `Column ${index + 1}`)
 }
 
 function SearchIcon() {
@@ -252,10 +271,11 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
 }
 
 /**
- * A cell on mobile: tabs switch, the ⋯ menu only collapses, a list tab's
- * long-press opens its list sheet. No layout editing.
+ * A cell (or a band) on mobile: tabs switch, the ⋯ menu only collapses, a
+ * list tab's long-press opens its list sheet. No layout editing.
  */
-function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
+function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boolean; band?: boolean }) {
+  const noun = band ? 'band' : 'cell'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
   const active = getActiveTab(cell)
@@ -277,14 +297,14 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
   }
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'item', label: 'Collapse cell', icon: <ChevronUpIcon />, onSelect: () => { void setCellCollapsed(cell.id, true) } },
+    { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setCellCollapsed(cell.id, true) } },
   ]
 
   return (
     <section
       className={[styles.cell, fill && !collapsed ? styles.cellFill : '', collapsed ? styles.cellCollapsed : ''].join(' ')}
       data-ws-cell={cell.id}
-      aria-label={`${activeTitle} cell`}
+      aria-label={`${activeTitle} ${noun}`}
     >
       <div className={styles.cellHeader} data-ws-cell-header={cell.id}>
         <CellTabStrip
@@ -306,7 +326,7 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
           <button
             type="button"
             className={styles.cellAction}
-            aria-label="Expand cell"
+            aria-label={`Expand ${noun}`}
             aria-expanded={false}
             onClick={() => { void setCellCollapsed(cell.id, false) }}
           >
@@ -317,7 +337,7 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
             ref={moreRef}
             type="button"
             className={`${styles.cellAction} ${menuOpen ? styles.cellActionPressed : ''}`}
-            aria-label="Cell options"
+            aria-label={band ? 'Band options' : 'Cell options'}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
@@ -354,7 +374,7 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
         <MenuPopover
           anchorRef={moreRef}
           placement="bottom-end"
-          label="Cell options"
+          label={band ? 'Band options' : 'Cell options'}
           entries={menuEntries}
           onClose={() => setMenuOpen(false)}
         />
@@ -363,8 +383,23 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
   )
 }
 
-function MobileColumn({ column, index }: { column: LayoutColumn; index: number }) {
-  const name = useColumnName(column, index)
+/** A pager page: a column's cells, or a band as one full-height cell. */
+function MobilePage({ page, index }: { page: PagerPage; index: number }) {
+  const name = usePageName(page, index)
+  if (page.kind === 'band') {
+    return (
+      <section
+        className={styles.column}
+        id={`ws-column-${page.id}`}
+        role="tabpanel"
+        aria-label={name}
+        data-ws-band-page={page.edge}
+      >
+        <MobileCell cell={page.band} fill band />
+      </section>
+    )
+  }
+  const { column } = page
   const fill = column.cells.length === 1
   return (
     <section
@@ -379,37 +414,40 @@ function MobileColumn({ column, index }: { column: LayoutColumn; index: number }
   )
 }
 
-function ColumnName({ column, index, active, setRef, onPick }: {
-  column: LayoutColumn
+function PageName({ page, index, active, setRef, onPick }: {
+  page: PagerPage
   index: number
   active: boolean
   setRef: (el: HTMLButtonElement | null) => void
   onPick: () => void
 }) {
-  const name = useColumnName(column, index)
+  const name = usePageName(page, index)
   return (
     <button
       ref={setRef}
       type="button"
       role="tab"
       aria-selected={active}
-      aria-controls={`ws-column-${column.id}`}
+      aria-controls={`ws-column-${page.id}`}
       tabIndex={active ? 0 : -1}
-      className={`${styles.stripItem} ${active ? styles.stripItemActive : ''}`}
-      data-ws-column-name={column.id}
+      className={`${styles.stripItem} ${active ? styles.stripItemActive : ''} ${page.kind === 'band' ? styles.stripItemBand : ''}`}
+      data-ws-column-name={page.id}
+      data-ws-band-name={page.kind === 'band' ? page.edge : undefined}
       onClick={onPick}
     >
-      {name}
+      {page.kind === 'band' && <span className={styles.bandGlyph}><BandIcon edge={page.edge} size={12} /></span>}
+      {page.kind === 'band' ? <span className={styles.stripName}>{name}</span> : name}
     </button>
   )
 }
 
 /**
- * Columns side by side, one viewport wide each, swiped with native scrolling
- * and mandatory scroll snap. The strip above names the columns; its underline
- * follows the scroll position, and tapping a name scrolls to that column.
+ * Pages side by side — the top band, the columns, the bottom band — one
+ * viewport wide each, swiped with native scrolling and mandatory scroll
+ * snap. The strip above names them (bands with a band glyph); its underline
+ * follows the scroll position, and tapping a name scrolls to that page.
  */
-function ColumnPager({ columns }: { columns: readonly LayoutColumn[] }) {
+function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
   const pagerRef = useRef<HTMLDivElement | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLSpanElement | null>(null)
@@ -417,7 +455,7 @@ function ColumnPager({ columns }: { columns: readonly LayoutColumn[] }) {
   const frame = useRef<number | null>(null)
   const activeRef = useRef(0)
   const [active, setActive] = useState(0)
-  const count = columns.length
+  const count = pages.length
 
   const sync = useCallback(() => {
     frame.current = null
@@ -501,10 +539,10 @@ function ColumnPager({ columns }: { columns: readonly LayoutColumn[] }) {
   return (
     <>
       <div ref={stripRef} className={styles.strip} role="tablist" aria-label="Columns" onKeyDown={onStripKeyDown}>
-        {columns.map((column, i) => (
-          <ColumnName
-            key={column.id}
-            column={column}
+        {pages.map((page, i) => (
+          <PageName
+            key={page.id}
+            page={page}
             index={i}
             active={i === active}
             setRef={(el) => { itemEls.current[i] = el }}
@@ -522,23 +560,24 @@ function ColumnPager({ columns }: { columns: readonly LayoutColumn[] }) {
         data-ws-pager
         data-active-column={active}
       >
-        {columns.map((column, i) => <MobileColumn key={column.id} column={column} index={i} />)}
+        {pages.map((page, i) => <MobilePage key={page.id} page={page} index={i} />)}
       </div>
     </>
   )
 }
 
 /**
- * The open layout on a phone: one column at a time, swiped sideways, with a
- * column strip under the top bar. Tabs switch and cells collapse (view state,
- * saved automatically); changing the layout itself is desktop-only, so this
- * view never makes unsaved changes.
+ * The open layout on a phone: one column (or band) at a time, swiped
+ * sideways, with a strip of their names under the top bar. Tabs switch and
+ * cells collapse (view state, saved automatically); changing the layout
+ * itself is desktop-only, so this view never makes unsaved changes.
  */
 export function MobileWorkspaceView({ layout }: { layout: WorkspaceLayout }) {
+  const pages = pagesOf(layout)
   return (
     <div className={styles.root} data-ws-mobile>
       <MobileTopBar name={layout.name} />
-      {layout.columns.length === 0 ? (
+      {pages.length === 0 ? (
         <div className={styles.emptyLayout} data-ws-area>
           <p className={styles.emptyLayoutTitle}>This layout is empty</p>
           <p className={styles.emptyHint}>{WIDER_SCREEN_HINT}</p>
@@ -546,7 +585,7 @@ export function MobileWorkspaceView({ layout }: { layout: WorkspaceLayout }) {
         </div>
       ) : (
         // Remount per layout so a switch starts at the first column.
-        <ColumnPager key={layout.id ?? 'layout'} columns={layout.columns} />
+        <ColumnPager key={layout.id ?? 'layout'} pages={pages} />
       )}
     </div>
   )

@@ -420,3 +420,25 @@
   color: var(--color-text-muted);
 }
 
+
+/* A band's page name: a band glyph before its active tab's title. */
+.stripItemBand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stripName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bandGlyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.stripItemActive .bandGlyph {
+  color: var(--color-accent);
+}

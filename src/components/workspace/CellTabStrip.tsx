@@ -8,7 +8,7 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 import { tabTitle, useTabTitle } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
-import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type WorkspaceTabDragData } from './workspace-drag'
+import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
 import styles from './CellTabStrip.module.css'
 
 interface TabProps {
@@ -101,12 +101,13 @@ function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
 }
 
 interface CellTabStripProps {
-  cell: LayoutCell
+  /** The cell or band whose tabs these are. */
+  cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>
   collapsed: boolean
   /** Task count of the active tab (list / Eisenhower: `N`, `shown of total`, or `—`). */
   activeCount?: string
-  /** While a tab is dragged over this cell's middle zone: the ghost tab. */
-  ghost?: { kind: WidgetKind; title: string } | null
+  /** While a tab or a panel is dragged over this panel's middle: the ghost tab(s), at the end of the strip. */
+  ghosts?: readonly DraggedTab[] | null
   /**
    * Touch layout (mobile): taller tabs that only switch — not draggable; the
    * close ×, add `+` and tab menu appear only when their handlers are given.
@@ -127,7 +128,7 @@ export function CellTabStrip({
   cell,
   collapsed,
   activeCount,
-  ghost,
+  ghosts,
   touch = false,
   onActivate,
   onClose,
@@ -210,7 +211,7 @@ export function CellTabStrip({
             }}
           />
         ))}
-        {ghost && <GhostTab kind={ghost.kind} title={ghost.title} />}
+        {ghosts?.map((g) => <GhostTab key={g.id} kind={g.kind} title={g.title} />)}
         {hidden.length > 0 && <span className={styles.fade} aria-hidden="true" />}
       </div>
       {hidden.length > 0 && (

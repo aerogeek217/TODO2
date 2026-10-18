@@ -1,10 +1,10 @@
 import type { PersistedListDefinition } from '../models/list-definition'
-import { LAYOUT_NAME_MAX, type LayoutColumn } from '../models/workspace-layout'
+import { LAYOUT_NAME_MAX, layoutBodyOf, type LayoutBody } from '../models/workspace-layout'
 import { registerModuleReset } from '../utils/module-reset'
 import { isRecord } from '../utils/is-record'
 import { CURRENT_DB_VERSION } from './database'
 import { rowFixes, sanitizeRow, validateRow } from './import-validation'
-import { pickLayoutColumns } from './layout-shape'
+import { pickLayoutBody } from './layout-shape'
 import { upgradeDataSet, type DataRow } from './schema-upgrades'
 
 /**
@@ -12,7 +12,7 @@ import { upgradeDataSet, type DataRow } from './schema-upgrades'
  * per browser, outside the Dexie database — so never in the sync file, an
  * export or a backup, and untouched by a data replace (the stores drop them
  * then; `clearUnsavedDrafts`). Each record carries what it was made
- * against (the stored layout's columns, the saved list), and is only taken
+ * against (the stored layout's columns and bands, the saved list), and is only taken
  * back while the stored data still matches: a draft made against other data
  * is dropped, never applied to it. Storage that can't be read or written
  * (private mode, quota, blocked site data) just means nothing is kept.
@@ -26,15 +26,20 @@ import { upgradeDataSet, type DataRow } from './schema-upgrades'
 const LAYOUT_KEY = 'todo2-unsaved-layout'
 const LISTS_KEY = 'todo2-unsaved-lists'
 
-/** The open layout's unsaved working copy. */
+/**
+ * The open layout's unsaved working copy: its body (columns and bands). Kept
+ * as `columns` / `top` / `bottom` (and `baseColumns` / `baseTop` /
+ * `baseBottom` for the base), so a record kept before bands existed reads
+ * as a body without bands.
+ */
 export type LayoutDraftRecord =
-  /** Edits to a stored layout, made against `baseColumns` (its stored columns then). */
-  | { kind: 'saved'; layoutId: number; baseColumns: LayoutColumn[]; columns: LayoutColumn[] }
+  /** Edits to a stored layout, made against `base` (its stored body then). */
+  | { kind: 'saved'; layoutId: number; base: LayoutBody; body: LayoutBody }
   /**
    * A new layout not stored yet. `listNames` names the lists its tabs show
    * (by id), so a draft whose lists are gone or are other lists now is dropped.
    */
-  | { kind: 'new'; name: string; columns: LayoutColumn[]; listNames: Record<string, string> }
+  | { kind: 'new'; name: string; body: LayoutBody; listNames: Record<string, string> }
 
 /** A list's unsaved edits, made against `base` (the saved definition then). */
 export interface ListDraftRecord {
@@ -94,11 +99,11 @@ function writeJson(key: string, value: unknown): boolean {
   }
 }
 
-/** Columns only when they pass the layout repair unchanged; else `null`. */
-function columnsOf(raw: unknown): LayoutColumn[] | null {
-  if (!Array.isArray(raw)) return null
-  const picked = pickLayoutColumns(raw)
-  return picked.fixes.length === 0 ? picked.columns : null
+/** A body only when it passes the layout repair unchanged; else `null`. */
+function bodyOf(raw: unknown): LayoutBody | null {
+  if (!isRecord(raw) || !Array.isArray(raw.columns)) return null
+  const { fixes, ...body } = pickLayoutBody({ columns: raw.columns, top: raw.top, bottom: raw.bottom })
+  return fixes.length === 0 ? layoutBodyOf(body) : null
 }
 
 /** The kept layout draft, or `null` (none, or not readable by this build). */
@@ -107,16 +112,18 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
   if (!isRecord(v)) return null
   const from = versionOf(v.schemaVersion)
   if (from === null) return null
-  // The columns (and the base's) as layout rows, upgraded together.
-  const upgraded = upgradeRows('layouts', [{ columns: v.columns }, { columns: v.baseColumns }], from)
+  // The body (and the base's) as layout rows, upgraded together.
+  const upgraded = upgradeRows('layouts', [
+    { columns: v.columns, top: v.top, bottom: v.bottom },
+    { columns: v.baseColumns, top: v.baseTop, bottom: v.baseBottom },
+  ], from)
   if (!upgraded) return null
-  const [now, base] = upgraded.map((row) => (isRecord(row) ? row.columns : undefined))
-  const columns = columnsOf(now)
-  if (!columns) return null
+  const body = bodyOf(upgraded[0])
+  if (!body) return null
   if (v.kind === 'saved') {
-    const baseColumns = columnsOf(base)
-    if (!baseColumns || typeof v.layoutId !== 'number' || !Number.isInteger(v.layoutId) || v.layoutId < 1) return null
-    return { kind: 'saved', layoutId: v.layoutId, baseColumns, columns }
+    const base = bodyOf(upgraded[1])
+    if (!base || typeof v.layoutId !== 'number' || !Number.isInteger(v.layoutId) || v.layoutId < 1) return null
+    return { kind: 'saved', layoutId: v.layoutId, base, body }
   }
   if (v.kind === 'new') {
     if (typeof v.name !== 'string' || v.name.trim() === '' || v.name.length > LAYOUT_NAME_MAX || !isRecord(v.listNames)) return null
@@ -125,14 +132,26 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
       if (typeof name !== 'string') return null
       listNames[id] = name
     }
-    return { kind: 'new', name: v.name, columns, listNames }
+    return { kind: 'new', name: v.name, body, listNames }
   }
   return null
 }
 
 /** Keeps the layout draft (`null` = none). */
 export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
-  layoutWriteOk = writeJson(LAYOUT_KEY, record && { ...record, schemaVersion: CURRENT_DB_VERSION })
+  layoutWriteOk = writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
+}
+
+/** A layout draft as kept: the body's keys flat (`columns`, `top`, …), the base's prefixed. */
+function storedForm(record: LayoutDraftRecord): Record<string, unknown> {
+  const { body } = record
+  const flat = { columns: body.columns, top: body.top, bottom: body.bottom }
+  if (record.kind === 'new') return { kind: 'new', name: record.name, listNames: record.listNames, ...flat }
+  const { base } = record
+  return {
+    kind: 'saved', layoutId: record.layoutId, ...flat,
+    baseColumns: base.columns, baseTop: base.top, baseBottom: base.bottom,
+  }
 }
 
 /** A list definition only when import would take it as it is (rebuilt from known keys); else `null`. */

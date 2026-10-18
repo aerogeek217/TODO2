@@ -116,6 +116,36 @@ describe('structural edits and dirty state', () => {
     expect(await stored(copy!)).toMatchObject({ top, bottom })
   })
 
+  it('a band made, resized, merged into or closed is a layout change; its collapse and active tab are view state', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().movePanel('kb', { kind: 'new-band', edge: 'top' })
+    expect(ws().isDirty).toBe(true)
+    expect(ws().working!.top?.tabs.map((t) => t.id)).toEqual(['b1'])
+    expect(ws().working!.columns.map((c) => c.id)).toEqual(['A'])
+    ws().discard()
+    expect(ws().working!.top).toBeUndefined()
+
+    const top = { id: 'tb', height: 140, tabs: [createTab('dashboard', 'top1'), createTab('notes', 'top2')] }
+    await db.layouts.update(id!, { top })
+    await ws().load(id!)
+    expect(ws().isDirty).toBe(false)
+    ws().setBandHeight('top', 220)
+    expect(ws().isDirty).toBe(true)
+    ws().setBandHeight('top', 140)
+    expect(ws().isDirty).toBe(false)
+    await ws().setCellCollapsed('tb', true)
+    await ws().setActiveTab('top2')
+    expect(ws().isDirty).toBe(false)
+    expect(await stored(id!)).toMatchObject({ top: { collapsed: true, activeTabId: 'top2', height: 140 } })
+    ws().moveTab('a1', { kind: 'band', edge: 'top' })
+    expect(ws().isDirty).toBe(true)
+    expect(ws().working!.top?.tabs.map((t) => t.id)).toEqual(['top1', 'top2', 'a1'])
+    ws().closeCell('tb')
+    expect(ws().working!.top).toBeUndefined()
+    await ws().save()
+    expect((await stored(id!)).top).toBeUndefined()
+  })
+
   it('split / close cell / resize / tab config / change kind are layout changes', async () => {
     await seedAndInit(twoColumns())
     const cellId = ws().splitCell('kb', 'below')
@@ -335,6 +365,36 @@ describe('unsaved changes kept for a reload', () => {
     await reload()
     expect(ws().isDirty).toBe(true)
     expect(ws().working!.columns[0]!.cells[0]!.activeTabId).toBe('a1')
+  })
+
+  it('band edits come back after a reload, still unsaved; a band changed in the stored layout drops the draft', async () => {
+    const top = { id: 'tb', height: 140, tabs: [createTab('dashboard', 'top1')] }
+    const [id] = await seedAndInit(twoColumns('Daily', { top }))
+    ws().movePanel('kb', { kind: 'new-band', edge: 'bottom' })
+    ws().setBandHeight('top', 200)
+    await reload()
+    expect(ws().isDirty).toBe(true)
+    expect(ws().working!.top?.height).toBe(200)
+    expect(ws().working!.bottom?.tabs.map((t) => t.id)).toEqual(['b1'])
+    expect((await stored(id!)).bottom).toBeUndefined()
+    // A draft that removed the top band comes back without it.
+    ws().closeCell('tb')
+    await reload()
+    expect(ws().working!.top).toBeUndefined()
+    // Elsewhere: the stored layout's band changed under the draft.
+    await db.layouts.update(id!, { top: { ...top, height: 90 } })
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working!.top?.height).toBe(90)
+  })
+
+  it('a new layout with a band comes back with it', async () => {
+    await seedAndInit(twoColumns())
+    ws().newLayout()
+    ws().addWidget('notes', { kind: 'new-band', edge: 'top' })
+    await reload()
+    expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID, columns: [] })
+    expect(ws().working!.top?.tabs).toHaveLength(1)
   })
 
   it('a kept draft of a layout that changed since is dropped', async () => {

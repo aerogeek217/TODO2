@@ -9,7 +9,10 @@ import {
   NEW_LAYOUT_NAME,
   UNSAVED_LAYOUT_ID,
   createTab,
-  type LayoutColumn,
+  layoutBodyOf,
+  withLayoutBody,
+  type BandEdge,
+  type LayoutBody,
   type PersistedWorkspaceLayout,
   type TabConfigOf,
   type TabSeed,
@@ -22,11 +25,14 @@ import {
   closeTab,
   layoutIds,
   layoutStructureEqual,
+  layoutTabs,
+  movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
   replaceTab,
   setActiveTab,
+  setBandHeight,
   setCellCollapsed,
   setCellWeights,
   setColumnWeights,
@@ -41,13 +47,14 @@ type Layout = PersistedWorkspaceLayout
  * Workspace layouts: the saved layouts plus an in-memory **working copy** of
  * the open one.
  *
- * - Structural edits (add / move / close / split / resize / tab config) change
+ * - Structural edits (add / move / close / split / resize / band height /
+ *   tab config) change
  *   only the working copy; `isDirty` says whether it differs from the saved
  *   layout. `save()` writes it, `discard()` drops it. An edited working copy
  *   is also kept in the browser (`data/draft-storage`, never the database),
  *   and the first `init()` of a page load opens it again, still unsaved —
  *   while the stored layout it was made against is unchanged.
- * - View state (active tab, collapsed cells, a tab's `viewState`) is applied
+ * - View state (active tab, collapsed cells and bands, a tab's `viewState`) is applied
  *   to the working copy **and** written straight onto the saved layout
  *   (last write wins) — it never makes the layout dirty.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
@@ -118,14 +125,19 @@ export interface WorkspaceState {
   /** Adds a new widget tab at `target`. Returns its id, or `null` when the target is unknown. */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
   moveTab: (tabId: string, target: LayoutDropTarget) => void
+  /** Moves a whole panel (a cell or a band, by id) with all its tabs. */
+  movePanel: (panelId: string, target: LayoutDropTarget) => void
   closeTab: (tabId: string) => void
-  closeCell: (cellId: string) => void
+  /** Closes a panel (a cell or a band, by id) with all its tabs. */
+  closeCell: (panelId: string) => void
   /** "Split right" / "Split below". Returns the new empty cell's id. */
   splitCell: (cellId: string, direction: 'right' | 'below') => string | null
   /** Batched column resize (weights by column id). */
   setColumnWeights: (weightById: Readonly<Record<string, number>>) => void
   /** Batched cell resize (weights by cell id). */
   setCellWeights: (weightById: Readonly<Record<string, number>>) => void
+  /** A band's height (px): layout structure, so the layout becomes unsaved. */
+  setBandHeight: (edge: BandEdge, height: number) => void
   /** Layout config of a tab (e.g. a lens tab's list, a calendar's date types). */
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>) => void
   /** "Change widget": swaps the tab's kind in place, with the new kind's defaults. */
@@ -133,8 +145,8 @@ export interface WorkspaceState {
 
   /** View state: switch a cell's tab. */
   setActiveTab: (tabId: string) => Promise<void>
-  /** View state: collapse / expand a cell. */
-  setCellCollapsed: (cellId: string, collapsed: boolean) => Promise<void>
+  /** View state: collapse / expand a panel (a cell or a band, by id). */
+  setCellCollapsed: (panelId: string, collapsed: boolean) => Promise<void>
   /** View state of a tab (e.g. a calendar's view / offset). */
   patchTabViewState: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabViewStateOf<K>>) => Promise<void>
 }
@@ -194,14 +206,10 @@ let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
 /** The ids of the lists a layout's list tabs show. */
-function listIdsOf(columns: readonly LayoutColumn[]): number[] {
+function listIdsOf(body: LayoutBody): number[] {
   const ids = new Set<number>()
-  for (const col of columns) {
-    for (const cell of col.cells) {
-      for (const tab of cell.tabs) {
-        if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
-      }
-    }
+  for (const tab of layoutTabs(body)) {
+    if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
   }
   return [...ids]
 }
@@ -212,17 +220,17 @@ function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftR
   if (!saved) {
     const defs = useListDefinitionStore.getState().listDefinitions
     const listNames: Record<string, string> = {}
-    for (const id of listIdsOf(working.columns)) listNames[id] = defs.find((d) => d.id === id)?.name ?? ''
-    return { kind: 'new', name: working.name, columns: working.columns, listNames }
+    for (const id of listIdsOf(working)) listNames[id] = defs.find((d) => d.id === id)?.name ?? ''
+    return { kind: 'new', name: working.name, body: layoutBodyOf(working), listNames }
   }
-  if (layoutStructureEqual(working.columns, saved.columns)) return null
-  return { kind: 'saved', layoutId: saved.id, baseColumns: saved.columns, columns: working.columns }
+  if (layoutStructureEqual(working, saved)) return null
+  return { kind: 'saved', layoutId: saved.id, base: layoutBodyOf(saved), body: layoutBodyOf(working) }
 }
 
 /** Whether a kept new layout's lists are still the lists it showed (same ids, same names). */
-function listsStillMatch(listNames: Readonly<Record<string, string>>, columns: readonly LayoutColumn[]): boolean {
+function listsStillMatch(listNames: Readonly<Record<string, string>>, body: LayoutBody): boolean {
   const defs = useListDefinitionStore.getState().listDefinitions
-  return listIdsOf(columns).every((id) => {
+  return listIdsOf(body).every((id) => {
     const def = defs.find((d) => d.id === id)
     return def != null && listNames[id] === def.name
   })
@@ -252,8 +260,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return
     }
     if (draft.kind === 'saved') {
-      if (draft.layoutId === saved.id && layoutStructureEqual(draft.baseColumns, saved.columns)) {
-        const next: Layout = { ...working, columns: draft.columns }
+      if (draft.layoutId === saved.id && layoutStructureEqual(draft.base, saved)) {
+        const next = withLayoutBody(working, draft.body)
         set({ working: next, isDirty: dirty(next, saved) })
       }
       keepDraft()
@@ -262,10 +270,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     await useListDefinitionStore.getState().ensureLoaded()
     // A newer open (a layout switch, a data replace) took over meanwhile.
     if (get().saved !== saved) return
-    if (listsStillMatch(draft.listNames, draft.columns)) {
+    if (listsStillMatch(draft.listNames, draft.body)) {
       const now = new Date()
       set({
-        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, columns: draft.columns, createdAt: now, modifiedAt: now },
+        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, ...draft.body, createdAt: now, modifiedAt: now },
         saved: null,
         activeLayoutId: null,
         previousLayoutId: saved.id,
@@ -291,7 +299,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
   /** The working copy differs from the stored layout (an edit, or a repair not saved yet). */
   function dirty(working: Layout, saved: Layout | null): boolean {
-    return get().repairedIds.has(working.id) || !saved || !layoutStructureEqual(working.columns, saved.columns)
+    return get().repairedIds.has(working.id) || !saved || !layoutStructureEqual(working, saved)
   }
 
   /** Applies a structural edit to the working copy. Returns whether it changed. */
@@ -413,7 +421,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({
         working: kept,
         saved: next,
-        isDirty: kept !== next && !layoutStructureEqual(kept.columns, next.columns),
+        isDirty: kept !== next && !layoutStructureEqual(kept, next),
         repairedIds: repaired,
         layouts: replaceLayout(get().layouts, next),
       })
@@ -448,7 +456,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         activeLayoutId: id,
         working,
         saved,
-        isDirty: !layoutStructureEqual(working.columns, saved.columns),
+        isDirty: !layoutStructureEqual(working, saved),
         hydrated: true,
         previousLayoutId: null,
       })
@@ -536,6 +544,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       edit((layout, genId) => moveTab(layout, tabId, target, genId))
     },
 
+    movePanel(panelId, target) {
+      edit((layout, genId) => movePanel(layout, panelId, target, genId))
+    },
+
     closeTab(tabId) {
       edit((layout) => closeTab(layout, tabId))
     },
@@ -560,6 +572,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     setCellWeights(weightById) {
       edit((layout) => setCellWeights(layout, weightById))
+    },
+
+    setBandHeight(edge, height) {
+      edit((layout) => setBandHeight(layout, edge, height))
     },
 
     patchTabConfig(tabId, kind, patch) {

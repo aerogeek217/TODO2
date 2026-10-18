@@ -41,10 +41,12 @@ import { unsavedDraftsKept } from '../data/draft-storage'
 import { useUnsavedListIds } from '../hooks/use-list-draft'
 import { PlusIcon, WidgetKindIcon } from '../components/shared/icons'
 import {
+  isWorkspaceDragType,
+  isWorkspacePanelDragData,
   isWorkspaceTabDragData,
-  TabDragContext,
-  WORKSPACE_TAB_DRAG,
-  type TabDragState,
+  tabsCount,
+  WorkspaceDragContext,
+  type WorkspaceDragState,
 } from '../components/workspace/workspace-drag'
 import { TaskRow } from '../components/task/TaskRow'
 import { CalendarEntryButton } from '../components/workspace/calendar/CalendarEntryButton'
@@ -76,15 +78,27 @@ class NoDragSensor implements SensorInstance {
   autoScrollEnabled = false
 }
 
-/** The tab ghost follows the pointer at +12 / +10 px. */
-const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform, active }) => {
-  if (!isWorkspaceTabDragData(active?.data.current) || !draggingNodeRect || !activatorEvent) return transform
+/** Offset of a tab / panel ghost from the pointer (px). */
+const GHOST_OFFSET = { x: 12, y: 10 }
+
+/**
+ * A tab or panel ghost follows the pointer at +12 / +10 px; where it would
+ * leave the window at the bottom (right) it goes above (left of) the pointer.
+ */
+const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, overlayNodeRect, transform, active }) => {
+  if (!isWorkspaceDragType(active?.data.current?.type) || !draggingNodeRect || !activatorEvent) return transform
   const e = activatorEvent as PointerEvent
   if (typeof e.clientX !== 'number') return transform
+  const pointerX = e.clientX + transform.x
+  const pointerY = e.clientY + transform.y
+  const w = overlayNodeRect?.width ?? 0
+  const h = overlayNodeRect?.height ?? 0
+  const flipX = pointerX + GHOST_OFFSET.x + w > window.innerWidth
+  const flipY = pointerY + GHOST_OFFSET.y + h > window.innerHeight
   return {
     ...transform,
-    x: transform.x + (e.clientX - draggingNodeRect.left) + 12,
-    y: transform.y + (e.clientY - draggingNodeRect.top) + 10,
+    x: transform.x + (e.clientX - draggingNodeRect.left) + (flipX ? -GHOST_OFFSET.x - w : GHOST_OFFSET.x),
+    y: transform.y + (e.clientY - draggingNodeRect.top) + (flipY ? -GHOST_OFFSET.y - h : GHOST_OFFSET.y),
   }
 }
 
@@ -108,14 +122,14 @@ function useWorkspaceData(): void {
 }
 
 /**
- * Tab drags: measures the workspace when a tab drag starts, follows the
+ * Tab and panel drags: measures the workspace when one starts, follows the
  * pointer to find the drop target, and applies the move on drop.
  */
-function useTabDragState() {
-  const [drag, setDragState] = useState<TabDragState | null>(null)
+function useWorkspaceDragState() {
+  const [drag, setDragState] = useState<WorkspaceDragState | null>(null)
   // Source of truth for handlers (the state copy drives rendering).
-  const dragRef = useRef<TabDragState | null>(null)
-  const setDrag = useCallback((next: TabDragState | null) => {
+  const dragRef = useRef<WorkspaceDragState | null>(null)
+  const setDrag = useCallback((next: WorkspaceDragState | null) => {
     dragRef.current = next
     setDragState(next)
   }, [])
@@ -124,13 +138,14 @@ function useTabDragState() {
     const current = dragRef.current
     const layout = useWorkspaceStore.getState().working
     if (!current || !layout) return
-    const hit = hitTestWorkspace(current.geometry, { x, y })
-    const target = hit ? dropTargetForHit(layout, current.geometry, hit, current.tabId) : null
-    const accepts = target != null && dropChangesLayout(layout, current.tabId, target)
+    const geo = current.geometry
+    const hit = hitTestWorkspace(geo, { x, y })
+    const target = hit ? dropTargetForHit(layout, geo, hit, current.source) : null
+    const accepts = target != null && dropChangesLayout(layout, current.source, target)
     let insertLeft: number | null = null
     if (hit?.kind === 'tab-strip') {
-      const cell = current.geometry.columns.flatMap((c) => c.cells).find((c) => c.id === hit.cellId)
-      if (cell?.header) insertLeft = hit.lineX - cell.header.left
+      const panel = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)].find((c) => c.id === hit.cellId)
+      if (panel?.header) insertLeft = hit.lineX - panel.header.left
     }
     if (sameDropHit(hit, current.hit) && accepts === current.accepts && insertLeft === current.insertLeft) return
     setDrag({ ...current, hit, target, accepts, insertLeft })
@@ -146,13 +161,14 @@ function useTabDragState() {
 
   const start = useCallback((event: DragStartEvent): boolean => {
     const data = event.active.data.current
-    if (!isWorkspaceTabDragData(data)) return false
+    const tab = isWorkspaceTabDragData(data) ? data : null
+    const panel = isWorkspacePanelDragData(data) ? data : null
+    if (!tab && !panel) return false
     const area = document.querySelector<HTMLElement>('[data-ws-area]')
     if (!area) return true
     setDrag({
-      tabId: data.tabId,
-      kind: data.kind,
-      title: data.title,
+      source: tab ? { type: 'tab', tabId: tab.tabId } : { type: 'panel', panelId: panel?.panelId ?? '' },
+      tabs: tab ? [{ id: tab.tabId, kind: tab.kind, title: tab.title }] : panel?.tabs ?? [],
       hit: null,
       target: null,
       accepts: false,
@@ -166,11 +182,45 @@ function useTabDragState() {
     const current = dragRef.current
     setDrag(null)
     if (commit && current?.target && current.accepts) {
-      useWorkspaceStore.getState().moveTab(current.tabId, current.target)
+      const ws = useWorkspaceStore.getState()
+      if (current.source.type === 'tab') ws.moveTab(current.source.tabId, current.target)
+      else ws.movePanel(current.source.panelId, current.target)
     }
   }, [setDrag])
 
   return { drag, start, end }
+}
+
+/** The label pill beside the ghost for an accepted target that has no other label (the zones label the rest). */
+function dropLabel(drag: WorkspaceDragState): string | null {
+  const { hit } = drag
+  if (!hit || !drag.accepts) return null
+  if (hit.kind === 'column-edge') return 'New column'
+  if (hit.kind === 'new-band') return `New band ${hit.edge === 'top' ? 'above' : 'below'} all columns`
+  if (hit.kind === 'tab-strip' && drag.source.type === 'panel') return `Insert ${tabsCount(drag.tabs.length)}`
+  return null
+}
+
+/** A whole panel being dragged: a small card with its tabs (the first raised), placeholder lines and an `N tabs` badge. */
+function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
+  return (
+    <div className={styles.panelGhost} data-testid="ws-panel-ghost">
+      <div className={styles.panelGhostHeader}>
+        {tabs.map((t, i) => (
+          <span key={t.id} className={`${styles.panelGhostTab} ${i === 0 ? styles.panelGhostTabFirst : ''}`}>
+            <span className={styles.ghostIcon}><WidgetKindIcon kind={t.kind} size={11} /></span>
+            <span className={styles.ghostTitle}>{t.title}</span>
+          </span>
+        ))}
+      </div>
+      <div className={styles.panelGhostBody} aria-hidden="true">
+        <span className={styles.panelGhostLine} />
+        <span className={styles.panelGhostLine} />
+        <span className={styles.panelGhostLine} />
+      </div>
+      <span className={styles.panelGhostBadge}>{tabsCount(tabs.length)}</span>
+    </div>
+  )
 }
 
 /**
@@ -304,7 +354,7 @@ export function WorkspacePage() {
   const [activeDrag, setActiveDrag] = useState<ActiveTaskDrag | null>(null)
   const calendarChoice = useCalendarDropChoice()
   const autoScroll = useAutoScrollUnderPointer()
-  const tabDrag = useTabDragState()
+  const tabDrag = useWorkspaceDragState()
   const isMobile = useIsMobile()
 
   useWorkspaceData()
@@ -321,11 +371,11 @@ export function WorkspacePage() {
   const noDragSensor = useSensor(NoDragSensor)
   const sensors = useSensors(isMobile ? noDragSensor : pointerSensor)
 
-  // Tab drags find their target from pointer geometry, not dnd-kit
+  // Tab and panel drags find their target from pointer geometry, not dnd-kit
   // droppables; task drags match the widgets' droppables (calendar days,
   // Eisenhower quadrants) under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
-    { when: (active) => active.data.current?.type === WORKSPACE_TAB_DRAG, accept: () => false },
+    { when: (active) => isWorkspaceDragType(active.data.current?.type), accept: () => false },
   ]), [])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -337,7 +387,7 @@ export function WorkspacePage() {
 
   const chooseType = calendarChoice.choose
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    if (isWorkspaceTabDragData(event.active.data.current)) {
+    if (isWorkspaceDragType(event.active.data.current?.type)) {
       tabDrag.end(true)
       return
     }
@@ -380,7 +430,7 @@ export function WorkspacePage() {
       onDragEnd={(e) => { void handleDragEnd(e) }}
       onDragCancel={handleDragCancel}
     >
-      <TabDragContext.Provider value={drag}>
+      <WorkspaceDragContext.Provider value={drag}>
         <PendingCalendarDropContext.Provider value={calendarChoice.pending}>
           <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
             {working
@@ -388,17 +438,19 @@ export function WorkspacePage() {
               : hydrated ? null : <div className={styles.loading}>Loading…</div>}
           </div>
         </PendingCalendarDropContext.Provider>
-      </TabDragContext.Provider>
+      </WorkspaceDragContext.Provider>
 
       <DragOverlay dropAnimation={null} modifiers={[followPointer]}>
         {drag ? (
           <div className={styles.ghostWrap}>
-            <div className={styles.ghost} data-testid="ws-drag-ghost">
-              <span className={styles.ghostIcon}><WidgetKindIcon kind={drag.kind} size={12} /></span>
-              <span className={styles.ghostTitle}>{drag.title}</span>
-            </div>
-            {drag.hit?.kind === 'column-edge' && drag.accepts && (
-              <div className={styles.ghostLabel}><PlusIcon size={12} strokeWidth={2} /> New column</div>
+            {drag.source.type === 'panel' ? <PanelGhost tabs={drag.tabs} /> : (
+              <div className={styles.ghost} data-testid="ws-drag-ghost">
+                <span className={styles.ghostIcon}>{drag.tabs[0] && <WidgetKindIcon kind={drag.tabs[0].kind} size={12} />}</span>
+                <span className={styles.ghostTitle}>{drag.tabs[0]?.title}</span>
+              </div>
+            )}
+            {dropLabel(drag) && (
+              <div className={styles.ghostLabel} data-testid="ws-drop-label"><PlusIcon size={12} strokeWidth={2} /> {dropLabel(drag)}</div>
             )}
           </div>
         ) : activeDrag?.calendarEntry ? (

@@ -56,6 +56,10 @@
   --cell-tab-height: 26px;
   --column-min-width: 280px;
   --cell-body-min-height: 80px;
+  --band-default-height: 160px;
+  --band-edge-zone: 24px;
+  --column-area-min-height: 160px;
+  --panel-ghost-width: 180px;
   --divider-hit: 10px;
 
   /* List widget (narrow rows below 360px of widget width — a container query) */

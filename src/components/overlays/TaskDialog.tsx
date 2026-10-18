@@ -58,12 +58,11 @@ interface Resolved {
 
 const resolve = (payload: TaskDialogPayload): Resolved => ({ payload, groups: resolveTaskDialog(payload.source, currentEnv()) })
 
-/** The cell holding tab `tabId`, and the tab's index there. */
+/** The panel (cell or band) holding tab `tabId`, and the tab's index there. */
 function cellOfTab(layout: WorkspaceLayout, tabId: string | undefined): { cellId: string; index: number } | null {
   if (tabId == null) return null
   const loc = findTab(layout, tabId)
-  const cell = loc ? layout.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
-  return loc && cell ? { cellId: cell.id, index: loc.tabIdx } : null
+  return loc ? { cellId: loc.panelId, index: loc.tabIdx } : null
 }
 
 /**

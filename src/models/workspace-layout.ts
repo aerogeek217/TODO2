@@ -180,6 +180,36 @@ export interface LayoutBand {
   collapsed?: boolean
 }
 
+/** A panel: a cell or a band — what holds a tab strip. */
+export type LayoutPanel = LayoutCell | LayoutBand
+
+/** The parts of a layout the workspace draws: its columns and bands. */
+export interface LayoutBody {
+  columns: LayoutColumn[]
+  top?: LayoutBand
+  bottom?: LayoutBand
+}
+
+/** A layout's body (`columns` and the bands it has; absent bands stay absent). */
+export function layoutBodyOf(layout: LayoutBody): LayoutBody {
+  return {
+    columns: layout.columns,
+    ...(layout.top ? { top: layout.top } : {}),
+    ...(layout.bottom ? { bottom: layout.bottom } : {}),
+  }
+}
+
+/** `layout` with its body replaced by `body` (a band `body` lacks goes). */
+export function withLayoutBody<L extends LayoutBody>(layout: L, body: LayoutBody): L {
+  const next = { ...layout, columns: body.columns }
+  for (const edge of BAND_EDGES) {
+    const band = body[edge]
+    if (band) next[edge] = band
+    else delete next[edge]
+  }
+  return next
+}
+
 export interface WorkspaceLayout {
   id?: number
   name: string
@@ -273,7 +303,7 @@ export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSe
   return WIDGET_KIND_SPECS[kind].newTab(id, seed)
 }
 
-/** The cell's active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */
-export function getActiveTab(cell: LayoutCell): LayoutTab | undefined {
+/** A cell's (or band's) active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */
+export function getActiveTab(cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>): LayoutTab | undefined {
   return cell.tabs.find((t) => t.id === cell.activeTabId) ?? cell.tabs[0]
 }

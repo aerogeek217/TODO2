@@ -30,7 +30,7 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { bySortOrder } from '../../../utils/sort-order'
-import { findTab } from '../../../utils/workspace-layout-ops'
+import { getTab } from '../../../utils/workspace-layout-ops'
 import { DragHandle } from '../../shared/DragHandle'
 import { DialogFrame } from '../../shared/Dialog'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
@@ -58,8 +58,7 @@ export const PROMPTED_LIST_TILE_NOTE = 'Lists that ask for a value can’t be ti
 /** The dashboard tab `tabId` of the working layout, if it's still there. */
 function dashboardTabOf(layout: WorkspaceLayout | null, tabId: string): DashboardTab | null {
   if (!layout) return null
-  const loc = findTab(layout, tabId)
-  const tab = loc ? layout.columns[loc.colIdx]?.cells[loc.cellIdx]?.tabs[loc.tabIdx] : undefined
+  const tab = getTab(layout, tabId)
   return tab?.kind === 'dashboard' ? tab : null
 }
 

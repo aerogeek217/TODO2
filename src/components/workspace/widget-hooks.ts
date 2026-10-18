@@ -1,9 +1,10 @@
+import { useMemo } from 'react'
 import { getActiveTab, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { findTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
+import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -27,16 +28,27 @@ export function useTabTitle(tab: LayoutTab | undefined): string {
   return tab ? tabTitle(tab, listName) : ''
 }
 
+/** `useTabTitle` for every tab of a strip, in order. */
+export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
+  const defs = useListDefinitionStore((s) => s.listDefinitions)
+  const drafts = useListDraftStore((s) => s.drafts)
+  return useMemo(() => tabs.map((tab) => {
+    const listId = tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
+    const savedName = listId != null ? defs.find((d) => d.id === listId)?.name : undefined
+    const draftName = listId != null ? drafts[listId]?.name.trim() : undefined
+    return tabTitle(tab, savedName != null ? (draftName || savedName) : undefined)
+  }), [tabs, defs, drafts])
+}
+
 /**
- * Opens Edit list for a list tab: the tab is made its cell's active one and
- * the cell expanded (so the list it previews is on screen), then the
+ * Opens Edit list for a list tab: the tab is made its panel's active one and
+ * the panel expanded (so the list it previews is on screen), then the
  * surface opens beside it.
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
   const ws = useWorkspaceStore.getState()
   const working = ws.working
-  const loc = working ? findTab(working, tabId) : null
-  const cell = loc ? working?.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
+  const cell = working ? panelOfTab(working, tabId) : undefined
   if (cell) {
     if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
     if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)

@@ -223,3 +223,65 @@
   color: var(--color-text-muted);
 }
 
+
+/* The header's empty space: drags the whole panel. */
+.fill {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: inline-size;
+  cursor: grab;
+  touch-action: none;
+}
+
+.fill:active {
+  cursor: grabbing;
+}
+
+/* A faint grip on header hover — opacity only, so nothing moves. */
+.grip {
+  display: inline-flex;
+  color: var(--color-text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.header:hover .grip {
+  opacity: 0.9;
+}
+
+.fill:active .grip {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+@container (max-width: 11.99px) {
+  .grip {
+    display: none;
+  }
+}
+
+.header:has(.fill:active) {
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-header-bg));
+}
+
+/* Its panel while it is dragged: in place, dimmed, ringed. */
+.dragSource {
+  opacity: 0.4;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
+  background: var(--color-inset);
+}
+
+/* A band body takes one zone (a band never splits). */
+.bandZones {
+  grid-template-rows: 1fr;
+}
+
+/* The column area of a layout with only bands. */
+.emptyColumns {
+  flex: 1 1 auto;
+}

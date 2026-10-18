@@ -8,12 +8,13 @@ import {
   writeListDrafts,
 } from '../../data/draft-storage'
 import { CURRENT_DB_VERSION } from '../../data/database'
-import { createTab, type LayoutColumn } from '../../models/workspace-layout'
+import { createTab, type LayoutBand, type LayoutColumn } from '../../models/workspace-layout'
 import { emptyPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 const columns: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [createTab('notes', 'n')] }] }]
 const other: LayoutColumn[] = [{ id: 'B', weight: 1, cells: [{ id: 'k2', weight: 1, activeTabId: 'c', tabs: [createTab('calendar', 'c')] }] }]
+const savedDraft = { kind: 'saved', layoutId: 2, base: { columns: other }, body: { columns } } as const
 
 function listDef(over: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
   return {
@@ -30,13 +31,31 @@ afterEach(() => { vi.restoreAllMocks() })
 
 describe('draft storage', () => {
   it('keeps a layout draft for the next page load, outside the database', () => {
-    writeLayoutDraft({ kind: 'saved', layoutId: 2, baseColumns: other, columns })
+    writeLayoutDraft(savedDraft)
     expect(localStorage.getItem('todo2-unsaved-layout')).not.toBeNull()
-    expect(readLayoutDraft()).toEqual({ kind: 'saved', layoutId: 2, baseColumns: other, columns })
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', columns, listNames: { 3: 'Inbox' } })
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'Untitled layout', columns, listNames: { 3: 'Inbox' } })
+    expect(readLayoutDraft()).toEqual(savedDraft)
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns }, listNames: { 3: 'Inbox' } })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'Untitled layout', body: { columns }, listNames: { 3: 'Inbox' } })
     writeLayoutDraft(null)
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+    expect(readLayoutDraft()).toBeNull()
+  })
+
+  it('keeps the bands of a layout draft and of its base', () => {
+    const top: LayoutBand = { id: 'T', height: 200, activeTabId: 't', tabs: [createTab('dashboard', 't')] }
+    const bottom: LayoutBand = { id: 'B2', height: 90, collapsed: true, tabs: [createTab('notes', 'b')] }
+    const record = { kind: 'saved', layoutId: 2, base: { columns: other, bottom }, body: { columns, top } } as const
+    writeLayoutDraft(record)
+    const stored = JSON.parse(localStorage.getItem('todo2-unsaved-layout')!)
+    expect(stored.top).toEqual(top)
+    expect(stored.baseBottom).toEqual(bottom)
+    expect(readLayoutDraft()).toEqual(record)
+    writeLayoutDraft({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
+  })
+
+  it('reads a band the layout repair would change as no layout draft', () => {
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns, top: { id: 'T', height: 100, tabs: [] } }))
     expect(readLayoutDraft()).toBeNull()
   })
 
@@ -68,7 +87,7 @@ describe('draft storage', () => {
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {
-    writeLayoutDraft({ kind: 'saved', layoutId: 2, baseColumns: other, columns })
+    writeLayoutDraft(savedDraft)
     writeListDrafts(new Map([[4, { draft: listDef({ name: 'B' }), base: listDef() }]]))
     clearUnsavedDrafts()
     expect(readLayoutDraft()).toBeNull()
@@ -78,10 +97,10 @@ describe('draft storage', () => {
   it('storage that refuses a write is reported (nothing is kept), and never throws', () => {
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError') })
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(() => writeLayoutDraft({ kind: 'saved', layoutId: 2, baseColumns: other, columns })).not.toThrow()
+    expect(() => writeLayoutDraft(savedDraft)).not.toThrow()
     expect(unsavedDraftsKept()).toBe(false)
     spy.mockRestore()
-    writeLayoutDraft({ kind: 'saved', layoutId: 2, baseColumns: other, columns })
+    writeLayoutDraft(savedDraft)
     expect(unsavedDraftsKept()).toBe(true)
   })
 
@@ -92,13 +111,13 @@ describe('draft storage', () => {
   })
 
   it('writes carry the schema version; a record without one is read as the first kept build’s (v63)', () => {
-    writeLayoutDraft({ kind: 'saved', layoutId: 2, baseColumns: other, columns })
+    writeLayoutDraft(savedDraft)
     writeListDrafts(new Map([[4, { draft: listDef({ sort: 'priority' }), base: listDef() }]]))
     expect(JSON.parse(localStorage.getItem('todo2-unsaved-layout')!).schemaVersion).toBe(CURRENT_DB_VERSION)
     expect(JSON.parse(localStorage.getItem('todo2-unsaved-lists')!)[4].schemaVersion).toBe(CURRENT_DB_VERSION)
     // The layout record of the build before: no version, columns of the same shape.
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns }))
-    expect(readLayoutDraft()).toEqual({ kind: 'saved', layoutId: 2, baseColumns: other, columns })
+    expect(readLayoutDraft()).toEqual(savedDraft)
   })
 
   it('a list draft the build before kept is read in the current shape (old date fields → dates; caps dropped)', () => {

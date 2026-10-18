@@ -176,8 +176,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
     window.addEventListener('scroll', notify, true)
     // The cell holding the tab in the layout as it is now (a layout change
     // re-subscribes, so the observer follows the tab to another cell).
-    const loc = working ? findTab(working, tabId) : null
-    const cellId = loc ? working?.columns[loc.colIdx]?.cells[loc.cellIdx]?.id : undefined
+    const cellId = working ? findTab(working, tabId)?.panelId : undefined
     const cell = cellId != null ? document.querySelector(`[data-ws-cell="${cellId}"]`) : null
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(notify) : null
     if (ro && cell) ro.observe(cell)

@@ -41,7 +41,7 @@ function geometry(): WorkspaceGeometry {
     cells: [cellGeo('a1', 6, 500, 6, 350, ['t1', 't2']), cellGeo('a2', 6, 500, 356, 700, ['t3'])],
   }
   const b: ColumnGeometry = { id: 'b', rect: rect(506, 6, 1000, 700), cells: [cellGeo('b1', 506, 1000, 6, 700, ['t4'])] }
-  return { area: rect(0, 0, 1006, 706), columns: [a, b] }
+  return { area: rect(0, 0, 1006, 706), columnArea: rect(0, 6, 1006, 700), columns: [a, b], bands: [] }
 }
 
 function cell(id: string, tabIds: string[]): LayoutCell {
@@ -68,7 +68,7 @@ describe('columnEdgeXs', () => {
   })
 
   it('is empty without columns', () => {
-    expect(columnEdgeXs({ area: rect(0, 0, 100, 100), columns: [] })).toEqual([])
+    expect(columnEdgeXs({ area: rect(0, 0, 100, 100), columnArea: rect(0, 0, 100, 100), columns: [], bands: [] })).toEqual([])
   })
 })
 
@@ -77,13 +77,13 @@ describe('hitTestWorkspace', () => {
 
   it('outside the area or without columns → null', () => {
     expect(hitTestWorkspace(geo, { x: -5, y: 100 })).toBeNull()
-    expect(hitTestWorkspace({ area: rect(0, 0, 100, 100), columns: [] }, { x: 50, y: 50 })).toBeNull()
+    expect(hitTestWorkspace({ area: rect(0, 0, 100, 100), columnArea: rect(0, 0, 100, 100), columns: [], bands: [] }, { x: 50, y: 50 })).toBeNull()
   })
 
   it('within 16px of the gap between columns → new column at that gutter', () => {
     expect(hitTestWorkspace(geo, { x: 503, y: 400 })).toEqual({ kind: 'column-edge', gutter: 1, x: 503 })
     expect(hitTestWorkspace(geo, { x: 503 - 16, y: 400 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
-    expect(hitTestWorkspace(geo, { x: 503 + 16, y: 20 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
+    expect(hitTestWorkspace(geo, { x: 503 + 16, y: 30 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
     expect(hitTestWorkspace(geo, { x: 503 - 17, y: 400 })).not.toMatchObject({ kind: 'column-edge' })
   })
 
@@ -94,21 +94,21 @@ describe('hitTestWorkspace', () => {
   })
 
   it('column edges win over the tab strip under them', () => {
-    expect(hitTestWorkspace(geo, { x: 495, y: 20 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
+    expect(hitTestWorkspace(geo, { x: 495, y: 30 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
   })
 
   it('over a header → insert position from the tab midpoints', () => {
     // t1 spans 10..90 (mid 50), t2 90..170 (mid 130)
-    expect(hitTestWorkspace(geo, { x: 40, y: 20 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 0, lineX: 9 })
-    expect(hitTestWorkspace(geo, { x: 60, y: 20 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 1, lineX: 89 })
-    expect(hitTestWorkspace(geo, { x: 300, y: 20 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 171 })
+    expect(hitTestWorkspace(geo, { x: 40, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 0, lineX: 9 })
+    expect(hitTestWorkspace(geo, { x: 60, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 1, lineX: 89 })
+    expect(hitTestWorkspace(geo, { x: 300, y: 30 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 171 })
   })
 
   it('cell body → top quarter / middle half / bottom quarter', () => {
     // a2 body: 388..700 (height 312): top < 466, bottom > 622
     expect(hitTestWorkspace(geo, { x: 200, y: 400 })).toEqual({ kind: 'cell-body', cellId: 'a2', zone: 'top' })
     expect(hitTestWorkspace(geo, { x: 200, y: 540 })).toEqual({ kind: 'cell-body', cellId: 'a2', zone: 'middle' })
-    expect(hitTestWorkspace(geo, { x: 200, y: 690 })).toEqual({ kind: 'cell-body', cellId: 'a2', zone: 'bottom' })
+    expect(hitTestWorkspace(geo, { x: 200, y: 680 })).toEqual({ kind: 'cell-body', cellId: 'a2', zone: 'bottom' })
   })
 
   it('the gap between two cells is no target', () => {
@@ -118,12 +118,14 @@ describe('hitTestWorkspace', () => {
   it('a collapsed cell only offers its tab strip; an empty cell is one target', () => {
     const g: WorkspaceGeometry = {
       area: rect(0, 0, 1006, 706),
+      columnArea: rect(0, 6, 1006, 700),
+      bands: [],
       columns: [
         { id: 'a', rect: rect(6, 6, 500, 700), cells: [cellGeo('a1', 6, 500, 6, 38, ['t1'], { collapsed: true }), cellGeo('a2', 6, 500, 44, 700, [], { empty: true })] },
         { id: 'b', rect: rect(506, 6, 1000, 700), cells: [cellGeo('b1', 506, 1000, 6, 700, ['t4'])] },
       ],
     }
-    expect(hitTestWorkspace(g, { x: 200, y: 20 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
+    expect(hitTestWorkspace(g, { x: 200, y: 30 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
     expect(hitTestWorkspace(g, { x: 200, y: 300 })).toEqual({ kind: 'empty-cell', cellId: 'a2' })
   })
 })
@@ -133,22 +135,22 @@ describe('dropTargetForHit', () => {
   const l = layout()
 
   it('gutters name the column to their right, the last one the last column', () => {
-    expect(dropTargetForHit(l, geo, { kind: 'column-edge', gutter: 0, x: 3 }, 't4')).toEqual({ kind: 'column-edge', columnId: 'a', edge: 'left' })
-    expect(dropTargetForHit(l, geo, { kind: 'column-edge', gutter: 1, x: 503 }, 't4')).toEqual({ kind: 'column-edge', columnId: 'b', edge: 'left' })
-    expect(dropTargetForHit(l, geo, { kind: 'column-edge', gutter: 2, x: 1003 }, 't1')).toEqual({ kind: 'column-edge', columnId: 'b', edge: 'right' })
+    expect(dropTargetForHit(l, geo, { kind: 'column-edge', gutter: 0, x: 3 }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'column-edge', columnId: 'a', edge: 'left' })
+    expect(dropTargetForHit(l, geo, { kind: 'column-edge', gutter: 1, x: 503 }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'column-edge', columnId: 'b', edge: 'left' })
+    expect(dropTargetForHit(l, geo, { kind: 'column-edge', gutter: 2, x: 1003 }, { type: 'tab', tabId: 't1' })).toEqual({ kind: 'column-edge', columnId: 'b', edge: 'right' })
   })
 
   it('a position in the own strip counts the other tabs', () => {
-    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 0 }, 't1')).toEqual({ kind: 'cell', cellId: 'a1', index: 1 })
-    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 0, lineX: 0 }, 't2')).toEqual({ kind: 'cell', cellId: 'a1', index: 0 })
-    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 0 }, 't4')).toEqual({ kind: 'cell', cellId: 'a1', index: 2 })
+    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 0 }, { type: 'tab', tabId: 't1' })).toEqual({ kind: 'cell', cellId: 'a1', index: 1 })
+    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 0, lineX: 0 }, { type: 'tab', tabId: 't2' })).toEqual({ kind: 'cell', cellId: 'a1', index: 0 })
+    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 0 }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a1', index: 2 })
   })
 
   it('body zones map to cell edges / joining the cell', () => {
-    expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'top' }, 't4')).toEqual({ kind: 'cell-edge', cellId: 'a2', edge: 'top' })
-    expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'bottom' }, 't4')).toEqual({ kind: 'cell-edge', cellId: 'a2', edge: 'bottom' })
-    expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'middle' }, 't4')).toEqual({ kind: 'cell', cellId: 'a2' })
-    expect(dropTargetForHit(l, geo, { kind: 'empty-cell', cellId: 'a2' }, 't4')).toEqual({ kind: 'cell', cellId: 'a2' })
+    expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'top' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell-edge', cellId: 'a2', edge: 'top' })
+    expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'bottom' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell-edge', cellId: 'a2', edge: 'bottom' })
+    expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'middle' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a2' })
+    expect(dropTargetForHit(l, geo, { kind: 'empty-cell', cellId: 'a2' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a2' })
   })
 })
 
@@ -156,15 +158,107 @@ describe('dropChangesLayout', () => {
   const l = layout()
 
   it('the own cell middle and the own edges of a single-tab cell are no-ops', () => {
-    expect(dropChangesLayout(l, 't3', { kind: 'cell', cellId: 'a2' })).toBe(false)
-    expect(dropChangesLayout(l, 't3', { kind: 'cell-edge', cellId: 'a2', edge: 'top' })).toBe(false)
-    expect(dropChangesLayout(l, 't4', { kind: 'column-edge', columnId: 'b', edge: 'right' })).toBe(false)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't3' }, { kind: 'cell', cellId: 'a2' })).toBe(false)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't3' }, { kind: 'cell-edge', cellId: 'a2', edge: 'top' })).toBe(false)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't4' }, { kind: 'column-edge', columnId: 'b', edge: 'right' })).toBe(false)
   })
 
   it('real moves change the layout', () => {
-    expect(dropChangesLayout(l, 't1', { kind: 'cell-edge', cellId: 'a1', edge: 'bottom' })).toBe(true)
-    expect(dropChangesLayout(l, 't4', { kind: 'cell', cellId: 'a1' })).toBe(true)
-    expect(dropChangesLayout(l, 't1', { kind: 'column-edge', columnId: 'a', edge: 'left' })).toBe(true)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't1' }, { kind: 'cell-edge', cellId: 'a1', edge: 'bottom' })).toBe(true)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't4' }, { kind: 'cell', cellId: 'a1' })).toBe(true)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't1' }, { kind: 'column-edge', columnId: 'a', edge: 'left' })).toBe(true)
+  })
+})
+
+/**
+ * `geometry()` with a top band (6..166, header 6..38) over the columns,
+ * which then span 172..700: column a = cells a1 172..400, a2 406..700.
+ */
+function geometryWithTopBand(): WorkspaceGeometry {
+  const a: ColumnGeometry = {
+    id: 'a',
+    rect: rect(6, 172, 500, 700),
+    cells: [cellGeo('a1', 6, 500, 172, 400, ['t1', 't2']), cellGeo('a2', 6, 500, 406, 700, ['t3'])],
+  }
+  const b: ColumnGeometry = { id: 'b', rect: rect(506, 172, 1000, 700), cells: [cellGeo('b1', 506, 1000, 172, 700, ['t4'])] }
+  const top = { ...cellGeo('tb', 6, 1000, 6, 166, ['t5']), edge: 'top' as const }
+  return { area: rect(0, 0, 1006, 706), columnArea: rect(0, 172, 1006, 700), columns: [a, b], bands: [top] }
+}
+
+function layoutWithTopBand(): WorkspaceLayout {
+  const l = layout()
+  return {
+    ...l,
+    columns: l.columns.map((c) => ({ ...c })),
+    top: { id: 'tb', height: 160, tabs: [createTab('notes', 't5')], activeTabId: 't5' },
+  }
+}
+
+describe('bands in the hit test', () => {
+  it('the top / bottom 24px of the workspace offer a new band while there is none', () => {
+    const geo = geometry()
+    expect(hitTestWorkspace(geo, { x: 300, y: 24 })).toEqual({ kind: 'new-band', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 4, y: 4 })).toEqual({ kind: 'new-band', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 706 - 24 })).toEqual({ kind: 'new-band', edge: 'bottom' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 25 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
+  })
+
+  it('an edge with a band offers that band: its strip, then its body as one zone', () => {
+    const geo = geometryWithTopBand()
+    expect(hitTestWorkspace(geo, { x: 300, y: 10 })).toMatchObject({ kind: 'tab-strip', cellId: 'tb', index: 1 })
+    expect(hitTestWorkspace(geo, { x: 30, y: 30 })).toMatchObject({ kind: 'tab-strip', cellId: 'tb', index: 0 })
+    expect(hitTestWorkspace(geo, { x: 300, y: 100 })).toEqual({ kind: 'band-body', edge: 'top' })
+    // The bottom edge is still free.
+    expect(hitTestWorkspace(geo, { x: 300, y: 700 })).toEqual({ kind: 'new-band', edge: 'bottom' })
+  })
+
+  it('column-edge zones span the column area only, not the bands', () => {
+    const geo = geometryWithTopBand()
+    expect(hitTestWorkspace(geo, { x: 503, y: 100 })).toEqual({ kind: 'band-body', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 503, y: 300 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
+    expect(hitTestWorkspace(geo, { x: 10, y: 100 })).toEqual({ kind: 'band-body', edge: 'top' })
+  })
+
+  it('only bands, no columns: the column area is one target (a first column)', () => {
+    const geo: WorkspaceGeometry = { ...geometryWithTopBand(), columns: [] }
+    expect(hitTestWorkspace(geo, { x: 300, y: 400 })).toEqual({ kind: 'empty-columns' })
+  })
+
+  it('scrolled columns: edges come from the visible column area', () => {
+    // Column a scrolled 200px out of view on the left.
+    const geo = geometry()
+    const shifted: WorkspaceGeometry = {
+      ...geo,
+      columns: geo.columns.map((c) => ({ ...c, rect: { ...c.rect, left: c.rect.left - 200, right: c.rect.right - 200 } })),
+    }
+    expect(hitTestWorkspace(shifted, { x: 303, y: 400 })).toEqual({ kind: 'column-edge', gutter: 1, x: 303 })
+    expect(hitTestWorkspace(shifted, { x: 10, y: 400 })).toMatchObject({ kind: 'column-edge', gutter: 0 })
+  })
+
+  it('band hits map to band targets, a strip to the band panel, the empty column area to a new column', () => {
+    const l = layoutWithTopBand()
+    const geo = geometryWithTopBand()
+    const tab = { type: 'tab', tabId: 't1' } as const
+    expect(dropTargetForHit(l, geo, { kind: 'new-band', edge: 'bottom' }, tab)).toEqual({ kind: 'new-band', edge: 'bottom' })
+    expect(dropTargetForHit(l, geo, { kind: 'band-body', edge: 'top' }, tab)).toEqual({ kind: 'band', edge: 'top' })
+    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'tb', index: 1, lineX: 0 }, tab)).toEqual({ kind: 'cell', cellId: 'tb', index: 1 })
+    expect(dropTargetForHit(l, geo, { kind: 'empty-columns' }, tab)).toEqual({ kind: 'layout' })
+    // A panel drag never adjusts a strip index (its own strip is a no-op).
+    expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 0 }, { type: 'panel', panelId: 'a1' })).toEqual({ kind: 'cell', cellId: 'a1', index: 2 })
+  })
+
+  it('panel drags: own body, own strip and own band are no-ops; a merge and a new band change the layout', () => {
+    const l = layoutWithTopBand()
+    const a1 = { type: 'panel', panelId: 'a1' } as const
+    expect(dropChangesLayout(l, a1, { kind: 'cell', cellId: 'a1' })).toBe(false)
+    expect(dropChangesLayout(l, a1, { kind: 'cell', cellId: 'a1', index: 0 })).toBe(false)
+    expect(dropChangesLayout(l, a1, { kind: 'cell-edge', cellId: 'a2', edge: 'top' })).toBe(false)
+    expect(dropChangesLayout(l, { type: 'panel', panelId: 'tb' }, { kind: 'band', edge: 'top' })).toBe(false)
+    expect(dropChangesLayout(l, { type: 'panel', panelId: 'tb' }, { kind: 'new-band', edge: 'top' })).toBe(false)
+    expect(dropChangesLayout(l, a1, { kind: 'cell', cellId: 'b1' })).toBe(true)
+    expect(dropChangesLayout(l, a1, { kind: 'new-band', edge: 'bottom' })).toBe(true)
+    expect(dropChangesLayout(l, a1, { kind: 'band', edge: 'top' })).toBe(true)
+    expect(dropChangesLayout(l, { type: 'tab', tabId: 't5' }, { kind: 'band', edge: 'top' })).toBe(false)
   })
 })
 

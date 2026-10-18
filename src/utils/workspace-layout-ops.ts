@@ -1,7 +1,13 @@
 import {
+  BAND_DEFAULT_HEIGHT,
+  BAND_EDGES,
   DEFAULT_WEIGHT,
+  type BandEdge,
+  type LayoutBand,
+  type LayoutBody,
   type LayoutCell,
   type LayoutColumn,
+  type LayoutPanel,
   type LayoutTab,
   type TabConfigOf,
   type TabViewStateOf,
@@ -14,40 +20,56 @@ import {
  * when nothing changes (unknown ids, no-op moves), so callers can skip
  * persisting / re-rendering by reference.
  *
+ * A **panel** is what holds a tab strip: a cell of a column, or one of the
+ * two full-width bands (`top` / `bottom`). Ops that take a panel id work on
+ * either; a band never splits, has no weight, and is only ever one panel.
+ *
  * Structural invariants every reducer keeps: a column always has at least one
  * cell (a column losing its last cell is removed); a cell losing its last tab
- * is removed (cells are only empty when made by `splitCell`); ids are unique
- * across columns, cells and tabs.
+ * is removed (cells are only empty when made by `splitCell`); a band losing
+ * its last tab is removed (its key goes); ids are unique across columns,
+ * cells, bands and tabs.
  */
 
-/** Mints a fresh id for a new column or cell. */
+/** Mints a fresh id for a new column, cell or band. */
 export type IdGen = () => string
 
 /**
- * Where a tab lands:
+ * Where a tab (or a whole panel's tabs) lands:
  *
- * - `cell` — joins the cell's tab strip at `index` (end when absent) and
- *   becomes its active tab (the cell body's middle zone, or the tab strip).
+ * - `cell` — joins the panel's tab strip at `index` (end when absent); the
+ *   (first) moved tab becomes its active tab (the body's middle zone, or the
+ *   tab strip). `cellId` may name a band too.
  * - `cell-edge` — a new cell directly above / below the cell, in its column.
  * - `column-edge` — a new column directly left / right of the column. The
  *   gutter between two columns can be named from either side.
  * - `layout` — a new last column (e.g. the first widget of an empty layout).
+ * - `band` — joins the band at that edge, as `cell` does (its body or strip).
+ * - `new-band` — a new band at that edge (only while there is none).
  */
 export type LayoutDropTarget =
   | { kind: 'cell'; cellId: string; index?: number }
   | { kind: 'cell-edge'; cellId: string; edge: 'top' | 'bottom' }
   | { kind: 'column-edge'; columnId: string; edge: 'left' | 'right' }
   | { kind: 'layout' }
+  | { kind: 'band'; edge: BandEdge; index?: number }
+  | { kind: 'new-band'; edge: BandEdge }
 
-interface TabLocation {
-  colIdx: number
-  cellIdx: number
-  tabIdx: number
-}
+/** Where a panel is: a cell of a column, or a band. */
+export type PanelLocation =
+  | { kind: 'cell'; colIdx: number; cellIdx: number }
+  | { kind: 'band'; edge: BandEdge }
 
 interface CellLocation {
   colIdx: number
   cellIdx: number
+}
+
+/** Where a tab is: its panel and its index in that panel's strip. */
+export interface TabLocation {
+  panel: PanelLocation
+  panelId: string
+  tabIdx: number
 }
 
 export function findCell(layout: WorkspaceLayout, cellId: string): CellLocation | null {
@@ -59,15 +81,66 @@ export function findCell(layout: WorkspaceLayout, cellId: string): CellLocation 
   return null
 }
 
+/** Where the panel (cell or band) with id `panelId` is. */
+export function findPanel(layout: WorkspaceLayout, panelId: string): PanelLocation | null {
+  for (const edge of BAND_EDGES) {
+    if (layout[edge]?.id === panelId) return { kind: 'band', edge }
+  }
+  const loc = findCell(layout, panelId)
+  return loc ? { kind: 'cell', ...loc } : null
+}
+
+export function panelAt(layout: WorkspaceLayout, loc: PanelLocation): LayoutPanel | undefined {
+  return loc.kind === 'band' ? layout[loc.edge] : layout.columns[loc.colIdx]?.cells[loc.cellIdx]
+}
+
+/** The panel with id `panelId`, if any. */
+export function getPanel(layout: WorkspaceLayout, panelId: string): LayoutPanel | undefined {
+  const loc = findPanel(layout, panelId)
+  return loc ? panelAt(layout, loc) : undefined
+}
+
+/** Every panel, top band first, then the columns' cells in order, then the bottom band. */
+export function layoutPanels(layout: LayoutBody): LayoutPanel[] {
+  const out: LayoutPanel[] = []
+  if (layout.top) out.push(layout.top)
+  for (const col of layout.columns) out.push(...col.cells)
+  if (layout.bottom) out.push(layout.bottom)
+  return out
+}
+
 export function findTab(layout: WorkspaceLayout, tabId: string): TabLocation | null {
+  for (const edge of BAND_EDGES) {
+    const band = layout[edge]
+    const tabIdx = band?.tabs.findIndex((t) => t.id === tabId) ?? -1
+    if (band && tabIdx !== -1) return { panel: { kind: 'band', edge }, panelId: band.id, tabIdx }
+  }
   for (let colIdx = 0; colIdx < layout.columns.length; colIdx++) {
     const cells = layout.columns[colIdx]?.cells ?? []
     for (let cellIdx = 0; cellIdx < cells.length; cellIdx++) {
-      const tabIdx = cells[cellIdx]?.tabs.findIndex((t) => t.id === tabId) ?? -1
-      if (tabIdx !== -1) return { colIdx, cellIdx, tabIdx }
+      const cell = cells[cellIdx]
+      const tabIdx = cell?.tabs.findIndex((t) => t.id === tabId) ?? -1
+      if (cell && tabIdx !== -1) return { panel: { kind: 'cell', colIdx, cellIdx }, panelId: cell.id, tabIdx }
     }
   }
   return null
+}
+
+/** The panel holding tab `tabId`, if any. */
+export function panelOfTab(layout: WorkspaceLayout, tabId: string): LayoutPanel | undefined {
+  const loc = findTab(layout, tabId)
+  return loc ? panelAt(layout, loc.panel) : undefined
+}
+
+/** The tab with id `tabId`, if any. */
+export function getTab(layout: WorkspaceLayout, tabId: string): LayoutTab | undefined {
+  const loc = findTab(layout, tabId)
+  return loc ? panelAt(layout, loc.panel)?.tabs[loc.tabIdx] : undefined
+}
+
+/** Every tab, panel by panel (`layoutPanels` order). */
+export function layoutTabs(layout: LayoutBody): LayoutTab[] {
+  return layoutPanels(layout).flatMap((p) => p.tabs)
 }
 
 /**
@@ -75,41 +148,38 @@ export function findTab(layout: WorkspaceLayout, tabId: string): TabLocation | n
  * the tabs in `exceptTabIds` (e.g. the ones about to be closed).
  */
 export function countListTabs(
-  layout: WorkspaceLayout,
+  layout: LayoutBody,
   listDefinitionId: number,
   exceptTabIds: ReadonlySet<string> = new Set(),
 ): number {
   let n = 0
-  for (const col of layout.columns) {
-    for (const cell of col.cells) {
-      for (const tab of cell.tabs) {
-        if (tab.kind === 'lens' && tab.config.listDefinitionId === listDefinitionId && !exceptTabIds.has(tab.id)) n++
-      }
-    }
+  for (const tab of layoutTabs(layout)) {
+    if (tab.kind === 'lens' && tab.config.listDefinitionId === listDefinitionId && !exceptTabIds.has(tab.id)) n++
   }
   return n
 }
 
 /** Every column / cell / band / tab id in the layout (new ids must not repeat one). */
-export function layoutIds(layout: WorkspaceLayout): Set<string> {
+export function layoutIds(layout: LayoutBody): Set<string> {
   const ids = new Set<string>()
-  for (const col of layout.columns) {
-    ids.add(col.id)
-    for (const cell of col.cells) {
-      ids.add(cell.id)
-      for (const tab of cell.tabs) ids.add(tab.id)
-    }
-  }
-  for (const band of [layout.top, layout.bottom]) {
-    if (!band) continue
-    ids.add(band.id)
-    for (const tab of band.tabs) ids.add(tab.id)
+  for (const col of layout.columns) ids.add(col.id)
+  for (const panel of layoutPanels(layout)) {
+    ids.add(panel.id)
+    for (const tab of panel.tabs) ids.add(tab.id)
   }
   return ids
 }
 
 function withColumns<L extends WorkspaceLayout>(layout: L, columns: LayoutColumn[]): L {
   return { ...layout, columns }
+}
+
+/** `layout` with the band at `edge` replaced (`null` removes it: the key goes). */
+function withBand<L extends WorkspaceLayout>(layout: L, edge: BandEdge, band: LayoutBand | null): L {
+  const next = { ...layout }
+  if (band) next[edge] = band
+  else delete next[edge]
+  return next
 }
 
 function replaceAt<T>(arr: readonly T[], idx: number, value: T): T[] {
@@ -119,8 +189,12 @@ function replaceAt<T>(arr: readonly T[], idx: number, value: T): T[] {
 }
 
 function insertAt<T>(arr: readonly T[], idx: number, value: T): T[] {
+  return insertAllAt(arr, idx, [value])
+}
+
+function insertAllAt<T>(arr: readonly T[], idx: number, values: readonly T[]): T[] {
   const clamped = Math.max(0, Math.min(idx, arr.length))
-  return [...arr.slice(0, clamped), value, ...arr.slice(clamped)]
+  return [...arr.slice(0, clamped), ...values, ...arr.slice(clamped)]
 }
 
 function removeAt<T>(arr: readonly T[], idx: number): T[] {
@@ -143,39 +217,80 @@ function setCell<L extends WorkspaceLayout>(layout: L, loc: CellLocation, cell: 
   return withColumns(layout, replaceAt(layout.columns, loc.colIdx, { ...col, cells }))
 }
 
+/** The strip part of a panel: what `setPanel` replaces. */
+type PanelStrip = Pick<LayoutPanel, 'tabs' | 'activeTabId' | 'collapsed'>
+
+function stripOf(p: LayoutPanel): PanelStrip {
+  return {
+    tabs: p.tabs,
+    ...(p.activeTabId !== undefined ? { activeTabId: p.activeTabId } : {}),
+    ...(p.collapsed !== undefined ? { collapsed: p.collapsed } : {}),
+  }
+}
+
+/** `p` with its strip replaced by `strip` (absent `activeTabId` / `collapsed` drop those keys). */
+function withStrip<P extends LayoutPanel>(p: P, strip: PanelStrip): P {
+  const { activeTabId: _a, collapsed: _c, ...rest } = p
+  void _a
+  void _c
+  return {
+    ...rest,
+    tabs: strip.tabs,
+    ...(strip.activeTabId !== undefined ? { activeTabId: strip.activeTabId } : {}),
+    ...(strip.collapsed !== undefined ? { collapsed: strip.collapsed } : {}),
+  } as P
+}
+
 /**
- * Removes a tab. Its cell's active tab moves to the left neighbour (then the
- * right) when it was the active one; a cell left without tabs is removed, and
- * a column left without cells too.
+ * Replaces one panel's strip (tabs, active tab, collapsed); `null` removes
+ * the panel — a cell as `setCell` does, a band's key goes.
+ */
+function setPanel<L extends WorkspaceLayout>(layout: L, loc: PanelLocation, strip: PanelStrip | null): L {
+  if (loc.kind === 'band') {
+    const band = layout[loc.edge]
+    if (!band) return layout
+    return withBand(layout, loc.edge, strip ? withStrip(band, strip) : null)
+  }
+  const cell = layout.columns[loc.colIdx]?.cells[loc.cellIdx]
+  if (!cell) return layout
+  return setCell(layout, loc, strip ? withStrip(cell, strip) : null)
+}
+
+/**
+ * Removes a tab. Its panel's active tab moves to the left neighbour (then the
+ * right) when it was the active one; a cell left without tabs is removed (and
+ * a column left without cells too), as is a band left without tabs.
  */
 export function extractTab<L extends WorkspaceLayout>(layout: L, tabId: string): { layout: L; tab: LayoutTab | null } {
   const loc = findTab(layout, tabId)
-  if (!loc) return { layout, tab: null }
-  const cell = layout.columns[loc.colIdx]?.cells[loc.cellIdx]
-  const tab = cell?.tabs[loc.tabIdx]
-  if (!cell || !tab) return { layout, tab: null }
-  const tabs = removeAt(cell.tabs, loc.tabIdx)
-  if (tabs.length === 0) return { layout: setCell(layout, loc, null), tab }
-  const next: LayoutCell = { ...cell, tabs }
-  if (cell.activeTabId === tabId) {
-    const fallback = cell.tabs[loc.tabIdx - 1] ?? cell.tabs[loc.tabIdx + 1]
+  const panel = loc ? panelAt(layout, loc.panel) : undefined
+  const tab = loc ? panel?.tabs[loc.tabIdx] : undefined
+  if (!loc || !panel || !tab) return { layout, tab: null }
+  const tabs = removeAt(panel.tabs, loc.tabIdx)
+  if (tabs.length === 0) return { layout: setPanel(layout, loc.panel, null), tab }
+  const next: PanelStrip = { ...stripOf(panel), tabs }
+  if (panel.activeTabId === tabId) {
+    const fallback = panel.tabs[loc.tabIdx - 1] ?? panel.tabs[loc.tabIdx + 1]
     if (fallback) next.activeTabId = fallback.id
   }
-  return { layout: setCell(layout, loc, next), tab }
+  return { layout: setPanel(layout, loc.panel, next), tab }
 }
 
 export function closeTab<L extends WorkspaceLayout>(layout: L, tabId: string): L {
   return extractTab(layout, tabId).layout
 }
 
-/** Removes a cell with all its tabs (and its column, when that empties). */
-export function closeCell<L extends WorkspaceLayout>(layout: L, cellId: string): L {
-  const loc = findCell(layout, cellId)
-  return loc ? setCell(layout, loc, null) : layout
+/** Removes a panel — a cell (and its column, when that empties) or a band — with all its tabs. */
+export function closeCell<L extends WorkspaceLayout>(layout: L, panelId: string): L {
+  const loc = findPanel(layout, panelId)
+  return loc ? setPanel(layout, loc, null) : layout
 }
 
-function newCell(id: string, weight: number, tab?: LayoutTab): LayoutCell {
-  return tab ? { id, weight, tabs: [tab], activeTabId: tab.id } : { id, weight, tabs: [] }
+function newCell(id: string, weight: number, tabs: readonly LayoutTab[] = [], activeTabId?: string): LayoutCell {
+  const first = tabs[0]
+  if (!first) return { id, weight, tabs: [] }
+  const active = activeTabId != null && tabs.some((t) => t.id === activeTabId) ? activeTabId : first.id
+  return { id, weight, tabs: [...tabs], activeTabId: active }
 }
 
 /**
@@ -206,48 +321,78 @@ function insertCellBeside<L extends WorkspaceLayout>(layout: L, loc: CellLocatio
   return withColumns(layout, replaceAt(layout.columns, loc.colIdx, { ...col, cells: insertAt(cells, at, makeCell(half)) }))
 }
 
-/** Places a tab that is not (or no longer) in the layout. `null` when the target doesn't exist. */
-function placeTab<L extends WorkspaceLayout>(layout: L, tab: LayoutTab, target: LayoutDropTarget, genId: IdGen): L | null {
+/** The panel a joining target (`cell` / `band`) names, if it exists. */
+function joinedPanel(layout: WorkspaceLayout, target: LayoutDropTarget): PanelLocation | null {
+  if (target.kind === 'band') return layout[target.edge] ? { kind: 'band', edge: target.edge } : null
+  if (target.kind === 'cell') return findPanel(layout, target.cellId)
+  return null
+}
+
+/**
+ * Places tabs that are not (or no longer) in the layout, in order. Joining a
+ * panel (`cell` / `band`) makes the first of them its active tab, as does a
+ * new band; a new cell or column shows `activeTabId` (default the first).
+ * `null` when the target doesn't exist (or, `new-band`, when that band does).
+ */
+function placeTabs<L extends WorkspaceLayout>(
+  layout: L,
+  tabs: readonly LayoutTab[],
+  target: LayoutDropTarget,
+  genId: IdGen,
+  activeTabId?: string,
+): L | null {
+  const first = tabs[0]
+  if (!first) return null
   switch (target.kind) {
-    case 'cell': {
-      const loc = findCell(layout, target.cellId)
-      const cell = loc ? layout.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
-      if (!loc || !cell) return null
-      const tabs = insertAt(cell.tabs, target.index ?? cell.tabs.length, tab)
-      return setCell(layout, loc, { ...cell, tabs, activeTabId: tab.id })
+    case 'cell':
+    case 'band': {
+      const loc = joinedPanel(layout, target)
+      const panel = loc ? panelAt(layout, loc) : undefined
+      if (!loc || !panel) return null
+      const at = target.index ?? panel.tabs.length
+      return setPanel(layout, loc, { ...stripOf(panel), tabs: insertAllAt(panel.tabs, at, tabs), activeTabId: first.id })
     }
+    case 'new-band':
+      if (layout[target.edge]) return null
+      return withBand(layout, target.edge, { id: genId(), height: BAND_DEFAULT_HEIGHT, tabs: [...tabs], activeTabId: first.id })
     case 'cell-edge': {
       const loc = findCell(layout, target.cellId)
       if (!loc) return null
-      return insertCellBeside(layout, loc, target.edge, (weight) => newCell(genId(), weight, tab))
+      return insertCellBeside(layout, loc, target.edge, (weight) => newCell(genId(), weight, tabs, activeTabId))
     }
     case 'column-edge': {
       const colIdx = layout.columns.findIndex((c) => c.id === target.columnId)
       if (colIdx === -1) return null
       const gutter = target.edge === 'left' ? colIdx : colIdx + 1
-      return insertColumnAtGutter(layout, gutter, (weight) => ({ id: genId(), weight, cells: [newCell(genId(), DEFAULT_WEIGHT, tab)] }))
+      return insertColumnAtGutter(layout, gutter, (weight) => ({ id: genId(), weight, cells: [newCell(genId(), DEFAULT_WEIGHT, tabs, activeTabId)] }))
     }
     case 'layout':
-      return insertColumnAtGutter(layout, layout.columns.length, (weight) => ({ id: genId(), weight, cells: [newCell(genId(), DEFAULT_WEIGHT, tab)] }))
+      return insertColumnAtGutter(layout, layout.columns.length, (weight) => ({ id: genId(), weight, cells: [newCell(genId(), DEFAULT_WEIGHT, tabs, activeTabId)] }))
   }
 }
 
 /** Adds a new widget tab (its id must be unused in the layout) at `target`. */
 export function addTab<L extends WorkspaceLayout>(layout: L, tab: LayoutTab, target: LayoutDropTarget, genId: IdGen): L {
   if (layoutIds(layout).has(tab.id)) return layout
-  return placeTab(layout, tab, target, genId) ?? layout
+  return placeTabs(layout, [tab], target, genId) ?? layout
+}
+
+/** Whether `target` names the panel at `loc` itself (its strip or its body). */
+function targetsPanel(layout: WorkspaceLayout, loc: PanelLocation, target: LayoutDropTarget): boolean {
+  const joined = joinedPanel(layout, target)
+  if (!joined) return false
+  return panelAt(layout, joined) === panelAt(layout, loc)
 }
 
 /**
- * Whether moving `tabId` to `target` would leave the layout as it is. True
- * when the tab is the only tab of its cell and the target is that cell's own
- * middle or edges, or — when its cell is also the only cell of its column —
- * that column's own edges.
+ * Whether placing the whole cell at `loc` on `target` would put it back
+ * where it is: its own edges or the gutters next to it in its column, or —
+ * when it is the only cell of its column — that column's own edges.
  */
-function isNoOpMove(layout: WorkspaceLayout, loc: TabLocation, target: LayoutDropTarget): boolean {
+function isNoOpPlacement(layout: WorkspaceLayout, loc: PanelLocation, target: LayoutDropTarget): boolean {
+  if (loc.kind !== 'cell') return false
   const col = layout.columns[loc.colIdx]
-  const cell = col?.cells[loc.cellIdx]
-  if (!col || !cell || cell.tabs.length !== 1) return false
+  if (!col) return false
   if (target.kind === 'cell-edge') {
     const t = findCell(layout, target.cellId)
     if (!t || t.colIdx !== loc.colIdx) return false
@@ -268,32 +413,60 @@ function isNoOpMove(layout: WorkspaceLayout, loc: TabLocation, target: LayoutDro
 }
 
 /**
- * Moves a tab to `target`. Within its own cell (`cell` target) it reorders:
- * `index` is the position among the *other* tabs; without an `index` (the
- * cell's own middle zone) nothing happens. The moved
- * tab becomes its destination cell's active tab. A cell / column the move
- * empties is removed; a move onto a target that the move itself removes, or
- * that leaves everything where it was, returns the layout unchanged.
+ * Moves a tab to `target`. Within its own panel (`cell` / `band` target) it
+ * reorders: `index` is the position among the *other* tabs; without an
+ * `index` (the panel's own body) nothing happens. The moved tab becomes its
+ * destination panel's active tab. A cell / column / band the move empties is
+ * removed; a move onto a target that the move itself removes, onto a band
+ * edge that already has a band, or that leaves everything where it was,
+ * returns the layout unchanged.
  */
 export function moveTab<L extends WorkspaceLayout>(layout: L, tabId: string, target: LayoutDropTarget, genId: IdGen): L {
   const loc = findTab(layout, tabId)
-  if (!loc) return layout
-  const srcCell = layout.columns[loc.colIdx]?.cells[loc.cellIdx]
-  const tab = srcCell?.tabs[loc.tabIdx]
-  if (!srcCell || !tab) return layout
+  const src = loc ? panelAt(layout, loc.panel) : undefined
+  const tab = loc ? src?.tabs[loc.tabIdx] : undefined
+  if (!loc || !src || !tab) return layout
+  if (target.kind === 'new-band' && layout[target.edge]) return layout
 
-  if (target.kind === 'cell' && target.cellId === srcCell.id) {
-    if (target.index === undefined) return layout
-    const others = removeAt(srcCell.tabs, loc.tabIdx)
-    const at = Math.max(0, Math.min(target.index, others.length))
-    if (at === loc.tabIdx && srcCell.activeTabId === tab.id) return layout
-    const tabs = insertAt(others, at, tab)
-    return setCell(layout, { colIdx: loc.colIdx, cellIdx: loc.cellIdx }, { ...srcCell, tabs, activeTabId: tab.id })
+  if (targetsPanel(layout, loc.panel, target)) {
+    const index = target.kind === 'cell' || target.kind === 'band' ? target.index : undefined
+    if (index === undefined) return layout
+    const others = removeAt(src.tabs, loc.tabIdx)
+    const at = Math.max(0, Math.min(index, others.length))
+    if (at === loc.tabIdx && src.activeTabId === tab.id) return layout
+    return setPanel(layout, loc.panel, { ...stripOf(src), tabs: insertAt(others, at, tab), activeTabId: tab.id })
   }
-  if (isNoOpMove(layout, loc, target)) return layout
+  if (src.tabs.length === 1 && isNoOpPlacement(layout, loc.panel, target)) return layout
 
   const { layout: without } = extractTab(layout, tabId)
-  return placeTab(without, tab, target, genId) ?? layout
+  return placeTabs(without, [tab], target, genId) ?? layout
+}
+
+/**
+ * Moves a whole panel — a cell or a band, all its tabs in order — to
+ * `target`: into another panel (`cell` / `band`: a merge, at `index` or
+ * after its tabs, the first moved tab active), a new band (its first tab
+ * active), a new cell above / below a cell, or a new column (these keep the
+ * panel's active tab, expanded). The panel leaves its old place (an emptied
+ * column goes). A drop onto the panel itself, back where it is, or onto a
+ * band edge that already has a band returns the layout unchanged.
+ */
+export function movePanel<L extends WorkspaceLayout>(layout: L, panelId: string, target: LayoutDropTarget, genId: IdGen): L {
+  const loc = findPanel(layout, panelId)
+  const panel = loc ? panelAt(layout, loc) : undefined
+  if (!loc || !panel || panel.tabs.length === 0) return layout
+  if (target.kind === 'new-band' && layout[target.edge]) return layout
+  if (targetsPanel(layout, loc, target) || isNoOpPlacement(layout, loc, target)) return layout
+  const without = setPanel(layout, loc, null)
+  return placeTabs(without, panel.tabs, target, genId, panel.activeTabId) ?? layout
+}
+
+/** Layout structure: a band's height (px, rounded). No band there or a bad height → unchanged. */
+export function setBandHeight<L extends WorkspaceLayout>(layout: L, edge: BandEdge, height: number): L {
+  const band = layout[edge]
+  if (!band || !isPositive(height)) return layout
+  const rounded = Math.max(1, Math.round(height))
+  return rounded === band.height ? layout : withBand(layout, edge, { ...band, height: rounded })
 }
 
 /**
@@ -352,43 +525,43 @@ export function setCellWeights<L extends WorkspaceLayout>(layout: L, weightById:
   return changed ? withColumns(layout, columns) : layout
 }
 
-function updateCell<L extends WorkspaceLayout>(layout: L, cellId: string, fn: (cell: LayoutCell) => LayoutCell): L {
-  const loc = findCell(layout, cellId)
-  const cell = loc ? layout.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
-  if (!loc || !cell) return layout
-  const next = fn(cell)
-  return next === cell ? layout : setCell(layout, loc, next)
+function updatePanelStrip<L extends WorkspaceLayout>(layout: L, panelId: string, fn: (strip: PanelStrip) => PanelStrip): L {
+  const loc = findPanel(layout, panelId)
+  const panel = loc ? panelAt(layout, loc) : undefined
+  if (!loc || !panel) return layout
+  const strip = stripOf(panel)
+  const next = fn(strip)
+  return next === strip ? layout : setPanel(layout, loc, next)
 }
 
 function updateTab<L extends WorkspaceLayout>(layout: L, tabId: string, fn: (tab: LayoutTab) => LayoutTab): L {
   const loc = findTab(layout, tabId)
-  const cell = loc ? layout.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
-  const tab = cell?.tabs[loc?.tabIdx ?? -1]
-  if (!loc || !cell || !tab) return layout
+  const panel = loc ? panelAt(layout, loc.panel) : undefined
+  const tab = loc ? panel?.tabs[loc.tabIdx] : undefined
+  if (!loc || !panel || !tab) return layout
   const next = fn(tab)
   if (next === tab) return layout
-  const tabs = replaceAt(cell.tabs, loc.tabIdx, next)
-  const activeTabId = cell.activeTabId === tab.id ? next.id : cell.activeTabId
-  return setCell(layout, loc, { ...cell, tabs, ...(activeTabId !== undefined ? { activeTabId } : {}) })
+  const strip = stripOf(panel)
+  const tabs = replaceAt(panel.tabs, loc.tabIdx, next)
+  return setPanel(layout, loc.panel, { ...strip, tabs, ...(panel.activeTabId === tab.id ? { activeTabId: next.id } : {}) })
 }
 
-/** View state: collapse / expand a cell. */
-export function setCellCollapsed<L extends WorkspaceLayout>(layout: L, cellId: string, collapsed: boolean): L {
-  return updateCell(layout, cellId, (cell) => {
-    if ((cell.collapsed === true) === collapsed) return cell
-    if (collapsed) return { ...cell, collapsed: true }
-    const { collapsed: _drop, ...rest } = cell
+/** View state: collapse / expand a panel (a cell or a band, by id). */
+export function setCellCollapsed<L extends WorkspaceLayout>(layout: L, panelId: string, collapsed: boolean): L {
+  return updatePanelStrip(layout, panelId, (strip) => {
+    if ((strip.collapsed === true) === collapsed) return strip
+    if (collapsed) return { ...strip, collapsed: true }
+    const { collapsed: _drop, ...rest } = strip
     void _drop
     return rest
   })
 }
 
-/** View state: make `tabId` its cell's active tab. */
+/** View state: make `tabId` its panel's active tab. */
 export function setActiveTab<L extends WorkspaceLayout>(layout: L, tabId: string): L {
   const loc = findTab(layout, tabId)
-  const cell = loc ? layout.columns[loc.colIdx]?.cells[loc.cellIdx] : undefined
-  if (!cell) return layout
-  return updateCell(layout, cell.id, (c) => (c.activeTabId === tabId ? c : { ...c, activeTabId: tabId }))
+  if (!loc) return layout
+  return updatePanelStrip(layout, loc.panelId, (s) => (s.activeTabId === tabId ? s : { ...s, activeTabId: tabId }))
 }
 
 /**
@@ -462,29 +635,46 @@ function shares(weights: readonly number[]): number[] {
   return weights.map((w) => (total > 0 ? Math.round((w / total) * 1e6) / 1e6 : 0))
 }
 
-/**
- * The saved part of a layout's columns: structure, relative sizes and tab
- * config, without view state (active tab, collapsed, `viewState`). Weights
- * compare as shares of their siblings, so e.g. a column left with one cell
- * keys the same whatever that cell's weight.
- */
-export function layoutStructureKey(columns: readonly LayoutColumn[]): string {
-  const colShares = shares(columns.map((c) => c.weight))
-  return JSON.stringify(columns.map((col, i) => {
-    const cellShares = shares(col.cells.map((c) => c.weight))
-    return {
-      id: col.id,
-      weight: colShares[i],
-      cells: col.cells.map((cell, j) => ({
-        id: cell.id,
-        weight: cellShares[j],
-        tabs: cell.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
-      })),
-    }
-  }))
+/** The saved part of a band: id, height and tab config (its active tab / collapsed are view state). */
+function bandKey(band: LayoutBand | undefined): unknown {
+  if (!band) return null
+  return {
+    id: band.id,
+    height: Math.round(band.height),
+    tabs: band.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
+  }
 }
 
-/** True when two layouts differ only in view state (i.e. the working copy has no unsaved changes). */
-export function layoutStructureEqual(a: readonly LayoutColumn[], b: readonly LayoutColumn[]): boolean {
-  return a === b || layoutStructureKey(a) === layoutStructureKey(b)
+/**
+ * The saved part of a layout's body: structure, relative sizes, band
+ * heights and tab config, without view state (active tab, collapsed,
+ * `viewState`). Weights compare as shares of their siblings, so e.g. a
+ * column left with one cell keys the same whatever that cell's weight.
+ */
+export function layoutStructureKey(body: LayoutBody): string {
+  const { columns } = body
+  const colShares = shares(columns.map((c) => c.weight))
+  return JSON.stringify({
+    top: bandKey(body.top),
+    columns: columns.map((col, i) => {
+      const cellShares = shares(col.cells.map((c) => c.weight))
+      return {
+        id: col.id,
+        weight: colShares[i],
+        cells: col.cells.map((cell, j) => ({
+          id: cell.id,
+          weight: cellShares[j],
+          tabs: cell.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
+        })),
+      }
+    }),
+    bottom: bandKey(body.bottom),
+  })
+}
+
+/** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
+export function layoutStructureEqual(a: LayoutBody, b: LayoutBody): boolean {
+  if (a === b) return true
+  if (a.columns === b.columns && a.top === b.top && a.bottom === b.bottom) return true
+  return layoutStructureKey(a) === layoutStructureKey(b)
 }
