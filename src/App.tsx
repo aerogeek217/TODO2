@@ -19,13 +19,13 @@ import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStatusStore } from './stores/status-store'
-import { useTagStore } from './stores/tag-store'
 import { useShortcutLabel } from './hooks/use-shortcut-label'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { backupScheduler } from './data/backup-scheduler'
+import { runAppStartup } from './services/app-startup'
 import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags } from './utils/filter-defaults'
 import { checkUnsupportedOldDB } from './services/migration-check'
@@ -34,7 +34,8 @@ import { MigrationDialog } from './components/overlays/MigrationDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
 import { PurgeCompletedDialog } from './components/overlays/PurgeCompletedDialog'
-import { listExpiredCompleted } from './services/purge-completed'
+import { LaunchPermissionDialog } from './components/overlays/LaunchPermissionDialog'
+import { expiredCompletedUids, listExpiredCompleted } from './services/purge-completed'
 import type { PersistedTodoItem } from './models'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
@@ -154,17 +155,6 @@ function AppQuickAddBar() {
 }
 
 /**
- * uids of the completed tasks past the retention setting now (none when
- * retention is off) — what the purge prompt asks about.
- */
-async function expiredCompletedUids(): Promise<ReadonlySet<string> | null> {
-  const { completedRetentionDays } = useSettingsStore.getState()
-  if (completedRetentionDays == null) return null
-  const expired = await listExpiredCompleted(completedRetentionDays)
-  return expired.length > 0 ? new Set(expired.map((t) => t.uid)) : null
-}
-
-/**
  * Prompt for completed tasks past the retention setting, at launch and
  * again after a later sync-file load (Grant access, Attach / Open file).
  * Lists the tasks that were expired when it was checked (`launchUids` —
@@ -193,6 +183,11 @@ function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<s
   return <PurgeCompletedDialog tasks={tasks} retentionDays={retentionDays} onDone={onClose} onDismiss={onClose} />
 }
 
+/** Both sets of uids (the prompt lists every task either asks about). */
+function mergeUids(prev: ReadonlySet<string> | null, next: ReadonlySet<string>): ReadonlySet<string> {
+  return prev ? new Set([...prev, ...next]) : next
+}
+
 /**
  * `#/settings`: the Settings page on mobile; on desktop a deep link that
  * opens the workspace with the Settings modal open.
@@ -211,9 +206,6 @@ function SettingsDeepLink() {
 }
 
 function AppShell() {
-  const { ensureLoaded: loadPeople } = usePersonStore()
-  const { load: loadSettings } = useSettingsStore()
-  const { initialize: initFileStorage } = useFileStorageStore()
   const isMobile = useIsMobile()
   const [initialized, setInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
@@ -223,6 +215,10 @@ function AppShell() {
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
   /** uids the purge prompt already asked about this launch (any answer): a later file load doesn't ask again. */
   const purgeAskedRef = useRef(new Set<string>())
+  /** Set once launch's completed-task check began reading: a sync-file load from then on gets its own check. */
+  const purgeCheckStartedRef = useRef(false)
+  /** While launch waits for the sync file's permission answer the start screen shows no spinner. */
+  const launchQuestion = useFileStorageStore((s) => s.pendingLaunchPermission != null)
   const location = useLocation()
   // Desktop: New task leads the top bar. Mobile: a floating + above the tab bar.
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
@@ -247,20 +243,14 @@ function AppShell() {
 
   useEffect(() => {
     removeLegacySyncKeys()
-    loadSettings()
-      .then(() => initFileStorage())
-      .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
-      .then(async () => {
-        // Completed tasks past retention are never purged silently —
-        // remember which ones were expired at launch and ask
-        // (`StartupPurgePrompt`). Runs after the sync file was loaded (or its
-        // prompts answered), so the list reflects the data the user kept.
-        const expired = await expiredCompletedUids()
-        if (expired) setPurgeLaunchUids(expired)
-      })
-      .then(() => {
-        backupScheduler.start()
+    // Waits at the sync file's step for the launch question's answer when
+    // the file needs permission (`runAppStartup`).
+    runAppStartup({ onPurgeCheck: () => { purgeCheckStartedRef.current = true } })
+      .then(({ expiredUids }) => {
+        // Completed tasks past retention are never purged silently — the
+        // prompt asks about the ones expired once the sync file was loaded
+        // (or its prompts answered), so the list reflects the data kept.
+        if (expiredUids) setPurgeLaunchUids((prev) => mergeUids(prev, expiredUids))
         setInitialized(true)
       })
       .catch((err) => {
@@ -268,24 +258,25 @@ function AppShell() {
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
-  }, [loadSettings, initFileStorage, loadPeople])
+  }, [])
 
-  // A sync file loaded after launch (Grant access, Attach / Open file, a
-  // retry or a resolved conflict) replaced the data: ask about its expired
-  // tasks too — those the prompt hasn't already asked about this launch.
-  // Runs after the stores reloaded (an earlier subscriber).
+  // A sync file loaded once launch's check began (Grant access, Attach /
+  // Open file, a retry or a resolved conflict) replaced the data: ask about
+  // its expired tasks too — those the prompt hasn't already asked about this
+  // launch. A load before that is covered by launch's own check. Runs after
+  // the stores reloaded (an earlier subscriber).
   useEffect(() => {
-    if (!initialized) return
     return fileStorageService.onAfterImport(async () => {
+      if (!purgeCheckStartedRef.current) return
       try {
         const expired = await expiredCompletedUids()
         const fresh = [...(expired ?? [])].filter((uid) => !purgeAskedRef.current.has(uid))
-        if (fresh.length > 0) setPurgeLaunchUids(new Set(fresh))
+        if (fresh.length > 0) setPurgeLaunchUids((prev) => mergeUids(prev, new Set(fresh)))
       } catch (err) {
         console.warn('[purge] could not read expired tasks', err)
       }
     })
-  }, [initialized])
+  }, [])
 
   // Global keyboard shortcuts
   useKeyboardShortcuts({
@@ -293,7 +284,8 @@ function AppShell() {
     closePalette: () => setShowPalette(false),
     openSettings: () => useUIStore.getState().openSettings(),
     openShortcutsModal: () => setShowShortcuts(true),
-    enabled: !isMobile,
+    // Nothing to act on before launch is done (the launch question is up, the stores load).
+    enabled: !isMobile && initialized,
   })
 
   const handleClosePalette = useCallback(() => setShowPalette(false), [])
@@ -352,8 +344,10 @@ function AppShell() {
   }
 
   if (!initialized) {
+    // The start screen; the launch question (`LaunchPermissionDialog`) shows over it.
+    if (launchQuestion) return <div className={styles.initLoading} data-testid="start-screen" />
     return (
-      <div className={styles.initLoading}>
+      <div className={styles.initLoading} data-testid="start-screen">
         <div className={styles.spinner} />
         Loading…
       </div>
@@ -466,8 +460,9 @@ export default function App() {
 
 /**
  * Sync-file prompts raised by `fileStorageService` while it waits for the user
- * (below-floor file, browser/file conflict, older-file upgrade). Rendered
- * outside AppShell so they show even while startup is still pending.
+ * (permission at launch, below-floor file, browser/file conflict, older-file
+ * upgrade). Rendered outside AppShell so they show even while startup is
+ * still pending.
  */
 function FileMigrationOverlay() {
   const pending = useFileStorageStore((s) => s.pendingLegacyImport)
@@ -477,7 +472,9 @@ function FileMigrationOverlay() {
   const resolveConflict = useFileStorageStore((s) => s.resolveConflict)
   const upgrade = useFileStorageStore((s) => s.pendingFileUpgrade)
   const resolveFileUpgrade = useFileStorageStore((s) => s.resolveFileUpgrade)
+  const launchPermission = useFileStorageStore((s) => s.pendingLaunchPermission)
 
+  if (launchPermission) return <LaunchPermissionDialog prompt={launchPermission} />
   if (pending) {
     return (
       <MigrationDialog

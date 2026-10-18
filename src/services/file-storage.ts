@@ -76,6 +76,11 @@ export interface FileUpgradeInfo {
   toVersion: number
 }
 
+/** The launch question: the attached sync file needs the browser's permission again. */
+export interface LaunchPermissionInfo {
+  fileName: string
+}
+
 type StatusListener = (status: FileStorageStatus) => void
 type AfterImportListener = () => Promise<void>
 /** Runs before the browser data is backed up and replaced; resolves to a release called after the reload. */
@@ -83,6 +88,8 @@ type BeforeImportListener = () => Promise<() => void>
 type MigrationConfirmHandler = (info: UnsupportedImportInfo) => Promise<boolean>
 type ConflictHandler = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
 type FileUpgradeHandler = (info: FileUpgradeInfo) => Promise<boolean>
+/** Resolves once the user answered (access granted and the file loaded, or launch goes on without it). */
+type LaunchPermissionHandler = (info: LaunchPermissionInfo) => Promise<void>
 
 const FILE_TYPES = [{ description: 'TODO2 Database', accept: { 'application/json': ['.json'] } }]
 
@@ -232,6 +239,9 @@ class FileStorageService {
   private migrationConfirmHandler: MigrationConfirmHandler | null = null
   private conflictHandler: ConflictHandler | null = null
   private fileUpgradeHandler: FileUpgradeHandler | null = null
+  private launchPermissionHandler: LaunchPermissionHandler | null = null
+  /** The `initialize` run in flight, shared by concurrent callers. */
+  private initRun: Promise<void> | null = null
   private _lastSavedAt: Date | null = null
   private _error: string | null = null
   private _needsPermission = false
@@ -304,6 +314,16 @@ class FileStorageService {
     return () => { if (this.fileUpgradeHandler === handler) this.fileUpgradeHandler = null }
   }
 
+  /**
+   * As `onConfirmMigration`, for the launch question asked when the stored
+   * file handle needs permission: `initialize` waits until it resolves.
+   * Without a handler `initialize` goes on at once, permission still needed.
+   */
+  onLaunchPermission(handler: LaunchPermissionHandler): () => void {
+    this.launchPermissionHandler = handler
+    return () => { if (this.launchPermissionHandler === handler) this.launchPermissionHandler = null }
+  }
+
   private notify() {
     const status = this.status
     for (const listener of [...this.statusListeners]) {
@@ -358,6 +378,7 @@ class FileStorageService {
     this.changeGen = 0
     this.lastLoadBackCheck = null
     this.loadGen++
+    this.initRun = null
     this._lastSavedAt = null
     this._error = null
     this._needsPermission = false
@@ -365,7 +386,25 @@ class FileStorageService {
     this.checkIdle()
   }
 
-  async initialize(): Promise<void> {
+  /**
+   * The launch step: reconnects the stored file handle and runs the load
+   * decision. When the handle needs permission again it asks the launch
+   * question (`onLaunchPermission`) and resolves only once the user answered
+   * — so nothing at launch runs on this browser's data before the user chose
+   * between the file and this browser. Concurrent callers (React's
+   * StrictMode runs the startup effect twice) share one run: one question,
+   * one load decision.
+   */
+  initialize(): Promise<void> {
+    if (this.initRun) return this.initRun
+    const run: Promise<void> = this.runInitialize().finally(() => {
+      if (this.initRun === run) this.initRun = null
+    })
+    this.initRun = run
+    return run
+  }
+
+  private async runInitialize(): Promise<void> {
     if (!this.isSupported) return
 
     const handle = await loadFileHandle()
@@ -379,17 +418,27 @@ class FileStorageService {
       await this.loadFromFile()
     } else {
       this._needsPermission = true
+      this.notify()
+      if (this.launchPermissionHandler && this.handle === handle) {
+        await this.launchPermissionHandler({ fileName: handle.name })
+      }
     }
     this.notify()
   }
 
-  async reconnect(): Promise<void> {
+  /**
+   * Asks the browser for access to the attached file (needs a user gesture)
+   * and, once granted, runs the load decision. `onGranted` is called as soon
+   * as the browser said yes, before the file loads.
+   */
+  async reconnect({ onGranted }: { onGranted?: () => void } = {}): Promise<void> {
     if (!this.handle) return
     try {
       const perm = await this.handle.requestPermission({ mode: 'readwrite' })
       if (perm === 'granted') {
         this._needsPermission = false
         this._error = null
+        onGranted?.()
         await this.loadFromFile()
       } else {
         this._error = 'Permission denied'

@@ -1,0 +1,302 @@
+/* The launch question over the start screen: the TODO2 mark, then the card. */
+
+.backdrop {
+  background: var(--color-backdrop);
+}
+
+/* The frame's panel holds the mark and the card; the card has the look. */
+.frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px 24px 20px;
+  border-radius: 16px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-modal);
+}
+
+[data-theme="light"] .card {
+  background: var(--color-surface);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.fileName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* ── The two answers explained (not buttons) ── */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 10px 10px 8px;
+}
+
+.optionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.optionIconGrant {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+.optionIconContinue {
+  background: var(--color-tint-6);
+  color: var(--color-text-muted);
+}
+
+.optionTitle {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.optionLine {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.optionLines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optionLines p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.optionLines strong {
+  color: var(--color-text-primary);
+}
+
+/* ── Waiting / refused ── */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.refused {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--color-danger-bg);
+  box-shadow: inset 0 0 0 1px var(--color-danger-ring);
+}
+
+.refusedIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding-top: 1px;
+  color: var(--color-danger-text);
+}
+
+.refusedTitle {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-danger-text);
+}
+
+.refusedLine {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+/* ── Footer ── */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.secondary:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+/* Phone: the mark near the top, the answers as two full-width buttons. */
+@media (max-width: 640px) {
+  .frame {
+    margin: 120px auto auto;
+  }
+
+  .card {
+    padding: 20px 20px 16px;
+  }
+
+  .footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .primary,
+  .secondary {
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .secondary {
+    background: var(--color-tint-8);
+    color: var(--color-text-primary);
+  }
+}

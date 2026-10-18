@@ -19,6 +19,8 @@ import { registerModuleReset } from '../utils/module-reset'
 let legacyImportResolve: ((confirmed: boolean) => void) | null = null
 let conflictResolve: ((choice: SyncConflictChoice) => void) | null = null
 let fileUpgradeResolve: ((confirmed: boolean) => void) | null = null
+/** The launch question's answer: resolving it lets launch go on. */
+let launchPermissionResolve: (() => void) | null = null
 
 /**
  * Answers every waiting question as cancelled and forgets it, for tests that
@@ -28,11 +30,22 @@ export function resetFileStoragePrompts(): void {
   legacyImportResolve?.(false)
   conflictResolve?.('cancel')
   fileUpgradeResolve?.(false)
+  launchPermissionResolve?.()
   legacyImportResolve = null
   conflictResolve = null
   fileUpgradeResolve = null
+  launchPermissionResolve = null
 }
 registerModuleReset(resetFileStoragePrompts)
+
+/**
+ * The launch question (`LaunchPermissionDialog`): `ask` first, `waiting`
+ * while the browser's own prompt is up, `refused` when the browser said no.
+ */
+export interface LaunchPermissionPrompt {
+  fileName: string
+  phase: 'ask' | 'waiting' | 'refused'
+}
 
 interface FileStorageState extends FileStorageStatus {
   isSupported: boolean
@@ -42,7 +55,9 @@ interface FileStorageState extends FileStorageStatus {
   pendingConflict: SyncConflictInfo | null
   /** Set while the service waits for consent to upgrade an older sync file. */
   pendingFileUpgrade: FileUpgradeInfo | null
-  /** The `error` text the user dismissed (the warning strip's ×); it shows again if the error changes. */
+  /** Set while launch waits for the user to grant access to the sync file or go on without it. */
+  pendingLaunchPermission: LaunchPermissionPrompt | null
+  /** The `error` text the user dismissed (the storage pill's Dismiss); it shows again if the error changes. */
   dismissedError: string | null
   dismissError: () => void
   initialize: () => Promise<void>
@@ -56,9 +71,18 @@ interface FileStorageState extends FileStorageStatus {
   cancelLegacyImport: () => void
   resolveConflict: (choice: SyncConflictChoice) => void
   resolveFileUpgrade: (confirmed: boolean) => void
+  /**
+   * The launch question's Grant access: asks the browser (call it from the
+   * click — it needs the user's gesture). Granted → the question closes and
+   * the load decision runs (its prompts may follow), then launch goes on;
+   * refused → the question shows that and waits.
+   */
+  grantLaunchPermission: () => void
+  /** The launch question's Continue without the file: launch goes on with this browser's data, sync paused. */
+  continueWithoutFile: () => void
 }
 
-export const useFileStorageStore = create<FileStorageState>((set) => {
+export const useFileStorageStore = create<FileStorageState>((set, get) => {
   // Subscribed for the app's lifetime (the store is created once).
   fileStorageService.onStatusChange((status) => set(status))
   // Hold note saves while a file import replaces the data, then refresh
@@ -88,6 +112,14 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     })
   })
 
+  fileStorageService.onLaunchPermission((info) => {
+    return new Promise<void>((resolve) => {
+      launchPermissionResolve?.()
+      launchPermissionResolve = resolve
+      set({ pendingLaunchPermission: { fileName: info.fileName, phase: 'ask' } })
+    })
+  })
+
   const withLoading = async (fn: () => Promise<void>, errorMessage: string) => {
     set({ isLoading: true })
     try {
@@ -113,6 +145,7 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     pendingLegacyImport: null,
     pendingConflict: null,
     pendingFileUpgrade: null,
+    pendingLaunchPermission: null,
     dismissedError: null,
 
     dismissError: () => set((s) => ({ dismissedError: s.error })),
@@ -162,6 +195,35 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
       fileUpgradeResolve?.(confirmed)
       fileUpgradeResolve = null
       set({ pendingFileUpgrade: null })
+    },
+
+    grantLaunchPermission: () => {
+      const answer = launchPermissionResolve
+      const prompt = get().pendingLaunchPermission
+      if (!answer || !prompt) return
+      set({ pendingLaunchPermission: { ...prompt, phase: 'waiting' } })
+      // Still this question (not answered by Continue meanwhile, not reset)?
+      const current = () => launchPermissionResolve === answer
+      void withLoading(
+        () => fileStorageService.reconnect({ onGranted: () => { if (current()) set({ pendingLaunchPermission: null }) } }),
+        'Failed to reconnect to file',
+      ).then(() => {
+        if (!current()) return
+        if (get().needsPermission) {
+          set({ pendingLaunchPermission: { ...prompt, phase: 'refused' } })
+          return
+        }
+        launchPermissionResolve = null
+        set({ pendingLaunchPermission: null })
+        answer()
+      })
+    },
+
+    continueWithoutFile: () => {
+      const answer = launchPermissionResolve
+      launchPermissionResolve = null
+      set({ pendingLaunchPermission: null })
+      answer?.()
     },
   }
 })

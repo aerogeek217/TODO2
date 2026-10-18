@@ -169,6 +169,16 @@
   /* Danger ghost hover, Urgent toggle on. */
   --color-danger-bg: rgba(238, 125, 119, 0.12);
   --color-warning: #f5a623;
+  /* Sync status (storage pill, its popover, the launch question): amber =
+     waiting for you, red = something failed. Mixed from warning / danger so
+     theme colour overrides carry over; text keeps 4.5:1. */
+  --color-warning-text: var(--color-warning);
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  --color-warning-bg-strong: color-mix(in srgb, var(--color-warning) 24%, transparent);
+  --color-warning-ring: color-mix(in srgb, var(--color-warning) 35%, transparent);
+  --color-danger-text: var(--color-danger);
+  --color-danger-bg-strong: color-mix(in srgb, var(--color-danger) 22%, transparent);
+  --color-danger-ring: color-mix(in srgb, var(--color-danger) 38%, transparent);
   --color-followup: #f5c842;
   /* Follow-up pill fills: base, strong (today / overdue / hovered ×), and the
      1px ring that marks an overdue follow-up (distinct from overdue due dates). */
@@ -327,6 +337,13 @@
   --color-danger: #d94a43;
   --color-danger-bg: rgba(196, 60, 53, 0.10);
   --color-warning: #d08a12;
+  --color-warning-text: #94600a;
+  --color-warning-bg: color-mix(in srgb, var(--color-warning) 14%, transparent);
+  --color-warning-bg-strong: color-mix(in srgb, var(--color-warning) 24%, transparent);
+  --color-warning-ring: color-mix(in srgb, var(--color-warning) 40%, transparent);
+  --color-danger-text: #b8352f;
+  --color-danger-bg-strong: rgba(196, 60, 53, 0.18);
+  --color-danger-ring: rgba(196, 60, 53, 0.35);
   --color-followup: #826600;
   --color-followup-bg: rgba(245, 200, 66, 0.24);
   --color-followup-bg-strong: rgba(245, 200, 66, 0.40);

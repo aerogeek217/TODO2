@@ -807,6 +807,94 @@ describe('FileStorageService — changes made while sync starts', () => {
   })
 })
 
+// ─── The launch question ──────────────────────────────────────────────
+
+describe('FileStorageService — launch question (permission needed at start)', () => {
+  const needsPermission = (request: 'granted' | 'denied' = 'granted') => ({
+    queryPermission: vi.fn().mockResolvedValue('prompt'),
+    requestPermission: vi.fn().mockResolvedValue(request),
+  })
+
+  it('initialize waits for the answer, with permission marked needed meanwhile and nothing touched', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith(fileBody(), needsPermission())
+    let answer!: () => void
+    const ask = vi.fn(() => new Promise<void>((resolve) => { answer = resolve }))
+    svc.onLaunchPermission(ask)
+    const statuses: boolean[] = []
+    svc.onStatusChange((s) => statuses.push(s.needsPermission))
+
+    let done = false
+    const run = svc.initialize().then(() => { done = true })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json' })
+    expect(done).toBe(false)
+    expect(statuses).toEqual([true])
+    expectUntouched(writable)
+
+    answer()
+    await run
+    expect(done).toBe(true)
+    expect(svc.status.needsPermission).toBe(true)
+    expectUntouched(writable)
+  })
+
+  it('a granted handle loads at once: no question', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc } = await startWith()
+    const ask = vi.fn(() => Promise.resolve())
+    svc.onLaunchPermission(ask)
+    await svc.initialize()
+    expect(ask).not.toHaveBeenCalled()
+    expect(svc.status.isConnected).toBe(true)
+  })
+
+  it('concurrent initialize calls share one run: one question, one permission check', async () => {
+    const { svc, handle } = await startWith(fileBody(), needsPermission())
+    let answer!: () => void
+    const ask = vi.fn(() => new Promise<void>((resolve) => { answer = resolve }))
+    svc.onLaunchPermission(ask)
+
+    const first = svc.initialize()
+    const second = svc.initialize()
+    expect(second).toBe(first)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(handle.queryPermission).toHaveBeenCalledTimes(1)
+    answer()
+    await Promise.all([first, second])
+
+    // Once settled, a later call runs again.
+    ask.mockImplementationOnce(() => Promise.resolve())
+    await svc.initialize()
+    expect(handle.queryPermission).toHaveBeenCalledTimes(2)
+  })
+
+  it('Grant access from the question: onGranted before the file loads, then the load decision', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc } = await startWith(fileBody(), needsPermission())
+    const order: string[] = []
+    mockRestoreFromImportData.mockImplementation(async () => { order.push('restore') })
+    svc.onLaunchPermission(() => svc.reconnect({ onGranted: () => order.push('granted') }))
+
+    await svc.initialize()
+
+    expect(order).toEqual(['granted', 'restore'])
+    expect(svc.status).toMatchObject({ needsPermission: false, isConnected: true })
+  })
+
+  it('a refused grant never calls onGranted and keeps permission needed', async () => {
+    const { svc, writable } = await startWith(fileBody(), needsPermission('denied'))
+    const onGranted = vi.fn()
+    await svc.initialize()
+    await svc.reconnect({ onGranted })
+    expect(onGranted).not.toHaveBeenCalled()
+    expect(svc.status).toMatchObject({ needsPermission: true, error: 'Permission denied' })
+    expectUntouched(writable)
+  })
+})
+
 // ─── Attach / create / disconnect ─────────────────────────────────────
 
 describe('FileStorageService — attach, create, disconnect', () => {

@@ -27,11 +27,20 @@ export function FileStorageSection() {
     )
   } else if (fileStorage.needsPermission) {
     body = (
-      <SettingRow label="Sync file" help="Permission needed to sync to this file." column>
+      <SettingRow
+        label="Sync file"
+        help="Permission needed to sync to this file. TODO2 asks for it at every start until you grant it or disconnect the file."
+        column
+      >
         <span className={styles.fileName}>{fileStorage.fileName}</span>
-        <button type="button" className={primary} onClick={fileStorage.reconnect} disabled={fileStorage.isLoading}>
-          Grant Access
-        </button>
+        <div className={styles.buttonRow}>
+          <button type="button" className={primary} onClick={fileStorage.reconnect} disabled={fileStorage.isLoading}>
+            Grant Access
+          </button>
+          <button type="button" className={secondary} onClick={fileStorage.disconnect} disabled={fileStorage.isLoading}>
+            Disconnect
+          </button>
+        </div>
       </SettingRow>
     )
   } else if (fileStorage.paused) {

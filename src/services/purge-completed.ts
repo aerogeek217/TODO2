@@ -2,6 +2,7 @@ import type { PersistedTodoItem } from '../models'
 import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { selectExpiredCompleted } from '../utils/completed-at'
 import { buildTaskArchive, selfCheckTaskArchiveJson, taskArchiveFileName } from './task-archive'
 import { saveTextFile } from './save-file'
@@ -17,6 +18,18 @@ export async function listExpiredCompleted(
 ): Promise<PersistedTodoItem[]> {
   const rows = uids ? await todoRepository.getByUids([...uids]) : await todoRepository.getAll()
   return selectExpiredCompleted(rows, retentionDays)
+}
+
+/**
+ * uids of the completed tasks past the retention setting now (null when
+ * retention is off or none are) — what the purge prompt asks about. uids
+ * survive a sync-file restore; ids don't.
+ */
+export async function expiredCompletedUids(): Promise<ReadonlySet<string> | null> {
+  const { completedRetentionDays } = useSettingsStore.getState()
+  if (completedRetentionDays == null) return null
+  const expired = await listExpiredCompleted(completedRetentionDays)
+  return expired.length > 0 ? new Set(expired.map((t) => t.uid)) : null
 }
 
 /**

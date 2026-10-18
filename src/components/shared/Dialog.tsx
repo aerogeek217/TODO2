@@ -45,6 +45,7 @@ export interface DialogFrameProps {
   inline?: boolean
   'aria-labelledby'?: string
   'aria-label'?: string
+  'aria-describedby'?: string
   /** `data-*` hooks on the panel, without the `data-` prefix. */
   data?: Record<string, string>
   /** The panel element, for callers that move focus inside it. */
@@ -117,6 +118,7 @@ export function DialogFrame({
   inline = false,
   'aria-labelledby': labelledBy,
   'aria-label': label,
+  'aria-describedby': describedBy,
   data,
   panelRef: outerPanelRef,
   onKeyDown: ownKeyDown,
@@ -229,6 +231,7 @@ export function DialogFrame({
         aria-modal="true"
         aria-labelledby={labelledBy}
         aria-label={label}
+        aria-describedby={describedBy}
         tabIndex={-1}
         className={`${styles.panel} ${layerClass} ${className ?? ''}`}
         style={style}

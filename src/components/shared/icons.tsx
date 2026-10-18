@@ -324,3 +324,58 @@ export function EnvelopeIcon({ size = 14 }: { size?: number }) {
 export function DashIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size} strokeWidth={2}><path d="M4.5 8h7" /></Svg>
 }
+
+/** A page with a folded corner: the sync file. */
+export function FileIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M4 2h5l3.5 3.5V14H4z" />
+      <path d="M9 2v3.5h3.5" />
+    </Svg>
+  )
+}
+
+/** A padlock: access to the sync file is needed. */
+export function LockIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+      <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </Svg>
+  )
+}
+
+/** Two bars: sync paused. */
+export function PauseIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M6 4v8M10 4v8" /></Svg>
+}
+
+/** A circle with an exclamation mark: something failed. */
+export function AlertCircleIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 5.2v3.3M8 10.8h.01" />
+    </Svg>
+  )
+}
+
+/** A triangle with an exclamation mark: a warning (backups). */
+export function WarningIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M8 2.5 14 13H2z" />
+      <path d="M8 6.5v3M8 11.2h.01" />
+    </Svg>
+  )
+}
+
+/** A circle with an i: a status note. */
+export function InfoIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 7.5v3.3M8 5.2h.01" />
+    </Svg>
+  )
+}
