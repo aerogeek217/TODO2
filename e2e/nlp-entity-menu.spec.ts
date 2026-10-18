@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
+import { taskRowByTitle } from './fixtures/seed'
 
 /**
  * The person / tag menu (Show tasks · Edit… · Delete…) on the person / tag
@@ -182,5 +183,38 @@ test.describe('notes editor', () => {
     await page.keyboard.type('n')
     await expect(editor.locator('.cm-line').first()).toHaveText('- Call @ann')
     await expect(popup(page).getByRole('option')).toHaveText(['@Annabel'])
+  })
+})
+
+test.describe('task row notes popover', () => {
+  const ROW_SEED = {
+    ...SEED,
+    listDefinitions: [{ name: 'Everything' }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'list', kind: 'lens' as const, listDefIdx: 0 }] }] }] }],
+  }
+
+  test('a click on Edit… in the person menu opens the editor; Esc and clicks in it leave the popover open', async ({ page }) => {
+    await seedWorkspace(page, ROW_SEED)
+    await taskRowByTitle(page, 'Plan the offsite').locator('[data-row-cell="notes"]').click()
+    const notesPopover = page.getByRole('dialog', { name: 'Progress and notes' })
+    await expect(notesPopover).toBeVisible()
+    const editor = notesPopover.locator('.cm-content')
+    await editor.click()
+    await page.keyboard.type('- Call @an')
+    await popup(page).getByRole('option', { name: '@Anna' }).click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Edit…' }).click()
+    const peopleEditor = page.getByRole('dialog', { name: 'People', exact: true })
+    await expect(peopleEditor.getByPlaceholder('Name')).toBeFocused()
+    await expect(notesPopover).toBeVisible()
+
+    // Esc in the editor's name field is the editor's (it cancels the edit).
+    await page.keyboard.press('Escape')
+    await expect(peopleEditor.getByPlaceholder('Name')).toHaveCount(0)
+    await expect(notesPopover).toBeVisible()
+    await peopleEditor.getByRole('button', { name: '×' }).first().click()
+    await expect(peopleEditor).toHaveCount(0)
+    await expect(notesPopover).toBeVisible()
+    await expect(editor).toBeFocused()
+    await expect(editor.locator('.cm-line').first()).toHaveText('- Call @an')
   })
 })

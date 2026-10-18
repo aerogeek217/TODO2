@@ -7,11 +7,14 @@ import { useTodoStore } from '../../stores/todo-store'
 import { NotesBody, type NotesSource } from './notes/NotesBody'
 import { isNotesConvertOpen } from './notes/NotesConvert'
 import { TOAST_VISIBLE_MS } from '../../constants'
+import { hasModalAbove, isInLayerAbove } from '../../utils/dom-layers'
 import styles from './TaskNotePopover.module.css'
 
 // The notes' `@ # /` popup is portalled to the body, and so are the notes →
-// tasks dialogs: clicks there aren't outside clicks.
-const isNotesLayer = (target: Element) => target.closest('[data-nlp-popup]') !== null || isNotesConvertOpen()
+// tasks dialogs and anything opened above the popover (the popup's person /
+// tag menu, the editor or confirm it opens): presses there aren't outside.
+const isNotesLayer = (panel: Element | null, target: Element) =>
+  target.closest('[data-nlp-popup]') !== null || isNotesConvertOpen() || (panel !== null && isInLayerAbove(panel, target))
 
 /** The task editor's limit on the Progress text. */
 const PROGRESS_MAX_LENGTH = 500
@@ -99,7 +102,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   // Outside clicks and Escape stay here: both must leave the notes' own
   // layers (the `@ # /` popup, the convert dialogs) alone.
   const isInside = useCallback(
-    (target: Element) => isNotesLayer(target) || (anchorRef.current?.contains(target) ?? false),
+    (target: Element) => isNotesLayer(containerRef.current, target) || (anchorRef.current?.contains(target) ?? false),
     [anchorRef],
   )
   useClickOutside(containerRef, onClose, true, isInside)
@@ -122,11 +125,18 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // While a convert dialog is open, Esc belongs to it.
-      if (e.key === 'Escape' && !isNotesConvertOpen()) {
-        e.stopPropagation()
-        onClose()
+      // While a convert dialog is open, Esc belongs to it; so does an Esc in
+      // a layer above (a menu, an editor, a confirm) or, with nothing
+      // focused, to a modal above.
+      if (e.key !== 'Escape' || isNotesConvertOpen()) return
+      const panel = containerRef.current
+      const target = e.target instanceof Node ? e.target : null
+      if (panel && target && !panel.contains(target)) {
+        if (isInLayerAbove(panel, target)) return
+        if ((target === document.body || target === document.documentElement) && hasModalAbove(panel)) return
       }
+      e.stopPropagation()
+      onClose()
     }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)

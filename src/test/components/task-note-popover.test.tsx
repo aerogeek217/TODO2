@@ -85,6 +85,44 @@ describe('TaskNotePopover', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves presses and Esc in a layer opened above it (a menu, an editor, a confirm) to that layer', async () => {
+    seedTodo('x')
+    const anchor = createRef<HTMLButtonElement>()
+    const onClose = vi.fn()
+    render(
+      <>
+        <button ref={anchor}>anchor</button>
+        <TaskNotePopover todoId={100} anchorRef={anchor} onClose={onClose} />
+      </>,
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    // A portal opened later (e.g. the `@ #` popup's person menu, then the
+    // People editor it opens) is a later child of <body>.
+    const menu = document.createElement('div')
+    menu.innerHTML = '<button>Edit…</button>'
+    document.body.appendChild(menu)
+    const dialog = document.createElement('div')
+    dialog.setAttribute('aria-modal', 'true')
+    dialog.innerHTML = '<input />'
+    document.body.appendChild(dialog)
+    try {
+      fireEvent.mouseDown(menu.querySelector('button')!)
+      fireEvent.keyDown(dialog.querySelector('input')!, { key: 'Escape' })
+      // Nothing focused: the Esc belongs to the modal above.
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      fireEvent.keyDown(document.body, { key: 'Escape' })
+      expect(onClose).not.toHaveBeenCalled()
+    } finally {
+      menu.remove()
+      dialog.remove()
+    }
+    // With the layers gone, Esc closes it again.
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('persists edits to the todo-store through the source adapter', async () => {
     seedTodo('')
     const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
