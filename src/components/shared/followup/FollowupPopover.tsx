@@ -8,11 +8,13 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import {
   addFollowupInterval,
   formatFollowupDate,
+  formatWeekdayNumeric,
   isFollowedUpToday,
   relativeDayPhrase,
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../../utils/followup'
 import { FollowedUpIcon } from '../FollowupIcons'
+import { useTooltip } from '../use-tooltip'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
 import styles from './Followup.module.css'
 
@@ -101,7 +103,12 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
     else if (s.kind === 'unchanged') onClose()
   }
 
-  const nextAfterFollowup = addFollowupInterval(today, interval)
+  // The next follow-up "Followed up" sets, as `Next: Tue 11/10` (the colon
+  // keeps it from reading as "next Tuesday").
+  const nextAfterFollowup = formatWeekdayNumeric(addFollowupInterval(today, interval))
+  const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
+    `Record a follow-up today\nNext follow-up: ${nextAfterFollowup}`,
+  )
   // Only highlight "Followed up" when it would record something new.
   const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
   const s = input.state
@@ -179,13 +186,15 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
         ref={followedUpRef}
         type="button"
         className={`${styles.followedUpPrimary} ${doneToday ? styles.followedUpDone : ''}`}
+        {...followedUpTipProps}
         onClick={() => { onFollowedUp(); onClose() }}
         data-done-today={doneToday ? 'true' : undefined}
       >
         <FollowedUpIcon />
-        Followed up
-        <span className={styles.followedUpHint}>· next {formatFollowupDate(nextAfterFollowup, today)}</span>
+        Followed up{' '}
+        <span className={styles.followedUpHint}>· Next: {nextAfterFollowup}</span>
       </button>
+      {followedUpTip}
     </div>,
     document.body,
   )

@@ -141,7 +141,7 @@ test.describe('Task follow-up', () => {
 
     await pill.click()
     const followedUp = popover(page).getByRole('button', { name: /^Followed up/ })
-    await expect(followedUp).toContainText('next Tue 10 Nov')
+    await expect(followedUp).toHaveAccessibleName('Followed up · Next: Tue 11/10')
     await followedUp.click()
     await expect(popover(page)).toBeHidden()
     await expect(row.getByRole('button', { name: 'Follow-up: Tue 10 Nov', exact: true })).toBeVisible()

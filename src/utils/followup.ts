@@ -1,6 +1,6 @@
 import type { TodoItem } from '../models/todo-item'
 import { parseDatePhrase } from './date-phrase'
-import { MS_PER_DAY, startOfDay } from './date'
+import { formatDateNumeric, MS_PER_DAY, startOfDay } from './date'
 
 /**
  * Follow-up dates. `nextFollowupAt` is a calendar day stored at local
@@ -199,6 +199,11 @@ export function formatFollowupDate(date: Date, today: Date): string {
   const d = new Date(date)
   const base = `${weekday(d)} ${d.getDate()} ${monthShort(d)}`
   return d.getFullYear() !== today.getFullYear() ? `${base} ${d.getFullYear()}` : base
+}
+
+/** `Thu 10/22` — the short weekday and the zero-padded `MM/DD` (no year). */
+export function formatWeekdayNumeric(date: Date): string {
+  return `${weekday(new Date(date))} ${formatDateNumeric(date)}`
 }
 
 /** Pill label: `Today` or the day (`Tue 13`) — overdue too (the pill's colour and tooltip say it's late). */
