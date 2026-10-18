@@ -84,7 +84,9 @@ interface FileStorageState extends FileStorageStatus {
 
 export const useFileStorageStore = create<FileStorageState>((set, get) => {
   // Subscribed for the app's lifetime (the store is created once).
-  fileStorageService.onStatusChange((status) => set(status))
+  // A dismissed error is forgotten once the error clears: the same failure
+  // coming back later is news again.
+  fileStorageService.onStatusChange((status) => set(status.error == null ? { ...status, dismissedError: null } : status))
   // Hold note saves while a file import replaces the data, then refresh
   // every Zustand store
   fileStorageService.onBeforeImport(() => useNoteStore.getState().holdForDataReplace())

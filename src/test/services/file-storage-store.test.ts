@@ -61,6 +61,19 @@ describe('file-storage store — wiring', () => {
     wiring.status[0]!({ isConnected: true, fileName: 'x.json', lastSavedAt: null, needsPermission: false, error: null, paused: null })
     expect(useFileStorageStore.getState()).toMatchObject({ isConnected: true, fileName: 'x.json' })
   })
+
+  it('a dismissed error is forgotten once it clears, so the same error later shows again', () => {
+    reportStatus({ needsPermission: false, error: 'Failed to save to file' })
+    useFileStorageStore.getState().dismissError()
+    expect(useFileStorageStore.getState().dismissedError).toBe('Failed to save to file')
+    // Still failing: stays dismissed.
+    reportStatus({ needsPermission: false, error: 'Failed to save to file' })
+    expect(useFileStorageStore.getState().dismissedError).toBe('Failed to save to file')
+    // A save worked, then the same failure came back.
+    reportStatus({ needsPermission: false, error: null })
+    reportStatus({ needsPermission: false, error: 'Failed to save to file' })
+    expect(useFileStorageStore.getState().dismissedError).toBeNull()
+  })
 })
 
 describe('file-storage store — waiting questions', () => {
