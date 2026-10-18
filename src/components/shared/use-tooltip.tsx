@@ -24,14 +24,14 @@ export interface UseTooltipResult {
  * The app's tooltip: opens after {@link TOOLTIP_DELAY_MS} of hover or
  * keyboard focus on the trigger and closes on leave, blur, press, Escape or
  * scroll. Touch never opens it. `text` may hold several lines (`\n`): the
- * first is the label, the rest a muted second line. `shortcut` adds a muted
+ * first (or the first `labelLines`) is the label, the rest muted lines. `shortcut` adds a muted
  * key after the label (`Complete Space`). Only labels and shortcuts go in a
  * tooltip, never anything clickable.
  *
  * Returns props for the trigger plus the tooltip node; while open the trigger
  * is `aria-describedby` the tooltip (`role="tooltip"`).
  */
-export function useTooltip(text: string | null | undefined, opts: { shortcut?: string } = {}): UseTooltipResult {
+export function useTooltip(text: string | null | undefined, opts: { shortcut?: string; labelLines?: number } = {}): UseTooltipResult {
   const id = useId()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLElement | null>(null)
@@ -79,6 +79,6 @@ export function useTooltip(text: string | null | undefined, opts: { shortcut?: s
   return {
     triggerProps,
     // Escape, a scroll or a resize closes it (the bubble's `usePopoverAnchor`).
-    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} onClose={hide} /> : null,
+    tooltip: open ? <TooltipBubble id={id} anchorRef={anchorRef} text={text} shortcut={opts.shortcut} labelLines={opts.labelLines} onClose={hide} /> : null,
   }
 }

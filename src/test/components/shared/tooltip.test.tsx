@@ -3,8 +3,8 @@ import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { Tooltip } from '../../../components/shared/Tooltip'
 import { TOOLTIP_DELAY_MS, useTooltip } from '../../../components/shared/use-tooltip'
 
-function Trigger({ text, shortcut }: { text: string | null; shortcut?: string }) {
-  const { triggerProps, tooltip } = useTooltip(text, { shortcut })
+function Trigger({ text, shortcut, labelLines }: { text: string | null; shortcut?: string; labelLines?: number }) {
+  const { triggerProps, tooltip } = useTooltip(text, { shortcut, labelLines })
   return <button type="button" {...triggerProps}>Copy{tooltip}</button>
 }
 
@@ -90,6 +90,15 @@ describe('useTooltip / <Tooltip> — the app tooltip', () => {
     fireEvent.pointerEnter(screen.getByRole('button', { name: 'Copy' }))
     act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
     expect(screen.getByRole('tooltip')).toHaveTextContent('Complete Space')
+  })
+
+  it('labelLines: the first N lines are the label, the rest muted', () => {
+    render(<Trigger text={['Due: has a date', 'Created: from start of month', 'Tasks must match both'].join(String.fromCharCode(10))} labelLines={2} />)
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Copy' }))
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    const tip = screen.getByRole('tooltip')
+    expect(Array.from(tip.children).map((c) => c.textContent))
+      .toEqual(['Due: has a date' + String.fromCharCode(10) + 'Created: from start of month', 'Tasks must match both'])
   })
 
   it('no text: no handlers, nothing opens; <Tooltip> wraps any content', () => {

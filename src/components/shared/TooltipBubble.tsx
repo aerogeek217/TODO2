@@ -10,11 +10,13 @@ const GAP_PX = 6
  * `usePopoverAnchor` — centred below the trigger (above when there's no room),
  * kept inside the viewport. Escape, a scroll or a window resize closes it.
  */
-export function TooltipBubble({ id, anchorRef, text, shortcut, onClose }: {
+export function TooltipBubble({ id, anchorRef, text, shortcut, labelLines = 1, onClose }: {
   id: string
   anchorRef: RefObject<HTMLElement | null>
   text: string
   shortcut?: string
+  /** How many of the text's first lines are the label; the rest are muted. */
+  labelLines?: number
   onClose: () => void
 }) {
   const { panelRef, style, placed } = usePopoverAnchor({
@@ -27,8 +29,10 @@ export function TooltipBubble({ id, anchorRef, text, shortcut, onClose }: {
     contentKey: `${text}|${shortcut ?? ''}`,
   })
 
-  const [first = '', ...rest] = text.split('\n')
-  const multiLine = rest.length > 0
+  const lines = text.split('\n')
+  const first = lines.slice(0, labelLines).join('\n')
+  const rest = lines.slice(labelLines)
+  const multiLine = lines.length > 1
   return createPortal(
     <div
       ref={panelRef}
