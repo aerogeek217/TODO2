@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import type { PersistedTodoItem } from '../../models'
 import {
+  eisenhowerQuadrantDialog,
+  eisenhowerSummaryDialog,
   personTaskDialog,
+  recentlyCompletedDialog,
+  staleTasksDialog,
+  tagSectionDialog,
+  tagsSectionDialog,
   resolveTaskDialog,
   taskDialogCopySections,
   taskDialogCount,
@@ -124,5 +130,62 @@ describe('taskDialogCount / taskDialogCopySections', () => {
   it('a flat list copies without a heading', () => {
     const sections = taskDialogCopySections([{ key: 'all', label: null, todoIds: [17] }], byId)
     expect(sections).toEqual([{ todos: [byId.get(17)] }])
+  })
+})
+
+describe('dashboard section payloads', () => {
+  it('a tag row: that tag’s open tasks; the untagged row; the Tags count: a heading per tag', () => {
+    expect(tagSectionDialog({ id: 4, name: 'q4' }, [3, 1])).toEqual({
+      title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [3, 1] },
+    })
+    expect(tagSectionDialog(null, [7])).toEqual({
+      title: 'No tag', glyph: 'tag', description: 'Open tasks with no tag.', source: { kind: 'todos', todoIds: [7] },
+    })
+    expect(tagsSectionDialog([
+      { tag: { id: 4, name: 'q4', color: '#123' }, todoIds: [3, 1] },
+      { tag: null, todoIds: [7] },
+    ])).toEqual({
+      title: 'Tagged tasks',
+      glyph: 'tag',
+      description: 'Open tasks by tag. A task with several tags shows under each.',
+      source: {
+        kind: 'groups',
+        groups: [
+          { key: 'tag-4', label: '#q4', color: '#123', todoIds: [3, 1] },
+          { key: 'untagged', label: 'No tag', todoIds: [7] },
+        ],
+      },
+    })
+  })
+
+  it('Stale tasks and Recently completed say their window', () => {
+    expect(staleTasksDialog([5, 2], 14)).toEqual({
+      title: 'Stale tasks', glyph: 'stale', description: 'Open tasks not changed in 14 days or more, oldest first.', source: { kind: 'todos', todoIds: [5, 2] },
+    })
+    expect(recentlyCompletedDialog([9], 7)).toEqual({
+      title: 'Recently completed', glyph: 'done', description: 'Tasks completed in the last 7 days, newest first.', source: { kind: 'todos', todoIds: [9] },
+    })
+  })
+
+  it('an Eisenhower quadrant, and every quadrant under headings, saying what Urgent includes', () => {
+    expect(eisenhowerQuadrantDialog('schedule', [4], 3)).toEqual({
+      title: 'Schedule',
+      glyph: 'matrix',
+      description: 'Open tasks that are important, not urgent. Urgent includes tasks due within 3 days.',
+      source: { kind: 'todos', todoIds: [4] },
+    })
+    expect(eisenhowerQuadrantDialog('do', [1], null).description).toBe('Open tasks that are urgent and important.')
+    expect(eisenhowerQuadrantDialog('drop', [1], 0).description).toBe('Open tasks that are neither urgent nor important. Urgent includes tasks due today or earlier.')
+    const all = eisenhowerSummaryDialog({ do: [1], schedule: [], delegate: [5], drop: [6] }, 7)
+    expect(all).toMatchObject({ title: 'Eisenhower', glyph: 'matrix', description: 'Open tasks by urgent × important. Urgent includes tasks due within 1 week.' })
+    expect(all.source).toEqual({
+      kind: 'groups',
+      groups: [
+        { key: 'do', label: 'Do', color: 'var(--color-danger)', todoIds: [1] },
+        { key: 'schedule', label: 'Schedule', color: 'var(--color-followup)', todoIds: [] },
+        { key: 'delegate', label: 'Delegate', color: 'var(--color-text-secondary)', todoIds: [5] },
+        { key: 'drop', label: 'Drop', color: 'var(--color-text-muted)', todoIds: [6] },
+      ],
+    })
   })
 })

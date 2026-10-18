@@ -216,6 +216,46 @@ describe('layouts row validation', () => {
     })
   })
 
+  it('import keeps the Tags / Stale tasks / Recently completed / Eisenhower sections and their own options only', () => {
+    const config = {
+      tiles: ['open'],
+      listTiles: [],
+      sections: [
+        { id: 'eisenhower', options: { staleDays: 30 } },
+        { id: 'stale', options: { staleDays: 30, recentDays: 14 } },
+        { id: 'recent', options: { recentDays: 14, staleDays: 7 } },
+        { id: 'tags', options: { showUntagged: false, showUnassigned: false } },
+        { id: 'stale' },
+      ],
+    }
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config }))] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({
+      id: 't',
+      kind: 'dashboard',
+      config: {
+        tiles: ['open'],
+        listTiles: [],
+        sections: [
+          { id: 'eisenhower' },
+          { id: 'stale', options: { staleDays: 30 } },
+          { id: 'recent', options: { recentDays: 14 } },
+          { id: 'tags', options: { showUntagged: false } },
+        ],
+      },
+    })
+  })
+
+  it('import drops option values a section doesn’t offer', () => {
+    const config = {
+      sections: [{ id: 'stale', options: { staleDays: 15 } }, { id: 'recent', options: { recentDays: '7' } }, { id: 'tags', options: { showUntagged: 'no' } }],
+    }
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config }))] })
+    if (!res.ok) throw new Error(res.error)
+    const tab = res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!
+    expect(tab.kind === 'dashboard' && tab.config.sections).toEqual([{ id: 'stale' }, { id: 'recent' }, { id: 'tags' }])
+  })
+
   it('import fills a dashboard config’s missing parts with the defaults', () => {
     const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: [2] } }))] })
     if (!res.ok) throw new Error(res.error)

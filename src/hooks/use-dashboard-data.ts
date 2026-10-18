@@ -2,7 +2,11 @@ import { useMemo } from 'react'
 import type { PersistedTodoItem } from '../models'
 import {
   DEFAULT_DASHBOARD_LOOK_AHEAD,
+  DEFAULT_DASHBOARD_RECENT_DAYS,
+  DEFAULT_DASHBOARD_STALE_DAYS,
   DEFAULT_DASHBOARD_TREND_RANGE,
+  type DashboardSectionId,
+  type DashboardSectionOptions,
   type DashboardTabConfig,
   type DashboardTrendRange,
 } from '../models/dashboard-config'
@@ -17,6 +21,10 @@ import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
 import { computeTiles, type TileStats } from '../services/stats/tiles'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
+import { computeTagStats, type TagStats } from '../services/stats/tags'
+import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
+import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/stats/recently-completed'
+import { computeEisenhowerSummary, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
 import { useFilterStore } from '../stores/filter-store'
 import { countActiveFilters } from '../utils/filter-criteria'
 import { applyFilter } from '../utils/filter-match'
@@ -53,12 +61,20 @@ export interface DashboardData {
   nextDays: NextDaysColumn[]
   status: ShownOfTotal<StatusBreakdownEntry[]>
   people: PeopleStats
+  tags: ShownOfTotal<TagStats>
+  /** Open tasks not changed in `staleDays` days or more. */
+  stale: ShownOfTotal<StaleTasks>
+  staleDays: number
+  /** Tasks completed in the last `recentDays` days. */
+  recent: ShownOfTotal<RecentlyCompleted>
+  recentDays: number
+  eisenhower: ShownOfTotal<EisenhowerSummary>
   /** `null` until the history has been read. */
   trend: TrendStats | null
   trendRange: DashboardTrendRange
 }
 
-function sectionOption<K extends 'lookAhead' | 'range'>(config: DashboardTabConfig, id: 'followup' | 'trend', key: K) {
+function sectionOption<K extends keyof DashboardSectionOptions>(config: DashboardTabConfig, id: DashboardSectionId, key: K) {
   return config.sections.find((s) => s.id === id)?.options?.[key]
 }
 
@@ -76,6 +92,8 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
 
   const trendRange = sectionOption(config, 'trend', 'range') ?? DEFAULT_DASHBOARD_TREND_RANGE
   const lookAhead = sectionOption(config, 'followup', 'lookAhead') ?? DEFAULT_DASHBOARD_LOOK_AHEAD
+  const staleDays = sectionOption(config, 'stale', 'staleDays') ?? DEFAULT_DASHBOARD_STALE_DAYS
+  const recentDays = sectionOption(config, 'recent', 'recentDays') ?? DEFAULT_DASHBOARD_RECENT_DAYS
   const events = useTrendEvents(trendRange)
 
   const ctx = useMemo<StatsContext>(() => ({
@@ -84,8 +102,9 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     urgentRange: markerSettings.urgentRange,
     hotRule: markerSettings.hotRule,
     assignedPeopleMap,
+    assignedTagsMap,
     statuses,
-  }), [today, weekStartsOn, markerSettings, assignedPeopleMap, statuses])
+  }), [today, weekStartsOn, markerSettings, assignedPeopleMap, assignedTagsMap, statuses])
 
   const shown = useMemo(
     () => applyFilter(statsFilter(screen), todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
@@ -105,6 +124,19 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     [shown, todos, statuses],
   )
   const people = useMemo(() => computePeopleStats(shown, ctx), [shown, ctx])
+  const tags = useMemo(() => ({ shown: computeTagStats(shown, ctx), total: computeTagStats(todos, ctx) }), [shown, todos, ctx])
+  const stale = useMemo(
+    () => ({ shown: computeStaleTasks(shown, ctx, staleDays), total: computeStaleTasks(todos, ctx, staleDays) }),
+    [shown, todos, ctx, staleDays],
+  )
+  const recent = useMemo(
+    () => ({ shown: computeRecentlyCompleted(shown, ctx, recentDays), total: computeRecentlyCompleted(todos, ctx, recentDays) }),
+    [shown, todos, ctx, recentDays],
+  )
+  const eisenhower = useMemo(
+    () => ({ shown: computeEisenhowerSummary(shown, ctx), total: computeEisenhowerSummary(todos, ctx) }),
+    [shown, todos, ctx],
+  )
   const trend = useMemo(
     () => (events ? computeTrend(shown, events, ctx, trendRange) : null),
     [shown, events, ctx, trendRange],
@@ -131,5 +163,8 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     })
   }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, markerSettings])
 
-  return { ctx, shown, filtered, todoById, tiles, listTiles, followup, nextDays, status, people, trend, trendRange }
+  return {
+    ctx, shown, filtered, todoById, tiles, listTiles, followup, nextDays, status, people,
+    tags, stale, staleDays, recent, recentDays, eisenhower, trend, trendRange,
+  }
 }

@@ -20,4 +20,8 @@ export const SECTION_META: Record<DashboardSectionId, DashboardSectionMeta> = {
   trend: { id: 'trend', title: 'Created vs completed', glyph: 'chart', glyphColor: 'var(--color-accent)', defaultSpan: 5, options: ['range'] },
   status: { id: 'status', title: 'Status', glyph: 'status', glyphColor: 'var(--color-accent)', defaultSpan: 3, options: [] },
   people: { id: 'people', title: 'People', glyph: 'people', glyphColor: 'var(--color-accent)', defaultSpan: 4, options: ['showUnassigned'] },
+  tags: { id: 'tags', title: 'Tags', glyph: 'tag', glyphColor: 'var(--color-accent)', defaultSpan: 4, options: ['showUntagged'] },
+  stale: { id: 'stale', title: 'Stale tasks', glyph: 'stale', glyphColor: 'var(--color-text-secondary)', defaultSpan: 5, options: ['staleDays'] },
+  recent: { id: 'recent', title: 'Recently completed', glyph: 'done', glyphColor: 'var(--color-accent)', defaultSpan: 4, options: ['recentDays'] },
+  eisenhower: { id: 'eisenhower', title: 'Eisenhower', glyph: 'matrix', glyphColor: 'var(--color-danger)', defaultSpan: 3, options: [] },
 }

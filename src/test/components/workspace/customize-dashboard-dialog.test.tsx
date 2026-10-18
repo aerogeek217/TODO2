@@ -76,10 +76,21 @@ describe('CustomizeDashboardDialog', () => {
     expect((tiles.getByRole('checkbox', { name: 'Due today' }) as HTMLInputElement).checked).toBe(false)
     expect(group('Tiles').textContent).toContain('Flagged, or due within 3 days')
     expect(group('Tiles').textContent).toContain('Today through Fri 16')
-    expect(rowIds('Sections')).toEqual(['section:hot', 'section:followup', 'section:next7', 'section:trend', 'section:status', 'section:people'])
+    expect(rowIds('Sections')).toEqual([
+      'section:hot', 'section:followup', 'section:next7', 'section:trend', 'section:status', 'section:people',
+      'section:tags', 'section:stale', 'section:recent', 'section:eisenhower',
+    ])
+    const sections = within(group('Sections'))
+    expect((sections.getByRole('checkbox', { name: 'People' }) as HTMLInputElement).checked).toBe(true)
+    for (const name of ['Tags', 'Stale tasks', 'Recently completed', 'Eisenhower']) {
+      expect((sections.getByRole('checkbox', { name }) as HTMLInputElement).checked).toBe(false)
+    }
     expect(screen.getByRole('button', { name: 'Look ahead: 7 days' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Range: 14 days' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Unassigned: Shown' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'No tag: Shown' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Older than: 14 days' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Last: 7 days' })).toBeTruthy()
     // Every grip is a keyboard handle with a name.
     expect(screen.getByRole('button', { name: 'Move Open' })).toBeTruthy()
   })
@@ -112,6 +123,29 @@ describe('CustomizeDashboardDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Unassigned: Shown' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Hidden' }))
     expect(tabConfig().sections.find((s) => s.id === 'people')).toEqual({ id: 'people', options: { showUnassigned: false } })
+  })
+
+  it('shows the Tags / Stale tasks / Recently completed / Eisenhower sections after the rest; their options save with them', () => {
+    setup()
+    const sections = within(group('Sections'))
+    expect((screen.getByRole('button', { name: 'Older than: 14 days' }) as HTMLButtonElement).disabled).toBe(true)
+    for (const name of ['Stale tasks', 'Eisenhower', 'Tags', 'Recently completed']) fireEvent.click(sections.getByRole('checkbox', { name }))
+    // Shown in the dialog's order, after the default ones.
+    expect(tabConfig().sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower'])
+    expect(dirty()).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Older than: 14 days' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '30 days' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Last: 7 days' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '14 days' }))
+    fireEvent.click(screen.getByRole('button', { name: 'No tag: Shown' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Hidden' }))
+    expect(tabConfig().sections.filter((s) => ['tags', 'stale', 'recent', 'eisenhower'].includes(s.id))).toEqual([
+      { id: 'tags', options: { showUntagged: false } },
+      { id: 'stale', options: { staleDays: 30 } },
+      { id: 'recent', options: { recentDays: 14 } },
+      { id: 'eisenhower' },
+    ])
   })
 
   it('Add a saved list: lists that ask for a value are disabled with why; a pick adds a list tile', () => {

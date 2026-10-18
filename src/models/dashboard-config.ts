@@ -13,9 +13,17 @@ export type DashboardTileId = (typeof DASHBOARD_TILE_IDS)[number]
 /** The tiles a new dashboard shows (six fit in a row). */
 export const DEFAULT_DASHBOARD_TILES: readonly DashboardTileId[] = ['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue']
 
-/** The sections, in default order. */
-export const DASHBOARD_SECTION_IDS = ['hot', 'followup', 'next7', 'trend', 'status', 'people'] as const
+/** The sections, in catalog order (Customize lists hidden ones in this order). */
+export const DASHBOARD_SECTION_IDS = [
+  'hot', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower',
+] as const
 export type DashboardSectionId = (typeof DASHBOARD_SECTION_IDS)[number]
+
+/**
+ * The sections a new dashboard shows, in order: the six that fill a
+ * full-screen cell in two rows. The rest are added from Customize.
+ */
+export const DEFAULT_DASHBOARD_SECTIONS: readonly DashboardSectionId[] = ['hot', 'followup', 'next7', 'trend', 'status', 'people']
 
 /** Needs follow-up: how many days ahead (starting today) the section looks. */
 export const DASHBOARD_LOOK_AHEAD_CHOICES = [3, 7, 14] as const
@@ -25,6 +33,14 @@ export type DashboardLookAhead = (typeof DASHBOARD_LOOK_AHEAD_CHOICES)[number]
 export const DASHBOARD_TREND_RANGES = ['14d', '4w', '12w'] as const
 export type DashboardTrendRange = (typeof DASHBOARD_TREND_RANGES)[number]
 
+/** Stale tasks: open tasks not changed in this many days or more. */
+export const DASHBOARD_STALE_DAYS_CHOICES = [7, 14, 30, 60] as const
+export type DashboardStaleDays = (typeof DASHBOARD_STALE_DAYS_CHOICES)[number]
+
+/** Recently completed: tasks completed today and the days before it, this many days in all. */
+export const DASHBOARD_RECENT_DAYS_CHOICES = [7, 14, 30] as const
+export type DashboardRecentDays = (typeof DASHBOARD_RECENT_DAYS_CHOICES)[number]
+
 /** Section options; each belongs to one section (others ignore it). */
 export interface DashboardSectionOptions {
   /** Needs follow-up (default 7). */
@@ -33,6 +49,12 @@ export interface DashboardSectionOptions {
   range?: DashboardTrendRange
   /** People: show the Unassigned row (default `true`). */
   showUnassigned?: boolean
+  /** Tags: show the No tag row (default `true`). */
+  showUntagged?: boolean
+  /** Stale tasks (default 14). */
+  staleDays?: DashboardStaleDays
+  /** Recently completed (default 7). */
+  recentDays?: DashboardRecentDays
 }
 
 export interface DashboardSectionConfig {
@@ -49,13 +71,15 @@ export interface DashboardTabConfig {
 
 export const DEFAULT_DASHBOARD_LOOK_AHEAD: DashboardLookAhead = 7
 export const DEFAULT_DASHBOARD_TREND_RANGE: DashboardTrendRange = '14d'
+export const DEFAULT_DASHBOARD_STALE_DAYS: DashboardStaleDays = 14
+export const DEFAULT_DASHBOARD_RECENT_DAYS: DashboardRecentDays = 7
 
-/** A new dashboard's config: the default tiles, no list tiles, every section. */
+/** A new dashboard's config: the default tiles, no list tiles, the default sections. */
 export function defaultDashboardConfig(): DashboardTabConfig {
   return {
     tiles: [...DEFAULT_DASHBOARD_TILES],
     listTiles: [],
-    sections: DASHBOARD_SECTION_IDS.map((id) => ({ id })),
+    sections: DEFAULT_DASHBOARD_SECTIONS.map((id) => ({ id })),
   }
 }
 
@@ -76,6 +100,9 @@ function pickOptions(id: DashboardSectionId, raw: unknown): DashboardSectionOpti
   if (id === 'followup' && includes(DASHBOARD_LOOK_AHEAD_CHOICES, raw.lookAhead)) out.lookAhead = raw.lookAhead
   if (id === 'trend' && includes(DASHBOARD_TREND_RANGES, raw.range)) out.range = raw.range
   if (id === 'people' && typeof raw.showUnassigned === 'boolean') out.showUnassigned = raw.showUnassigned
+  if (id === 'tags' && typeof raw.showUntagged === 'boolean') out.showUntagged = raw.showUntagged
+  if (id === 'stale' && includes(DASHBOARD_STALE_DAYS_CHOICES, raw.staleDays)) out.staleDays = raw.staleDays
+  if (id === 'recent' && includes(DASHBOARD_RECENT_DAYS_CHOICES, raw.recentDays)) out.recentDays = raw.recentDays
   return Object.keys(out).length > 0 ? out : undefined
 }
 

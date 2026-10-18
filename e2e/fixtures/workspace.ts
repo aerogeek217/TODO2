@@ -97,6 +97,10 @@ export interface WorkspaceSeed {
     uid?: string
     /** Last modified (default: now), as a local date-time string, e.g. `2026-10-10T15:30`. */
     modifiedAt?: string
+    /** Last modified this many days from now (negative = ago), at the current time of day. */
+    modifiedInDays?: number
+    /** Completed this many days from now (negative = ago), at the current time of day; implies `isCompleted`. */
+    completedInDays?: number
     /** Marker flags. */
     urgent?: boolean
     important?: boolean
@@ -181,11 +185,18 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     let taskOrder = 0
     for (const task of seed.tasks ?? []) {
       const day = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n)
+      const atDay = (n: number) => {
+        const d = new Date(now)
+        d.setDate(d.getDate() + n)
+        return d
+      }
+      const completed = task.isCompleted === true || task.completedInDays != null
+      const modifiedAt = task.modifiedInDays != null ? atDay(task.modifiedInDays) : task.modifiedAt ? new Date(task.modifiedAt) : now
       const todoId = await add(tx.objectStore('todos'), {
         uid: task.uid ?? crypto.randomUUID(),
         title: task.title,
-        isCompleted: task.isCompleted ?? false,
-        ...(task.isCompleted ? { completedAt: now } : {}),
+        isCompleted: completed,
+        ...(completed ? { completedAt: task.completedInDays != null ? atDay(task.completedInDays) : now } : {}),
         ...(task.dueInDays != null ? { dueDate: new Date(day(task.dueInDays).setHours(task.dueHour ?? 0)) } : {}),
         ...(task.recurrence ? { recurrenceRule: { type: task.recurrence } } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
@@ -195,8 +206,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(task.focus ? { focus: true } : {}),
         ...(task.notes ? { notes: task.notes } : {}),
         ...(task.progress ? { progress: task.progress } : {}),
-        createdAt: now,
-        modifiedAt: task.modifiedAt ? new Date(task.modifiedAt) : now,
+        // A task changed days ago was created no later than that.
+        createdAt: task.modifiedInDays != null && modifiedAt < now ? modifiedAt : now,
+        modifiedAt,
         sortOrder: ++taskOrder,
       })
       for (const p of task.people ?? []) await add(tx.objectStore('todoPeople'), { todoId, personId: personIds.get(p) })

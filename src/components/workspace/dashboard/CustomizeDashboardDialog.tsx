@@ -13,6 +13,8 @@ import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrate
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
 import {
   DASHBOARD_LOOK_AHEAD_CHOICES,
+  DASHBOARD_RECENT_DAYS_CHOICES,
+  DASHBOARD_STALE_DAYS_CHOICES,
   DASHBOARD_TREND_RANGES,
   defaultDashboardConfig,
   normalizeDashboardConfig,
@@ -298,6 +300,27 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
                       label="Unassigned"
                       disabled={!shown}
                       choices={[true, false].map((v) => ({ key: String(v), label: v ? 'Shown' : 'Hidden', checked: values.showUnassigned === v, onSelect: () => setOption(id, 'showUnassigned', v) }))}
+                    />
+                  )}
+                  {meta.options.includes('showUntagged') && (
+                    <OptionSelect
+                      label="No tag"
+                      disabled={!shown}
+                      choices={[true, false].map((v) => ({ key: String(v), label: v ? 'Shown' : 'Hidden', checked: values.showUntagged === v, onSelect: () => setOption(id, 'showUntagged', v) }))}
+                    />
+                  )}
+                  {meta.options.includes('staleDays') && (
+                    <OptionSelect
+                      label="Older than"
+                      disabled={!shown}
+                      choices={DASHBOARD_STALE_DAYS_CHOICES.map((n) => ({ key: String(n), label: `${n} days`, checked: values.staleDays === n, onSelect: () => setOption(id, 'staleDays', n) }))}
+                    />
+                  )}
+                  {meta.options.includes('recentDays') && (
+                    <OptionSelect
+                      label="Last"
+                      disabled={!shown}
+                      choices={DASHBOARD_RECENT_DAYS_CHOICES.map((n) => ({ key: String(n), label: `${n} days`, checked: values.recentDays === n, onSelect: () => setOption(id, 'recentDays', n) }))}
                     />
                   )}
                 </>

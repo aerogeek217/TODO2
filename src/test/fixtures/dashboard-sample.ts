@@ -171,6 +171,7 @@ export const SAMPLE_CTX: StatsContext = {
   urgentRange: 3,
   hotRule: DEFAULT_HOT_RULE,
   assignedPeopleMap: ASSIGNED_PEOPLE,
+  assignedTagsMap: ASSIGNED_TAGS,
   statuses: STATUSES,
 }
 

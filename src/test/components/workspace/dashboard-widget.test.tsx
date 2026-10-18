@@ -366,3 +366,107 @@ describe('DashboardWidget — drill hook', () => {
     })
   })
 })
+
+describe('DashboardWidget — Tags, Stale tasks, Recently completed, Eisenhower', () => {
+  const NEW_SECTIONS = [{ id: 'tags' }, { id: 'stale' }, { id: 'recent' }, { id: 'eisenhower' }] as const
+  const tagRows = () => Array.from(section('tags')!.querySelectorAll<HTMLElement>('[data-tag-row]'))
+  const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('dash-eis-count').textContent
+
+  it('a new dashboard doesn’t show them; a config that lists them does, with their spans', () => {
+    setup()
+    for (const { id } of NEW_SECTIONS) expect(section(id)).toBeNull()
+    cleanup()
+    setup(tabWith({ sections: [...NEW_SECTIONS] }))
+    // Tags 4 + Stale 5 share a row (Stale stretches to 8); Recently completed 4 + Eisenhower 3 the next.
+    expect(NEW_SECTIONS.map(({ id }) => section(id)!.style.gridColumn)).toEqual(['span 4', 'span 8', 'span 4', 'span 8'])
+  })
+
+  it('Tags: open tasks per tag by count then name, No tag last (can be hidden), the tagged count', () => {
+    setup(tabWith({ sections: [{ id: 'tags' }] }))
+    expect(sectionCount('tags')).toBe('9 tagged')
+    expect(tagRows().map((r) => [r.dataset.tagRow, r.querySelector('[class*="tagName"]')?.textContent, r.querySelector('[data-testid="dash-tag-open"]')?.textContent]))
+      .toEqual([['1', '#q4', '5'], ['4', '#errands', '2'], ['3', '#home', '1'], ['2', '#planning', '1'], ['none', 'No tag', '10']])
+    cleanup()
+    setup(tabWith({ sections: [{ id: 'tags', options: { showUntagged: false } }] }))
+    expect(tagRows().map((r) => r.dataset.tagRow)).toEqual(['1', '4', '3', '2'])
+  })
+
+  it('Stale tasks: open tasks not changed in N days, oldest first, as task rows', () => {
+    setup(tabWith({ sections: [{ id: 'stale' }] }))
+    expect(sectionCount('stale')).toBe('2')
+    expect(section('stale')!.textContent).toContain('Not changed in 14 days or more')
+    expect(rowTitles(section('stale')!)).toEqual(['Offsite agenda', 'Clean up shared drive'])
+    expect(section('stale')!.querySelector('[data-drag-id^="lw|dash|stale|"]')).not.toBeNull()
+    cleanup()
+    setup(tabWith({ sections: [{ id: 'stale', options: { staleDays: 60 } }] }))
+    expect(section('stale')!.textContent).toContain('Nothing stale')
+    expect(section('stale')!.textContent).toContain('Every open task changed in the last 60 days.')
+  })
+
+  it('Recently completed: completed in the last N days, newest first, as task rows', () => {
+    setup(tabWith({ sections: [{ id: 'recent' }] }))
+    expect(sectionCount('recent')).toBe('7')
+    expect(section('recent')!.textContent).toContain('Last 7 days')
+    expect(rowTitles(section('recent')!)).toEqual([
+      'Ship release notes', 'Order team swag', 'Interview debrief', 'Q4 OKR draft', 'Car service', 'Fix login bug', 'Team lunch booking',
+    ])
+    cleanup()
+    setup(tabWith({ sections: [{ id: 'recent', options: { recentDays: 14 } }] }))
+    expect(sectionCount('recent')).toBe('14')
+  })
+
+  it('Eisenhower: open tasks by urgent × important', () => {
+    setup(tabWith({ sections: [{ id: 'eisenhower' }] }))
+    expect(sectionCount('eisenhower')).toBe('19 open')
+    expect(['do', 'schedule', 'delegate', 'drop'].map(eisCount)).toEqual(['3', '1', '5', '10'])
+    expect(section('eisenhower')!.querySelector('[data-eis-cell="delegate"]')!.textContent).toContain('4 by due date')
+  })
+
+  it('under the top-bar filter their counts read shown of total; Copy summary lists them', () => {
+    useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
+    setup(tabWith({ tiles: ['open'], sections: [...NEW_SECTIONS] }))
+    expect(sectionCount('tags')).toBe('5 of 9 tagged')
+    expect(tagRows().map((r) => r.dataset.tagRow)).toEqual(['1'])
+    expect(sectionCount('stale')).toBe('1 of 2')
+    expect(sectionCount('recent')).toBe('1 of 7')
+    expect(sectionCount('eisenhower')).toBe('5 of 19 open')
+    expect(['do', 'schedule', 'delegate', 'drop'].map(eisCount)).toEqual(['0of 3', '1', '1of 5', '3of 10'])
+    expect(lastResult?.summary.plain).toBe([
+      'Open 5 of 19',
+      '#q4 5',
+      'Stale tasks 1 of 2',
+      'Recently completed 1 of 7',
+      'Do 0 of 3 · Schedule 1 · Delegate 1 of 5 · Drop 3 of 10',
+    ].join('\n'))
+  })
+
+  it('their numbers open the tasks behind them', () => {
+    const onDrill = vi.fn()
+    setup(tabWith({ sections: [...NEW_SECTIONS] }), onDrill)
+    fireEvent.click(tagRows()[0]!)
+    expect(onDrill.mock.lastCall?.[0]).toEqual({ title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [4, 7, 14, 15, 17] } })
+    fireEvent.click(tagRows().at(-1)!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'No tag', source: { kind: 'todos', todoIds: [1, 2, 5, 8, 9, 10, 11, 12, 16, 19] } })
+    fireEvent.click(within(section('tags')!).getByTestId('dash-section-count'))
+    const tags = onDrill.mock.lastCall?.[0]
+    expect(tags.title).toBe('Tagged tasks')
+    expect(tags.source.groups.map((g: { label: string; todoIds: number[] }) => [g.label, g.todoIds.length])).toEqual([['#q4', 5], ['#errands', 2], ['#home', 1], ['#planning', 1]])
+
+    fireEvent.click(within(section('stale')!).getByTestId('dash-section-count'))
+    expect(onDrill.mock.lastCall?.[0]).toEqual({
+      title: 'Stale tasks', glyph: 'stale', description: 'Open tasks not changed in 14 days or more, oldest first.', source: { kind: 'todos', todoIds: [17, 19] },
+    })
+    fireEvent.click(within(section('recent')!).getByTestId('dash-section-count'))
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Recently completed', source: { kind: 'todos', todoIds: [114, 113, 112, 103, 111, 110, 109] } })
+
+    fireEvent.click(section('eisenhower')!.querySelector<HTMLElement>('[data-eis-cell="delegate"]')!)
+    expect(onDrill.mock.lastCall?.[0]).toEqual({
+      title: 'Delegate', glyph: 'matrix',
+      description: 'Open tasks that are urgent, not important. Urgent includes tasks due within 3 days.',
+      source: { kind: 'todos', todoIds: [5, 6, 7, 12, 13] },
+    })
+    fireEvent.click(within(section('eisenhower')!).getByTestId('dash-section-count'))
+    expect(onDrill.mock.lastCall?.[0].source.groups.map((g: { label: string; todoIds: number[] }) => [g.label, g.todoIds.length]))
+      .toEqual([['Do', 3], ['Schedule', 1], ['Delegate', 5], ['Drop', 10]])
+  })
+})

@@ -2,6 +2,8 @@ import {
   DASHBOARD_SECTION_IDS,
   DASHBOARD_TILE_IDS,
   DEFAULT_DASHBOARD_LOOK_AHEAD,
+  DEFAULT_DASHBOARD_RECENT_DAYS,
+  DEFAULT_DASHBOARD_STALE_DAYS,
   DEFAULT_DASHBOARD_TREND_RANGE,
   type DashboardSectionConfig,
   type DashboardSectionId,
@@ -64,6 +66,9 @@ function storedOptions(id: DashboardSectionId, options: DashboardSectionOptions 
   if (id === 'followup' && options.lookAhead != null && options.lookAhead !== DEFAULT_DASHBOARD_LOOK_AHEAD) out.lookAhead = options.lookAhead
   if (id === 'trend' && options.range != null && options.range !== DEFAULT_DASHBOARD_TREND_RANGE) out.range = options.range
   if (id === 'people' && options.showUnassigned === false) out.showUnassigned = false
+  if (id === 'tags' && options.showUntagged === false) out.showUntagged = false
+  if (id === 'stale' && options.staleDays != null && options.staleDays !== DEFAULT_DASHBOARD_STALE_DAYS) out.staleDays = options.staleDays
+  if (id === 'recent' && options.recentDays != null && options.recentDays !== DEFAULT_DASHBOARD_RECENT_DAYS) out.recentDays = options.recentDays
   return Object.keys(out).length > 0 ? out : undefined
 }
 
@@ -91,6 +96,9 @@ export function sectionOptionValues(options: DashboardSectionOptions | undefined
     lookAhead: options?.lookAhead ?? DEFAULT_DASHBOARD_LOOK_AHEAD,
     range: options?.range ?? DEFAULT_DASHBOARD_TREND_RANGE,
     showUnassigned: options?.showUnassigned ?? true,
+    showUntagged: options?.showUntagged ?? true,
+    staleDays: options?.staleDays ?? DEFAULT_DASHBOARD_STALE_DAYS,
+    recentDays: options?.recentDays ?? DEFAULT_DASHBOARD_RECENT_DAYS,
   }
 }
 
