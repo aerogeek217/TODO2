@@ -35,13 +35,16 @@ registerModuleReset(() => formats.clear())
  * format dates on every render).
  */
 export function formatDateWith(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const d = new Date(date)
+  // A formatter throws on an invalid date; toLocaleDateString reads it.
+  if (Number.isNaN(d.getTime())) return d.toLocaleDateString('en-US', options)
   const key = JSON.stringify(options)
   let format = formats.get(key)
   if (!format) {
     format = new Intl.DateTimeFormat('en-US', options)
     formats.set(key, format)
   }
-  return format.format(new Date(date))
+  return format.format(d)
 }
 
 /** Format as "Mon DD, YYYY" */

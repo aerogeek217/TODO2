@@ -111,6 +111,11 @@ describe('formatDateWith', () => {
     ]
     for (const options of cases) expect(formatDateWith(d, options)).toBe(d.toLocaleDateString('en-US', options))
   })
+
+  it('an invalid date reads "Invalid Date" as toLocaleDateString does, instead of throwing', () => {
+    const bad = new Date(Number.NaN)
+    expect(formatDateWith(bad, { month: 'short' })).toBe(bad.toLocaleDateString('en-US', { month: 'short' }))
+  })
 })
 
 describe('formatRelativeTime', () => {
