@@ -141,6 +141,8 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
       aria-label={label}
       tabIndex={0}
       data-ws-divider={`${aId}|${bId}`}
+      // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
+      data-shortcut-scope="none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

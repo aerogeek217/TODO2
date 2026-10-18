@@ -116,6 +116,8 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
       aria-label={`Resize ${edge} band`}
       tabIndex={0}
       data-ws-band-divider={edge}
+      // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
+      data-shortcut-scope="none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
