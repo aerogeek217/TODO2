@@ -16,6 +16,7 @@ import { rowEntityMenu, rowEntityName, type RowEntity } from './entity-menu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
+import { progressNotesPreview } from '../../utils/notes-preview'
 import {
   DueCell, FollowupCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
 } from './row-cells'
@@ -219,10 +220,12 @@ export const TaskRow = memo(function TaskRow({
 
       {ghost ? (
         // The drag overlay's copy: the title and a notes mark only.
-        todo.notes ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has notes"><NotesGlyph /></span> : null
+        progressNotesPreview(todo.progress, todo.notes)
+          ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has progress or notes"><NotesGlyph /></span>
+          : null
       ) : (
         <>
-          <NotesCell hasNotes={!!todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
+          <NotesCell progress={todo.progress} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
           {hasPeople && (
             <PeopleCell
               people={people}

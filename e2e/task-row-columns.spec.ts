@@ -274,7 +274,7 @@ test('a click on a cell opens its picker anchored to the cell', async ({ page })
   await expect(r).toBeVisible()
   const panels: Array<[string, Locator]> = [
     ['markers', page.getByRole('menu', { name: 'Priority' })],
-    ['notes', page.getByRole('dialog', { name: 'Task notes' })],
+    ['notes', page.getByRole('dialog', { name: 'Progress and notes' })],
     ['people', page.locator('[data-anchored-picker]')],
     ['tags', page.locator('[data-anchored-picker]')],
     ['followup', page.getByRole('dialog', { name: 'Follow-up' })],

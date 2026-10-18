@@ -108,7 +108,7 @@ describe('TaskRow', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
       const cells = Array.from(container.querySelectorAll('[data-row-cell]')).map((el) => el.getAttribute('data-row-cell'))
       expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status'])
-      for (const name of ['Add notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
+      for (const name of ['Add progress or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
     })
@@ -370,12 +370,54 @@ describe('TaskRow', () => {
       expect(screen.getByRole('button', { name: 'Follow-up: Today' })).toHaveAttribute('data-followup', 'today')
     })
 
-    it('the notes cell: Add notes when empty, Edit notes with notes', () => {
+    it('the notes cell: Add progress or notes when empty; Edit progress and notes with either', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByRole('button', { name: 'Add notes' })).toBeInTheDocument()
+      const empty = screen.getByRole('button', { name: 'Add progress or notes' })
+      // Empty: the placeholder glyph only (hidden until hover / focus).
+      expect(empty.querySelector('[class*="ph"]')).not.toBeNull()
       unmount()
-      render(<TaskRow todo={makeTodo({ id: 1, notes: 'Some notes' })} />)
-      expect(screen.getByRole('button', { name: 'Edit notes' })).toBeInTheDocument()
+      for (const fields of [{ notes: 'Some notes' }, { progress: '50%' }, { notes: 'n', progress: 'p' }]) {
+        const { unmount: u } = render(<TaskRow todo={makeTodo({ id: 1, ...fields })} />)
+        const cell = screen.getByRole('button', { name: 'Edit progress and notes' })
+        // Filled: the glyph itself, not a placeholder.
+        expect(cell.querySelector('svg')).not.toBeNull()
+        expect(cell.querySelector('[class*="ph"]')).toBeNull()
+        u()
+      }
+      // Spaces only is no progress.
+      render(<TaskRow todo={makeTodo({ id: 1, progress: '  ' })} />)
+      expect(screen.getByRole('button', { name: 'Add progress or notes' })).toBeInTheDocument()
+    })
+
+    it('hovering the notes cell previews the progress and the notes', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, progress: '50% done', notes: '## Call\n- ask about **budget**' })} />)
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Edit progress and notes' }))
+      act(() => { vi.advanceTimersByTime(400) })
+      const tip = screen.getByRole('tooltip')
+      expect(tip).toHaveTextContent('Progress: 50% done')
+      expect(tip).toHaveTextContent('Notes')
+      expect(tip).toHaveTextContent('Call')
+      expect(tip).toHaveTextContent('• ask about budget')
+      expect(tip.textContent).not.toContain('**')
+    })
+
+    it('an empty notes cell shows no preview', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add progress or notes' }))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    })
+
+    it('a click opens the progress and notes popover; no preview while it is open', () => {
+      useTodoStore.setState({ todos: [makeTodo({ id: 1, progress: '50%' })] })
+      render(<TaskRow todo={makeTodo({ id: 1, progress: '50%' })} />)
+      const cell = screen.getByRole('button', { name: 'Edit progress and notes' })
+      fireEvent.click(cell)
+      expect(screen.getByRole('dialog', { name: 'Progress and notes' })).toBeInTheDocument()
+      expect(cell).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.pointerEnter(cell)
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
     })
   })
 

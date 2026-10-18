@@ -173,8 +173,8 @@ test.describe('notes → tasks', () => {
 
   test('row notes popover: Convert stays inside it; Esc closes the preview, not the popover', async ({ page }) => {
     await seedTaskList(page, { tasks: [{ title: 'alpha', notes: '- one\n- two' }] })
-    await taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Edit notes' }).click()
-    const popover = page.getByRole('dialog', { name: 'Task notes' })
+    await taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Edit progress and notes' }).click()
+    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
     const convert = popover.getByRole('button', { name: 'Convert 2 bullet lines to tasks' })
     await expect(convert).toBeVisible()
     // The popover is narrower than 360px: glyph + count only.

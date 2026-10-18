@@ -222,7 +222,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
               type="button"
               className={styles.notesIcon}
               onClick={toggleNotes}
-              aria-label="Edit notes"
+              aria-label="Edit progress and notes"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />

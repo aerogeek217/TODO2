@@ -37,9 +37,9 @@ async function seedRightColumnList(page: Page, tasks: Parameters<typeof seedWork
 test.describe('row notes popover placement', () => {
   test('near the right edge it ends at the notes icon instead of running off the window', async ({ page }) => {
     await seedRightColumnList(page, [{ title: LONG, notes: 'Vendor notes' }])
-    const icon = taskRowByTitle(page, LONG).getByRole('button', { name: 'Edit notes' })
+    const icon = taskRowByTitle(page, LONG).getByRole('button', { name: 'Edit progress and notes' })
     await icon.click()
-    const popover = page.getByRole('dialog', { name: 'Task notes' })
+    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
     await expect(popover).toBeVisible()
 
     const vp = page.viewportSize()
@@ -58,14 +58,14 @@ test.describe('row notes popover placement', () => {
     await seedRightColumnList(page, [...fillers, { title: 'Last with notes', notes: 'Bottom notes' }])
     const row = taskRowByTitle(page, 'Last with notes')
     await row.scrollIntoViewIfNeeded()
-    const icon = row.getByRole('button', { name: 'Edit notes' })
+    const icon = row.getByRole('button', { name: 'Edit progress and notes' })
     const vp = page.viewportSize()
     const i = await box(icon)
     // Below the icon there is no room for the popover's minimum height.
     expect(i.y + i.height + 4 + 180).toBeGreaterThan((vp?.height ?? 0) - MARGIN)
 
     await icon.click()
-    const popover = page.getByRole('dialog', { name: 'Task notes' })
+    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
     await expect(popover).toBeVisible()
     await expectInsideViewport(page, popover)
     // Above the icon where it is now (opening may scroll the list a little).
@@ -75,9 +75,9 @@ test.describe('row notes popover placement', () => {
   test('follows the icon when the list scrolls, and the icon closes it again', async ({ page }) => {
     const fillers = Array.from({ length: 30 }, (_, n) => ({ title: `Filler task ${n + 1}` }))
     await seedRightColumnList(page, [{ title: LONG, notes: 'Scroll notes' }, ...fillers])
-    const icon = taskRowByTitle(page, LONG).getByRole('button', { name: 'Edit notes' })
+    const icon = taskRowByTitle(page, LONG).getByRole('button', { name: 'Edit progress and notes' })
     await icon.click()
-    const popover = page.getByRole('dialog', { name: 'Task notes' })
+    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
     await expect(popover).toBeVisible()
     const before = await box(popover)
 

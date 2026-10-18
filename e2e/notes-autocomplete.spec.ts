@@ -172,8 +172,8 @@ test.describe('notes autocomplete', () => {
 
   test('row notes popover: a mouse pick keeps it open; Esc closes the popup first', async ({ page }) => {
     await seedTaskList(page, { people: ['Anna', 'Dana Kim'], tasks: [{ title: 'alpha', notes: 'Some notes' }] })
-    await taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Edit notes' }).click()
-    const popover = page.getByRole('dialog', { name: 'Task notes' })
+    await taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Edit progress and notes' }).click()
+    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
     await expect(popover).toBeVisible()
     const editor = popover.locator('.cm-content')
     await editor.click()

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useFlashMessage } from '../../hooks/use-flash-message'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTodoStore } from '../../stores/todo-store'
 import { NotesBody, type NotesSource } from './notes/NotesBody'
 import { isNotesConvertOpen } from './notes/NotesConvert'
@@ -12,6 +13,10 @@ import styles from './TaskNotePopover.module.css'
 // tasks dialogs: clicks there aren't outside clicks.
 const isNotesLayer = (target: Element) => target.closest('[data-nlp-popup]') !== null || isNotesConvertOpen()
 
+/** The task editor's limit on the Progress text. */
+const PROGRESS_MAX_LENGTH = 500
+const PROGRESS_PLACEHOLDER = 'e.g. 50% done, Waiting on review...'
+
 interface TaskNotePopoverProps {
   todoId: number
   anchorRef: React.RefObject<HTMLElement | null>
@@ -19,14 +24,25 @@ interface TaskNotePopoverProps {
 }
 
 /**
- * Popover anchored below a TaskRow's notes-icon that mounts `NotesBody`
- * against the todo's `notes` field. Placed by `usePopoverAnchor`: it flips
- * above the icon / to its right edge when it would leave the viewport, and
- * follows the icon on scroll and resize. Closes on outside-click or Escape;
- * a click on the icon itself is left to the icon's toggle.
+ * The task row's notes popover: the task's **Progress** (one line, as the
+ * editor has it) above its **Notes** (`NotesBody` on the todo's `notes`).
+ * Anchored to the row's notes cell by `usePopoverAnchor`: it flips above the
+ * cell / to its right edge when it would leave the viewport, and follows it
+ * on scroll and resize.
+ *
+ * Opens with the focus in Progress. Notes save as they change; Progress saves
+ * on blur, Enter and close — each as `todo-store.update` with just that
+ * field, and only when it changed. A change made elsewhere shows in Progress
+ * until the user types in it. Esc, Enter in Progress and an outside click
+ * close it, keeping what was typed; a click on the cell is left to the cell's
+ * toggle. On close the focus goes back to the cell, unless something else
+ * took it.
  */
 export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const progressRef = useRef<HTMLInputElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const progressId = useId()
   const [toast, flashToast] = useFlashMessage<string | null>(null)
 
   const initialNotes = useMemo(() => {
@@ -36,6 +52,49 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   const draftRef = useRef<string>(initialNotes)
   const [, setDraft] = useState<string>(initialNotes)
+
+  // Progress: the stored value shows until the user types in the field;
+  // `dirtyRef` = typed since the last save (a ref, so blur, Enter and the
+  // close in one turn save once).
+  const storedProgress = useTodoStore((s) => s.todos.find((t) => t.id === todoId)?.progress ?? '')
+  const [typedProgress, setTypedProgress] = useState<string | null>(null)
+  const progress = typedProgress ?? storedProgress
+  const progressTextRef = useLatestRef(progress)
+  const dirtyRef = useRef(false)
+  const saveProgress = useCallback(() => {
+    if (!dirtyRef.current) return
+    dirtyRef.current = false
+    const text = progressTextRef.current
+    setTypedProgress(null)
+    const stored = useTodoStore.getState().todos.find((t) => t.id === todoId)?.progress ?? ''
+    if (text === stored) return
+    void useTodoStore.getState().update(todoId, { progress: text ? text : undefined })
+  }, [progressTextRef, todoId])
+
+  // Whatever closes it (Esc, Enter, an outside click, the cell's toggle) keeps what was typed.
+  const saveProgressRef = useLatestRef(saveProgress)
+  useEffect(() => () => saveProgressRef.current(), [saveProgressRef])
+
+  // Remember what had focus (the notes cell), then focus Progress.
+  useLayoutEffect(() => {
+    const previous = document.activeElement
+    if (previous instanceof HTMLElement && previous !== document.body && !containerRef.current?.contains(previous)) {
+      returnFocusRef.current = previous
+    } else if (anchorRef.current) {
+      returnFocusRef.current = anchorRef.current
+    }
+    progressRef.current?.focus({ preventScroll: true })
+  }, [anchorRef])
+  // On close hand the focus back, unless something else took it.
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    return () => {
+      const target = returnFocusRef.current
+      const active = document.activeElement
+      const focusIsOurs = !active || active === document.body || !active.isConnected || !!container?.contains(active)
+      if (target && target.isConnected && focusIsOurs) target.focus({ preventScroll: true })
+    }
+  }, [])
 
   // Outside clicks and Escape stay here: both must leave the notes' own
   // layers (the `@ # /` popup, the convert dialogs) alone.
@@ -84,18 +143,46 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   const handleToast = useCallback((message: string) => flashToast(message, TOAST_VISIBLE_MS), [flashToast])
 
+  const onProgressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    saveProgress()
+    onClose()
+  }
+
   return (
     <div
       ref={setPanel}
       className={styles.popover}
       // The hook's viewport cap, tightened to the popover's own 60vh.
       style={{ ...style, maxHeight: `min(60vh, ${style.maxHeight}px)` }}
+      // The popover is portaled but React events still bubble to the row
+      // (select / drag / open-detail / task menu handlers) — keep them
+      // inside. Keys still reach the app's shortcuts (text-field rules).
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
       role="dialog"
-      aria-label="Task notes"
+      aria-label="Progress and notes"
     >
+      <div className={styles.progress}>
+        <label className={styles.label} htmlFor={progressId}>Progress</label>
+        <input
+          id={progressId}
+          ref={progressRef}
+          className={styles.progressInput}
+          value={progress}
+          maxLength={PROGRESS_MAX_LENGTH}
+          placeholder={PROGRESS_PLACEHOLDER}
+          autoComplete="off"
+          onChange={(e) => { dirtyRef.current = true; setTypedProgress(e.target.value) }}
+          onBlur={saveProgress}
+          onKeyDown={onProgressKeyDown}
+        />
+      </div>
+      <div className={`${styles.label} ${styles.notesLabel}`}>Notes</div>
       <NotesBody
         source={source}
         showToolbar

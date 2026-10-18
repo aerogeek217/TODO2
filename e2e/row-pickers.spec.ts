@@ -298,11 +298,11 @@ for (const phone of [false, true]) {
       await flag.click()
       await expect(page.getByRole('dialog', { name: 'Follow-up' })).toHaveCount(0)
 
-      const notesIcon = row.getByRole('button', { name: 'Edit notes' })
+      const notesIcon = row.getByRole('button', { name: 'Edit progress and notes' })
       await notesIcon.click()
-      await expect(page.getByRole('dialog', { name: 'Task notes' })).toContainText('Account 42')
+      await expect(page.getByRole('dialog', { name: 'Progress and notes' })).toContainText('Account 42')
       await notesIcon.click()
-      await expect(page.getByRole('dialog', { name: 'Task notes' })).toHaveCount(0)
+      await expect(page.getByRole('dialog', { name: 'Progress and notes' })).toHaveCount(0)
     })
   })
 }

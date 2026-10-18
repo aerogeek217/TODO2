@@ -149,8 +149,8 @@ test('a row’s status menu and notes popover open above the task dialog', async
   await page.getByRole('button', { name: 'Waiting' }).click()
   await expect(row.getByRole('button', { name: 'Status: Waiting' })).toBeVisible()
 
-  await row.getByRole('button', { name: 'Edit notes' }).click()
-  const notes = page.getByRole('dialog', { name: 'Task notes' })
+  await row.getByRole('button', { name: 'Edit progress and notes' }).click()
+  const notes = page.getByRole('dialog', { name: 'Progress and notes' })
   await notes.getByText('Ask about the boiler').click()
   await page.keyboard.press('End')
   await page.keyboard.type(' today')
