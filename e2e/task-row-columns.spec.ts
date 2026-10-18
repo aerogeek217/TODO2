@@ -6,8 +6,8 @@ import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed }
 /**
  * The desktop task row's columns: every row of a list shares one set of
  * tracks (markers · checkbox · title │ notes · people · tags · due ·
- * follow-up · status · ⋯), every column is always there, hovering shows
- * placeholders by opacity only, and a per-tab divider sets the details
+ * follow-up · status — no ⋯: the task menu is right-click / Shift+F10),
+ * every column is always there, hovering shows placeholders by opacity only, and a per-tab divider sets the details
  * width (saved as view state). Layout, hover and drag are real-browser
  * behaviour, so this is the authoritative surface.
  */
@@ -40,7 +40,7 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
   }
 }
 
-const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status', 'more'] as const
+const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status'] as const
 
 /** Every row's cell boxes (by cell name) plus its title box. */
 async function cellBoxes(scope: Locator): Promise<Array<Record<string, Box>>> {
@@ -94,6 +94,23 @@ test('each column lines up across rows, filled or empty, in one order', async ({
   }
 })
 
+test('status is the last column, flush with the row’s right padding; the default split gives the freed room to people and tags', async ({ page }) => {
+  await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 640))
+  const widget = wsListWidget(page, 'tab')
+  await expect(widget.locator('[data-todo-id]')).toHaveCount(TASKS.length)
+  for (const r of await widget.locator('[data-todo-id]').all()) {
+    const rb = await box(r)
+    const status = await box(r.locator('[data-row-cell="status"]'))
+    expect(Math.round(rb.x + rb.width - 8 - (status.x + status.width))).toBe(0)
+    // The default details width (262) is unchanged, so the title keeps its width.
+    expect(await laidOutDetails(r)).toBe(262)
+  }
+  const busy = row(widget, 'Draft the Q4 roadmap review deck')
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(55)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(82)
+  await expect(widget.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
+})
+
 test('hovering any row, filled or empty, moves nothing; empty placeholders appear by opacity', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 640))
   const widget = wsListWidget(page, 'tab')
@@ -110,7 +127,6 @@ test('hovering any row, filled or empty, moves nothing; empty placeholders appea
   // Over an empty cell itself too.
   await bare.getByRole('button', { name: 'Set status' }).hover()
   await expect(placeholder).toHaveCSS('opacity', '1')
-  await expect(bare.getByRole('button', { name: 'Task actions' })).toBeVisible()
   expect(await cellBoxes(widget)).toEqual(rest)
 })
 
@@ -161,7 +177,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await expect.poll(() => dividerValue(widget)).toBe(314)
   await page.keyboard.press('Home')
   await expect.poll(() => dividerValue(widget)).toBe(Number(await divider(widget).getAttribute('aria-valuemin')))
-  expect(await laidOutDetails(first)).toBe(138)
+  expect(await laidOutDetails(first)).toBe(115)
   await page.keyboard.press('End')
   const max = Number(await divider(widget).getAttribute('aria-valuemax'))
   await expect.poll(() => dividerValue(widget)).toBe(max)
@@ -218,6 +234,8 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   const dash = page.locator('[data-dash-section]')
   await expect(dash.locator('[data-todo-id]').first()).toBeVisible()
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(180)
+  // Their rows have no ⋯ either.
+  await expect(page.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
 
   // One value for the tab: dragging one quadrant's divider moves every quadrant live, and is stored on release.
   const doQuadrant = eis.locator('[data-eis-quadrant="do"]')
@@ -225,14 +243,14 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   await page.mouse.move(from.x + 12, from.y, { steps: 3 })
-  // Mid-drag: the other quadrants' rows have moved too (148 leaves no room for people: laid out at the fixed tracks).
-  expect(await laidOutDetails(row(eis.locator('[data-eis-quadrant="drop"]'), 'Bare task'))).toBe(132)
-  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(132)
+  // Mid-drag: the other quadrants' rows have moved too (148 leaves room for a people column, no tags).
+  expect(await laidOutDetails(row(eis.locator('[data-eis-quadrant="drop"]'), 'Bare task'))).toBe(148)
+  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
   expect(await storedTabView(page, 'eis')).toEqual({ detailsWidth: 160 })
   await page.mouse.up()
   await expect.poll(() => storedTabView(page, 'eis')).toEqual({ detailsWidth: 148 })
   for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
-  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(132)
+  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
   // The dashboard keeps its own.
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(180)
 
@@ -261,7 +279,6 @@ test('a click on a cell opens its picker anchored to the cell', async ({ page })
     ['tags', page.locator('[data-anchored-picker]')],
     ['followup', page.getByRole('dialog', { name: 'Follow-up' })],
     ['status', page.locator('[data-anchored-picker]')],
-    ['more', page.getByRole('menu', { name: 'Task actions' })],
   ]
   for (const [name, panel] of panels) {
     const cell = r.locator(`[data-row-cell="${name}"]`)

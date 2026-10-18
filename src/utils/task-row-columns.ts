@@ -3,13 +3,13 @@
  * for every row of a list (pure layout math; the row list measures its width
  * and hands the result to its rows).
  *
- *   gutter · checkbox · title │ notes · people · tags · due · follow-up · status · ⋯
+ *   gutter · checkbox · title │ notes · people · tags · due · follow-up · status
  *
- * The **details width** D is the notes … ⋯ tracks plus the gaps between them;
+ * The **details width** D is the notes … status tracks plus the gaps between them;
  * the title takes the rest. Only people and tags flex: F = P + T is what is
  * left of D after the fixed tracks. Squeezed, tags give way first (removed
  * below `SPLIT_MIN`, people takes their room), then people (removed below
- * `PEOPLE_MIN`). Due, follow-up, status, notes and ⋯ never shrink.
+ * `PEOPLE_MIN`). Due, follow-up, status and notes never shrink.
  */
 
 /** Track widths and spacing, px. */
@@ -24,7 +24,6 @@ export const TASK_ROW = {
   dueNarrow: 40,
   followup: 18,
   status: 20,
-  more: 18,
   gap: 5,
   padLeft: 6,
   padRight: 8,
@@ -81,7 +80,7 @@ function span(tracks: readonly number[]): number {
  */
 export function taskRowColumns(listWidth: number, stored?: number): TaskRowColumns {
   const due = listWidth < NARROW_LIST_WIDTH ? TASK_ROW.dueNarrow : TASK_ROW.due
-  const fixed = [TASK_ROW.notes, due, TASK_ROW.followup, TASK_ROW.status, TASK_ROW.more]
+  const fixed = [TASK_ROW.notes, due, TASK_ROW.followup, TASK_ROW.status]
   const fixedSum = fixed.reduce((sum, t) => sum + t, 0)
   const minDetails = span(fixed)
   const inner = listWidth - TASK_ROW.padLeft - TASK_ROW.padRight
@@ -90,7 +89,8 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
 
   let people = 0
   let tags = 0
-  const f = details - fixedSum - TASK_ROW.gap * 6
+  // The gaps between the six tracks while people and tags are both there.
+  const f = details - fixedSum - TASK_ROW.gap * 5
   if (f >= SPLIT_MIN) {
     people = clamp(Math.round(f * PEOPLE_SHARE), PEOPLE_MIN, PEOPLE_MAX)
     tags = f - people
@@ -99,7 +99,7 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
     people = f + TASK_ROW.gap
   }
 
-  const detailTracks = [TASK_ROW.notes, ...(people ? [people] : []), ...(tags ? [tags] : []), due, TASK_ROW.followup, TASK_ROW.status, TASK_ROW.more]
+  const detailTracks = [TASK_ROW.notes, ...(people ? [people] : []), ...(tags ? [tags] : []), due, TASK_ROW.followup, TASK_ROW.status]
   const template = [`${TASK_ROW.gutter}px`, `${TASK_ROW.checkbox}px`, 'minmax(0, 1fr)', ...detailTracks.map((t) => `${t}px`)].join(' ')
   return { template, details, laidOut: span(detailTracks), minDetails, maxDetails, people, tags, due }
 }

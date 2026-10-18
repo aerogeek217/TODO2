@@ -82,7 +82,7 @@ export function ChipSelector({
   }, [])
   // On close hand focus back, unless something else took it. A layout-effect
   // cleanup runs before the host re-renders, while a trigger revealed only
-  // during the open state (the row's ⋯) can still take focus.
+  // during the open state can still take focus.
   useLayoutEffect(() => {
     const container = containerRef.current
     return () => {

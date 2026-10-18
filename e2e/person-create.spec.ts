@@ -91,11 +91,11 @@ test.describe('person picker — lookup or create', () => {
     await expect(search).toHaveCount(0)
   })
 
-  test('Assign people… from the task menu: focus lands in the search; Esc hands it back to ⋯', async ({ page }) => {
+  test('Assign people… from the task menu (context-menu key on a cell): focus lands in the search; Esc hands it back to the cell', async ({ page }) => {
     const row = taskRowByTitle(page, 'vendor contract')
-    await row.hover()
-    const more = row.getByRole('button', { name: 'Task actions' })
-    await more.click()
+    const status = row.locator('[data-row-cell="status"]')
+    await status.focus()
+    await page.keyboard.press('Shift+F10')
     await page.getByRole('menuitem', { name: 'Assign people…' }).click()
     const search = page.getByPlaceholder('Search or create people…')
     await expect(search).toBeFocused()
@@ -104,7 +104,7 @@ test.describe('person picker — lookup or create', () => {
     await expect.poll(() => readAssignedNames(page, 'vendor contract')).toEqual(['Sam'])
     await page.keyboard.press('Escape')
     await expect(search).toHaveCount(0)
-    await expect(more).toBeFocused()
+    await expect(status).toBeFocused()
   })
 })
 

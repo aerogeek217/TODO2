@@ -116,7 +116,7 @@ export function followedUpMenuEntry(
 }
 
 /**
- * The one task menu (row ⋯ button, right-click, long-press, search result):
+ * The one task menu (a row's right-click / context-menu key, long-press, search result):
  * Open · Mark complete | Set due date… · Follow-up › · Followed up · Assign
  * people… · Add tag… | Markers | Delete. With several tasks a `N tasks` label
  * replaces Open, Delete names the count, and the markers can be mixed.

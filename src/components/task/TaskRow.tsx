@@ -11,7 +11,6 @@ import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { useTooltip } from '../shared/use-tooltip'
 import { TaskMenu } from './TaskMenu'
 import { PriorityMenu } from './PriorityMenu'
-import { MoreIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
 import { rowEntityMenu, rowEntityName, type RowEntity } from './entity-menu'
 import { useTaskRowPickers } from './use-task-row-pickers'
@@ -38,15 +37,16 @@ const NO_PEOPLE: Person[] = []
  * The desktop task row: one grid column per field, the same columns on every
  * row of its list (`TaskRowGrid`; the default split outside one):
  *
- *   markers · checkbox · title │ notes · people · tags · due · follow-up · status · ⋯
+ *   markers · checkbox · title │ notes · people · tags · due · follow-up · status
  *
  * Every column is always there; a click on a cell opens its picker anchored
  * to it, and an empty cell shows its placeholder only on hover / focus — by
  * opacity, so nothing moves. Only people and tags give way when the details
  * are squeezed (`utils/task-row-columns`). Click selects, a click on a
  * selected row's title edits it inline, a double-click on the title or empty
- * space opens the editor, right-click opens the task menu; the whole row is
- * the drag source (its list wraps it).
+ * space opens the editor, right-click opens the task menu at the pointer and
+ * Shift+F10 / the context-menu key under the focused cell (there is no ⋯
+ * button); the whole row is the drag source (its list wraps it).
  */
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
@@ -55,14 +55,18 @@ export const TaskRow = memo(function TaskRow({
   const cols = useTaskRowColumns()
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [markersOpen, setMarkersOpen] = useState(false)
-  /** The task menu: from the ⋯ button, or at the pointer (right-click). */
-  const [menu, setMenu] = useState<{ kind: 'button' } | { kind: 'point'; x: number; y: number } | null>(null)
+  /**
+   * The task menu: at the pointer (right-click), or under the focused cell
+   * (`menuCellRef`; Shift+F10 / the context-menu key), which gets the focus
+   * back when it closes.
+   */
+  const [menu, setMenu] = useState<{ kind: 'point'; x: number; y: number } | { kind: 'cell' } | null>(null)
+  const menuCellRef = useRef<HTMLElement | null>(null)
   /** An avatar's / tag's menu: at the pointer, or under its cell (opened from the keyboard). */
   const [entityMenu, setEntityMenu] = useState<
     { entities: RowEntity[]; at: { kind: 'point'; x: number; y: number } | { kind: 'cell'; cell: 'people' | 'tags' } } | null
   >(null)
   const rowRef = useRef<HTMLDivElement>(null)
-  const moreRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLButtonElement>(null)
   const markersRef = useRef<HTMLButtonElement>(null)
   const tagsRef = useRef<HTMLButtonElement>(null)
@@ -153,7 +157,13 @@ export const TaskRow = memo(function TaskRow({
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        setMenu({ kind: 'point', x: e.clientX, y: e.clientY })
+        // From the keyboard (no right button; Chromium reports -1) on a focused cell.
+        if (e.button !== 2 && e.target instanceof HTMLElement && e.target === document.activeElement && e.target !== e.currentTarget) {
+          menuCellRef.current = e.target
+          setMenu({ kind: 'cell' })
+        } else {
+          setMenu({ kind: 'point', x: e.clientX, y: e.clientY })
+        }
       }}
     >
       {ghost
@@ -242,22 +252,6 @@ export const TaskRow = memo(function TaskRow({
           />
           <FollowupCell todo={todo} today={today} anchorRef={followupAnchorRef} open={followupOpen} onToggle={toggleFollowup} />
           <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />
-          <button
-            ref={moreRef}
-            type="button"
-            className={`${styles.cell} ${styles.cellCenter} ${styles.moreBtn} ${menu ? styles.cellOpen : ''}`}
-            aria-label="Task actions"
-            aria-haspopup="menu"
-            aria-expanded={menu !== null}
-            data-row-cell="more"
-            onClick={(e) => {
-              e.stopPropagation()
-              if (e.detail > 1) return
-              setMenu((m) => (m ? null : { kind: 'button' }))
-            }}
-          >
-            <MoreIcon />
-          </button>
         </>
       )}
 
@@ -327,7 +321,7 @@ export const TaskRow = memo(function TaskRow({
       {menu && (
         <TaskMenu
           todo={todo}
-          anchorRef={menu.kind === 'button' ? moreRef : undefined}
+          anchorRef={menu.kind === 'cell' ? menuCellRef : undefined}
           point={menu.kind === 'point' ? { x: menu.x, y: menu.y } : undefined}
           handlers={menuHandlers}
           onClose={() => setMenu(null)}

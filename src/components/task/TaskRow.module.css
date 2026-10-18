@@ -474,25 +474,10 @@
   box-sizing: border-box;
 }
 
-/* Task menu trigger (⋯): revealed on row hover / focus / while a picker or the menu is open. */
-.moreBtn {
-  visibility: hidden;
-}
-
-.row:hover .moreBtn,
-.row:focus-within .moreBtn,
-.rowDropdownOpen .moreBtn {
-  visibility: visible;
-}
-
-/* Touch screens have no hover: placeholders and ⋯ stay visible. */
+/* Touch screens have no hover: placeholders stay visible. */
 @media (hover: none) {
   .ph {
     opacity: 1;
-  }
-
-  .moreBtn {
-    visibility: visible;
   }
 }
 

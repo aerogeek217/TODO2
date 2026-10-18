@@ -13,32 +13,33 @@ function titleWidth(width: number, laidOut: number): number {
 }
 
 describe('taskRowColumns', () => {
-  it('splits the default details width in a 540px list: people 46, tags 68, title 214', () => {
+  it('splits the default details width in a 540px list: people 55, tags 82, title 214 — no task-menu track', () => {
     const cols = taskRowColumns(528)
     expect(cols.details).toBe(DEFAULT_DETAILS_WIDTH)
     expect(cols.laidOut).toBe(DEFAULT_DETAILS_WIDTH)
-    expect([cols.people, cols.tags, cols.due]).toEqual([46, 68, 46])
-    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 46px 68px 46px 18px 20px 18px')
+    expect([cols.people, cols.tags, cols.due]).toEqual([55, 82, 46])
+    // Status is the last track (the task menu is right-click / Shift+F10 only).
+    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 55px 82px 46px 18px 20px')
     expect(titleWidth(528, cols.laidOut)).toBe(214)
   })
 
   it('people take 40% of F, within 22 … 64; tags the rest', () => {
-    // F = D − 118 fixed − 30 gaps
-    expect(taskRowColumns(2000, 148 + 56)).toMatchObject({ people: 22, tags: 34 })
-    expect(taskRowColumns(2000, 148 + 100)).toMatchObject({ people: 40, tags: 60 })
-    expect(taskRowColumns(2000, 148 + 300)).toMatchObject({ people: 64, tags: 236 })
+    // F = D − 100 fixed − 25 gaps
+    expect(taskRowColumns(2000, 125 + 56)).toMatchObject({ people: 22, tags: 34 })
+    expect(taskRowColumns(2000, 125 + 100)).toMatchObject({ people: 40, tags: 60 })
+    expect(taskRowColumns(2000, 125 + 300)).toMatchObject({ people: 64, tags: 236 })
   })
 
   it('tags give way first (people take their gap), then people', () => {
-    const noTags = taskRowColumns(2000, 148 + 55)
+    const noTags = taskRowColumns(2000, 125 + 55)
     expect(noTags).toMatchObject({ people: 60, tags: 0 })
-    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 46px 18px 20px 18px')
-    expect(noTags.laidOut).toBe(203)
-    expect(taskRowColumns(2000, 148 + 17)).toMatchObject({ people: 22, tags: 0 })
-    const neither = taskRowColumns(2000, 148 + 16)
+    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 46px 18px 20px')
+    expect(noTags.laidOut).toBe(180)
+    expect(taskRowColumns(2000, 125 + 17)).toMatchObject({ people: 22, tags: 0 })
+    const neither = taskRowColumns(2000, 125 + 16)
     expect(neither).toMatchObject({ people: 0, tags: 0 })
-    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 46px 18px 20px 18px')
-    expect(neither.laidOut).toBe(138)
+    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 46px 18px 20px')
+    expect(neither.laidOut).toBe(115)
   })
 
   it('clamps a stored width to min (fixed tracks only) … max (title keeps 80px); the bounds follow the width', () => {
@@ -47,21 +48,21 @@ describe('taskRowColumns', () => {
     expect(wide.details).toBe(wide.maxDetails)
     expect(titleWidth(528, wide.laidOut)).toBe(80)
     const tight = taskRowColumns(528, 0)
-    expect(tight.details).toBe(138)
-    expect(tight.minDetails).toBe(138)
+    expect(tight.details).toBe(115)
+    expect(tight.minDetails).toBe(115)
     // The same stored value in a wider list: no longer clamped.
     expect(taskRowColumns(1200, 600).details).toBe(600)
     expect(taskRowColumns(700, 600).details).toBe(700 - 14 - 38 - 80)
   })
 
-  it('narrow lists (< 360px) get a 40px due track; a 320px list clamps to the title minimum, tags removed', () => {
+  it('narrow lists (< 360px) get a 40px due track; a 320px list clamps to the title minimum, people and tags just fit', () => {
     const cols = taskRowColumns(308)
     expect(cols.due).toBe(40)
-    expect(cols.minDetails).toBe(132)
+    expect(cols.minDetails).toBe(109)
     expect(cols.details).toBe(308 - 14 - 38 - 80)
-    expect(cols.tags).toBe(0)
-    expect(cols.people).toBeGreaterThanOrEqual(30)
-    expect(cols.people).toBeLessThanOrEqual(40)
+    // F = 176 − 94 − 25 = 57: just over the split minimum.
+    expect([cols.people, cols.tags]).toEqual([23, 34])
+    expect(taskRowColumns(300)).toMatchObject({ tags: 0 })
     expect(taskRowColumns(360).due).toBe(46)
   })
 

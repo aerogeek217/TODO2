@@ -106,7 +106,7 @@ describe('TaskRow', () => {
     it('renders one cell per column in order, filled or empty', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
       const cells = Array.from(container.querySelectorAll('[data-row-cell]')).map((el) => el.getAttribute('data-row-cell'))
-      expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status', 'more'])
+      expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status'])
       for (const name of ['Add notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
@@ -122,7 +122,7 @@ describe('TaskRow', () => {
       const tags = [{ id: 1, name: 'alpha', color: '#111' }]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
       render(
-        <TaskRowColumnsContext.Provider value={taskRowColumns(308)}>
+        <TaskRowColumnsContext.Provider value={taskRowColumns(300)}>
           <TaskRow todo={makeTodo({ id: 1 })} />
         </TaskRowColumnsContext.Provider>,
       )
@@ -154,19 +154,19 @@ describe('TaskRow', () => {
       }
     })
 
-    it('the ⋯ button opens the same menu; Esc closes it and returns focus to ⋯', () => {
+    it('has no ⋯ button: the context-menu key on a focused cell opens the menu; Esc returns focus to the cell', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      const more = screen.getByRole('button', { name: 'Task actions' })
-      act(() => { more.focus() })
-      fireEvent.click(more)
-      expect(more).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.queryByRole('button', { name: 'Task actions' })).toBeNull()
+      expect(getRow().querySelector('[data-row-cell="more"]')).toBeNull()
+      const status = screen.getByRole('button', { name: 'Set status' })
+      act(() => { status.focus() })
+      fireEvent.contextMenu(status)
       expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Mark complete' }))
       fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
       expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Set due date…' }))
       fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
       expect(screen.queryByRole('menu')).toBeNull()
-      expect(document.activeElement).toBe(more)
-      expect(more).toHaveAttribute('aria-expanded', 'false')
+      expect(document.activeElement).toBe(status)
     })
 
     it('Markers are checkbox items that set the marker on the row task (or its selection)', () => {
@@ -393,10 +393,10 @@ describe('TaskRow', () => {
     it('as many avatars as fit the column, then +N', () => {
       const people = [1, 2, 3, 4].map((id) => makePerson({ id, name: `P${id}`, initials: `P${id}` }))
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
-      // The default people column (46px) fits one avatar and "+3".
-      expect(screen.getByText('P1')).toBeInTheDocument()
-      expect(screen.queryByText('P2')).toBeNull()
-      expect(screen.getByText('+3')).toBeInTheDocument()
+      // The default people column (55px) fits two avatars and "+2".
+      expect(screen.getByText('P2')).toBeInTheDocument()
+      expect(screen.queryByText('P3')).toBeNull()
+      expect(screen.getByText('+2')).toBeInTheDocument()
     })
 
     it('right-click on an avatar: Show tasks · Edit… · Delete… for that person', () => {

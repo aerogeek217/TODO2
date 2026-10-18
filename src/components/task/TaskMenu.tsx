@@ -8,9 +8,10 @@ import { MenuPopover } from '../shared/MenuPopover'
 import { buildTaskMenuEntries, type TaskMenuHandlers } from './task-menu-entries'
 
 /**
- * The task menu as a popover: anchored to the row's ⋯ button, or at the
- * pointer for right-click / long-press. With `selectionAware` (rows) it acts
- * on the selection the task belongs to; search results act on the one task.
+ * The task menu as a popover: at the pointer for right-click / long-press,
+ * or under a row's focused cell for Shift+F10 / the context-menu key (the
+ * cell gets the focus back). With `selectionAware` (rows) it acts on the
+ * selection the task belongs to; search results act on the one task.
  */
 export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handlers, onClose }: {
   todo: PersistedTodoItem
@@ -33,8 +34,7 @@ export function TaskMenu({ todo, anchorRef, point, selectionAware = true, handle
     <MenuPopover
       anchorRef={anchorRef}
       point={point}
-      // Under the ⋯ button, right edges aligned; at the pointer, from its corner.
-      placement={anchorRef ? 'bottom-end' : 'bottom-start'}
+      placement="bottom-start"
       entries={entries}
       label={targets.length > 1 ? `${targets.length} tasks` : 'Task actions'}
       width={248}

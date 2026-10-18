@@ -80,10 +80,10 @@ test.describe('task rows fit their container', () => {
       await expect(page.locator('[data-todo-id]')).toHaveCount(TASKS.length)
       const { problems } = await rowOverflow(page)
       expect(problems).toEqual([])
-      // The row's controls are all there: the ⋯ and status of the busiest row.
+      // The row's controls are all there: the busiest row's status, its last column.
       const busiest = page.locator('[data-todo-id]').first()
       await busiest.locator('[data-task-title]').hover()
-      await expect(busiest.getByRole('button', { name: 'Task actions' })).toBeInViewport()
+      await expect(busiest.locator('[data-row-cell="status"]')).toBeInViewport()
     })
   }
 

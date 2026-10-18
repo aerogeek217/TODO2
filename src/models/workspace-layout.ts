@@ -93,7 +93,7 @@ export function pickDetailsWidth(v: unknown): number | undefined {
 /** View state of a tab that shows task rows. */
 export interface TaskRowsViewState {
   /**
-   * Width of the rows' details columns (notes … ⋯), px, set by the divider
+   * Width of the rows' details columns (notes … status), px, set by the divider
    * between the title and the details; absent = the default split. Clamped
    * to the rows' room when drawn; the stored value is kept.
    */

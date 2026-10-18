@@ -183,4 +183,6 @@ test('the "New" pill after Quick Add shows the task’s people and tags columns'
   // The pill has the Quick Add bar's width, so the row isn't squeezed down to its title.
   await expect(pill.locator('[data-person-avatar="Ben Ortiz"]')).toBeVisible()
   await expect(pill.locator('[data-tag-name="planning"]')).toBeVisible()
+  // No ⋯ on the row: status is its last column.
+  await expect(pill.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
 })
