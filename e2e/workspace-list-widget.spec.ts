@@ -236,8 +236,7 @@ test('closing the last widget of an unsaved list asks first; leaving the workspa
   await wsTab(page, 't1').getByRole('button', { name: 'Close Team' }).click()
   await dialog.getByRole('button', { name: 'Save list' }).click()
   await expect(wsTab(page, 't1')).toHaveCount(0)
-  const defs = await readListDefinitions(page)
-  expect(defs.find((d) => d.name === 'Team')?.grouping).toBe('people')
+  await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
 })
 
 test('prompt picks are temporary: empty again after a reload', async ({ page }) => {

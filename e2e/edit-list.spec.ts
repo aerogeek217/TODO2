@@ -135,8 +135,7 @@ test('edits show live in every widget showing the list; the popover stays open; 
   await expect(popover).toBeVisible()
   await expect(popover.getByRole('button', { name: 'Save list' })).toBeDisabled()
   await expect(wsListWidget(page, 't2').getByTestId('save-list')).toHaveCount(0)
-  const defs = await readListDefinitions(page)
-  expect(defs.find((d) => d.name === 'Team A')).toMatchObject({ grouping: 'people', sort: 'name' })
+  await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team A')).toMatchObject({ grouping: 'people', sort: 'name' })
 })
 
 test('with it open, the previewed list stays usable: rows select and drag; a click elsewhere closes it, the draft kept', async ({ page }) => {

@@ -84,8 +84,8 @@ test.describe('desktop', () => {
     await expect(editList(page)).toHaveCount(0)
     await wsListWidget(page, 't1').getByTestId('save-list').click()
     await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
-    const [stored] = await readListDefinitions(page)
-    expect(stored).toMatchObject({ sort: 'deadline', sortDirection: 'desc' })
+    // The save button goes as the write starts: wait for the stored row.
+    await expect.poll(async () => (await readListDefinitions(page))[0]).toMatchObject({ sort: 'deadline', sortDirection: 'desc' })
 
     await page.reload()
     await expect(summary(page, 't2')).toHaveText('Due date ↓')
