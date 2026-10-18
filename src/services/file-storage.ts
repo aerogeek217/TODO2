@@ -445,7 +445,7 @@ class FileStorageService {
       clearFileSyncState()
       this.installTracking()
       // A brand-new file: writing the browser data into it loses nothing.
-      if (await this.saveToFile({ force: true })) this.syncEnabled = true
+      if (await this.saveToFile({ force: true })) this.startSync()
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return
       console.warn('[file-storage] creating the file failed', e)
@@ -497,7 +497,7 @@ class FileStorageService {
     if (!(await this.backupFileText(read.text, isOlderVersionText(read.text)))) return
     if (await this.saveToFile({ force: true })) {
       this._paused = null
-      this.syncEnabled = true
+      this.startSync()
     }
     this.notify()
   }
@@ -506,6 +506,17 @@ class FileStorageService {
     this.stopSync()
     this._paused = { reason, message }
     this.notify()
+  }
+
+  /**
+   * Sync on: writes reach the file from now on. Changes recorded while it was
+   * still off — a store seeding a row as it reloaded after the load, an edit
+   * during a forced write — are saved now rather than at the next edit, so
+   * they never sit unsynced (which the next start would ask about).
+   */
+  private startSync() {
+    this.syncEnabled = true
+    if (readFileSyncState().dirtySince !== null) this.scheduleSave()
   }
 
   private stopSync() {
@@ -579,7 +590,7 @@ class FileStorageService {
 
     if (!text.trim()) {
       // Empty file — nothing to lose; seed it with the browser's data.
-      if (await this.saveToFile({ force: true })) this.syncEnabled = true
+      if (await this.saveToFile({ force: true })) this.startSync()
       this.notify()
       return
     }
@@ -686,7 +697,7 @@ class FileStorageService {
       }
       if (choice === 'browser') {
         if (!(await this.backupFileText(text, prepared.upgraded))) return
-        if (await this.saveToFile({ force: true })) this.syncEnabled = true
+        if (await this.saveToFile({ force: true })) this.startSync()
         this.notify()
         return
       }
@@ -730,7 +741,7 @@ class FileStorageService {
       this.pause('write-failed', `${PAUSED_PREFIX} — ${handle.name} could not be written in the new format, so it still holds the older version. Retry, or free up disk space first.`)
       return
     }
-    this.syncEnabled = true
+    this.startSync()
     this.notify()
   }
 

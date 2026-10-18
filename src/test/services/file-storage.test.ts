@@ -782,6 +782,31 @@ describe('FileStorageService — change tracking', () => {
   })
 })
 
+describe('FileStorageService — changes made while sync starts', () => {
+  it('a change made while the stores reload after a load is saved once sync is on, not left unsynced', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith()
+    // A store seeding a row as it reloads, before sync is switched on.
+    const off = svc.onAfterImport(async () => { fireLocalChange() })
+    await svc.initialize()
+    off()
+    expect(svc.status.isConnected).toBe(true)
+    expect(syncState().dirtySince).not.toBeNull()
+
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('a load with nothing changed meanwhile writes nothing', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+})
+
 // ─── Attach / create / disconnect ─────────────────────────────────────
 
 describe('FileStorageService — attach, create, disconnect', () => {
