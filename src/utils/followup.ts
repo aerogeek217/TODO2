@@ -1,6 +1,6 @@
 import type { TodoItem } from '../models/todo-item'
 import { parseDatePhrase } from './date-phrase'
-import { formatDateNumeric, MS_PER_DAY, startOfDay } from './date'
+import { formatDateNumeric, formatDateWith, MS_PER_DAY, startOfDay } from './date'
 
 /**
  * Follow-up dates. `nextFollowupAt` is a calendar day stored at local
@@ -182,8 +182,8 @@ export function isFollowupOverdue(
   return dayDiff(t.nextFollowupAt, today) < 0
 }
 
-const weekday = (d: Date) => d.toLocaleDateString('en-US', { weekday: 'short' })
-const monthShort = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' })
+const weekday = (d: Date) => formatDateWith(d, { weekday: 'short' })
+const monthShort = (d: Date) => formatDateWith(d, { month: 'short' })
 
 /** `Tue 13` (this month) / `Tue 10 Nov` (other month) / `Tue 10 Nov 2027` (other year). */
 export function formatFollowupDay(date: Date, today: Date): string {

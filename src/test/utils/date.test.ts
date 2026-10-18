@@ -6,6 +6,7 @@ import {
   formatDate,
   formatDateShort,
   formatDateNumeric,
+  formatDateWith,
   formatRelativeTime,
   toDateInputValue,
 } from '../../utils/date'
@@ -97,6 +98,18 @@ describe('formatDateNumeric', () => {
     expect(formatDateNumeric(new Date(2026, 9, 5))).toBe('10/05')
     expect(formatDateNumeric(new Date(2026, 0, 31))).toBe('01/31')
     expect(formatDateNumeric(new Date(2031, 11, 9))).toBe('12/09')
+  })
+})
+
+describe('formatDateWith', () => {
+  it('reads as toLocaleDateString in en-US with the same options', () => {
+    const d = new Date(2026, 9, 5)
+    const cases: Intl.DateTimeFormatOptions[] = [
+      { weekday: 'short' },
+      { month: 'short' },
+      { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' },
+    ]
+    for (const options of cases) expect(formatDateWith(d, options)).toBe(d.toLocaleDateString('en-US', options))
   })
 })
 

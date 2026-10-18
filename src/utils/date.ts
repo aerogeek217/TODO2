@@ -1,3 +1,5 @@
+import { registerModuleReset } from './module-reset'
+
 /** Milliseconds in one day */
 export const MS_PER_DAY = 86_400_000
 
@@ -22,24 +24,36 @@ export function startOfToday(): Date {
   return startOfDay(new Date())
 }
 
+/** `en-US` date formats by their options, built once each (a formatter is costly to build). */
+const formats = new Map<string, Intl.DateTimeFormat>()
+// A formatter keeps the time zone it was built in.
+registerModuleReset(() => formats.clear())
+
+/**
+ * `date` in `en-US` with `options` — what `toLocaleDateString('en-US',
+ * options)` gives, without building a new formatter on every call (rows
+ * format dates on every render).
+ */
+export function formatDateWith(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const key = JSON.stringify(options)
+  let format = formats.get(key)
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-US', options)
+    formats.set(key, format)
+  }
+  return format.format(new Date(date))
+}
+
 /** Format as "Mon DD, YYYY" */
 export function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return formatDateWith(date, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** Format as "Mon DD", adding ", YYYY" only when the date is not in the current calendar year */
 export function formatDateShort(date: Date): string {
   const d = new Date(date)
   const sameYear = d.getFullYear() === new Date().getFullYear()
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  })
+  return formatDateWith(d, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /** `MM/DD`, zero-padded (`10/05`) — any year (the task row's due column). */

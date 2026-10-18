@@ -1,4 +1,4 @@
-import { addDays, startOfDay, MS_PER_DAY } from './date'
+import { addDays, formatDateWith, startOfDay, MS_PER_DAY } from './date'
 import type { TodoItem, PersistedTodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 import { bySortOrder } from './sort-order'
@@ -122,7 +122,7 @@ export function dateIntensity(days: number | null | undefined): number {
 export function dueTooltip(t: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>, today: Date): string {
   if (!t.dueDate) return ''
   const due = startOfDay(new Date(t.dueDate))
-  const full = due.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+  const full = formatDateWith(due, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
   const days = daysUntil(due, today) ?? 0
   const distance = days === 0 ? 'Due today'
     : days === 1 ? 'Due tomorrow'
