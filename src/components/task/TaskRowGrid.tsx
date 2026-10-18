@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { taskRowColumns, TASK_ROW } from '../../utils/task-row-columns'
 import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
@@ -53,6 +53,12 @@ export function TaskRowGrid({
   /** This list's divider is the one being dragged. */
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{ x: number; start: number; pointerId: number } | null>(null)
+  // Unmounted mid-drag (the tab closed, the layout switched): let go of the
+  // live width, which the tab's other lists may be showing.
+  useEffect(() => {
+    const dragRef = drag
+    return () => { if (dragRef.current) liveStore.set(null) }
+  }, [liveStore])
 
   useLayoutEffect(() => {
     const el = ref.current
@@ -123,6 +129,13 @@ export function TaskRowGrid({
         else commit(width)
       }}
       onPointerCancel={() => {
+        drag.current = null
+        setDragging(false)
+        setLive(null)
+      }}
+      // Capture lost without a pointerup (after one, `drag` is already cleared).
+      onLostPointerCapture={() => {
+        if (!drag.current) return
         drag.current = null
         setDragging(false)
         setLive(null)
