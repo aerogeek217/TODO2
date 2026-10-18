@@ -331,7 +331,7 @@ test('list editor over the lists editor in Settings: contract; Esc closes only i
   await seedWorkspace(page, SEED)
   const settings = await openSettings(page, 'People, statuses & tags')
   await settings.getByRole('button', { name: 'Manage lists…' }).click()
-  const gear = page.getByTitle('Edit list').first()
+  const gear = page.getByTitle('Edit list', { exact: true }).first()
   await expect(gear).toBeVisible()
   const dialog = page.getByRole('dialog', { name: 'Edit list: Team' })
   await checkContract(page, {
