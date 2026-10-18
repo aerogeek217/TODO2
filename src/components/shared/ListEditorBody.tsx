@@ -3,7 +3,8 @@ import type {
   PersistedListDefinition,
   RuntimeFilterField,
 } from '../../models/list-definition'
-import type { TodoGroupBy, TodoSortBy } from '../../models'
+import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../../models'
+import { effectiveSortDirection, sortHasDirection } from '../../models'
 import {
   choicesWith,
   GROUP_LABEL,
@@ -13,11 +14,15 @@ import {
   PROMPT_LABEL,
   SORT_LABEL,
   SORT_NOTE,
+  sortOrderWords,
+  withListSort,
+  withSortDirection,
 } from '../../utils/list-options'
 import { changedListFields, type ListDefField } from '../../utils/list-def-equal'
 import { PredicateChips } from './filters/PredicateChips'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SortDirectionIcon } from './icons'
+import { useTooltip } from './use-tooltip'
 import styles from './ListEditorBody.module.css'
 
 /**
@@ -153,7 +158,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
 
   const pick: { [F in ChoiceField]: (value: string) => void } = {
     group: (v) => onChange({ ...draft, grouping: v as TodoGroupBy }),
-    sort: (v) => onChange({ ...draft, sort: v as TodoSortBy }),
+    sort: (v) => onChange(withListSort(draft, v as TodoSortBy)),
     prompt: (v) => setPrompt(v as RuntimeFilterField | 'none'),
   }
   // An unset Group by shows no value (a placeholder on desktop, nothing on the sheet's row).
@@ -162,6 +167,17 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
     sort: { value: draft.sort, choices: sortChoices },
     prompt: { value: promptValue, choices: promptChoices },
   }
+
+  // Sort by's ↑ / ↓ beside it: only for a sort with a direction (never Manual).
+  const directionToggle = sortHasDirection(draft.sort)
+    ? (
+      <SortDirectionToggle
+        sort={draft.sort}
+        direction={effectiveSortDirection(draft.sort, draft.sortDirection)}
+        onChange={(direction) => onChange(withSortDirection(draft, direction))}
+      />
+    )
+    : null
 
   if (variant === 'sheet') {
     if (choiceList) {
@@ -207,7 +223,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
             const current = spec.value === spec.unset
               ? ''
               : spec.choices.find((c) => c.value === spec.value)?.label ?? spec.value
-            return (
+            const row = (
               <button
                 key={field}
                 type="button"
@@ -223,6 +239,13 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
                 <span className={styles.sheetRowValue}>{current}</span>
                 <ChevronRightIcon size={14} />
               </button>
+            )
+            if (field !== 'sort' || !directionToggle) return row
+            return (
+              <div key={field} className={styles.sheetRowWithToggle}>
+                {row}
+                {directionToggle}
+              </div>
             )
           })}
           {showCompleted}
@@ -247,6 +270,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
             placeholder={choiceSpec[field].value === choiceSpec[field].unset ? `${ROW_LABEL[field]}…` : undefined}
             onPick={pick[field]}
           />
+          {field === 'sort' && directionToggle}
         </div>
       ))}
     </div>
@@ -254,6 +278,36 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
 }
 
 const CHOICE_MENU_WIDTH_PX = 242
+
+/**
+ * Sort by's direction: a toggle button showing ↑ (the sort's natural order)
+ * or ↓ (reversed, `aria-pressed`). Its tooltip says what comes first.
+ */
+function SortDirectionToggle({ sort, direction, onChange }: {
+  sort: TodoSortBy
+  direction: TodoSortDirection
+  onChange: (direction: TodoSortDirection) => void
+}) {
+  const desc = direction === 'desc'
+  const words = sortOrderWords(sort, direction)
+  const { triggerProps, tooltip } = useTooltip(words && `${words}\nClick to reverse`)
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.direction}
+        aria-label="Sort descending"
+        aria-pressed={desc}
+        data-direction={direction}
+        onClick={() => onChange(desc ? 'asc' : 'desc')}
+        {...triggerProps}
+      >
+        <SortDirectionIcon direction={direction} />
+      </button>
+      {tooltip}
+    </>
+  )
+}
 
 /**
  * A select-button: the current choice + a chevron; opens a radio menu of the

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
+import type { ListDefinition } from '../../models/list-definition'
 import { emptyPredicate } from '../../models'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
@@ -15,7 +16,7 @@ import {
   hasNarrowingFilters,
   type FilterChipNames,
 } from '../../utils/filter-chips'
-import { choicesWith, groupSortSummary } from '../../utils/list-options'
+import { choicesWith, groupSortSummary, sortOrderWords, withListSort, withSortDirection } from '../../utils/list-options'
 
 const people: Person[] = [{ id: 1, name: 'Alice', initials: 'A' }, { id: 2, name: 'Bob', initials: 'B' }, { id: 3, name: 'Cy', initials: 'C' }]
 const tags: Tag[] = [{ id: 1, name: 'q4', color: '#36c' }, { id: 2, name: 'home', color: '#c84' }]
@@ -232,5 +233,29 @@ describe('list choice helpers', () => {
     // No groups: just the sort (the drag order reads `Manual`).
     expect(groupSortSummary('none', 'priority')).toBe('Priority')
     expect(groupSortSummary('none', 'manual')).toBe('Manual')
+  })
+
+  it('a descending sort shows ↓; the natural order shows no arrow; manual never does', () => {
+    expect(groupSortSummary('people', 'deadline', 'desc')).toBe('People · Due date ↓')
+    expect(groupSortSummary('none', 'name', 'desc')).toBe('Name ↓')
+    expect(groupSortSummary('none', 'name', 'asc')).toBe('Name')
+    expect(groupSortSummary('none', 'manual', 'desc')).toBe('Manual')
+  })
+
+  it('names each sort direction in words', () => {
+    expect(sortOrderWords('deadline', 'asc')).toBe('Soonest first')
+    expect(sortOrderWords('deadline', 'desc')).toBe('Latest first')
+    expect(sortOrderWords('name', 'desc')).toBe('Z → A')
+    expect(sortOrderWords('created', 'desc')).toBe('Newest first')
+    expect(sortOrderWords('priority', 'desc')).toBe('Lowest priority first')
+    expect(sortOrderWords('manual', 'desc')).toBeNull()
+  })
+
+  it('a direction carries over to another sort with one and is dropped for Manual; asc is stored as no field', () => {
+    expect(withListSort({ sort: 'deadline', sortDirection: 'desc' }, 'name')).toEqual({ sort: 'name', sortDirection: 'desc' })
+    expect(withListSort({ sort: 'deadline', sortDirection: 'desc' }, 'manual')).toEqual({ sort: 'manual' })
+    const byName: Pick<ListDefinition, 'sort' | 'sortDirection'> = { sort: 'name' }
+    expect(withSortDirection(byName, 'desc')).toEqual({ sort: 'name', sortDirection: 'desc' })
+    expect(withSortDirection({ ...byName, sortDirection: 'desc' }, 'asc')).toEqual({ sort: 'name' })
   })
 })

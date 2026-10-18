@@ -26,7 +26,7 @@ import {
   hasNarrowingFilters,
   type FilterChip,
 } from '../../../utils/filter-chips'
-import { groupSortSummary, PROMPT_LABEL, SORT_LABEL } from '../../../utils/list-options'
+import { groupSortSummary, PROMPT_LABEL, sortSummary, withListSort } from '../../../utils/list-options'
 import { manualOrderComparator, planMove, seedRanks, type MoveTarget, type RankWrite } from '../../../utils/list-order'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import {
@@ -223,10 +223,13 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const switchToManual = () => {
     if (!pendingSwitch) return
     const order = orderCandidates()
-      .sort(listSortComparator(definition.sort, { urgentRange: useSettingsStore.getState().urgentDueWithinDays }))
+      .sort(listSortComparator(definition.sort, {
+        urgentRange: useSettingsStore.getState().urgentDueWithinDays,
+        direction: definition.sortDirection,
+      }))
       .map((t) => t.id)
     void useListOrderStore.getState().replaceList(listId, seedRanks(order, pendingSwitch.move))
-    useListDraftStore.getState().edit(listId, (d) => ({ ...d, sort: 'manual' }))
+    useListDraftStore.getState().edit(listId, (d) => withListSort(d, 'manual'))
     setPendingSwitch(null)
   }
 
@@ -244,7 +247,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         out.push(
           <div key="drop-line" className={`${styles.dropLine} ${styles.dropLineSorted}`} data-drop-line="">
             <span className={styles.dropHint} data-testid="sorted-drop-hint">
-              <SortIcon size={12} /> Sorted by {SORT_LABEL[definition.sort].toLowerCase()} · drop to switch to manual
+              <SortIcon size={12} /> Sorted by {sortSummary(definition.sort, definition.sortDirection).toLowerCase()} · drop to switch to manual
             </span>
           </div>,
         )
@@ -423,7 +426,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       {pendingSwitch && (
         <SwitchToManualPopover
           listName={definition.name}
-          sortLabel={SORT_LABEL[definition.sort]}
+          sortLabel={sortSummary(definition.sort, definition.sortDirection)}
           at={pendingSwitch.at}
           onConfirm={switchToManual}
           onCancel={() => setPendingSwitch(null)}
@@ -546,7 +549,7 @@ function ListFilterRow({ tabId, definition, screenChips, hasListChips, unsaved }
           else openEditList(tabId, id)
         }}
       >
-        {groupSortSummary(definition.grouping, definition.sort)}
+        {groupSortSummary(definition.grouping, definition.sort, definition.sortDirection)}
         <ChevronDownIcon />
       </button>
       {unsaved && <ListDraftButtons listDefinitionId={id} />}

@@ -230,6 +230,17 @@ export function SortIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3" /></Svg>
 }
 
+/** An arrow up (a sort's natural order) or down (reversed). */
+export function SortDirectionIcon({ direction, size = 14 }: { direction: 'asc' | 'desc'; size?: number }) {
+  return (
+    <Svg size={size}>
+      {direction === 'asc'
+        ? <path d="M8 13V3M4 7l4-4 4 4" />
+        : <path d="M8 3v10M4 9l4 4 4-4" />}
+    </Svg>
+  )
+}
+
 /** Two chain links: shared between widgets. */
 export function LinkIcon({ size = 12 }: { size?: number }) {
   return (

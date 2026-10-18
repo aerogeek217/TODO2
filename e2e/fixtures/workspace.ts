@@ -69,6 +69,7 @@ export interface WorkspaceSeed {
     name: string
     grouping?: string
     sort?: string
+    sortDirection?: 'asc' | 'desc'
     /** Merged over the empty predicate; `personIds` by name via `people`. */
     predicate?: Record<string, unknown>
     /** Names of people for the predicate's `personIds`. */
@@ -172,6 +173,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         sortOrder: ++defOrder,
         membership: { kind: 'custom', predicate },
         sort: def.sort ?? 'manual',
+        ...(def.sortDirection ? { sortDirection: def.sortDirection } : {}),
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
       }))

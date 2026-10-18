@@ -164,6 +164,16 @@ describe('ListWidget', () => {
     expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
   })
 
+  it('a direction change in the draft re-sorts the rows live, shows ↓ in the summary and makes the list unsaved', () => {
+    setup(def({ sort: 'name' }))
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sortDirection: 'desc' })))
+    expect(titles()).toEqual(['Shared task', 'Bob task', 'Alice task'])
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name ↓$/)
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+  })
+
   it('Save on the filter line writes the draft; the line stays, without Revert · Save', async () => {
     setup(def())
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))

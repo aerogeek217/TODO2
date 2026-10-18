@@ -134,6 +134,48 @@ describe('<ListEditorBody>', () => {
     expect(Array.from(container.querySelectorAll('[data-changed]')).map((el) => el.textContent)).toEqual(['Name', 'Sort by', 'Prompt for'])
   })
 
+  it('Sort by has an ↑ / ↓ toggle: pressed when descending; a click reverses, a second click back stores no field', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ListEditorBody draft={makeDraft({ sort: 'deadline' })} onChange={onChange} />)
+    const toggle = screen.getByRole('button', { name: 'Sort descending' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+    expect(last(onChange)).toMatchObject({ sort: 'deadline', sortDirection: 'desc' })
+    rerender(<ListEditorBody draft={last(onChange)} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: 'Sort descending' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort descending' }))
+    expect(last(onChange)).toEqual(makeDraft({ sort: 'deadline' }))
+  })
+
+  it('Manual has no direction: no toggle, a stored direction is ignored, and picking Manual drops it', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ListEditorBody draft={makeDraft({ sort: 'manual', sortDirection: 'desc' })} onChange={onChange} />)
+    expect(screen.queryByRole('button', { name: 'Sort descending' })).toBeNull()
+    rerender(<ListEditorBody draft={makeDraft({ sort: 'deadline', sortDirection: 'desc' })} onChange={onChange} />)
+    openChoices('Sort by')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
+    expect(last(onChange)).toMatchObject({ sort: 'name', sortDirection: 'desc' })
+    openChoices('Sort by')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Manual/ }))
+    expect(last(onChange)).toEqual(makeDraft({ sort: 'manual' }))
+  })
+
+  it('a changed direction marks Sort by as changed', () => {
+    const saved = makeDraft({ sort: 'created' })
+    const { container } = render(<ListEditorBody draft={makeDraft({ sort: 'created', sortDirection: 'desc' })} saved={saved} onChange={vi.fn()} />)
+    expect(Array.from(container.querySelectorAll('[data-changed]')).map((el) => el.textContent)).toEqual(['Sort by'])
+  })
+
+  it('phone sheet: the toggle sits at the end of the Sort by row', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft({ sort: 'name' })} onChange={onChange} variant="sheet" />)
+    const row = screen.getByRole('button', { name: 'Sort by: Name' })
+    const toggle = screen.getByRole('button', { name: 'Sort descending' })
+    expect(row.parentElement).toBe(toggle.parentElement)
+    fireEvent.click(toggle)
+    expect(last(onChange)).toMatchObject({ sort: 'name', sortDirection: 'desc' })
+  })
+
   it('phone sheet: choices are rows that open a list of radios; Show completed is a switch', () => {
     const onChange = vi.fn()
     render(<ListEditorBody draft={makeDraft({ grouping: 'status' })} saved={makeDraft()} onChange={onChange} variant="sheet" />)
