@@ -1,5 +1,5 @@
-import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy } from '../models'
-import { isTodoGroupBy } from '../models'
+import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models'
+import { effectiveSortDirection, isTodoGroupBy } from '../models'
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
 import { bySortOrder } from '../utils/sort-order'
@@ -26,6 +26,8 @@ export interface Section {
 export interface ListSectionsSpec {
   groupBy: TodoGroupBy
   sortBy: TodoSortBy
+  /** `desc` reverses the sort (see {@link listSortComparator}); absent = natural order. */
+  sortDirection?: TodoSortDirection
   /**
    * The list's effective person filter. When grouping by people, only these
    * people's sections are shown, in this order; a task assigned only to other
@@ -61,6 +63,8 @@ export interface ListSortContext {
   today?: Date
   /** The Priority sort's urgent range; absent = flags only. */
   urgentRange?: UrgentDueWithinDays
+  /** `desc` reverses the sort's primary key; absent = natural order. */
+  direction?: TodoSortDirection
 }
 
 /**
@@ -77,6 +81,11 @@ export interface ListSortContext {
  *   last), then manual order.
  * - `people` / `status` — no ordering of their own; they fall back to manual
  *   order (as does a stored value this build doesn't know).
+ *
+ * `ctx.direction` `desc` reverses the primary key only (latest / newest /
+ * Z → A / lowest priority first): ties keep their tie-break order and
+ * undated tasks stay last. Manual and `people` / `status` have no direction
+ * (`sortHasDirection`).
  */
 export function listSortComparator(
   sortBy: TodoSortBy,
@@ -84,16 +93,17 @@ export function listSortComparator(
 ): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
   const { manualRanks } = ctx
   if (sortBy === 'manual' && manualRanks) return manualOrderComparator(manualRanks)
+  const sign: 1 | -1 = effectiveSortDirection(sortBy, ctx.direction) === 'desc' ? -1 : 1
   switch (sortBy) {
     case 'priority':
-      return priorityComparator(ctx)
+      return priorityComparator(ctx, sign)
     case 'name':
-      return (a, b) => a.title.localeCompare(b.title) || bySortOrder(a, b)
+      return (a, b) => (sign * a.title.localeCompare(b.title)) || bySortOrder(a, b)
     case 'deadline':
     case 'followup':
-      return compareTodosByDate(sortBy)
+      return compareTodosByDate(sortBy, sign < 0)
     case 'created':
-      return (a, b) => (a.createdAt.getTime() - b.createdAt.getTime()) || bySortOrder(a, b)
+      return (a, b) => (sign * (a.createdAt.getTime() - b.createdAt.getTime())) || bySortOrder(a, b)
     case 'manual':
     case 'people':
     case 'status':
@@ -102,8 +112,8 @@ export function listSortComparator(
   return bySortOrder
 }
 
-/** The Priority sort: rank, then due date (undated last), then manual order. */
-function priorityComparator(ctx: ListSortContext): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+/** The Priority sort: rank (reversed for `sign` -1), then due date (undated last), then manual order. */
+function priorityComparator(ctx: ListSortContext, sign: 1 | -1): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
   const today = ctx.today ?? startOfDay(new Date())
   const range = ctx.urgentRange ?? null
   const manual = ctx.manualRanks ? manualOrderComparator(ctx.manualRanks) : bySortOrder
@@ -117,7 +127,7 @@ function priorityComparator(ctx: ListSortContext): (a: PersistedTodoItem, b: Per
     return r
   }
   return (a, b) => {
-    const byRank = rankOf(a) - rankOf(b)
+    const byRank = sign * (rankOf(a) - rankOf(b))
     if (byRank !== 0) return byRank
     const ad = pickTodoDate(a, 'deadline')
     const bd = pickTodoDate(b, 'deadline')
@@ -183,7 +193,12 @@ export function buildListSections(
   // A stored grouping this build doesn't know reads as ungrouped rather than
   // breaking the surface.
   const groupBy = isTodoGroupBy(spec.groupBy) ? spec.groupBy : 'none'
-  const sorted = [...members].sort(listSortComparator(spec.sortBy, { manualRanks: ctx.manualRanks, today: ctx.today, urgentRange: ctx.urgentRange }))
+  const sorted = [...members].sort(listSortComparator(spec.sortBy, {
+    manualRanks: ctx.manualRanks,
+    today: ctx.today,
+    urgentRange: ctx.urgentRange,
+    direction: spec.sortDirection,
+  }))
   if (groupBy === 'none') {
     return sorted.length > 0 ? [{ key: 'all', label: 'All tasks', todos: sorted }] : []
   }

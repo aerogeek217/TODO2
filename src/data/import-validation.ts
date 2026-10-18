@@ -1,5 +1,5 @@
 import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
-import { isTodoSortBy, isTodoGroupBy } from '../models'
+import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection } from '../models'
 import type { ListDefinition, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
@@ -552,14 +552,27 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
   } satisfies AllFields<RuntimeFilterSpec>)
 }
 
+/**
+ * What import drops from a valid list row, in words. A sort direction this
+ * build doesn't know is dropped (the list sorts in its natural order) rather
+ * than failing the file; `null` reads as none.
+ */
+function listDefinitionFixes(row: Raw): string[] {
+  const fixes = pickPredicate(isRecord(row.membership) ? row.membership.predicate : undefined).fixes
+  const dir = row.sortDirection
+  if (dir !== undefined && dir !== null && !isTodoSortDirection(dir)) fixes.push('unknown sort direction dropped')
+  return fixes
+}
+
 function pickListDefinition(v: Raw): AllFields<ListDefinition> {
   return {
     id: optNum(v.id),
     name: v.name as string,
     sortOrder: v.sortOrder as number,
-    // Rebuilt from known keys; malformed filters dropped (see `rowFixes`).
+    // Rebuilt from known keys; malformed filters / an unknown sort direction dropped (see `rowFixes`).
     membership: { kind: 'custom', predicate: pickPredicate((v.membership as Raw).predicate).predicate },
     sort: v.sort as ListSort,
+    sortDirection: isTodoSortDirection(v.sortDirection) ? v.sortDirection : undefined,
     grouping: v.grouping as ListGrouping,
     runtimeFilter: pickRuntimeFilter(v.runtimeFilter),
   } satisfies AllFields<ListDefinition>
@@ -635,8 +648,8 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     check: checkListDefinition,
     pick: pickListDefinition,
     fixer: {
-      fixes: (row) => pickPredicate(isRecord(row.membership) ? row.membership.predicate : undefined).fixes,
-      lead: (n) => `Fixed the filters of ${plural(n, 'list', 'lists')}`,
+      fixes: listDefinitionFixes,
+      lead: (n) => `Fixed ${plural(n, 'list', 'lists')}`,
     },
   },
   notes: { check: checkNote, pick: pickNote },

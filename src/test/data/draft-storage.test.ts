@@ -86,6 +86,21 @@ describe('draft storage', () => {
     expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
   })
 
+  it('a list draft keeps its sort direction; one kept without the field stays valid; an unknown direction is not taken back', () => {
+    const base = listDef({ sort: 'deadline' })
+    const draft = listDef({ sort: 'deadline', sortDirection: 'desc' })
+    writeListDrafts(new Map([[4, { draft, base }]]))
+    expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
+
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
+      4: { draft: listDef({ sort: 'name' }), base, schemaVersion: CURRENT_DB_VERSION },
+      5: { draft: { ...draft, id: 5, sortDirection: 'up' }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+    }))
+    const back = readListDrafts()
+    expect([...back.keys()]).toEqual([4])
+    expect('sortDirection' in back.get(4)!.draft).toBe(false)
+  })
+
   it('clearUnsavedDrafts forgets both kinds', () => {
     writeLayoutDraft(savedDraft)
     writeListDrafts(new Map([[4, { draft: listDef({ name: 'B' }), base: listDef() }]]))

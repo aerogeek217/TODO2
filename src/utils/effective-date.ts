@@ -152,20 +152,22 @@ export function pickTodoDate(
 }
 
 /**
- * Build an ascending comparator over `field` for `PersistedTodoItem`. Nulls
- * sort last; ties fall through to `bySortOrder` (sortOrder, then id) so the
- * order is fully stable. Used by `listSortComparator`
+ * Build a comparator over `field` for `PersistedTodoItem`: ascending, or
+ * latest first with `descending`. Nulls sort last either way; ties fall
+ * through to `bySortOrder` (sortOrder, then id) so the order is fully stable. Used by `listSortComparator`
  * (`services/list-sections`), which every list surface sorts with.
  */
 export function compareTodosByDate(
   field: TodoDateField,
+  descending = false,
 ): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  const sign = descending ? -1 : 1
   return (a, b) => {
     const ad = pickTodoDate(a, field)
     const bd = pickTodoDate(b, field)
     if (ad === null && bd === null) return bySortOrder(a, b)
     if (ad === null) return 1
     if (bd === null) return -1
-    return (ad.getTime() - bd.getTime()) || bySortOrder(a, b)
+    return (sign * (ad.getTime() - bd.getTime())) || bySortOrder(a, b)
   }
 }

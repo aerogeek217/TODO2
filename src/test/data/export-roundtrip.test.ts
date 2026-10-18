@@ -103,7 +103,7 @@ function buildSeed(): Seed {
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
-      sort: 'deadline', grouping: 'people',
+      sort: 'deadline', sortDirection: 'desc', grouping: 'people',
       runtimeFilter: { field: 'person', label: 'Who' },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],

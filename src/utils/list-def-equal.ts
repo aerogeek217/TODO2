@@ -1,5 +1,6 @@
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { TodoPredicate } from '../models'
+import { effectiveSortDirection } from '../models'
 import { dateFiltersEqual } from './date-filters'
 import { markersEqual } from './markers'
 
@@ -24,10 +25,19 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
   )
 }
 
+/**
+ * Whether two lists sort the same: the same sort, in the same effective
+ * direction (no direction = `asc`; Manual has none).
+ */
+function sortsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
+  return JSON.stringify(a.sort) === JSON.stringify(b.sort)
+    && effectiveSortDirection(a.sort, a.sortDirection) === effectiveSortDirection(b.sort, b.sortDirection)
+}
+
 export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
   // Ignore `sortOrder` (reorder is saved independently).
   if (a.name !== b.name) return false
-  if (JSON.stringify(a.sort) !== JSON.stringify(b.sort)) return false
+  if (!sortsEqual(a, b)) return false
   if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) return false
   if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) return false
   if (a.membership.kind !== b.membership.kind) return false
@@ -42,8 +52,8 @@ export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt'
 
 /**
  * The editor rows whose value differs between `a` and `b` (e.g. a draft and
- * the saved list). Show completed counts as part of the filters; `sortOrder`
- * is never compared.
+ * the saved list). Show completed counts as part of the filters and the sort
+ * direction as part of the sort; `sortOrder` is never compared.
  */
 export function changedListFields(a: PersistedListDefinition, b: PersistedListDefinition): ReadonlySet<ListDefField> {
   const out = new Set<ListDefField>()
@@ -53,7 +63,7 @@ export function changedListFields(a: PersistedListDefinition, b: PersistedListDe
     out.add('filters')
   }
   if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) out.add('group')
-  if (JSON.stringify(a.sort) !== JSON.stringify(b.sort)) out.add('sort')
+  if (!sortsEqual(a, b)) out.add('sort')
   if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) out.add('prompt')
   return out
 }

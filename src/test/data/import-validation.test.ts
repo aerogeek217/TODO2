@@ -662,7 +662,7 @@ describe('validateImportData', () => {
         const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
         if (!result.ok) throw new Error(result.error)
         expect(result.data.listDefinitions[0]!.membership).toMatchObject({ predicate: { markers: null } })
-        expect(result.warnings).toEqual(['Fixed the filters of 1 list: "List" (priority filter dropped)'])
+        expect(result.warnings).toEqual(['Fixed 1 list: "List" (priority filter dropped)'])
       },
     )
 
@@ -713,7 +713,7 @@ describe('validateImportData', () => {
       expect(people).toMatchObject({ personIds: null, statusIds: null })
       expect(text).toMatchObject({ searchText: 'y'.repeat(500), tags: null })
       expect(result.warnings).toEqual([
-        'Fixed the filters of 2 lists: "Bad people" (people filter dropped, status filter dropped); "Long text" (text filter shortened, tag filter dropped)',
+        'Fixed 2 lists: "Bad people" (people filter dropped, status filter dropped); "Long text" (text filter shortened, tag filter dropped)',
       ])
     })
 
@@ -731,7 +731,27 @@ describe('validateImportData', () => {
       }))
       if (!result.ok) throw new Error(result.error)
       expect(result.data.listDefinitions[0]!.membership.predicate.dates).toEqual({ followup: { match: 'set' } })
-      expect(result.warnings).toEqual(['Fixed the filters of 1 list: "Dates" (unknown date filter dropped, due date filter dropped)'])
+      expect(result.warnings).toEqual(['Fixed 1 list: "Dates" (unknown date filter dropped, due date filter dropped)'])
+    })
+
+    it('keeps a list sort direction; an unknown one is dropped with a warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [
+          { ...list(1, 'Down', {}), sort: 'deadline', sortDirection: 'desc' },
+          { ...list(2, 'Up', {}), sort: 'name', sortDirection: 'asc' },
+          { ...list(3, 'Plain', {}), sort: 'created' },
+          { ...list(4, 'Sideways', {}), sort: 'name', sortDirection: 'sideways' },
+          { ...list(5, 'Null', {}), sort: 'name', sortDirection: null },
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [down, up, plain, sideways, nul] = result.data.listDefinitions
+      expect(down!.sortDirection).toBe('desc')
+      expect(up!.sortDirection).toBe('asc')
+      expect('sortDirection' in plain!).toBe(false)
+      expect('sortDirection' in sideways!).toBe(false)
+      expect('sortDirection' in nul!).toBe(false)
+      expect(result.warnings).toEqual(['Fixed 1 list: "Sideways" (unknown sort direction dropped)'])
     })
 
     it('still rejects a predicate missing its core shape', () => {

@@ -1,5 +1,5 @@
 import type { TodoPredicate } from './filter-predicate'
-import type { TodoSortBy, TodoGroupBy } from './todo-sort-group'
+import type { TodoSortBy, TodoGroupBy, TodoSortDirection } from './todo-sort-group'
 
 /**
  * Serializable predicate DSL for list membership. Post-v24, the only kind is
@@ -48,6 +48,12 @@ export interface ListDefinition {
   sortOrder: number
   membership: ListMembership
   sort: ListSort
+  /**
+   * `desc` reverses the sort (see `TodoSortDirection`). Absent or `asc` =
+   * the sort's natural order; ignored for a sort without a direction
+   * (Manual — `sortHasDirection`).
+   */
+  sortDirection?: TodoSortDirection
   grouping: ListGrouping
   /** When set, the list exposes a picker at render time; see `RuntimeFilterSpec`. */
   runtimeFilter?: RuntimeFilterSpec

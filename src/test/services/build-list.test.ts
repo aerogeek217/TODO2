@@ -306,6 +306,24 @@ describe('buildList — sort', () => {
   })
 })
 
+describe('buildList — sort direction', () => {
+  it('a descending list reverses its members and the order inside each section', () => {
+    const a = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 2 * MS_PER_DAY) })
+    const b = makeTodo({ id: 2, dueDate: new Date(today.getTime() - 1 * MS_PER_DAY) })
+    const c = makeTodo({ id: 3 })
+    const list = buildList(customDef({ grouping: 'deadline', sortDirection: 'desc' }), [a, c, b], makeCtx())
+    expect(list.todos.map((t) => t.id)).toEqual([2, 1, 3])
+    expect(list.sections.map((s) => [s.key, s.todos.map((t) => t.id)])).toEqual([['overdue', [2, 1]], ['none', [3]]])
+  })
+
+  it('a manual list ignores a stored direction', () => {
+    const a = makeTodo({ id: 1, sortOrder: 1 })
+    const b = makeTodo({ id: 2, sortOrder: 2 })
+    const list = buildList(customDef({ sort: 'manual', sortDirection: 'desc' }), [b, a], makeCtx())
+    expect(list.todos.map((t) => t.id)).toEqual([1, 2])
+  })
+})
+
 describe('buildList — grouping', () => {
   it('drops empty groups', () => {
     const nextWeek = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 10 * MS_PER_DAY) })

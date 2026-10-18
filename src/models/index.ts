@@ -10,10 +10,15 @@ export { type DateField, DATE_FIELD_VALUES } from './app-view'
 export {
   type TodoSortBy,
   type TodoGroupBy,
+  type TodoSortDirection,
   TODO_SORT_BY_VALUES,
   TODO_GROUP_BY_VALUES,
+  TODO_SORT_DIRECTIONS,
   isTodoSortBy,
   isTodoGroupBy,
+  isTodoSortDirection,
+  sortHasDirection,
+  effectiveSortDirection,
 } from './todo-sort-group'
 export {
   type TodoPredicate,

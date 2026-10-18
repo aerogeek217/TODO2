@@ -82,6 +82,13 @@ describe('resolveTaskDialog', () => {
     expect(titles(group?.todoIds ?? [])).toEqual(['Q4 roadmap deck', 'Q4 forecast'])
   })
 
+  it('list: follows the list’s sort direction (latest due first, undated still last)', () => {
+    const desc = SAMPLE_LISTS.map((d) => (d.id === 3 ? { ...d, sortDirection: 'desc' as const } : d))
+    expect(resolveTaskDialog({ kind: 'list', listDefinitionId: 3 }, env({ listDefinitions: desc }))).toEqual([
+      { key: 'all', label: null, todoIds: [15, 14, 7, 4, 17] },
+    ])
+  })
+
   it('list: a deleted list has no rows', () => {
     expect(resolveTaskDialog({ kind: 'list', listDefinitionId: 99 }, env())).toEqual([])
   })

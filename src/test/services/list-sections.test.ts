@@ -491,6 +491,103 @@ describe('listSortComparator', () => {
   })
 })
 
+describe('listSortComparator — descending', () => {
+  const desc = { direction: 'desc' } as const
+  const ids = (todos: PersistedTodoItem[], sortBy: TodoSortBy, ctx: Parameters<typeof listSortComparator>[1] = desc) =>
+    [...todos].sort(listSortComparator(sortBy, ctx)).map((t) => t.id)
+
+  it('reverses due and follow-up dates; undated tasks stay last; ties keep manual order', () => {
+    const d = new Date(2026, 0, 20)
+    const todos = [
+      makeTodo({ id: 1, dueDate: new Date(2026, 0, 18), nextFollowupAt: new Date(2026, 0, 18), sortOrder: 1 }),
+      makeTodo({ id: 2, sortOrder: 2 }),
+      makeTodo({ id: 3, dueDate: d, nextFollowupAt: d, sortOrder: 4 }),
+      makeTodo({ id: 4, dueDate: new Date(d), nextFollowupAt: new Date(d), sortOrder: 3 }),
+      makeTodo({ id: 5, sortOrder: 0 }),
+    ]
+    expect(ids(todos, 'deadline', {})).toEqual([1, 4, 3, 5, 2])
+    expect(ids(todos, 'deadline')).toEqual([4, 3, 1, 5, 2])
+    expect(ids(todos, 'followup')).toEqual([4, 3, 1, 5, 2])
+  })
+
+  it('reverses names (Z → A); same names keep manual order', () => {
+    const todos = [
+      makeTodo({ id: 1, title: 'banana', sortOrder: 0 }),
+      makeTodo({ id: 2, title: 'Apple', sortOrder: 0 }),
+      makeTodo({ id: 3, title: 'Same', sortOrder: 10 }),
+      makeTodo({ id: 4, title: 'Same', sortOrder: 5 }),
+    ]
+    expect(ids(todos, 'name')).toEqual([4, 3, 1, 2])
+  })
+
+  it('reverses created (newest first); same times keep manual order', () => {
+    const t = new Date(2026, 0, 12)
+    const todos = [
+      makeTodo({ id: 1, createdAt: new Date(2026, 0, 5), sortOrder: 1 }),
+      makeTodo({ id: 2, createdAt: t, sortOrder: 9 }),
+      makeTodo({ id: 3, createdAt: new Date(t), sortOrder: 2 }),
+    ]
+    expect(ids(todos, 'created')).toEqual([3, 2, 1])
+  })
+
+  it('reverses the priority rank only: ties still by due date (undated last), then manual order', () => {
+    const today = new Date(2026, 0, 12)
+    const todos = [
+      makeTodo({ id: 1, title: 'focus', focus: true, sortOrder: 1 }),
+      makeTodo({ id: 2, title: 'undated b', sortOrder: 3 }),
+      makeTodo({ id: 3, title: 'undated a', sortOrder: 2 }),
+      makeTodo({ id: 4, title: 'due 30th', dueDate: new Date(2026, 0, 30), sortOrder: 5 }),
+      makeTodo({ id: 5, title: 'due 25th', dueDate: new Date(2026, 0, 25), sortOrder: 4 }),
+      makeTodo({ id: 6, title: 'important', important: true, sortOrder: 6 }),
+    ]
+    const order = [...todos].sort(listSortComparator('priority', { today, urgentRange: null, direction: 'desc' })).map((t) => t.title)
+    expect(order).toEqual(['due 25th', 'due 30th', 'undated a', 'undated b', 'important', 'focus'])
+  })
+
+  it('manual and the categorical sorts have no direction', () => {
+    const todos = [makeTodo({ id: 1, sortOrder: 2 }), makeTodo({ id: 2, sortOrder: 1 })]
+    for (const sortBy of ['manual', 'people', 'status'] as const) {
+      expect(ids(todos, sortBy)).toEqual([2, 1])
+    }
+    const manualRanks = new Map([[1, 1], [2, 2]])
+    expect(ids(todos, 'manual', { direction: 'desc', manualRanks })).toEqual([1, 2])
+  })
+
+  it('asc is the natural order', () => {
+    const todos = [makeTodo({ id: 1, title: 'b' }), makeTodo({ id: 2, title: 'a' })]
+    expect(ids(todos, 'name', { direction: 'asc' })).toEqual([2, 1])
+  })
+})
+
+describe('buildListSections — descending', () => {
+  it('reverses the order inside each group; the groups keep their order', () => {
+    const today = new Date(2026, 0, 12)
+    const todos = [
+      makeTodo({ id: 1, dueDate: new Date(2026, 0, 2) }),
+      makeTodo({ id: 2, dueDate: new Date(2026, 0, 5) }),
+      makeTodo({ id: 3, dueDate: new Date(2026, 1, 20) }),
+      makeTodo({ id: 4, dueDate: new Date(2026, 1, 25) }),
+      makeTodo({ id: 5 }),
+    ]
+    const sections = build(todos, 'deadline', { today }, { sortBy: 'deadline', sortDirection: 'desc' })
+    expect(sections.map((s) => [s.key, s.todos.map((t) => t.id)])).toEqual([
+      ['overdue', [2, 1]],
+      ['later', [4, 3]],
+      ['none', [5]],
+    ])
+  })
+
+  it('an ungrouped list comes back reversed; a manual list ignores the direction', () => {
+    const todos = [
+      makeTodo({ id: 1, title: 'a', sortOrder: 2 }),
+      makeTodo({ id: 2, title: 'c', sortOrder: 1 }),
+      makeTodo({ id: 3, title: 'b', sortOrder: 3 }),
+    ]
+    expect(build(todos, 'none', {}, { sortBy: 'name', sortDirection: 'desc' }).map((s) => s.todos.map((t) => t.id))).toEqual([[2, 3, 1]])
+    expect(build(todos, 'none', {}, { sortBy: 'manual', sortDirection: 'desc' }).map((s) => s.todos.map((t) => t.id))).toEqual([[2, 1, 3]])
+  })
+})
+
 describe('buildListSections — unknown stored values', () => {
   it('an unknown grouping reads as ungrouped and an unknown sort as manual', () => {
     const todos = [makeTodo({ id: 1, sortOrder: 2 }), makeTodo({ id: 2, sortOrder: 1 })]

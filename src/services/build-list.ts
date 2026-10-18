@@ -111,6 +111,7 @@ export function buildList(
     {
       groupBy: def.grouping,
       sortBy: def.sort,
+      sortDirection: def.sortDirection,
       restrictToPersonIds: predicate?.personIds,
       restrictToTagIds: predicate?.tags,
     },
@@ -129,6 +130,7 @@ export function buildList(
     manualRanks: ctx.ranks,
     today: startOfDay(ctx.today),
     urgentRange: ctx.urgentRange,
+    direction: def.sortDirection,
   }))
   return {
     id: def.id,

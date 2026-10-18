@@ -326,6 +326,20 @@ describe('sanitisable-row audit', () => {
     expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped, priority filter dropped')
   })
 
+  it('reports a list with an unknown sort direction; cleanup drops it and keeps the sort', async () => {
+    const id = await db.listDefinitions.add({ ...list('Odd', {}), sort: 'name', sortDirection: 'up' } as any)
+    await db.listDefinitions.add({ ...list('Down', {}), sort: 'name', sortDirection: 'desc' } as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: unknown sort direction dropped')
+    await cleanupIssues(report.issues)
+    const row = await db.listDefinitions.get(id)
+    expect(row).toMatchObject({ name: 'Odd', sort: 'name' })
+    expect(row && 'sortDirection' in row).toBe(false)
+  })
+
   it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {
     const id = await db.listDefinitions.add(list('Bad', { personIds: 5, statusIds: [2], searchText: 'x'.repeat(600) }) as any)
 
