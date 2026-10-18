@@ -13,11 +13,12 @@ const ISOLATED = readdirSync('src', { recursive: true, encoding: 'utf8' })
   .map((f) => `src/${f.replaceAll('\\', '/')}`)
   .filter((f) => /\bvi\.(mock|doMock)\(/.test(readFileSync(f, 'utf8')))
 
+// `.claude/` is gitignored tooling (agent worktrees hold whole checkouts): never test files here.
 export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    exclude: [...configDefaults.exclude, 'e2e/**', '.claude/**'],
     coverage: {
       provider: 'v8',
       exclude: ['src/test/**'],
@@ -31,7 +32,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'shared',
-          exclude: [...configDefaults.exclude, 'e2e/**', ...ISOLATED],
+          exclude: [...configDefaults.exclude, 'e2e/**', '.claude/**', ...ISOLATED],
           setupFiles: ['./src/test/setup-shared.ts'],
           isolate: false,
         },
