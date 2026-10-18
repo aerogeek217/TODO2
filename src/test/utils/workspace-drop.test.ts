@@ -195,12 +195,37 @@ function layoutWithTopBand(): WorkspaceLayout {
 }
 
 describe('bands in the hit test', () => {
-  it('the top / bottom 24px of the workspace offer a new band while there is none', () => {
+  it('the top / bottom 24px of the workspace offer a new band while there is none — where no tab strip is', () => {
     const geo = geometry()
-    expect(hitTestWorkspace(geo, { x: 300, y: 24 })).toEqual({ kind: 'new-band', edge: 'top' })
+    // The workspace's top padding, above the panels.
+    expect(hitTestWorkspace(geo, { x: 300, y: 3 })).toEqual({ kind: 'new-band', edge: 'top' })
     expect(hitTestWorkspace(geo, { x: 4, y: 4 })).toEqual({ kind: 'new-band', edge: 'top' })
+    // The gap between two columns, near the top.
+    expect(hitTestWorkspace(geo, { x: 503, y: 20 })).toEqual({ kind: 'new-band', edge: 'top' })
+    // Bodies near the bottom edge are no strips: the bottom band zone.
     expect(hitTestWorkspace(geo, { x: 300, y: 706 - 24 })).toEqual({ kind: 'new-band', edge: 'bottom' })
-    expect(hitTestWorkspace(geo, { x: 300, y: 25 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
+  })
+
+  it('a tab strip always wins over the band edge', () => {
+    const geo = geometry()
+    // a1's header spans 6..38: all of it inserts, even its top part.
+    expect(hitTestWorkspace(geo, { x: 300, y: 7 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 20 })).toMatchObject({ kind: 'tab-strip', cellId: 'a1' })
+    expect(hitTestWorkspace(geo, { x: 700, y: 24 })).toMatchObject({ kind: 'tab-strip', cellId: 'b1' })
+    // A collapsed last cell's header at the bottom edge: its strip too.
+    const g: WorkspaceGeometry = {
+      ...geo,
+      columns: [geo.columns[0]!, { id: 'b', rect: rect(506, 6, 1000, 700), cells: [cellGeo('b1', 506, 1000, 6, 662, ['t4']), cellGeo('b2', 506, 1000, 668, 700, ['t6'], { collapsed: true })] }],
+    }
+    expect(hitTestWorkspace(g, { x: 700, y: 690 })).toMatchObject({ kind: 'tab-strip', cellId: 'b2' })
+  })
+
+  it('the top band zone reaches 16px above the workspace (over the top bar’s lower edge)', () => {
+    const geo = geometry()
+    expect(hitTestWorkspace(geo, { x: 300, y: -10 })).toEqual({ kind: 'new-band', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 300, y: -16 })).toEqual({ kind: 'new-band', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 300, y: -17 })).toBeNull()
+    expect(hitTestWorkspace(geometryWithTopBand(), { x: 300, y: -10 })).toBeNull()
   })
 
   it('an edge with a band offers that band: its strip, then its body as one zone', () => {

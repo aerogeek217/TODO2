@@ -49,15 +49,21 @@ async function areaBox(page: Page) {
   return box(page.locator('[data-ws-area]'))
 }
 
+/** A point in the top new-band zone above the panels: the workspace's 6px top padding, `x` px in. */
+async function topBandZone(page: Page, x = 300): Promise<Point> {
+  const a = await areaBox(page)
+  return { x: a.x + x, y: a.y + 3 }
+}
+
 function bodyPoint(page: Page, cellId: string, fy: number): Promise<Point> {
   return pointIn(wsCell(page, cellId).locator('[data-ws-cell-body]'), 0.5, fy)
 }
 
 test.describe('tab drags and bands', () => {
-  test('a tab dragged into the workspace’s top 24px makes a new top band', async ({ page }) => {
+  test('a tab dragged just above the panels makes a new top band', async ({ page }) => {
     await seedWorkspace(page, { layouts: [threeCells] })
     const a = await areaBox(page)
-    await dragTab(page, wsTab(page, 'eisTab'), { x: a.x + a.width / 2, y: a.y + 8 }, async () => {
+    await dragTab(page, wsTab(page, 'eisTab'), await topBandZone(page), async () => {
       await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'top')
       await expect(page.getByTestId('ws-drop-label')).toHaveText('New band above all columns')
     })
@@ -71,6 +77,27 @@ test.describe('tab drags and bands', () => {
     expect(Math.round(band.height)).toBe(160)
     expect(band.y + band.height).toBeLessThan(col.y)
     expect(Math.round(band.width)).toBe(Math.round(a.width - 12))
+  })
+
+  test('the zone reaches a little over the top bar’s lower edge', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [threeCells] })
+    const a = await areaBox(page)
+    await dragTab(page, wsTab(page, 'eisTab'), { x: a.x + 300, y: a.y - 8 }, async () => {
+      await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'top')
+    })
+    await expect.poll(() => wsBandTabs(page, 'top')).toEqual(['eisTab'])
+  })
+
+  test('a tab strip wins over the band edge: a drop on the top part of a top-row strip inserts, no band', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [threeCells] })
+    const header = await box(wsCell(page, 'b1').locator('[data-ws-cell-header]'))
+    const cal = await box(wsTab(page, 'calTab'))
+    await dragTab(page, wsTab(page, 'eisTab'), { x: cal.x + 10, y: header.y + 3 }, async () => {
+      await expect(wsCell(page, 'b1').getByTestId('ws-tab-insert-line')).toBeVisible()
+      await expect(page.getByTestId('ws-new-band-strip')).toHaveCount(0)
+    })
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab', 'calTab'], ['dashTab']]])
+    await expect(wsBand(page, 'top')).toHaveCount(0)
   })
 
   test('the bottom 24px make a new bottom band; idle edge bars show where no band is', async ({ page }) => {
@@ -215,15 +242,28 @@ test.describe('panel drags', () => {
 
   test('panel → a tab strip inserts all its tabs at the line', async ({ page }) => {
     await seedWorkspace(page, { layouts: [threeCells] })
-    // Low in the strip: its top part is inside the new-band zone (the top 24px).
+    // The top part of a top-row strip: the strip wins over the band edge.
+    const header = await box(wsCell(page, 'b1').locator('[data-ws-cell-header]'))
     const cal = await box(wsTab(page, 'calTab'))
-    await dragPanel(page, 'a1', { x: cal.x + 10, y: cal.y + cal.height - 4 }, {
+    await dragPanel(page, 'a1', { x: cal.x + 10, y: header.y + 3 }, {
       during: async () => {
         await expect(wsCell(page, 'b1').getByTestId('ws-tab-insert-line')).toBeVisible()
         await expect(page.getByTestId('ws-drop-label')).toHaveText('Insert 2 tabs')
       },
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab', 'calTab'], ['dashTab']]])
+    await expect(wsBand(page, 'top')).toHaveCount(0)
+  })
+
+  test('panel → new top band from the zone above the panels', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [threeCells] })
+    await dragPanel(page, 'b1', await topBandZone(page, 600), {
+      during: async () => {
+        await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'top')
+        await expect(page.getByTestId('ws-drop-label')).toHaveText('New band above all columns')
+      },
+    })
+    await expect.poll(() => wsBandTabs(page, 'top')).toEqual(['calTab'])
   })
 
   test('panel → new bottom band; near the window’s bottom the ghost flips above the pointer', async ({ page }) => {
@@ -400,7 +440,7 @@ test.describe('narrow windows, reload, phone', () => {
   test('unsaved band changes come back after a reload, still unsaved', async ({ page }) => {
     await seedWorkspace(page, { layouts: [threeCells] })
     const a = await areaBox(page)
-    await dragPanel(page, 'b2', { x: a.x + 300, y: a.y + 8 })
+    await dragPanel(page, 'b2', { x: a.x + 300, y: a.y + 3 })
     await expect.poll(() => wsBandTabs(page, 'top')).toEqual(['dashTab'])
     await page.reload()
     await expect.poll(() => wsBandTabs(page, 'top')).toEqual(['dashTab'])

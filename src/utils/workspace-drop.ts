@@ -9,7 +9,12 @@ import { findTab, movePanel, moveTab, type LayoutDropTarget } from './workspace-
  *
  * Priority (first match wins):
  * 1. Band edge → new band: within {@link BAND_EDGE_ZONE_PX} inside the
- *    workspace's top (bottom) edge, full width, while there is no band there.
+ *    workspace's top (bottom) edge — the top zone also reaches
+ *    {@link BAND_EDGE_OUTSIDE_PX} above it, over the top bar's lower edge —
+ *    full width, while there is no band there; but never over a tab strip:
+ *    a panel's header always wins (in practice the zone is the workspace's
+ *    padding above / below the panels, the gaps between columns, and that
+ *    reach above the top edge).
  * 2. Column edge → new column: within {@link EDGE_ZONE_GUTTER_PX} either side
  *    of the gap between two columns, or within {@link EDGE_ZONE_OUTER_PX}
  *    inside the column area's outer left / right edge — only between the
@@ -68,6 +73,8 @@ export const EDGE_ZONE_GUTTER_PX = 16
 export const EDGE_ZONE_OUTER_PX = 24
 /** Height of the new-band zone just inside the workspace's top / bottom edge. */
 export const BAND_EDGE_ZONE_PX = 24
+/** How far the top new-band zone reaches above the workspace's top edge (over the top bar). */
+export const BAND_EDGE_OUTSIDE_PX = 16
 
 export type CellZone = 'top' | 'middle' | 'bottom'
 
@@ -149,14 +156,29 @@ function stripHit(cell: CellGeometry, header: Rect, p: Point): WorkspaceDropHit 
   return { kind: 'tab-strip', cellId: cell.id, index, lineX }
 }
 
-export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDropHit | null {
-  if (!inside(geo.area, p)) return null
-  if (geo.columns.length === 0 && geo.bands.length === 0) return null
+/** Whether `p` is over any panel's header (a tab strip). */
+function overStrip(geo: WorkspaceGeometry, p: Point): boolean {
+  const panels = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)]
+  return panels.some((panel) => panel.header != null && inside(panel.header, p))
+}
 
+/** The new-band edge `p` is in, if any: a free edge's zone, outside every tab strip. */
+function bandEdgeAt(geo: WorkspaceGeometry, p: Point): BandEdge | null {
+  if (p.x < geo.area.left || p.x > geo.area.right) return null
   for (const edge of freeBandEdges(geo)) {
-    const near = edge === 'top' ? p.y <= geo.area.top + BAND_EDGE_ZONE_PX : p.y >= geo.area.bottom - BAND_EDGE_ZONE_PX
-    if (near) return { kind: 'new-band', edge }
+    const near = edge === 'top'
+      ? p.y >= geo.area.top - BAND_EDGE_OUTSIDE_PX && p.y <= geo.area.top + BAND_EDGE_ZONE_PX
+      : p.y <= geo.area.bottom && p.y >= geo.area.bottom - BAND_EDGE_ZONE_PX
+    if (near && !overStrip(geo, p)) return edge
   }
+  return null
+}
+
+export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDropHit | null {
+  if (geo.columns.length === 0 && geo.bands.length === 0) return null
+  const bandEdge = bandEdgeAt(geo, p)
+  if (bandEdge) return { kind: 'new-band', edge: bandEdge }
+  if (!inside(geo.area, p)) return null
 
   const inColumnRows = p.y >= geo.columnArea.top && p.y <= geo.columnArea.bottom
   const edges = inColumnRows ? columnEdgeXs(geo) : []

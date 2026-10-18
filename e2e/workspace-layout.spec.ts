@@ -74,9 +74,8 @@ test.describe('tab drop targets', () => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const first = await wsTab(page, 'notesTab').boundingBox()
     if (!first) throw new Error('no tab')
-    // Left half of the first tab, clear of the outer-edge new-column zone, and
-    // low in the strip — its top part is inside the new-band zone (the top 24px).
-    await dragTab(page, wsTab(page, 'eisTab'), { x: first.x + 20, y: first.y + first.height - 4 }, async () => {
+    // Left half of the first tab, clear of the outer-edge new-column zone.
+    await dragTab(page, wsTab(page, 'eisTab'), { x: first.x + 20, y: first.y + first.height / 2 }, async () => {
       await expect(wsCell(page, 'a1').getByTestId('ws-tab-insert-line')).toBeVisible()
     })
     await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
