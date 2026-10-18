@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, fireEvent, act } from '@testing-library/react'
+import { render, fireEvent, act, cleanup } from '@testing-library/react'
 import { TaskRowGrid } from '../../../components/task/TaskRowGrid'
 import { createValueStore } from '../../../utils/value-store'
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
 })
 
