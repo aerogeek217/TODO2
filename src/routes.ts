@@ -14,7 +14,11 @@ export type AppRoute =
   | typeof ROUTE_WORKSPACE
   | typeof ROUTE_SETTINGS
 
-/** Route state for `/settings`: the mobile Settings page opens on `section` (e.g. from the phone's storage status sheet). */
+/**
+ * Route state for `/settings`: the mobile Settings page opens on `section`,
+ * scrolled to `part` (e.g. File storage, from the phone's storage status sheet).
+ */
 export interface SettingsRouteState {
   section?: 'database'
+  part?: 'file-storage'
 }

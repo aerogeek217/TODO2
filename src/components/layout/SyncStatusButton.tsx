@@ -66,7 +66,7 @@ export function SyncStatusButton() {
             className={styles.settingsRow}
             onClick={() => {
               close()
-              const routeState: SettingsRouteState = { section: 'database' }
+              const routeState: SettingsRouteState = { section: 'database', part: 'file-storage' }
               void navigate(ROUTE_SETTINGS, { state: routeState })
             }}
           >

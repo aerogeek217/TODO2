@@ -1,6 +1,6 @@
 import { useCallback, useId, useLayoutEffect, useRef } from 'react'
 import { useUIStore } from '../../stores/ui-store'
-import { SETTINGS_SECTIONS, settingsSection } from './sections/settings-sections'
+import { SETTINGS_SECTIONS, scrollToSettingsPart, settingsSection } from './sections/settings-sections'
 import { SettingsLayerContext } from './sections/settings-layer'
 import { SettingsSectionBody } from './sections/SettingsSectionBody'
 import { DialogFrame } from '../shared/Dialog'
@@ -45,9 +45,7 @@ function SettingsModalFrame() {
   // A deep link to a part: show the section scrolled to it, then forget it.
   useLayoutEffect(() => {
     if (!part) return
-    const content = contentRef.current
-    const el = content?.querySelector<HTMLElement>(`[data-settings-part="${part}"]`)
-    if (content && el) content.scrollTop += el.getBoundingClientRect().top - content.getBoundingClientRect().top - 8
+    if (contentRef.current) scrollToSettingsPart(contentRef.current, part)
     useUIStore.getState().clearSettingsPart()
   }, [part, sectionId])
 

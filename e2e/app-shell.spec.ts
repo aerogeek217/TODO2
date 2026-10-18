@@ -153,7 +153,8 @@ test('the storage pill’s popover opens Settings on Database, at File storage',
   await expect(popover).toBeHidden()
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
-  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
+  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['Import / Export', 'Data integrity', 'File storage', 'Backups'])
+  await expect(settings.getByRole('heading', { level: 3, name: 'File storage' })).toBeInViewport()
   await expect(settings.getByRole('button', { name: 'Attach to File' })).toBeInViewport()
   // The old "stored locally" strip is gone.
   await expect(page.getByText('Your data is stored locally')).toHaveCount(0)

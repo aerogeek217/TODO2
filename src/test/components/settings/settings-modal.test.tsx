@@ -56,14 +56,14 @@ describe('SettingsModal', () => {
     expect(sectionHeading()).toBe('Database')
   })
 
-  it('Tasks holds Task defaults then Completed tasks; Database File storage, Backups, Import / Export, Data integrity — each headed', () => {
+  it('Tasks holds Task defaults then Completed tasks; Database Import / Export, Data integrity, File storage, Backups — each headed', () => {
     render(<SettingsModal />)
     open('tasks')
     const parts = () => Array.from(screen.getByRole('dialog', { name: 'Settings' }).querySelectorAll('h3')).map((h) => h.textContent)
     expect(parts()).toEqual(['Task defaults', 'Completed tasks'])
     expect(screen.getByRole('region', { name: 'Completed tasks' })).toHaveAttribute('data-settings-part', 'completed')
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
-    expect(parts()).toEqual(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
+    expect(parts()).toEqual(['Import / Export', 'Data integrity', 'File storage', 'Backups'])
   })
 
   it('a deep link to a part opens its section (the old section ids still work)', () => {

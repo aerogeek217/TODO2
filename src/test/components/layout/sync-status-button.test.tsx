@@ -64,7 +64,7 @@ describe('SyncStatusButton (phone top bar)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('a sync error is red; File storage settings opens the Settings page on Database', () => {
+  it('a sync error is red; File storage settings opens the Settings page on Database, at File storage', () => {
     useFileStorageStore.setState({ isConnected: true, fileName: 'todo2.json', error: 'Failed to save to file' })
     renderButton()
     const button = screen.getByRole('button', { name: 'Storage: Sync error' })
@@ -72,6 +72,6 @@ describe('SyncStatusButton (phone top bar)', () => {
     fireEvent.click(button)
     fireEvent.click(screen.getByRole('button', { name: 'File storage settings' }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByTestId('where')).toHaveTextContent('/settings {"section":"database"}')
+    expect(screen.getByTestId('where')).toHaveTextContent('/settings {"section":"database","part":"file-storage"}')
   })
 })

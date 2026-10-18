@@ -265,7 +265,13 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
   const pill = page.getByTestId('storage-pill')
   await expect(pill).toHaveAttribute('data-state', 'backup')
   await pill.click()
-  await expect(page.getByRole('dialog', { name: 'Backup warning' })).toContainText('No backup was taken before deleting 1 completed task')
+  const warning = page.getByRole('dialog', { name: 'Backup warning' })
+  await expect(warning).toContainText('No backup was taken before deleting 1 completed task')
+  // Open Backups… lands on the Backups part (the last of Database's parts), scrolled into view.
+  await warning.getByRole('button', { name: 'Open Backups…' }).click()
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await expect(settings.getByRole('heading', { level: 3, name: 'Backups' })).toBeInViewport()
 })
 
 test.describe('phone', () => {

@@ -62,10 +62,10 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     label: 'Database',
     Icon: DatabaseIcon,
     parts: [
-      { id: 'file-storage', label: 'File storage', Body: FileStorageSection, mobile: true },
-      { id: 'backups', label: 'Backups', Body: BackupsSection, mobile: false },
       { id: 'import-export', label: 'Import / Export', Body: ImportExportSection, mobile: true },
       { id: 'data-integrity', label: 'Data integrity', Body: DataIntegritySection, mobile: false },
+      { id: 'file-storage', label: 'File storage', Body: FileStorageSection, mobile: true },
+      { id: 'backups', label: 'Backups', Body: BackupsSection, mobile: false },
     ],
   },
   single('shortcuts', 'Keyboard shortcuts', KeyboardIcon, ShortcutsSection, false),
@@ -84,3 +84,9 @@ export function visibleParts(section: SettingsSectionDef, mobile: boolean): read
 
 /** The sections the mobile Settings page lists: those with a part it shows. */
 export const MOBILE_SETTINGS_SECTIONS: readonly SettingsSectionDef[] = SETTINGS_SECTIONS.filter((s) => s.parts.some((p) => p.mobile))
+
+/** Scrolls `container` so a merged section's part (its `data-settings-part`) sits at the top, 8px down. */
+export function scrollToSettingsPart(container: HTMLElement, part: SettingsPartId): void {
+  const el = container.querySelector<HTMLElement>(`[data-settings-part="${part}"]`)
+  if (el) container.scrollTop += el.getBoundingClientRect().top - container.getBoundingClientRect().top - 8
+}

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 import type { SettingsSectionId } from '../stores/ui-store'
-import { MOBILE_SETTINGS_SECTIONS, settingsSection } from '../components/settings/sections/settings-sections'
+import { MOBILE_SETTINGS_SECTIONS, scrollToSettingsPart, settingsSection } from '../components/settings/sections/settings-sections'
 import { SettingsSectionBody } from '../components/settings/sections/SettingsSectionBody'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/shared/icons'
 import type { SettingsRouteState } from '../routes'
@@ -13,18 +13,24 @@ import styles from './SettingsPage.module.css'
  * it — only its phone parts — with a back arrow. Desktop opens
  * the same sections in the Settings modal instead (`SettingsModal`).
  * Navigated to with a section as route state (the status sheet's File
- * storage settings), it opens on that section.
+ * storage settings), it opens on that section, scrolled to the route
+ * state's part.
  */
 export function SettingsPage() {
   const location = useLocation()
-  const [openId, setOpenId] = useState<SettingsSectionId | null>(
-    () => (location.state as SettingsRouteState | null)?.section ?? null,
-  )
+  const routeState = location.state as SettingsRouteState | null
+  const [openId, setOpenId] = useState<SettingsSectionId | null>(() => routeState?.section ?? null)
+  const pageRef = useRef<HTMLDivElement>(null)
+  // The route state's part: scroll to it once, on arrival.
+  const [initialPart] = useState(() => routeState?.part ?? null)
+  useLayoutEffect(() => {
+    if (initialPart && pageRef.current) scrollToSettingsPart(pageRef.current, initialPart)
+  }, [initialPart])
 
   if (openId) {
     const section = settingsSection(openId)
     return (
-      <div className={styles.page}>
+      <div ref={pageRef} className={styles.page} data-settings-page="">
         <div className={`${styles.panel} ${styles.slideIn}`} key={section.id}>
           <div className={styles.header}>
             <button type="button" className={styles.back} aria-label="Back to Settings" onClick={() => setOpenId(null)}>

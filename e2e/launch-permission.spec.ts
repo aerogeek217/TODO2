@@ -260,6 +260,19 @@ test('phone: the same question, the answers as two stacked full-width buttons', 
   expect(Math.round(sheetBox.y + sheetBox.height)).toBe(844)
   await sheet.getByRole('button', { name: 'File storage settings' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Database')
-  await expect(page.getByRole('button', { name: 'Grant Access' })).toBeVisible()
+  // Scrolled to File storage (Import / Export comes first).
+  const part = page.getByRole('heading', { level: 3, name: 'File storage' })
+  await expect(part).toBeInViewport()
+  const scroll = await part.evaluate((h) => {
+    const pageEl = h.closest('[data-settings-page]') as HTMLElement
+    return {
+      top: pageEl.scrollTop,
+      max: pageEl.scrollHeight - pageEl.clientHeight,
+      offset: h.getBoundingClientRect().top - pageEl.getBoundingClientRect().top,
+    }
+  })
+  // As far as the page scrolls, or until the part is at its top.
+  expect(scroll.top >= scroll.max - 1 || scroll.offset < 40).toBe(true)
+  await expect(page.getByRole('button', { name: 'Grant Access' })).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Disconnect' })).toBeVisible()
 })
