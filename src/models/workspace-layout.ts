@@ -80,10 +80,14 @@ export function isEisenhowerQuadrant(v: unknown): v is EisenhowerQuadrant {
 /** The largest stored task-row details width, px (`TaskRowsViewState.detailsWidth`). */
 export const DETAILS_WIDTH_MAX = 4000
 
-/** A stored details width as it is kept: a finite number in 0 … `DETAILS_WIDTH_MAX`, rounded; else none. */
+/**
+ * A stored details width as it is kept: a finite number ≥ 0, rounded and
+ * capped at `DETAILS_WIDTH_MAX` (a very wide list's divider can store more);
+ * else none.
+ */
 export function pickDetailsWidth(v: unknown): number | undefined {
-  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > DETAILS_WIDTH_MAX) return undefined
-  return Math.round(v)
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return undefined
+  return Math.min(DETAILS_WIDTH_MAX, Math.round(v))
 }
 
 /** View state of a tab that shows task rows. */

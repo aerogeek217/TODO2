@@ -35,7 +35,6 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
   ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
-  ['details width over 4000', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: {}, viewState: { detailsWidth: 4001 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
   ['band not an object', layoutRow([], { bottom: 'yes' }), 'bottom'],
   ['band with no tabs', layoutRow([], { top: { id: 'b', height: 160, tabs: [] } }), 'top.tabs'],
   ['band tabs not a list', layoutRow([], { top: { id: 'b', height: 160, tabs: {} } }), 'top.tabs'],
@@ -178,6 +177,16 @@ describe('layouts row validation', () => {
     expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs.map((t) => t.viewState)).toEqual([
       { detailsWidth: 263 }, { detailsWidth: 180 }, { detailsWidth: 0 }, undefined,
     ])
+  })
+
+  it('a details width past 4000 — a very wide list’s divider — is valid and read as 4000', () => {
+    // The divider stores up to the list's own room, which a wide band can put past 4000 px.
+    const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 4630 } }))
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual([])
+    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 4000 })
   })
 
   it('import keeps a dashboard config’s known ids (once, in order) and options, drops the rest', () => {
