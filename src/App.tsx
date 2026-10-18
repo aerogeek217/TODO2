@@ -7,7 +7,6 @@ import { useSettingsStore } from './stores/settings-store'
 import { useFileStorageStore } from './services/file-storage-store'
 import { fileStorageService } from './services/file-storage'
 import { TopBar } from './components/layout/TopBar'
-import { FileSyncBanner } from './components/layout/FileSyncBanner'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
@@ -358,7 +357,6 @@ function AppShell() {
     <div className={styles.app}>
       <div className={styles.mainColumn}>
         {!isMobile && <TopBar />}
-        {!isMobile && <FileSyncBanner />}
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>

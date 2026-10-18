@@ -43,6 +43,6 @@ export async function takeSafetySnapshot(operation: string): Promise<SafetySnaps
     cancelIsDefault: true,
   })
   if (!proceed) return 'cancelled'
-  backupRepository.reportSnapshotWarning(`No backup was taken before ${operation} — the backup could not be saved. Free up browser storage so the next one works.`)
+  backupRepository.reportSnapshotWarning(`No backup was taken before ${operation} — the backup could not be saved.`)
   return 'without-backup'
 }

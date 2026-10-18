@@ -1,0 +1,193 @@
+/* A sync warning's section, in the storage pill's popover or the phone's
+ * status sheet. Sections are separated by a full-bleed rule. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section + .section {
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.popover + .popover {
+  margin: 4px -16px 0;
+  padding: 12px 16px 0;
+}
+
+.sheet + .sheet {
+  margin: 4px -16px 0;
+  padding: 16px 16px 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconTile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.sheet .iconTile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+.danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.sheet .title {
+  font-size: 16px;
+}
+
+.why,
+.flag,
+.body {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.why {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
+.sheet .why {
+  font-size: 15px;
+}
+
+.flag {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-danger-text);
+}
+
+.sheet .flag {
+  font-size: 14px;
+}
+
+.body {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.sheet .body {
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.primary,
+.secondary,
+.warningFill,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+}
+
+.secondary {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--color-tint-12);
+}
+
+.warningFill {
+  background: var(--color-warning-bg-strong);
+  color: var(--color-text-primary);
+}
+
+.warningFill:hover:not(:disabled) {
+  background: var(--color-warning-ring);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.primary:disabled,
+.secondary:disabled,
+.warningFill:disabled,
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.primary:focus-visible,
+.secondary:focus-visible,
+.warningFill:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Phone: full-width 44px buttons, the primary first. */
+.sheet .actions {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet .primary,
+.sheet .secondary,
+.sheet .warningFill,
+.sheet .ghost {
+  height: 44px;
+  font-size: 15px;
+}

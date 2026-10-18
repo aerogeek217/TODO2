@@ -122,12 +122,19 @@ test('import: a failed backup asks first — Cancel changes nothing, Continue im
   expect(await dbTitles(page)).toEqual(['Exported task'])
   expect((await dbBackups(page)).filter((b) => b.trigger !== 'auto')).toEqual([])
 
-  // The warning strip keeps saying so until dismissed.
+  // The storage pill keeps saying so until dismissed (no strip).
   await page.keyboard.press('Escape')
-  const strip = page.getByRole('alert').filter({ hasText: 'No backup was taken before importing the file' })
-  await expect(strip).toBeVisible()
-  await strip.getByRole('button', { name: 'Dismiss' }).click()
-  await expect(strip).toBeHidden()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'backup')
+  await expect(pill).toHaveText('Backup warning')
+  await pill.click()
+  const popover = page.getByRole('dialog', { name: 'Backup warning' })
+  await expect(popover).toContainText('No backup was taken before importing the file')
+  await expect(popover).toContainText('Free up browser storage so the next one works, or delete old backups.')
+  await popover.getByRole('button', { name: 'Dismiss' }).click()
+  await expect(popover).toBeHidden()
+  await expect(pill).toHaveAttribute('data-state', 'local')
 })
 
 test('bulk delete: a failed backup asks first — Cancel keeps the tasks, Continue deletes and the snackbar says no backup was taken', async ({ page }) => {
@@ -233,7 +240,7 @@ test('Export & delete after a plain download asks "Did the file save?" before de
   expect(await dbTitles(page)).toEqual(['Keep'])
 })
 
-test('launch purge: a failed backup asks first — Cancel keeps the tasks, Continue deletes and the strip says so', async ({ page }) => {
+test('launch purge: a failed backup asks first — Cancel keeps the tasks, Continue deletes and the storage pill says so', async ({ page }) => {
   await installBackupFailureSwitch(page)
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
@@ -255,7 +262,10 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
   await prompt.getByRole('button', { name: 'Continue' }).click()
   await expect(purge).toBeHidden()
   expect(await dbTitles(page)).toEqual([])
-  await expect(page.getByRole('alert').filter({ hasText: 'No backup was taken before deleting 1 completed task' })).toBeVisible()
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'backup')
+  await pill.click()
+  await expect(page.getByRole('dialog', { name: 'Backup warning' })).toContainText('No backup was taken before deleting 1 completed task')
 })
 
 test.describe('phone', () => {

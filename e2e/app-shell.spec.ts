@@ -5,8 +5,8 @@ import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from '.
  * The app shell in a real browser: one top bar (New task, layout picker,
  * the screen-filter tray, the storage pill, the Settings gear), the Settings
  * modal, and the narrow-window Filters menu. The unsaved-layout case (Settings
- * never prompts) lives in `workspace-layout.spec.ts`; the paused-sync strip
- * on a cold load in `file-sync-conflict.spec.ts`.
+ * never prompts) lives in `workspace-layout.spec.ts`; the storage pill's
+ * warning states in `storage-pill.spec.ts`.
  */
 
 const team: WorkspaceSeed = {

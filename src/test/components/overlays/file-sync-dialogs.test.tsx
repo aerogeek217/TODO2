@@ -1,9 +1,7 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { SyncConflictDialog } from '../../../components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from '../../../components/overlays/FileUpgradeDialog'
-import { FileSyncBanner } from '../../../components/layout/FileSyncBanner'
-import { useFileStorageStore } from '../../../services/file-storage-store'
 import type { SyncConflictInfo } from '../../../services/file-storage'
 
 afterEach(() => cleanup())
@@ -77,47 +75,5 @@ describe('FileUpgradeDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel (pause sync)' }))
     expect(onConfirm).toHaveBeenCalledTimes(1)
     expect(onCancel).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('FileSyncBanner — paused', () => {
-  const retry = vi.fn().mockResolvedValue(undefined)
-  const overwrite = vi.fn().mockResolvedValue(undefined)
-
-  beforeEach(() => {
-    retry.mockClear()
-    overwrite.mockClear()
-    useFileStorageStore.setState({
-      paused: { reason: 'too-new', message: 'File sync paused — newer version' },
-      fileName: 'todo2-data.json',
-      needsPermission: false,
-      error: null,
-      retry,
-      overwriteFileWithBrowser: overwrite,
-    })
-  })
-
-  it('shows the reason with Retry and a confirmed overwrite', () => {
-    render(<FileSyncBanner />)
-    expect(screen.getByTestId('file-sync-paused')).toHaveTextContent('File sync paused — newer version')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(retry).toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Keep browser data…' }))
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('written by a newer version of TODO2')
-    expect(overwrite).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Overwrite file' }))
-    expect(overwrite).toHaveBeenCalledTimes(1)
-  })
-
-  it('cancelling the overwrite confirmation changes nothing', () => {
-    render(<FileSyncBanner />)
-    fireEvent.click(screen.getByRole('button', { name: 'Keep browser data…' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(overwrite).not.toHaveBeenCalled()
-    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

@@ -15,7 +15,7 @@ const snapshotWarningListeners = new Set<SnapshotWarningListener>()
 /**
  * Subscribes `listener` to backup warnings (`reportSnapshotWarning`);
  * returns its unsubscribe. `file-ops-store` subscribes for the app's
- * lifetime and `FileSyncBanner` surfaces the warning. Each subscriber only
+ * lifetime and the storage pill surfaces the warning. Each subscriber only
  * removes itself, so another subscriber coming and going can't silence it.
  */
 function onSnapshotWarning(listener: SnapshotWarningListener): () => void {

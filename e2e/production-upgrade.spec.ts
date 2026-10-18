@@ -217,8 +217,7 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
 
   // Cancel: both sides untouched, sync paused, no file backup.
   await upgrade.getByRole('button', { name: 'Cancel (pause sync)' }).click()
-  const strip = page.getByTestId('file-sync-paused')
-  await expect(strip).toContainText('was saved by an older version of TODO2')
+  const pill = page.getByTestId('storage-pill')
   expect(await readSyncFile(page)).toBe(fileText)
   const afterCancel = await dumpDb(page)
   expect(tableRows(afterCancel.stores, dataTables)).toEqual(tableRows(upgradedAtOpen.stores, dataTables))
@@ -229,12 +228,17 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   await purge.getByRole('button', { name: 'Not now' }).click()
   await expect(purge).toBeHidden()
 
-  // Retry → the same prompt → upgrade.
-  await strip.getByRole('button', { name: 'Retry' }).click()
+  // The storage pill says so (no strip). Retry → the same prompt → upgrade.
+  await expect(pill).toHaveAttribute('data-state', 'paused')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await pill.click()
+  const paused = page.getByRole('dialog', { name: 'Sync paused' })
+  await expect(paused).toContainText('was saved by an older version of TODO2')
+  await paused.getByRole('button', { name: 'Retry' }).click()
   await expect(upgrade).toBeVisible()
   await upgrade.getByRole('button', { name: 'Upgrade file' }).click()
   await expect(upgrade).toBeHidden()
-  await expect(strip).toHaveCount(0)
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
   await expect.poll(async () => (JSON.parse(await readSyncFile(page)) as Row).__schemaVersion).toBe(CURRENT_DB_VERSION)
 
   // The raw v49 text was backed up.
@@ -290,13 +294,13 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
     .toMatchObject({ dirtySince: null })
 
   // A reload loads the file silently: once startup reaches the launch purge
-  // prompt (after the sync-file load), no sync prompt or warning strip showed.
+  // prompt (after the sync-file load), no sync prompt showed.
   await page.reload()
   await expect(purge).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(1)
   await purge.getByRole('button', { name: 'Not now' }).click()
   await expect(page.getByTestId('storage-pill')).toHaveText(SYNC_FILE)
-  await expect(page.getByTestId('file-sync-paused')).toHaveCount(0)
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
   // The dark override paints the app (the fixture's theme is dark).
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(32, 48, 64)')
   const final = await dumpDb(page)

@@ -6,16 +6,18 @@ import dialogStyles from '../overlays/FileSyncDialogs.module.css'
 interface FileSyncPausedControlsProps {
   buttonClassName?: string
   primaryButtonClassName?: string
+  /** Called when Retry is pressed (the storage pill closes its popover). */
+  onRetry?: () => void
 }
 
 /**
  * The ways forward from a paused sync: Retry (re-run the load decision —
  * re-shows the conflict / upgrade prompt, or re-reads a fixed file) and
  * "Keep browser data…" (confirm, back the file up, overwrite it). Leaving it
- * alone keeps sync paused with both sides untouched. Shared by
- * the sync warning strip, the storage pill and Settings → File storage.
+ * alone keeps sync paused with both sides untouched. Shared by the storage
+ * pill's popover, the phone's status sheet and Settings → File storage.
  */
-export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName }: FileSyncPausedControlsProps) {
+export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName, onRetry }: FileSyncPausedControlsProps) {
   const paused = useFileStorageStore((s) => s.paused)
   const fileName = useFileStorageStore((s) => s.fileName)
   const isLoading = useFileStorageStore((s) => s.isLoading)
@@ -27,7 +29,7 @@ export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName
 
   return (
     <>
-      <button className={buttonClassName} onClick={() => { void retry() }} disabled={isLoading}>
+      <button className={buttonClassName} onClick={() => { void retry(); onRetry?.() }} disabled={isLoading}>
         Retry
       </button>
       <button

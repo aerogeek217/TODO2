@@ -82,20 +82,27 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   await expect(dialog.locator(':focus')).toHaveCount(1)
   expect(await readSyncFile(page)).toBe(fileText)
 
-  // Cancel → paused, both sides untouched.
+  // Cancel → paused, both sides untouched; the storage pill says so (no strip).
   await dialog.getByRole('button', { name: 'Cancel (pause sync)' }).click()
-  const banner = page.getByTestId('file-sync-paused')
-  await expect(banner).toContainText('File sync paused')
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'paused')
   expect(await readSyncFile(page)).toBe(fileText)
-  // The strip sits under the Settings modal: close it first.
+  // The pill sits under the Settings modal: close it first.
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden()
+  await expect(page.getByRole('alert')).toHaveCount(0)
   const titles = ((await dumpDb(page)).todos as Array<{ title: string }>).map((t) => t.title)
   expect(titles).toEqual(['Browser task'])
 
-  // Retry → asked again → keep the browser's data, by keyboard: the cards are
-  // a radio group with nothing picked; the one confirm is named after the pick.
-  await banner.getByRole('button', { name: 'Retry' }).click()
+  // Retry (from the pill's popover) → asked again → keep the browser's data,
+  // by keyboard: the cards are a radio group with nothing picked; the one
+  // confirm is named after the pick.
+  await pill.click()
+  const popover = page.getByRole('dialog', { name: 'Sync paused' })
+  await expect(popover).toContainText('have different data. Choose which version to keep.')
+  await expect(popover).toContainText('Retry shows the choice again')
+  await popover.getByRole('button', { name: 'Retry' }).click()
+  await expect(popover).toBeHidden()
   await expect(dialog).toBeVisible()
   const browserCard = dialog.getByRole('radio', { name: /This browser/ })
   const fileCard = dialog.getByRole('radio', { name: /\.json/ })
@@ -115,7 +122,7 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   await expect(keep).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(dialog).toBeHidden()
-  await expect(banner).toBeHidden()
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
 
   await expect.poll(async () => {
     const written = JSON.parse(await readSyncFile(page)) as { todos: Array<{ title: string }> }
@@ -130,7 +137,7 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(page.getByTestId('file-sync-paused')).toHaveCount(0)
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
   // Connected again: Settings shows the attached file.
   await expect((await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to Different File' })).toBeVisible()
 })
@@ -144,11 +151,12 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   await gotoSettingsDeepLink(page)
   await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
 
-  await expect(page.getByTestId('file-sync-paused')).toContainText('invalid JSON')
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'paused')
   // A real app edit (QuickAdd → Dexie hooks), not a raw IDB write.
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  await expect(page.getByTestId('file-sync-paused')).toBeVisible()
+  await expect(pill).toHaveAttribute('data-state', 'paused')
   await page.keyboard.press('Control+Space')
   const quickAdd = page.getByRole('dialog', { name: 'Quick add task' })
   await quickAdd.getByPlaceholder('New task…').fill('Edit while paused')
@@ -162,17 +170,17 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   const state = await page.evaluate(() => localStorage.getItem('todo2-file-sync-state'))
   expect(JSON.parse(state ?? '{}').dirtySince).toBeTruthy()
 
-  // A cold load still shows the warning strip, and the storage pill says so.
+  // A cold load still says so: in the storage pill and its popover, no strip.
   await page.goto('about:blank')
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  const strip = page.getByTestId('file-sync-paused')
-  await expect(strip).toContainText('invalid JSON')
-  await expect(strip.getByRole('button', { name: 'Retry' })).toBeVisible()
-  await expect(strip.getByRole('button', { name: 'Keep browser data…' })).toBeVisible()
-  const pill = page.getByTestId('storage-pill')
   await expect(pill).toHaveAttribute('data-state', 'paused')
   await expect(pill).toHaveText('Sync paused')
+  await expect(page.getByRole('alert')).toHaveCount(0)
   await pill.click()
-  await expect(page.getByRole('dialog', { name: 'Sync paused' })).toContainText('invalid JSON')
+  const popover = page.getByRole('dialog', { name: 'Sync paused' })
+  await expect(popover).toContainText('The file contains invalid JSON')
+  await expect(popover).toContainText('Nothing has been written to either side.')
+  await expect(popover.getByRole('button', { name: 'Retry' })).toBeVisible()
+  await expect(popover.getByRole('button', { name: 'Keep browser data…' })).toBeVisible()
 })

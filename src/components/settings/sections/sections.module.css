@@ -190,7 +190,7 @@
 
 .warningText {
   font-size: var(--font-size-meta);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 
 .successMsg {

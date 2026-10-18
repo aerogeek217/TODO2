@@ -69,7 +69,7 @@
 .notice {
   margin: 0 24px 8px;
   font-size: var(--font-size-meta);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 
 .footer {

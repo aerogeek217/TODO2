@@ -87,7 +87,11 @@ test('an automatic or manual backup that cannot be stored warns instead of faili
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 
-  await expect(page.getByRole('alert').filter({ hasText: 'The automatic backup could not be saved' })).toBeVisible()
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'backup')
+  await pill.click()
+  await expect(page.getByRole('dialog', { name: 'Backup warning' })).toContainText('The automatic backup could not be saved')
+  await page.keyboard.press('Escape')
   expect(await dbBackups(page)).toEqual([])
 
   const settings = await gotoSettingsDeepLink(page)

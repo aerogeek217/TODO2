@@ -74,7 +74,7 @@ interface FileOpsState {
   /**
    * Set when a backup snapshot fails its import self-check (the snapshot is
    * still saved), or when a destructive operation ran without a backup.
-   * Surfaced by `FileSyncBanner` until dismissed.
+   * Surfaced by the storage pill (Backup warning) until dismissed.
    */
   snapshotWarning: string | null
   dismissSnapshotWarning: () => void
@@ -162,5 +162,5 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => {
 })
 
 // Backup warnings (see `backupRepository.reportSnapshotWarning`) land in the
-// store so `FileSyncBanner` can surface them.
+// store so the storage pill can surface them.
 backupRepository.onSnapshotWarning((message) => useFileOpsStore.setState({ snapshotWarning: message }))

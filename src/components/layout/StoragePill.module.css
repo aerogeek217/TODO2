@@ -36,6 +36,11 @@
   flex-shrink: 0;
 }
 
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .text {
   max-width: 160px;
   overflow: hidden;
@@ -46,25 +51,57 @@
   background: var(--color-accent);
 }
 
-.paused,
-.error {
-  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
-  box-shadow: none;
-  color: var(--color-warning);
-}
-
-.paused .dot,
-.error .dot {
-  background: var(--color-warning);
-}
-
 .open,
 .open:hover {
   background: var(--color-tint-8);
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
-/* Below 1024px only the dot shows, unless the pill is a warning. */
+/* Amber: waiting for the user (permission needed, paused, backup warning). */
+.warning {
+  padding: 0 9px 0 7px;
+  background: var(--color-warning-bg);
+  box-shadow: inset 0 0 0 1px var(--color-warning-ring);
+  color: var(--color-warning-text);
+}
+
+.warning:hover,
+.warning.open {
+  background: var(--color-warning-bg-strong);
+  box-shadow: inset 0 0 0 1px var(--color-warning-text);
+}
+
+/* Red: something failed (sync error). */
+.danger {
+  padding: 0 9px 0 7px;
+  background: var(--color-danger-bg);
+  box-shadow: inset 0 0 0 1px var(--color-danger-ring);
+  color: var(--color-danger-text);
+}
+
+.danger:hover,
+.danger.open {
+  background: var(--color-danger-bg-strong);
+  box-shadow: inset 0 0 0 1px var(--color-danger-text);
+}
+
+/* Two or more warnings: their number after the label. */
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  min-width: 16px;
+  box-sizing: border-box;
+  margin-right: -4px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-bg-strong);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+}
+
+/* Below 1024px Local only and Syncing shrink to the dot; warnings keep their label. */
 @media (max-width: 1023px) {
   .local,
   .syncing {
@@ -79,14 +116,30 @@
   }
 }
 
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ═══ Popover ═══ */
 
 .popover {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 320px;
-  padding: 14px 16px;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 14px 16px 12px;
   border-radius: 8px;
   background: var(--color-surface-high);
   box-shadow: var(--shadow-dropdown);
@@ -112,17 +165,11 @@
   height: 8px;
   border-radius: 50%;
   background: var(--color-text-muted);
-  box-shadow: none;
   flex-shrink: 0;
 }
 
 .titleDot.syncing {
   background: var(--color-accent);
-}
-
-.titleDot.paused,
-.titleDot.error {
-  background: var(--color-warning);
 }
 
 .body {
@@ -180,7 +227,36 @@
 }
 
 .primary:focus-visible,
-.secondary:focus-visible {
+.secondary:focus-visible,
+.footerLink:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* The warnings' footer: a rule, then the way to Settings → File storage. */
+.footer {
+  margin: 2px -16px 0;
+  padding: 8px 12px 0;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.footerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.footerLink:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
 }

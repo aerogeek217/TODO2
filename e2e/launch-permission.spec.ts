@@ -29,7 +29,7 @@ async function schemaVersion(page: Page): Promise<number> {
  * one), and the sync file attached — holding this browser's data, or the
  * same data with every task renamed (`differ`). Returns the file's text.
  */
-async function setUp(page: Page, { differ = false } = {}): Promise<string> {
+async function setUp(page: Page, { differ = false, fileOnlyTask }: { differ?: boolean; fileOnlyTask?: string } = {}): Promise<string> {
   await stubFilePermission(page)
   await page.goto('/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
@@ -44,6 +44,10 @@ async function setUp(page: Page, { differ = false } = {}): Promise<string> {
   const data = JSON.parse(JSON.stringify(await readStores(page))) as Record<string, Array<Record<string, unknown>>>
   delete data.backups
   if (differ) data.todos = (data.todos ?? []).map((t) => ({ ...t, title: `File: ${String(t.title)}` }))
+  if (fileOnlyTask) {
+    const at = old.toISOString()
+    data.todos = [...(data.todos ?? []), { id: 99, uid: crypto.randomUUID(), title: fileOnlyTask, isCompleted: true, createdAt: at, modifiedAt: at, completedAt: at, sortOrder: 1 }]
+  }
   const text = JSON.stringify({ ...data, __schemaVersion: await schemaVersion(page), savedAt: new Date().toISOString() })
   await attachSyncHandle(page, SYNC_FILE, text)
   return text
@@ -109,6 +113,11 @@ test('the question waits over the start screen; Continue without the file opens 
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect.poll(async () => (await readStore(page, 'backups')).length).toBeGreaterThan(0)
   expect(await page.evaluate(() => (window as PermissionWindow).__e2ePermissionRequests ?? 0)).toBe(0)
+  // The storage pill carries it: Permission needed (amber), no strip.
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'permission')
+  await expect(pill).toHaveText('Permission needed')
+  await expect(page.getByRole('alert')).toHaveCount(0)
 
   // Sync stays paused: an edit is kept as unsynced and never reaches the file.
   await page.keyboard.press('Control+Space')
@@ -123,6 +132,31 @@ test('the question waits over the start screen; Continue without the file opens 
   // Asked again at the next launch.
   await page.reload()
   await expect(launchQuestion(page)).toBeVisible()
+})
+
+test('Continue, then Grant access from the pill: the file loads and its own expired tasks are asked about', async ({ page }) => {
+  await setUp(page, { differ: true, fileOnlyTask: 'File-only old task' })
+  await page.reload()
+  await launchQuestion(page).getByRole('button', { name: /Continue without the file/ }).click()
+  await expect(purgePrompt(page)).toContainText('Old done task')
+  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+
+  const pill = page.getByTestId('storage-pill')
+  await pill.click()
+  const popover = page.getByRole('dialog', { name: 'Permission needed' })
+  await expect(popover).toContainText(`Sync to ${SYNC_FILE} is paused until your browser lets TODO2 open the file.`)
+  await popover.getByRole('button', { name: 'Grant access' }).click()
+  await expect(popover).toBeHidden()
+  const conflict = page.getByRole('dialog', { name: 'Browser data and sync file differ' })
+  await conflict.getByRole('radio', { name: new RegExp(SYNC_FILE.replace('.', '\\.')) }).check()
+  await conflict.getByRole('button', { name: `Keep ${SYNC_FILE}` }).click()
+  // Asked about the file's expired task only — the other was asked at launch.
+  await expect(purgePrompt(page)).toBeVisible()
+  await expect(purgePrompt(page).getByTestId('purge-task-list')).toContainText('File-only old task')
+  await expect(purgePrompt(page).getByTestId('purge-task-list')).not.toContainText('File: Old done task')
+  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
 })
 
 test('Grant access: waiting for the browser, then the load decision — its prompt shows over the start screen', async ({ page }) => {
