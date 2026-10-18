@@ -105,6 +105,7 @@ export function TaskEditMetadata({
                 onCreate={onCreatePerson}
                 onClose={() => setOpenDropdown(null)}
                 avatars
+                entityMenu="person"
                 placeholder={PERSON_PICKER_PLACEHOLDER}
               />
             </div>
@@ -136,6 +137,7 @@ export function TaskEditMetadata({
                 onToggle={onToggleTag}
                 onCreate={onCreateTag}
                 placeholder="Search tags..."
+                entityMenu="tag"
               />
             </div>
           )}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTagStore, countTodosByTag } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { Tag } from '../../models'
+import type { DialogLayer } from '../shared/Dialog'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
 import { DeleteTagConfirm } from './EntityDeleteConfirm'
@@ -19,9 +20,11 @@ interface TagEditorProps {
   onClose: () => void
   /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…). */
   editTagId?: number
+  /** The modal's tier (`EditorModal`). */
+  layer?: DialogLayer
 }
 
-export function TagEditor({ onClose, editTagId }: TagEditorProps) {
+export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
   const { tags, load, add, update, loadAssignments, assignedTagsMap } = useTagStore()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
   const todos = useTodoStore((s) => s.todos)
@@ -166,7 +169,7 @@ export function TagEditor({ onClose, editTagId }: TagEditorProps) {
 
   return (
     <>
-      <EditorModal title="Tags" onClose={onClose}>
+      <EditorModal title="Tags" onClose={onClose} layer={layer}>
         <input
           type="text"
           className={styles.searchInput}

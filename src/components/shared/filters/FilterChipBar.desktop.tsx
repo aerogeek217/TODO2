@@ -40,7 +40,8 @@ type FieldPanel =
       noneSelected: boolean
       onSelectAll: () => void
       onDeselectAll: () => void
-      items: (searchText: string) => ReactNode
+      /** `closeAll` closes every filter popover (a person's / tag's Show tasks). */
+      items: (searchText: string, closeAll: () => void) => ReactNode
       /** Below the items (the People picker's Email check-in action); `closeAll` closes every filter popover. */
       footer?: (closeAll: () => void) => ReactNode
     }
@@ -100,7 +101,7 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
         search={{ text: searchText, setText: setSearchText, onEscape: onDone }}
         searchInputRef={searchRef}
       >
-        {panel.items(searchText)}
+        {panel.items(searchText, onCloseAll)}
       </SelectionPanelBody>
       {panel.footer?.(onCloseAll)}
     </>
@@ -436,7 +437,7 @@ export function FilterChipBarDesktop({
         noneSelected: none('people', personIdsSet),
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
-        items: (searchText) => (
+        items: (searchText, closeAll) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={people}
@@ -444,6 +445,8 @@ export function FilterChipBarDesktop({
             onToggle={(id) => toggle('people', id, personIdsSet, [0, ...people.map((x) => x.id!)], setPersonIds)}
             namePrefix="@"
             showDot={false}
+            entityMenu="person"
+            onShowTasks={closeAll}
           />
         ),
         footer: (closeAll) => (
@@ -473,20 +476,18 @@ export function FilterChipBarDesktop({
         noneSelected: none('tags', tagIdsSet),
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
-        items: (searchText) => {
-          const q = searchText.toLowerCase()
-          const filtered = q ? sortedTags.filter((t) => t.name.toLowerCase().includes(q)) : sortedTags
-          if (filtered.length === 0) {
-            return <div className={picker.dropdownEmpty}>{q ? 'No matches' : 'No tags yet'}</div>
-          }
-          return filtered.map((tag) => (
-            <label key={tag.id} className={picker.dropdownItem} onClick={() => toggle('tags', tag.id!, tagIdsSet, allTagIds, setTags)}>
-              <span className={`${picker.check} ${isTagChecked(tag.id!) ? picker.checked : ''}`} />
-              {tag.color && <span className={picker.dot} style={{ background: tag.color }} />}
-              #{tag.name}
-            </label>
-          ))
-        },
+        items: (searchText, closeAll) => (
+          <EntityDropdownItems
+            searchText={searchText}
+            entities={sortedTags}
+            isChecked={isTagChecked}
+            onToggle={(id) => toggle('tags', id, tagIdsSet, allTagIds, setTags)}
+            namePrefix="#"
+            withNone={false}
+            entityMenu="tag"
+            onShowTasks={closeAll}
+          />
+        ),
       },
     })
   }

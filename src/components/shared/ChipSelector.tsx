@@ -3,6 +3,7 @@ import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './ChipSelector.module.css'
 import { byName } from '../../utils/sort-order'
 import { useUndoStore } from '../../stores/undo-store'
+import { PickerEntityMenu } from './EntityMenu'
 
 export interface ChipItem {
   id: number
@@ -27,6 +28,12 @@ interface ChipSelectorProps {
   /** Person picker: an avatar per row (filled with the person's color) and an
    * avatar preview on the create row. */
   avatars?: boolean
+  /**
+   * The items are people / tags: right-click on an option, or Shift+F10 / the
+   * context-menu key on the highlighted one, opens its Show tasks · Edit… ·
+   * Delete… menu over the picker (Show tasks closes the picker via `onClose`).
+   */
+  entityMenu?: 'person' | 'tag'
 }
 
 type Row = { kind: 'item'; item: ChipItem } | { kind: 'create'; name: string }
@@ -56,10 +63,13 @@ function Highlighted({ name, query }: { name: string; query: string }) {
  * the query exactly. Matching is a case-insensitive substring of the name.
  * Keyboard: ↑/↓ move the active row (wrapping), ⏎ toggles it (or creates),
  * Esc calls `onClose`. After a create the query clears and the picker stays
- * open. Used for people (`avatars`) and tags.
+ * open. Used for people (`avatars`) and tags. With `entityMenu`, an option's
+ * context menu is the person's / tag's menu — it never picks the option; Esc
+ * closes just the menu. A right-click anywhere else in the picker never
+ * reaches what the picker opened from.
  */
 export function ChipSelector({
-  items, selectedIds, onToggle, onCreate, placeholder = 'Search...', onClose, avatars,
+  items, selectedIds, onToggle, onCreate, placeholder = 'Search...', onClose, avatars, entityMenu,
 }: ChipSelectorProps) {
   const [query, setQuery] = useState('')
   /** Explicitly chosen active row; `null` = the default for the query. */
@@ -69,6 +79,8 @@ export function ChipSelector({
   const containerRef = useRef<HTMLDivElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const listId = useId()
+  /** The option whose entity menu is open, and where. */
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null)
 
   // Focus the search on open, remembering what had focus. A passive effect, so
   // a menu that opened the picker (e.g. the task menu's Assign people…) has
@@ -132,6 +144,23 @@ export function ChipSelector({
     else create(row.name)
   }
 
+  const openMenu = (index: number, x: number, y: number) => {
+    const row = rows[index]
+    if (!entityMenu || row?.kind !== 'item') return
+    setActiveChoice(index)
+    setMenu({ id: row.item.id, x, y })
+  }
+
+  // Shift+F10 / the context-menu key in the search field: the highlighted
+  // option's menu, under it. A right-click on the field keeps the browser's.
+  const handleInputContextMenu = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!entityMenu || e.button === 2 || rows[active]?.kind !== 'item') return
+    e.preventDefault()
+    const rect = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.getBoundingClientRect()
+    openMenu(active, (rect?.left ?? 0) + 16, rect?.bottom ?? 0)
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     e.stopPropagation()
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -157,6 +186,7 @@ export function ChipSelector({
         onChange={(e) => { setQuery(e.target.value); setActiveChoice(null) }}
         onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()}
+        onContextMenu={handleInputContextMenu}
         placeholder={placeholder}
         maxLength={200}
         role="combobox"
@@ -165,7 +195,14 @@ export function ChipSelector({
         aria-autocomplete="list"
         aria-activedescendant={active >= 0 ? optionId(active) : undefined}
       />
-      <div ref={listRef} id={listId} className={styles.list} role="listbox" aria-multiselectable="true">
+      <div
+        ref={listRef}
+        id={listId}
+        className={styles.list}
+        role="listbox"
+        aria-multiselectable="true"
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
+      >
         {rows.map((row, index) => {
           const isActive = index === active
           // Mouse-down keeps focus in the search input.
@@ -177,6 +214,11 @@ export function ChipSelector({
             onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
             onMouseMove: () => { if (!isActive) setActiveChoice(index) },
             onClick: (e: React.MouseEvent) => { e.stopPropagation(); activate(row) },
+            onContextMenu: (e: React.MouseEvent) => {
+              e.preventDefault()
+              e.stopPropagation()
+              openMenu(index, e.clientX, e.clientY)
+            },
           }
           if (row.kind === 'create') {
             return (
@@ -230,6 +272,15 @@ export function ChipSelector({
           <div className={styles.empty}>No matches</div>
         )}
       </div>
+      {menu && entityMenu && (
+        <PickerEntityMenu
+          kind={entityMenu}
+          id={menu.id}
+          point={{ x: menu.x, y: menu.y }}
+          onShowTasks={onClose}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   )
 }

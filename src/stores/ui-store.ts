@@ -45,7 +45,7 @@ export function resolveSettingsTarget(target: SettingsTarget): { section: Settin
   return { section: target as SettingsSectionId, part: null }
 }
 
-/** A person or tag picked from a task row's menu, and what to do with it (`entityAction`). */
+/** A person or tag picked from its menu (a task row's avatar / tag, a picker's option), and what to do with it (`entityAction`). */
 export interface EntityAction {
   kind: 'person' | 'tag'
   id: number
@@ -187,7 +187,7 @@ interface UIState {
   checkinDialog: { personIds: number[] } | null
   /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
   checkinImportOpen: boolean
-  /** A row avatar's / tag's Edit… or Delete… (`EntityActionHost`); `null` = none. */
+  /** A person's / tag's Edit… or Delete… from its menu (`EntityActionHost`); `null` = none. */
   entityAction: EntityAction | null
 
   selectOneTodo: (id: number) => void

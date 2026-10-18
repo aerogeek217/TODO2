@@ -25,6 +25,7 @@ import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody, type NotesSource } from './notes/NotesBody'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { isInLayerAbove } from '../../utils/dom-layers'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './TaskEditPopup.module.css'
 
@@ -511,11 +512,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const assignedPeopleIds = useMemo(() => new Set(effectiveAssignedPeople.map(p => p.id!)), [effectiveAssignedPeople])
   const assignedTagIds = useMemo(() => new Set(effectiveAssignedTags.map(t => t.id!)), [effectiveAssignedTags])
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click — not a press in a layer stacked above
+  // the editor (a person's / tag's menu or the dialog it opened).
   useEffect(() => {
     if (!openDropdown) return
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
+      const panel = panelRef.current
+      if (panel && isInLayerAbove(panel, target)) return
       if (openDropdown === 'people' && peopleRef.current && !peopleRef.current.contains(target)) {
         setOpenDropdown(null)
       }

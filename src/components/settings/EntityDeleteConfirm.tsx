@@ -30,6 +30,7 @@ export function DeletePersonConfirm({ personId, onDone }: { personId: number; on
       }
       confirmLabel="Delete"
       danger
+      nested
       onConfirm={() => { void usePersonStore.getState().remove(personId); onDone() }}
       onCancel={onDone}
     />
@@ -58,6 +59,7 @@ export function DeleteTagConfirm({ tagId, onDone }: { tagId: number; onDone: () 
       }
       confirmLabel="Delete"
       danger
+      nested
       onConfirm={() => { void useTagStore.getState().remove(tagId); onDone() }}
       onCancel={onDone}
     />

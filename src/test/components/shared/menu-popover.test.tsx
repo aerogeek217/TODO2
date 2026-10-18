@@ -226,3 +226,69 @@ describe('MenuPopover — panels, radio choices, footnotes, focus owner', () => 
     expect(document.activeElement).toBe(opener)
   })
 })
+
+describe('MenuPopover — over a popover, focus kept for a picker', () => {
+  it('Esc closes only the menu: a popover below listening on the document never sees it', () => {
+    const below = vi.fn()
+    document.addEventListener('keydown', below, true)
+    try {
+      const onClose = vi.fn()
+      render(<MenuPopover point={{ x: 0, y: 0 }} entries={[item('Alpha')]} label="m" onClose={onClose} />)
+      fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Alpha' }), { key: 'Escape' })
+      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(below).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', below, true)
+    }
+  })
+
+  it('restoreFocus: an item hands the focus back before its action runs, and a click outside the menu does too', () => {
+    let focusedInAction: Element | null = null
+    function Picker() {
+      const [open, setOpen] = useState(true)
+      return (
+        <>
+          {open && (
+            <MenuPopover
+              point={{ x: 0, y: 0 }}
+              restoreFocus
+              label="m"
+              entries={[{ kind: 'item', label: 'Edit…', onSelect: () => { focusedInAction = document.activeElement } }]}
+              onClose={() => setOpen(false)}
+            />
+          )}
+        </>
+      )
+    }
+    // Focus the search before the menu mounts: it is what had the focus.
+    const search = document.createElement('input')
+    document.body.appendChild(search)
+    search.focus()
+    render(<Picker />)
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Edit…' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }))
+    expect(focusedInAction).toBe(search)
+    expect(document.activeElement).toBe(search)
+    search.remove()
+  })
+
+  it('restoreFocus: closed by a press outside, the focus goes back too', () => {
+    function Picker() {
+      const [open, setOpen] = useState(true)
+      return (
+        <>
+          <div data-testid="elsewhere">elsewhere</div>
+          {open && <MenuPopover point={{ x: 0, y: 0 }} restoreFocus label="m" entries={[item('Alpha')]} onClose={() => setOpen(false)} />}
+        </>
+      )
+    }
+    const search = document.createElement('input')
+    document.body.appendChild(search)
+    search.focus()
+    render(<Picker />)
+    fireEvent.mouseDown(screen.getByTestId('elsewhere'))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(search)
+    search.remove()
+  })
+})

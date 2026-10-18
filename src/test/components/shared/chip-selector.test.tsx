@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { ChipSelector, type ChipItem } from '../../../components/shared/ChipSelector'
 import { useUndoStore } from '../../../stores/undo-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useTagStore } from '../../../stores/tag-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { DialogFrame } from '../../../components/shared/Dialog'
 
 const people: ChipItem[] = [
   { id: 4, name: 'Sam Lee', initials: 'SL', color: '#5b6abf' },
@@ -187,5 +191,125 @@ describe('ChipSelector', () => {
     const names = options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))
     expect(names).toEqual(['Aidan Ross', 'Alice Chen', 'Dana Kim', 'Marco Rossi', 'Priya Nair', 'Sam Lee'])
     expect(screen.getByRole('option', { name: 'Marco Rossi' })).toHaveAttribute('aria-selected', 'true')
+  })
+})
+
+describe('ChipSelector — a person’s / tag’s menu on its options', () => {
+  afterEach(cleanup)
+
+  function seedPeople() {
+    usePersonStore.setState({ people: people.map(({ id, name, initials }) => ({ id, name, initials: initials ?? '' })) })
+  }
+
+  function renderWithMenu(props: Partial<React.ComponentProps<typeof ChipSelector>> = {}) {
+    seedPeople()
+    return renderPicker({ entityMenu: 'person', ...props })
+  }
+
+  const menuItems = () => within(screen.getByRole('menu')).getAllByRole('menuitem').map((i) => i.textContent)
+
+  it('a right-click on an option opens its menu without picking it; Esc closes only the menu, back in the search', () => {
+    const { onToggle, onClose } = renderWithMenu()
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2, clientX: 40, clientY: 60 })
+    const menu = screen.getByRole('menu', { name: '@Dana Kim' })
+    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(activeOption()).toHaveTextContent('Dana Kim')
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(input()).toHaveFocus()
+    expect(options()).toHaveLength(5)
+  })
+
+  it('Shift+F10 / the context-menu key in the search opens the highlighted option’s menu; a right-click on the field doesn’t', () => {
+    renderWithMenu()
+    key('ArrowDown')
+    expect(activeOption()).toHaveTextContent('Alice Chen')
+    fireEvent.contextMenu(input(), { button: 2 })
+    expect(screen.queryByRole('menu')).toBeNull()
+    // From the keyboard: no right button.
+    fireEvent.contextMenu(input(), { button: 0 })
+    expect(screen.getByRole('menu', { name: '@Alice Chen' })).toBeInTheDocument()
+  })
+
+  it('no menu on the Create row, nor without entityMenu; a right-click in the picker never reaches its host', () => {
+    seedPeople()
+    const host = vi.fn()
+    const onCreate = vi.fn()
+    render(
+      <div onContextMenu={host}>
+        <ChipSelector items={people} selectedIds={new Set()} onToggle={vi.fn()} onCreate={onCreate} entityMenu="person" />
+      </div>,
+    )
+    type('Zed')
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Create "Zed"/ }), { button: 2 })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(onCreate).not.toHaveBeenCalled()
+    fireEvent.contextMenu(input(), { button: 2 })
+    expect(host).not.toHaveBeenCalled()
+    cleanup()
+
+    render(<div onContextMenu={host}><ChipSelector items={people} selectedIds={new Set()} onToggle={vi.fn()} /></div>)
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2 })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(host).not.toHaveBeenCalled()
+  })
+
+  it('Edit… / Delete… act on that person with the focus back in the search first; Show tasks closes the picker', () => {
+    const { onClose } = renderWithMenu()
+    let focusedWhenOpened: Element | null = null
+    const unsubscribe = useUIStore.subscribe((s, prev) => {
+      if (s.entityAction && !prev.entityAction) focusedWhenOpened = document.activeElement
+    })
+    try {
+      fireEvent.contextMenu(screen.getByRole('option', { name: 'Sam Lee' }), { button: 2 })
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }))
+      expect(useUIStore.getState().entityAction).toEqual({ kind: 'person', id: 4, action: 'edit' })
+      expect(focusedWhenOpened).toBe(input())
+      expect(onClose).not.toHaveBeenCalled()
+
+      useUIStore.getState().closeEntityAction()
+      fireEvent.contextMenu(screen.getByRole('option', { name: 'Sam Lee' }), { button: 2 })
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+      expect(useUIStore.getState().entityAction).toEqual({ kind: 'person', id: 4, action: 'delete' })
+
+      fireEvent.contextMenu(screen.getByRole('option', { name: 'Sam Lee' }), { button: 2 })
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Show tasks' }))
+      expect(onClose).toHaveBeenCalledOnce()
+      expect(useUIStore.getState().taskDialog?.title).toBe('Sam Lee')
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it('a tag picker’s menu is the tag’s', () => {
+    useTagStore.setState({ tags: [{ id: 7, name: 'work', color: '#f00' }] })
+    render(<ChipSelector items={[{ id: 7, name: 'work' }]} selectedIds={new Set()} onToggle={vi.fn()} entityMenu="tag" />)
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'work' }), { button: 2 })
+    expect(screen.getByRole('menu', { name: '#work' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit…' }))
+    expect(useUIStore.getState().entityAction).toEqual({ kind: 'tag', id: 7, action: 'edit' })
+  })
+
+  it('inside a dialog the task dialog can’t show above (raised), Show tasks isn’t offered; in an overlay it is', () => {
+    seedPeople()
+    const picker = <ChipSelector items={people} selectedIds={new Set()} onToggle={vi.fn()} entityMenu="person" />
+    const { unmount } = render(<DialogFrame layer="raised" onClose={vi.fn()} aria-label="List editor">{picker}</DialogFrame>)
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2 })
+    expect(menuItems()).toEqual(['Edit…', 'Delete…'])
+    unmount()
+    render(<DialogFrame layer="overlay" onClose={vi.fn()} aria-label="Task dialog">{picker}</DialogFrame>)
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2 })
+    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+  })
+
+  it('the menu closes itself once its person is gone', () => {
+    renderWithMenu()
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2 })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    act(() => { usePersonStore.setState({ people: usePersonStore.getState().people.filter((p) => p.id !== 2) }) })
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 })

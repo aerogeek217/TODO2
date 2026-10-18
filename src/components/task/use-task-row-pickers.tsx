@@ -144,6 +144,7 @@ export function useTaskRowPickers({
               onCreate={createPerson}
               onClose={closePeople}
               avatars
+              entityMenu="person"
               placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>

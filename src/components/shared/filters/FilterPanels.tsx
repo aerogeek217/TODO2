@@ -1,6 +1,7 @@
-import type { ReactNode, RefObject } from 'react'
+import { useState, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { MARKER_KEYS, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
+import { PickerEntityMenu } from '../EntityMenu'
 import picker from './FilterPicker.module.css'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
@@ -84,6 +85,18 @@ interface EntityDropdownItemsProps {
   showDot?: boolean
   /** Show the leading "None" row (id 0). Default true. */
   withNone?: boolean
+  /**
+   * The rows are people / tags: a right-click on one opens its Show tasks ·
+   * Edit… · Delete… menu over the picker (without ticking it); Show tasks
+   * runs `onShowTasks` first (the host closes the picker).
+   */
+  entityMenu?: 'person' | 'tag'
+  onShowTasks?: () => void
+}
+
+/** A right-click's press keeps the focus where it is (the picker's search box). */
+function keepFocusOnRightPress(e: MouseEvent) {
+  if (e.button === 2) e.preventDefault()
 }
 
 /** Checkable entity rows (plus a leading "None" row, id 0), filtered by `searchText`. */
@@ -95,21 +108,35 @@ export function EntityDropdownItems({
   namePrefix,
   showDot = true,
   withNone = true,
+  entityMenu,
+  onShowTasks,
 }: EntityDropdownItemsProps) {
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null)
   const q = searchText.toLowerCase()
   const showNone = withNone && (!q || 'none'.includes(q))
   const filtered = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
     .toSorted(byName)
+  const onRowContextMenu = (id: number | undefined) => (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (id != null && id !== 0) setMenu({ id, x: e.clientX, y: e.clientY })
+  }
   return (
     <>
       {showNone && (
-        <label className={picker.dropdownItem} onClick={() => onToggle(0)}>
+        <label className={picker.dropdownItem} onClick={() => onToggle(0)} onContextMenu={entityMenu ? onRowContextMenu(0) : undefined}>
           <span className={`${picker.check} ${isChecked(0) ? picker.checked : ''}`} />
           <span className={picker.noneLabel}>None</span>
         </label>
       )}
       {filtered.map((entity) => (
-        <label key={entity.id} className={picker.dropdownItem} onClick={() => onToggle(entity.id!)}>
+        <label
+          key={entity.id}
+          className={picker.dropdownItem}
+          onClick={() => onToggle(entity.id!)}
+          onMouseDown={entityMenu ? keepFocusOnRightPress : undefined}
+          onContextMenu={entityMenu ? onRowContextMenu(entity.id) : undefined}
+        >
           <span className={`${picker.check} ${isChecked(entity.id!) ? picker.checked : ''}`} />
           {entity.icon ? (
             <span className={picker.dotIcon} style={{ color: entity.color }}>
@@ -124,6 +151,15 @@ export function EntityDropdownItems({
       ))}
       {q && !showNone && filtered.length === 0 && (
         <div className={picker.dropdownEmpty}>No matches</div>
+      )}
+      {menu && entityMenu && (
+        <PickerEntityMenu
+          kind={entityMenu}
+          id={menu.id}
+          point={{ x: menu.x, y: menu.y }}
+          onShowTasks={onShowTasks}
+          onClose={() => setMenu(null)}
+        />
       )}
     </>
   )

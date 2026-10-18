@@ -124,6 +124,7 @@ export function TagPicker({ anchorRef, anchorIsInside = true, assignedTags, allT
           onCreate={onCreate}
           onClose={onClose}
           placeholder="Search tags..."
+          entityMenu="tag"
         />
       </div>
     </AnchoredPicker>

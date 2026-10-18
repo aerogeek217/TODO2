@@ -3,6 +3,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref
 import { createPortal } from 'react-dom'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
+import { DialogLayerContext } from './dialog-layer'
 
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
@@ -104,6 +105,9 @@ const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
  *   text drag that ends outside the panel doesn't.
  * - **Keys stay in:** the panel is `data-shortcut-scope="modal"`, so no app
  *   shortcut fires from inside it.
+ * - **Tier:** what it renders (portaled layers too) reads its `layer` with
+ *   `useDialogLayer` — e.g. a person's menu leaves out Show tasks where the
+ *   task dialog couldn't show above.
  */
 export function DialogFrame({
   onClose,
@@ -239,7 +243,7 @@ export function DialogFrame({
         onKeyDown={onKeyDown}
         {...dataAttributes}
       >
-        {children}
+        <DialogLayerContext.Provider value={layer}>{children}</DialogLayerContext.Provider>
       </div>
     </>
   )

@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react'
-import { DialogFrame, type DialogInitialFocus } from '../shared/Dialog'
+import { DialogFrame, type DialogInitialFocus, type DialogLayer } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
 
 export interface EditorModalProps {
@@ -9,6 +9,8 @@ export interface EditorModalProps {
   /** Extra panel class (e.g. a wider modal). */
   className?: string
   initialFocus?: DialogInitialFocus
+  /** Default `dialog`; `nested` over any other dialog (opened from a picker in one). */
+  layer?: DialogLayer
 }
 
 /**
@@ -18,11 +20,12 @@ export interface EditorModalProps {
  * focus in / Tab wrap / focus back to the opener, a backdrop press, no app
  * shortcuts inside.
  */
-export function EditorModal({ title, onClose, children, className, initialFocus }: EditorModalProps) {
+export function EditorModal({ title, onClose, children, className, initialFocus, layer }: EditorModalProps) {
   const titleId = useId()
   return (
     <DialogFrame
       onClose={onClose}
+      layer={layer}
       aria-labelledby={titleId}
       className={`${styles.modal} ${className ?? ''}`}
       initialFocus={initialFocus}

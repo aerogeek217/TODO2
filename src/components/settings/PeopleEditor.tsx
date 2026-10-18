@@ -4,6 +4,7 @@ import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../
 import { ColorInput } from '../shared/ColorInput'
 import { DeletePersonConfirm } from './EntityDeleteConfirm'
 import type { Person } from '../../models'
+import type { DialogLayer } from '../shared/Dialog'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
 import { EditorModal } from './EditorModal'
@@ -65,6 +66,8 @@ interface PeopleEditorProps {
   editPersonId?: number
   /** The field focused on that row: `email` (default) or `name`. */
   focusField?: 'name' | 'email'
+  /** The modal's tier (`EditorModal`). */
+  layer?: DialogLayer
 }
 
 /** Color picker plus a clear button; a person without a color shows the neutral swatch. */
@@ -93,7 +96,7 @@ function withColor(person: Omit<Person, 'color'>, color: string | undefined): Pe
   return color ? { ...person, color } : person
 }
 
-export function PeopleEditor({ onClose, editPersonId, focusField = 'email' }: PeopleEditorProps) {
+export function PeopleEditor({ onClose, editPersonId, focusField = 'email', layer }: PeopleEditorProps) {
   const { people, load: loadPeople, add: addPerson, update: updatePerson } = usePersonStore()
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
@@ -242,7 +245,7 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email' }: Pe
 
   return (
     <>
-      <EditorModal title="People" onClose={onClose}>
+      <EditorModal title="People" onClose={onClose} layer={layer}>
         <input
           type="text"
           className={styles.searchInput}

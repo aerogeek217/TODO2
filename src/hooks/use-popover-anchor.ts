@@ -1,4 +1,5 @@
 import { useLatestRef } from './use-latest-ref'
+import { hasModalAbove, isInLayerAbove } from '../utils/dom-layers'
 import {
   useCallback,
   useEffect,
@@ -67,7 +68,10 @@ export interface UsePopoverAnchorOptions {
    * a `ref` anchor repositions; a `point` anchor is static.
    */
   closeOnResize?: boolean
-  /** When `true` (default), `Escape` fires `onClose` (document-level). */
+  /**
+   * When `true` (default), `Escape` fires `onClose` (document-level) — not
+   * one pressed in a layer stacked above the panel (a dialog opened from it).
+   */
   closeOnEscape?: boolean
   /**
    * The Escape that closes the popover stops there (`preventDefault` +
@@ -78,7 +82,8 @@ export interface UsePopoverAnchorOptions {
   /**
    * When `true` (default), a `mousedown` outside the panel + any element
    * registered via `extraInsideRefs` (and the trigger element if the anchor
-   * is a `ref`) fires `onClose`.
+   * is a `ref`) fires `onClose`. A press in a layer stacked above the panel
+   * (a menu or a dialog opened while it is open) isn't outside.
    */
   closeOnOutsideClick?: boolean
   onClose: () => void
@@ -466,6 +471,11 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     if (!open || !closeOnEscape) return
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      // Pressed in a layer stacked above, or with nothing focused while a
+      // dialog is open above: that layer's key.
+      const panel = panelElRef.current
+      if (panel && e.target instanceof Node && !panel.contains(e.target)
+        && (isInLayerAbove(panel, e.target) || hasModalAbove(panel))) return
       if (consumeEscapeRef.current) {
         e.preventDefault()
         e.stopPropagation()
@@ -484,6 +494,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       if (!target) return
       const panel = panelElRef.current
       if (panel && panel.contains(target)) return
+      if (panel && isInLayerAbove(panel, target)) return
       const extras = extraInsideRefsRef.current
       if (extras) {
         for (const ref of extras) {

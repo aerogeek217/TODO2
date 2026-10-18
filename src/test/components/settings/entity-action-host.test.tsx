@@ -102,3 +102,14 @@ describe('tagTaskDialog', () => {
     })
   })
 })
+
+describe('EntityActionHost — on the top tier', () => {
+  it('the editor and the confirm sit over any dialog or picker the menu opened from (the nested tier)', async () => {
+    const id = await usePersonStore.getState().add('Alice Chen', 'AC')
+    useUIStore.getState().openEntityAction({ kind: 'person', id, action: 'edit' })
+    await renderHost()
+    expect((await screen.findByRole('dialog', { name: 'People' })).className).toMatch(/layerNested/)
+    act(() => { useUIStore.getState().openEntityAction({ kind: 'person', id, action: 'delete' }) })
+    expect((await screen.findByRole('dialog', { name: 'Delete person' })).className).toMatch(/layerNested/)
+  })
+})

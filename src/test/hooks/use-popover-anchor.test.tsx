@@ -708,3 +708,51 @@ describe('usePopoverAnchor — centred placements, placed flag, Escape and ancho
     }
   })
 })
+
+describe('usePopoverAnchor — layers stacked above the panel', () => {
+  const layers: HTMLElement[] = []
+  /** A portal root added to the body: after the panel's (opened later) or before it. */
+  function addLayer(where: 'after' | 'before'): HTMLElement {
+    const layer = document.createElement('div')
+    layers.push(layer)
+    const button = document.createElement('button')
+    layer.appendChild(button)
+    if (where === 'after') document.body.appendChild(layer)
+    else document.body.insertBefore(layer, document.body.firstChild)
+    return button
+  }
+
+  afterEach(() => {
+    for (const layer of layers.splice(0)) layer.remove()
+  })
+
+  it('a mousedown in a layer opened later (a menu or dialog over it) does not close it; one in an earlier layer does', () => {
+    const onClose = vi.fn()
+    render(<Harness anchor={{ kind: 'point', x: 10, y: 10 }} open onClose={onClose} panelRect={{ width: 100, height: 100 }} />)
+    fireEvent.mouseDown(addLayer('after'))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.mouseDown(addLayer('before'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('an Escape pressed in a layer opened later is that layer’s; one with nothing focused closes it', () => {
+    const onClose = vi.fn()
+    render(<Harness anchor={{ kind: 'point', x: 10, y: 10 }} open onClose={onClose} panelRect={{ width: 100, height: 100 }} />)
+    fireEvent.keyDown(addLayer('after'), { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('an Escape with nothing focused while a dialog is open above is the dialog’s', () => {
+    const onClose = vi.fn()
+    render(<Harness anchor={{ kind: 'point', x: 10, y: 10 }} open onClose={onClose} panelRect={{ width: 100, height: 100 }} />)
+    const dialog = addLayer('after').parentElement!
+    dialog.setAttribute('aria-modal', 'true')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    dialog.removeAttribute('aria-modal')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})

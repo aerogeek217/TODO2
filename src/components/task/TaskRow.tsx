@@ -11,8 +11,7 @@ import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { useTooltip } from '../shared/use-tooltip'
 import { TaskMenu } from './TaskMenu'
 import { PriorityMenu } from './PriorityMenu'
-import { MenuPopover } from '../shared/MenuPopover'
-import { rowEntityMenu, rowEntityName, type RowEntity } from './entity-menu'
+import { EntityMenu, type MenuEntity } from '../shared/EntityMenu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
@@ -68,7 +67,7 @@ export const TaskRow = memo(function TaskRow({
   const menuCellRef = useRef<HTMLElement | null>(null)
   /** An avatar's / tag's menu: at the pointer, or under its cell (opened from the keyboard). */
   const [entityMenu, setEntityMenu] = useState<
-    { entities: RowEntity[]; at: { kind: 'point'; x: number; y: number } | { kind: 'cell'; cell: 'people' | 'tags' } } | null
+    { entities: MenuEntity[]; at: { kind: 'point'; x: number; y: number } | { kind: 'cell'; cell: 'people' | 'tags' } } | null
   >(null)
   const rowRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLButtonElement>(null)
@@ -124,7 +123,7 @@ export const TaskRow = memo(function TaskRow({
     || menu !== null || entityMenu !== null
 
   // Right-click on an avatar / a tag: Show tasks · Edit… · Delete… for it.
-  const openEntityMenu = (e: MouseEvent, entity: RowEntity) => {
+  const openEntityMenu = (e: MouseEvent, entity: MenuEntity) => {
     e.preventDefault()
     e.stopPropagation()
     setEntityMenu({ entities: [entity], at: { kind: 'point', x: e.clientX, y: e.clientY } })
@@ -133,7 +132,7 @@ export const TaskRow = memo(function TaskRow({
   const onTagContextMenu = (e: MouseEvent, tag: Tag) => openEntityMenu(e, { kind: 'tag', entity: tag })
   // The cell's own context menu (the keyboard's, or a click beside the
   // avatars / tags): every entry it shows; an empty cell keeps the task menu.
-  const onCellContextMenu = (cell: 'people' | 'tags', entities: RowEntity[]) => (e: MouseEvent) => {
+  const onCellContextMenu = (cell: 'people' | 'tags', entities: MenuEntity[]) => (e: MouseEvent) => {
     if (entities.length === 0) return
     e.preventDefault()
     e.stopPropagation()
@@ -309,14 +308,10 @@ export const TaskRow = memo(function TaskRow({
       )}
 
       {entityMenu && (
-        <MenuPopover
+        <EntityMenu
+          entities={entityMenu.entities}
           anchorRef={entityMenu.at.kind === 'cell' ? (entityMenu.at.cell === 'people' ? peopleRef : tagsRef) : undefined}
           point={entityMenu.at.kind === 'point' ? { x: entityMenu.at.x, y: entityMenu.at.y } : undefined}
-          width={entityMenu.entities.length === 1 ? 180 : 200}
-          label={entityMenu.entities.length === 1 && entityMenu.entities[0]
-            ? rowEntityName(entityMenu.entities[0])
-            : entityMenu.entities[0]?.kind === 'tag' ? 'Tags' : 'People'}
-          entries={rowEntityMenu(entityMenu.entities)}
           closeOnScroll={entityMenu.at.kind === 'point'}
           onClose={() => setEntityMenu(null)}
         />

@@ -151,6 +151,8 @@ function EntityPicker({ field, predicate, adding, update, onClose }: {
           namePrefix={field === 'people' ? '@' : field === 'tags' ? '#' : undefined}
           showDot={field !== 'people'}
           withNone={withNone}
+          entityMenu={field === 'people' ? 'person' : field === 'tags' ? 'tag' : undefined}
+          onShowTasks={onClose}
         />
       )}
     </SelectionPanelBody>

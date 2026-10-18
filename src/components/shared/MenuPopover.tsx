@@ -82,6 +82,13 @@ interface MenuPopoverProps {
   width?: number
   /** Close when an ancestor scrolls (a menu at the pointer can't follow its row). Default false. */
   closeOnScroll?: boolean
+  /**
+   * A menu at the pointer hands the focus back to what had it before on any
+   * close, not only Esc — and before an item's action runs, so a dialog the
+   * action opens returns the focus there too (a picker's search field keeps
+   * it). Default false.
+   */
+  restoreFocus?: boolean
   onClose: () => void
 }
 
@@ -107,7 +114,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
  */
 export function MenuPopover({
-  anchorRef, point, placement = 'bottom-start', entries, label, width, closeOnScroll = false, onClose,
+  anchorRef, point, placement = 'bottom-start', entries, label, width, closeOnScroll = false, restoreFocus = false, onClose,
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -147,12 +154,12 @@ export function MenuPopover({
     const trigger = anchorRef?.current ?? null
     enabledItems(menuRef.current)[0]?.focus()
     return () => {
-      const target = trigger ?? (escapedRef.current ? previous : null)
+      const target = trigger ?? (escapedRef.current || restoreFocus ? previous : null)
       const active = document.activeElement
       const focusLeft = !active || active === document.body || !active.isConnected
       if (target && target.isConnected && focusLeft) target.focus({ preventScroll: true })
     }
-  }, [anchorRef])
+  }, [anchorRef, restoreFocus])
 
   const focusParentItem = useCallback((index: number) => {
     menuRef.current?.querySelector<HTMLButtonElement>(`:scope > button[data-menu-index="${index}"]`)?.focus()
@@ -165,8 +172,9 @@ export function MenuPopover({
     focusParentItem(index)
   }, [sub, focusParentItem])
 
-  // Esc closes the open submenu / panel first, then the menu. Capture phase,
-  // and it stops there: Esc only closes the menu.
+  // Esc closes the open submenu / panel first, then the menu. On the window in
+  // the capture phase — ahead of a popover the menu was opened over, whose own
+  // Esc listens on the document — and it stops there: Esc only closes the menu.
   const onCloseRef = useLatestRef(onClose)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -179,9 +187,19 @@ export function MenuPopover({
         onCloseRef.current()
       }
     }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [sub, closeSub, onCloseRef])
+
+  /** Runs an item and closes the menu (unless the item keeps it open); with `restoreFocus`, the focus goes back first. */
+  const run = (entry: MenuItemEntry) => {
+    if (restoreFocus && !entry.keepOpen) {
+      const previous = previousRef.current
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
+    entry.onSelect?.()
+    if (!entry.keepOpen) onClose()
+  }
 
   const select = (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => {
     if (entry.panel) {
@@ -193,8 +211,7 @@ export function MenuPopover({
       setOpen({ index, pinned: false, focus: viaKeyboard })
       return
     }
-    entry.onSelect?.()
-    if (!entry.keepOpen) onClose()
+    run(entry)
   }
 
   const openEntry = sub != null ? entries[sub] : undefined
@@ -238,6 +255,7 @@ export function MenuPopover({
           width={openEntry.childrenWidth}
           maxHeight={openEntry.childrenMaxHeight}
           autoFocus={open?.focus ?? false}
+          onRun={run}
           onClose={onClose}
           onBack={closeSub}
         />
@@ -446,7 +464,7 @@ function useBesideItem(
 }
 
 /** A nested submenu beside its parent item; flips left when there's no room on the right. */
-function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onClose, onBack }: {
+function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
   subRef: RefObject<HTMLDivElement | null>
   parentRef: RefObject<HTMLDivElement | null>
   parentIndex: number
@@ -456,6 +474,8 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
   maxHeight?: number
   /** Opened from the keyboard: focus its checked choice, else its first item. */
   autoFocus: boolean
+  /** Runs an item (the menu's `run`). */
+  onRun: (entry: MenuItemEntry) => void
   onClose: () => void
   onBack: () => void
 }) {
@@ -469,9 +489,7 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
   }, [autoFocus, subRef])
 
   const select = (entry: MenuItemEntry) => {
-    if (!entry.onSelect) return
-    entry.onSelect()
-    if (!entry.keepOpen) onClose()
+    if (entry.onSelect) onRun(entry)
   }
 
   return createPortal(

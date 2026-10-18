@@ -229,6 +229,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
               }}
               onClose={close}
               avatars
+              entityMenu="person"
               placeholder={PERSON_PICKER_PLACEHOLDER}
             />
           </div>
@@ -250,6 +251,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
               }}
               onClose={close}
               placeholder="Search tags..."
+              entityMenu="tag"
             />
           </div>
         </AnchoredPicker>
