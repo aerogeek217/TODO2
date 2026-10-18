@@ -1,7 +1,7 @@
 /* Anchored to the same top-center position the QuickAddBar surfaces at
  * (`QuickAddBar.module.css` — overlay padding-top 120px, justify-content
  * center) so the pill visually replaces the dialog the user just dismissed.
- * Width caps at the same 720px so the silhouettes match. */
+ * Same width as the bar (720px at most), so the silhouettes match. */
 .pill {
   position: fixed;
   top: 120px;
@@ -17,7 +17,10 @@
   box-shadow: var(--shadow-dropdown);
   color: var(--color-text-primary);
   font-size: var(--font-size-task);
-  max-width: min(720px, calc(100vw - 48px));
+  /* A set width, not shrink-to-fit: the row sizes its columns from the
+   * width it's given (`TaskRowGrid`), so a fitted pill would squeeze it down
+   * to its title and drop the people and tags columns. */
+  width: min(720px, calc(100vw - 48px));
   /* Single keyframe handles both entry and the late fade-out — the JS
    * `onAnimationEnd` clears the store after the cycle completes. Hover pauses
    * the animation, so the pill won't fade while the user is interacting.

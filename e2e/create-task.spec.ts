@@ -171,3 +171,16 @@ test('a Quick Add task is one undo step: Ctrl+Z removes it in one press, Ctrl+Sh
   await page.keyboard.press('Control+Shift+z')
   await expect.poll(() => readTask(page, 'Plan offsite')).toEqual(created)
 })
+
+test('the "New" pill after Quick Add shows the task’s people and tags columns', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const quick = await openQuickAdd(page)
+  await quick.input.pressSequentially('Buy @Ben #planning ')
+  await page.keyboard.press('Enter')
+  await expect(quick.dialog).toBeHidden()
+  const pill = page.getByRole('status').filter({ has: page.locator('[data-task-title="Buy"]') })
+  await expect(pill).toBeVisible()
+  // The pill has the Quick Add bar's width, so the row isn't squeezed down to its title.
+  await expect(pill.locator('[data-person-avatar="Ben Ortiz"]')).toBeVisible()
+  await expect(pill.locator('[data-tag-name="planning"]')).toBeVisible()
+})
