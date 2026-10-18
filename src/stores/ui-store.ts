@@ -225,7 +225,6 @@ interface UIState {
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
-  /** Opens the Settings modal on `section`, or on the last section viewed. */
   /** Opens Settings, on `target` (a section, or a part of one) when given. */
   openSettings: (target?: SettingsTarget) => void
   closeSettings: () => void

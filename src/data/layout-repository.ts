@@ -21,7 +21,7 @@ export interface ReadLayout {
 
 /**
  * A stored row through the layout repair the import and the audit use
- * (`pickLayoutColumns` via the `layouts` picker): an unknown widget kind, a
+ * (`pickLayoutBody` via the `layouts` picker): an unknown widget kind, a
  * bad or repeated id, a bad size or tab setting is dropped or reset, so the
  * workspace never renders data this build can't. A layout can come out with
  * no columns (the workspace then shows its empty-layout tiles); it is never

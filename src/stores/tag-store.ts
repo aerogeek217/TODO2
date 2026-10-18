@@ -23,14 +23,6 @@ interface TagState {
   unassignTag: (todoId: number, tagId: number) => Promise<void>
   bulkAssignTag: (todoIds: number[], tagId: number) => Promise<void>
   bulkUnassignTag: (todoIds: number[], tagId: number) => Promise<void>
-  /**
-   * Count todos currently tagged with `tagId`, derived from the in-memory
-   * `assignedTagsMap`. Replaces `tagRepository.getTodoCount` for editor
-   * delete-confirmation prompts. The count reflects whatever todos have had
-   * their assignments loaded — caller should ensure `loadAssignments(allIds)`
-   * has run for the visible todo set (TagEditor calls it on mount).
-   */
-  selectTodoCountByTagId: (tagId: number) => number
 }
 
 /** Tag id → number of loaded todos carrying it, from an `assignedTagsMap`. */
@@ -142,13 +134,5 @@ export const useTagStore = create<TagState>((set, get) => {
     unassignTag: assignment.unassign,
     bulkAssignTag: assignment.bulkAssign,
     bulkUnassignTag: assignment.bulkUnassign,
-
-    selectTodoCountByTagId(tagId: number) {
-      let count = 0
-      for (const tags of get().assignedTagsMap.values()) {
-        if (tags.some((t) => t.id === tagId)) count++
-      }
-      return count
-    },
   }
 })

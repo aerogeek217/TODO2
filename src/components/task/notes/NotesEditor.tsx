@@ -30,7 +30,7 @@ interface NotesEditorProps {
    * when the editor is created.
    */
   nlp?: NotesNlpConfig
-  /** Shown to the user when the `nlp` popup's create row fails (e.g. the tag limit). */
+  /** Shown to the user when the `nlp` popup's create row fails. */
   onNlpError?: (message: string) => void
 }
 

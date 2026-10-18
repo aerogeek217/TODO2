@@ -108,7 +108,7 @@ describe('syncWarningCopy', () => {
     expect(syncWarningCopy({ kind: 'error', message: 'Failed to save to file' }).body)
       .toBe('Your changes are still kept in this browser. Dismiss hides this until a different error happens.')
     expect(syncWarningCopy({ kind: 'backup', message: 'Backup snapshot (auto) would not restore: x' }).body)
-      .toBe('It was saved anyway — a partly restorable backup beats none. Check it in Settings › Backups.')
+      .toBe('It was saved anyway — a partly restorable backup beats none. Check it in Settings › Database › Backups.')
     expect(syncWarningCopy({ kind: 'backup', message: 'No backup was taken before importing the file — the backup could not be saved.' }).body)
       .toBe('Free up browser storage so the next one works, or delete old backups.')
   })

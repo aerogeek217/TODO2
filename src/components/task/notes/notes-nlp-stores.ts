@@ -28,7 +28,7 @@ function memoBy<T, R>(build: (list: readonly T[]) => R): (list: readonly T[]) =>
  * The notes autocomplete over the live stores: people / tags / statuses and
  * the default follow-up as candidates; a picked create row creates the person
  * (`getOrCreate`) or tag (`add`, lookup-or-create) straight away; when that
- * fails (e.g. the tag limit) it rejects with a user-facing message.
+ * fails it rejects with a user-facing message.
  */
 export function storeNotesNlpConfig(): NotesNlpConfig {
   const people = memoBy<Person, AutocompleteItem[]>(personItems)

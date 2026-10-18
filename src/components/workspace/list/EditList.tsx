@@ -269,7 +269,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
       </header>
       <div className={styles.body}>
         <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="popover" nameRef={nameRef} />
-        <p className={styles.hint}>Changes show in the list right away and stay unsaved until you save. Max tasks is gone: panels scroll.</p>
+        <p className={styles.hint}>Changes show in the list right away and stay unsaved until you save.</p>
       </div>
       <Footer model={model} className={styles.footer} buttonClass={styles.footerButton} saveClass={styles.footerSave}>
         <span className={styles.shared}><LinkIcon /> {sharedText(model.widgets)}</span>

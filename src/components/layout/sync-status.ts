@@ -150,7 +150,7 @@ export function syncWarningCopy(w: SyncWarning): SyncWarningCopy {
         why: w.message,
         flag: null,
         body: isUnrestorableBackupWarning(w.message)
-          ? 'It was saved anyway — a partly restorable backup beats none. Check it in Settings › Backups.'
+          ? 'It was saved anyway — a partly restorable backup beats none. Check it in Settings › Database › Backups.'
           : 'Free up browser storage so the next one works, or delete old backups.',
       }
   }
