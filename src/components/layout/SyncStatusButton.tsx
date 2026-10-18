@@ -25,12 +25,15 @@ export function SyncStatusButton() {
   const navigate = useNavigate()
   const close = useCallback(() => setOpen(false), [])
   const first = warnings.at(0)
-  if (!first) return <SyncWarningAnnouncer warnings={warnings} />
+  // The last warning went: the sheet closes (and stays closed for the next one).
+  if (!first && open) setOpen(false)
   const tone = warningTone(state.kind) === 'danger' ? styles.danger : styles.warning
 
+  // One tree whether or not a warning shows, so the live region stays mounted
+  // and announces the first warning that appears.
   return (
     <>
-      <button
+      {first && <button
         type="button"
         className={styles.button}
         aria-label={storagePillLabel(state)}
@@ -44,9 +47,9 @@ export function SyncStatusButton() {
           <SyncWarningIcon kind={first.kind} size={16} />
           {state.warningCount > 1 && <span className={styles.count} aria-hidden="true">{state.warningCount}</span>}
         </span>
-      </button>
+      </button>}
       <SyncWarningAnnouncer warnings={warnings} />
-      {open && (
+      {first && open && (
         <DialogFrame
           onClose={close}
           layer="overlay"

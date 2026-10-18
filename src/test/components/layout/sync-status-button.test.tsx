@@ -37,6 +37,13 @@ describe('SyncStatusButton (phone top bar)', () => {
     expect(screen.queryByTestId('sync-status-button')).toBeNull()
   })
 
+  it('announces the first warning that appears (its live region stays mounted)', () => {
+    renderButton()
+    expect(screen.getByTestId('sync-announcer')).toHaveTextContent('')
+    act(() => useFileStorageStore.setState({ isConnected: true, fileName: 'todo2.json', error: 'Failed to save to file' }))
+    expect(screen.getByTestId('sync-announcer')).toHaveTextContent('Sync error: Failed to save to file')
+  })
+
   it('a warning shows it, coloured by state, with a count from two; tap → the sheet with the same sections', () => {
     const reconnect = vi.fn().mockResolvedValue(undefined)
     useFileStorageStore.setState({ fileName: 'todo2.json', needsPermission: true, reconnect })
