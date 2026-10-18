@@ -43,6 +43,11 @@ import {
 
 type Layout = PersistedWorkspaceLayout
 
+/** A resize from a divider drag: `live` = one frame of it (see `setColumnWeights`). */
+export interface ResizeOptions {
+  live?: boolean
+}
+
 /**
  * Workspace layouts: the saved layouts plus an in-memory **working copy** of
  * the open one.
@@ -132,12 +137,17 @@ export interface WorkspaceState {
   closeCell: (panelId: string) => void
   /** "Split right" / "Split below". Returns the new empty cell's id. */
   splitCell: (cellId: string, direction: 'right' | 'below') => string | null
-  /** Batched column resize (weights by column id). */
-  setColumnWeights: (weightById: Readonly<Record<string, number>>) => void
-  /** Batched cell resize (weights by cell id). */
-  setCellWeights: (weightById: Readonly<Record<string, number>>) => void
-  /** A band's height (px): layout structure, so the layout becomes unsaved. */
-  setBandHeight: (edge: BandEdge, height: number) => void
+  /**
+   * Batched column resize (weights by column id). `live`: one frame of a
+   * divider drag — not kept in the browser until `keepLayoutDraft` (the drag's end).
+   */
+  setColumnWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => void
+  /** Batched cell resize (weights by cell id); `live` as for columns. */
+  setCellWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => void
+  /** A band's height (px): layout structure, so the layout becomes unsaved; `live` as for columns. */
+  setBandHeight: (edge: BandEdge, height: number, opts?: ResizeOptions) => void
+  /** Keeps the open layout's edits in the browser now (the end of a live resize). */
+  keepLayoutDraft: () => void
   /** Layout config of a tab (e.g. a lens tab's list, a calendar's date types). */
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>) => void
   /** "Change widget": swaps the tab's kind in place, with the new kind's defaults. */
@@ -302,14 +312,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     return get().repairedIds.has(working.id) || !saved || !layoutStructureEqual(working, saved)
   }
 
-  /** Applies a structural edit to the working copy. Returns whether it changed. */
-  function edit(fn: (layout: Layout, genId: IdGen) => Layout): boolean {
+  /**
+   * Applies a structural edit to the working copy. Returns whether it
+   * changed. A `live` edit (a frame of a divider drag) isn't kept in the
+   * browser yet: the drag's end keeps the result once (`keepLayoutDraft`).
+   */
+  function edit(fn: (layout: Layout, genId: IdGen) => Layout, { live = false }: ResizeOptions = {}): boolean {
     const { working, saved } = get()
     if (!working) return false
     const next = fn(working, idGenFor(working))
     if (next === working) return false
     set({ working: next, isDirty: dirty(next, saved) })
-    keepDraft()
+    if (!live) keepDraft()
     return true
   }
 
@@ -566,16 +580,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return newCellId
     },
 
-    setColumnWeights(weightById) {
-      edit((layout) => setColumnWeights(layout, weightById))
+    setColumnWeights(weightById, opts) {
+      edit((layout) => setColumnWeights(layout, weightById), opts)
     },
 
-    setCellWeights(weightById) {
-      edit((layout) => setCellWeights(layout, weightById))
+    setCellWeights(weightById, opts) {
+      edit((layout) => setCellWeights(layout, weightById), opts)
     },
 
-    setBandHeight(edge, height) {
-      edit((layout) => setBandHeight(layout, edge, height))
+    setBandHeight(edge, height, opts) {
+      edit((layout) => setBandHeight(layout, edge, height), opts)
+    },
+
+    keepLayoutDraft() {
+      keepDraft()
     },
 
     patchTabConfig(tabId, kind, patch) {

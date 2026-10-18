@@ -10,7 +10,9 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from 
  * rows take their tracks straight from their list's columns, and only an
  * avatars / tags cell whose fit changes re-renders. Nothing is written (view
  * state, kept drafts) until the release, and the release re-renders the
- * widget once but no row. Render counts come from a stand-in
+ * widget once but no row. The workspace's column / band dividers re-render
+ * no task row either, and keep the unsaved layout in the browser once, at
+ * the release — not on every frame. Render counts come from a stand-in
  * React DevTools hook (`fixtures/render-count`), so this holds on any
  * machine — no frame-rate assertions.
  */
@@ -179,4 +181,51 @@ test('dashboard: both task-row sections follow the drag without the widget or it
   await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 222 })
   // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
+})
+
+test('a column or band divider drag: no task row re-renders and the unsaved layout is kept once, at the release', async ({ page }) => {
+  await installRenderCounter(page, WATCHED)
+  await countStorageWrites(page)
+  const layout = seed({ kind: 'lens', listDefIdx: 0 })
+  layout.layouts[0]!.top = { id: 'tb', height: 140, tabs: [{ id: 'topnotes', kind: 'notes' }] }
+  await seedWorkspace(page, layout)
+  const widget = wsListWidget(page, 'tab')
+  await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
+  const first = widget.locator('[data-todo-id]').first()
+  const titleBefore = (await box(first.locator('[data-task-title]'))).width
+  const writesBefore = await storageWrites(page)
+  await resetRenderCounts(page)
+
+  // The column divider: the list narrows live (its titles give way), nothing kept until the release.
+  const d = await box(page.locator('[data-ws-divider="w|rest"]'))
+  const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  for (let i = 1; i <= 10; i++) await page.mouse.move(from.x - 6 * i, from.y)
+  await expect.poll(async () => Math.round((await box(first.locator('[data-task-title]'))).width)).toBe(Math.round(titleBefore - 60))
+  expect((await readRenderCounts(page)).TaskRow).toBe(0)
+  expect(await storageWrites(page)).toBe(writesBefore)
+  await page.mouse.up()
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expect.poll(() => storageWrites(page)).toBe(writesBefore + 1)
+
+  // The band divider: the same.
+  const b = await box(page.locator('[data-ws-band-divider="top"]'))
+  const bFrom = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+  await page.mouse.move(bFrom.x, bFrom.y)
+  await page.mouse.down()
+  for (let i = 1; i <= 10; i++) await page.mouse.move(bFrom.x, bFrom.y + 4 * i)
+  await expect.poll(async () => Number(await page.locator('[data-ws-band-divider="top"]').getAttribute('aria-valuenow'))).toBe(180)
+  expect(await storageWrites(page)).toBe(writesBefore + 1)
+  await page.mouse.up()
+  await expect.poll(() => storageWrites(page)).toBe(writesBefore + 2)
+  expect((await readRenderCounts(page)).TaskRow).toBe(0)
+
+  // Kept: both come back after a reload, still unsaved.
+  const widthAfter = (await box(page.locator('[data-ws-column="w"]'))).width
+  await page.reload()
+  await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  expect(Math.round((await box(page.locator('[data-ws-column="w"]'))).width)).toBe(Math.round(widthAfter))
+  await expect(page.locator('[data-ws-band-divider="top"]')).toHaveAttribute('aria-valuenow', '180')
 })

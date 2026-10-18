@@ -388,6 +388,20 @@ describe('unsaved changes kept for a reload', () => {
     expect(ws().working!.top?.height).toBe(90)
   })
 
+  it('the frames of a divider drag (live resizes) keep nothing until its end keeps the result once', async () => {
+    await seedAndInit(twoColumns('Daily', { top: { id: 'tb', height: 140, tabs: [createTab('notes', 'top1')] } }))
+    ws().setColumnWeights({ A: 1.2, B: 0.8 }, { live: true })
+    ws().setColumnWeights({ A: 1.4, B: 0.6 }, { live: true })
+    ws().setBandHeight('top', 180, { live: true })
+    expect(ws().isDirty).toBe(true)
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+    ws().keepLayoutDraft()
+    await reload()
+    expect(ws().isDirty).toBe(true)
+    expect(ws().working!.columns.map((c) => c.weight)).toEqual([1.4, 0.6])
+    expect(ws().working!.top?.height).toBe(180)
+  })
+
   it('a new layout with a band comes back with it', async () => {
     await seedAndInit(twoColumns())
     ws().newLayout()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { evenPair, pairPercent, resizePair } from '../../utils/workspace-resize'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './WorkspaceDivider.module.css'
 
 /** Keyboard step for a focused divider (px). */
@@ -16,7 +17,10 @@ interface WorkspaceDividerProps {
   weightB: number
   /** Smallest size (px) of either neighbour. */
   min: number
-  onResize: (weightById: Record<string, number>) => void
+  /** New weights; `live` while dragging (each frame), then `onResizeEnd` once at the end. */
+  onResize: (weightById: Record<string, number>, opts?: { live?: boolean }) => void
+  /** The drag ended (kept the result: the frames weren't). */
+  onResizeEnd?: () => void
   /** Cells only: dragging past a cell's minimum collapses it to its header. */
   onCollapse?: (id: string) => void
   label: string
@@ -41,11 +45,12 @@ function measure(between: 'columns' | 'cells', id: string): number | null {
 
 /**
  * The gutter between two columns or two cells, as a resize handle: drag to
- * move it (rAF-throttled; only the two neighbours change), double-click to
+ * move it (rAF-throttled; only the two neighbours change; the frames are
+ * `live` edits, kept in the browser once at the end), double-click to
  * even them out, ←/→ (↑/↓) to move it 16px. Neither neighbour goes below
  * `min`; dragging a cell well past its minimum collapses it instead.
  */
-export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onResize, onCollapse, label }: WorkspaceDividerProps) {
+export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onResize, onResizeEnd, onCollapse, label }: WorkspaceDividerProps) {
   const axisX = between === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -56,7 +61,7 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
     rafRef.current = null
     const next = pendingRef.current
     pendingRef.current = null
-    if (next) onResize(next)
+    if (next) onResize(next, { live: true })
   }, [onResize])
 
   const schedule = useCallback((next: Record<string, number>) => {
@@ -64,9 +69,12 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
     if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
   }, [flush])
 
+  // Gone mid-drag: what the frames applied is kept all the same.
+  const onResizeEndRef = useLatestRef(onResizeEnd)
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
-  }, [])
+    if (dragRef.current) onResizeEndRef.current?.()
+  }, [onResizeEndRef])
 
   const endDrag = (el: HTMLElement, pointerId: number) => {
     dragRef.current = null
@@ -76,6 +84,7 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
       cancelAnimationFrame(rafRef.current)
       flush()
     }
+    onResizeEnd?.()
   }
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
