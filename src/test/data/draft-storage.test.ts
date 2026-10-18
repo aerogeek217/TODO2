@@ -104,6 +104,27 @@ describe('draft storage', () => {
     expect(unsavedDraftsKept()).toBe(true)
   })
 
+  it('a draft another tab replaced or removed is no longer kept for this one', () => {
+    writeLayoutDraft(savedDraft)
+    writeListDrafts(new Map([[4, { draft: listDef({ name: 'B' }), base: listDef() }]]))
+    expect(unsavedDraftsKept()).toBe(true)
+    // Another tab (same storage) discards its layout changes.
+    localStorage.removeItem('todo2-unsaved-layout')
+    expect(unsavedDraftsKept()).toBe(false)
+    writeLayoutDraft(savedDraft)
+    expect(unsavedDraftsKept()).toBe(true)
+    // … or keeps list drafts of its own over these.
+    localStorage.setItem('todo2-unsaved-lists', '{}')
+    expect(unsavedDraftsKept()).toBe(false)
+  })
+
+  it('a draft another tab keeps doesn’t matter to a tab with nothing of that kind kept', () => {
+    writeLayoutDraft(null)
+    writeListDrafts(new Map())
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved' }))
+    expect(unsavedDraftsKept()).toBe(true)
+  })
+
   it('storage that can’t be read reads as nothing kept', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('blocked', 'SecurityError') })
     expect(readLayoutDraft()).toBeNull()

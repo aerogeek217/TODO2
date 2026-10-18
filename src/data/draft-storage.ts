@@ -67,15 +67,16 @@ function upgradeRows(table: string, rows: unknown[], from: number): unknown[] | 
   }
 }
 
-/** Whether the last write reached storage (both kinds). */
-let layoutWriteOk = true
-let listsWriteOk = true
+/**
+ * This tab's last write of each kind: the text it stored (`null` = none
+ * kept), or `false` when storage refused it.
+ */
+let layoutWritten: string | null | false = null
+let listsWritten: string | null | false = null
 registerModuleReset(() => {
-  layoutWriteOk = true
-  listsWriteOk = true
   // A fresh page load's storage: no drafts kept from an earlier test.
-  writeJson(LAYOUT_KEY, null)
-  writeJson(LISTS_KEY, null)
+  layoutWritten = writeJson(LAYOUT_KEY, null)
+  listsWritten = writeJson(LISTS_KEY, null)
 })
 
 function readJson(key: string): unknown {
@@ -87,12 +88,16 @@ function readJson(key: string): unknown {
   }
 }
 
-/** Writes `value` (or removes the key for `null`); false when storage refused. */
-function writeJson(key: string, value: unknown): boolean {
+/** Writes `value` (or removes the key for `null`): the text stored (`null` when removed), false when storage refused. */
+function writeJson(key: string, value: unknown): string | null | false {
   try {
-    if (value == null) localStorage.removeItem(key)
-    else localStorage.setItem(key, JSON.stringify(value))
-    return true
+    if (value == null) {
+      localStorage.removeItem(key)
+      return null
+    }
+    const text = JSON.stringify(value)
+    localStorage.setItem(key, text)
+    return text
   } catch (err) {
     console.warn(`[drafts] could not keep unsaved changes (${key})`, err)
     return false
@@ -139,7 +144,7 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
 
 /** Keeps the layout draft (`null` = none). */
 export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
-  layoutWriteOk = writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
+  layoutWritten = writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
 }
 
 /** A layout draft as kept: the body's keys flat (`columns`, `top`, …), the base's prefixed. */
@@ -183,16 +188,31 @@ export function readListDrafts(): Map<number, ListDraftRecord> {
 /** Keeps the list drafts (an empty map removes them). */
 export function writeListDrafts(records: ReadonlyMap<number, ListDraftRecord>): void {
   const entries = [...records].map(([id, record]) => [id, { ...record, schemaVersion: CURRENT_DB_VERSION }] as const)
-  listsWriteOk = writeJson(LISTS_KEY, entries.length > 0 ? Object.fromEntries(entries) : null)
+  listsWritten = writeJson(LISTS_KEY, entries.length > 0 ? Object.fromEntries(entries) : null)
 }
 
 /** Forgets every kept draft (a data replace: they were made against other data). */
 export function clearUnsavedDrafts(): void {
-  layoutWriteOk = writeJson(LAYOUT_KEY, null)
-  listsWriteOk = writeJson(LISTS_KEY, null)
+  layoutWritten = writeJson(LAYOUT_KEY, null)
+  listsWritten = writeJson(LISTS_KEY, null)
 }
 
-/** Whether the unsaved changes on screen are kept for a reload (the last writes reached storage). */
+/**
+ * Whether the unsaved changes on screen are kept for a reload: this tab's
+ * last write of each kind reached storage and is still there — another tab
+ * of the app shares the storage, and its own writes replace these.
+ */
 export function unsavedDraftsKept(): boolean {
-  return layoutWriteOk && listsWriteOk
+  return stillKept(LAYOUT_KEY, layoutWritten) && stillKept(LISTS_KEY, listsWritten)
+}
+
+function stillKept(key: string, written: string | null | false): boolean {
+  if (written === false) return false
+  // Nothing of this kind to keep: another tab's draft doesn't matter here.
+  if (written === null) return true
+  try {
+    return localStorage.getItem(key) === written
+  } catch {
+    return false
+  }
 }
