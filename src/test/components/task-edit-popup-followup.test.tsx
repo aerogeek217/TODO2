@@ -161,21 +161,21 @@ describe('TaskEditPopup — follow-up group', () => {
   })
 })
 
-describe('FollowupPopover — Followed up', () => {
+describe('FollowupPopover — Mark followed up', () => {
   it('is the primary button until the task was followed up today, then dimmed (still works)', () => {
     const onFollowedUp = vi.fn()
     const anchor = { kind: 'point' as const, x: 10, y: 10 }
     render(<FollowupPopover todo={makeTodo({ id: 1 })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={onFollowedUp} />)
-    expect(screen.getByRole('button', { name: /^Followed up/ })).not.toHaveAttribute('data-done-today')
+    expect(screen.getByRole('button', { name: /^Mark followed up/ })).not.toHaveAttribute('data-done-today')
     cleanup()
     render(<FollowupPopover todo={makeTodo({ id: 1, lastFollowupAt: NOW })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={onFollowedUp} />)
-    const done = screen.getByRole('button', { name: /^Followed up/ })
+    const done = screen.getByRole('button', { name: /^Mark followed up/ })
     expect(done).toHaveAttribute('data-done-today', 'true')
     fireEvent.click(done)
     expect(onFollowedUp).toHaveBeenCalledTimes(1)
     cleanup()
     // The bulk bar decides for the whole selection.
     render(<FollowupPopover todo={makeTodo({ id: 1, lastFollowupAt: NOW })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={onFollowedUp} followedUpToday={false} />)
-    expect(screen.getByRole('button', { name: /^Followed up/ })).not.toHaveAttribute('data-done-today')
+    expect(screen.getByRole('button', { name: /^Mark followed up/ })).not.toHaveAttribute('data-done-today')
   })
 })

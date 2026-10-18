@@ -89,7 +89,7 @@ test.describe('Task follow-up', () => {
     await expect(pop.getByText('Never followed up')).toBeVisible()
 
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
-    await expect(pop.getByRole('button', { name: /^Followed up/ })).toBeFocused()
+    await expect(pop.getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
     await input.click()
     await page.keyboard.type('2w')
     await expect(pop.getByText('Sat 24 Oct')).toBeVisible()
@@ -109,7 +109,7 @@ test.describe('Task follow-up', () => {
     await pill.click()
     const pop = popover(page)
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
-    await expect(pop.getByRole('button', { name: /^Followed up/ })).toBeFocused()
+    await expect(pop.getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
     await expect(input).toHaveValue('Tue 13 Oct')
     await expect(pop.getByText('in 3 days')).toBeVisible()
     await input.fill('whenever')
@@ -140,8 +140,8 @@ test.describe('Task follow-up', () => {
     await expect(pill).toBeVisible()
 
     await pill.click()
-    const followedUp = popover(page).getByRole('button', { name: /^Followed up/ })
-    await expect(followedUp).toHaveAccessibleName('Followed up · Next: Tue 11/10')
+    const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
+    await expect(followedUp).toHaveAccessibleName('Mark followed up · Next: Tue 11/10')
     await followedUp.click()
     await expect(popover(page)).toBeHidden()
     await expect(row.getByRole('button', { name: 'Follow-up: Tue 10 Nov', exact: true })).toBeVisible()

@@ -27,7 +27,7 @@ interface FollowupPopoverProps {
   /** "Followed up": last = now, next = today + the default interval. */
   onFollowedUp: () => void
   /**
-   * Already followed up today (dims "Followed up"). Defaults to `todo`'s own
+   * Already followed up today (dims "Mark followed up"). Defaults to `todo`'s own
    * last follow-up; the bulk bar passes "every selected task".
    */
   followedUpToday?: boolean
@@ -42,7 +42,7 @@ interface FollowupPopoverProps {
 /**
  * Small popover for a task's follow-up, opened from the row's follow-up pill,
  * its empty-slot flag, the row menu or the bulk bar. It opens with focus on
- * "Followed up" (⏎ or a click stamps the task today), or on the Next
+ * "Mark followed up" (⏎ or a click stamps the task today), or on the Next
  * follow-up field (`initialFocus: 'next'`). Next follow-up takes an interval
  * or a date; quick buttons set common intervals. ⏎ in the field (valid
  * input) or a quick button applies and closes; Esc / outside click closes
@@ -103,13 +103,13 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
     else if (s.kind === 'unchanged') onClose()
   }
 
-  // The next follow-up "Followed up" sets, as `Next: Tue 11/10` (the colon
+  // The next follow-up "Mark followed up" sets, as `Next: Tue 11/10` (the colon
   // keeps it from reading as "next Tuesday").
   const nextAfterFollowup = formatWeekdayNumeric(addFollowupInterval(today, interval))
   const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
     `Record a follow-up today\nNext follow-up: ${nextAfterFollowup}`,
   )
-  // Only highlight "Followed up" when it would record something new.
+  // Only highlight "Mark followed up" when it would record something new.
   const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
   const s = input.state
 
@@ -191,7 +191,7 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
         data-done-today={doneToday ? 'true' : undefined}
       >
         <FollowedUpIcon />
-        Followed up{' '}
+        Mark followed up{' '}
         <span className={styles.followedUpHint}>· Next: {nextAfterFollowup}</span>
       </button>
       {followedUpTip}

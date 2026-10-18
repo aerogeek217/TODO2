@@ -76,19 +76,19 @@ test.describe('recording a follow-up from a row stamps today', () => {
 
     // The pill of a planned follow-up → the popover's Followed up.
     await rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
-    await popover(page).getByRole('button', { name: /^Followed up/ }).click()
+    await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(RECORDED)
 
     // A late follow-up's pill.
     await rowIn(list, 'Late pill').getByRole('button', { name: /^Follow-up: Thu 8/ }).click()
-    await popover(page).getByRole('button', { name: /^Followed up/ }).click()
+    await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Late pill')).toEqual(RECORDED)
 
     // The empty-slot flag of a task with no follow-up.
     const flagRow = rowIn(list, 'No follow-up yet')
     await flagRow.hover()
     await flagRow.getByRole('button', { name: 'Set follow-up', exact: true }).click()
-    await popover(page).getByRole('button', { name: /^Followed up/ }).click()
+    await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'No follow-up yet')).toEqual(RECORDED)
 
     // The task menu (right-click).
@@ -111,7 +111,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await titleIn(list, 'Bulk pop one').click()
     await titleIn(list, 'Bulk pop two').click({ modifiers: ['Control'] })
     await bulkBar.getByRole('button', { name: 'Set follow-up', exact: true }).click()
-    await popover(page).getByRole('button', { name: /^Followed up/ }).click()
+    await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(RECORDED)
     await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(RECORDED)
   })
@@ -119,7 +119,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
   test('the popover opens on Followed up: ⏎ records today and focus goes back to the pill', async ({ page }) => {
     const list = page.locator('[data-list-widget="list"]')
     await rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
-    const followedUp = popover(page).getByRole('button', { name: /^Followed up/ })
+    const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
     await expect(followedUp).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(popover(page)).toBeHidden()
@@ -133,7 +133,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await row.hover()
     const flag = row.getByRole('button', { name: 'Set follow-up', exact: true })
     await flag.click()
-    await expect(popover(page).getByRole('button', { name: /^Followed up/ })).toBeFocused()
+    await expect(popover(page).getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(popover(page)).toBeHidden()
     await expect(flag).toBeFocused()
@@ -156,7 +156,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await titleIn(list, 'Bulk pop one').click()
     await titleIn(list, 'Bulk pop two').click({ modifiers: ['Control'] })
     await page.getByTestId('list-bulk-bar').getByRole('button', { name: 'Set follow-up', exact: true }).click()
-    await expect(popover(page).getByRole('button', { name: /^Followed up/ })).toBeFocused()
+    await expect(popover(page).getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
     await page.keyboard.press('Enter')
     await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(RECORDED)
     await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(RECORDED)
@@ -165,7 +165,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
   test('a dashboard Needs follow-up row', async ({ page }) => {
     const dash = page.locator('[data-dashboard="dash"]')
     await rowIn(dash, 'Dashboard late').getByRole('button', { name: /^Follow-up: Tue 6/ }).click()
-    await popover(page).getByRole('button', { name: /^Followed up/ }).click()
+    await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Dashboard late')).toEqual(RECORDED)
   })
 })
@@ -179,7 +179,7 @@ test.describe('the phone row', () => {
     const row = page.locator('[data-todo-id]').filter({ hasText: 'Planned pill' }).first()
     await row.getByRole('button', { name: /^Follow-up:/ }).click()
     // Opens on Followed up, as on desktop.
-    const followedUp = popover(page).getByRole('button', { name: /^Followed up/ })
+    const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
     await expect(followedUp).toBeFocused()
     await followedUp.click()
     await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(RECORDED)

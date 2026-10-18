@@ -10,7 +10,7 @@ const TODAY = new Date(2026, 9, 10, 9, 0)
 
 const anchor = { kind: 'point', x: 10, y: 10 } as const
 
-describe('<FollowupPopover> Followed up button', () => {
+describe('<FollowupPopover> Mark followed up button', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(TODAY)
@@ -20,23 +20,23 @@ describe('<FollowupPopover> Followed up button', () => {
     vi.useRealTimers()
   })
 
-  it('reads "Next: <Day MM/DD>" — the next follow-up it will set (today + the default interval)', () => {
+  it('reads "Mark followed up · Next: <Day MM/DD>" — the next follow-up it will set (today + the default interval)', () => {
     render(<FollowupPopover todo={makeTodo({ id: 1 })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={vi.fn()} />)
-    const button = screen.getByRole('button', { name: /^Followed up/ })
+    const button = screen.getByRole('button', { name: /^Mark followed up/ })
     // Default interval 1 month: Tue 10 Nov 2026.
-    expect(button).toHaveAccessibleName('Followed up · Next: Tue 11/10')
+    expect(button).toHaveAccessibleName('Mark followed up · Next: Tue 11/10')
     expect(button.textContent).not.toMatch(/next Tue/)
   })
 
   it('follows the Settings interval', () => {
     useSettingsStore.setState({ followupDefaultInterval: { count: 2, unit: 'w' } })
     render(<FollowupPopover todo={makeTodo({ id: 1 })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /^Followed up/ })).toHaveAccessibleName('Followed up · Next: Sat 10/24')
+    expect(screen.getByRole('button', { name: /^Mark followed up/ })).toHaveAccessibleName('Mark followed up · Next: Sat 10/24')
   })
 
   it('its tooltip says what it does', () => {
     render(<FollowupPopover todo={makeTodo({ id: 1 })} anchor={anchor} onClose={vi.fn()} onSetNext={vi.fn()} onFollowedUp={vi.fn()} />)
-    const button = screen.getByRole('button', { name: /^Followed up/ })
+    const button = screen.getByRole('button', { name: /^Mark followed up/ })
     fireEvent.pointerEnter(button)
     act(() => { vi.advanceTimersByTime(400) })
     expect(screen.getByRole('tooltip')).toHaveTextContent('Record a follow-up today' + 'Next follow-up: Tue 11/10')
