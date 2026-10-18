@@ -53,84 +53,25 @@
 .toggleActive::after {
   transform: translateX(20px);
 }
-.triToggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 28px;
-  border-radius: var(--radius-chip);
-  border: 1.5px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.15s;
-}
-
-.triToggleActive {
-  background: var(--color-accent-bg-light);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
 .dateSection {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 0;
+  padding: 4px 0 12px;
 }
 
-.dateFieldSelector {
-  display: flex;
-  gap: 2px;
-  background: var(--color-surface-high);
-  border-radius: var(--radius-card);
-  padding: 3px;
-}
-
-.dateFieldOption {
-  flex: 1;
-  padding: 6px 4px;
-  border: none;
-  border-radius: var(--radius-chip);
-  background: transparent;
+/* A section header's value (the Dates row: `Due + Created`, `Any`). */
+.sectionValue {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.15s;
 }
 
-.dateFieldOptionActive {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  box-shadow: var(--shadow-card);
-}
-
-/* A date type that filters (selected or not): accent text and a dot. */
-.dateFieldOptionLit {
+.sectionValueOn {
   color: var(--color-accent);
 }
 
-.dateFieldOptionLit::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  vertical-align: 1px;
-}
-
-.dateInputs {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
 .entitySection {
   margin-top: 4px;
 }

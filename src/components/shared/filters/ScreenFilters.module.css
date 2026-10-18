@@ -71,6 +71,16 @@
   max-width: 160px;
 }
 
+/* The Dates value (`Due today – end of next week`). */
+.filterLabelWide {
+  max-width: 260px;
+}
+
+/* A filter that is on, with its picker open. */
+.filterButtonOpen {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
 .chevron {
   display: inline-flex;
   color: var(--color-text-muted);

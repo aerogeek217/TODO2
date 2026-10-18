@@ -1,0 +1,362 @@
+/* The date panel (`DateFilterPanel`): type tabs, the selected type's clause,
+ * Clear <Type> / Clear all. `.popover` is the holder a caller portals it in
+ * (position written inline by `usePopoverAnchor`); `.sheet` is the phone
+ * Filters sheet's touch-size variant. */
+
+.popover {
+  width: 336px;
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
+  background: var(--color-surface-high);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-dialog-nested);
+  animation: dropIn 0.1s ease-out;
+}
+
+[data-theme='light'] .popover {
+  background: var(--color-surface);
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── Segmented tracks: the type tabs and Show ── */
+
+.tabs,
+.track {
+  display: grid;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--color-seg-track);
+}
+
+.tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 8px 8px 0;
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segment:hover {
+  background: var(--color-tint-4);
+  color: var(--color-text-primary);
+}
+
+.segment:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.tab {
+  height: 28px;
+  border-radius: 6px;
+}
+
+.selected,
+.selected:hover {
+  background: var(--color-seg-selected);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-seg-selected);
+}
+
+/* A date type that filters, selected or not: accent text and a dot. */
+.lit,
+.lit:hover {
+  color: var(--color-accent);
+}
+
+.lit::before {
+  content: '';
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* ── Body ── */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.words,
+.off {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.words {
+  color: var(--color-accent);
+}
+
+.off {
+  color: var(--color-text-muted);
+}
+
+.label {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.showRow,
+.rangeRow {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.showTrack {
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: 7px;
+}
+
+.showSegment {
+  height: 24px;
+  border-radius: 5px;
+}
+
+/* `DateAnchorInput` laid out as a 112px date input + the anchor select. */
+.anchor {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+}
+
+.anchor input,
+.anchor select {
+  box-sizing: border-box;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.anchor input:focus,
+.anchor select:focus {
+  box-shadow: inset 0 0 0 1px var(--color-accent-dim);
+}
+
+.anchor input[type='date'] {
+  width: 112px;
+  flex-shrink: 0;
+  padding: 0 6px;
+}
+
+.anchor input[inputmode='numeric'] {
+  width: 56px;
+  padding: 0 8px;
+}
+
+.anchor select {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  padding: 0 6px;
+}
+
+.noDate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.check {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: inherit;
+}
+
+.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.explain {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ── Footer ── */
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.ghost {
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ghost:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* ── Phone sheet: touch sizes ── */
+
+.sheet {
+  gap: 12px;
+}
+
+.sheet .tabs {
+  margin: 0;
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.sheet .tab {
+  height: 38px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.sheet .body {
+  gap: 12px;
+  padding: 0;
+}
+
+.sheet .title {
+  font-size: 14px;
+}
+
+.sheet .words,
+.sheet .off {
+  font-size: 13px;
+}
+
+.sheet .showRow .label {
+  display: none;
+}
+
+.sheet .showTrack {
+  border-radius: 10px;
+}
+
+.sheet .showSegment {
+  height: 38px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.sheet .rangeRow {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.sheet .rangeRow .label {
+  width: auto;
+  font-size: 13px;
+}
+
+.sheet .anchor input,
+.sheet .anchor select {
+  height: 44px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
+.sheet .anchor input[type='date'] {
+  width: 132px;
+}
+
+.sheet .noDate {
+  justify-content: space-between;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.sheet .explain {
+  font-size: 14px;
+}
+
+.sheet .footer {
+  padding: 0;
+  border-top: none;
+}
+
+.sheet .ghost {
+  height: 36px;
+  font-size: 14px;
+}

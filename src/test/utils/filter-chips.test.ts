@@ -3,7 +3,11 @@ import type { Person, Status, Tag } from '../../models'
 import { emptyPredicate } from '../../models'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
+  chipKey,
   clearChipField,
+  datesSpokenValue,
+  datesTooltip,
+  datesValue,
   describeAnchor,
   describeFilters,
   describeRange,
@@ -38,7 +42,7 @@ describe('filterChips', () => {
       { field: 'markers', label: 'Priority', value: 'Important' },
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'people', label: 'People', value: 'Alice +2' },
-      { field: 'dates', label: 'Due', value: 'within 14 days' },
+      { field: 'dates', dateField: 'deadline', label: 'Due', value: 'within 14 days' },
       { field: 'status', label: 'Status', value: 'Waiting' },
       { field: 'text', label: 'Text', value: '“invoice”' },
     ])
@@ -60,27 +64,42 @@ describe('filterChips', () => {
     expect(filterChips(c, names, true).map((x) => x.field)).toEqual(['tags', 'completed'])
   })
 
-  it('one date type reads as its name and clause; several as Dates and each type’s clause', () => {
+  it('one chip per date type that filters, in tab order (Due · Follow-up · Created · Modified)', () => {
     expect(filterChips({ ...emptyPredicate(), dates: { followup: { match: 'unset' } } }, names)).toEqual([
-      { field: 'dates', label: 'Follow-up', value: 'no date' },
+      { field: 'dates', dateField: 'followup', label: 'Follow-up', value: 'no date' },
     ])
     expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'set' } } }, names)).toEqual([
-      { field: 'dates', label: 'Due', value: 'has a date' },
+      { field: 'dates', dateField: 'deadline', label: 'Due', value: 'has a date' },
     ])
     const week = { kind: 'offset' as const, days: 7 }
     const today = { kind: 'offset' as const, days: 0 }
     expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: today, end: week, includeNoDate: true } } }, names)).toEqual([
-      { field: 'dates', label: 'Due', value: 'within 7 days, or none' },
+      { field: 'dates', dateField: 'deadline', label: 'Due', value: 'within 7 days, or none' },
     ])
     expect(filterChips({
       ...emptyPredicate(),
-      dates: { created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null }, deadline: { match: 'range', start: today, end: week } },
+      statusIds: [1],
+      tags: [1],
+      dates: {
+        modified: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
+        created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
+        deadline: { match: 'range', start: today, end: week },
+      },
     }, names)).toEqual([
-      { field: 'dates', label: 'Dates', value: 'Due within 7 days, Created from start of month' },
+      { field: 'tags', label: 'Tags', value: '#q4' },
+      { field: 'dates', dateField: 'deadline', label: 'Due', value: 'within 7 days' },
+      { field: 'dates', dateField: 'created', label: 'Created', value: 'from start of month' },
+      { field: 'dates', dateField: 'modified', label: 'Modified', value: 'by today' },
+      { field: 'status', label: 'Status', value: 'Waiting' },
     ])
     // A range with no end filters nothing: no chip.
     expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: null } } }, names)).toEqual([])
     expect(hasNarrowingFilters({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: null } } })).toBe(false)
+  })
+
+  it('a chip’s key is unique per date type', () => {
+    const chips = filterChips({ ...emptyPredicate(), personIds: [1], dates: { deadline: { match: 'set' }, followup: { match: 'unset' } } }, names)
+    expect(chips.map(chipKey)).toEqual(['people', 'dates:deadline', 'dates:followup'])
   })
 
   it('a Markers clause reads the first marker (+N), first among the chips', () => {
@@ -107,6 +126,8 @@ describe('filterChips', () => {
   it('describeFilters joins chips in words', () => {
     const p = { ...emptyPredicate(), statusIds: [1], dates: { followup: { match: 'range' as const, start: null, end: { kind: 'relative' as const, token: 'end-of-week' as const } } } }
     expect(describeFilters(filterChips(p, names))).toBe('Follow-up by end of week · Status Waiting')
+    const two = { ...emptyPredicate(), dates: { deadline: { match: 'set' as const }, created: { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null } } }
+    expect(describeFilters(filterChips(two, names))).toBe('Due has a date · Created from start of month')
   })
 })
 
@@ -143,6 +164,59 @@ describe('clearChipField', () => {
     expect(clearChipField(p, 'markers')).toMatchObject({ markers: null, personIds: [1] })
     const dates = clearChipField(p, 'dates')
     expect(dates).toMatchObject({ dates: {}, personIds: [1], markers: { urgent: true } })
+  })
+
+  it('a date chip clears only its date type', () => {
+    const p = {
+      ...emptyPredicate(),
+      personIds: [1],
+      dates: { deadline: { match: 'set' as const }, followup: { match: 'unset' as const }, created: { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: null } },
+    }
+    expect(clearChipField(p, 'dates', 'followup')).toMatchObject({
+      personIds: [1],
+      dates: { deadline: { match: 'set' }, created: { match: 'range', start: { kind: 'offset', days: -7 }, end: null } },
+    })
+    expect(clearChipField(p, 'dates', 'followup').dates).not.toHaveProperty('followup')
+    expect(clearChipField(p, 'dates', 'modified').dates).toEqual(p.dates)
+  })
+})
+
+describe('the Dates value (top-bar button, Filters menu, phone sheet)', () => {
+  const today = { kind: 'relative' as const, token: 'today' as const }
+  const nextWeek = { kind: 'relative' as const, token: 'end-of-next-week' as const }
+  const due = { match: 'range' as const, start: today, end: nextWeek }
+  const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
+
+  it('is null when no date type filters', () => {
+    expect(datesValue({})).toBeNull()
+    expect(datesValue({ deadline: { match: 'range', start: null, end: null } })).toBeNull()
+    expect(datesTooltip({})).toBeNull()
+  })
+
+  it('one type → its clause in words', () => {
+    expect(datesValue({ deadline: due })).toBe('Due today – end of next week')
+    expect(datesValue({ followup: { match: 'unset' } })).toBe('Follow-up no date')
+  })
+
+  it('two types → their short names joined, in tab order', () => {
+    expect(datesValue({ created, deadline: due })).toBe('Due + Created')
+  })
+
+  it('three or four → the first + N', () => {
+    expect(datesValue({ created, deadline: due, modified: created })).toBe('Due + 2')
+    expect(datesValue({ followup: { match: 'set' }, created, deadline: due, modified: created })).toBe('Due + 3')
+  })
+
+  it('the tooltip lists each type from two on, then how they combine', () => {
+    expect(datesTooltip({ deadline: due })).toBeNull()
+    expect(datesTooltip({ deadline: due, created })).toBe('Due: today – end of next week\nCreated: from start of month\nTasks must match both · × clears both')
+    expect(datesTooltip({ deadline: due, created, followup: { match: 'set' } }))
+      .toBe('Due: today – end of next week\nFollow-up: has a date\nCreated: from start of month\nTasks must match all · × clears all')
+  })
+
+  it('the spoken value lists every type', () => {
+    expect(datesSpokenValue({ deadline: due, created })).toBe('Due today – end of next week; Created from start of month')
+    expect(datesSpokenValue({})).toBeNull()
   })
 })
 

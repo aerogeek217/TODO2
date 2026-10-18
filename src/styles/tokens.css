@@ -241,6 +241,11 @@
   --color-inset: rgba(0, 0, 0, 0.18);
   --color-inset-light: rgba(0, 0, 0, 0.14);
 
+  /* Segmented control (the date filter's type tabs and Show choice) */
+  --color-seg-track: rgba(0, 0, 0, 0.22);
+  --color-seg-selected: #2d2b29;
+  --shadow-seg-selected: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.55);
   /* Dims a workspace cell body under its drop zones while a tab is dragged over it */
@@ -393,6 +398,11 @@
   /* Inset backgrounds */
   --color-inset: rgba(0, 0, 0, 0.04);
   --color-inset-light: rgba(0, 0, 0, 0.025);
+
+  /* Segmented control */
+  --color-seg-track: rgba(0, 0, 0, 0.06);
+  --color-seg-selected: #ffffff;
+  --shadow-seg-selected: 0 1px 2px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.35);

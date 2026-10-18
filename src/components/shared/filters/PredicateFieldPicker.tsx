@@ -10,7 +10,9 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { toggleItem } from '../../../utils/filter'
 import { MARKERS_LABEL } from '../../../utils/markers'
-import { EntityDropdownItems, DateRangePanelBody, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
+import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
+import { DateFilterPanel } from './DateFilterPanel'
+import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { DEFAULT_PREDICATE } from './FilterChipBar.shared'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
@@ -29,11 +31,9 @@ export interface PredicateFieldPickerProps {
   onChange: (next: TodoPredicate) => void
   /** Viewport point the panel hangs from. */
   at: PopoverPoint
-  /**
-   * Adding this filter: an entity picker starts with nothing ticked (the
-   * first pick narrows to it) and a date picker opens on `dateField`.
-   */
+  /** Adding this filter: an entity picker starts with nothing ticked (the first pick narrows to it). */
   adding?: boolean
+  /** The date type the date panel opens on (a date chip's); default the first that filters, else Due. */
   dateField?: DateField
   onClose: () => void
 }
@@ -63,17 +63,19 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
     onChange(next)
   }, [onChange])
 
+  const dates = field === 'dates'
   return createPortal(
     <div
       ref={panelRef}
-      className={`${picker.dropdownPanel} ${styles.pickerPanel}`}
+      className={dates ? DATE_FILTER_POPOVER_CLASS : `${picker.dropdownPanel} ${styles.pickerPanel}`}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
       role="dialog"
-      aria-label={`${PICKER_TITLE[field]} filter`}
+      aria-label={dates ? DATE_FILTER_DIALOG_LABEL : `${PICKER_TITLE[field]} filter`}
       data-testid="list-filter-picker"
     >
-      {field === 'dates' ? (
-        <DatesPicker predicate={predicate} presetField={adding ? dateField : undefined} update={update} onClose={onClose} />
+      {dates ? (
+        // Picking a type or clearing keeps the panel open.
+        <DateFilterPanel dates={predicate.dates} initialField={dateField} onChange={(d) => update({ dates: d })} autoFocus />
       ) : field === 'text' ? (
         <TextPicker predicate={predicate} update={update} onClose={onClose} />
       ) : field === 'markers' ? (
@@ -92,7 +94,7 @@ const PICKER_TITLE: Record<ListFilterField, string> = {
   tags: 'Tags',
   status: 'Status',
   markers: MARKERS_LABEL,
-  dates: 'Date',
+  dates: 'Dates',
   text: 'Text',
 }
 
@@ -152,23 +154,6 @@ function EntityPicker({ field, predicate, adding, update, onClose }: {
         />
       )}
     </SelectionPanelBody>
-  )
-}
-
-function DatesPicker({ predicate, presetField, update, onClose }: {
-  predicate: TodoPredicate
-  presetField: DateField | undefined
-  update: (patch: Partial<TodoPredicate>) => void
-  onClose: () => void
-}) {
-  // Adding "Follow-up date" opens on that type; a chip opens on the first type that filters.
-  return (
-    <DateRangePanelBody
-      dates={predicate.dates}
-      initialField={presetField}
-      onChange={(dates) => update({ dates })}
-      onCleared={onClose}
-    />
   )
 }
 

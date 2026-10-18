@@ -20,6 +20,7 @@ import {
 } from '../../../services/list-sections'
 import { predicateToFilterDefaults } from '../../../utils/filter-defaults'
 import {
+  chipKey,
   describeFilters,
   filterChips,
   hasNarrowingFilters,
@@ -523,7 +524,7 @@ function ListFilterRow({ tabId, definition, screenChips, hasListChips }: {
           before={(
             <>
               {screenChips.map((chip) => (
-                <span key={`screen-${chip.field}`} className={chipStyles.screenChip} title="Screen filter · set in the top bar" data-testid="screen-filter-chip">
+                <span key={`screen-${chipKey(chip)}`} className={chipStyles.screenChip} title="Screen filter · set in the top bar" data-testid="screen-filter-chip">
                   <FunnelIcon />
                   {screenChipText(chip)}
                 </span>

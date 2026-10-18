@@ -34,7 +34,7 @@ interface PanelGeom { left: number; top: number; right: number; bottom: number; 
 
 /**
  * Locate a portaled filter picker panel: the `document.body` child with
- * `position: fixed` whose text contains `marker` (`'Has due date'` only
+ * `position: fixed` whose text contains `marker` (`'Also tasks with no due date'` only
  * renders inside the date picker). `null` if no portaled panel exists.
  */
 async function findFilterChipPanel(page: Page, marker: string): Promise<PanelGeom | null> {
@@ -51,12 +51,12 @@ async function findFilterChipPanel(page: Page, marker: string): Promise<PanelGeo
   }, marker)
 }
 
-/** Opens the editor's date filter picker: + Filter → Due date. */
+/** Opens the editor's date filter picker: + Filter → Dates. */
 async function openDatePicker(page: Page): Promise<void> {
   const editor = page.getByRole('dialog', { name: /Edit list:/ })
   await editor.getByRole('button', { name: 'Filter', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Due date' }).click()
-  await expect(page.getByText('Has due date')).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Dates' }).click()
+  await expect(page.getByRole('dialog', { name: 'Date filters' })).toBeVisible()
 }
 
 test.describe('list editor modal — filter picker placement', () => {
@@ -70,7 +70,7 @@ test.describe('list editor modal — filter picker placement', () => {
     await openListEditor(page)
     await openDatePicker(page)
 
-    const panel = await findFilterChipPanel(page, 'Has due date')
+    const panel = await findFilterChipPanel(page, 'Also tasks with no due date')
     expect(panel).not.toBeNull()
     if (!panel) return
 
@@ -103,7 +103,7 @@ test.describe('list editor modal — filter picker placement', () => {
       for (const el of candidates) {
         if (/Edit list:/.test(el.getAttribute('aria-label') ?? '')) continue
         if (window.getComputedStyle(el).position !== 'fixed') continue
-        if (!el.textContent?.includes('Has due date')) continue
+        if (!el.textContent?.includes('Also tasks with no due date')) continue
         // Walk up: a portaled panel reaches document.body without crossing
         // the dialog wrapper.
         let cur: HTMLElement | null = el

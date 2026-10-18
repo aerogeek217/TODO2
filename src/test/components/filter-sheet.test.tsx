@@ -99,23 +99,22 @@ describe('FilterSheet', () => {
     })
   })
 
-  // ── Date range ────────────────────────────────────────────────────
+  // ── Dates ─────────────────────────────────────────────────────────
 
-  describe('date range', () => {
+  describe('dates', () => {
     it('picking a date type writes nothing; the range then edits that type', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      fireEvent.click(screen.getByText('Created'))
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('tab', { name: 'Created' }))
       expect(useFilterStore.getState().filters.dates).toEqual({})
-      fireEvent.change(document.querySelectorAll('input[type="date"]')[0]!, { target: { value: '2026-04-01' } })
+      fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-01' } })
       expect(Object.keys(useFilterStore.getState().filters.dates)).toEqual(['created'])
     })
 
     it('sets date range start from input', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      const dateInputs = document.querySelectorAll('input[type="date"]')
-      fireEvent.change(dateInputs[0]!, { target: { value: '2026-04-01' } })
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-01' } })
 
       const due = useFilterStore.getState().filters.dates.deadline
       const dateRangeStart = due?.match === 'range' ? due.start : null
@@ -125,11 +124,8 @@ describe('FilterSheet', () => {
 
     it('sets a relative-token anchor from the token dropdown', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      // First select is the date-field selector in dateFieldSelector (buttons, not a select).
-      // The real <select> elements belong to DateAnchorInput (start, end).
-      const selects = document.querySelectorAll('select')
-      fireEvent.change(selects[0]!, { target: { value: 'end-of-week' } })
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'end-of-week' } })
 
       const due = useFilterStore.getState().filters.dates.deadline
       const dateRangeStart = due?.match === 'range' ? due.start : null
@@ -137,23 +133,33 @@ describe('FilterSheet', () => {
       expect(dateRangeStart.token).toBe('end-of-week')
     })
 
-    it('cycles the Has due date tri-state: off → has a date → no date → off', () => {
+    it('Show: Has a date / No date / In range on the due date', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has due date/ })
-
-      fireEvent.click(btn)
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
       expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' } })
-      fireEvent.click(btn)
+      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
       expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'unset' } })
-      fireEvent.click(btn)
+      fireEvent.click(screen.getByRole('radio', { name: 'In range' }))
       expect(useFilterStore.getState().filters.dates).toEqual({})
+    })
+
+    it('two types at once: the row reads both, Clear <Type> clears one', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
+      fireEvent.click(screen.getByRole('tab', { name: 'Follow-up' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'unset' } })
+      expect(screen.getByText('Due + Follow-up')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Follow-up' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' } })
     })
 
     it('offers no scheduled-date filter', () => {
       renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      expect(screen.queryByRole('button', { name: /Has scheduled/ })).toBeNull()
+      fireEvent.click(screen.getByText('Dates'))
+      expect(screen.queryByRole('tab', { name: /Sched/ })).toBeNull()
       expect(screen.queryByText('Sched.')).toBeNull()
     })
   })

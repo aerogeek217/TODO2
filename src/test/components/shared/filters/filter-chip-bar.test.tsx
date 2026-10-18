@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, cleanup, screen, within } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { render, fireEvent, cleanup, screen, within, act } from '@testing-library/react'
+import { TOOLTIP_DELAY_MS } from '../../../../components/shared/use-tooltip'
 import { FilterChipBar } from '../../../../components/shared/filters/FilterChipBar'
 import { ADD_FILTER_ITEMS } from '../../../../components/shared/filters/filter-menu'
 import type { TodoPredicate } from '../../../../models'
@@ -150,48 +151,90 @@ describe('FilterChipBar — primitive', () => {
       expect(captured!.tags).toEqual([10])
     })
 
-    it('cycles a tri-state row inside the Date dropdown', () => {
+    it('the Dates button opens the date panel (a “Date filters” dialog) and writes nothing', () => {
       const updates: TodoPredicate[] = []
-      render(
-        <FilterChipBar
-          predicate={emptyPredicate()}
-          onChange={(p) => updates.push(p)}
-        />,
-      )
-      fireEvent.click(screen.getByRole('button', { name: /Date/i }))
-      // Opening the Date dropdown is non-committal: no anchor is
-      // seeded, so updates is empty until the user actually edits something.
-      expect(updates).toHaveLength(0)
-      fireEvent.click(screen.getByText('Has due date'))
-      const last = updates[updates.length - 1]!
-      expect(last.dates).toEqual({ deadline: { match: 'set' } })
+      render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      const button = screen.getByRole('button', { name: 'Dates filter' })
+      fireEvent.click(button)
+      const dialog = screen.getByRole('dialog', { name: 'Date filters' })
+      expect(within(dialog).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Created', 'Modified'])
+      expect(within(dialog).getByRole('tab', { name: 'Due' })).toHaveAttribute('aria-selected', 'true')
+      expect(within(dialog).getByRole('tab', { name: 'Due' })).toHaveFocus()
+      for (const t of within(dialog).getAllByRole('tab')) fireEvent.click(t)
+      fireEvent.click(button)
+      expect(screen.queryByRole('dialog', { name: 'Date filters' })).toBeNull()
+      expect(updates).toEqual([])
     })
 
-    it('opening Date with no active filter does NOT commit a today anchor', () => {
-      // Clicking the Date chip without
-      // editing inputs must leave the predicate untouched. The earlier UX
-      // auto-stamped startOfToday() as the start anchor on open and surprised
-      // users by activating a filter from a no-op interaction.
+    it('the Dates button reads one type’s clause, two joined names, three or four as first + N', () => {
+      const today = { kind: 'relative' as const, token: 'today' as const }
+      const due = { match: 'range' as const, start: today, end: { kind: 'relative' as const, token: 'end-of-next-week' as const } }
+      const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
+      const { rerender } = render(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: due } }} onChange={() => {}} />)
+      expect(screen.getByRole('button', { name: 'Dates filter: Due today – end of next week' })).toHaveTextContent('Due today – end of next week')
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: due, created } }} onChange={() => {}} />)
+      const two = screen.getByRole('button', { name: 'Dates filter: Due today – end of next week; Created from start of month' })
+      expect(two).toHaveTextContent('Due + Created')
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: due, created, followup: { match: 'set' } } }} onChange={() => {}} />)
+      expect(screen.getByRole('button', { name: /^Dates filter:/ })).toHaveTextContent('Due + 2')
+    })
+
+    it('two date types: a tooltip lists each; the × clears every date type', () => {
+      vi.useFakeTimers()
+      try {
+        const updates: TodoPredicate[] = []
+        const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1], dates: { deadline: { match: 'set' }, created } }} onChange={(p) => updates.push(p)} />)
+        const button = screen.getByRole('button', { name: /^Dates filter:/ })
+        fireEvent.pointerEnter(button, { pointerType: 'mouse' })
+        act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+        const tip = screen.getByRole('tooltip')
+        expect(tip).toHaveTextContent('Due: has a date')
+        expect(tip).toHaveTextContent('Created: from start of month')
+        expect(tip).toHaveTextContent('Tasks must match both · × clears both')
+        fireEvent.click(screen.getByRole('button', { name: 'Clear date filters' }))
+        expect(updates.at(-1)).toMatchObject({ dates: {}, personIds: [1] })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('one type: no tooltip', () => {
+      vi.useFakeTimers()
+      try {
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: { match: 'set' } } }} onChange={() => {}} />)
+        fireEvent.pointerEnter(screen.getByRole('button', { name: /^Dates filter:/ }), { pointerType: 'mouse' })
+        act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+        expect(screen.queryByRole('tooltip')).toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('editing a second type in the panel adds its own clause; both filter (AND)', () => {
       const updates: TodoPredicate[] = []
-      render(
-        <FilterChipBar
-          predicate={emptyPredicate()}
-          onChange={(p) => updates.push(p)}
-        />,
-      )
-      // The chevron-bearing chip button is the only Date trigger that has
-      // aria-expanded — the inner field-selector buttons match /Date/i too
-      // (e.g. "Due date") once the panel opens.
-      const chip = screen.getAllByRole('button', { name: /Date/i }).find(
-        (el) => el.getAttribute('aria-expanded') !== null,
-      )!
-      fireEvent.click(chip)
-      // Panel is open (date inputs render), but no onChange has fired.
-      expect(screen.getByText('From')).toBeInTheDocument()
-      expect(updates).toHaveLength(0)
-      // Closing the dropdown also leaves the predicate untouched.
-      fireEvent.click(chip)
-      expect(updates).toHaveLength(0)
+      const start: TodoPredicate = { ...emptyPredicate(), dates: { deadline: { match: 'set' } } }
+      render(<FilterChipBar predicate={start} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByRole('button', { name: /^Dates filter:/ }))
+      const dialog = screen.getByRole('dialog', { name: 'Date filters' })
+      expect(within(dialog).getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'true')
+      fireEvent.click(within(dialog).getByRole('tab', { name: 'Created' }))
+      expect(updates).toEqual([])
+      fireEvent.change(within(dialog).getByLabelText('To'), { target: { value: '2026-04-30' } })
+      const last = updates.at(-1)!
+      expect(Object.keys(last.dates)).toEqual(['deadline', 'created'])
+      expect(last.dates.deadline).toEqual({ match: 'set' })
+    })
+
+    it('folded: the Dates row shows the same value and its submenu is the date panel', () => {
+      const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
+      render(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: { match: 'set' }, created } }} onChange={() => {}} fold />)
+      fireEvent.click(screen.getByRole('button', { name: 'Filters, 1 active' }))
+      const menu = screen.getByRole('group', { name: 'Screen filters' })
+      const row = within(menu).getByRole('button', { name: /^Dates filter:/ })
+      expect(row).toHaveTextContent('Due + Created')
+      fireEvent.click(row)
+      expect(screen.getByRole('dialog', { name: 'Date filters' })).toBeInTheDocument()
     })
 
     it('Clear button uses onClearAll override when provided (skips onChange)', () => {
@@ -215,65 +258,6 @@ describe('FilterChipBar — primitive', () => {
       expect(cleared).toBe(1)
       // onChange was NOT called with DEFAULT_PREDICATE — override takes over.
       expect(captured).toBeNull()
-    })
-
-    it('opens the Date dropdown and exposes the dateField selector', () => {
-      render(
-        <FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />,
-      )
-      fireEvent.click(screen.getByRole('button', { name: /Date/i }))
-      expect(screen.getByText('Due date')).toBeInTheDocument()
-      expect(screen.getByText('Next follow-up')).toBeInTheDocument()
-      expect(screen.queryByText('Scheduled')).toBeNull()
-      expect(screen.queryByText('Effective Date')).toBeNull()
-    })
-
-    it('picking a date type writes nothing; From then edits that type, and it lights up', () => {
-      const updates: TodoPredicate[] = []
-      const { rerender } = render(
-        <FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
-      )
-      fireEvent.click(screen.getByRole('button', { name: /Date/i }))
-      fireEvent.click(screen.getByText('Next follow-up'))
-      expect(updates).toHaveLength(0)
-      expect(screen.getByRole('button', { name: 'Next follow-up' })).toHaveAttribute('aria-pressed', 'true')
-      fireEvent.change(document.querySelectorAll('input[type="date"]')[0]!, { target: { value: '2026-04-01' } })
-      const last = updates.at(-1)!
-      expect(Object.keys(last.dates)).toEqual(['followup'])
-      expect(last.dates.followup).toMatchObject({ match: 'range', end: null })
-      rerender(<FilterChipBar predicate={last} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('button', { name: 'Next follow-up' })).toHaveAttribute('data-filtering')
-      expect(screen.getByRole('button', { name: 'Due date' })).not.toHaveAttribute('data-filtering')
-    })
-
-    it('a second date type adds its own clause; both filter (AND)', () => {
-      const updates: TodoPredicate[] = []
-      const start: TodoPredicate = { ...emptyPredicate(), dates: { deadline: { match: 'set' } } }
-      render(<FilterChipBar predicate={start} onChange={(p) => updates.push(p)} />)
-      fireEvent.click(screen.getByRole('button', { name: /^Dates filter:/ }))
-      fireEvent.click(screen.getByText('Created'))
-      fireEvent.change(document.querySelectorAll('input[type="date"]')[1]!, { target: { value: '2026-04-30' } })
-      const last = updates.at(-1)!
-      expect(Object.keys(last.dates)).toEqual(['deadline', 'created'])
-      expect(last.dates.deadline).toEqual({ match: 'set' })
-    })
-
-    it('Clear inside Date dropdown clears every date type', () => {
-      const updates: TodoPredicate[] = []
-      const active: TodoPredicate = {
-        ...emptyPredicate(),
-        dates: {
-          deadline: { match: 'unset' },
-          followup: { match: 'set' },
-          created: { match: 'range', start: { kind: 'fixed', iso: new Date().toISOString() }, end: null },
-        },
-      }
-      render(
-        <FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />,
-      )
-      fireEvent.click(screen.getByRole('button', { name: /^Dates filter:/ }))
-      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-      expect(updates.at(-1)!.dates).toEqual({})
     })
 
     // Flip / clamp behavior is owned by `usePopoverAnchor` and verified in
@@ -344,9 +328,9 @@ describe('FilterChipBar — primitive', () => {
   // ── Mobile density ───────────────────────────────────────────────────
 
   describe('mobile density', () => {
-    it('the sections read Markers, Tags, People, Date range, Status, then Show / hide', () => {
+    it('the sections read Priority, Tags, People, Dates, Status, then Show / hide', () => {
       render(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={() => {}} />)
-      const headers = ['Priority', 'Tags', 'People', 'Date range', 'Status', 'Show / hide'].map((label) => screen.getByText(label))
+      const headers = ['Priority', 'Tags', 'People', 'Dates', 'Status', 'Show / hide'].map((label) => screen.getByText(label))
       for (let i = 1; i < headers.length; i++) {
         expect(headers[i - 1]!.compareDocumentPosition(headers[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       }
@@ -367,19 +351,22 @@ describe('FilterChipBar — primitive', () => {
       expect(captured!.tags).not.toContain(10)
     })
 
-    it('cycles tri-state Has due date at mobile density (button form)', () => {
+    it('the Dates section shows the Dates value (Any when off) and holds the date panel at touch sizes', () => {
       const updates: TodoPredicate[] = []
-      render(
-        <FilterChipBar
-          density="mobile"
-          predicate={emptyPredicate()}
-          onChange={(p) => updates.push(p)}
-        />,
+      const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
+      const { rerender } = render(
+        <FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
       )
-      fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has due date/ })
-      fireEvent.click(btn)
-      expect(updates.at(-1)?.dates).toEqual({ deadline: { match: 'set' } })
+      expect(screen.getByText('Dates').parentElement).toHaveTextContent('Any')
+      fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('tab', { name: 'Follow-up' }))
+      expect(updates).toEqual([])
+      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      expect(updates.at(-1)?.dates).toEqual({ followup: { match: 'unset' } })
+      rerender(<FilterChipBar density="mobile" predicate={{ ...emptyPredicate(), dates: { deadline: { match: 'set' }, created } }} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByText('Due + Created')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Clear all dates' }))
+      expect(updates.at(-1)?.dates).toEqual({})
     })
 
     it('switches markers on at mobile density', () => {
@@ -437,8 +424,8 @@ describe('FilterChipBar — primitive', () => {
 })
 
 describe('+ Filter menu', () => {
-  it('lists Markers, Tags, People, the dates, Status, then text', () => {
+  it('lists Priority, Tags, People, one Dates, Status, then text', () => {
     expect(ADD_FILTER_ITEMS.map((i) => i.label))
-      .toEqual(['Priority', 'Tags', 'People', 'Due date', 'Follow-up date', 'Status', 'Text contains…'])
+      .toEqual(['Priority', 'Tags', 'People', 'Dates', 'Status', 'Text contains…'])
   })
 })

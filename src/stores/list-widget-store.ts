@@ -30,7 +30,7 @@ export type ListPopover =
       at: PopoverPoint
       /** Adding a new filter (entity pickers start unticked). */
       adding?: boolean
-      /** Adding a date filter on this date field. */
+      /** The date type the date panel opens on (default the first that filters, else Due). */
       dateField?: DateField
     }
 

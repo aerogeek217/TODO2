@@ -1,20 +1,7 @@
-import { useState, type ReactNode, type RefObject } from 'react'
-import { DATE_FIELD_VALUES, MARKER_KEYS, type DateAnchor, type DateFilters, type MarkersFilter } from '../../../models'
-import type { DateField } from '../../../models/app-view'
-import {
-  activeDateFields,
-  datePresenceOf,
-  dateRangeOf,
-  hasDateFilters,
-  isDateMatchOn,
-  isOptionalDateField,
-  withDateMatch,
-} from '../../../utils/date-filters'
-import { DATE_FIELD_LABELS } from '../../../utils/filter-labels'
-import { DateAnchorInput } from '../DateAnchorInput'
+import type { ReactNode, RefObject } from 'react'
+import { MARKER_KEYS, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import picker from './FilterPicker.module.css'
-import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
@@ -23,7 +10,8 @@ import { byName } from '../../../utils/sort-order'
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
  * (`FilterChipBar`) and the list widgets' filter chips. Each renders inside
- * a caller-owned popover panel (`picker.dropdownPanel`).
+ * a caller-owned popover panel (`picker.dropdownPanel`). The date filters
+ * have their own component, `DateFilterPanel`.
  */
 
 interface SelectionPanelBodyProps {
@@ -137,133 +125,6 @@ export function EntityDropdownItems({
       {q && !showNone && filtered.length === 0 && (
         <div className={picker.dropdownEmpty}>No matches</div>
       )}
-    </>
-  )
-}
-
-function TriStateRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: boolean | null
-  onChange: (v: boolean | null) => void
-}) {
-  const next = cycleTri(value)
-  const icon = triIcon(value)
-  return (
-    <label
-      className={picker.dropdownItem}
-      onClick={() => onChange(next)}
-      title={triLabel(value)}
-    >
-      <span className={`${picker.triState} ${value !== null ? picker.triStateActive : ''}`}>
-        {icon}
-      </span>
-      {label}
-    </label>
-  )
-}
-
-export interface DateRangePanelBodyProps {
-  /** The date filters edited: one clause per date type. */
-  dates: DateFilters
-  /** The date type selected when the panel opens; default the first that filters, else Due. */
-  initialField?: DateField
-  onChange: (dates: DateFilters) => void
-  /** After Clear resets every date type. */
-  onCleared?: () => void
-}
-
-/** "Include tasks with no …" per date type that offers it. */
-const NO_DATE_LABEL: Partial<Record<DateField, string>> = {
-  deadline: 'Include tasks with no due date',
-  followup: 'Include tasks with no follow-up',
-}
-
-/**
- * The date filters, one clause per date type (a task must pass every one):
- * the type buttons pick which type From / To and "include tasks with no …"
- * edit — picking one writes nothing; a type that filters is lit — then the
- * has-due-date / has-follow-up tri-states and Clear (every type).
- */
-export function DateRangePanelBody({ dates, initialField, onChange, onCleared }: DateRangePanelBodyProps) {
-  const [field, setField] = useState<DateField>(() => initialField ?? activeDateFields(dates)[0] ?? 'deadline')
-  const { start, end, includeNoDate } = dateRangeOf(dates[field])
-  const hasEnd = start !== null || end !== null
-  const setRange = (s: DateAnchor | null, e: DateAnchor | null, include = includeNoDate) => {
-    onChange(withDateMatch(dates, field, { match: 'range', start: s, end: e, includeNoDate: include }))
-  }
-  const setPresence = (f: DateField, v: boolean | null) => {
-    onChange(withDateMatch(dates, f, v === null ? null : { match: v ? 'set' : 'unset' }))
-  }
-  const noDateLabel = isOptionalDateField(field) ? NO_DATE_LABEL[field] : undefined
-  return (
-    <>
-      <div className={picker.dateFieldSelector}>
-        {DATE_FIELD_VALUES.map((f) => {
-          const lit = isDateMatchOn(dates[f])
-          return (
-            <button
-              type="button"
-              key={f}
-              aria-pressed={f === field}
-              data-filtering={lit ? '' : undefined}
-              className={`${picker.dateFieldOption} ${f === field ? picker.dateFieldOptionActive : ''} ${lit ? picker.dateFieldOptionLit : ''}`}
-              onClick={() => setField(f)}
-            >
-              {DATE_FIELD_LABELS[f]}
-            </button>
-          )
-        })}
-      </div>
-      <div className={picker.dropdownDivider} />
-      <div className={picker.dateRangeRow}>
-        <label className={picker.dateLabel}>From</label>
-        <DateAnchorInput
-          value={start}
-          onChange={(v) => setRange(v, end)}
-          aria-label="Date range start"
-        />
-      </div>
-      <div className={picker.dateRangeRow}>
-        <label className={picker.dateLabel}>To</label>
-        <DateAnchorInput
-          value={end}
-          onChange={(v) => setRange(start, v)}
-          aria-label="Date range end"
-        />
-      </div>
-      {noDateLabel && (
-        <>
-          <div className={picker.dropdownDivider} />
-          <label
-            className={`${picker.dropdownItem} ${hasEnd ? '' : picker.dropdownItemDisabled}`}
-            aria-disabled={!hasEnd}
-            onClick={() => { if (hasEnd) setRange(start, end, !includeNoDate) }}
-          >
-            <span className={`${picker.check} ${includeNoDate ? picker.checked : ''}`} />
-            {noDateLabel}
-          </label>
-        </>
-      )}
-      <div className={picker.dropdownDivider} />
-      <TriStateRow label="Has due date" value={datePresenceOf(dates.deadline)} onChange={(v) => setPresence('deadline', v)} />
-      <TriStateRow label="Has follow-up" value={datePresenceOf(dates.followup)} onChange={(v) => setPresence('followup', v)} />
-      <div className={picker.dropdownDivider} />
-      <div className={picker.dropdownActions}>
-        <button
-          type="button"
-          className={`${picker.dropdownAction} ${!hasDateFilters(dates) ? picker.dropdownActionDisabled : ''}`}
-          onClick={() => {
-            onChange({})
-            onCleared?.()
-          }}
-        >
-          Clear
-        </button>
-      </div>
     </>
   )
 }

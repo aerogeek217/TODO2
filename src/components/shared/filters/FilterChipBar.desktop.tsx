@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { toggleItem } from '../../../utils/filter'
-import { clearChipField, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
+import { clearChipField, datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
 import type { TodoPredicate } from '../../../models'
 import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
@@ -19,7 +19,10 @@ import {
   StatusRingIcon,
   WidgetKindIcon,
 } from '../icons'
-import { DateRangePanelBody, EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
+import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
+import { DateFilterPanel } from './DateFilterPanel'
+import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
+import { useTooltip } from '../use-tooltip'
 import {
   narrowedPeople,
   useFilterChipBarState,
@@ -41,7 +44,14 @@ type FieldPanel =
       /** Below the items (the People picker's Email check-in action); `closeAll` closes every filter popover. */
       footer?: (closeAll: () => void) => ReactNode
     }
-  | { kind: 'custom'; render: (close: () => void) => ReactNode }
+  | {
+      kind: 'custom'
+      render: (close: () => void) => ReactNode
+      /** The popover's class instead of the picker panel's. */
+      className?: string
+      /** The popover is a `dialog` with this name. */
+      dialogLabel?: string
+    }
 
 /** One screen filter (Priority, Tags, People, Dates, Status) as the bar and the Filters menu show it. */
 interface FieldDef {
@@ -52,6 +62,15 @@ interface FieldDef {
   highlighted: boolean
   /** The value text while the filter is on (`Priya Nair`, `q4 +1`); null when off. */
   value: string | null
+  /** The value as the button's name says it, when it differs from `value`. */
+  spokenValue?: string | null
+  /** Shown on hover / focus of the button (several lines: the first `tooltipLabelLines` are the label). */
+  tooltip?: string | null
+  tooltipLabelLines?: number
+  /** The × button's name; default `Clear <label> filter`. */
+  clearLabel?: string
+  /** A longer value before the ellipsis (the Dates button). */
+  wide?: boolean
   onClear: () => void
   onOpen?: () => void
   onClose?: () => void
@@ -131,39 +150,77 @@ function FilterButton({ field }: { field: FieldDef }) {
   }, [onClose])
   const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close })
   const on = field.value != null
+  // No tooltip over an open picker.
+  const { triggerProps, tooltip } = useTooltip(open ? null : field.tooltip, { labelLines: field.tooltipLabelLines })
 
   return (
-    <div ref={pillRef} className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''}`}>
+    <div
+      ref={pillRef}
+      className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${on && open ? styles.filterButtonOpen : ''}`}
+    >
       <button
         type="button"
         className={styles.filterMain}
         aria-expanded={open}
-        aria-label={on ? `${field.label} filter: ${field.value}` : `${field.label} filter`}
+        aria-label={filterName(field)}
+        {...triggerProps}
         onClick={() => {
           if (open) close()
           else { setOpen(true); onOpen?.() }
         }}
       >
         <span className={styles.icon}>{field.icon}</span>
-        <span className={styles.filterLabel}>{field.value ?? field.label}</span>
+        <span className={`${styles.filterLabel} ${field.wide ? styles.filterLabelWide : ''}`}>{field.value ?? field.label}</span>
         {!on && <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}><ChevronDownIcon /></span>}
       </button>
+      {tooltip}
       {on && (
         <button
           type="button"
           className={styles.clearField}
-          aria-label={`Clear ${field.label.toLowerCase()} filter`}
+          aria-label={clearName(field)}
           onClick={() => { close(); field.onClear() }}
         >
           <CloseIcon size={8} />
         </button>
       )}
       {open && createPortal(
-        <div ref={panelRef} className={picker.dropdownPanel} style={{ position: style.position, left: style.left, top: style.top }}>
+        <FieldPopover field={field} panelRef={panelRef} position={style}>
           <FieldPanelBody field={field} onDone={close} />
-        </div>,
+        </FieldPopover>,
         document.body,
       )}
+    </div>
+  )
+}
+
+/** A filter button's (or Filters menu row's) name: `People filter`, `Dates filter: Due within 7 days; Created …`. */
+function filterName(field: FieldDef): string {
+  const value = field.spokenValue ?? field.value
+  return value != null ? `${field.label} filter: ${value}` : `${field.label} filter`
+}
+
+function clearName(field: FieldDef): string {
+  return field.clearLabel ?? `Clear ${field.label.toLowerCase()} filter`
+}
+
+/** The portaled popover a field's picker sits in: the picker panel, or the field's own popover. */
+function FieldPopover({ field, panelRef, position, children }: {
+  field: FieldDef
+  panelRef: (el: HTMLDivElement | null) => void
+  position: Pick<CSSProperties, 'position' | 'left' | 'top'>
+  children: ReactNode
+}) {
+  const custom = field.panel.kind === 'custom' ? field.panel : null
+  return (
+    <div
+      ref={panelRef}
+      className={custom?.className ?? picker.dropdownPanel}
+      style={{ position: position.position, left: position.left, top: position.top }}
+      role={custom?.dialogLabel ? 'dialog' : undefined}
+      aria-label={custom?.dialogLabel}
+    >
+      {children}
     </div>
   )
 }
@@ -247,7 +304,7 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
                 type="button"
                 className={styles.menuRowMain}
                 aria-expanded={sub?.key === field.key}
-                aria-label={field.value != null ? `${field.label} filter: ${field.value}` : `${field.label} filter`}
+                aria-label={filterName(field)}
                 onClick={(e) => openSub(field, e.currentTarget.parentElement ?? e.currentTarget)}
               >
                 <span className={styles.icon}>{field.icon}</span>
@@ -260,7 +317,7 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
                 <button
                   type="button"
                   className={styles.clearField}
-                  aria-label={`Clear ${field.label.toLowerCase()} filter`}
+                  aria-label={clearName(field)}
                   onClick={() => { if (sub?.key === field.key) closeSub(); field.onClear() }}
                 >
                   <CloseIcon size={8} />
@@ -281,13 +338,9 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
         document.body,
       )}
       {sub && subField && createPortal(
-        <div
-          ref={setSubRef}
-          className={picker.dropdownPanel}
-          style={{ position: subStyle.position, left: subStyle.left, top: subStyle.top }}
-        >
+        <FieldPopover field={subField} panelRef={setSubRef} position={subStyle}>
           <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
-        </div>,
+        </FieldPopover>,
         document.body,
       )}
     </>
@@ -308,11 +361,10 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
         case 'tags':
           out.tags = chip.value.replace(/^#/, '')
           break
-        case 'dates':
-          out.dates = chip.label === 'Dates' ? chip.value : `${chip.label} ${chip.value}`
-          break
       }
     }
+    const dates = datesValue(p.dates)
+    if (dates != null) out.dates = dates
     return out
   }, [p, names])
 }
@@ -438,22 +490,26 @@ export function FilterChipBarDesktop({
       },
     })
   }
+  const dateTooltip = datesTooltip(p.dates)
   fields.push({
     key: 'dates',
     label: 'Dates',
     icon: <WidgetKindIcon kind="calendar" />,
     highlighted: dateActive,
     value: values.dates ?? null,
+    spokenValue: datesSpokenValue(p.dates),
+    tooltip: dateTooltip,
+    // Each type's line is the label; the last line (how they combine) is muted.
+    tooltipLabelLines: dateTooltip ? dateTooltip.split('\n').length - 1 : undefined,
+    clearLabel: 'Clear date filters',
+    wide: true,
     onClear: () => clearField('dates'),
     panel: {
       kind: 'custom',
-      render: (close) => (
-        <DateRangePanelBody
-          dates={p.dates}
-          onChange={(dates) => update({ dates })}
-          onCleared={close}
-        />
-      ),
+      className: DATE_FILTER_POPOVER_CLASS,
+      dialogLabel: DATE_FILTER_DIALOG_LABEL,
+      // Picking a type or clearing keeps the panel open.
+      render: () => <DateFilterPanel dates={p.dates} onChange={(dates) => update({ dates })} autoFocus />,
     },
   })
   if (statuses.length > 0) {

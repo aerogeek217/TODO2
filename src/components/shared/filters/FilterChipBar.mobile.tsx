@@ -1,18 +1,12 @@
 import { useCallback, useState } from 'react'
 import { toggleItem } from '../../../utils/filter'
-import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
-import { activeDateFields, datePresenceOf, dateRangeOf, isDateMatchOn, withDateMatch } from '../../../utils/date-filters'
-import type { DateAnchor, DateField } from '../../../models'
-import { DateAnchorInput } from '../DateAnchorInput'
-import { FollowupFlagIcon } from '../FollowupIcons'
+import { datesValue } from '../../../utils/filter-chips'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
-import { DATE_FIELD_VALUES, MARKER_KEYS } from '../../../models'
+import { MARKER_KEYS } from '../../../models'
 import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
+import { DateFilterPanel } from './DateFilterPanel'
 import {
-  cycleTri,
-  triIcon,
-  triLabel,
   useFilterChipBarState,
   type EntityKey,
   type FilterChipBarProps,
@@ -24,12 +18,15 @@ type MobileSection = EntityKey | 'markers' | 'toggles' | 'date'
 interface AccordionSectionProps {
   label: string
   badge?: number
+  /** A value after the label (the Dates row's `Due + Created`); `valueOn` shows it in the accent. */
+  value?: string
+  valueOn?: boolean
   open: boolean
   onToggle: () => void
   children?: React.ReactNode
 }
 
-function AccordionSection({ label, badge, open, onToggle, children }: AccordionSectionProps) {
+function AccordionSection({ label, badge, value, valueOn = false, open, onToggle, children }: AccordionSectionProps) {
   return (
     <div className={sheet.entitySection}>
       <div className={sheet.entityHeader} onClick={onToggle}>
@@ -37,6 +34,7 @@ function AccordionSection({ label, badge, open, onToggle, children }: AccordionS
           {label}
           {badge !== undefined && badge > 0 && <span className={sheet.activeCount}>{badge}</span>}
         </span>
+        {value !== undefined && <span className={`${sheet.sectionValue} ${valueOn ? sheet.sectionValueOn : ''}`}>{value}</span>}
         <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`}>▸</span>
       </div>
       {open && children}
@@ -130,8 +128,6 @@ export function FilterChipBarMobile({
 }: FilterChipBarProps) {
   const [openSection, setOpenSection] = useState<MobileSection | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
-  // The date type the Date range section edits (picking one writes nothing).
-  const [dateField, setDateField] = useState<DateField>(() => activeDateFields(predicate.dates)[0] ?? 'deadline')
   const resetDensityState = useCallback(() => {
     setOpenSection(null)
     setEntitySearch('')
@@ -147,7 +143,6 @@ export function FilterChipBarMobile({
     personIdsSet,
     statusIdsSet,
     tagIdsSet,
-    dateActive,
     active,
     update,
     setPersonIds,
@@ -156,16 +151,7 @@ export function FilterChipBarMobile({
     clearAll,
   } = s
 
-  const range = dateRangeOf(p.dates[dateField])
-  const setRange = (start: DateAnchor | null, end: DateAnchor | null, includeNoDate = range.includeNoDate) => {
-    update({ dates: withDateMatch(p.dates, dateField, { match: 'range', start, end, includeNoDate }) })
-  }
-  const setPresence = (field: DateField, v: boolean | null) => {
-    update({ dates: withDateMatch(p.dates, field, v === null ? null : { match: v ? 'set' : 'unset' }) })
-  }
-  const hasDue = datePresenceOf(p.dates.deadline)
-  const hasFollowup = datePresenceOf(p.dates.followup)
-  const noDateLabel = dateField === 'followup' ? 'Include tasks with no follow-up' : 'Include tasks with no due date'
+  const dates = datesValue(p.dates)
 
   const handleSection = (next: MobileSection) => {
     setOpenSection(openSection === next ? null : next)
@@ -305,84 +291,16 @@ export function FilterChipBarMobile({
         </AccordionSection>
       )}
 
-      {/* Date range section */}
+      {/* Dates: the date panel at touch sizes */}
       <AccordionSection
-        label="Date range"
-        badge={dateActive ? 1 : 0}
+        label="Dates"
+        value={dates ?? 'Any'}
+        valueOn={dates != null}
         open={openSection === 'date'}
         onToggle={() => handleSection('date')}
       >
         <div className={sheet.dateSection}>
-          <div className={sheet.dateFieldSelector}>
-            {DATE_FIELD_VALUES.map((field) => (
-              <button
-                key={field}
-                aria-pressed={field === dateField}
-                data-filtering={isDateMatchOn(p.dates[field]) ? '' : undefined}
-                className={`${sheet.dateFieldOption} ${dateField === field ? sheet.dateFieldOptionActive : ''} ${isDateMatchOn(p.dates[field]) ? sheet.dateFieldOptionLit : ''}`}
-                onClick={() => setDateField(field)}
-              >
-                {DATE_FIELD_LABELS_SHORT[field]}
-              </button>
-            ))}
-          </div>
-          <div className={sheet.dateInputs}>
-            <DateAnchorInput
-              value={range.start}
-              onChange={(v) => setRange(v, range.end)}
-              aria-label="Date range start"
-            />
-            <span style={{ color: 'var(--color-text-muted)' }}>to</span>
-            <DateAnchorInput
-              value={range.end}
-              onChange={(v) => setRange(range.start, v)}
-              aria-label="Date range end"
-            />
-          </div>
-          {(dateField === 'deadline' || dateField === 'followup') && (
-            <div className={sheet.filterRow}>
-              <span className={sheet.filterLabel}>
-                <span className={sheet.filterLabelIcon}>∅</span>
-                {noDateLabel}
-              </span>
-              <button
-                className={`${sheet.toggle} ${range.includeNoDate ? sheet.toggleActive : ''}`}
-                onClick={() => setRange(range.start, range.end, !range.includeNoDate)}
-                disabled={range.start === null && range.end === null}
-                role="switch"
-                aria-checked={range.includeNoDate}
-                aria-label={noDateLabel}
-              />
-            </div>
-          )}
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>⚑</span>
-              Has due date
-            </span>
-            <button
-              className={`${sheet.triToggle} ${hasDue !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => setPresence('deadline', cycleTri(hasDue))}
-              aria-label={`Has due date: ${triLabel(hasDue)}`}
-              title={triLabel(hasDue)}
-            >
-              {triIcon(hasDue)}
-            </button>
-          </div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}><FollowupFlagIcon /></span>
-              Has follow-up
-            </span>
-            <button
-              className={`${sheet.triToggle} ${hasFollowup !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => setPresence('followup', cycleTri(hasFollowup))}
-              aria-label={`Has follow-up: ${triLabel(hasFollowup)}`}
-              title={triLabel(hasFollowup)}
-            >
-              {triIcon(hasFollowup)}
-            </button>
-          </div>
+          <DateFilterPanel variant="sheet" dates={p.dates} onChange={(next) => update({ dates: next })} />
         </div>
       </AccordionSection>
 

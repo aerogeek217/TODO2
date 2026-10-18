@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import type { TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
-import { clearChipField, filterChips, type FilterChip } from '../../../utils/filter-chips'
+import { chipKey, clearChipField, filterChips, type FilterChip } from '../../../utils/filter-chips'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { CloseIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
@@ -15,6 +15,7 @@ interface OpenPicker {
   field: ListFilterField
   at: PopoverPoint
   adding?: boolean
+  /** The date chip it was opened from: the date panel opens on its type. */
   dateField?: DateField
 }
 
@@ -26,9 +27,11 @@ interface PredicateChipsProps {
 }
 
 /**
- * A list's own filter as chips — field name muted, then the value; click
- * edits it with the field's picker, × removes it — and a "+ Filter" menu
- * that adds one (people, tags, due / follow-up date, status, text).
+ * A list's own filter as chips — field name muted, then the value; one chip
+ * per date type that filters; click edits it with the field's picker (a
+ * date chip opens the date panel on its type), × removes it (a date chip
+ * only its type) — and a "+ Filter" menu that adds one (priority, tags,
+ * people, dates, status, text).
  */
 export function PredicateChips({ predicate, onChange, before }: PredicateChipsProps) {
   const names = useChipNames()
@@ -39,8 +42,9 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
   // outside-click handler already did) instead of reopening it.
   const menuWasOpen = useRef(false)
 
-  const remove = (field: FilterChip['field']) => onChange(clearChipField(predicate, field))
-  const edit = (chip: FilterChip, el: Element) => setPicker({ field: chip.field as ListFilterField, at: pointBelow(el) })
+  const remove = (chip: FilterChip) => onChange(clearChipField(predicate, chip.field, chip.dateField))
+  const edit = (chip: FilterChip, el: Element) => setPicker({ field: chip.field as ListFilterField, at: pointBelow(el), dateField: chip.dateField })
+  const isOpen = (chip: FilterChip) => picker != null && !picker.adding && picker.field === chip.field && picker.dateField === chip.dateField
 
   const menuEntries: MenuEntry[] = [
     { kind: 'label', text: 'Add a filter to this list' },
@@ -50,7 +54,7 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
       icon: item.icon,
       submenu: item.submenu,
       onSelect: () => {
-        if (menuAt) setPicker({ field: item.field, at: menuAt, adding: true, dateField: item.dateField })
+        if (menuAt) setPicker({ field: item.field, at: menuAt, adding: true })
       },
     })),
   ]
@@ -60,11 +64,13 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
       {before}
       {chips.map((chip) => (
         <span
-          key={chip.field}
+          key={chipKey(chip)}
           role="button"
           tabIndex={0}
-          className={styles.listChip}
+          aria-expanded={isOpen(chip)}
+          className={`${styles.listChip} ${isOpen(chip) ? styles.listChipOpen : ''}`}
           data-testid="list-filter-chip"
+          data-date-field={chip.dateField}
           onClick={(e) => edit(chip, e.currentTarget)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -72,7 +78,7 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
               edit(chip, e.currentTarget)
             } else if (e.key === 'Delete' || e.key === 'Backspace') {
               e.preventDefault()
-              remove(chip.field)
+              remove(chip)
             }
           }}
         >
@@ -83,7 +89,7 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
             className={styles.chipRemove}
             aria-label="Remove filter"
             title="Remove filter"
-            onClick={(e) => { e.stopPropagation(); remove(chip.field) }}
+            onClick={(e) => { e.stopPropagation(); remove(chip) }}
           >
             <CloseIcon size={9} />
           </button>

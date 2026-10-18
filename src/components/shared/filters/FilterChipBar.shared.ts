@@ -74,12 +74,6 @@ export function narrowedPeople(
   return picked.sort(byName)
 }
 
-export const cycleTri =(v: boolean | null): boolean | null =>
-  v === null ? true : v === true ? false : null
-export const triIcon = (v: boolean | null) => (v === null ? '—' : v === true ? '✓' : '✕')
-export const triLabel = (v: boolean | null) =>
-  v === null ? 'No filter' : v ? 'Only tasks with this field' : 'Only tasks without this field'
-
 export interface FilterChipBarSharedState {
   p: TodoPredicate
   people: ReturnType<typeof usePersonStore.getState>['people']

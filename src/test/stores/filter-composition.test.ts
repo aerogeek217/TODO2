@@ -154,6 +154,17 @@ describe('composeScreenFilter', () => {
     })
   })
 
+  it('several date types on one side AND (each type its own clause)', () => {
+    const due = { match: 'range' as const, start: fixed(day(10, 1)), end: fixed(day(10, 31)) }
+    const twoTypes = crit({ dates: { deadline: due, followup: { match: 'set' } } })
+    expect(ids(twoTypes, none())).toEqual([2])
+    expect(ids(none(), twoTypes)).toEqual([2])
+    expect(evaluatorIds(none(), twoTypes)).toEqual([2])
+    // "Also tasks with no follow-up" lets undated tasks through that type only.
+    const orNone = crit({ dates: { deadline: due, followup: { match: 'range', start: null, end: fixed(day(10, 20)), includeNoDate: true } } })
+    expect(ids(orNone, none())).toEqual([1, 2, 3])
+  })
+
   it('different fields AND across screen and list', () => {
     expect(ids(crit({ personIds: new Set([1]) }), crit({ statusIds: new Set([1]) }))).toEqual([1, 3])
     expect(ids(crit({ tags: new Set([2]) }), crit({ personIds: new Set([1]) }))).toEqual([3])

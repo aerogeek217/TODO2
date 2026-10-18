@@ -71,7 +71,7 @@ function AddFilterMenu({ listDefinitionId, at, onClose }: { listDefinitionId: nu
       submenu: item.submenu,
       // The picker replaces this menu.
       keepOpen: true,
-      onSelect: () => open({ kind: 'picker', listDefinitionId, field: item.field, dateField: item.dateField, adding: true, at }),
+      onSelect: () => open({ kind: 'picker', listDefinitionId, field: item.field, adding: true, at }),
     })),
   ]
   return (

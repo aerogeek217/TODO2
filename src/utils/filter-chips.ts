@@ -1,6 +1,7 @@
 import type { DateAnchor, DateFilters, DateMatch, MarkersFilter, Person, Status, Tag, TodoPredicate } from '../models'
+import type { DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
-import { activeDateFields, hasDateFilters } from './date-filters'
+import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { hasMarkers, MARKERS_LABEL, markersValue } from './markers'
 
@@ -12,6 +13,8 @@ export const FILTER_FIELD_ORDER: readonly FilterChipField[] = ['markers', 'tags'
 
 export interface FilterChip {
   field: FilterChipField
+  /** A date chip's date type (one chip per date type that filters). */
+  dateField?: DateField
   /** Field name, e.g. `Due`, `Status` (list chips show it muted before the value). */
   label: string
   /** Value text, e.g. `within 14 days`, `Alice +2`, `#q4`. */
@@ -88,22 +91,61 @@ export function describeDateMatch(m: DateMatch): string {
   return m.includeNoDate === true ? `${range}, or none` : range
 }
 
-/**
- * The date filters as one chip: one date type → its short name and clause
- * (`Due` `within 14 days`); several → `Dates` and each type's clause
- * (`Due within 14 days, Follow-up has a date`).
- */
-function datesChip(c: FilterClauses): FilterChip | null {
-  const fields = activeDateFields(c.dates)
-  const only = fields.length === 1 ? fields[0] : undefined
-  const onlyMatch = only ? c.dates[only] : undefined
-  if (only && onlyMatch) return { field: 'dates', label: DATE_FIELD_LABELS_SHORT[only], value: describeDateMatch(onlyMatch) }
-  const parts = fields.flatMap((f) => {
-    const m = c.dates[f]
-    return m ? [`${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m)}`] : []
+/** One chip per date type that filters, in tab order: `Due` `within 14 days`, `Created` `from start of month`. */
+function dateChips(dates: DateFilters): FilterChip[] {
+  return activeDateFields(dates).flatMap((f) => {
+    const m = dates[f]
+    return m ? [{ field: 'dates' as const, dateField: f, label: DATE_FIELD_LABELS_SHORT[f], value: describeDateMatch(m) }] : []
   })
-  if (parts.length === 0) return null
-  return { field: 'dates', label: 'Dates', value: parts.join(', ') }
+}
+
+/** A key unique among a filter's chips: the field, or `dates:<type>` for a date chip. */
+export function chipKey(chip: FilterChip): string {
+  return chip.dateField ? `${chip.field}:${chip.dateField}` : chip.field
+}
+
+/** Each date type that filters as `<Type> <clause>`: `Due within 14 days`. */
+function dateClauses(dates: DateFilters): { field: DateField; text: string; words: string }[] {
+  return activeDateFields(dates).flatMap((f) => {
+    const m = dates[f]
+    return m ? [{ field: f, text: `${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m)}`, words: describeDateMatch(m) }] : []
+  })
+}
+
+/**
+ * The date filters as one value (the top bar's Dates button, the Filters
+ * menu's and the phone sheet's Dates row): one type → its clause
+ * (`Due within 14 days`); two → their short names (`Due + Created`); three
+ * or four → the first + N (`Due + 2`). `null` when no date type filters.
+ */
+export function datesValue(dates: DateFilters): string | null {
+  const clauses = dateClauses(dates)
+  const [first, second] = clauses
+  if (!first) return null
+  if (!second) return first.text
+  const name = (f: DateField) => DATE_FIELD_LABELS_SHORT[f]
+  if (clauses.length === 2) return `${name(first.field)} + ${name(second.field)}`
+  return `${name(first.field)} + ${clauses.length - 1}`
+}
+
+/**
+ * The Dates button's tooltip from two date types on: a line per type
+ * (`Due: within 14 days`), then how they combine. `null` below two.
+ */
+export function datesTooltip(dates: DateFilters): string | null {
+  const clauses = dateClauses(dates)
+  if (clauses.length < 2) return null
+  const both = clauses.length === 2 ? 'both' : 'all'
+  return [
+    ...clauses.map((c) => `${DATE_FIELD_LABELS_SHORT[c.field]}: ${c.words}`),
+    `Tasks must match ${both} · × clears ${both}`,
+  ].join('\n')
+}
+
+/** Every date type's clause for a screen reader: `Due within 14 days; Created from start of month`. */
+export function datesSpokenValue(dates: DateFilters): string | null {
+  const clauses = dateClauses(dates)
+  return clauses.length > 0 ? clauses.map((c) => c.text).join('; ') : null
 }
 
 /**
@@ -118,8 +160,7 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
   if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers) })
   if (c.tags != null) chips.push({ field: 'tags', label: 'Tags', value: namesValue(c.tags, byId(names.tags), 'Untagged', '#') })
   if (c.personIds != null) chips.push({ field: 'people', label: 'People', value: namesValue(c.personIds, byId(names.people), 'Unassigned') })
-  const dates = datesChip(c)
-  if (dates) chips.push(dates)
+  chips.push(...dateChips(c.dates))
   if (c.statusIds != null) chips.push({ field: 'status', label: 'Status', value: namesValue(c.statusIds, byId(names.statuses), 'No status') })
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
@@ -142,15 +183,18 @@ export function describeFilters(chips: readonly FilterChip[]): string {
   return chips.map((c) => `${c.label} ${c.value}`).join(' · ')
 }
 
-/** The predicate without the clauses of one chip field. */
-export function clearChipField(p: TodoPredicate, field: FilterChipField): TodoPredicate {
+/**
+ * The predicate without the clauses of one chip field — for `dates`, only
+ * `dateField`'s clause when given (a date chip's ×), else every date type.
+ */
+export function clearChipField(p: TodoPredicate, field: FilterChipField, dateField?: DateField): TodoPredicate {
   switch (field) {
     case 'people': return { ...p, personIds: null }
     case 'tags': return { ...p, tags: null }
     case 'status': return { ...p, statusIds: null }
     case 'markers': return { ...p, markers: null }
     case 'text': return { ...p, searchText: '' }
-    case 'dates': return { ...p, dates: {} }
+    case 'dates': return { ...p, dates: dateField ? withDateMatch(p.dates, dateField, null) : {} }
     case 'completed': return { ...p, showCompleted: false }
   }
 }

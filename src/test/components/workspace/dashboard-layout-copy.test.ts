@@ -7,6 +7,8 @@ import { computeTiles } from '../../../services/stats/tiles'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SAMPLE_CTX } from '../../fixtures/dashboard-sample'
 import { makeTodo } from '../../helpers'
+import { filterChips } from '../../../utils/filter-chips'
+import { emptyPredicate } from '../../../models'
 
 const spans = (rows: ReturnType<typeof packSections>) => rows.map((r) => r.map((s) => `${s.id}:${s.span}`))
 
@@ -81,5 +83,13 @@ describe('dashboard copy', () => {
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'status', label: 'Status', value: 'Waiting' },
     ])).toBe('@Priya +1 · #q4 · Status: Waiting')
+  })
+
+  it('a list tile hint names each date type that filters', () => {
+    const chips = filterChips({
+      ...emptyPredicate(),
+      dates: { deadline: { match: 'set' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } },
+    }, { people: [], tags: [], statuses: [] })
+    expect(listTileHint(chips)).toBe('Due: has a date · Created: from start of month')
   })
 })
