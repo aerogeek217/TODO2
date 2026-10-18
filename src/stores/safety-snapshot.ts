@@ -18,8 +18,8 @@ export const NO_BACKUP_NOTE = 'No backup was taken.'
  * deleting completed tasks, bulk delete, append import, audit cleanup):
  * snapshot the database first. If the snapshot can't be stored (e.g. browser storage is
  * full), nothing has changed yet, so ask "Continue without a backup?" —
- * Cancel is the default and Esc. Continuing leaves a warning on the sync
- * warning strip until dismissed.
+ * Cancel is the default and Esc. Continuing leaves a Backup warning in the
+ * storage pill until dismissed.
  *
  * `operation` completes "…before <operation>", e.g. `deleting 7 tasks`.
  *
