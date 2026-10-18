@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { Person } from '../models'
 import { createRepository } from './create-repository'
-import { createJoinOps, buildAssignmentMap, type JoinCapture } from './join-helpers'
+import { createJoinOps, buildAssignmentMap, restoreNamedEntityWithJoins, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Person>(db.people, 'name')
 const todoPeopleOps = createJoinOps(db.todoPeople, 'todoId', 'personId')
@@ -55,14 +55,11 @@ export const personRepository = {
 
   /**
    * Undo-restore for `delete`: re-insert the person row (preserving its id)
-   * plus its captured `todoPeople` join rows inside one transaction.
+   * plus its captured `todoPeople` join rows inside one transaction; a person
+   * of the same name created meanwhile is folded into it
+   * (`restoreNamedEntityWithJoins`).
    */
   async restoreWithJoins(person: Person, joins: JoinCapture[]): Promise<void> {
-    await db.transaction('rw', [db.people, ...joins.map(j => j.table)], async () => {
-      await db.people.add(person)
-      for (const { table, rows } of joins) {
-        if (rows.length) await table.bulkAdd(rows)
-      }
-    })
+    await restoreNamedEntityWithJoins(db.people, person, { table: db.todoPeople, entityKey: 'personId', linkKey: 'todoId' }, joins)
   },
 }

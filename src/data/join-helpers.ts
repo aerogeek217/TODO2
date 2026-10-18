@@ -127,3 +127,42 @@ async function readAssignmentMap<L, E extends { id?: number }>(
   }
   return result
 }
+
+/**
+ * Undo-restore for an entity delete (a person, a tag): re-insert the row
+ * (keeping its id, name and every field) and the captured join rows, in one
+ * transaction. A same-named entity created meanwhile (trimmed, any case — an
+ * `@ann` typed after deleting Ann) is folded into the restored one instead of
+ * leaving two: its join rows move to the restored id (one per task) and its
+ * row goes.
+ */
+export async function restoreNamedEntityWithJoins<E extends { id?: number; name: string }>(
+  entityTable: Table<E, number>,
+  entity: E,
+  link: { table: Table; entityKey: string; linkKey: string },
+  joins: JoinCapture[],
+): Promise<void> {
+  await db.transaction('rw', [entityTable, link.table, ...joins.map((j) => j.table)], async () => {
+    const target = entity.name.trim().toLowerCase()
+    const meanwhile = (await entityTable.toArray())
+      .filter((e) => e.id != null && e.id !== entity.id && e.name.trim().toLowerCase() === target)
+    await entityTable.add(entity)
+    const linked = new Set<unknown>()
+    for (const { table, rows } of joins) {
+      if (rows.length) await table.bulkAdd(rows)
+      if (table === link.table) for (const row of rows) linked.add((row as Record<string, unknown>)[link.linkKey])
+    }
+    for (const other of meanwhile) {
+      const rows = await link.table.where(link.entityKey).equals(other.id!).toArray() as Array<Record<string, unknown>>
+      for (const row of rows) {
+        const linkId = row[link.linkKey]
+        if (linked.has(linkId)) await link.table.delete(row.id as number)
+        else {
+          await link.table.update(row.id as number, { [link.entityKey]: entity.id })
+          linked.add(linkId)
+        }
+      }
+      await entityTable.delete(other.id!)
+    }
+  })
+}
