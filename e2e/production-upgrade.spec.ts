@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
-import { readSyncFile as readFile } from './fixtures/sync-file'
+import { readSyncFile as readFile, stubFilePermission } from './fixtures/sync-file'
 
 /**
  * First load of the current build over a production install of the v49
@@ -13,7 +13,9 @@ import { readSyncFile as readFile } from './fixtures/sync-file'
  * data in the shape the v49 build wrote (`{ __schemaVersion: 49, …tables,
  * savedAt }`). The file handle is a real OPFS `FileSystemFileHandle`, stored
  * where the app keeps its handle, so everything after that is the production
- * code path: Dexie's upgrade at open, then the sync-file load decision.
+ * code path: Dexie's upgrade at open, then the sync-file load decision. As
+ * after a browser restart, the handle first needs permission again: the
+ * launch question comes before anything else (`stubFilePermission`).
  *
  * The data is the frozen v49 fixture (orgs, projects, a taskboard, a canvas,
  * floating widgets), with names, a title and notes past the old import limits,
@@ -194,9 +196,21 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   test.slow() // a 60k-character note and a 120k-character workspace note go through the upgrade
   const tables = productionTables()
   const fileText = JSON.stringify({ __schemaVersion: 49, ...tables, savedAt: SAVED_AT }, null, 2)
+  await stubFilePermission(page)
   await installV49(page, tables, fileText)
 
   await page.goto('/')
+  // The launch question first: nothing touched yet on either side — the
+  // browser database was upgraded at open (it must be), no purge prompt, no
+  // backup, the file still the v49 text.
+  const question = page.getByRole('dialog', { name: `Allow access to ${SYNC_FILE}` })
+  await expect(question).toBeVisible()
+  await expect(page.getByRole('dialog', { name: /old completed task/ })).toHaveCount(0)
+  const atQuestion = await dumpDb(page)
+  expect(atQuestion.stores.backups ?? []).toHaveLength(0)
+  expect(await readSyncFile(page)).toBe(fileText)
+  await question.getByRole('button', { name: 'Grant access…' }).click()
+  await expect(question).toBeHidden()
   // In-sync sides get the upgrade prompt — not "Browser data and sync file differ".
   const upgrade = page.getByRole('dialog', { name: 'Upgrade sync file?' })
   await expect(upgrade).toBeVisible()
@@ -212,6 +226,8 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   // The browser database was upgraded at open; the file is untouched so far.
   const dataTables = ALL_DATA_TABLES.map((t) => t.name)
   const upgradedAtOpen = await dumpDb(page)
+  // Nothing changed while the launch question waited, nor with its answer.
+  expect(tableRows(upgradedAtOpen.stores, dataTables)).toEqual(tableRows(atQuestion.stores, dataTables))
   expect(upgradedAtOpen.version).toBe(CURRENT_DB_VERSION * 10)
   expect(await readSyncFile(page)).toBe(fileText)
 
