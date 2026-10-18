@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref } from '../../services/notes-export'
+import { expectWithin } from '../timing'
 
 describe('normalizeToMarkdown', () => {
   it('converts ALL-CAPS lines into H2 headings', () => {
@@ -311,11 +312,7 @@ describe('notes-export on long pathological lines', () => {
   // Each input took seconds to minutes with the old regexes (quadratic
   // backtracking); a linear pass takes milliseconds.
   const N = 200_000
-  const within = (ms: number, fn: () => void) => {
-    const start = performance.now()
-    fn()
-    expect(performance.now() - start).toBeLessThan(ms)
-  }
+  const within = expectWithin
 
   it('mdToHtml: a long run of whitespace inside a line', () => {
     within(1000, () => expect(mdToHtml(`a${' '.repeat(N)}b`)).toBe(`<p>a${' '.repeat(N)}b</p>`))

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { noteNameOf } from '../../../components/task/notes/NotesConvert'
+import { expectWithin } from '../../timing'
 
 /** The heading rule as it was written, for inputs short enough to run it. */
 function byRegex(text: string): string | null {
@@ -36,8 +37,6 @@ describe('noteNameOf', () => {
   })
 
   it('stays fast on a heading with a long space run (the regex was cubic)', () => {
-    const start = performance.now()
-    expect(noteNameOf(`# Title${' '.repeat(200_000)}x`)).toBe(`Title${' '.repeat(34)}…`)
-    expect(performance.now() - start).toBeLessThan(1000)
+    expectWithin(1000, () => expect(noteNameOf(`# Title${' '.repeat(200_000)}x`)).toBe(`Title${' '.repeat(34)}…`))
   })
 })

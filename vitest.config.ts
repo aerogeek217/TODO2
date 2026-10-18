@@ -18,6 +18,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Well above any test's own time (the slowest take ~1 s alone): a
+    // loaded machine (the full suite beside a browser run) can make a heavy
+    // test take several times as long, and a hang still fails.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     exclude: [...configDefaults.exclude, 'e2e/**', '.claude/**'],
     coverage: {
       provider: 'v8',

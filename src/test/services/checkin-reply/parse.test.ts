@@ -8,6 +8,7 @@ import {
 } from '../../../services/checkin-reply/parse'
 import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 import { editHtml, editPlain, parse, sampleEmail } from './helpers'
+import { expectWithin } from '../../timing'
 
 const REFS = ['0c4d8e17', 'b71e05d9', '3f9a1c42', '9e8d7c6b']
 
@@ -304,11 +305,11 @@ describe('size', () => {
     const longNotes = Array.from({ length: 4000 }, (_, i) => `Line ${i} of a very long note`).join('\n')
     const plain = editPlain(email.plain, '0c4d8e17', 'Notes:', ['Notes:', longNotes, `1. ${filler}`, `${filler} Ref`])
     expect(plain.length).toBeLessThan(CHECKIN_REPLY_MAX_CHARS)
-    const start = performance.now()
-    const fromPlain = parse({ plain })
-    expect(performance.now() - start).toBeLessThan(2000)
-    expect(fromPlain.blocks).toHaveLength(4)
-    expect(block(fromPlain, '0c4d8e17').notesText?.split('\n').length).toBe(4002)
+    expectWithin(2000, () => {
+      const fromPlain = parse({ plain })
+      expect(fromPlain.blocks).toHaveLength(4)
+      expect(block(fromPlain, '0c4d8e17').notesText?.split('\n').length).toBe(4002)
+    })
   })
 
   it('reads an HTML paste with a huge paragraph quickly', () => {
@@ -319,9 +320,6 @@ describe('size', () => {
     // loaded full run) — to stay well inside the budget.
     const email = sampleEmail()
     const html = editHtml(email.html, '0c4d8e17', 'Notes:', `<p>${'word '.repeat(15_000)}</p>`)
-    const start = performance.now()
-    const fromHtml = parse({ html, plain: email.plain })
-    expect(performance.now() - start).toBeLessThan(2000)
-    expect(fromHtml.blocks).toHaveLength(4)
+    expectWithin(2000, () => expect(parse({ html, plain: email.plain }).blocks).toHaveLength(4))
   })
 })

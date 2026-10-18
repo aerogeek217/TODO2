@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { replaceMarkdownLinks } from '../../utils/markdown-links'
+import { expectWithin } from '../timing'
 
 const LINK = /\[([^\]]+)\]\(([^)]+)\)/g
 const LINK_EMPTY = /\[([^\]]*)\]\(([^)]*)\)/g
@@ -42,10 +43,10 @@ describe('replaceMarkdownLinks', () => {
 
   it('stays linear on runs of `[` and of `[a](` without a `)`', () => {
     const n = 400_000
-    const start = performance.now()
-    expect(replaceMarkdownLinks('['.repeat(n), mark)).toBe('['.repeat(n))
-    expect(replaceMarkdownLinks('[a]('.repeat(n / 4), mark, true)).toBe('[a]('.repeat(n / 4))
     // The regex takes minutes on these; a linear scan takes milliseconds.
-    expect(performance.now() - start).toBeLessThan(1000)
+    expectWithin(1000, () => {
+      expect(replaceMarkdownLinks('['.repeat(n), mark)).toBe('['.repeat(n))
+      expect(replaceMarkdownLinks('[a]('.repeat(n / 4), mark, true)).toBe('[a]('.repeat(n / 4))
+    })
   })
 })

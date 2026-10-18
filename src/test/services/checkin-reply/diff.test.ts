@@ -12,6 +12,7 @@ import {
 import type { ParsedCheckinReply } from '../../../services/checkin-reply/parse'
 import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 import { editHtml, editPlain, parse, sampleEmail } from './helpers'
+import { expectWithin } from '../../timing'
 
 function changesOf(diff: CheckinReplyDiff, ref: string): CheckinChange[] {
   const task = diff.tasks.find((t) => t.ref === ref)
@@ -171,10 +172,7 @@ describe('Notes', () => {
   it('stays fast on huge notes', () => {
     const old = Array.from({ length: 3000 }, (_, i) => `old line ${i}`).join('\n')
     const next = Array.from({ length: 3000 }, (_, i) => `new line ${i}`)
-    const start = performance.now()
-    const change = diffNotes(old, next)
-    expect(performance.now() - start).toBeLessThan(5000)
-    expect(change?.lines).toHaveLength(6000)
+    expectWithin(5000, () => expect(diffNotes(old, next)?.lines).toHaveLength(6000))
   })
 })
 
@@ -245,10 +243,10 @@ describe('refs', () => {
 describe('notesLineKey on long pathological lines', () => {
   it('stays linear on a long run of `[` (a crafted reply line)', () => {
     const line = '['.repeat(200_000)
-    const start = performance.now()
-    expect(notesLineKey(line)).toBe(line)
-    expect(notesLineKey(`x${'[]('.repeat(50_000)}`)).toBe(`x${'[]('.repeat(50_000)}`)
-    expect(performance.now() - start).toBeLessThan(1000)
+    expectWithin(1000, () => {
+      expect(notesLineKey(line)).toBe(line)
+      expect(notesLineKey(`x${'[]('.repeat(50_000)}`)).toBe(`x${'[]('.repeat(50_000)}`)
+    })
   })
 
   it('still keys links as their text', () => {

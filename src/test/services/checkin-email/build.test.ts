@@ -12,6 +12,7 @@ import {
 import { taskRef } from '../../../services/checkin-email/ref'
 import type { CheckinSections } from '../../../services/checkin-email/select'
 import { makePerson, makeTodo } from '../../helpers'
+import { expectWithin } from '../../timing'
 
 // Monday 12 Oct 2026.
 const today = new Date(2026, 9, 12)
@@ -309,10 +310,10 @@ describe('buildCheckinEmail on long pathological notes', () => {
   it('stays fast on notes with a long run of whitespace before more text', () => {
     const { sections, ctx } = sample()
     const t = { ...sections.comingUp[0]!, notes: `a${'\n'.repeat(100_000)}${' '.repeat(100_000)}b  \n` }
-    const start = performance.now()
-    const email = buildCheckinEmail(marcus, { overdue: [], comingUp: [t] }, ctx, ON)
-    expect(performance.now() - start).toBeLessThan(1000)
-    expect(email.plain).toContain('b')
-    expect(email.plain).not.toContain('b  ')
+    expectWithin(1000, () => {
+      const email = buildCheckinEmail(marcus, { overdue: [], comingUp: [t] }, ctx, ON)
+      expect(email.plain).toContain('b')
+      expect(email.plain).not.toContain('b  ')
+    })
   })
 })
