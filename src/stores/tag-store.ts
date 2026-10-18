@@ -18,6 +18,8 @@ interface TagState {
   add: (name: string, color?: string) => Promise<number>
   update: (tag: Tag) => Promise<void>
   remove: (id: number) => Promise<void>
+  /** How many tasks (any, loaded or not) carry the tag — read from the database, for the delete confirm. */
+  countTasks: (tagId: number) => Promise<number>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assignTag: (todoId: number, tagId: number) => Promise<void>
   unassignTag: (todoId: number, tagId: number) => Promise<void>
@@ -95,6 +97,10 @@ export const useTagStore = create<TagState>((set, get) => {
         () => { if (prev && get().tags.find((t) => t.id === tag.id) === applied) put(prev) },
         'Failed to update tag',
       )
+    },
+
+    countTasks(tagId: number) {
+      return tagRepository.getTodoCount(tagId)
     },
 
     remove(id: number) {

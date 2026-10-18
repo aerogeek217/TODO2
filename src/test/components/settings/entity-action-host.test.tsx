@@ -113,3 +113,28 @@ describe('EntityActionHost — on the top tier', () => {
     expect((await screen.findByRole('dialog', { name: 'Delete person' })).className).toMatch(/layerNested/)
   })
 })
+
+describe('EntityActionHost — the delete confirms', () => {
+  it('focus Cancel, not the destructive button', async () => {
+    const tagId = await useTagStore.getState().add('alpha')
+    const personId = await usePersonStore.getState().add('Alice Chen', 'AC')
+    useUIStore.getState().openEntityAction({ kind: 'tag', id: tagId, action: 'delete' })
+    await renderHost()
+    await screen.findByRole('dialog', { name: 'Delete tag' })
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    act(() => { useUIStore.getState().openEntityAction({ kind: 'person', id: personId, action: 'delete' }) })
+    await screen.findByRole('dialog', { name: 'Delete person' })
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+  })
+
+  it('a tag’s count is every task carrying it, loaded or not', async () => {
+    const id = await useTagStore.getState().add('alpha')
+    await db.todoTags.bulkAdd([{ todoId: await addTodo('One'), tagId: id }, { todoId: await addTodo('Two'), tagId: id }])
+    // No task assignments loaded.
+    useUIStore.getState().openEntityAction({ kind: 'tag', id, action: 'delete' })
+    await renderHost()
+    const dialog = await screen.findByRole('dialog', { name: 'Delete tag' })
+    await waitFor(() => expect(dialog).toHaveTextContent('Delete alpha? 2 tasks currently tagged.'))
+  })
+})
