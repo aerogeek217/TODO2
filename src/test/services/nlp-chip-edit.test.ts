@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedPerson } from '../../models'
 import { parseInput } from '../../services/natural-language-parser'
+import { expectWithin } from '../timing'
 import {
   appendTextToken,
   chipSpans,
@@ -58,6 +59,17 @@ describe('removeTextSpans', () => {
 
   it('a token that is the whole text leaves an empty text', () => {
     expect(removeTextSpans('#a', [{ start: 0, end: 2 }], 2)).toEqual({ text: '', caret: 0 })
+  })
+})
+
+describe('removeTextSpans on a huge paste', () => {
+  it('stays fast: 25,000 tokens cut from a pasted 100,000-character text', () => {
+    const text = '#a '.repeat(33_000).trimEnd()
+    const spans = Array.from({ length: 25_000 }, (_, i) => ({ start: i * 3, end: i * 3 + 2 }))
+    expectWithin(500, () => {
+      const { text: out } = removeTextSpans(text, spans, text.length)
+      expect(out.length).toBe(text.length - 25_000 * 3)
+    })
   })
 })
 
