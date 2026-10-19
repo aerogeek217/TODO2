@@ -207,6 +207,52 @@ test.describe('desktop', () => {
     await expect(settingsDialog(page)).toBeVisible()
   })
 
+  test('Show’s menu: Esc closes only the menu; leaving a source list’s unsaved edits asks first, over Settings', async ({ page }) => {
+    await seedWorkspace(page, { ...SEED, eisenhower: { listDefIdx: 0 } })
+    // Edit the source list from the Eisenhower's filter line: it becomes unsaved.
+    const filterLine = wsCell(page, 'a1').getByTestId('list-filter-row')
+    await filterLine.getByRole('button', { name: 'Filter', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Status' }).click()
+    await page.getByTestId('list-filter-picker').locator('label', { hasText: 'Delegated' }).click()
+    await page.keyboard.press('Escape')
+    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+
+    await openSettings(page, 'Eisenhower')
+    const show = part(page).getByTestId('eisenhower-source')
+    await expect(show).toHaveText('Team')
+    await show.click()
+    const menu = page.getByRole('menu', { name: 'Eisenhower shows' })
+    await expect(menu).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(settingsDialog(page)).toBeVisible()
+    await expect(show).toBeFocused()
+
+    // Only Eisenhower tabs show Team: picking another list asks first, over Settings.
+    await show.click()
+    await menu.getByRole('menuitemradio', { name: 'Other' }).click()
+    const prompt = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
+    await expect(prompt).toBeVisible()
+    await expect(prompt.getByRole('button', { name: 'Cancel' })).toBeInViewport()
+    // Esc is the prompt's: Settings stays, the source too.
+    await page.keyboard.press('Escape')
+    await expect(prompt).toHaveCount(0)
+    await expect(settingsDialog(page)).toBeVisible()
+    await expect(show).toHaveText('Team')
+    await expect.poll(() => storedSource(page)).toMatch(/^list:/)
+
+    await show.click()
+    await menu.getByRole('menuitemradio', { name: 'Other' }).click()
+    await prompt.getByRole('button', { name: 'Discard' }).click()
+    await expect(prompt).toHaveCount(0)
+    await expect(show).toHaveText('Other')
+    const other = (await readListDefinitions(page)).find((d) => d.name === 'Other')!.id
+    await expect.poll(() => storedSource(page)).toBe(`list:${other}`)
+    await expect(settingsDialog(page)).toBeVisible()
+    await closeSettings(page)
+    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+  })
+
   test('the tab menu’s and the cell menu’s Customize panes…, a pane header’s Edit pane…, land on the part', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsTab(page, 'eisTab').click({ button: 'right' })
