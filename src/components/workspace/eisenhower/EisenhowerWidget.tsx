@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDndMonitor, useDroppable, type DragStartEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
 import {
@@ -55,7 +54,8 @@ import { useElementSize } from '../../../hooks/use-element-size'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../list/ListWidgetRow'
 import { dragTasks } from './eisenhower-drag'
-import tooltipStyles from '../../shared/Tooltip.module.css'
+import { RefusalTooltip } from '../../shared/RefusalTooltip'
+import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
@@ -65,9 +65,6 @@ import { openEisenhowerSettings } from './eisenhower-settings-link'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
-
-/** Refusal tooltip offset from the pointer (below the lifted row). */
-const REFUSAL_OFFSET = { x: 4, y: 26 }
 
 /** What the widget reports to its cell: the tab count. */
 export interface EisenhowerResult {
@@ -156,47 +153,6 @@ function useQuadrantDrag(tabId: string, panes: readonly EisenhowerPane[], ctx: P
     onDragCancel() { setDrag(null) },
   })
   return drag
-}
-
-/**
- * The refusal tooltip for a blocked drop: follows the pointer (below the
- * lifted row), shown at once, kept inside the widget.
- */
-function RefusalTooltip({ lines, pointer, boundsRef }: {
-  lines: readonly string[]
-  pointer: { x: number; y: number }
-  boundsRef: React.RefObject<HTMLElement | null>
-}) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const b = el.getBoundingClientRect()
-    const box = boundsRef.current?.getBoundingClientRect()
-    const right = box ? box.right : window.innerWidth
-    const bottom = box ? box.bottom : window.innerHeight
-    let left = pointer.x + REFUSAL_OFFSET.x
-    let top = pointer.y + REFUSAL_OFFSET.y
-    if (left + b.width > right) left = Math.max(box?.left ?? 0, pointer.x - REFUSAL_OFFSET.x - b.width)
-    if (top + b.height > bottom) top = Math.max(box?.top ?? 0, pointer.y - REFUSAL_OFFSET.y - b.height)
-    setPos((prev) => (prev && prev.left === left && prev.top === top ? prev : { left, top }))
-  }, [pointer, boundsRef, lines])
-  const [first, ...rest] = lines
-  return createPortal(
-    <div
-      ref={ref}
-      role="tooltip"
-      className={`${tooltipStyles.tooltip} ${tooltipStyles.multiLine} ${styles.refusal}`}
-      style={pos ?? { left: -9999, top: -9999 }}
-      data-placed={pos ? 'true' : undefined}
-      data-testid="eisenhower-refusal"
-    >
-      <span>{first}</span>
-      {rest.map((line, i) => <span key={i} className={tooltipStyles.line}>{line}</span>)}
-    </div>,
-    document.body,
-  )
 }
 
 /** The marker glyphs of a pane's header: the markers its filter wants (Yes), or the flame for Hot. */
@@ -519,12 +475,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   const pointer = drag?.pointer ?? null
 
   // A refused target shows the not-allowed cursor wherever the pointer is.
-  useEffect(() => {
-    if (refusedQ == null) return
-    const root = document.documentElement
-    root.setAttribute('data-drop-refused', '')
-    return () => root.removeAttribute('data-drop-refused')
-  }, [refusedQ])
+  useDropRefusedCursor(refusedQ != null)
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
@@ -634,6 +585,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
             lines={blockedPaneLines(refused.pane, refused.blocked, drag.tasks.length, panes, paneCtx, names)}
             pointer={pointer}
             boundsRef={rootRef}
+            testId="eisenhower-refusal"
           />
         )}
         {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}

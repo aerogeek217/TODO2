@@ -3,7 +3,7 @@ import { effectiveSortDirection, sortHasDirection } from '../models/todo-sort-gr
 import type { ListDefinition, RuntimeFilterField } from '../models/list-definition'
 
 /** Groupings a list definition offers, in menu order. */
-export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'deadline', 'followup', 'people', 'status', 'tag']
+export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'priority', 'deadline', 'followup', 'people', 'status', 'tag']
 
 /** Sorts a list definition offers, in menu order. */
 export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'created']
@@ -47,6 +47,11 @@ export const PROMPT_LABEL: Record<RuntimeFilterField | 'none', string> = {
  */
 export function choicesWith<T extends string>(choices: readonly T[], current: T): readonly T[] {
   return choices.includes(current) ? choices : [...choices, current]
+}
+
+/** A group choice's muted note in the Group menu. */
+export const GROUP_NOTE: Partial<Record<TodoGroupBy, string>> = {
+  priority: 'Hot, Focus, Urgent, Important, No priority · a task shows in each of its groups',
 }
 
 /** A sort choice's muted note in the Sort menu. */

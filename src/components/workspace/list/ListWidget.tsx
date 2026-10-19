@@ -48,6 +48,11 @@ import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers } from '../../../utils/markers'
+import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
+import { useToday } from '../../../hooks/use-today'
+import { useFilterSettings } from '../../../hooks/use-filter-settings'
+import { RefusalTooltip } from '../../shared/RefusalTooltip'
+import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 
@@ -89,7 +94,7 @@ export function ListWidget({ tab, onResult }: ListWidgetProps) {
 }
 
 /** Groupings whose groups take rows from each other (the value is reassigned). */
-const CROSS_GROUP_AXES = new Set(['people', 'status', 'tag'])
+const CROSS_GROUP_AXES = new Set(['people', 'status', 'tag', 'priority'])
 
 /** A cross-group drop waiting for the reassign dialog (people groups). */
 interface PendingReassign {
@@ -119,7 +124,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const ranks = useListRanks(definition.id)
   const names = useChipNames()
+  const today = useToday()
+  const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const widgetRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ person: GroupPerson; at: { x: number; y: number } } | null>(null)
@@ -171,6 +179,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const listId = definition.id
   const manualOrder = () => orderCandidates().sort(manualOrderComparator(ranks)).map((t) => t.id)
   const crossKey = (key: string) => (isUngroupedSectionKey(groupedBy, key) ? UNGROUPED_GROUP_KEY : key)
+  /** A Priority group's drop: the flags it writes, or why it's refused (`null`: nothing to do). */
+  const priorityDrop = (todo: PersistedTodoItem, sourceKey: string, targetKey: string): PriorityDrop | null =>
+    resolvePriorityDrop(todo, sourceKey, targetKey, { today, urgentRange: filterSettings.urgentRange, hotRule: filterSettings.hotRule })
+  const crossMutation = (todo: PersistedTodoItem, sourceKey: string, targetKey: string): CrossGroupMutation | null => {
+    if (groupedBy !== 'priority') return resolveCrossGroupMutation(groupedBy, crossKey(sourceKey), crossKey(targetKey), todo.id)
+    const drop = priorityDrop(todo, sourceKey, targetKey)
+    // A refused drop writes nothing (its tooltip said why during the drag).
+    return drop?.kind === 'write' ? { kind: 'priority', todoId: todo.id, flags: drop.flags, description: drop.description } : null
+  }
   const handleDrop = (source: ListRowDragSource, target: ListRowDropTarget) => {
     const section = sections.find((s) => s.key === target.sectionKey)
     const todo = list?.todos.find((t) => t.id === source.todoId)
@@ -182,7 +199,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       nextId: others[target.index]?.id ?? null,
     }
     if (target.cross) {
-      const mutation = resolveCrossGroupMutation(groupedBy, crossKey(source.sectionKey), crossKey(target.sectionKey), todo.id)
+      const mutation = crossMutation(todo, source.sectionKey, target.sectionKey)
       if (!mutation) return
       const rankWrites = manual ? planMove(manualOrder(), ranks, move) : []
       if (mutation.kind === 'people') {
@@ -213,6 +230,17 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     onDrop: handleDrop,
   })
 
+  // A Priority drop that would be refused: no landing line or highlight, the
+  // not-allowed cursor and a tooltip saying why (the Eisenhower's way).
+  const refusal = (() => {
+    if (groupedBy !== 'priority' || !drag?.target?.cross) return null
+    const todo = list?.todos.find((t) => t.id === drag.source.todoId)
+    const result = todo ? priorityDrop(todo, drag.source.sectionKey, drag.target.sectionKey) : null
+    return result?.kind === 'refused' ? result.lines : null
+  })()
+  useDropRefusedCursor(refusal != null)
+  const dropTarget = refusal ? null : drag?.target ?? null
+
   const switchToManual = () => {
     if (!pendingSwitch) return
     const order = orderCandidates()
@@ -227,7 +255,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   }
 
   const renderSectionRows = (section: Section) => {
-    const target = drag?.target?.sectionKey === section.key ? drag.target : null
+    const target = dropTarget?.sectionKey === section.key ? dropTarget : null
     const out: React.ReactNode[] = []
     let j = 0
     const indicator = () => {
@@ -326,7 +354,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     const groups = (
       grouped ? sections.map((section) => {
         const isCollapsed = collapsedKeys.has(section.key)
-        const crossTarget = drag?.target?.cross === true && drag.target.sectionKey === section.key
+        const crossTarget = dropTarget?.cross === true && dropTarget.sectionKey === section.key
         const person = isMobile ? null : groupPerson(groupedBy, section)
         const header = (
           <button
@@ -385,6 +413,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   return (
     <div
+      ref={widgetRef}
       className={`${styles.widget} ${isMobile ? styles.touch : ''}`}
       data-list-widget={tab.id}
       data-list-host={tab.id}
@@ -418,6 +447,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         </button>
       )}
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={footerHeight + 12} />}
+      {refusal && drag?.pointer && (
+        <RefusalTooltip lines={refusal} pointer={drag.pointer} boundsRef={widgetRef} followPointer testId="list-drop-refusal" />
+      )}
       {pendingSwitch && (
         <SwitchToManualPopover
           listName={definition.name}

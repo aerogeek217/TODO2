@@ -678,8 +678,60 @@ describe('buildListSections — accents and sentinels', () => {
 
 
 describe('buildListSections — a list grouped by Priority', () => {
-  it('reads as ungrouped (no Priority sections yet): one section of every member', () => {
-    const todos = [makeTodo({ id: 1, urgent: true }), makeTodo({ id: 2 })]
-    expect(build(todos, 'priority')).toEqual([{ key: 'all', label: 'All tasks', todos }])
+  const today = new Date(2026, 0, 12)
+  const inTwoDays = new Date(2026, 0, 14)
+  const priority = (todos: PersistedTodoItem[], over: Partial<ListSectionsContext> = {}) =>
+    build(todos, 'priority', { today, urgentRange: 3, ...over })
+  const titles = (sections: Section[]) => sections.map((s) => [s.label, s.todos.map((t) => t.id)])
+
+  it('groups Hot, Focus, Urgent, Important, then No priority; a task shows in each of its groups', () => {
+    const todos = [
+      makeTodo({ id: 1, focus: true, urgent: true }),
+      makeTodo({ id: 2, important: true }),
+      makeTodo({ id: 3 }),
+      makeTodo({ id: 4, urgent: true, important: true }),
+    ]
+    expect(titles(priority(todos))).toEqual([
+      ['Hot', [1, 4]],
+      ['Focus', [1]],
+      ['Urgent', [1, 4]],
+      ['Important', [2, 4]],
+      ['No priority', [3]],
+    ])
+    expect(priority(todos).map((s) => s.key)).toEqual([
+      'priority-hot', 'priority-focus', 'priority-urgent', 'priority-important', 'no-priority',
+    ])
+  })
+
+  it('colours each group as its marker, Hot as the flame and No priority muted', () => {
+    const todos = [makeTodo({ id: 1, focus: true, urgent: true, important: true }), makeTodo({ id: 2 })]
+    expect(priority(todos).map((s) => s.accentColor)).toEqual([
+      'var(--color-danger)',
+      'var(--color-marker-focus)',
+      'var(--color-marker-urgent)',
+      'var(--color-marker-important)',
+      'var(--color-text-muted)',
+    ])
+  })
+
+  it('Urgent is effective Urgent: a due date within the range counts, off = flags only', () => {
+    const todos = [makeTodo({ id: 1, dueDate: inTwoDays })]
+    expect(titles(priority(todos))).toEqual([['Urgent', [1]]])
+    expect(titles(priority(todos, { urgentRange: null }))).toEqual([['No priority', [1]]])
+    expect(titles(priority(todos, { urgentRange: undefined }))).toEqual([['No priority', [1]]])
+  })
+
+  it('Hot follows the Hot rule and is for open tasks only', () => {
+    const urgentOnly = makeTodo({ id: 1, urgent: true })
+    const doneFocus = makeTodo({ id: 2, focus: true, isCompleted: true })
+    expect(titles(priority([urgentOnly, doneFocus]))).toEqual([['Focus', [2]], ['Urgent', [1]]])
+    expect(titles(priority([urgentOnly, doneFocus], { hotRule: [{ urgent: true }] }))).toEqual([
+      ['Hot', [1]], ['Focus', [2]], ['Urgent', [1]],
+    ])
+  })
+
+  it('leaves empty groups out and keeps the sort inside each group', () => {
+    const todos = [makeTodo({ id: 1, important: true, title: 'b' }), makeTodo({ id: 2, important: true, title: 'a' })]
+    expect(titles(build(todos, 'priority', { today, urgentRange: 3 }, { sortBy: 'name' }))).toEqual([['Important', [2, 1]]])
   })
 })

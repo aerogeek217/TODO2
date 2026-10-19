@@ -59,7 +59,17 @@ describe('<ListEditorBody>', () => {
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')
-    expect(choiceLabels()).toEqual(['No grouping', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+    expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+  })
+
+  it('groups by Priority, with a note saying a task shows in each of its groups', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
+    openChoices('Group by')
+    const priority = screen.getByRole('menuitemradio', { name: /^Priority/ })
+    expect(priority).toHaveTextContent('a task shows in each of its groups')
+    fireEvent.click(priority)
+    expect(last(onChange).grouping).toBe('priority')
   })
 
   it('an unset Group by is a blank field with a muted "Group by…" placeholder — no "None" text', () => {

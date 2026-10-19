@@ -422,17 +422,3 @@
   background: var(--color-tint-8);
   color: var(--color-text-secondary);
 }
-
-/* ── Blocked drop ───────────────────────────────────────────────────────── */
-
-/* Shown at once (no fade), wider than a plain tooltip. */
-.refusal.refusal {
-  max-width: 250px;
-  animation: none;
-  opacity: 1;
-}
-
-:global(html[data-drop-refused]),
-:global(html[data-drop-refused] *) {
-  cursor: not-allowed !important;
-}

@@ -1,0 +1,12 @@
+/* A refused drop's tooltip: shown at once (no fade), wider than a plain tooltip. */
+.refusal.refusal {
+  max-width: 250px;
+  animation: none;
+  opacity: 1;
+}
+
+/* A drag over a target that refuses the drop (`hooks/use-drop-refused-cursor`). */
+:global(html[data-drop-refused]),
+:global(html[data-drop-refused] *) {
+  cursor: not-allowed !important;
+}

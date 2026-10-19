@@ -15,6 +15,8 @@ import type { ListRowDragData } from './ListWidgetRow'
 export interface ListRowDragState {
   source: ListRowDragSource
   target: ListRowDropTarget | null
+  /** The pointer (viewport) when the landing spot last changed. */
+  pointer?: { x: number; y: number }
 }
 
 interface UseListRowDragOptions {
@@ -70,7 +72,7 @@ export function useListRowDrag({ tabId, scrollRef, canCross, onDrop }: UseListRo
       const target = inside ? listRowDropTarget(geom, contentY(scrollEl, e.clientY), current.source, canCrossRef.current) : null
       const prev = current.target
       if (prev === target || (prev && target && prev.sectionKey === target.sectionKey && prev.index === target.index && prev.cross === target.cross)) return
-      setDrag({ ...current, target })
+      setDrag({ ...current, target, pointer: { x: e.clientX, y: e.clientY } })
     }
     window.addEventListener('pointermove', onMove)
     stopFollowingRef.current = () => window.removeEventListener('pointermove', onMove)

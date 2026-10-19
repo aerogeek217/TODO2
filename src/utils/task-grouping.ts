@@ -3,6 +3,16 @@ import type { WeekStart } from './effective-date'
 import { bySortOrder } from './sort-order'
 import { DATE_BUCKET_LABELS, DATE_BUCKET_ORDER, dateBucketKey, isDateBucketKey } from './bucket-by-date'
 import { NEUTRAL_PERSON_COLOR } from '../constants'
+import type { HotRule } from './hot'
+import type { UrgentDueWithinDays } from './urgency'
+import {
+  PRIORITY_GROUP_COLOR,
+  PRIORITY_GROUP_LABEL,
+  PRIORITY_GROUPS,
+  priorityGroupKey,
+  priorityGroupOfKey,
+  priorityGroupsOf,
+} from './priority-groups'
 
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
@@ -11,6 +21,10 @@ export interface GroupingContext {
   today: Date
   /** Week boundary for the date axes' "This Week" bucket. */
   weekStartsOn: WeekStart
+  /** Priority groups: the "due date makes a task urgent" range; absent = flags only. */
+  urgentRange?: UrgentDueWithinDays
+  /** Priority groups: the Hot rule; absent = the default rule. */
+  hotRule?: HotRule
 }
 
 export interface PartitionGroup<T extends PersistedTodoItem> {
@@ -36,14 +50,17 @@ function parseId(prefix: string, key: string): number | null {
  * - `null` — todo has no value for this dimension; the partition routes it
  *   into the `ungrouped` block.
  * - `string` — single group key.
- * - `string[]` — todo belongs to multiple groups (people / tag many-to-many);
- *   it appears once in each group.
+ * - `string[]` — todo belongs to multiple groups (people / tag / priority,
+ *   many-to-many); it appears once in each group.
  *
  * Bucket keys for `deadline` / `followup` are the shared relative-date keys
  * (`overdue` / `today` / `week` / `later`, see `utils/bucket-by-date`).
  *
+ * Priority keys are `priority-hot` / `-focus` / `-urgent` / `-important`
+ * (`utils/priority-groups`); a task with none of them is ungrouped (No
+ * priority).
+ *
  * `'none'` is a no-op at this layer (means "ungrouped"; callers gate on it).
- * `'priority'` groups nothing here yet: lists grouped by it read as ungrouped.
  */
 export function getGroupKey(
   todo: PersistedTodoItem,
@@ -73,7 +90,10 @@ export function getGroupKey(
       return dateBucketKey(todo.dueDate ? new Date(todo.dueDate) : null, ctx.today, ctx.weekStartsOn)
     case 'followup':
       return dateBucketKey(todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null, ctx.today, ctx.weekStartsOn)
-    case 'priority':
+    case 'priority': {
+      const groups = priorityGroupsOf(todo, { today: ctx.today, urgentRange: ctx.urgentRange ?? null, hotRule: ctx.hotRule })
+      return groups.length === 0 ? null : groups.map(priorityGroupKey)
+    }
     case 'none':
       return null
   }
@@ -118,7 +138,10 @@ export function getGroupLabel(
     case 'deadline':
     case 'followup':
       return isDateBucketKey(key) ? DATE_BUCKET_LABELS[key] : ''
-    case 'priority':
+    case 'priority': {
+      const group = priorityGroupOfKey(key)
+      return group ? PRIORITY_GROUP_LABEL[group] : ''
+    }
     case 'none':
       return ''
   }
@@ -163,9 +186,12 @@ export function getGroupColor(
       }
       return undefined
     }
+    case 'priority': {
+      const group = priorityGroupOfKey(key)
+      return group ? PRIORITY_GROUP_COLOR[group] : undefined
+    }
     case 'deadline':
     case 'followup':
-    case 'priority':
     case 'none':
       return undefined
   }
@@ -213,7 +239,13 @@ function orderGroupKeys(
         return keys.slice().sort((a, b) =>
           getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
         )
-      case 'priority':
+      case 'priority': {
+        const idx = (k: string) => {
+          const group = priorityGroupOfKey(k)
+          return group ? PRIORITY_GROUPS.indexOf(group) : PRIORITY_GROUPS.length
+        }
+        return keys.slice().sort((a, b) => idx(a) - idx(b))
+      }
       case 'none':
         return keys.slice()
     }
@@ -242,8 +274,8 @@ function orderGroupKeys(
  * - Within each bucket, todo order is preserved from the input.
  * - Group order: status by `sortOrder`, deadline/followup by
  *   bucket order (overdue → today → week → later), people/tag
- *   alphabetically by label.
- * - A todo with N keys (people/tag) appears once per group — the same
+ *   alphabetically by label, priority Hot → Focus → Urgent → Important.
+ * - A todo with N keys (people/tag/priority) appears once per group — the same
  *   row reference, no clone.
  *
  * `prioritizeGroupKeys` (optional): keys pulled to the front in caller

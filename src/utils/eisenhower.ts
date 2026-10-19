@@ -1,14 +1,12 @@
 import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
-import { daysUntil } from './effective-date'
 import type { TodoNameLookups } from './filter'
 import { filterChips, type FilterChipField, type FilterChipNames } from './filter-chips'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
-import { formatFollowupDay } from './followup'
 import { isHotFilter, MARKER_LABELS } from './markers'
-import { isEffectivelyUrgent, isUrgentByDate, type UrgentDueWithinDays } from './urgency'
+import { isEffectivelyUrgent, isUrgentByDate, URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 import { paneWrites, QUADRANT_ADD_HINT, QUADRANT_NAME, type EisenhowerPane, type PaneEntityField } from './eisenhower-panes'
 
 /**
@@ -430,16 +428,8 @@ function dueDateLines(
   range: UrgentDueWithinDays,
 ): [string, string, string] {
   const only = blocked.length === 1 && total === 1 ? blocked[0] : undefined
-  if (only?.dueDate && range != null) {
-    const days = daysUntil(only.dueDate, today) ?? 0
-    const day = formatFollowupDay(only.dueDate, today)
-    const why = days < 0
-      ? `${only.title} is overdue (${day}), so it counts as urgent.`
-      : days === 0
-        ? `${only.title} is due today, so it counts as urgent.`
-        : `${only.title} is due ${day}, within ${range} ${range === 1 ? 'day' : 'days'}, so it counts as urgent.`
-    return [title, why, 'Change its due date or the due-soon range first.']
-  }
+  const onlyWhy = only ? urgentByDateSentence(only, today, range) : ''
+  if (onlyWhy) return [title, onlyWhy, URGENT_BY_DATE_HINT]
   const n = blocked.length
   const verb = n === 1 ? 'is' : 'are'
   const they = n === 1 ? 'it counts' : 'they count'

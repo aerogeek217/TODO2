@@ -8,6 +8,7 @@ import { effectiveSortDirection, sortHasDirection } from '../../models'
 import {
   choicesWith,
   GROUP_LABEL,
+  GROUP_NOTE,
   LIST_GROUP_CHOICES,
   LIST_PROMPT_CHOICES,
   LIST_SORT_CHOICES,
@@ -91,7 +92,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
 
   const promptValue = draft.runtimeFilter?.field ?? 'none'
   const groupChoices: Choice<TodoGroupBy>[] = choicesWith<TodoGroupBy>(LIST_GROUP_CHOICES, draft.grouping)
-    .map((g) => ({ value: g, label: GROUP_LABEL[g] }))
+    .map((g) => ({ value: g, label: GROUP_LABEL[g], description: GROUP_NOTE[g] }))
   const sortChoices: Choice<TodoSortBy>[] = choicesWith<TodoSortBy>(LIST_SORT_CHOICES, draft.sort)
     .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s] }))
   const promptChoices: Choice<RuntimeFilterField | 'none'>[] = choicesWith<RuntimeFilterField | 'none'>(LIST_PROMPT_CHOICES, promptValue)

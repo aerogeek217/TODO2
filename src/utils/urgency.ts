@@ -97,6 +97,28 @@ export function urgentByDateReason(todo: UrgencyFields, today: Date, range: Urge
   return `Due ${day}, ${withinPhrase(range)}.`
 }
 
+/**
+ * Why a task's due date keeps it urgent, as a refused drop says it: `Plan
+ * is overdue (Thu 8), so it counts as urgent.` / `… is due today, so …` /
+ * `… is due Tue 13, within 3 days, so …`. Empty when the task isn't urgent
+ * by date.
+ */
+export function urgentByDateSentence(
+  todo: UrgencyFields & { title: string },
+  today: Date,
+  range: UrgentDueWithinDays,
+): string {
+  if (!isUrgentByDate(todo, today, range) || !todo.dueDate || range == null) return ''
+  const days = daysUntil(todo.dueDate, today) ?? 0
+  const day = formatFollowupDay(todo.dueDate, today)
+  if (days < 0) return `${todo.title} is overdue (${day}), so it counts as urgent.`
+  if (days === 0) return `${todo.title} is due today, so it counts as urgent.`
+  return `${todo.title} is due ${day}, ${withinPhrase(range)}, so it counts as urgent.`
+}
+
+/** What a refused drop suggests for a task kept urgent by its due date. */
+export const URGENT_BY_DATE_HINT = 'Change its due date or the due-soon range first.'
+
 /** `today` / `Tue 13` / `overdue (Thu 8)` — the due date as the clearing prompt words it. */
 export function dueDatePhrase(dueDate: Date, today: Date): string {
   const days = daysUntil(dueDate, today) ?? 0
