@@ -202,11 +202,8 @@ test('the Eisenhower range submenu: → opens it on the current value beside its
   await wsTab(page, 'eisTab').click({ button: 'right' })
   const menu = tabMenu(page)
   const item = menu.getByRole('menuitem', { name: /Due date makes a task urgent/ })
-  // First what it shows (all tasks here), then Customize panes…, then the range.
-  const show = menu.getByRole('menuitem', { name: /^Show/ })
-  await expect(show).toBeFocused()
-  await expect(show).toContainText('All tasks')
-  await page.keyboard.press('ArrowDown')
+  // First what it shows (all tasks here, a line), then Customize panes…, then the range.
+  await expect(menu).toContainText('Shows all tasks')
   await expect(menu.getByRole('menuitem', { name: 'Customize panes…' })).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(item).toBeFocused()

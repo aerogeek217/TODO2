@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, openSettings, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
- * The Eisenhower on a saved list, in a real browser: the tab menu's Show ›
- * picks the list — the app-wide source, so every Eisenhower follows, the
- * layout stays saved and Undo puts it back; the tab keeps its title and
+ * The Eisenhower on a saved list, in a real browser: Settings › Tasks ›
+ * Eisenhower › Show picks the list — the app-wide source, so every
+ * Eisenhower follows (the tab menu names it), the layout stays saved and
+ * Undo puts it back; the tab keeps its title and
  * names the list in its tooltip. The list's filter line above the quadrants
  * edits the list — every widget showing it gets the unsaved dot, and Save
  * writes it; drags between quadrants still set the flags; a list tab
@@ -56,6 +57,17 @@ const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').f
 const filterLine = (page: Page) => wsCell(page, 'b1').getByTestId('list-filter-row')
 const unsavedDot = (tab: Locator) => tab.getByRole('img', { name: 'unsaved list changes' })
 
+/** Settings › Tasks › Eisenhower › Show › `name`, then Settings closed. */
+async function pickSource(page: Page, name: string): Promise<void> {
+  const settings = await openSettings(page, 'Eisenhower')
+  await settings.getByTestId('eisenhower-source').click()
+  const menu = page.getByRole('menu', { name: 'Eisenhower shows' })
+  await menu.getByRole('menuitemradio', { name }).click()
+  await expect(menu).toHaveCount(0)
+  await settings.getByRole('button', { name: 'Close settings' }).click()
+  await expect(settings).toHaveCount(0)
+}
+
 async function openTabMenu(page: Page, tabId: string): Promise<Locator> {
   await wsTab(page, tabId).click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Change widget' })
@@ -66,20 +78,16 @@ async function openTabMenu(page: Page, tabId: string): Promise<Locator> {
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
-  test('Show › a list; Status is not Waiting from the widget’s filter line; both tabs unsaved; Save', async ({ page }) => {
+  test('Show a list; Status is not Waiting from the widget’s filter line; both tabs unsaved; Save', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'do'), 'Waiting on legal')).toBeVisible()
     await expect(wsTab(page, 'eisTab')).toContainText('Eisenhower')
     await expect(filterLine(page)).toHaveCount(0)
 
     const menu = await openTabMenu(page, 'eisTab')
-    const show = menu.getByRole('menuitem', { name: /^Show/ })
-    await expect(show).toContainText('All tasks')
-    await show.hover()
-    const sub = page.getByRole('menu', { name: 'Show' })
-    await expect(sub.getByRole('menuitemradio', { name: 'All tasks' })).toHaveAttribute('aria-checked', 'true')
-    await sub.getByRole('menuitemradio', { name: 'Team' }).click()
-    await expect(menu).toHaveCount(0)
+    await expect(menu).toContainText('Shows all tasks')
+    await page.keyboard.press('Escape')
+    await pickSource(page, 'Team')
 
     // The tab keeps its title and names the list in its tooltip; a setting, saved at once — the layout stays saved.
     const tab = wsTab(page, 'eisTab')
@@ -119,15 +127,14 @@ test.describe('desktop', () => {
       .toMatchObject({ statusIds: [waiting], negate: { statusIds: true } })
 
     // Show › All tasks: every task again, no filter line.
-    await (await openTabMenu(page, 'eisTab')).getByRole('menuitem', { name: /^Show/ }).hover()
-    await page.getByRole('menu', { name: 'Show' }).getByRole('menuitemradio', { name: 'All tasks' }).click()
+    await pickSource(page, 'All tasks')
     await expect(row(quadrant(page, 'do'), 'Waiting on legal')).toBeVisible()
     await expect(tab).toHaveAttribute('title', 'Eisenhower')
     await expect(filterLine(page)).toHaveCount(0)
     await expect.poll(() => storedSource(page)).toBeUndefined()
   })
 
-  test('Show › on one Eisenhower changes every Eisenhower; Undo puts it back; a reload keeps it', async ({ page }) => {
+  test('Show changes every Eisenhower; Undo puts it back; a reload keeps it', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{
@@ -138,8 +145,7 @@ test.describe('desktop', () => {
         ],
       }],
     })
-    await (await openTabMenu(page, 'eisTab')).getByRole('menuitem', { name: /^Show/ }).hover()
-    await page.getByRole('menu', { name: 'Show' }).getByRole('menuitemradio', { name: 'Team' }).click()
+    await pickSource(page, 'Team')
     await expect(wsTab(page, 'eisA')).toHaveAttribute('title', 'Eisenhower · Team')
     await expect(wsCell(page, 'a1').getByTestId('list-filter-row')).toBeVisible()
 
@@ -148,8 +154,7 @@ test.describe('desktop', () => {
     await expect(wsCell(page, 'a1').getByTestId('list-filter-row')).toHaveCount(0)
     await expect.poll(() => storedSource(page)).toBeUndefined()
 
-    await (await openTabMenu(page, 'eisA')).getByRole('menuitem', { name: /^Show/ }).hover()
-    await page.getByRole('menu', { name: 'Show' }).getByRole('menuitemradio', { name: 'Other' }).click()
+    await pickSource(page, 'Other')
     await expect(wsTab(page, 'eisTab')).toHaveAttribute('title', 'Eisenhower · Other')
     await expect.poll(() => storedSource(page)).toMatch(/^list:/)
     await page.reload()

@@ -4,8 +4,8 @@ import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
- * Custom Eisenhower panes in a real browser: Customize panes (from the tab
- * menu) gives Delegate `Status is not Delegated` — a Delegated task leaves
+ * Custom Eisenhower panes in a real browser: Settings › Tasks › Eisenhower
+ * (the tab menu's Customize panes…) gives Delegate `Status is not Delegated` — a Delegated task leaves
  * the matrix and the line under it counts it (a click lists it in the task
  * dialog); the pane header shows the filter in words and the custom dot;
  * the panes are an app-wide setting — saved at once (the layout stays
@@ -40,15 +40,23 @@ const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').f
 const listRow = (page: Page, title: string) => row(wsCell(page, 'a1'), title)
 const noPane = (page: Page) => wsCell(page, 'b1').getByTestId('eisenhower-no-pane')
 
+const settings = (page: Page) => page.getByRole('dialog', { name: 'Settings', exact: true })
+
+/** The tab menu's Customize panes…: Settings › Tasks › Eisenhower. */
 async function openCustomize(page: Page): Promise<Locator> {
   await wsTab(page, 'eisTab').click({ button: 'right' })
   await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Customize panes…' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Customize panes' })
-  await expect(dialog).toBeVisible()
-  return dialog
+  const part = settings(page).getByRole('region', { name: 'Eisenhower', exact: true })
+  await expect(part).toBeVisible()
+  return part
 }
 
-/** In a pane card of the dialog: + Filter › Status › (Is / Is not) › `status`. */
+async function closeSettings(page: Page): Promise<void> {
+  await settings(page).getByRole('button', { name: 'Close settings' }).click()
+  await expect(settings(page)).toHaveCount(0)
+}
+
+/** In a pane card of the Eisenhower settings: + Filter › Status › (Is / Is not) › `status`. */
 async function addStatusFilter(page: Page, card: Locator, status: string, mode: 'Is' | 'Is not'): Promise<void> {
   await card.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
@@ -91,16 +99,15 @@ test.describe('desktop', () => {
     await expect(row(quadrant(page, 'delegate'), 'Chase vendor')).toBeVisible()
     await expect(noPane(page)).toHaveCount(0)
 
-    const dialog = await openCustomize(page)
-    const card = dialog.locator('[data-pane-card="delegate"]')
+    const part = await openCustomize(page)
+    const card = part.locator('[data-pane-card="delegate"]')
     await expect(card.getByTestId('customize-pane-count')).toHaveText('2 now')
     await addStatusFilter(page, card, 'Delegated', 'Is not')
-    // Live in the dialog and behind it.
+    // Live in Settings and behind it.
     await expect(card.getByTestId('customize-pane-count')).toHaveText('1 now')
-    await expect(dialog.getByTestId('customize-panes-no-pane')).toContainText('1 open task is in no pane')
+    await expect(part.getByTestId('customize-panes-no-pane')).toContainText('1 open task is in no pane')
     await expect(row(quadrant(page, 'delegate'), 'Chase vendor')).toHaveCount(0)
-    await dialog.getByRole('button', { name: 'Done' }).click()
-    await expect(dialog).toHaveCount(0)
+    await closeSettings(page)
 
     // The header: the filter in words and the custom dot; a setting — the layout stays saved.
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
@@ -149,9 +156,9 @@ test.describe('desktop', () => {
       ],
     })
     await expect(quadrant(page, 'delegate')).toContainText('Hand off')
-    const dialog = await openCustomize(page)
-    await dialog.locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' }).fill('Someday')
-    await dialog.getByRole('button', { name: 'Done' }).click()
+    const part = await openCustomize(page)
+    await part.locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' }).fill('Someday')
+    await closeSettings(page)
     await expect(quadrant(page, 'drop')).toContainText('Someday')
 
     await page.getByTestId('layout-picker').click()
@@ -161,12 +168,11 @@ test.describe('desktop', () => {
     await expect(other.locator('[data-eis-quadrant="drop"]')).toContainText('Someday')
   })
 
-  test('a pane header’s Edit pane… opens the dialog on that pane; renaming shows at once', async ({ page }) => {
+  test('a pane header’s Edit pane… opens Settings on that pane; renaming shows at once', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await quadrant(page, 'drop').getByTestId('eisenhower-pane-subtitle').click({ button: 'right' })
     await page.getByRole('menu', { name: 'Drop pane' }).getByRole('menuitem', { name: 'Edit pane…' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Customize panes' })
-    const name = dialog.locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' })
+    const name = settings(page).locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' })
     await expect(name).toBeFocused()
     await name.fill('Someday')
     await expect(quadrant(page, 'drop')).toContainText('Someday')
@@ -178,9 +184,9 @@ test.describe('desktop', () => {
 
   test('a drop on a pane whose filter sets a status writes it; one undo step', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    const dialog = await openCustomize(page)
-    await addStatusFilter(page, dialog.locator('[data-pane-card="drop"]'), 'Waiting', 'Is')
-    await dialog.getByRole('button', { name: 'Done' }).click()
+    const part = await openCustomize(page)
+    await addStatusFilter(page, part.locator('[data-pane-card="drop"]'), 'Waiting', 'Is')
+    await closeSettings(page)
     // Migrate blog has no status now: in no pane.
     await expect(row(quadrant(page, 'drop'), 'Migrate blog')).toHaveCount(0)
     await expect(noPane(page)).toHaveText('1 open task in no pane')
@@ -201,9 +207,9 @@ test.describe('desktop', () => {
 
   test('a drop that wouldn’t land the task in the pane is refused, saying why', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    const dialog = await openCustomize(page)
-    await addStatusFilter(page, dialog.locator('[data-pane-card="delegate"]'), 'Delegated', 'Is not')
-    await dialog.getByRole('button', { name: 'Done' }).click()
+    const part = await openCustomize(page)
+    await addStatusFilter(page, part.locator('[data-pane-card="delegate"]'), 'Delegated', 'Is not')
+    await closeSettings(page)
 
     await dragOnto(page, listRow(page, 'Chase vendor'), quadrant(page, 'delegate'), async () => {
       await expect(quadrant(page, 'delegate')).toHaveAttribute('data-drop-state', 'refused')
