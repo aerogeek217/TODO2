@@ -54,6 +54,16 @@ describe('draft storage', () => {
     expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
   })
 
+  it('keeps an Eisenhower tab’s list in a layout draft; an unreadable one makes it no draft', () => {
+    const onList: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [createTab('eisenhower', 'e', { listDefinitionId: 3 })] }] }]
+    const record = { kind: 'new', name: 'N', body: { columns: onList }, listNames: { 3: 'Inbox' } } as const
+    writeLayoutDraft(record)
+    expect(readLayoutDraft()).toEqual(record)
+    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 'x' } }] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad }))
+    expect(readLayoutDraft()).toBeNull()
+  })
+
   it('reads a band the layout repair would change as no layout draft', () => {
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns, top: { id: 'T', height: 100, tabs: [] } }))
     expect(readLayoutDraft()).toBeNull()

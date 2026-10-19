@@ -2,6 +2,7 @@ import {
   BAND_DEFAULT_HEIGHT,
   BAND_EDGES,
   DEFAULT_WEIGHT,
+  tabListId,
   type BandEdge,
   type LayoutBand,
   type LayoutBody,
@@ -144,8 +145,9 @@ export function layoutTabs(layout: LayoutBody): LayoutTab[] {
 }
 
 /**
- * How many list tabs in `layout` show list `listDefinitionId`, not counting
- * the tabs in `exceptTabIds` (e.g. the ones about to be closed).
+ * How many tabs in `layout` show list `listDefinitionId` (list tabs and
+ * Eisenhower tabs on it — `tabListId`), not counting the tabs in
+ * `exceptTabIds` (e.g. the ones about to be closed).
  */
 export function countListTabs(
   layout: LayoutBody,
@@ -154,7 +156,7 @@ export function countListTabs(
 ): number {
   let n = 0
   for (const tab of layoutTabs(layout)) {
-    if (tab.kind === 'lens' && tab.config.listDefinitionId === listDefinitionId && !exceptTabIds.has(tab.id)) n++
+    if (tabListId(tab) === listDefinitionId && !exceptTabIds.has(tab.id)) n++
   }
   return n
 }
@@ -581,7 +583,11 @@ function shallowPatch<T extends object>(base: T, patch: Partial<T>): T {
   return changed ? { ...base, ...patch } : base
 }
 
-/** Layout config: shallow-patches a tab's `config` — only when the tab is of `kind`. */
+/**
+ * Layout config: shallow-patches a tab's `config` — only when the tab is of
+ * `kind`. A key patched to `undefined` is removed (e.g. an Eisenhower tab
+ * back on all tasks).
+ */
 export function patchTabConfig<L extends WorkspaceLayout, K extends WidgetKind>(
   layout: L,
   tabId: string,
@@ -590,8 +596,10 @@ export function patchTabConfig<L extends WorkspaceLayout, K extends WidgetKind>(
 ): L {
   return updateTab(layout, tabId, (tab) => {
     if (tab.kind !== kind) return tab
-    const config = shallowPatch(tab.config as TabConfigOf<K>, patch)
-    return config === tab.config ? tab : ({ ...tab, config } as LayoutTab)
+    const patched = shallowPatch(tab.config as TabConfigOf<K>, patch)
+    if (patched === tab.config) return tab
+    const config = Object.fromEntries(Object.entries(patched).filter(([, v]) => v !== undefined))
+    return { ...tab, config } as LayoutTab
   })
 }
 

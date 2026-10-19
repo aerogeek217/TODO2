@@ -7,6 +7,7 @@ import {
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
+  type EisenhowerTabConfig,
   type LayoutBand,
   type LayoutBody,
   type TaskRowsViewState,
@@ -85,6 +86,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       return true
     }
     case 'eisenhower': {
+      if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
       const collapsed = view?.collapsed
       if (collapsed !== undefined && (!Array.isArray(collapsed) || !collapsed.every(isEisenhowerQuadrant))) {
         return `${path}.viewState.collapsed`
@@ -305,7 +307,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const raw = view?.collapsed
         if (raw !== undefined && (!Array.isArray(raw) || !raw.every(isEisenhowerQuadrant))) fix('settings')
         const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
-        const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: {} }
+        const eisenhowerConfig: EisenhowerTabConfig = {}
+        if (isFiniteNum(config.listDefinitionId)) eisenhowerConfig.listDefinitionId = config.listDefinitionId
+        else if (config.listDefinitionId !== undefined) fix('settings')
+        const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: eisenhowerConfig }
         // Known quadrants, once each, in display order.
         const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
         const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }

@@ -31,6 +31,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
+  ['bad Eisenhower list id', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: Number.NaN } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
   ['bad collapsed', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { collapsed: 'yes' })), 'columns[0].cells[0].collapsed'],
   ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
@@ -147,6 +148,8 @@ describe('layouts row validation', () => {
           // Collapsed quadrants: once each, in display order.
           { id: 't4', kind: 'eisenhower', config: { x: 1 }, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
           { id: 't5', kind: 'eisenhower', config: {}, viewState: { collapsed: [] } },
+          // An Eisenhower tab on a saved list keeps it.
+          { id: 't6', kind: 'eisenhower', config: { listDefinitionId: 9 } },
         ],
       }],
     }]
@@ -160,6 +163,7 @@ describe('layouts row validation', () => {
         { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
         { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
         { id: 't5', kind: 'eisenhower', config: {} },
+        { id: 't6', kind: 'eisenhower', config: { listDefinitionId: 9 } },
       ] }] }],
     }])
   })
@@ -301,6 +305,13 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(rowFixes('layouts', row)).toEqual([
       'name reset', 'dates reset', '2 sizes reset', '3 tabs dropped', 'tab or cell settings reset', 'column dropped',
     ])
+  })
+
+  it('an Eisenhower tab with an unreadable list id is repaired to all tasks, its view state kept', () => {
+    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: '7' }, viewState: { collapsed: ['do'] } }))
+    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
+    expect(repaired.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
   })
 
   it('a bad band is dropped, a band left without tabs too; a bad height becomes the default', () => {

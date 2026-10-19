@@ -100,6 +100,11 @@ export interface TaskRowsViewState {
   detailsWidth?: number
 }
 
+export interface EisenhowerTabConfig {
+  /** The saved list whose tasks the quadrants show; absent = all tasks. */
+  listDefinitionId?: number
+}
+
 export interface EisenhowerTabViewState extends TaskRowsViewState {
   /** Sections collapsed in the stacked (narrow) layout. */
   collapsed?: EisenhowerQuadrant[]
@@ -120,7 +125,7 @@ interface TabOf<K extends WidgetKind, C, V> {
 export type LensTab = TabOf<'lens', LensTabConfig, TaskRowsViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
-export type EisenhowerTab = TabOf<'eisenhower', NoTabSettings, EisenhowerTabViewState>
+export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, TaskRowsViewState>
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab
@@ -253,6 +258,7 @@ export const DEFAULT_CALENDAR_DATE_TYPES: CalendarDateTypes = { due: true, follo
 
 /** Optional per-kind starting values for a new tab. */
 export interface TabSeed {
+  /** The list a new list tab shows, or a new Eisenhower tab (none = all tasks). */
   listDefinitionId?: number
 }
 
@@ -283,7 +289,11 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
   notes: { label: 'Notes', showsList: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
-  eisenhower: { label: 'Eisenhower', showsList: false, newTab: (id) => ({ id, kind: 'eisenhower', config: {} }) },
+  eisenhower: {
+    label: 'Eisenhower',
+    showsList: false,
+    newTab: (id, seed) => ({ id, kind: 'eisenhower', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
+  },
   dashboard: { label: 'Dashboard', showsList: false, newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }) },
 }
 
@@ -305,6 +315,15 @@ export function widgetKindLabel(kind: WidgetKind): string {
 /** A new tab of `kind` with that kind's default config. */
 export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSeed = {}): TabOfKind<K> {
   return WIDGET_KIND_SPECS[kind].newTab(id, seed)
+}
+
+/**
+ * The saved list a tab shows — a list tab's list, an Eisenhower tab's
+ * (absent there = all tasks) —, else `undefined`. A tab with a list counts
+ * as a widget showing that list (its unsaved edits, the last-widget prompt).
+ */
+export function tabListId(tab: LayoutTab): number | undefined {
+  return tab.kind === 'lens' || tab.kind === 'eisenhower' ? tab.config.listDefinitionId : undefined
 }
 
 /** A cell's (or band's) active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */

@@ -141,6 +141,7 @@ function buildSeed(): Seed {
                 },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
+                { id: 't11', kind: 'eisenhower', config: { listDefinitionId: 2 } },
               ] },
               { id: 'k4', weight: 1, tabs: [] },
             ],
@@ -242,6 +243,7 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'eisenhower' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     const dashboard = tabs.find((t) => t.kind === 'dashboard')
     expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)

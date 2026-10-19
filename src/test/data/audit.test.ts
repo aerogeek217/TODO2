@@ -420,6 +420,20 @@ describe('layouts audit', () => {
     expect((await auditData()).issues).toEqual([])
   })
 
+  it('an Eisenhower tab on a list is valid; an unreadable list id is reported, and cleanup puts it on all tasks', async () => {
+    const eis = (config: unknown) => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] }] }]
+    // A list id is kept even when the list is gone (the tab says so, as a list tab does).
+    await db.layouts.add(layout('On a list', eis({ listDefinitionId: 99 })) as any)
+    expect((await auditData()).issues).toEqual([])
+    const id = await db.layouts.add(layout('Bad', eis({ listDefinitionId: 'Team' })) as any) as number
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
+    expect(report.issues[0]!.samples![0]!.badFields).toEqual(['columns[0].cells[0].tabs[0].config.listDefinitionId'])
+    await cleanupIssues(report.issues)
+    expect((await db.layouts.get(id))?.columns[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: {} })
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('a layout with nothing usable left is kept, empty', async () => {
     const id = await db.layouts.add({ name: 'Only', columns: 'garbage', createdAt: 'never', modifiedAt: at } as any) as number
 

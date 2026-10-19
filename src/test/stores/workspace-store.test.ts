@@ -442,4 +442,22 @@ describe('unsaved changes kept for a reload', () => {
     expect(ws()).toMatchObject({ activeLayoutId: a, isDirty: false })
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
+
+  it('an Eisenhower tab on a list counts as showing it: a new layout with it is dropped when the list changed', async () => {
+    const listId = await db.listDefinitions.add({
+      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
+    } as never) as number
+    const [a] = await seedAndInit(twoColumns('A'))
+    await useListDefinitionStore.getState().load()
+    ws().newLayout()
+    ws().addWidget('eisenhower', { kind: 'layout' }, { listDefinitionId: listId })
+    await reload()
+    expect(ws().working!.columns[0]!.cells[0]!.tabs[0]).toMatchObject({ kind: 'eisenhower', config: { listDefinitionId: listId } })
+
+    await db.listDefinitions.update(listId, { name: 'Someone else’s' })
+    useListDefinitionStore.setState({ listDefinitions: [], loaded: false })
+    await reload()
+    expect(ws()).toMatchObject({ activeLayoutId: a, isDirty: false })
+  })
 })
