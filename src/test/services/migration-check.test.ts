@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { checkUnsupportedOldDB, exportCurrentDatabase } from '../../services/migration-check'
+import { checkTooNewDB, checkUnsupportedOldDB, exportCurrentDatabase } from '../../services/migration-check'
 import { detectUnsupportedImport, SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 
@@ -76,6 +76,23 @@ describe('checkUnsupportedOldDB', () => {
     expect(result).not.toBeNull()
     expect(result!.currentVersion).toBe(16)
     expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+  })
+})
+
+describe('checkTooNewDB', () => {
+  it('returns null when no database exists, or it is at this build’s version or older', async () => {
+    expect(await checkTooNewDB()).toBeNull()
+    await createRawDb(CURRENT_DB_VERSION * 10, (db) => {
+      db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+    })
+    expect(await checkTooNewDB()).toBeNull()
+  })
+
+  it('returns the versions when a newer build saved the database', async () => {
+    await createRawDb((CURRENT_DB_VERSION + 1) * 10, (db) => {
+      db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+    })
+    expect(await checkTooNewDB()).toEqual({ storedVersion: CURRENT_DB_VERSION + 1, buildVersion: CURRENT_DB_VERSION })
   })
 })
 

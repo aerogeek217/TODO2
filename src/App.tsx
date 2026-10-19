@@ -25,12 +25,13 @@ import { createCommands, searchDynamicCommands } from './services/command-regist
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
+import { CURRENT_DB_VERSION, findDatabaseTooNew } from './data/database'
 import { runAppStartup } from './services/app-startup'
 import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
-import { checkUnsupportedOldDB } from './services/migration-check'
-import type { UnsupportedDBInfo } from './services/migration-check'
-import { MigrationDialog } from './components/overlays/MigrationDialog'
+import { checkTooNewDB, checkUnsupportedOldDB } from './services/migration-check'
+import type { TooNewDBInfo, UnsupportedDBInfo } from './services/migration-check'
+import { DatabaseTooNewDialog, MigrationDialog } from './components/overlays/MigrationDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
 import { PurgeCompletedDialog } from './components/overlays/PurgeCompletedDialog'
@@ -215,6 +216,8 @@ function AppShell() {
   const isMobile = useIsMobile()
   const [initialized, setInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
+  /** Launch stopped because a newer version saved the database (where the version check before it couldn't see that). */
+  const [initTooNew, setInitTooNew] = useState<TooNewDBInfo | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   /** uids of the completed tasks past retention at launch (for the purge prompt). */
@@ -261,6 +264,8 @@ function AppShell() {
       })
       .catch((err) => {
         console.error('App initialization failed:', err)
+        const tooNew = findDatabaseTooNew(err)
+        if (tooNew) setInitTooNew({ storedVersion: tooNew.storedVersion, buildVersion: CURRENT_DB_VERSION })
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
@@ -338,6 +343,8 @@ function AppShell() {
     (query: string) => searchDynamicCommands(query, commandCtx),
     [commandCtx]
   )
+
+  if (initTooNew) return <DatabaseTooNewDialog info={initTooNew} />
 
   if (initError) {
     return (
@@ -431,12 +438,14 @@ function createAppRouter() {
 export default function App() {
   const [router] = useState(createAppRouter)
   const [unsupportedDBInfo, setUnsupportedDBInfo] = useState<UnsupportedDBInfo | null>(null)
+  const [tooNewDBInfo, setTooNewDBInfo] = useState<TooNewDBInfo | null>(null)
   const [dbVersionChecked, setDbVersionChecked] = useState(false)
 
   useEffect(() => {
-    checkUnsupportedOldDB()
-      .then(info => {
+    Promise.all([checkUnsupportedOldDB(), checkTooNewDB()])
+      .then(([info, tooNew]) => {
         setUnsupportedDBInfo(info)
+        setTooNewDBInfo(tooNew)
         setDbVersionChecked(true)
       })
       .catch(() => setDbVersionChecked(true))
@@ -450,6 +459,9 @@ export default function App() {
       </div>
     )
   }
+
+  // Saved by a newer version: nothing here may open it.
+  if (tooNewDBInfo) return <DatabaseTooNewDialog info={tooNewDBInfo} />
 
   if (unsupportedDBInfo) {
     return <MigrationDialog mode="schema-upgrade" info={unsupportedDBInfo} onProceed={() => setUnsupportedDBInfo(null)} />

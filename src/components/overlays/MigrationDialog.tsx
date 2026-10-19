@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import type { UnsupportedDBInfo } from '../../services/migration-check'
+import type { TooNewDBInfo, UnsupportedDBInfo } from '../../services/migration-check'
 import type { UnsupportedImportInfo } from '../../data/file-version'
 import { exportCurrentDatabase } from '../../services/migration-check'
-import { OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
+import { OLDEST_SUPPORTED_DB_VERSION, tooNewDatabaseMessage } from '../../data/database'
 import { buildJsonExport, exportFileTimestamp } from '../../services/data-files'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { downloadedMessage, saveTextFile } from '../../services/save-file'
@@ -22,6 +22,26 @@ interface LegacyImportProps {
 }
 
 type MigrationDialogProps = SchemaUpgradeProps | LegacyImportProps
+
+/**
+ * The browser's database was saved by a newer version of TODO2: this one
+ * reads and writes none of it — the only way on is the newer version
+ * (Reload). Nothing to close.
+ */
+export function DatabaseTooNewDialog({ info }: { info: TooNewDBInfo }) {
+  return (
+    <Dialog open onClose={() => {}} blockBackdropClose size="md" title="Data from a newer version of TODO2">
+      <DialogBody>
+        {tooNewDatabaseMessage(info.storedVersion, info.buildVersion)} If the newer version is open in another tab, use that one.
+      </DialogBody>
+      <DialogActions>
+        <button className={styles.primaryButton} onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </DialogActions>
+    </Dialog>
+  )
+}
 
 export function MigrationDialog(props: MigrationDialogProps) {
   const [exporting, setExporting] = useState(false)

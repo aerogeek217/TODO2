@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 import { prepareImport } from '../../data/import-pipeline'
 import { readLayoutDraft, readListDrafts } from '../../data/draft-storage'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
+import { db } from '../../data/database'
+import { checkTooNewDB } from '../../services/migration-check'
 
 /**
  * A build whose schema is v65 — the last one that kept the Eisenhower's
@@ -35,6 +37,13 @@ describe('a v65 build reading v66 data', () => {
     expect(result.reason).toBe('too-new')
     expect(result.error).toContain('schema v66')
     expect(result.error).toContain('up to v65')
+  })
+
+  it('refuses a browser database a v66 build opened, before anything reads it', async () => {
+    await db.open()
+    db.close()
+    expect(await checkTooNewDB()).toEqual({ storedVersion: 66, buildVersion: 65 })
+    await db.delete()
   })
 
   it.each([[65, true], [66, false]])('unsaved layout and list changes kept at v%i are read back: %s', (schemaVersion, kept) => {
