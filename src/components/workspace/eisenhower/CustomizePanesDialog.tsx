@@ -20,7 +20,8 @@ import { DialogFrame } from '../../shared/Dialog'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { CloseIcon } from '../../shared/icons'
-import { useEisenhowerSource } from './use-eisenhower-source'
+import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
+import { useTabTitle } from '../widget-hooks'
 import styles from './CustomizePanesDialog.module.css'
 
 /** The menu item (tab menu, cell menu) that opens the dialog. */
@@ -59,7 +60,7 @@ export function CustomizePanesDialog({ tabId, focusPane, onClose }: CustomizePan
 
 function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane?: EisenhowerQuadrant; onClose: () => void }) {
   const titleId = useId()
-  const source = useEisenhowerSource(tab)
+  const source = useEisenhowerSource(tab, useTabTitle(tab))
   const paneCtx = usePaneContext()
   const names = useChipNames()
   const panes = useMemo(() => resolvePanes(tab.config.panes), [tab.config.panes])

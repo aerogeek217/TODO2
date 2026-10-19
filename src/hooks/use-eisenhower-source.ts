@@ -1,24 +1,23 @@
 import { useMemo } from 'react'
-import type { PersistedTodoItem } from '../../../models'
-import type { PersistedListDefinition } from '../../../models/list-definition'
-import type { EisenhowerTab } from '../../../models/workspace-layout'
-import { useBuiltList } from '../../../hooks/use-built-list'
-import { useFilterSettings } from '../../../hooks/use-filter-settings'
-import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
-import { useToday } from '../../../hooks/use-today'
-import { useFilterStore } from '../../../stores/filter-store'
-import { usePersonStore } from '../../../stores/person-store'
-import { useStatusStore } from '../../../stores/status-store'
-import { useTagStore } from '../../../stores/tag-store'
-import { useTodoStore } from '../../../stores/todo-store'
-import { applyFilter } from '../../../utils/filter-match'
-import { useTabTitle } from '../widget-hooks'
+import type { PersistedTodoItem } from '../models'
+import type { PersistedListDefinition } from '../models/list-definition'
+import type { EisenhowerTab } from '../models/workspace-layout'
+import { useBuiltList } from './use-built-list'
+import { useFilterSettings } from './use-filter-settings'
+import { useEffectiveListDefinition } from './use-list-draft'
+import { useToday } from './use-today'
+import { useFilterStore } from '../stores/filter-store'
+import { usePersonStore } from '../stores/person-store'
+import { useStatusStore } from '../stores/status-store'
+import { useTagStore } from '../stores/tag-store'
+import { useTodoStore } from '../stores/todo-store'
+import { applyFilter } from '../utils/filter-match'
 
 /** The saved list an Eisenhower widget shows. */
 export interface ListSourceContext {
   /** The list as shown (its unsaved draft, else the saved list). */
   definition: PersistedListDefinition
-  /** Its name, as the tab shows it. */
+  /** Its name, as the tab shows it (the caller's `useTabTitle`). */
   title: string
   /** Open tasks in the app (what the list's own filter can hide). */
   appOpen: number
@@ -50,9 +49,10 @@ export function countOpen(todos: readonly PersistedTodoItem[]): number {
  * The tasks an Eisenhower tab considers: all tasks, or one saved list's (its
  * unsaved draft included; its prompt, group and sort ignored — every member
  * counts) as a list widget runs it; the screen filter narrows either. Used
- * by the widget and by its Customize panes dialog (the live counts).
+ * by the widget and by its Customize panes dialog (the live counts). `title`
+ * is the tab's title (the list's name, as its tab shows it).
  */
-export function useEisenhowerSource(tab: EisenhowerTab): EisenhowerSource {
+export function useEisenhowerSource(tab: EisenhowerTab, title: string): EisenhowerSource {
   const listId = tab.config.listDefinitionId
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
@@ -62,7 +62,6 @@ export function useEisenhowerSource(tab: EisenhowerTab): EisenhowerSource {
   const screen = useFilterStore((s) => s.filters)
   const screenActive = useFilterStore((s) => s.isActive)
   const settings = useFilterSettings()
-  const title = useTabTitle(tab)
 
   // All tasks, through the screen filter.
   const allShown = useMemo(

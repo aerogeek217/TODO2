@@ -58,8 +58,8 @@ import tooltipStyles from '../../shared/Tooltip.module.css'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
-import { openEditList } from '../widget-hooks'
-import { countOpen, useEisenhowerSource, type ListSourceContext } from './use-eisenhower-source'
+import { openEditList, useTabTitle } from '../widget-hooks'
+import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../../hooks/use-eisenhower-source'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -449,7 +449,7 @@ interface WidgetProps {
  * defaults).
  */
 export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProps) {
-  const source = useEisenhowerSource(tab)
+  const source = useEisenhowerSource(tab, useTabTitle(tab))
   if (source.kind === 'deleted') {
     return (
       <div className={styles.missing}>
