@@ -1,6 +1,7 @@
-import { useState, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useRef, useState, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { MARKER_KEYS, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
+import { ClearableField } from '../ClearableField'
 import { PickerEntityMenu } from '../EntityMenu'
 import picker from './FilterPicker.module.css'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
@@ -31,8 +32,10 @@ interface SelectionPanelBodyProps {
   children: ReactNode
 }
 
-/** Select all / Deselect all, an optional search box, then the items. */
+/** Select all / Deselect all, an optional search box (× clears it), then the items. */
 export function SelectionPanelBody({ allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
+  const ownSearchRef = useRef<HTMLInputElement>(null)
+  const searchRef = searchInputRef ?? ownSearchRef
   return (
     <>
       <div className={picker.dropdownActions}>
@@ -55,20 +58,27 @@ export function SelectionPanelBody({ allSelected, noneSelected, onSelectAll, onD
       <div className={picker.dropdownDivider} />
       {search && (
         <div className={picker.dropdownSearchWrapper}>
-          <input
-            ref={searchInputRef}
-            className={picker.dropdownSearchInput}
-            type="text"
-            placeholder="Search..."
+          <ClearableField
             value={search.text}
-            onChange={(e) => search.setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                if (search.text) search.setText('')
-                else search.onEscape()
-              }
-            }}
-          />
+            onClear={() => search.setText('')}
+            inputRef={searchRef}
+            label="Clear search"
+          >
+            <input
+              ref={searchRef}
+              className={picker.dropdownSearchInput}
+              type="text"
+              placeholder="Search..."
+              value={search.text}
+              onChange={(e) => search.setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  if (search.text) search.setText('')
+                  else search.onEscape()
+                }
+              }}
+            />
+          </ClearableField>
         </div>
       )}
       <div className={search ? picker.dropdownItemsScrollable : undefined}>{children}</div>

@@ -70,6 +70,23 @@ describe('ChipSelector', () => {
     expect(activeOption()).toHaveTextContent('Aidan Ross')
   })
 
+  it('the search shows a × only while it has text; a click empties it, keeps the focus and the picker open', () => {
+    const { onClose, onToggle } = renderPicker()
+    expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
+    type('ali')
+    expect(options().map((o) => o.textContent)).toEqual(['AAlice Chen⏎', '+ACreate "ali"'])
+    const clear = screen.getByRole('button', { name: 'Clear search' })
+    expect(clear).toHaveAttribute('tabindex', '-1')
+    fireEvent.click(clear)
+    expect(input()).toHaveValue('')
+    expect(input()).toHaveFocus()
+    expect(options()).toHaveLength(5)
+    expect(activeOption()).toHaveTextContent('Aidan Ross')
+    expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+
   it('avatars take the person color; uncolored people get the neutral fill', () => {
     renderPicker()
     const sam = screen.getByRole('option', { name: 'Sam Lee' })

@@ -115,6 +115,9 @@
   font-size: var(--font-size-nav);
   font-family: inherit;
   outline: none;
+}
+
+.entitySearchField {
   margin-bottom: 4px;
 }
 

@@ -4,6 +4,7 @@ import styles from './ChipSelector.module.css'
 import { byName } from '../../utils/sort-order'
 import { useUndoStore } from '../../stores/undo-store'
 import { PickerEntityMenu } from './EntityMenu'
+import { ClearableField } from './ClearableField'
 
 export interface ChipItem {
   id: number
@@ -62,8 +63,8 @@ function Highlighted({ name, query }: { name: string; query: string }) {
  * check per assigned item, and a `Create "<query>"` row when nothing matches
  * the query exactly. Matching is a case-insensitive substring of the name.
  * Keyboard: ↑/↓ move the active row (wrapping), ⏎ toggles it (or creates),
- * Esc calls `onClose`. After a create the query clears and the picker stays
- * open. Used for people (`avatars`) and tags. With `entityMenu`, an option's
+ * Esc calls `onClose`; the search's × empties it. After a create the query
+ * clears and the picker stays open. Used for people (`avatars`) and tags. With `entityMenu`, an option's
  * context menu is the person's / tag's menu — it never picks the option; Esc
  * closes just the menu. A right-click anywhere else in the picker never
  * reaches what the picker opened from.
@@ -179,22 +180,30 @@ export function ChipSelector({
 
   return (
     <div ref={containerRef} className={`${styles.container} ${avatars ? styles.people : ''}`}>
-      <input
-        ref={inputRef}
-        className={styles.searchInput}
+      <ClearableField
+        className={styles.searchField}
         value={query}
-        onChange={(e) => { setQuery(e.target.value); setActiveChoice(null) }}
-        onKeyDown={handleKeyDown}
-        onClick={(e) => e.stopPropagation()}
-        onContextMenu={handleInputContextMenu}
-        placeholder={placeholder}
-        maxLength={200}
-        role="combobox"
-        aria-expanded="true"
-        aria-controls={listId}
-        aria-autocomplete="list"
-        aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-      />
+        onClear={() => { setQuery(''); setActiveChoice(null) }}
+        inputRef={inputRef}
+        label="Clear search"
+      >
+        <input
+          ref={inputRef}
+          className={styles.searchInput}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setActiveChoice(null) }}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={handleInputContextMenu}
+          placeholder={placeholder}
+          maxLength={200}
+          role="combobox"
+          aria-expanded="true"
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+        />
+      </ClearableField>
       <div
         ref={listRef}
         id={listId}

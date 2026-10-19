@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toggleItem } from '../../../utils/filter'
+import { ClearableField } from '../ClearableField'
 import { datesValue } from '../../../utils/filter-chips'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
@@ -67,14 +68,24 @@ function MobileEntityList({
   namePrefix,
   showNoneSentinel = true,
 }: MobileEntityListProps) {
+  const searchRef = useRef<HTMLInputElement>(null)
   return (
     <div className={sheet.entityList}>
-      <input
-        className={sheet.entitySearchInput}
-        placeholder={searchPlaceholder}
+      <ClearableField
+        className={sheet.entitySearchField}
         value={searchText}
-        onChange={(e) => onSearchChange(e.target.value)}
-      />
+        onClear={() => onSearchChange('')}
+        inputRef={searchRef}
+        label="Clear search"
+      >
+        <input
+          ref={searchRef}
+          className={sheet.entitySearchInput}
+          placeholder={searchPlaceholder}
+          value={searchText}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+      </ClearableField>
       {showNoneSentinel && (
         <div className={sheet.entityItem} onClick={() => onToggle(0)}>
           <span

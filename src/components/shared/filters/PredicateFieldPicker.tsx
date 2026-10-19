@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { TodoPredicate } from '../../../models'
 import { PREDICATE_SEARCH_TEXT_MAX } from '../../../models/filter-predicate'
@@ -14,6 +14,7 @@ import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './Fil
 import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { DEFAULT_PREDICATE } from './FilterChipBar.shared'
+import { ClearableField } from '../ClearableField'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
 
@@ -165,25 +166,34 @@ function TextPicker({ predicate, update, onClose }: {
   onClose: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const inputId = useId()
   useEffect(() => { inputRef.current?.focus() }, [])
   return (
-    <label className={styles.textPicker}>
-      <span className={styles.textPickerLabel}>Text contains</span>
-      <input
-        ref={inputRef}
-        className={picker.dropdownSearchInput}
-        type="text"
+    <div className={styles.textPicker}>
+      <label htmlFor={inputId} className={styles.textPickerLabel}>Text contains</label>
+      <ClearableField
         value={predicate.searchText}
-        maxLength={PREDICATE_SEARCH_TEXT_MAX}
-        placeholder="Title, notes, people, tags…"
-        onChange={(e) => update({ searchText: e.target.value })}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            e.preventDefault()
-            onClose()
-          }
-        }}
-      />
-    </label>
+        onClear={() => update({ searchText: '' })}
+        inputRef={inputRef}
+        label="Clear text filter"
+      >
+        <input
+          ref={inputRef}
+          id={inputId}
+          className={picker.dropdownSearchInput}
+          type="text"
+          value={predicate.searchText}
+          maxLength={PREDICATE_SEARCH_TEXT_MAX}
+          placeholder="Title, notes, people, tags…"
+          onChange={(e) => update({ searchText: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Escape') {
+              e.preventDefault()
+              onClose()
+            }
+          }}
+        />
+      </ClearableField>
+    </div>
   )
 }
