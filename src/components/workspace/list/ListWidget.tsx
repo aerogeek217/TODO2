@@ -413,7 +413,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
           }}
         >
-          <PlusIcon /> Add task
+          <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
+          Add task
         </button>
       )}
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={footerHeight + 12} />}
