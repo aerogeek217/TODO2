@@ -6,7 +6,7 @@ import { box, pointIn, type Point } from './geometry'
 export interface WsTabSeed {
   id: string
   kind: WidgetKind
-  /** List / Eisenhower tabs: index into `listDefinitions` (an Eisenhower tab without one shows all tasks). */
+  /** List tabs: index into `listDefinitions`. (The Eisenhower's list is a setting: `WorkspaceSeed.eisenhower`.) */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
   dateTypes?: { due: boolean; followup: boolean }
@@ -15,8 +15,6 @@ export interface WsTabSeed {
   offset?: number
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** Eisenhower tabs: custom panes (config); a filter is merged over the empty predicate. */
-  panes?: Partial<Record<'do' | 'schedule' | 'delegate' | 'drop', { name?: string; filter?: Record<string, unknown> }>>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
@@ -59,9 +57,18 @@ export interface WsLayoutSeed {
   bottom?: WsBandSeed
 }
 
+/** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
+export type EisenhowerPanesSeed = Partial<Record<'do' | 'schedule' | 'delegate' | 'drop', { name?: string; filter?: Record<string, unknown> }>>
+
 export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
+  /**
+   * The app-wide Eisenhower settings (every Eisenhower tab and the dashboard
+   * section): its source list (index into `listDefinitions`; none = all
+   * tasks) and its custom panes.
+   */
+  eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   tags?: string[]
@@ -223,7 +230,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
       const config = { ...(base.config as Record<string, unknown>) }
-      if ((tab.kind === 'lens' || tab.kind === 'eisenhower') && tab.listDefIdx != null) {
+      if (tab.kind === 'lens' && tab.listDefIdx != null) {
         const listDefinitionId = defIds[tab.listDefIdx]
         if (listDefinitionId != null) config.listDefinitionId = listDefinitionId
       }
@@ -238,12 +245,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         if (d.sections) config.sections = d.sections
       }
       if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
-      if (tab.kind === 'eisenhower' && tab.panes) {
-        config.panes = Object.fromEntries(Object.entries(tab.panes).map(([q, p]) => [q, {
-          ...(p?.name != null ? { name: p.name } : {}),
-          ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
-        }]))
-      }
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       out.config = config
       return out
@@ -276,6 +277,16 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       firstId ??= id
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })
+    const eis = seed.eisenhower
+    const eisListId = eis?.listDefIdx != null ? defIds[eis.listDefIdx] : undefined
+    if (eisListId != null) tx.objectStore('settings').put({ key: 'eisenhowerSource', value: `list:${eisListId}` })
+    if (eis?.panes) {
+      const panes = Object.fromEntries(Object.entries(eis.panes).map(([q, p]) => [q, {
+        ...(p?.name != null ? { name: p.name } : {}),
+        ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
+      }]))
+      tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
+    }
     await done
     idb.close()
   }, { db: DB_NAME, seed: payload })
