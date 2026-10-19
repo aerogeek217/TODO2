@@ -68,6 +68,22 @@ function withoutEntity<T extends { id?: number }>(map: Map<number, T[]>, todoIds
   return next
 }
 
+/**
+ * Entity id → number of loaded tasks (open and completed) carrying it, from
+ * an assignment map (`assignedPeopleMap` / `assignedTagsMap`). Callers load
+ * assignments for every task first, as the People and Tags editors do.
+ */
+export function countTodosByEntity<T extends { id?: number }>(assignedMap: ReadonlyMap<number, readonly T[]>): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const entities of assignedMap.values()) {
+    for (const entity of entities) {
+      if (entity.id == null) continue
+      counts.set(entity.id, (counts.get(entity.id) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
 export function createAssignmentActions<T extends { id?: number }>(
   config: AssignmentConfig<T>,
   getEntities: () => T[],

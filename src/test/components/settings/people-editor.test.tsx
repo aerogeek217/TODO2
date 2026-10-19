@@ -4,6 +4,7 @@ import { PeopleEditor } from '../../../components/settings/PeopleEditor'
 import { db } from '../../../data/database'
 import { usePersonStore } from '../../../stores/person-store'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
+import { newTodoUid } from '../../../utils/todo-uid'
 
 const realLoad = usePersonStore.getState().load
 
@@ -33,7 +34,27 @@ function hexInput(root: HTMLElement): HTMLInputElement {
   return input
 }
 
+async function addTodo(title: string, isCompleted: boolean): Promise<number> {
+  return (await db.todos.add({
+    uid: newTodoUid(), title, isCompleted,
+    createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+  })) as number
+}
+
 describe('PeopleEditor', () => {
+  it('shows each person’s task count, open and completed, as Tags does', async () => {
+    const ann = await db.people.add({ name: 'Ann', initials: 'AN' }) as number
+    await db.people.add({ name: 'Bob', initials: 'BO' })
+    const open = await addTodo('Open', false)
+    const done = await addTodo('Done', true)
+    await db.todoPeople.bulkAdd([{ todoId: open, personId: ann }, { todoId: done, personId: ann }])
+
+    const { findByText } = await renderEditor()
+    await findByText('Ann')
+    const counts = () => [...document.body.querySelectorAll('[data-testid="entity-task-count"]')].map((el) => [el.textContent, el.getAttribute('title')])
+    await waitFor(() => expect(counts()).toEqual([['2', '2 tasks'], ['', '0 tasks']]))
+  })
+
   it('adds a person without a color by default (neutral swatch)', async () => {
     const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     fireEvent.click(getByText('+ Add Person'))
