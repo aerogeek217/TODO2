@@ -143,6 +143,15 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
+  it('a control to focus is kept only on the way to a part, and forgotten when Settings closes', () => {
+    useUIStore.getState().openSettings('tasks', 'eisenhower-pane-do')
+    expect(useUIStore.getState()).toMatchObject({ settingsSection: 'tasks', settingsPart: null, settingsFocus: null })
+    useUIStore.getState().openSettings('eisenhower', 'eisenhower-pane-do')
+    expect(useUIStore.getState()).toMatchObject({ settingsPart: 'eisenhower', settingsFocus: 'eisenhower-pane-do' })
+    useUIStore.getState().closeSettings()
+    expect(useUIStore.getState()).toMatchObject({ settingsOpen: false, settingsPart: null, settingsFocus: null })
+  })
+
   it('openListsEditor does NOT open the direct list-editor dialog', () => {
     useUIStore.getState().openListsEditor(7)
     expect(useUIStore.getState().listsEditorOpen).toBe(true)

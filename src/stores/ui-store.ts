@@ -191,7 +191,7 @@ interface UIState {
   /**
    * A control in that part to focus once shown — the one whose
    * `data-settings-focus` it names (e.g. an Eisenhower pane's name field);
-   * cleared with the part.
+   * set only with a part, cleared with it (and when Settings closes).
    */
   settingsFocus: string | null
   /**
@@ -451,11 +451,12 @@ export const useUIStore = create<UIState>((set, get) => ({
       return
     }
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: focus ?? null, listEditor: null })
+    // A control is focused only on the way to a part (the modal clears both once there).
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null, listEditor: null })
   },
 
   closeSettings() {
-    set({ settingsOpen: false })
+    set({ settingsOpen: false, settingsPart: null, settingsFocus: null })
   },
 
   setSettingsSection(target) {
