@@ -2,14 +2,16 @@
 
 /* ─── Overlay ─────────────────────────────────────────────────── */
 
-/* The command palette's backdrop: it dims and blurs the app, and a click on
- * it closes the bar without reaching what is underneath. */
+/* The command palette's scrim: it dims and blurs the app, and a click on it
+ * closes the bar without reaching what is underneath. Its own element, not
+ * a `DialogFrame`: the bar stays on the dialog tier (above the palette it
+ * can be opened from) and isn't `aria-modal` — its `@ # /` popup and the
+ * menus / editors it opens are portaled beside it. */
 .overlay {
+  composes: blurScrim from '../shared/Dialog.module.css';
   position: fixed;
   inset: 0;
   z-index: var(--z-dialog);
-  background: var(--color-overlay);
-  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   /* Bar sits ~120px from top — visually anchored, not centered */

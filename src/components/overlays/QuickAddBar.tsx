@@ -69,6 +69,7 @@ import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { MarkerIcon } from '../shared/MarkerIcons'
 import { NlpPopup } from '../shared/NlpPopup'
 import { DialogLayerContext } from '../shared/dialog-layer'
+import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
@@ -455,8 +456,9 @@ export function QuickAddBar({
   const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  /** The backdrop press began on the backdrop itself (not a text drag out of the bar). */
-  const downOnBackdropRef = useRef(false)
+  // A press that starts and ends on the backdrop closes the bar (not a text
+  // drag out of the bar); the press keeps the focus in the input.
+  const backdropPress = useBackdropPress(onClose, { keepFocus: true })
 
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -575,9 +577,10 @@ export function QuickAddBar({
   const popupRef = useRef<HTMLDivElement | null>(null)
 
   // A press outside the bar and its backdrop (the backdrop closes on its own
-  // click) — anything else on top of the page — closes the bar, except the
-  // portal'd autocomplete popup and the layers it opens. Capture phase, so a
-  // popup-side stopPropagation can't help — `popupRef` is checked directly.
+  // click) closes the bar. The backdrop covers the page, so this is only
+  // portaled UI above it — the snackbar, a tooltip — never the autocomplete
+  // popup or the layers it opens. Capture phase, so a popup-side
+  // stopPropagation can't help — `popupRef` is checked directly.
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -719,18 +722,7 @@ export function QuickAddBar({
       ref={overlayRef}
       className={styles.overlay}
       data-testid="quickadd-backdrop"
-      // A press that starts and ends on the backdrop closes the bar; the
-      // backdrop takes the click, so nothing underneath gets it. The press
-      // keeps the focus in the input.
-      onMouseDown={(e) => {
-        downOnBackdropRef.current = e.target === e.currentTarget
-        if (e.target === e.currentTarget) e.preventDefault()
-      }}
-      onClick={(e) => {
-        const pressed = downOnBackdropRef.current
-        downOnBackdropRef.current = false
-        if (pressed && e.target === e.currentTarget) onClose()
-      }}
+      {...backdropPress}
     >
       <div
         ref={surfaceRef}
