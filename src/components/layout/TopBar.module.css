@@ -14,23 +14,20 @@
   min-width: 0;
 }
 
-/* ═══ New task ═══ */
+/* ═══ New task (the + alone; the name is its tooltip) ═══ */
 
 .newTask {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 28px;
   height: 28px;
-  padding: 0 10px 0 8px;
+  padding: 0;
   margin-right: 4px;
   border: none;
   border-radius: var(--radius-md);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-bold);
-  white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -148,22 +145,6 @@
   box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
 }
 
-.searchKbd {
-  position: absolute;
-  right: 5px;
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-  pointer-events: none;
-}
-
 .searchClear {
   position: absolute;
   right: 5px;
@@ -230,16 +211,6 @@
 @media (max-width: 1023px) {
   .searchInput {
     width: 140px;
-  }
-
-  .newTask {
-    width: 28px;
-    padding: 0;
-    justify-content: center;
-  }
-
-  .newTaskLabel {
-    display: none;
   }
 }
 

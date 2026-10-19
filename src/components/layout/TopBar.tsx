@@ -377,7 +377,6 @@ export function TopBar() {
         title={`New task (${quickAddKeys})`}
       >
         <PlusIcon size={14} strokeWidth={2} />
-        <span className={styles.newTaskLabel}>New task</span>
       </button>
       {isWorkspace && <LayoutControls />}
 
@@ -423,9 +422,8 @@ export function TopBar() {
             }}
             data-search-input
           />
-          {localSearch ? (
-            // Not `ClearableField`: this slot shows the `/` key hint while the
-            // search is empty. Like that ×, a mouse target only (it acts on
+          {localSearch && (
+            // Like `ClearableField`'s ×, a mouse target only (it acts on
             // mousedown); from the keyboard, Esc in the field clears it.
             <button
               type="button"
@@ -436,8 +434,6 @@ export function TopBar() {
             >
               <CloseIcon size={8} />
             </button>
-          ) : (
-            <kbd className={styles.searchKbd} aria-hidden="true">/</kbd>
           )}
           {showMiniList && miniListGroups && (
             <SearchResultsGroups
@@ -463,7 +459,6 @@ export function TopBar() {
           onChange={handleFilterChange}
           onClearAll={() => useFilterStore.getState().clearAll()}
           fold={foldFilters}
-          compact={foldFilters}
         />
       </div>
 
