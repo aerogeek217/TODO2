@@ -3,6 +3,8 @@ import { NOTICE_SNACKBAR_MS, UNDO_SNACKBAR_MS } from '../constants'
 
 export interface UndoEntry {
   description: string
+  /** A second line for the snackbar when the entry is pushed with it (e.g. how to finish what was done); not part of the entry's name. */
+  detail?: string
   undo: () => void | Promise<void>
   redo: () => void | Promise<void>
 }
@@ -20,8 +22,8 @@ interface UndoState {
   redoStack: UndoEntry[]
   isPerformingUndoRedo: boolean
   groupStartIndex: number | null
-  /** What the snackbar shows. `notice`: a message with no Undo (`notify`). */
-  snackbar: { description: string; notice?: true } | null
+  /** What the snackbar shows. `notice`: a message with no Undo (`notify`); `detail`: a second line. */
+  snackbar: { description: string; notice?: true; detail?: string } | null
   snackbarTimerId: ReturnType<typeof setTimeout> | null
 
   push: (entry: UndoEntry, showSnackbar?: boolean) => void
@@ -84,11 +86,12 @@ export const useUndoStore = create<UndoState>((set, get) => {
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
 
       if (showSnackbar && !inGroup) {
-        const timerId = endSnackbarAfter(UNDO_SNACKBAR_MS)
+        // A second line is more to read: it stays as long as a notice.
+        const timerId = endSnackbarAfter(entry.detail ? NOTICE_SNACKBAR_MS : UNDO_SNACKBAR_MS)
         set({
           undoStack: [...trimmed, entry],
           redoStack: [],
-          snackbar: { description: entry.description },
+          snackbar: entry.detail ? { description: entry.description, detail: entry.detail } : { description: entry.description },
           snackbarTimerId: timerId,
         })
       } else {

@@ -173,6 +173,8 @@ export function optimistic(
     redo: () => void | Promise<void>
     undo: () => void | Promise<void>
     showSnackbar?: boolean
+    /** The snackbar's second line (`UndoEntry.detail`). */
+    detail?: string
   },
 ): Promise<void> {
   return trackWrite(async () => {
@@ -180,7 +182,7 @@ export function optimistic(
     try {
       await persist()
       if (undo) {
-        undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+        undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar, undo.detail)
       }
     } catch (e) {
       console.error(`${label}:`, e)

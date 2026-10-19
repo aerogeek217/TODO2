@@ -72,6 +72,15 @@ describe('useUndoStore', () => {
     expect(after.snackbarTimerId).toBeNull()
   })
 
+  it('an entry with a detail shows it as the snackbar’s second line, for as long as a notice', () => {
+    useUndoStore.getState().push({ ...makeEntry('Check-in for Ann opened'), detail: 'Paste the body.' }, true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Ann opened', detail: 'Paste the body.' })
+    vi.advanceTimersByTime(5000)
+    expect(useUndoStore.getState().snackbar).not.toBeNull()
+    vi.advanceTimersByTime(3000)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
   // 4. push without showSnackbar: no snackbar change
   it('push without showSnackbar does not set snackbar', () => {
     useUndoStore.getState().push(makeEntry('quiet'))
