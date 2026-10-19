@@ -1,4 +1,5 @@
 import { NEGATABLE_FIELDS, type FilterNegation, type NegatableField } from '../models/filter-predicate'
+import { toggleItem } from './filter'
 
 /**
  * The "is not" switches of the People / Status / Tags filters, shared by
@@ -21,19 +22,16 @@ export interface NegatableClauses {
   negate?: FilterNegation
 }
 
+/** How many ids; 0 for anything else (a stored row only the audit has checked). */
 function sizeOf(ids: IdList): number {
-  return 'size' in ids ? ids.size : ids.length
+  if (ids instanceof Set) return ids.size
+  return Array.isArray(ids) ? ids.length : 0
 }
 
 /** Whether `field` reads "is not": its switch is on and it filters (some id ticked). */
 export function isNegated(c: NegatableClauses, field: NegatableField): boolean {
   const ids = c[field]
   return c.negate?.[field] === true && ids != null && sizeOf(ids) > 0
-}
-
-/** Whether any field reads "is not". */
-export function hasNegation(c: NegatableClauses): boolean {
-  return NEGATABLE_FIELDS.some((f) => isNegated(c, f))
 }
 
 /**
@@ -92,4 +90,61 @@ export function toggleExcluded(current: ReadonlySet<number> | null, id: number):
   if (next.has(id)) next.delete(id)
   else next.add(id)
   return next.size > 0 ? next : null
+}
+
+/**
+ * Whether an entity picker shows `id` ticked: "is" — the rows it shows (no
+ * filter = every row); "is not" — the rows it hides (no filter = none).
+ */
+export function entityTicked(ids: ReadonlySet<number> | null, negated: boolean, id: number): boolean {
+  return negated ? ids?.has(id) === true : ids === null || ids.has(id)
+}
+
+/**
+ * An entity picker's tick: "is" — `toggleItem` (every row ticked again = no
+ * filter); "is not" — add / remove (nothing ticked = no filter).
+ */
+export function entityToggle(ids: ReadonlySet<number> | null, negated: boolean, id: number, allIds: readonly number[]): Set<number> | null {
+  return negated ? toggleExcluded(ids, id) : toggleItem(ids === null ? null : new Set(ids), id, [...allIds])
+}
+
+/** What a People / Status / Tags filter picker shows and what its controls write (`entityPickerSelection`). */
+export interface EntityPickerSelection {
+  /** The "is" preview is showing: nothing ticked, though nothing is filtered. */
+  previewing: boolean
+  allSelected: boolean
+  noneSelected: boolean
+  isChecked: (id: number) => boolean
+  /** The ids after a tick on `id` — in the preview, just `id`. */
+  toggled: (id: number) => Set<number> | null
+  /** Select all: "is" — no filter; "is not" — every value. */
+  all: Set<number> | null
+  /** Deselect all: "is" — nothing ticked; "is not" — no filter. */
+  none: Set<number> | null
+}
+
+/**
+ * The one rule set for a People / Status / Tags filter picker — the top
+ * bar's (desktop buttons, folded menu) and a list's filter chips: what is
+ * ticked and what a tick, Select all or Deselect all writes, for its ids,
+ * its Is / Is not mode and whether it opened in the "is" preview (an
+ * unfiltered field opened to add one: nothing ticked, the first tick
+ * narrows to it; never in "is not").
+ */
+export function entityPickerSelection(
+  ids: ReadonlySet<number> | null,
+  negated: boolean,
+  preview: boolean,
+  allIds: readonly number[],
+): EntityPickerSelection {
+  const previewing = preview && !negated
+  return {
+    previewing,
+    allSelected: negated ? ids !== null && allIds.every((id) => ids.has(id)) : !previewing && ids === null,
+    noneSelected: negated ? ids === null : previewing || (ids !== null && ids.size === 0),
+    isChecked: (id) => !previewing && entityTicked(ids, negated, id),
+    toggled: (id) => (previewing ? new Set([id]) : entityToggle(ids, negated, id, allIds)),
+    all: negated ? new Set(allIds) : null,
+    none: negated ? null : new Set(),
+  }
 }

@@ -4,8 +4,8 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { hasDateFilters } from '../../../utils/date-filters'
-import { toggleItem } from '../../../utils/filter'
-import { isNegated, toggleExcluded, withIdFilter } from '../../../utils/filter-negation'
+import { clearChipField, type FilterChipField } from '../../../utils/filter-chips'
+import { isNegated, withIdFilter } from '../../../utils/filter-negation'
 import { hasMarkers } from '../../../utils/markers'
 import { byName } from '../../../utils/sort-order'
 
@@ -54,22 +54,6 @@ export const ENTITY_ID_FIELD: Record<EntityKey, NegatableField> = {
   people: 'personIds',
   status: 'statusIds',
   tags: 'tags',
-}
-
-/**
- * Whether an entity picker shows `id` ticked: "is" — the rows it shows (no
- * filter = every row); "is not" — the rows it hides (no filter = none).
- */
-export function entityTicked(ids: ReadonlySet<number> | null, negated: boolean, id: number): boolean {
-  return negated ? ids?.has(id) === true : ids === null || ids.has(id)
-}
-
-/**
- * An entity picker's tick: "is" — `toggleItem` (every row ticked again = no
- * filter); "is not" — add / remove (nothing ticked = no filter).
- */
-export function entityToggle(ids: ReadonlySet<number> | null, negated: boolean, id: number, allIds: number[]): Set<number> | null {
-  return negated ? toggleExcluded(ids, id) : toggleItem(ids === null ? null : new Set(ids), id, allIds)
 }
 
 export function hasAnyFilter(p: TodoPredicate): boolean {
@@ -131,6 +115,8 @@ export interface FilterChipBarSharedState {
   setNegated: (key: EntityKey, negated: boolean) => void
   /** Forgets an "is not" picked with nothing ticked (its picker closed). */
   dropPendingMode: (key: EntityKey) => void
+  /** Clears one field (its × in the top bar); People / Status / Tags lose their switch too. */
+  clearField: (field: FilterChipField) => void
   clearAll: () => void
 }
 
@@ -242,6 +228,12 @@ export function useFilterChipBarState(
     [send, setPending],
   )
   const dropPendingMode = useCallback((key: EntityKey) => setPending(key, false), [setPending])
+  // Replaced, not patched: a cleared People / Status / Tags filter drops its
+  // switch, and a patch would keep the `negate` key it no longer has.
+  const clearField = useCallback(
+    (field: FilterChipField) => send(clearChipField(inflightRef.current, field)),
+    [send],
+  )
 
   const clearAll = useCallback(() => {
     resetDensityState?.()
@@ -272,6 +264,7 @@ export function useFilterChipBarState(
     setTags,
     setNegated,
     dropPendingMode,
+    clearField,
     clearAll,
   }
 }

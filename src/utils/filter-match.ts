@@ -45,19 +45,22 @@ export function matchesFilter(
     if (!matched) return false
   }
 
-  if (filters.personIds !== null) {
-    const hasPerson = !!assignedPersonIds && assignedPersonIds.length > 0
-    const personMatch = hasPerson && assignedPersonIds!.some((id) => filters.personIds!.has(id))
-    const unassignedSentinel = !hasPerson && filters.personIds.has(0)
+  const personIds = filters.personIds
+  if (personIds !== null) {
+    const people = assignedPersonIds ?? []
+    const hasPerson = people.length > 0
+    const personMatch = people.some((id) => personIds.has(id))
+    const unassignedSentinel = !hasPerson && personIds.has(0)
     // Is: one of the ticked people (or unassigned when ticked). Is not: none of them.
     if ((personMatch || unassignedSentinel) === (negate?.personIds === true)) return false
   }
   if (filters.markers != null && !matchesMarkers(todo, filters.markers, today, settings)) {
     return false
   }
-  if (filters.tags !== null) {
+  const tags = filters.tags
+  if (tags !== null) {
     // Is: one of the ticked tags (untagged fails). Is not: none of them (untagged passes).
-    const tagMatch = (assignedTagIds ?? []).some((id) => filters.tags!.has(id))
+    const tagMatch = (assignedTagIds ?? []).some((id) => tags.has(id))
     if (tagMatch === (negate?.tags === true)) return false
   }
 

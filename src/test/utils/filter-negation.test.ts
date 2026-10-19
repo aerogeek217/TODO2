@@ -4,7 +4,7 @@ import type { PersistedListDefinition } from '../../models/list-definition'
 import { criteriaToPredicate, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
 import { applyFilter, createPredicateEvaluator, matchesComposedFilter } from '../../utils/filter-match'
 import {
-  hasNegation,
+  entityPickerSelection,
   isNegated,
   negationEqual,
   toggleExcluded,
@@ -118,13 +118,44 @@ describe('switch normalisation', () => {
     expect(withIdFilter(p, 'statusIds', [2], false)).toEqual({ ...emptyPredicate(), statusIds: [2] })
     expect(withIdFilter(p, 'statusIds', null, true)).toEqual(emptyPredicate())
     expect(withIdFilter(p, 'statusIds', [], true)).toEqual(emptyPredicate())
-    expect(hasNegation(p)).toBe(true)
+  })
+
+  it('isNegated never throws on a stored row the import hasn’t checked (ids not a list)', () => {
+    const odd = { ...emptyPredicate(), statusIds: 5, negate: { statusIds: true } } as unknown as TodoPredicate
+    expect(isNegated(odd, 'statusIds')).toBe(false)
   })
 
   it('toggleExcluded adds and removes; nothing left = no filter', () => {
     expect(toggleExcluded(null, 2)).toEqual(new Set([2]))
     expect(toggleExcluded(new Set([2]), 3)).toEqual(new Set([2, 3]))
     expect(toggleExcluded(new Set([2]), 2)).toBeNull()
+  })
+
+  describe('entityPickerSelection (the People / Status / Tags pickers’ one rule set)', () => {
+    const all = [0, 1, 2]
+
+    it('is, no filter: every row ticked, Select all lit; a tick hides that row', () => {
+      const sel = entityPickerSelection(null, false, false, all)
+      expect([sel.allSelected, sel.noneSelected, all.map(sel.isChecked)]).toEqual([true, false, [true, true, true]])
+      expect(sel.toggled(1)).toEqual(new Set([0, 2]))
+      expect([sel.all, sel.none]).toEqual([null, new Set()])
+    })
+
+    it('is, the preview (adding): nothing ticked; the first tick narrows to it', () => {
+      const sel = entityPickerSelection(null, false, true, all)
+      expect([sel.previewing, sel.allSelected, sel.noneSelected, all.some(sel.isChecked)]).toEqual([true, false, true, false])
+      expect(sel.toggled(1)).toEqual(new Set([1]))
+    })
+
+    it('is not: the ticked rows are the hidden ones; no preview; Select all ticks every value, Deselect all = no filter', () => {
+      const sel = entityPickerSelection(new Set([1]), true, true, all)
+      expect([sel.previewing, sel.allSelected, sel.noneSelected, all.map(sel.isChecked)]).toEqual([false, false, false, [false, true, false]])
+      expect(sel.toggled(1)).toBeNull()
+      expect(sel.toggled(2)).toEqual(new Set([1, 2]))
+      expect([sel.all, sel.none]).toEqual([new Set(all), null])
+      expect(entityPickerSelection(new Set(all), true, false, all).allSelected).toBe(true)
+      expect(entityPickerSelection(null, true, false, all).noneSelected).toBe(true)
+    })
   })
 
   it('negationEqual compares only switches that apply', () => {

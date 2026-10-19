@@ -56,11 +56,12 @@ export interface WidgetKindMenuProps {
    */
   pickListForLens?: (listDefinitionId: number) => void
   /**
-   * Lens-only: when provided alongside `currentKind === 'lens'`, the menu
-   * opens with the list's own items — "Edit list…", then "Change list ›"
-   * (showing `currentListName`) — then the widget actions, then "Change
-   * widget". The caller binds the widget's list; the menu forwards the click
-   * and closes.
+   * "Edit list…" for the tab's list: a list tab's menu opens with the list's
+   * own items — "Edit list…", then "Change list ›" (showing
+   * `currentListName`) — then the widget actions, then "Change widget"; an
+   * Eisenhower tab on a list (`listSource`) opens with "Edit list…" before
+   * "Show ›". The caller binds the widget's list; the menu forwards the
+   * click and closes.
    */
   onEditList?: () => void
   onClose: () => void

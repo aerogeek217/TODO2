@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
-import { clearChipField, datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
+import { datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
+import { entityPickerSelection } from '../../../utils/filter-negation'
 import type { TodoPredicate } from '../../../models'
 import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
@@ -24,8 +25,6 @@ import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
 import {
-  entityTicked,
-  entityToggle,
   narrowedPeople,
   useFilterChipBarState,
   type EntityKey,
@@ -409,7 +408,7 @@ export function FilterChipBarDesktop({
   const {
     p, people, statuses, sortedTags, allTagIds, personIdsSet, statusIdsSet, tagIdsSet,
     peopleActive, statusActive, tagsActive, dateActive, negated, update,
-    setPersonIds, setStatusIds, setTags, setNegated, dropPendingMode, clearAll,
+    setPersonIds, setStatusIds, setTags, setNegated, dropPendingMode, clearField, clearAll,
   } = s
 
   const names = useMemo(() => ({ people, tags: sortedTags, statuses }), [people, sortedTags, statuses])
@@ -420,7 +419,7 @@ export function FilterChipBarDesktop({
   // so ticks are plain adds / removes.
   const entityHandlers = (key: EntityKey, label: string, isActive: boolean, current: Set<number> | null, allIds: number[], setIds: (next: Set<number> | null) => void) => {
     const not = negated[key]
-    const preview = !not && previewEmpty === key
+    const sel = entityPickerSelection(current, not, previewEmpty === key, allIds)
     const mode: FilterModeProps = {
       field: label,
       negated: not,
@@ -437,22 +436,17 @@ export function FilterChipBarDesktop({
         setPreviewEmpty((cur) => (cur === key ? null : cur))
         dropPendingMode(key)
       },
-      allSelected: not ? current !== null && allIds.every((id) => current.has(id)) : !isActive && !preview,
-      noneSelected: not ? current === null : preview || (current !== null && current.size === 0),
-      onSelectAll: () => { setPreviewEmpty(null); setIds(not ? new Set(allIds) : null) },
-      onDeselectAll: () => { setPreviewEmpty(null); setIds(not ? null : new Set()) },
-      isChecked: (id: number) => !preview && entityTicked(current, not, id),
+      allSelected: sel.allSelected,
+      noneSelected: sel.noneSelected,
+      onSelectAll: () => { setPreviewEmpty(null); setIds(sel.all) },
+      onDeselectAll: () => { setPreviewEmpty(null); setIds(sel.none) },
+      isChecked: sel.isChecked,
       onToggle: (id: number) => {
-        if (preview) {
-          setPreviewEmpty(null)
-          setIds(new Set([id]))
-          return
-        }
-        setIds(entityToggle(current, not, id, allIds))
+        if (sel.previewing) setPreviewEmpty(null)
+        setIds(sel.toggled(id))
       },
     }
   }
-  const clearField = (field: FieldKey) => update(clearChipField(p, field))
 
   const fields: FieldDef[] = []
   if (people.length > 0) {

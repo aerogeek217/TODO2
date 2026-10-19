@@ -7,9 +7,8 @@ import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MAR
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
 import { FilterModeToggle } from './FilterPanels'
+import { entityTicked, entityToggle } from '../../../utils/filter-negation'
 import {
-  entityTicked,
-  entityToggle,
   useFilterChipBarState,
   type EntityKey,
   type FilterChipBarProps,

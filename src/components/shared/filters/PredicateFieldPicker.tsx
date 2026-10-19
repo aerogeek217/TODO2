@@ -8,12 +8,12 @@ import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
-import { isNegated, withIdFilter } from '../../../utils/filter-negation'
+import { entityPickerSelection, isNegated, withIdFilter } from '../../../utils/filter-negation'
 import { MARKERS_LABEL } from '../../../utils/markers'
 import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
-import { DEFAULT_PREDICATE, ENTITY_ID_FIELD, entityTicked, entityToggle } from './FilterChipBar.shared'
+import { DEFAULT_PREDICATE, ENTITY_ID_FIELD } from './FilterChipBar.shared'
 import { ClearableField } from '../ClearableField'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
@@ -119,22 +119,18 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
   useEffect(() => { searchRef.current?.focus() }, [])
 
   const withNone = field !== 'tags'
-  const allIds = [...(withNone ? [0] : []), ...entities.map((e) => e.id!)]
+  const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   // The ids and the switch are written together: the last "is not" tick
   // removed drops the stored switch, and the picker stays on Is not.
   const set = (next: Set<number> | null, not = negated) => {
     if (not) setPendingNot(true)
     replace((p) => withIdFilter(p, key, next ? [...next] : null, not))
   }
-  const showPreview = preview && !negated
+  const sel = entityPickerSelection(ids, negated, preview, allIds)
 
   const toggle = (id: number) => {
-    if (showPreview) {
-      setPreview(false)
-      set(new Set([id]))
-      return
-    }
-    set(entityToggle(ids, negated, id, allIds))
+    if (sel.previewing) setPreview(false)
+    set(sel.toggled(id))
   }
   const setMode = (not: boolean) => {
     setPendingNot(not)
@@ -146,10 +142,10 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
   return (
     <SelectionPanelBody
       mode={{ field: PICKER_TITLE[field], negated, onChange: setMode }}
-      allSelected={negated ? ids != null && allIds.every((id) => ids.has(id)) : !showPreview && ids == null}
-      noneSelected={negated ? ids == null : showPreview || (ids != null && ids.size === 0)}
-      onSelectAll={() => { setPreview(false); set(negated ? new Set(allIds) : null) }}
-      onDeselectAll={() => { setPreview(false); set(negated ? null : new Set()) }}
+      allSelected={sel.allSelected}
+      noneSelected={sel.noneSelected}
+      onSelectAll={() => { setPreview(false); set(sel.all) }}
+      onDeselectAll={() => { setPreview(false); set(sel.none) }}
       search={{ text: searchText, setText: setSearchText, onEscape: onClose }}
       searchInputRef={searchRef}
     >
@@ -159,7 +155,7 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
         <EntityDropdownItems
           searchText={searchText}
           entities={entities}
-          isChecked={(id) => !showPreview && entityTicked(ids, negated, id)}
+          isChecked={sel.isChecked}
           onToggle={toggle}
           namePrefix={field === 'people' ? '@' : field === 'tags' ? '#' : undefined}
           showDot={field !== 'people'}
