@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
-import { getActiveTab } from '../../models/workspace-layout'
+import { getActiveTab, tabListId } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useIsListDirty } from '../../hooks/use-list-draft'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { tabTitle, useTabTitle } from './widget-hooks'
+import { tabTitle, useTabLabels } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
@@ -26,8 +26,8 @@ interface TabProps {
 }
 
 function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef }: TabProps) {
-  const title = useTabTitle(tab)
-  const listUnsaved = useIsListDirty(tab.kind === 'lens' ? tab.config.listDefinitionId : undefined)
+  const { title, tooltip } = useTabLabels(tab)
+  const listUnsaved = useIsListDirty(tabListId(tab))
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
   const closable = !collapsed && onClose != null
@@ -49,7 +49,7 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
         touch ? styles.touch : '',
         isDragging ? styles.dragSource : '',
       ].join(' ')}
-      title={title}
+      title={tooltip}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -261,7 +261,8 @@ function OverflowMenu({ anchorRef, tabs, onPick, onClose }: {
 }) {
   const names = useListDefinitionStore((s) => s.listDefinitions)
   const entries = tabs.map((tab) => {
-    const listName = tab.kind === 'lens' ? names.find((d) => d.id === tab.config.listDefinitionId)?.name : undefined
+    const listId = tabListId(tab)
+    const listName = listId != null ? names.find((d) => d.id === listId)?.name : undefined
     const label = tabTitle(tab, listName)
     return { kind: 'item' as const, label, icon: <WidgetKindIcon kind={tab.kind} />, onSelect: () => onPick(tab.id) }
   })

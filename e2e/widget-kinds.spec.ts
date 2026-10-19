@@ -78,7 +78,7 @@ test.describe('desktop', () => {
   })
 
   test('a list tab whose list was deleted reads “(Deleted list)” in the overflow menu', async ({ page }) => {
-    const tabs = [{ id: 'gone', kind: 'lens' as const, listDefIdx: 1 }, ...WIDGET_KINDS.map((kind, i) => ({ id: `t${i}`, kind, listDefIdx: 0 }))]
+    const tabs = [{ id: 'gone', kind: 'lens' as const, listDefIdx: 1 }, ...WIDGET_KINDS.map((kind, i) => ({ id: `t${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }))]
     await seedWorkspace(page, {
       listDefinitions: [{ name: LIST }, { name: 'Old list' }],
       layouts: [{
@@ -111,7 +111,7 @@ test.describe('phone', () => {
   test('the column view shows every kind', async ({ page }) => {
     const layout: WsLayoutSeed = {
       name: 'Kinds',
-      columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, cells: [{ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, listDefIdx: 0 }] }] })),
+      columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, cells: [{ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] }] })),
     }
     await seedWorkspace(page, { listDefinitions: [{ name: LIST }], tasks: [{ title: 'A task' }], layouts: [layout] })
     const strip = page.getByRole('tablist', { name: 'Columns' })

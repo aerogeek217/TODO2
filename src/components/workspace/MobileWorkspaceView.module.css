@@ -448,3 +448,19 @@
 .stripItemActive .bandGlyph {
   color: var(--color-accent);
 }
+
+/* A sheet row that only says something (not a button). */
+.sheetInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-body);
+}
+
+/* A second section's heading in a sheet. */
+.sheetSectionTitle {
+  margin-top: 16px;
+}

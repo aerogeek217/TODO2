@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom'
 import { useDndMonitor, useDroppable, type DragStartEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
+import type { PersistedListDefinition } from '../../../models/list-definition'
 import {
   EISENHOWER_QUADRANTS,
   type EisenhowerQuadrant,
@@ -14,6 +15,7 @@ import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
 import { countActiveFilters } from '../../../utils/filter-criteria'
+import { hasNarrowingFilters } from '../../../utils/filter-chips'
 import { applyFilter } from '../../../utils/filter-match'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -33,7 +35,7 @@ import {
   resolveQuadrantDrop,
   type QuadrantDropResult,
 } from '../../../utils/eisenhower'
-import { getFilterDefaults, withUrgentImportant } from '../../../utils/filter-defaults'
+import { getFilterDefaults, predicateToFilterDefaults, withUrgentImportant } from '../../../utils/filter-defaults'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { eisenhowerQuadrantDropId, TASK_DROP_KIND } from '../../../utils/task-dnd'
 import type { UrgentDueWithinDays } from '../../../utils/urgency'
@@ -49,6 +51,10 @@ import { dragTasks } from './eisenhower-drag'
 import tooltipStyles from '../../shared/Tooltip.module.css'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
+import { useBuiltList } from '../../../hooks/use-built-list'
+import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
+import { ListFilterRow } from '../list/ListFilterRow'
+import { openEditList, useTabTitle } from '../widget-hooks'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -376,27 +382,125 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
   )
 }
 
+interface WidgetProps {
+  tab: EisenhowerTab
+  onResult?: (r: EisenhowerResult) => void
+}
+
 /**
- * The Eisenhower widget: the screen-filtered tasks in four quadrants by
- * effective Urgent (flag or due date, `utils/urgency`) × Important, as a 2×2
- * grid or — in narrow cells and on phones — four collapsible sections. Rows
- * drag between quadrants (and in from other widgets) to set the flags; a task
- * urgent by its due date can't be dropped on a not-urgent quadrant. Each
- * quadrant's "+" opens Quick Add with its flags.
+ * The Eisenhower widget: tasks in four quadrants by effective Urgent (flag
+ * or due date, `utils/urgency`) × Important, as a 2×2 grid or — in narrow
+ * cells and on phones — four collapsible sections. It shows all tasks, or
+ * one saved list's (`config.listDefinitionId`: its unsaved draft included,
+ * its prompt, group and sort ignored, its filter line above the quadrants);
+ * the screen filter narrows either. Rows drag between quadrants (and in
+ * from other widgets) to set the flags; a task urgent by its due date can't
+ * be dropped on a not-urgent quadrant. Each quadrant's "+" opens Quick Add
+ * with its flags (and the list's defaults).
  */
-export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResult?: (r: EisenhowerResult) => void }) {
-  const isMobile = useIsMobile()
-  // A quadrant divider's width while it is dragged: every quadrant follows it live.
-  // (A store, not state: the drag re-renders the row lists, not the widget.)
-  const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
+export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
+  const listId = tab.config.listDefinitionId
+  return listId == null
+    ? <AllTasksEisenhower tab={tab} onResult={onResult} />
+    : <ListEisenhower tab={tab} listDefinitionId={listId} onResult={onResult} />
+}
+
+/** All tasks, through the screen filter. */
+function AllTasksEisenhower({ tab, onResult }: WidgetProps) {
   const today = useToday()
-  const range = useSettingsStore((s) => s.urgentDueWithinDays)
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const screen = useFilterStore((s) => s.filters)
   const markerSettings = useFilterSettings()
+  const shown = useMemo(
+    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
+    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
+  )
+  const openTotal = useMemo(() => countOpen(todos), [todos])
+  return <EisenhowerBody tab={tab} onResult={onResult} shown={shown} openTotal={openTotal} />
+}
+
+/** One saved list's tasks (as edited), through the screen filter, as a list widget runs it. */
+function ListEisenhower({ tab, listDefinitionId, onResult }: WidgetProps & { listDefinitionId: number }) {
+  const definition = useEffectiveListDefinition(listDefinitionId)
+  if (!definition) {
+    return (
+      <div className={styles.missing}>
+        <span className={styles.noteTitle}>This list was deleted</span>
+        <button
+          type="button"
+          className={styles.noteAction}
+          onClick={() => useWorkspaceStore.getState().patchTabConfig(tab.id, 'eisenhower', { listDefinitionId: undefined })}
+        >
+          Show all tasks
+        </button>
+      </div>
+    )
+  }
+  return <ListEisenhowerBody tab={tab} definition={definition} onResult={onResult} />
+}
+
+function ListEisenhowerBody({ tab, definition, onResult }: WidgetProps & { definition: PersistedListDefinition }) {
+  const screen = useFilterStore((s) => s.filters)
+  const screenActive = useFilterStore((s) => s.isActive)
+  const todos = useTodoStore((s) => s.todos)
+  const title = useTabTitle(tab)
+  // Only the list's members matter here: its prompt (a temporary pick), group
+  // and sort don't apply to the quadrants.
+  const membersOnly = useMemo<PersistedListDefinition>(
+    () => ({ ...definition, runtimeFilter: undefined, grouping: 'none' }),
+    [definition],
+  )
+  const built = useBuiltList(membersOnly, undefined, screenActive ? screen : undefined)
+  const shown = built.list?.todos ?? NO_TASKS
+  const openTotal = useMemo(() => built.countOpenBase(), [built])
+  const appOpen = useMemo(() => countOpen(todos), [todos])
+  const list = useMemo<ListSourceContext>(() => ({ definition, title, appOpen }), [definition, title, appOpen])
+  return <EisenhowerBody tab={tab} onResult={onResult} shown={shown} openTotal={openTotal} list={list} />
+}
+
+const NO_TASKS: PersistedTodoItem[] = []
+
+function countOpen(todos: readonly PersistedTodoItem[]): number {
+  let n = 0
+  for (const t of todos) if (!t.isCompleted) n++
+  return n
+}
+
+/** `N tasks are` / `1 task is`. */
+function tasksAre(n: number, where = ''): string {
+  return n === 1 ? `task${where} is` : `tasks${where} are`
+}
+
+/** The saved list an Eisenhower widget shows. */
+interface ListSourceContext {
+  /** The list as shown (its unsaved draft, else the saved list). */
+  definition: PersistedListDefinition
+  /** Its name, as the tab shows it. */
+  title: string
+  /** Open tasks in the app (what the list's own filter can hide). */
+  appOpen: number
+}
+
+interface BodyProps extends WidgetProps {
+  /** The tasks shown: the source's members passing the screen filter. */
+  shown: PersistedTodoItem[]
+  /** Open tasks of the source before the screen filter (all, or the list's). */
+  openTotal: number
+  /** Set when the widget shows a saved list. */
+  list?: ListSourceContext
+}
+
+function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
+  const isMobile = useIsMobile()
+  // A quadrant divider's width while it is dragged: every quadrant follows it live.
+  // (A store, not state: the drag re-renders the row lists, not the widget.)
+  const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
+  const today = useToday()
+  const range = useSettingsStore((s) => s.urgentDueWithinDays)
+  const screen = useFilterStore((s) => s.filters)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -408,13 +512,8 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   const stacked = isMobile || (size.width > 0 && size.width < EISENHOWER_STACK_BREAKPOINT_PX)
   const collapsed = useMemo(() => new Set(tab.viewState?.collapsed ?? []), [tab.viewState?.collapsed])
 
-  const shown = useMemo(
-    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
-  )
   const quadrants = useMemo(() => buildQuadrants(shown, today, range), [shown, today, range])
-  const openShown = useMemo(() => shown.filter((t) => !t.isCompleted).length, [shown])
-  const openTotal = useMemo(() => todos.filter((t) => !t.isCompleted).length, [todos])
+  const openShown = useMemo(() => countOpen(shown), [shown])
   const countLabel = openShown < openTotal ? `${openShown} of ${openTotal}` : String(openShown)
 
   const onResultRef = useLatestRef(onResult)
@@ -450,11 +549,19 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   }
 
   const add = (q: EisenhowerQuadrant) => {
-    const defaults = withUrgentImportant(getFilterDefaults(useFilterStore.getState().filters), QUADRANT_FLAGS[q])
-    useUIStore.getState().openQuickAdd({ defaults, source: QUADRANT_NAME[q] })
+    // On a list: what the list's own Add task seeds; on all tasks: the screen filter's.
+    const seed = list
+      ? predicateToFilterDefaults(list.definition.membership.predicate)
+      : getFilterDefaults(useFilterStore.getState().filters)
+    const defaults = withUrgentImportant(seed, QUADRANT_FLAGS[q])
+    useUIStore.getState().openQuickAdd({ defaults, source: list ? `${list.title} · ${QUADRANT_NAME[q]}` : QUADRANT_NAME[q] })
   }
 
-  const filterHidesAll = shown.length === 0 && openTotal > 0
+  // What hides every task, if anything: the list's own filter (no open task
+  // is in the list), else the screen filter.
+  const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0
+    && hasNarrowingFilters(list.definition.membership.predicate)
+  const screenHidesAll = shown.length === 0 && openTotal > 0
   const filterCount = countActiveFilters(screen)
   const ctx: RowContext = {
     tabId: tab.id, isMobile, drag, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
@@ -466,46 +573,65 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
 
   return (
     <div
-      ref={setRootRef}
-      className={`${styles.widget} ${stacked ? styles.stacked : styles.grid} ${isMobile ? styles.touch : ''}`}
-      data-eisenhower={tab.id}
-      data-layout={stacked ? 'stacked' : 'grid'}
-      data-dragging={drag ? 'true' : undefined}
-      data-selection-scope={isMobile ? undefined : tab.id}
+      className={styles.frame}
+      data-list-host={list ? tab.id : undefined}
+      // Phones: the list's filter chips (a shared stylesheet) get their touch height.
+      data-touch-chips={list && isMobile ? '' : undefined}
     >
-      {EISENHOWER_QUADRANTS.map((q) => (
-        <Quadrant
-          key={q}
-          q={q}
-          tasks={quadrants[q]}
-          openCount={quadrants[q].filter((t) => !t.isCompleted).length}
-          stacked={stacked}
-          collapsed={collapsed.has(q)}
-          hideEmptyLines={filterHidesAll}
-          ctx={ctx}
-          onToggle={(c) => toggle(q, c)}
-          onAdd={() => add(q)}
-        />
-      ))}
-      {filterHidesAll && !drag && (
-        <div className={styles.notePanel} role="status">
-          <span className={styles.noteTitle}>No tasks match</span>
-          <span className={styles.noteHint}>
-            All {openTotal} open {openTotal === 1 ? 'task is' : 'tasks are'} hidden by the screen filter.
-          </span>
-          <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
-            {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
-          </button>
-        </div>
-      )}
-      {refused && pointer && drag && (
-        <RefusalTooltip
-          lines={blockedDropLines(refused.q, refused.blocked, drag.tasks.length, today, range)}
-          pointer={pointer}
-          boundsRef={rootRef}
-        />
-      )}
-      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
+      {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} />}
+      <div
+        ref={setRootRef}
+        className={`${styles.widget} ${stacked ? styles.stacked : styles.grid} ${isMobile ? styles.touch : ''}`}
+        data-eisenhower={tab.id}
+        data-layout={stacked ? 'stacked' : 'grid'}
+        data-dragging={drag ? 'true' : undefined}
+        data-selection-scope={isMobile ? undefined : tab.id}
+      >
+        {EISENHOWER_QUADRANTS.map((q) => (
+          <Quadrant
+            key={q}
+            q={q}
+            tasks={quadrants[q]}
+            openCount={quadrants[q].filter((t) => !t.isCompleted).length}
+            stacked={stacked}
+            collapsed={collapsed.has(q)}
+            hideEmptyLines={listHidesAll || screenHidesAll}
+            ctx={ctx}
+            onToggle={(c) => toggle(q, c)}
+            onAdd={() => add(q)}
+          />
+        ))}
+        {listHidesAll && !drag && (
+          <div className={styles.notePanel} role="status">
+            <span className={styles.noteTitle}>No tasks match</span>
+            <span className={styles.noteHint}>
+              All {list.appOpen} open {tasksAre(list.appOpen)} hidden by the filters of “{list.title}”.
+            </span>
+            <button type="button" className={styles.noteAction} onClick={() => openEditList(tab.id, list.definition.id)}>
+              Edit list
+            </button>
+          </div>
+        )}
+        {screenHidesAll && !drag && (
+          <div className={styles.notePanel} role="status">
+            <span className={styles.noteTitle}>No tasks match</span>
+            <span className={styles.noteHint}>
+              All {openTotal} open {tasksAre(openTotal, list ? ` in “${list.title}”` : '')} hidden by the screen filter.
+            </span>
+            <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
+              {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
+            </button>
+          </div>
+        )}
+        {refused && pointer && drag && (
+          <RefusalTooltip
+            lines={blockedDropLines(refused.q, refused.blocked, drag.tasks.length, today, range)}
+            pointer={pointer}
+            boundsRef={rootRef}
+          />
+        )}
+        {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
+      </div>
     </div>
   )
 }

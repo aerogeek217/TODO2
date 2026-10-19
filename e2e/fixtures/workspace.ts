@@ -6,7 +6,7 @@ import { box, pointIn, type Point } from './geometry'
 export interface WsTabSeed {
   id: string
   kind: WidgetKind
-  /** Lens tabs: index into `listDefinitions`. */
+  /** List / Eisenhower tabs: index into `listDefinitions` (an Eisenhower tab without one shows all tasks). */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
   dateTypes?: { due: boolean; followup: boolean }
@@ -221,7 +221,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
       const config = { ...(base.config as Record<string, unknown>) }
-      if (tab.kind === 'lens' && tab.listDefIdx != null) {
+      if ((tab.kind === 'lens' || tab.kind === 'eisenhower') && tab.listDefIdx != null) {
         const listDefinitionId = defIds[tab.listDefIdx]
         if (listDefinitionId != null) config.listDefinitionId = listDefinitionId
       }

@@ -2,11 +2,13 @@ import { useCallback, useMemo, useRef, useState, type CSSProperties, type ReactN
 import { useDraggable } from '@dnd-kit/core'
 import {
   getActiveTab,
+  tabListId,
   WIDGET_KIND_SPECS,
   type BandEdge,
   type LayoutCell,
   type LayoutPanel,
   type LayoutTab,
+  type WidgetKind,
 } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -14,14 +16,14 @@ import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { copyTasksRich } from '../../services/task-copy'
-import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import { ALL_TASKS_LABEL, WidgetKindMenu, type ListSource } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-ops'
-import { createListThenEdit, openEditList, useTabTitle, useTabTitles } from './widget-hooks'
+import { createListThenEdit, DELETED_LIST_TITLE, openEditList, useTabTitle, useTabTitles } from './widget-hooks'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
@@ -187,8 +189,8 @@ function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   const except = new Set(tabIds)
   const out = new Set<number>()
   for (const tab of layoutTabs(state.working)) {
-    if (!except.has(tab.id) || tab.kind !== 'lens') continue
-    const id = tab.config.listDefinitionId
+    if (!except.has(tab.id)) continue
+    const id = tabListId(tab)
     if (id != null && unsaved.has(id) && countListWidgets(state, id, except) === 0) out.add(id)
   }
   return [...out]
@@ -266,9 +268,45 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   }
 
   const menuTab = tabMenu ? cell.tabs.find((t) => t.id === tabMenu.tabId) : undefined
+  const menuListId = menuTab ? tabListId(menuTab) : undefined
   const menuListName = useListDefinitionStore((s) =>
-    menuTab?.kind === 'lens' ? s.listDefinitions.find((d) => d.id === menuTab.config.listDefinitionId)?.name : undefined,
+    menuListId != null ? s.listDefinitions.find((d) => d.id === menuListId)?.name : undefined,
   )
+
+  /** An Eisenhower tab's `Show ›`: all tasks or a saved list (a layout change, like a list tab's list). */
+  const eisenhowerSource: ListSource | undefined = menuTab?.kind === 'eisenhower'
+    ? {
+        listDefinitionId: menuListId,
+        note: menuListId == null ? ALL_TASKS_LABEL : (menuListName ?? DELETED_LIST_TITLE),
+        onPick: (id) => {
+          if (id === menuListId) return
+          guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => {
+            patchTabConfig(menuTab.id, 'eisenhower', { listDefinitionId: id })
+          })
+        },
+      }
+    : undefined
+
+  /**
+   * Changes a tab's kind. A list tab and an Eisenhower tab on a list keep the
+   * list when they switch to each other; a list tab otherwise picks its list
+   * first.
+   */
+  const changeKind = (tab: LayoutTab, kind: WidgetKind, anchor: { x: number; y: number }) => {
+    if (kind === tab.kind) return
+    const listId = tabListId(tab)
+    const listExists = listId != null && useListDefinitionStore.getState().listDefinitions.some((d) => d.id === listId)
+    const keptList = listExists && (kind === 'lens' || kind === 'eisenhower') ? listId : undefined
+    if (keptList != null) {
+      changeTabKind(tab.id, kind, { listDefinitionId: keptList })
+      return
+    }
+    if (WIDGET_KIND_SPECS[kind].showsList) {
+      setChangeToList({ tabId: tab.id, anchor })
+      return
+    }
+    guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
+  }
 
   const dashboardActions = useDashboardMenuActions({
     onCustomize: () => { if (menuTab) setCustomize({ tabId: menuTab.id, focusListTiles: false }) },
@@ -425,24 +463,18 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
         <WidgetKindMenu
           anchor={{ x: tabMenu.x, y: tabMenu.y }}
           currentKind={menuTab.kind}
-          onChangeKind={(kind) => {
-            if (kind === menuTab.kind) return
-            if (WIDGET_KIND_SPECS[kind].showsList) {
-              setChangeToList({ tabId: menuTab.id, anchor: { x: tabMenu.x, y: tabMenu.y } })
-              return
-            }
-            guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(menuTab.id, kind))
-          }}
+          onChangeKind={(kind) => changeKind(menuTab, kind, { x: tabMenu.x, y: tabMenu.y })}
           pickListForLens={menuTab.kind === 'lens'
             ? (id) => {
                 if (id === menuTab.config.listDefinitionId) return
                 guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => patchTabConfig(menuTab.id, 'lens', { listDefinitionId: id }))
               }
             : undefined}
-          onEditList={menuTab.kind === 'lens' && menuTab.config.listDefinitionId != null
-            ? () => openEditList(menuTab.id, menuTab.config.listDefinitionId!)
+          onEditList={menuListId != null && (menuTab.kind === 'lens' || menuListName != null)
+            ? () => openEditList(menuTab.id, menuListId)
             : undefined}
           currentListName={menuListName}
+          listSource={eisenhowerSource}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [{

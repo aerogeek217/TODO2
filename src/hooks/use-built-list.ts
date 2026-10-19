@@ -33,11 +33,25 @@ export interface BuiltList {
    * a manual order is planned over (unordered; callers sort).
    */
   orderCandidates: () => PersistedTodoItem[]
+  /**
+   * Open tasks the list's own filter (and prompt picks) matches, before the
+   * screen filter — the total an Eisenhower widget on the list counts its
+   * open tasks against. Computed on call.
+   */
+  countOpenBase: () => number
 }
 
 const NO_CANDIDATES = (): PersistedTodoItem[] => []
+const NO_COUNT = (): number => 0
 
-const NO_BUILT: BuiltList = { list: null, baseCount: 0, runtimeFilterPending: false, mergedPredicate: null, orderCandidates: NO_CANDIDATES }
+const NO_BUILT: BuiltList = {
+  list: null,
+  baseCount: 0,
+  runtimeFilterPending: false,
+  mergedPredicate: null,
+  orderCandidates: NO_CANDIDATES,
+  countOpenBase: NO_COUNT,
+}
 
 /**
  * Runs a list definition over the loaded tasks: its predicate (plus prompt
@@ -115,7 +129,8 @@ export function useBuiltList(
       const shown = new Set(list.todos.map((t) => t.id))
       return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
     }
-    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates }
+    const countOpenBase = () => (mergedPredicate ? countMatching(todos, (t) => !t.isCompleted && listOnly(mergedPredicate, t)) : 0)
+    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase }
   }, [
     definition, todos, people, assignedPeopleMap,
     assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings,
