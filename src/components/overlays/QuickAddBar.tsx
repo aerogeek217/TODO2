@@ -485,14 +485,18 @@ export function QuickAddBar({
     commands: true,
     enterSubmits: true,
     onApply: (value, cursor) => {
-      setRaw(value)
       setTitleMissing(false)
-      // Restore caret after React commits the new value.
-      requestAnimationFrame(() => {
-        if (!inputRef.current) return
-        inputRef.current.setSelectionRange(cursor, cursor)
-        inputRef.current.focus()
-      })
+      const input = inputRef.current
+      if (input && input.value === value) {
+        input.focus()
+        input.setSelectionRange(cursor, cursor)
+        return
+      }
+      // The caret goes in once React has committed the new value, before the
+      // next key press (the layout effect on `raw`): placed a frame later, it
+      // would move back over keys typed meanwhile.
+      pendingCaretRef.current = cursor
+      setRaw(value)
     },
   })
 
@@ -552,7 +556,7 @@ export function QuickAddBar({
     }
   }, [open, dismissAutocomplete, initialDraftRef])
 
-  // A chip × changed the text: put the caret back where the edit says.
+  // A pick or a chip × changed the text: put the caret where the edit says.
   useLayoutEffect(() => {
     const caret = pendingCaretRef.current
     const input = inputRef.current
