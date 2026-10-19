@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { dragRow, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 
 /**
  * A list grouped by Priority (Hot, Focus, Urgent, Important, No priority — a
  * task in each of its groups): dragging a row between the groups writes the
- * flags, or is refused with why.
+ * flags, or is refused with why; and a list set to hide its filter line.
  */
 
 function seed(list: Partial<NonNullable<WorkspaceSeed['listDefinitions']>[number]> = {}): WorkspaceSeed {
@@ -115,3 +115,35 @@ test('dragging into Hot is refused', async ({ page }) => {
   expect((await stored(page, 'Ideas'))?.urgent).toBeUndefined()
 })
 
+test('a hidden filter line comes back while the list is unsaved and leaves after Save', async ({ page }) => {
+  await seedWorkspace(page, seed({ showFilterLine: false, grouping: 'none' }))
+  const line = widget(page).getByTestId('list-filter-row')
+  await expect(widget(page).locator('[data-task-title="Someday"]')).toBeVisible()
+  await expect(line).toHaveCount(0)
+
+  // Edit list from the tab menu: an edit makes the list unsaved, and the line shows with Revert · Save.
+  await wsTab(page, 't1').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+  const editor = page.getByTestId('edit-list')
+  const showLine = editor.getByRole('checkbox', { name: 'Show filter line' })
+  await expect(showLine).not.toBeChecked()
+  await editor.getByRole('button', { name: /^Sort by/ }).click()
+  await page.getByRole('menuitemradio', { name: /^Name/ }).click()
+  await expect(line).toBeVisible()
+  await expect(line.getByTestId('save-list')).toBeVisible()
+
+  await editor.getByRole('button', { name: 'Save list' }).click()
+  await expect(editor).toHaveCount(0)
+  await expect(line).toHaveCount(0)
+  await expect.poll(async () => (await readStore<{ sort: string; showFilterLine?: boolean }>(page, 'listDefinitions'))[0])
+    .toMatchObject({ sort: 'name', showFilterLine: false })
+
+  // Ticking Show filter line and saving shows it for good (stored as no field).
+  await wsTab(page, 't1').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+  await editor.getByRole('checkbox', { name: 'Show filter line' }).check()
+  await editor.getByRole('button', { name: 'Save list' }).click()
+  await expect(line).toBeVisible()
+  await expect(line.getByTestId('save-list')).toHaveCount(0)
+  await expect.poll(async () => 'showFilterLine' in ((await readStore<Record<string, unknown>>(page, 'listDefinitions'))[0] ?? {})).toBe(false)
+})

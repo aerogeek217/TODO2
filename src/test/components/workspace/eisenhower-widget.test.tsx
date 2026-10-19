@@ -209,6 +209,16 @@ describe('EisenhowerWidget on a saved list', () => {
     expect(within(line).queryByTestId('list-summary')).toBeNull()
   })
 
+  it('a list set to hide its filter line: none above the panes until the list is unsaved', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({ showFilterLine: false }, notWaiting)] })
+    setupOnList()
+    expect(titles('schedule')).toEqual(['Board update'])
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: 'Renamed' })))
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+  })
+
   it('switching the source back to all tasks shows every task again', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
     setupOnList()

@@ -184,6 +184,25 @@ describe('ListWidget', () => {
     expect(screen.queryByTestId('save-list')).toBeNull()
   })
 
+  it('a list set to hide its filter line shows none — until it is unsaved, and again none once saved', async () => {
+    setup(def({ showFilterLine: false }))
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+    await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ sort: 'name', showFilterLine: false })
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+  })
+
+  it('hiding the filter line from a draft keeps it shown while unsaved', () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, showFilterLine: false })))
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.getByTestId('revert-list')).toBeInTheDocument()
+  })
+
   it('grouped by Priority: Hot, Focus, Urgent, Important, No priority; a task in each of its groups', () => {
     useTodoStore.setState({
       todos: [

@@ -84,6 +84,8 @@ export interface WorkspaceSeed {
     /** Names of people for the predicate's `personIds`. */
     people?: string[]
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
+    /** `false` hides the list's filter line. */
+    showFilterLine?: false
   }>
   tasks?: Array<{
     title: string
@@ -189,6 +191,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(def.sortDirection ? { sortDirection: def.sortDirection } : {}),
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
+        ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
       }))
     }
     let taskOrder = 0

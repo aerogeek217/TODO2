@@ -72,6 +72,29 @@ describe('<ListEditorBody>', () => {
     expect(last(onChange).grouping).toBe('priority')
   })
 
+  it('Show filter line: unticking stores false, ticking drops the field; a change is marked', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ListEditorBody draft={makeDraft()} saved={makeDraft()} onChange={onChange} />)
+    const box = screen.getByRole('checkbox', { name: 'Show filter line' })
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+    expect(last(onChange).showFilterLine).toBe(false)
+    rerender(<ListEditorBody draft={makeDraft({ showFilterLine: false })} saved={makeDraft()} onChange={onChange} />)
+    expect(screen.getByRole('checkbox', { name: 'Show filter line' })).not.toBeChecked()
+    expect(screen.getByText('Filter line')).toHaveAttribute('data-changed', 'true')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show filter line' }))
+    expect(last(onChange)).not.toHaveProperty('showFilterLine')
+  })
+
+  it('phone sheet: Show filter line is a switch', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft({ showFilterLine: false })} saved={makeDraft()} onChange={onChange} variant="sheet" />)
+    const toggle = screen.getByRole('switch', { name: 'Show filter line' })
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    expect(last(onChange)).not.toHaveProperty('showFilterLine')
+  })
+
   it('an unset Group by is a blank field with a muted "Group by…" placeholder — no "None" text', () => {
     const onChange = vi.fn()
     const { rerender } = render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
@@ -198,7 +221,7 @@ describe('<ListEditorBody>', () => {
     expect(last(onChange).sort).toBe('priority')
     // Back on the form.
     expect(screen.getByRole('button', { name: /^Group by:/ })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Show completed tasks' }))
     expect(last(onChange).membership.predicate.showCompleted).toBe(true)
   })
 })

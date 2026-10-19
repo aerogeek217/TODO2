@@ -29,17 +29,26 @@ interface ListFilterRowProps {
 }
 
 /**
- * A list's top line, always shown (the way in to setting its filters):
- * screen filter chips (read-only, set in the top bar), then the list's own
- * filter chips (editing them makes the list unsaved; `No filters` when
- * there are none), + Filter, the group · sort summary that opens Edit list,
+ * A list's top line (the way in to setting its filters): screen filter
+ * chips (read-only, set in the top bar), then the list's own filter chips
+ * (editing them makes the list unsaved; `No filters` when there are none),
+ * + Filter, the group · sort summary that opens Edit list,
  * and — while the list is unsaved — Revert · Save. Used by list widgets and
  * by an Eisenhower widget on a list (without the summary). Phones (a
  * `data-touch-chips` ancestor) get touch sizes.
+ *
+ * A list set not to show it (`showFilterLine: false`) shows nothing — but
+ * the whole line while it is unsaved, so Revert · Save are there; Edit list
+ * stays in the tab menu.
  */
-export function ListFilterRow({ tabId, definition, summary = true }: ListFilterRowProps) {
+export function ListFilterRow(props: ListFilterRowProps) {
+  const unsaved = useIsListDirty(props.definition.id)
+  if (props.definition.showFilterLine === false && !unsaved) return null
+  return <FilterRowBody {...props} unsaved={unsaved} />
+}
+
+function FilterRowBody({ tabId, definition, summary = true, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
   const editorOpen = useUIStore((s) => s.listEditor?.tabId === tabId)
-  const unsaved = useIsListDirty(definition.id)
   const names = useChipNames()
   const screenChips = useScreenChips()
   const predicate = definition.membership.predicate

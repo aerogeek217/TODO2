@@ -37,12 +37,18 @@ function sortsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boo
     && effectiveSortDirection(a.sort, a.sortDirection) === effectiveSortDirection(b.sort, b.sortDirection)
 }
 
+/** Whether the list shows its filter line (absent = shown). */
+function filterLineShown(def: PersistedListDefinition): boolean {
+  return def.showFilterLine !== false
+}
+
 export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
   // Ignore `sortOrder` (reorder is saved independently).
   if (a.name !== b.name) return false
   if (!sortsEqual(a, b)) return false
   if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) return false
   if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) return false
+  if (filterLineShown(a) !== filterLineShown(b)) return false
   if (a.membership.kind !== b.membership.kind) return false
   if (a.membership.kind === 'custom' && b.membership.kind === 'custom') {
     if (!predicatesEqual(a.membership.predicate, b.membership.predicate)) return false
@@ -51,13 +57,13 @@ export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition
 }
 
 /** A part of a list definition the list editor shows as one row. */
-export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt'
+export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt' | 'filterLine'
 
 /**
  * The editor rows whose value differs between `a` and `b` (e.g. a draft and
  * the saved list). Show completed and the "is not" switches count as part
- * of the filters and the sort direction as part of the sort; `sortOrder` is
- * never compared.
+ * of the filters and the sort direction as part of the sort; Show filter
+ * line is its own row; `sortOrder` is never compared.
  */
 export function changedListFields(a: PersistedListDefinition, b: PersistedListDefinition): ReadonlySet<ListDefField> {
   const out = new Set<ListDefField>()
@@ -69,5 +75,6 @@ export function changedListFields(a: PersistedListDefinition, b: PersistedListDe
   if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) out.add('group')
   if (!sortsEqual(a, b)) out.add('sort')
   if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) out.add('prompt')
+  if (filterLineShown(a) !== filterLineShown(b)) out.add('filterLine')
   return out
 }
