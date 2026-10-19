@@ -8,23 +8,17 @@ import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
-import { toggleItem } from '../../../utils/filter'
+import { isNegated, withIdFilter } from '../../../utils/filter-negation'
 import { MARKERS_LABEL } from '../../../utils/markers'
 import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
-import { DEFAULT_PREDICATE } from './FilterChipBar.shared'
+import { DEFAULT_PREDICATE, ENTITY_ID_FIELD, entityTicked, entityToggle } from './FilterChipBar.shared'
 import { ClearableField } from '../ClearableField'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
 
 type EntityField = 'people' | 'tags' | 'status'
-
-const ID_KEY: Record<EntityField, 'personIds' | 'tags' | 'statusIds'> = {
-  people: 'personIds',
-  tags: 'tags',
-  status: 'statusIds',
-}
 
 export interface PredicateFieldPickerProps {
   field: ListFilterField
@@ -58,11 +52,12 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
   // builds on the last one sent, not on this render's predicate.
   const latest = useRef(predicate)
   useEffect(() => { latest.current = predicate }, [predicate])
-  const update = useCallback((patch: Partial<TodoPredicate>) => {
-    const next = { ...latest.current, ...patch }
+  const replace = useCallback((change: (p: TodoPredicate) => TodoPredicate) => {
+    const next = change(latest.current)
     latest.current = next
     onChange(next)
   }, [onChange])
+  const update = useCallback((patch: Partial<TodoPredicate>) => replace((p) => ({ ...p, ...patch })), [replace])
 
   const dates = field === 'dates'
   return createPortal(
@@ -83,7 +78,7 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
         // Several markers can be ticked, so picking one keeps the picker open.
         <MarkersPanelBody value={predicate.markers ?? null} onChange={(markers) => update({ markers })} />
       ) : (
-        <EntityPicker field={field} predicate={predicate} adding={adding} update={update} onClose={onClose} />
+        <EntityPicker field={field} predicate={predicate} adding={adding} replace={replace} onClose={onClose} />
       )}
     </div>,
     document.body,
@@ -99,45 +94,62 @@ const PICKER_TITLE: Record<ListFilterField, string> = {
   text: 'Text',
 }
 
-function EntityPicker({ field, predicate, adding, update, onClose }: {
+function EntityPicker({ field, predicate, adding, replace, onClose }: {
   field: EntityField
   predicate: TodoPredicate
   adding: boolean
-  update: (patch: Partial<TodoPredicate>) => void
+  replace: (change: (p: TodoPredicate) => TodoPredicate) => void
   onClose: () => void
 }) {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const entities = field === 'people' ? people : field === 'tags' ? tags : statuses
-  const key = ID_KEY[field]
+  const key = ENTITY_ID_FIELD[field]
   const raw = predicate[key] ?? null
   const ids = raw ? new Set(raw) : null
-  // Nothing filtered yet: show every row unticked; the first pick narrows to it.
+  // "Is": nothing filtered yet shows every row unticked; the first pick
+  // narrows to it. "Is not" with nothing ticked is no filter, so the picker
+  // holds that mode itself until the first tick.
   const [preview, setPreview] = useState(adding && ids == null)
+  const [pendingNot, setPendingNot] = useState(false)
+  const negated = isNegated(predicate, key) || (pendingNot && ids == null)
   const [searchText, setSearchText] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => { searchRef.current?.focus() }, [])
 
   const withNone = field !== 'tags'
   const allIds = [...(withNone ? [0] : []), ...entities.map((e) => e.id!)]
-  const set = (next: Set<number> | null) => update({ [key]: next ? [...next] : null })
+  // The ids and the switch are written together: the last "is not" tick
+  // removed drops the stored switch, and the picker stays on Is not.
+  const set = (next: Set<number> | null, not = negated) => {
+    if (not) setPendingNot(true)
+    replace((p) => withIdFilter(p, key, next ? [...next] : null, not))
+  }
+  const showPreview = preview && !negated
 
   const toggle = (id: number) => {
-    if (preview) {
+    if (showPreview) {
       setPreview(false)
       set(new Set([id]))
       return
     }
-    set(toggleItem(ids, id, allIds))
+    set(entityToggle(ids, negated, id, allIds))
+  }
+  const setMode = (not: boolean) => {
+    setPendingNot(not)
+    // Back to "is" with nothing filtered: the preview again when adding.
+    if (!not && ids == null) setPreview(adding)
+    if (ids != null) set(ids, not)
   }
 
   return (
     <SelectionPanelBody
-      allSelected={!preview && ids == null}
-      noneSelected={preview || (ids != null && ids.size === 0)}
-      onSelectAll={() => { setPreview(false); set(null) }}
-      onDeselectAll={() => { setPreview(false); set(new Set()) }}
+      mode={{ field: PICKER_TITLE[field], negated, onChange: setMode }}
+      allSelected={negated ? ids != null && allIds.every((id) => ids.has(id)) : !showPreview && ids == null}
+      noneSelected={negated ? ids == null : showPreview || (ids != null && ids.size === 0)}
+      onSelectAll={() => { setPreview(false); set(negated ? new Set(allIds) : null) }}
+      onDeselectAll={() => { setPreview(false); set(negated ? null : new Set()) }}
       search={{ text: searchText, setText: setSearchText, onEscape: onClose }}
       searchInputRef={searchRef}
     >
@@ -147,7 +159,7 @@ function EntityPicker({ field, predicate, adding, update, onClose }: {
         <EntityDropdownItems
           searchText={searchText}
           entities={entities}
-          isChecked={(id) => !preview && (ids == null || ids.has(id))}
+          isChecked={(id) => !showPreview && entityTicked(ids, negated, id)}
           onToggle={toggle}
           namePrefix={field === 'people' ? '@' : field === 'tags' ? '#' : undefined}
           showDot={field !== 'people'}

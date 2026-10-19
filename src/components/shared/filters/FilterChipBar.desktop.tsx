@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
-import { toggleItem } from '../../../utils/filter'
 import { clearChipField, datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
 import type { TodoPredicate } from '../../../models'
 import picker from './FilterPicker.module.css'
@@ -20,11 +19,13 @@ import {
   StatusRingIcon,
   WidgetKindIcon,
 } from '../icons'
-import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
+import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody, type FilterModeProps } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
 import {
+  entityTicked,
+  entityToggle,
   narrowedPeople,
   useFilterChipBarState,
   type EntityKey,
@@ -37,6 +38,8 @@ type FieldKey = Extract<FilterChipField, 'people' | 'tags' | 'dates' | 'status' 
 type FieldPanel =
   | {
       kind: 'selection'
+      /** The Is / Is not toggle (People / Status / Tags). */
+      mode?: FilterModeProps
       allSelected: boolean
       noneSelected: boolean
       onSelectAll: () => void
@@ -95,6 +98,7 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
   return (
     <>
       <SelectionPanelBody
+        mode={panel.mode}
         allSelected={panel.allSelected}
         noneSelected={panel.noneSelected}
         onSelectAll={panel.onSelectAll}
@@ -352,25 +356,35 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
   )
 }
 
-/** The value text of each active field (tags without their `#`: the button shows a # glyph). */
-function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[1]): Partial<Record<FieldKey, string>> {
+interface FieldValues {
+  /** The value text of each active field (tags without their `#`: the button shows a # glyph). */
+  values: Partial<Record<FieldKey, string>>
+  /** An "is not" field's tooltip: what it hides. */
+  tooltips: Partial<Record<FieldKey, string>>
+}
+
+/** Each active field's value text (`not Waiting` for an "is not" one) and the "is not" tooltips. */
+function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[1]): FieldValues {
   return useMemo(() => {
-    const out: Partial<Record<FieldKey, string>> = {}
+    const values: Partial<Record<FieldKey, string>> = {}
+    const tooltips: Partial<Record<FieldKey, string>> = {}
     for (const chip of filterChips(p, names)) {
       switch (chip.field) {
         case 'people':
         case 'status':
         case 'markers':
-          out[chip.field] = chip.value
+          values[chip.field] = chip.value
+          if (chip.tooltip) tooltips[chip.field] = chip.tooltip
           break
         case 'tags':
-          out.tags = chip.value.replace(/^#/, '')
+          values.tags = chip.value.replace(/^(not )?#/, '$1')
+          if (chip.tooltip) tooltips.tags = chip.tooltip
           break
       }
     }
     const dates = datesValue(p.dates)
-    if (dates != null) out.dates = dates
-    return out
+    if (dates != null) values.dates = dates
+    return { values, tooltips }
   }, [p, names])
 }
 
@@ -394,59 +408,79 @@ export function FilterChipBarDesktop({
   const s = useFilterChipBarState(predicate, onChange, onClearAll, onClearExtra, resetDensityState)
   const {
     p, people, statuses, sortedTags, allTagIds, personIdsSet, statusIdsSet, tagIdsSet,
-    peopleActive, statusActive, tagsActive, dateActive, update,
-    setPersonIds, setStatusIds, setTags, clearAll,
+    peopleActive, statusActive, tagsActive, dateActive, negated, update,
+    setPersonIds, setStatusIds, setTags, setNegated, dropPendingMode, clearAll,
   } = s
 
   const names = useMemo(() => ({ people, tags: sortedTags, statuses }), [people, sortedTags, statuses])
-  const values = useFieldValues(p, names)
+  const { values, tooltips } = useFieldValues(p, names)
 
-  const entityHandlers = (key: EntityKey, isActive: boolean, setIds: (next: Set<number> | null) => void) => ({
-    onOpen: () => { if (!isActive) setPreviewEmpty(key) },
-    onClose: () => setPreviewEmpty((cur) => (cur === key ? null : cur)),
-    allSelected: !isActive && previewEmpty !== key,
-    onSelectAll: () => { setPreviewEmpty(null); setIds(null) },
-    onDeselectAll: () => { setPreviewEmpty(null); setIds(new Set()) },
-  })
-
-  const toggle = (key: EntityKey, id: number, current: Set<number> | null, allIds: number[], setIds: (next: Set<number> | null) => void) => {
-    if (previewEmpty === key) {
-      setPreviewEmpty(null)
-      setIds(new Set([id]))
-      return
+  // "Is": an inactive field's picker opens with nothing ticked (`previewEmpty`)
+  // and the first tick narrows to it. "Is not": nothing ticked is no filter,
+  // so ticks are plain adds / removes.
+  const entityHandlers = (key: EntityKey, label: string, isActive: boolean, current: Set<number> | null, allIds: number[], setIds: (next: Set<number> | null) => void) => {
+    const not = negated[key]
+    const preview = !not && previewEmpty === key
+    const mode: FilterModeProps = {
+      field: label,
+      negated: not,
+      onChange: (on) => {
+        // Back to "is" with nothing filtered: the preview again (nothing ticked).
+        setPreviewEmpty(on || current !== null ? null : key)
+        setNegated(key, on)
+      },
     }
-    setIds(toggleItem(current, id, allIds))
+    return {
+      mode,
+      onOpen: () => { if (!isActive) setPreviewEmpty(key) },
+      onClose: () => {
+        setPreviewEmpty((cur) => (cur === key ? null : cur))
+        dropPendingMode(key)
+      },
+      allSelected: not ? current !== null && allIds.every((id) => current.has(id)) : !isActive && !preview,
+      noneSelected: not ? current === null : preview || (current !== null && current.size === 0),
+      onSelectAll: () => { setPreviewEmpty(null); setIds(not ? new Set(allIds) : null) },
+      onDeselectAll: () => { setPreviewEmpty(null); setIds(not ? null : new Set()) },
+      isChecked: (id: number) => !preview && entityTicked(current, not, id),
+      onToggle: (id: number) => {
+        if (preview) {
+          setPreviewEmpty(null)
+          setIds(new Set([id]))
+          return
+        }
+        setIds(entityToggle(current, not, id, allIds))
+      },
+    }
   }
-  const checked = (key: EntityKey, current: Set<number> | null) => (id: number) =>
-    previewEmpty === key ? false : current === null || current.has(id)
-  const none = (key: EntityKey, current: Set<number> | null) =>
-    previewEmpty === key || (current !== null && current.size === 0)
   const clearField = (field: FieldKey) => update(clearChipField(p, field))
 
   const fields: FieldDef[] = []
   if (people.length > 0) {
-    const h = entityHandlers('people', peopleActive, setPersonIds)
+    const h = entityHandlers('people', 'People', peopleActive, personIdsSet, [0, ...people.map((x) => x.id!)], setPersonIds)
     fields.push({
       key: 'people',
       label: 'People',
       icon: <AtIcon />,
-      highlighted: peopleActive || previewEmpty === 'people',
+      highlighted: peopleActive || previewEmpty === 'people' || negated.people,
       value: values.people ?? null,
+      tooltip: tooltips.people,
+      tooltipLabelLines: 1,
       onClear: () => clearField('people'),
       onOpen: h.onOpen,
       onClose: h.onClose,
       panel: {
         kind: 'selection',
+        mode: h.mode,
         allSelected: h.allSelected,
-        noneSelected: none('people', personIdsSet),
+        noneSelected: h.noneSelected,
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
         items: (searchText, closeAll) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={people}
-            isChecked={checked('people', personIdsSet)}
-            onToggle={(id) => toggle('people', id, personIdsSet, [0, ...people.map((x) => x.id!)], setPersonIds)}
+            isChecked={h.isChecked}
+            onToggle={h.onToggle}
             namePrefix="@"
             showDot={false}
             entityMenu="person"
@@ -455,7 +489,7 @@ export function FilterChipBarDesktop({
         ),
         footer: (closeAll) => (
           <PeopleCheckinAction
-            people={previewEmpty === 'people' ? [] : narrowedPeople(people, personIdsSet)}
+            people={previewEmpty === 'people' && !negated.people ? [] : narrowedPeople(people, personIdsSet, negated.people)}
             onDone={closeAll}
           />
         ),
@@ -463,29 +497,31 @@ export function FilterChipBarDesktop({
     })
   }
   if (sortedTags.length > 0) {
-    const h = entityHandlers('tags', tagsActive, setTags)
-    const isTagChecked = checked('tags', tagIdsSet)
+    const h = entityHandlers('tags', 'Tags', tagsActive, tagIdsSet, allTagIds, setTags)
     fields.push({
       key: 'tags',
       label: 'Tags',
       icon: <HashIcon />,
-      highlighted: tagsActive || previewEmpty === 'tags',
+      highlighted: tagsActive || previewEmpty === 'tags' || negated.tags,
       value: values.tags ?? null,
+      tooltip: tooltips.tags,
+      tooltipLabelLines: 1,
       onClear: () => clearField('tags'),
       onOpen: h.onOpen,
       onClose: h.onClose,
       panel: {
         kind: 'selection',
+        mode: h.mode,
         allSelected: h.allSelected,
-        noneSelected: none('tags', tagIdsSet),
+        noneSelected: h.noneSelected,
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
         items: (searchText, closeAll) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={sortedTags}
-            isChecked={isTagChecked}
-            onToggle={(id) => toggle('tags', id, tagIdsSet, allTagIds, setTags)}
+            isChecked={h.isChecked}
+            onToggle={h.onToggle}
             namePrefix="#"
             withNone={false}
             entityMenu="tag"
@@ -518,28 +554,31 @@ export function FilterChipBarDesktop({
     },
   })
   if (statuses.length > 0) {
-    const h = entityHandlers('status', statusActive, setStatusIds)
+    const h = entityHandlers('status', 'Status', statusActive, statusIdsSet, [0, ...statuses.map((x) => x.id!)], setStatusIds)
     fields.push({
       key: 'status',
       label: 'Status',
       icon: <StatusRingIcon />,
-      highlighted: statusActive || previewEmpty === 'status',
+      highlighted: statusActive || previewEmpty === 'status' || negated.status,
       value: values.status ?? null,
+      tooltip: tooltips.status,
+      tooltipLabelLines: 1,
       onClear: () => clearField('status'),
       onOpen: h.onOpen,
       onClose: h.onClose,
       panel: {
         kind: 'selection',
+        mode: h.mode,
         allSelected: h.allSelected,
-        noneSelected: none('status', statusIdsSet),
+        noneSelected: h.noneSelected,
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
         items: (searchText) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={statuses}
-            isChecked={checked('status', statusIdsSet)}
-            onToggle={(id) => toggle('status', id, statusIdsSet, [0, ...statuses.map((x) => x.id!)], setStatusIds)}
+            isChecked={h.isChecked}
+            onToggle={h.onToggle}
           />
         ),
       },

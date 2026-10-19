@@ -152,7 +152,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const unsaved = useIsListDirty(definition.id)
 
   // + Add task: only when the merged predicate names people / status / tags
-  // / markers to seed the new task with (Hot seeds nothing).
+  // / markers to seed the new task with (Hot seeds nothing; an "is not"
+  // field seeds nothing either, but keeps the button).
   const canAddTask = mergedPredicate != null && (
     mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
@@ -526,7 +527,7 @@ function ListFilterRow({ tabId, definition, screenChips, hasListChips, unsaved }
           before={(
             <>
               {screenChips.map((chip) => (
-                <span key={`screen-${chipKey(chip)}`} className={chipStyles.screenChip} title="Screen filter · set in the top bar" data-testid="screen-filter-chip">
+                <span key={`screen-${chipKey(chip)}`} className={chipStyles.screenChip} title={chip.tooltip ? `${chip.tooltip}\nScreen filter · set in the top bar` : 'Screen filter · set in the top bar'} data-testid="screen-filter-chip">
                   <FunnelIcon />
                   {screenChipText(chip)}
                 </span>

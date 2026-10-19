@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { MARKER_KEYS, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
@@ -16,7 +16,65 @@ import { byName } from '../../../utils/sort-order'
  * have their own component, `DateFilterPanel`.
  */
 
+export interface FilterModeProps {
+  /** The picker's field name (`People`, `Status`, `Tags`): the toggle's name. */
+  field: string
+  /** "Is not": the ticked values hide tasks instead of picking them. */
+  negated: boolean
+  onChange: (negated: boolean) => void
+  /** The phone sheet's touch height. */
+  touch?: boolean
+}
+
+const MODE_CHOICES = [
+  { negated: false, label: 'Is' },
+  { negated: true, label: 'Is not' },
+] as const
+
+/**
+ * The Is / Is not toggle at the top of a People / Status / Tags picker: a
+ * two-segment radio group (arrow keys switch). Switching keeps the ticks.
+ */
+export function FilterModeToggle({ field, negated, onChange, touch = false }: FilterModeProps) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([])
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
+    e.preventDefault()
+    const next = !negated
+    onChange(next)
+    refs.current[next ? 1 : 0]?.focus()
+  }
+  return (
+    <div
+      className={`${picker.modeToggle} ${touch ? picker.modeToggleTouch : ''}`}
+      role="radiogroup"
+      aria-label={`${field}: is or is not`}
+    >
+      {MODE_CHOICES.map((c, i) => {
+        const on = c.negated === negated
+        return (
+          <button
+            key={c.label}
+            ref={(el) => { refs.current[i] = el }}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            tabIndex={on ? 0 : -1}
+            className={`${picker.modeSegment} ${on ? picker.modeSegmentOn : ''} ${on && c.negated ? picker.modeSegmentNot : ''}`}
+            onClick={() => { if (!on) onChange(c.negated) }}
+            onKeyDown={onKeyDown}
+          >
+            {c.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 interface SelectionPanelBodyProps {
+  /** The Is / Is not toggle above the actions (People / Status / Tags). */
+  mode?: FilterModeProps
   allSelected: boolean
   noneSelected: boolean
   onSelectAll: () => void
@@ -32,12 +90,13 @@ interface SelectionPanelBodyProps {
   children: ReactNode
 }
 
-/** Select all / Deselect all, an optional search box (× clears it), then the items. */
-export function SelectionPanelBody({ allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
+/** An optional Is / Is not toggle, Select all / Deselect all, an optional search box (× clears it), then the items. */
+export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
   const ownSearchRef = useRef<HTMLInputElement>(null)
   const searchRef = searchInputRef ?? ownSearchRef
   return (
     <>
+      {mode && <FilterModeToggle {...mode} />}
       <div className={picker.dropdownActions}>
         <button
           type="button"

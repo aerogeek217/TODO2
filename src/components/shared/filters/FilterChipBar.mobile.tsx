@@ -1,13 +1,15 @@
-import { useCallback, useRef, useState } from 'react'
-import { toggleItem } from '../../../utils/filter'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { ClearableField } from '../ClearableField'
-import { datesValue } from '../../../utils/filter-chips'
+import { datesValue, filterChips } from '../../../utils/filter-chips'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
 import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
+import { FilterModeToggle } from './FilterPanels'
 import {
+  entityTicked,
+  entityToggle,
   useFilterChipBarState,
   type EntityKey,
   type FilterChipBarProps,
@@ -44,8 +46,13 @@ function AccordionSection({ label, badge, value, valueOn = false, open, onToggle
 }
 
 interface MobileEntityListProps {
+  /** The field's name (`People`, `Status`): the Is / Is not toggle's name. */
+  field: string
   entities: { id?: number; name: string; color?: string }[]
   filterIds: Set<number> | null
+  /** "Is not": the ticked rows hide tasks. */
+  negated: boolean
+  onNegatedChange: (negated: boolean) => void
   onToggle: (id: number) => void
   noneLabel: string
   searchPlaceholder: string
@@ -58,8 +65,11 @@ interface MobileEntityListProps {
 }
 
 function MobileEntityList({
+  field,
   entities,
   filterIds,
+  negated,
+  onNegatedChange,
   onToggle,
   noneLabel,
   searchPlaceholder,
@@ -71,6 +81,7 @@ function MobileEntityList({
   const searchRef = useRef<HTMLInputElement>(null)
   return (
     <div className={sheet.entityList}>
+      <FilterModeToggle field={field} negated={negated} onChange={onNegatedChange} touch />
       <ClearableField
         className={sheet.entitySearchField}
         value={searchText}
@@ -98,7 +109,7 @@ function MobileEntityList({
             className={sheet.entityCheck}
             tabIndex={-1}
             aria-hidden="true"
-            checked={filterIds === null || filterIds.has(0)}
+            checked={entityTicked(filterIds, negated, 0)}
             readOnly
           />
         </div>
@@ -121,7 +132,7 @@ function MobileEntityList({
               className={sheet.entityCheck}
               tabIndex={-1}
               aria-hidden="true"
-              checked={filterIds === null || filterIds.has(e.id!)}
+              checked={entityTicked(filterIds, negated, e.id!)}
               readOnly
             />
           </div>
@@ -155,14 +166,26 @@ export function FilterChipBarMobile({
     statusIdsSet,
     tagIdsSet,
     active,
+    negated,
     update,
     setPersonIds,
     setStatusIds,
     setTags,
+    setNegated,
     clearAll,
   } = s
 
   const dates = datesValue(p.dates)
+  // An "is not" section shows its chip value (`not Waiting`) instead of a count.
+  const names = useMemo(() => ({ people, tags: sortedTags, statuses }), [people, sortedTags, statuses])
+  const notValues = useMemo(() => {
+    const out: Partial<Record<'people' | 'status' | 'tags', string>> = {}
+    for (const chip of filterChips(p, names)) {
+      if (chip.negated && (chip.field === 'people' || chip.field === 'status' || chip.field === 'tags')) out[chip.field] = chip.value
+    }
+    return out
+  }, [p, names])
+  const sectionCount = (key: 'people' | 'status' | 'tags', ids: Set<number> | null) => (notValues[key] != null ? undefined : ids?.size)
 
   const handleSection = (next: MobileSection) => {
     setOpenSection(openSection === next ? null : next)
@@ -171,14 +194,14 @@ export function FilterChipBarMobile({
 
   const handlePersonToggle = (personId: number) => {
     const allIds = [0, ...people.map((x) => x.id!)]
-    setPersonIds(toggleItem(personIdsSet, personId, allIds))
+    setPersonIds(entityToggle(personIdsSet, negated.people, personId, allIds))
   }
   const handleStatusToggle = (statusId: number) => {
     const allIds = [0, ...statuses.map((st) => st.id!)]
-    setStatusIds(toggleItem(statusIdsSet, statusId, allIds))
+    setStatusIds(entityToggle(statusIdsSet, negated.status, statusId, allIds))
   }
   const handleTagToggle = (tagId: number) => {
-    setTags(toggleItem(tagIdsSet, tagId, allTagIds))
+    setTags(entityToggle(tagIdsSet, negated.tags, tagId, allTagIds))
   }
 
   const hot = isHotFilter(p.markers)
@@ -234,7 +257,9 @@ export function FilterChipBarMobile({
       {/* Tags */}
       <AccordionSection
         label="Tags"
-        badge={tagIdsSet?.size}
+        badge={sectionCount('tags', tagIdsSet)}
+        value={notValues.tags}
+        valueOn
         open={openSection === 'tags'}
         onToggle={() => handleSection('tags')}
       >
@@ -245,6 +270,7 @@ export function FilterChipBarMobile({
             </div>
           ) : (
             <>
+              <FilterModeToggle field="Tags" negated={negated.tags} onChange={(on) => setNegated('tags', on)} touch />
               <input
                 className={sheet.entitySearchInput}
                 placeholder="Search tags..."
@@ -272,7 +298,7 @@ export function FilterChipBarMobile({
                       className={sheet.entityCheck}
                       tabIndex={-1}
                       aria-hidden="true"
-                      checked={tagIdsSet === null || tagIdsSet.has(tag.id!)}
+                      checked={entityTicked(tagIdsSet, negated.tags, tag.id!)}
                       readOnly
                     />
                   </div>
@@ -286,13 +312,18 @@ export function FilterChipBarMobile({
       {people.length > 0 && (
         <AccordionSection
           label="People"
-          badge={personIdsSet?.size}
+          badge={sectionCount('people', personIdsSet)}
+          value={notValues.people}
+          valueOn
           open={openSection === 'people'}
           onToggle={() => handleSection('people')}
         >
           <MobileEntityList
+            field="People"
             entities={people}
             filterIds={personIdsSet}
+            negated={negated.people}
+            onNegatedChange={(on) => setNegated('people', on)}
             onToggle={handlePersonToggle}
             noneLabel="Unassigned"
             searchPlaceholder="Search people..."
@@ -319,13 +350,18 @@ export function FilterChipBarMobile({
       {statuses.length > 0 && (
         <AccordionSection
           label="Status"
-          badge={statusIdsSet?.size}
+          badge={sectionCount('status', statusIdsSet)}
+          value={notValues.status}
+          valueOn
           open={openSection === 'status'}
           onToggle={() => handleSection('status')}
         >
           <MobileEntityList
+            field="Status"
             entities={statuses}
             filterIds={statusIdsSet}
+            negated={negated.status}
+            onNegatedChange={(on) => setNegated('status', on)}
             onToggle={handleStatusToggle}
             noneLabel="No status"
             searchPlaceholder="Search statuses..."
