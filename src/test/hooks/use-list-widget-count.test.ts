@@ -57,4 +57,12 @@ describe('listsLosingLastWidgetToSource', () => {
     useSettingsStore.setState({ eisenhowerListId: null })
     expect(listsLosingLastWidgetToSource(8)).toEqual([])
   })
+
+  it('nothing to ask when no widget shows the source list now (no Eisenhower tab anywhere)', () => {
+    const lists = layout(3, [{ id: 'b', kind: 'lens', config: { listDefinitionId: 7 } }])
+    useWorkspaceStore.setState({ layouts: [lists], working: lists, saved: lists })
+    useSettingsStore.setState({ eisenhowerListId: 8 })
+    useListDraftStore.setState({ drafts: { 8: { ...list(8), name: 'Edited' } } })
+    expect(listsLosingLastWidgetToSource(null)).toEqual([])
+  })
 })

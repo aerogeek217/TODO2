@@ -33,11 +33,14 @@ export function useListWidgetCount(listDefinitionId: number | undefined): number
 /**
  * The list with unsaved edits that would be left with no widget if the
  * app-wide Eisenhower source became `nextListId` — the current source list,
- * when only Eisenhower tabs show it —, as a list of ids (empty when none):
- * what to ask about (`UnsavedPrompt`) before changing the source.
+ * when Eisenhower tabs and no other widget show it —, as a list of ids
+ * (empty when none): what to ask about (`UnsavedPrompt`) before changing
+ * the source. A list no widget shows now loses nothing to the change.
  */
 export function listsLosingLastWidgetToSource(nextListId: number | null): number[] {
   const current = useSettingsStore.getState().eisenhowerListId
   if (current == null || current === nextListId || !getUnsavedListIds().includes(current)) return []
-  return countListWidgets(useWorkspaceStore.getState(), current, undefined, nextListId) === 0 ? [current] : []
+  const workspace = useWorkspaceStore.getState()
+  const shownNow = countListWidgets(workspace, current, undefined, current) > 0
+  return shownNow && countListWidgets(workspace, current, undefined, nextListId) === 0 ? [current] : []
 }
