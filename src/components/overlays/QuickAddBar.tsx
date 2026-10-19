@@ -8,7 +8,11 @@
  * and problem lines name commands that set nothing. Tag chips show the
  * parsed name — the tag-store resolve-or-create runs at submit.
  *
- * Chips are read-only feedback (no ×). To clear, edit the text.
+ * Each chip has a × (a mouse target, not a Tab stop) that edits the text:
+ * it cuts the tokens the chip came from (`services/nlp-chip-edit`), or — on
+ * the default follow-up — adds `/followup none`. A preset marker (an
+ * Eisenhower quadrant's "+") is dropped from the preset instead. The focus
+ * and the caret stay in the field.
  *
  * ⏎ always adds the task, even while the `@ # /` popup is open: a
  * half-typed token is completed to its best match first; an unreadable one
@@ -39,6 +43,13 @@ import type {
 import { DEFAULT_STATUS_ICON, MARKER_KEYS, type MarkerKey } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
+import {
+  appendTextToken,
+  FOLLOWUP_NONE_TOKEN,
+  removeChip,
+  type QuickAddChip,
+  type TextEdit,
+} from '../../services/nlp-chip-edit'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { usePopoverAnchor, type PopoverAnchor } from '../../hooks/use-popover-anchor'
@@ -103,6 +114,9 @@ export type QuickAddDraft = ParsedTokens & {
   /** Unparsed input as the user typed it — used by the Details / Tab handoff
    * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
+  /** Preset markers whose chip was removed: the task doesn't get them from
+   * the defaults of where it is added. */
+  removedPresetMarkers?: MarkerKey[]
   /** Resolver output (people / tags / status / dates / markers /
    * recurrence) — what `services/create-task.createQuickAddTask` creates the
    * task from on submit. */
@@ -135,8 +149,9 @@ export interface QuickAddBarProps {
   initialDraft?: { rawTitle: string }
   /**
    * What the task gets whatever is typed (e.g. an Eisenhower quadrant's
-   * "+": its Urgent / Important flags), shown as read-only chips, plus
-   * `source` — where the task is being added (`Adding to Schedule`).
+   * "+": its Urgent / Important flags), shown as chips — a marker chip's ×
+   * drops it (`QuickAddDraft.removedPresetMarkers`) —, plus `source` —
+   * where the task is being added (`Adding to Schedule`, no ×).
    */
   preset?: QuickAddPreset
   /**
@@ -168,66 +183,128 @@ function repeatLabel(recurrence: RecurrenceType, due: Date): string {
   return RECURRENCE_LABEL[recurrence]
 }
 
-function PersonChip({ person }: { person: PersistedPerson }) {
+/** What a chip's × does: remove what the chip came from, or (the default follow-up) say "none". */
+type ChipRemoval = QuickAddChip | { kind: 'defaultFollowup' }
+
+/**
+ * A chip's ×: a mouse target only (Tab is the Details hand-off); the press
+ * keeps the focus and the caret in the field.
+ */
+function ChipRemove({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      className={styles.chipRemove}
+      tabIndex={-1}
+      aria-label={label}
+      title={label}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={(e) => {
+        e.stopPropagation()
+        onRemove()
+      }}
+    >
+      &times;
+    </button>
+  )
+}
+
+function PersonChip({ person, onRemove }: { person: PersistedPerson; onRemove: () => void }) {
   return (
     <span className={styles.chip}>
       <span className={styles.chipAvatar} style={{ background: person.color ?? NEUTRAL_PERSON_COLOR }}>
         {person.initials}
       </span>
       <span>@{person.name}</span>
+      <ChipRemove label={`Remove @${person.name}`} onRemove={onRemove} />
     </span>
   )
 }
 
-function NewPersonChip({ name }: { name: string }) {
+function NewPersonChip({ name, onRemove }: { name: string; onRemove: () => void }) {
   return (
     <span className={styles.chip}>
       <span className={`${styles.chipAvatar} ${styles.chipAvatarNew}`} aria-hidden="true">
         {name.charAt(0).toUpperCase()}
       </span>
       <span>@{name}</span>
+      <ChipRemove label={`Remove @${name}`} onRemove={onRemove} />
     </span>
   )
 }
 
-function ParsedChips({ draft, preset, defaultFollowup, today }: {
+/** Names typed more than once (any case) show one chip — the task gets one person. */
+function uniqueNames(names: readonly string[]): string[] {
+  const seen = new Set<string>()
+  return names.filter((n) => {
+    const key = n.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
   draft: QuickAddDraft
   preset?: QuickAddPreset
   defaultFollowup: Date
   today: Date
+  onRemove: (chip: ChipRemoval) => void
 }) {
   return (
     <div className={styles.chipsRow} role="group" aria-label="What the task gets">
       {MARKER_KEYS.filter((key) => draft[key] || preset?.[key]).map((key) => (
         <span key={`marker-${key}`} className={`${styles.chip} ${styles.markerChip}`} data-tint={MARKER_CHIP_TINT[key]}>
           <MarkerIcon marker={key} /> {MARKER_LABELS[key]}
+          <ChipRemove label={`Remove ${MARKER_LABELS[key]}`} onRemove={() => onRemove({ kind: 'marker', marker: key })} />
         </span>
       ))}
       {draft.tags.map((t) => (
-        <span key={`tag-${t}`} className={styles.chip}>#{t}</span>
+        <span key={`tag-${t}`} className={styles.chip}>
+          #{t}
+          <ChipRemove label={`Remove #${t}`} onRemove={() => onRemove({ kind: 'tag', name: t })} />
+        </span>
       ))}
-      {draft.people.map((p) => <PersonChip key={`person-${p.id}`} person={p} />)}
-      {draft.unmatchedPersons.map((n) => <NewPersonChip key={`new-${n}`} name={n} />)}
+      {draft.people.map((p) => (
+        <PersonChip key={`person-${p.id}`} person={p} onRemove={() => onRemove({ kind: 'person', personId: p.id })} />
+      ))}
+      {uniqueNames(draft.unmatchedPersons).map((n) => (
+        <NewPersonChip key={`new-${n}`} name={n} onRemove={() => onRemove({ kind: 'newPerson', name: n })} />
+      ))}
       {draft.deadlineAt && (
-        <span className={styles.chip} data-tint="due"><CalendarIcon /> {formatFollowupDay(draft.deadlineAt, today)}</span>
+        <span className={styles.chip} data-tint="due">
+          <CalendarIcon /> {formatFollowupDay(draft.deadlineAt, today)}
+          <ChipRemove label="Remove due date" onRemove={() => onRemove({ kind: 'command', command: 'due' })} />
+        </span>
       )}
       {draft.followupNone ? (
-        <span className={`${styles.chip} ${styles.chipRing}`}><FollowupFlagIcon /> No follow-up</span>
+        <span className={`${styles.chip} ${styles.chipRing}`}>
+          <FollowupFlagIcon /> No follow-up
+          <ChipRemove label="Use the default follow-up" onRemove={() => onRemove({ kind: 'command', command: 'followup' })} />
+        </span>
       ) : draft.nextFollowupAt ? (
-        <span className={styles.chip} data-tint="followup"><FollowupFlagIcon /> {formatFollowupDate(draft.nextFollowupAt, today)}</span>
+        <span className={styles.chip} data-tint="followup">
+          <FollowupFlagIcon /> {formatFollowupDate(draft.nextFollowupAt, today)}
+          <ChipRemove label="Use the default follow-up" onRemove={() => onRemove({ kind: 'command', command: 'followup' })} />
+        </span>
       ) : (
         <span className={`${styles.chip} ${styles.chipDefault}`}>
           <FollowupFlagIcon /> {formatFollowupDate(defaultFollowup, today)}
           <span className={styles.chipDefaultNote}> · default</span>
+          <ChipRemove label="No follow-up" onRemove={() => onRemove({ kind: 'defaultFollowup' })} />
         </span>
       )}
       {draft.recurrence && draft.deadlineAt && (
-        <span className={styles.chip} data-tint="accent"><RepeatGlyph /> {repeatLabel(draft.recurrence, draft.deadlineAt)}</span>
+        <span className={styles.chip} data-tint="accent">
+          <RepeatGlyph /> {repeatLabel(draft.recurrence, draft.deadlineAt)}
+          <ChipRemove label="Remove repeat" onRemove={() => onRemove({ kind: 'command', command: 'repeat' })} />
+        </span>
       )}
       {draft.status && (
         <span className={`${styles.chip} ${styles.statusChip}`}>
           <span style={{ color: draft.status.color }}><StatusIcon icon={draft.status.icon || DEFAULT_STATUS_ICON} filled /></span>
           {draft.status.name}
+          <ChipRemove label="Remove status" onRemove={() => onRemove({ kind: 'command', command: 'status' })} />
         </span>
       )}
       {preset?.source && <span className={styles.chipsSource}>Adding to {preset.source}</span>}
@@ -370,6 +447,10 @@ export function QuickAddBar({
   const [raw, setRaw] = useState('')
   /** ⏎ was pressed on text that is only tokens: the "No title" line shows until the text changes. */
   const [titleMissing, setTitleMissing] = useState(false)
+  /** Preset markers whose chip × was pressed, until the bar closes. */
+  const [removedPresetMarkers, setRemovedPresetMarkers] = useState<MarkerKey[]>([])
+  /** Where the caret goes once a chip × has changed the text. */
+  const pendingCaretRef = useRef<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -413,17 +494,26 @@ export function QuickAddBar({
     },
   })
 
+  const removedPreset = removedPresetMarkers.length > 0 ? { removedPresetMarkers } : {}
   const draft: QuickAddDraft = {
     ...parsed,
     rawTitle: raw,
     resolved,
+    ...removedPreset,
   }
   /** The draft for `text` (the current one when it's what is typed). */
   const draftFor = (text: string): QuickAddDraft => {
     if (text === raw) return draft
     const run = runParse(text, people, statuses)
-    return { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved }
+    return { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset }
   }
+  /** The preset without the markers whose chip was removed. */
+  const shownPreset = useMemo<QuickAddPreset | undefined>(() => {
+    if (!preset || removedPresetMarkers.length === 0) return preset
+    const next: QuickAddPreset = { ...preset }
+    for (const key of removedPresetMarkers) delete next[key]
+    return next
+  }, [preset, removedPresetMarkers])
 
   // The token the popup is open on: tinted as "being typed"; its problem
   // (e.g. `/due` with no argument yet) isn't listed while the popup shows it.
@@ -455,9 +545,20 @@ export function QuickAddBar({
     } else {
       setRaw('')
       setTitleMissing(false)
+      setRemovedPresetMarkers([])
       dismissAutocomplete()
     }
   }, [open, dismissAutocomplete, initialDraftRef])
+
+  // A chip × changed the text: put the caret back where the edit says.
+  useLayoutEffect(() => {
+    const caret = pendingCaretRef.current
+    const input = inputRef.current
+    if (caret == null || !input) return
+    pendingCaretRef.current = null
+    input.focus()
+    input.setSelectionRange(caret, caret)
+  }, [raw])
 
   // Keep the tint mirror scrolled with the input's text.
   const syncMirror = useCallback(() => {
@@ -528,6 +629,25 @@ export function QuickAddBar({
     popupRef.current = el
     popupPanelRef(el)
   }, [popupPanelRef])
+
+  /** A chip's ×: edit the text (and drop a preset marker), keeping the caret in the field. */
+  const onRemoveChip = (chip: ChipRemoval) => {
+    const input = inputRef.current
+    input?.focus()
+    const caret = input?.selectionStart ?? raw.length
+    if (chip.kind === 'marker' && preset?.[chip.marker] === true) {
+      const marker = chip.marker
+      setRemovedPresetMarkers((keys) => (keys.includes(marker) ? keys : [...keys, marker]))
+    }
+    let edit: TextEdit | null = null
+    if (chip.kind === 'defaultFollowup') edit = appendTextToken(raw, FOLLOWUP_NONE_TOKEN, caret)
+    else if (internalRun.input) edit = removeChip(raw, internalRun.input, chip, people, caret)
+    if (!edit || edit.text === raw) return
+    ac.dismiss()
+    pendingCaretRef.current = edit.caret
+    setRaw(edit.text)
+    setTitleMissing(false)
+  }
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // While the popup is open its keys never reach the bar's Esc / Tab / ⏎.
@@ -655,8 +775,14 @@ export function QuickAddBar({
         </div>
 
         {/* Chips row — what the task will get */}
-        {(raw.trim().length > 0 || hasPreset(preset)) && (
-          <ParsedChips draft={draft} preset={preset} defaultFollowup={defaultFollowup} today={today} />
+        {(raw.trim().length > 0 || hasPreset(shownPreset)) && (
+          <ParsedChips
+            draft={draft}
+            preset={shownPreset}
+            defaultFollowup={defaultFollowup}
+            today={today}
+            onRemove={onRemoveChip}
+          />
         )}
 
         {/* `@name` that matches nobody — the person is created on submit */}

@@ -5,7 +5,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { emptyPredicate } from '../../models'
 import { predicateToCriteria } from '../../utils/filter-criteria'
-import { getFilterDefaults, markerFlags, predicateToFilterDefaults } from '../../utils/filter-defaults'
+import { getFilterDefaults, markerFlags, predicateToFilterDefaults, withoutMarkers } from '../../utils/filter-defaults'
 import { defsEqual } from '../../utils/list-def-equal'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
@@ -145,6 +145,15 @@ describe('marker filter defaults and list equality', () => {
     const none = predicateToFilterDefaults(emptyPredicate())
     expect(none.markers).toBeUndefined()
     expect(markerFlags(none)).toEqual({})
+  })
+
+  it('withoutMarkers drops the given marker seeds and keeps the rest', () => {
+    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: { focus: true, urgent: true }, personIds: [3] }))
+    expect(withoutMarkers(fd, ['urgent'])).toEqual({ personIds: [3], tagIds: [], statusId: undefined, markers: { focus: true } })
+    const neither = withoutMarkers(fd, ['urgent', 'focus'])
+    expect(neither.markers).toBeUndefined()
+    expect(neither.personIds).toEqual([3])
+    expect(withoutMarkers(fd, [])).toBe(fd)
   })
 
   it('a Hot filter seeds no markers (no one set of flags makes a task hot under every rule)', () => {

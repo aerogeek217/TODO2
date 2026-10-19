@@ -142,7 +142,7 @@
   color: var(--color-text-muted);
 }
 
-/* ─── Chips row (read-only: what the task gets) ─────────────── */
+/* ─── Chips row (what the task gets; × edits the text) ──────── */
 
 .chipsRow {
   display: flex;
@@ -185,6 +185,34 @@
 .chip[data-tint="accent"] {
   background: var(--color-accent-bg-medium);
   color: var(--color-accent);
+}
+
+/* A chip's × (the follow-up pill's ×, always shown: phones have no hover). */
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0 -3px 0 -1px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.chipRemove:hover {
+  opacity: 1;
+  background: var(--color-tint-12);
 }
 
 /* Where the task is being added (e.g. "Adding to Schedule"), at the row's end. */

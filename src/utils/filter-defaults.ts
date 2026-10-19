@@ -1,5 +1,5 @@
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
-import type { MarkerSet, TodoItem, TodoPredicate } from '../models'
+import type { MarkerKey, MarkerSet, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers } from './markers'
 
 export interface FilterDefaults {
@@ -54,6 +54,18 @@ export function withUrgentImportant(fd: FilterDefaults, flags: { urgent: boolean
   if (fd.markers?.focus === true) markers.focus = true
   if (flags.urgent) markers.urgent = true
   if (flags.important) markers.important = true
+  const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId }
+  return activeMarkers(markers).length > 0 ? { ...base, markers } : base
+}
+
+/**
+ * `fd` without the given marker seeds (Quick Add: a preset marker chip
+ * removed with its ×). The people / tags / status and other markers stay.
+ */
+export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): FilterDefaults {
+  if (keys.length === 0 || !fd.markers) return fd
+  const markers: MarkerSet = { ...fd.markers }
+  for (const k of keys) delete markers[k]
   const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId }
   return activeMarkers(markers).length > 0 ? { ...base, markers } : base
 }

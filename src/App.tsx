@@ -26,7 +26,7 @@ import { openTaskCounts } from './services/checkin-email/recipients'
 import { backupScheduler } from './data/backup-scheduler'
 import { runAppStartup } from './services/app-startup'
 import { createQuickAddTask } from './services/create-task'
-import { getFilterDefaults, markerFlags } from './utils/filter-defaults'
+import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -108,8 +108,12 @@ function AppQuickAddBar() {
     // Defaults: an explicit list-predicate seed stashed on
     // `quickAddDraft.defaults` (a list widget's "+ Add task"), else the
     // active top-bar filter.
+    // A preset marker whose chip was removed is not seeded.
     const draft = useUIStore.getState().quickAddDraft
-    const fd = draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters)
+    const fd = withoutMarkers(
+      draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters),
+      submitted.removedPresetMarkers ?? [],
+    )
     const id = await createQuickAddTask(submitted, fd)
     if (id == null) return false
     useUIStore.getState().showRecentlyCreated(id)
@@ -128,14 +132,16 @@ function AppQuickAddBar() {
       quickAddOpen: false,
       quickAddDraft: {
         rawTitle: submitted.rawTitle,
-        ...(existing?.defaults ? { defaults: existing.defaults } : {}),
+        ...(existing?.defaults
+          ? { defaults: withoutMarkers(existing.defaults, submitted.removedPresetMarkers ?? []) }
+          : {}),
       },
     })
     useUIStore.getState().openCreatePopup()
   }, [])
 
   // An explicit seed (a list's "+ Add task", an Eisenhower quadrant's "+")
-  // shows its markers and source as read-only chips.
+  // shows its markers (each with a ×) and its source as chips.
   const preset = useMemo<QuickAddPreset | undefined>(() => {
     if (!draft?.defaults && !draft?.source) return undefined
     return { ...markerFlags(draft.defaults), ...(draft.source ? { source: draft.source } : {}) }

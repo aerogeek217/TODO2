@@ -25,10 +25,16 @@ function getInput() {
   return screen.getByPlaceholderText('New task…') as HTMLInputElement
 }
 
-/** Texts of the chips row (what the task will get). */
+/** Texts of the chips row (what the task will get), without the chips' ×. */
 function chipTexts() {
   const group = screen.queryByRole('group', { name: 'What the task gets' })
-  return group ? Array.from(group.children, (el) => (el.textContent ?? '').trim()) : []
+  return group
+    ? Array.from(group.children, (el) => {
+      const copy = el.cloneNode(true) as HTMLElement
+      copy.querySelectorAll('button').forEach((b) => b.remove())
+      return (copy.textContent ?? '').trim()
+    })
+    : []
 }
 
 function changeInput(value: string) {
@@ -683,5 +689,171 @@ describe('QuickAddBar — submit', () => {
     changeInput('Plain')
     fireEvent.keyDown(getInput(), { key: 'Enter' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('QuickAddBar — chip ×', () => {
+  beforeEach(seedStores)
+  afterEach(() => { cleanup() })
+
+  /** Types `text` with the caret at `caret` (the end by default). */
+  function typeAt(text: string, caret = text.length) {
+    const input = changeInput(text)
+    input.focus()
+    input.setSelectionRange(caret, caret)
+    return input
+  }
+
+  /** Presses and clicks a chip's × as a mouse does; returns whether the press kept the focus. */
+  function pressRemove(name: string): boolean {
+    const button = screen.getByRole('button', { name })
+    const kept = !fireEvent.mouseDown(button)
+    fireEvent.click(button)
+    return kept
+  }
+
+  it('every chip has a × that is not a Tab stop; the Adding to label has none', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ focus: true, source: 'Focus' }} />)
+    typeAt('Fix @Anna @Zed #x /due tomorrow /repeat daily /status Doing /urgent')
+    const group = screen.getByRole('group', { name: 'What the task gets' })
+    const buttons = Array.from(group.querySelectorAll('button'))
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Remove Focus', 'Remove Urgent', 'Remove #x', 'Remove @Anna', 'Remove @Zed',
+      'Remove due date', 'No follow-up', 'Remove repeat', 'Remove status',
+    ])
+    for (const b of buttons) expect(b.tabIndex).toBe(-1)
+    expect(screen.getByText('Adding to Focus').querySelector('button')).toBeNull()
+  })
+
+  it('a tag chip: × cuts the tag from the text; the focus and the caret stay in the field', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Fix #work the build')
+    expect(pressRemove('Remove #work')).toBe(true)
+    expect(input).toHaveValue('Fix the build')
+    expect(chipTexts()).not.toContain('#work')
+    expect(document.activeElement).toBe(input)
+    expect(input.selectionStart).toBe('Fix the build'.length)
+  })
+
+  it('a caret before the cut stays put', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Fix #work the build', 2)
+    pressRemove('Remove #work')
+    expect(input.selectionStart).toBe(2)
+  })
+
+  it('person and new-person chips', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Call @Anna and @Zed')
+    pressRemove('Remove @Anna')
+    expect(input).toHaveValue('Call and @Zed')
+    pressRemove('Remove @Zed')
+    expect(input).toHaveValue('Call and')
+    expect(screen.queryByText('New person:')).not.toBeInTheDocument()
+  })
+
+  it('a name typed twice shows one new-person chip, and its × cuts both', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Ask @Zed and @zed')
+    expect(screen.getAllByRole('button', { name: /^Remove @Zed$/i })).toHaveLength(1)
+    pressRemove('Remove @Zed')
+    expect(input).toHaveValue('Ask and')
+  })
+
+  it('marker, due, repeat and status chips', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Standup /urgent /due today /repeat daily /status Doing')
+    pressRemove('Remove Urgent')
+    expect(input).toHaveValue('Standup /due today /repeat daily /status Doing')
+    pressRemove('Remove repeat')
+    expect(input).toHaveValue('Standup /due today /status Doing')
+    pressRemove('Remove status')
+    expect(input).toHaveValue('Standup /due today')
+    pressRemove('Remove due date')
+    expect(input).toHaveValue('Standup')
+    expect(chipTexts()).toHaveLength(1) // the default follow-up
+  })
+
+  it('removing the due date leaves /repeat to the Ignored line', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Standup /due today /repeat daily')
+    pressRemove('Remove due date')
+    expect(input).toHaveValue('Standup /repeat daily')
+    expect(screen.getByText('Ignored:')).toBeInTheDocument()
+  })
+
+  it('the follow-up: default → No follow-up → default', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Vendor call')
+    expect(chipTexts()[0]).toMatch(/· default$/)
+    pressRemove('No follow-up')
+    expect(input).toHaveValue('Vendor call /followup none')
+    expect(chipTexts()).toEqual(['No follow-up'])
+    expect(input.selectionStart).toBe('Vendor call'.length)
+    pressRemove('Use the default follow-up')
+    expect(input).toHaveValue('Vendor call')
+    expect(chipTexts()[0]).toMatch(/· default$/)
+  })
+
+  it('a set follow-up: × goes back to the default', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Vendor /followup 2w call')
+    pressRemove('Use the default follow-up')
+    expect(input).toHaveValue('Vendor call')
+    expect(chipTexts()[0]).toMatch(/· default$/)
+  })
+
+  it('Enter after a × adds the task without what was removed', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+    const input = typeAt('Fix the build #work @Anna')
+    pressRemove('Remove #work')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    const draft = onSubmit.mock.calls[0]?.[0] as QuickAddDraft
+    expect(draft.title).toBe('Fix the build')
+    expect(draft.resolved.tags).toEqual([])
+    expect(draft.resolved.personIds).toEqual([anna.id])
+    expect(draft.removedPresetMarkers).toBeUndefined()
+  })
+
+  it('a preset marker: × drops it from the preset, and the submit says so', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} preset={{ urgent: true, important: true, source: 'Do' }} />)
+    pressRemove('Remove Urgent')
+    expect(chipTexts()[0]).toBe('Important')
+    expect(chipTexts()).not.toContain('Urgent')
+    expect(chipTexts().at(-1)).toBe('Adding to Do')
+    const input = typeAt('Book caterer')
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect((onSubmit.mock.calls[0]?.[0] as QuickAddDraft).removedPresetMarkers).toEqual(['urgent'])
+  })
+
+  it('a marker both typed and preset: × removes both', () => {
+    const onOpenFullEditor = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} onOpenFullEditor={onOpenFullEditor} preset={{ important: true }} />)
+    const input = typeAt('Book /important caterer')
+    pressRemove('Remove Important')
+    expect(input).toHaveValue('Book caterer')
+    expect(chipTexts()).not.toContain('Important')
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect((onOpenFullEditor.mock.calls[0]?.[0] as QuickAddDraft).removedPresetMarkers).toEqual(['important'])
+  })
+
+  it('a removed preset marker comes back the next time the bar opens', () => {
+    const preset = { urgent: true }
+    const { rerender } = render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    pressRemove('Remove Urgent')
+    expect(chipTexts()).toEqual([])
+    rerender(<QuickAddBar open={false} onClose={noop} onSubmit={noop} preset={preset} />)
+    rerender(<QuickAddBar open onClose={noop} onSubmit={noop} preset={preset} />)
+    expect(chipTexts()[0]).toBe('Urgent')
+  })
+
+  it('a × does not close the bar', () => {
+    const onClose = vi.fn()
+    render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)
+    typeAt('Fix #work')
+    pressRemove('Remove #work')
+    expect(onClose).not.toHaveBeenCalled()
   })
 })
