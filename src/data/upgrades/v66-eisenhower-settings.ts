@@ -15,7 +15,8 @@ import { isRecord } from '../../utils/is-record'
  * they come), each one's tabs panel by panel as the app reads them — the
  * top band, the columns' cells, the bottom band — tab by tab. The first
  * Eisenhower tab whose `panes` is an object with at least one key gives
- * `eisenhowerPanes` (its value as stored, as JSON); the first whose
+ * `eisenhowerPanes` (its value as stored, as JSON — none when that value
+ * can't be written as JSON); the first whose
  * `listDefinitionId` is a positive whole number gives `eisenhowerSource` —
  * each only when the dataset has a `settings` table without that key yet.
  * Then `panes` and `listDefinitionId` are removed from every Eisenhower
@@ -68,16 +69,33 @@ function readingOrder(rows: readonly DataRow[]): DataRow[] {
   return rows.map((row, i) => ({ row, i })).sort((a, b) => idOf(a.row) - idOf(b.row) || a.i - b.i).map((x) => x.row)
 }
 
-/** The first customized panes and list source of the layouts, as setting values. */
+/** `value` as JSON; `undefined` when it can't be written as JSON (too deep, a cycle, a BigInt — never from a JSON file). */
+function toJson(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The first customized panes and list source of the layouts, as setting
+ * values. The first customized tab's panes that can't be written as JSON
+ * give no panes setting (its tab is still stripped).
+ */
 function settingsFrom(rows: readonly DataRow[]): { panes?: string; source?: string } {
   const out: { panes?: string; source?: string } = {}
+  let panesFound = false
   for (const row of readingOrder(rows)) {
     if (!isRecord(row)) continue
     for (const tabs of tabListsOf(row)) {
       for (const tab of tabs) {
         if (!isEisenhowerTab(tab)) continue
         const { panes, listDefinitionId } = tab.config
-        if (out.panes === undefined && isRecord(panes) && Object.keys(panes).length > 0) out.panes = JSON.stringify(panes)
+        if (!panesFound && isRecord(panes) && Object.keys(panes).length > 0) {
+          panesFound = true
+          out.panes = toJson(panes)
+        }
         if (out.source === undefined && isListId(listDefinitionId)) out.source = `list:${listDefinitionId}`
       }
     }

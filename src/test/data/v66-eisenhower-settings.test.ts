@@ -93,6 +93,26 @@ describe('upgradeV66 (pure)', () => {
     expect(upgradeV66(odd)).toBe(odd)
   })
 
+  it('the first customized panes that can’t be written as JSON (a cycle, too deep, a BigInt) give no panes setting; every tab is still stripped', () => {
+    const cyclic: Record<string, unknown> = { drop: { name: 'Someday' } }
+    cyclic.self = cyclic
+    let deep: Record<string, unknown> = {}
+    const deepPanes = { drop: { name: 'Deep', filter: deep } }
+    for (let i = 0; i < 200_000; i++) {
+      const next: Record<string, unknown> = {}
+      deep.x = next
+      deep = next
+    }
+    for (const panes of [cyclic, deepPanes, { drop: { name: 'Big', extra: 1n } }]) {
+      const out = upgradeV66({
+        settings: [],
+        layouts: [layout(1, cells([eis('a', { panes, listDefinitionId: 7 }), eis('b', { panes: SOMEDAY })]))],
+      })
+      expect(out.settings).toEqual([{ key: 'eisenhowerSource', value: 'list:7' }])
+      expect(out.layouts).toEqual([layout(1, cells([eis('a'), eis('b')]))])
+    }
+  })
+
   it('never changes its input', () => {
     const data = v65Rows()
     const before = JSON.stringify(data)
@@ -168,5 +188,21 @@ describe('v66 Dexie upgrade', () => {
     // The settings store reads them.
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: HAND_OFF, eisenhowerListId: 7 })
+  })
+
+  it('opens a v65 database whose first customized panes can’t be written as JSON (a cycle IndexedDB kept): no panes setting, tabs stripped', async () => {
+    db.close()
+    await Dexie.delete(db.name)
+    const v65 = new Dexie(db.name)
+    v65.version(65).stores(v65StoreSpecs())
+    await v65.open()
+    const cyclic: Record<string, unknown> = { drop: { name: 'Someday' } }
+    cyclic.self = cyclic
+    await v65.table('layouts').add(layout(1, cells([eis('a', { panes: cyclic })])))
+    v65.close()
+    await db.open()
+    expect(db.verno).toBe(CURRENT_DB_VERSION)
+    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
+    expect(await db.layouts.toArray()).toEqual([layout(1, cells([eis('a')]))])
   })
 })
