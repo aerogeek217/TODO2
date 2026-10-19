@@ -315,7 +315,8 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   await expect(purge).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(1)
   await purge.getByRole('button', { name: 'Not now' }).click()
-  await expect(page.getByTestId('storage-pill')).toHaveText(SYNC_FILE)
+  await expect(page.getByTestId('storage-pill')).toHaveText('Synced')
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('title', `Syncing to ${SYNC_FILE}`)
   await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
   // The dark override paints the app (the fixture's theme is dark).
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(32, 48, 64)')
