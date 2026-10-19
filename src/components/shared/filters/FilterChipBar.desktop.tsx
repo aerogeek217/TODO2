@@ -8,6 +8,7 @@ import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
 import { hasMarkers, MARKERS_LABEL } from '../../../utils/markers'
 import { useUIStore } from '../../../stores/ui-store'
+import { sendPersonCheckin } from '../../../services/checkin-email/person-checkin'
 import {
   AtIcon,
   CheckIcon,
@@ -109,9 +110,10 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
 }
 
 /**
- * The People picker's footer: `Email check-in to <name>…` / `… N people…`
- * while the filter is narrowed to some (not all, not none) people — opens
- * the check-in dialog with exactly those people ticked — else a hint.
+ * The People picker's footer while the filter is narrowed to some (not all,
+ * not none) people: `Email check-in to <name>` emails that one person at
+ * once (`sendPersonCheckin`); `Email check-in to N people…` opens the
+ * check-in dialog with exactly those people ticked. Else a hint.
  */
 function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number; name: string }[]; onDone: () => void }) {
   const only = people.length === 1 ? people[0] : undefined
@@ -125,12 +127,14 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
           type="button"
           className={styles.checkinAction}
           onClick={() => {
+            // The one-person send first, inside the click: its clipboard write needs the gesture.
+            if (only) void sendPersonCheckin(only.id)
+            else useUIStore.getState().openCheckinDialog(people.map((p) => p.id))
             onDone()
-            useUIStore.getState().openCheckinDialog(people.map((p) => p.id))
           }}
         >
           <EnvelopeIcon />
-          {only ? `Email check-in to ${only.name}…` : `Email check-in to ${people.length} people…`}
+          {only ? `Email check-in to ${only.name}` : `Email check-in to ${people.length} people…`}
         </button>
       )}
     </>

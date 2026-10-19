@@ -284,10 +284,14 @@ describe('FilterChipBar — primitive', () => {
         fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
       }
 
-      it('narrowed to one person: Email check-in to <name>… opens the dialog with them ticked and closes the picker', () => {
+      // No tasks loaded here: a one-click send has nothing to send, so it opens the dialog for the person with the reason.
+      it('narrowed to one person: Email check-in to <name> sends at once (else the dialog, with the reason) and closes the picker', () => {
         openPeople([2])
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob…' }))
-        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
+        expect(useUIStore.getState().checkinDialog).toEqual({
+          personIds: [2],
+          notice: 'Bob has no open tasks in “All open tasks”, so nothing was sent. Choose other tasks under Which tasks.',
+        })
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })
 
@@ -312,8 +316,8 @@ describe('FilterChipBar — primitive', () => {
         render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
         fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
         fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice…' }))
-        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1] })
+        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice' }))
+        expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [1] })
         expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
       })
 

@@ -150,6 +150,11 @@ describe('CheckinDialog — rows', () => {
     expect(within(row(3)).getByRole('button', { name: 'Copy & open for Cy Young' })).toBeTruthy()
   })
 
+  it('shows the notice it was opened with (a one-click send that could not send)', () => {
+    render(<CheckinDialog />)
+    act(() => useUIStore.getState().openCheckinDialog([1], 'Ada Lovelace has no open tasks in “Hot”, so nothing was sent.'))
+    expect(screen.getByRole('status').textContent).toBe('Ada Lovelace has no open tasks in “Hot”, so nothing was sent.')
+  })
 
   it('counts open tasks per person for the Which tasks choice (completed ones never count)', async () => {
     open([1])
@@ -213,6 +218,7 @@ describe('CheckinDialog — sending', () => {
     expect(followed).toEqual([1, 2, 3])
     expect((await db.todos.get(3))?.lastFollowupAt).toEqual(NOW)
     expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Ada Lovelace opened · 3 tasks followed up' })
 
     await act(() => useUndoStore.getState().undo())
     expect(useTodoStore.getState().todos.filter((t) => t.lastFollowupAt)).toEqual([])

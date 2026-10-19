@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
@@ -512,13 +512,14 @@ describe('ListWidget People group headers: email check-in', () => {
 
   const header = (key: string) => document.querySelector(`[data-list-group="${key}"] button[aria-expanded]`) as HTMLElement
 
-  it('each person’s group has an envelope that opens the check-in with them ticked; Unassigned has none', () => {
+  // No clipboard in this environment: a one-click send can't copy, so it opens the check-in dialog for the person.
+  it('each person’s group has an envelope that sends their check-in (here: the dialog, as the copy fails); Unassigned has none', async () => {
     setup(def({ grouping: 'people' }))
     expect(screen.getAllByRole('button', { name: /^Email check-in to / }).map((b) => b.getAttribute('aria-label')))
       .toEqual(['Email check-in to Alice', 'Email check-in to Bob'])
     expect(document.querySelector('[data-list-group="unassigned"] [aria-label^="Email check-in"]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2], notice: expect.stringMatching(/clipboard/) }))
     // The header itself still collapses its group.
     fireEvent.click(header('person-1'))
     expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
@@ -543,11 +544,11 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(useUIStore.getState().checkinDialog).toBeNull()
   })
 
-  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', () => {
+  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', async () => {
     setup(def({ grouping: 'people' }))
     fireEvent.keyDown(header('person-2'), { key: 'F10', shiftKey: true })
     fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in: Bob' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2] }))
     fireEvent.keyDown(screen.getByRole('button', { name: 'Email check-in to Alice' }), { key: 'ContextMenu' })
     expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
   })

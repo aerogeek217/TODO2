@@ -170,13 +170,17 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog offers Email check-in next to Copy tasks, opening the check-in with that person ticked', () => {
+  it('a person’s dialog offers Email check-in next to Copy tasks, which sends that person’s check-in at once', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
     const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
     expect(footerButtons.slice(0, 2)).toEqual(['Copy tasks', 'Email check-in'])
+    // No clipboard here: the send can't copy, so the check-in dialog opens for her with the reason.
     fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [priya.id] })
+    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toEqual({
+      personIds: [priya.id],
+      notice: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.',
+    }))
     // The task dialog stays open underneath.
     expect(dialog()).not.toBeNull()
   })

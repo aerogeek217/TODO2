@@ -182,9 +182,10 @@ interface UIState {
   settingsPart: SettingsPartId | null
   /**
    * The email check-in dialog (`CheckinDialog`): the people ticked when it
-   * opened (none from the general command). `null` = closed.
+   * opened (none from the general command) and `notice`: why a one-click
+   * send opened it instead (shown in its status line). `null` = closed.
    */
-  checkinDialog: { personIds: number[] } | null
+  checkinDialog: { personIds: number[]; notice?: string } | null
   /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
   checkinImportOpen: boolean
   /** A person's / tag's Edit… or Delete… from its menu (`EntityActionHost`); `null` = none. */
@@ -231,8 +232,8 @@ interface UIState {
   setSettingsSection: (target: SettingsTarget) => void
   /** The part scroll was shown: forget it. */
   clearSettingsPart: () => void
-  /** Opens the email check-in dialog with `personIds` ticked (none by default). */
-  openCheckinDialog: (personIds?: readonly number[]) => void
+  /** Opens the email check-in dialog with `personIds` ticked (none by default) and an optional `notice`. */
+  openCheckinDialog: (personIds?: readonly number[], notice?: string) => void
   closeCheckinDialog: () => void
   /** Opens the check-in reply import dialog (closing the check-in dialog). */
   openCheckinImport: () => void
@@ -448,8 +449,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     if (get().settingsPart !== null) set({ settingsPart: null })
   },
 
-  openCheckinDialog(personIds) {
-    set({ checkinDialog: { personIds: [...new Set(personIds ?? [])] } })
+  openCheckinDialog(personIds, notice) {
+    set({ checkinDialog: { personIds: [...new Set(personIds ?? [])], ...(notice ? { notice } : {}) } })
   },
 
   closeCheckinDialog() {

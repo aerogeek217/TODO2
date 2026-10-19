@@ -116,10 +116,11 @@ interface TodoState {
   /**
    * "Mark followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
    * Settings default interval`, on every task in `ids`. One undo step with
-   * the undo snackbar. The timestamps are resolved once and shared by the
-   * store and the DB write.
+   * the undo snackbar — `description` names it (default `Followed up · next
+   * follow-up …`). The timestamps are resolved once and shared by the store
+   * and the DB write.
    */
-  markFollowedUp: (ids: number[]) => Promise<void>
+  markFollowedUp: (ids: number[], description?: string) => Promise<void>
   /**
    * Deletes `ids` as one undo step (with the snackbar). More than
    * `BULK_DELETE_SNAPSHOT_MIN` tasks are backed up first; if that backup
@@ -602,7 +603,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'dueDate', undefined, label, get, set, { showSnackbar: true })
   },
 
-  async markFollowedUp(ids: number[]) {
+  async markFollowedUp(ids: number[], label?: string) {
     const targets = get().todos.filter((t) => ids.includes(t.id))
     if (targets.length === 0) return
     const now = new Date()
@@ -614,7 +615,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       modifiedAt: t.modifiedAt,
     }]))
     const targetIds = targets.map((t) => t.id)
-    const description = `Followed up · next follow-up ${formatFollowupDate(next, now)}`
+    const description = label ?? `Followed up · next follow-up ${formatFollowupDate(next, now)}`
     return optimistic(
       () => set({
         todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changes, modifiedAt: now } : t)),
@@ -629,7 +630,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       'Failed to mark tasks followed up',
       {
         description,
-        redo: () => get().markFollowedUp(targetIds),
+        redo: () => get().markFollowedUp(targetIds, label),
         undo: async () => {
           const undoNow = new Date()
           await todoRepository.bulkUpdate(targetIds.map((todoId) => {

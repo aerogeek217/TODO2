@@ -4,12 +4,19 @@ import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { useToday } from '../../hooks/use-today'
-import { buildCheckinEmail, type CheckinEmail } from '../../services/checkin-email/build'
+import type { CheckinEmail } from '../../services/checkin-email/build'
 import { checkinRecipients } from '../../services/checkin-email/recipients'
 import { createTaskRefLookup } from '../../services/checkin-email/ref'
-import { checkinTaskCount, selectCheckinTasks, type CheckinSelectContext } from '../../services/checkin-email/select'
-import { sendCheckinEmail } from '../../services/checkin-email/send'
+import { checkinTaskCount, selectCheckinTasks } from '../../services/checkin-email/select'
 import { checkinEmlFileName } from '../../services/checkin-email/handoff'
+import {
+  CHECKIN_INCLUDE_DEFAULTS,
+  COPY_FAILED_NOTICE,
+  invalidAddressNotice,
+  prepareCheckin,
+  sendPreparedCheckin,
+  type CheckinBuildContext,
+} from '../../services/checkin-email/person-checkin'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -22,6 +29,7 @@ import {
   CHECKIN_LIST_SCOPE_HINT,
   CHECKIN_OPEN_METHOD_OPTIONS,
   CHECKIN_QUICK_SCOPES,
+  checkinScopeLabel,
   checkinTaskScopeEqual,
   resolveCheckinTaskScope,
   type CheckinTaskScope,
@@ -56,9 +64,11 @@ const addressLine = (p: PersistedPerson) => {
  * with the row's button — one message per click, since the clipboard holds
  * one body at a time. Anyone can be ticked: without a valid address the
  * email goes without a recipient, added in the mail app. Sending puts the
- * body on the clipboard and opens a
- * `mailto:` link, or downloads an `.eml` draft (Settings' choice, also set
- * here), then records a follow-up on the email's tasks (one undo entry).
+ * body on the clipboard and opens a `mailto:` link, or downloads an `.eml`
+ * draft (Settings' choice, also set here), then records a follow-up on the
+ * email's tasks (one undo entry) — `services/checkin-email/person-checkin`,
+ * shared with the one-click send, which opens this dialog with a `notice`
+ * when it can't send.
  *
  * Mounted by the workspace page, which loads every task, their people and
  * tags, the statuses and the saved lists this reads.
@@ -66,22 +76,25 @@ const addressLine = (p: PersistedPerson) => {
 export function CheckinDialog() {
   const state = useUIStore((s) => s.checkinDialog)
   if (!state) return null
-  return <CheckinDialogPanel openedFor={state.personIds} />
+  return <CheckinDialogPanel openedFor={state.personIds} notice={state.notice} />
 }
 
-function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
+const noticeToast = (notice: string | undefined): Toast | null => (notice ? { text: notice, error: true } : null)
+
+function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice?: string }) {
   // A new open request while open (another entry point): start afresh.
   const [opened, setOpened] = useState(openedFor)
   const [ticked, setTicked] = useState<ReadonlySet<number>>(() => new Set(openedFor))
   const [sent, setSent] = useState<ReadonlyMap<number, SentAs>>(() => new Map())
+  const [toast, setToast] = useState<Toast | null>(() => noticeToast(notice))
   if (opened !== openedFor) {
     setOpened(openedFor)
     setTicked(new Set(openedFor))
     setSent(new Map())
+    setToast(noticeToast(notice))
   }
-  const [includeNotes, setIncludeNotes] = useState(true)
-  const [includeOthers, setIncludeOthers] = useState(true)
-  const [toast, setToast] = useState<Toast | null>(null)
+  const [includeNotes, setIncludeNotes] = useState(CHECKIN_INCLUDE_DEFAULTS.includeNotes)
+  const [includeOthers, setIncludeOthers] = useState(CHECKIN_INCLUDE_DEFAULTS.includeOthers)
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
   const [emailEditorFor, setEmailEditorFor] = useState<number | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -108,29 +121,28 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
     () => checkinRecipients(people, todos, assignedPeopleMap, opened),
     [people, todos, assignedPeopleMap, opened],
   )
-  const selectCtx = useMemo<CheckinSelectContext>(() => ({
-    todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, markerSettings, weekStartsOn,
-  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, markerSettings, weekStartsOn])
+  const refOf = useMemo(() => createTaskRefLookup(todos.map((t) => t.uid)), [todos])
+  const buildCtx = useMemo<CheckinBuildContext>(() => ({
+    todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, markerSettings, weekStartsOn, refOf,
+  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, markerSettings, weekStartsOn, refOf])
   const scope = useMemo(
     () => resolveCheckinTaskScope(scopeSetting, listDefinitions.map((d) => d.id)),
     [scopeSetting, listDefinitions],
   )
-  const refOf = useMemo(() => createTaskRefLookup(todos.map((t) => t.uid)), [todos])
 
   const countFor = useCallback(
-    (p: PersistedPerson, s: CheckinTaskScope) => checkinTaskCount(selectCheckinTasks(p, s, selectCtx)),
-    [selectCtx],
+    (p: PersistedPerson, s: CheckinTaskScope) => checkinTaskCount(selectCheckinTasks(p, s, buildCtx)),
+    [buildCtx],
   )
   const isChecked = (p: PersistedPerson) => ticked.has(p.id)
   const checkedPeople = recipients.filter(isChecked)
   // The menu counts the people ticked; with nobody ticked, everyone listed.
   const menuPeople = checkedPeople.length > 0 ? checkedPeople : recipients
 
-  const buildEmail = useCallback((p: PersistedPerson, sentAt: Date): { email: CheckinEmail; taskIds: number[] } => {
-    const sections = selectCheckinTasks(p, scope, selectCtx)
-    const email = buildCheckinEmail(p, sections, { today, assignedPeopleMap, assignedTagsMap, refOf }, { includeNotes, includeOthers, sentAt })
-    return { email, taskIds: [...sections.overdue, ...sections.comingUp].map((t) => t.id) }
-  }, [scope, selectCtx, today, assignedPeopleMap, assignedTagsMap, refOf, includeNotes, includeOthers])
+  const buildEmail = useCallback(
+    (p: PersistedPerson, sentAt: Date) => prepareCheckin(p, scope, buildCtx, { includeNotes, includeOthers }, sentAt),
+    [scope, buildCtx, includeNotes, includeOthers],
+  )
   const buildPreview = useCallback((p: PersistedPerson) => buildEmail(p, new Date()).email, [buildEmail])
 
   // The people editor, the preview and the Which tasks menu own Esc while open.
@@ -150,27 +162,26 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
 
   const send = async (p: PersistedPerson) => {
     const sentAt = new Date()
-    const { email, taskIds } = buildEmail(p, sentAt)
-    if (taskIds.length === 0) return
-    // First thing in the click: the clipboard needs the user gesture.
-    const result = await sendCheckinEmail({ email, personName: p.name, method, sentAt })
+    const prepared = buildEmail(p, sentAt)
+    if (prepared.taskIds.length === 0) return
+    // First thing in the click: the clipboard needs the user gesture. A
+    // successful send records the follow-up (one undo entry).
+    const result = await sendPreparedCheckin(p, prepared, method, sentAt)
     if (result === 'copy-failed') {
-      setToast({ text: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.', error: true })
+      setToast({ text: COPY_FAILED_NOTICE, error: true })
       return
     }
     if (result === 'invalid-address') {
-      setToast({ text: `${p.name}’s email address isn’t valid, so nothing was sent. Fix it in People.`, error: true })
+      setToast({ text: invalidAddressNotice(p.name), error: true })
       return
     }
-    const noAddress = email.to === '' ? ' Add the recipient in your mail app.' : ''
+    const noAddress = prepared.email.to === '' ? ' Add the recipient in your mail app.' : ''
     setSent((prev) => new Map(prev).set(p.id, result))
     setToast({
       text: result === 'opened'
         ? `Opened a message to ${p.name}. The body is on your clipboard: paste it with Ctrl+V.${noAddress}`
         : `Downloaded the draft for ${p.name} (${checkinEmlFileName(p.name, sentAt)}) — open it from your Downloads folder to review and send.${noAddress}`,
     })
-    // Sending counts as a follow-up on every task in the email (one undo entry).
-    void useTodoStore.getState().markFollowedUp(taskIds)
     focusNext()
   }
 
@@ -217,9 +228,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
     return entries
   }, [scope, menuPeople, countFor, listDefinitions])
 
-  const scopeLabel = scope.kind === 'list'
-    ? listDefinitions.find((d) => d.id === scope.listDefinitionId)?.name ?? 'All open tasks'
-    : CHECKIN_QUICK_SCOPES.find((q) => checkinTaskScopeEqual(q.scope, scope))?.label ?? 'All open tasks'
+  const scopeLabel = checkinScopeLabel(scope, listDefinitions)
 
   const sendLabel = method === 'eml' ? 'Download .eml' : 'Copy & open'
 

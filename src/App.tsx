@@ -23,6 +23,7 @@ import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { openTaskCounts } from './services/checkin-email/recipients'
+import { sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
 import { runAppStartup } from './services/app-startup'
 import { createQuickAddTask } from './services/create-task'
@@ -323,6 +324,7 @@ function AppShell() {
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
       openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
+      sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
       openCheckinImport: () => useUIStore.getState().openCheckinImport(),
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),

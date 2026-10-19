@@ -1,6 +1,5 @@
 import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
-import { isValidEmail } from '../utils/person'
 import { byName } from '../utils/sort-order'
 import { useUndoStore } from '../stores/undo-store'
 import { useUIStore } from '../stores/ui-store'
@@ -48,6 +47,12 @@ export interface CommandContext {
   getStatuses?: () => Status[]
   /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
   openCheckinDialog?: (personIds?: number[]) => void
+  /**
+   * Emails one person their check-in at once (`checkin-email/person-checkin`
+   * `sendPersonCheckin`). Runs inside the command's key press / click: the
+   * clipboard write needs that gesture.
+   */
+  sendPersonCheckin?: (personId: number) => void
   /** Opens the check-in reply import dialog. */
   openCheckinImport?: () => void
   /** People, for the per-person check-in commands. */
@@ -59,16 +64,18 @@ export interface CommandContext {
 const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
 
 /**
- * `Email check-in: <person>` for each person with a valid email address and at
- * least one open task, by name; the hint counts their open tasks.
+ * `Email check-in: <person>` for each person with at least one open task, by
+ * name (an email address isn't needed: the recipient can be added in the mail
+ * app); the hint counts their open tasks. Running one sends that person's
+ * check-in at once.
  */
-function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) => void): Command[] {
+function personCheckinCommands(ctx: CommandContext, send: (personId: number) => void): Command[] {
   const counts = ctx.getOpenTaskCounts?.() ?? new Map<number, number>()
   return (ctx.getPeople?.() ?? [])
     .flatMap((p) => {
       const id = p.id
       const n = id != null ? counts.get(id) ?? 0 : 0
-      if (id == null || n === 0 || !isValidEmail(p.email ?? '')) return []
+      if (id == null || n === 0) return []
       return [{ id, name: p.name, n }]
     })
     .sort(byName)
@@ -77,7 +84,7 @@ function personCheckinCommands(ctx: CommandContext, open: (personIds: number[]) 
       name: `Email check-in: ${name}`,
       hint: openTasksLabel(n),
       category: 'email',
-      action: () => open([id]),
+      action: () => send(id),
     }))
 }
 
@@ -131,7 +138,7 @@ export function createCommands(
   if (ctx.openCheckinImport) {
     commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
   }
-  if (openCheckinDialog) commands.push(...personCheckinCommands(ctx, openCheckinDialog))
+  if (ctx.sendPersonCheckin) commands.push(...personCheckinCommands(ctx, ctx.sendPersonCheckin))
 
   // Bulk actions — only when tasks are selected
   if (ctx.selectionCount === 1) {
