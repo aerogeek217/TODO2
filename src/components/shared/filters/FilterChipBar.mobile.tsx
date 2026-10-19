@@ -3,10 +3,10 @@ import { ClearableField } from '../ClearableField'
 import { datesValue, filterChips } from '../../../utils/filter-chips'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
-import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
+import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, markerCondition, markersValue, toggleHot } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
-import { FilterModeToggle } from './FilterPanels'
+import { FilterModeToggle, MarkerConditionToggle } from './FilterPanels'
 import { entityTicked, entityToggle } from '../../../utils/filter-negation'
 import {
   useFilterChipBarState,
@@ -205,19 +205,23 @@ export function FilterChipBarMobile({
 
   const hot = isHotFilter(p.markers)
   const markersActiveCount = (hot ? 1 : 0) + activeMarkers(p.markers).length
+  // With a No marker the row spells the filter out (`Urgent, not Important`), like an "is not" field.
+  const markersNot = activeMarkers(p.markers).some((k) => markerCondition(p.markers, k) === false)
 
   return (
     <>
       {/* Priority section */}
       <AccordionSection
         label={MARKERS_LABEL}
-        badge={markersActiveCount}
+        badge={markersNot ? undefined : markersActiveCount}
+        value={markersNot ? markersValue(p.markers) : undefined}
+        valueOn
         open={openSection === 'markers'}
         onToggle={() => handleSection('markers')}
       >
         <div>
-          {/* Priority: Hot, or every switched-on marker (strict AND). Hot
-              switches the single markers off and disables them. */}
+          {/* Priority: Hot, or Any · Yes · No per marker (strict AND). Hot
+              clears the single markers and disables them. */}
           <div className={sheet.filterRow}>
             <span className={sheet.filterLabel}>
               <span className={sheet.filterLabelIcon} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
@@ -231,25 +235,15 @@ export function FilterChipBarMobile({
               aria-label="Only hot tasks"
             />
           </div>
-          {MARKER_KEYS.map((key) => {
-            const on = activeMarkers(p.markers).includes(key)
-            return (
-              <div key={key} className={sheet.filterRow} style={hot ? { opacity: 0.4 } : undefined}>
-                <span className={sheet.filterLabel}>
-                  <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
-                  {MARKER_LABELS[key]}
-                </span>
-                <button
-                  className={`${sheet.toggle} ${on ? sheet.toggleActive : ''}`}
-                  onClick={() => update({ markers: toggleMarker(p.markers, key) })}
-                  role="switch"
-                  aria-checked={on}
-                  disabled={hot}
-                  aria-label={`Only ${MARKER_LABELS[key].toLowerCase()} tasks`}
-                />
-              </div>
-            )
-          })}
+          {MARKER_KEYS.map((key) => (
+            <div key={key} className={sheet.filterRow} style={hot ? { opacity: 0.4 } : undefined}>
+              <span className={sheet.filterLabel} aria-hidden>
+                <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
+                {MARKER_LABELS[key]}
+              </span>
+              <MarkerConditionToggle marker={key} value={p.markers} onChange={(markers) => update({ markers })} touch disabled={hot} />
+            </div>
+          ))}
         </div>
       </AccordionSection>
 

@@ -19,38 +19,40 @@ const tasks = [
   { title: 'Water plants' },
 ]
 
-test('the Markers picker: Hot first, greying the others; Urgent + Important AND', async ({ page }) => {
+test('the Markers picker: Hot first, greying the others; Urgent Yes + Important Yes AND', async ({ page }) => {
   const widget = await seedTaskList(page, { statuses: ['Doing'], tasks })
   await expect.poll(() => rowTitles(widget)).toHaveLength(6)
 
   await page.getByRole('button', { name: 'Priority filter' }).click()
   const picker = page.getByRole('group', { name: 'Priority' })
-  await expect(picker.getByRole('checkbox')).toHaveText(['Hot', 'Focus', 'Urgent', 'Important'])
+  await expect(picker.getByRole('checkbox')).toHaveText(['Hot'])
+  await expect(picker.getByRole('radiogroup')).toHaveCount(3)
+  const yes = (name: string) => picker.getByRole('radiogroup', { name, exact: true }).getByRole('radio', { name: 'Yes' })
 
   // Urgent + Important: tasks with both (Urgent includes urgent by due date).
-  await picker.getByRole('checkbox', { name: 'Urgent' }).click()
-  await picker.getByRole('checkbox', { name: 'Important' }).click()
+  await yes('Urgent').click()
+  await yes('Important').click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Fix checkout outage', 'Draft homepage copy'])
-  await expect(page.getByRole('button', { name: 'Priority filter: Urgent +1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Priority filter: Urgent, Important' })).toBeVisible()
 
   // Hot replaces them and greys them out.
   await picker.getByRole('checkbox', { name: 'Hot' }).click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Fix checkout outage', 'Draft homepage copy', 'Book venue'])
   await expect(page.getByRole('button', { name: 'Priority filter: Hot' })).toBeVisible()
   for (const name of ['Urgent', 'Important', 'Focus']) {
-    const item = picker.getByRole('checkbox', { name })
-    await expect(item).toHaveAttribute('aria-disabled', 'true')
-    await expect(item).toHaveAttribute('aria-checked', 'false')
-    await expect(item).toHaveCSS('opacity', '0.4')
+    const group = picker.getByRole('radiogroup', { name, exact: true })
+    await expect(group).toHaveAttribute('aria-disabled', 'true')
+    await expect(group.getByRole('radio', { name: 'Any' })).toHaveAttribute('aria-checked', 'true')
+    await expect(group.locator('..')).toHaveCSS('opacity', '0.4')
   }
   await expect(picker).toContainText('Hot already combines these. Clear Hot to pick them one by one.')
-  await picker.getByRole('checkbox', { name: 'Focus' }).click({ force: true })
+  await yes('Focus').click({ force: true })
   await expect.poll(() => rowTitles(widget)).toEqual(['Fix checkout outage', 'Draft homepage copy', 'Book venue'])
 
   // Unticking Hot is no filter; the markers are enabled again.
   await picker.getByRole('checkbox', { name: 'Hot' }).click()
   await expect.poll(() => rowTitles(widget)).toHaveLength(6)
-  await expect(picker.getByRole('checkbox', { name: 'Urgent' })).not.toHaveAttribute('aria-disabled', 'true')
+  await expect(picker.getByRole('radiogroup', { name: 'Urgent', exact: true })).not.toHaveAttribute('aria-disabled', 'true')
 })
 
 test('editing the Hot rule in Settings changes a Hot list’s tasks and count at once', async ({ page }) => {

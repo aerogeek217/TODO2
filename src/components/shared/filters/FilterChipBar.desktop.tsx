@@ -358,11 +358,11 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
 interface FieldValues {
   /** The value text of each active field (tags without their `#`: the button shows a # glyph). */
   values: Partial<Record<FieldKey, string>>
-  /** An "is not" field's tooltip: what it hides. */
+  /** An "is not" field's (or a Priority No's) tooltip: what it hides. */
   tooltips: Partial<Record<FieldKey, string>>
 }
 
-/** Each active field's value text (`not Waiting` for an "is not" one) and the "is not" tooltips. */
+/** Each active field's value text (`not Waiting` for an "is not" one) and the "is not" / Priority No tooltips. */
 function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[1]): FieldValues {
   return useMemo(() => {
     const values: Partial<Record<FieldKey, string>> = {}
@@ -584,10 +584,12 @@ export function FilterChipBarDesktop({
     icon: <ImportantIcon outline />,
     highlighted: hasMarkers(p.markers),
     value: values.markers ?? null,
+    tooltip: tooltips.markers,
+    tooltipLabelLines: 1,
     onClear: () => clearField('markers'),
     panel: {
       kind: 'custom',
-      // Several markers can be ticked, so picking one keeps the picker open.
+      // Several markers can be set, so picking one keeps the picker open.
       render: () => <MarkersPanelBody value={p.markers ?? null} onChange={(markers) => update({ markers })} />,
     },
   })

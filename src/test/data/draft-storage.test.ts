@@ -128,6 +128,19 @@ describe('draft storage', () => {
     expect(kept.kind === 'custom' && 'negate' in kept.predicate).toBe(false)
   })
 
+  it('a list draft keeps a Priority filter with No markers; one it cannot read is not taken back', () => {
+    const base = listDef()
+    const withMarkers = (markers: unknown) => ({ kind: 'custom' as const, predicate: { ...emptyPredicate(), markers } as TodoPredicate })
+    const draft = listDef({ membership: withMarkers({ urgent: true, important: false }) })
+    writeListDrafts(new Map([[4, { draft, base }]]))
+    expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
+
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
+      5: { draft: { ...listDef({ membership: withMarkers({ urgent: 'no' }) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+    }))
+    expect([...readListDrafts().keys()]).toEqual([])
+  })
+
   it('clearUnsavedDrafts forgets both kinds', () => {
     writeLayoutDraft(savedDraft)
     writeListDrafts(new Map([[4, { draft: listDef({ name: 'B' }), base: listDef() }]]))

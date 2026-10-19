@@ -42,7 +42,7 @@ const FULL_PREDICATE: TodoPredicate = {
     created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
     modified: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
   },
-  markers: { urgent: true, important: true },
+  markers: { urgent: true, important: false },
   tags: [1],
 }
 
@@ -220,10 +220,11 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
-    // Both forms of the Markers filter: Hot and ticked markers.
+    // Both forms of the Markers filter: Hot and markers set to Yes and No.
     const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
     expect(markers).toContain('hot')
-    expect(markers.some((m) => typeof m === 'object' && m !== null)).toBe(true)
+    const conditions = markers.flatMap((m) => (typeof m === 'object' && m !== null ? Object.values(m) : []))
+    expect(new Set(conditions)).toEqual(new Set([true, false]))
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))

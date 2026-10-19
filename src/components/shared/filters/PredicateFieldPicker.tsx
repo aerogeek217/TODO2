@@ -75,7 +75,7 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
       ) : field === 'text' ? (
         <TextPicker predicate={predicate} update={update} onClose={onClose} />
       ) : field === 'markers' ? (
-        // Several markers can be ticked, so picking one keeps the picker open.
+        // Several markers can be set, so picking one keeps the picker open.
         <MarkersPanelBody value={predicate.markers ?? null} onChange={(markers) => update({ markers })} />
       ) : (
         <EntityPicker field={field} predicate={predicate} adding={adding} replace={replace} onClose={onClose} />

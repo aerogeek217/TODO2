@@ -4,7 +4,7 @@ import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
-import { hasMarkers, MARKERS_LABEL, markersValue } from './markers'
+import { hasMarkers, MARKERS_LABEL, markersTooltip, markersValue } from './markers'
 
 /** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'
@@ -18,11 +18,11 @@ export interface FilterChip {
   dateField?: DateField
   /** Field name, e.g. `Due`, `Status` (list chips show it muted before the value). */
   label: string
-  /** Value text, e.g. `within 14 days`, `Alice +2`, `#q4`, `not Waiting`. */
+  /** Value text, e.g. `within 14 days`, `Alice +2`, `#q4`, `not Waiting`, `Urgent, not Important`. */
   value: string
   /** An "is not" People / Status / Tags chip: its value starts `not `. */
   negated?: true
-  /** Spelled out for a tooltip (an "is not" chip: what it hides); absent when the chip says it all. */
+  /** Spelled out for a tooltip (an "is not" chip, a Priority No: what it hides); absent when the chip says it all. */
   tooltip?: string
 }
 
@@ -203,7 +203,11 @@ export function datesSpokenValue(dates: DateFilters): string | null {
  */
 export function filterChips(c: FilterClauses, names: FilterChipNames, includeCompleted = false): FilterChip[] {
   const chips: FilterChip[] = []
-  if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers) })
+  if (hasMarkers(c.markers)) {
+    // A No marker: `Urgent, not Important`, with a tooltip saying what it hides.
+    const tooltip = markersTooltip(c.markers)
+    chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers), ...(tooltip ? { tooltip } : {}) })
+  }
   // An id chip: `Alice +2`, or — "is not" — `not Alice +2` with a tooltip saying what it hides.
   const idChip = (field: 'tags' | 'people' | 'status', key: NegatableField, label: string, ids: Iterable<number>, nameOf: (id: number) => string | undefined, zeroName: string, prefix = ''): FilterChip => {
     const value = namesValue(ids, nameOf, zeroName, prefix)

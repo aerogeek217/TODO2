@@ -10,7 +10,8 @@ import {
   type DateFilters,
   type DateMatch,
   type FilterNegation,
-  type MarkerSet,
+  type MarkerConditions,
+  type MarkerKey,
   type MarkersFilter,
   type NegatableField,
   type RelativeDateToken,
@@ -155,15 +156,19 @@ function readIdList(v: unknown): number[] | null | undefined {
   return [...(v as number[])]
 }
 
-/** A Markers filter: `'hot'` or an object of known markers set to `true`; `undefined` when malformed. */
+/**
+ * A Markers filter: `'hot'` or an object of known markers set to `true` (Yes)
+ * or `false` (No); `undefined` when malformed (an unknown marker or any other
+ * value drops the whole filter — which way it filtered is unknown).
+ */
 function readMarkers(v: unknown): MarkersFilter | null | undefined {
   if (v === null) return null
   if (v === HOT_MARKERS) return HOT_MARKERS
   if (!isRecord(v)) return undefined
-  const out: MarkerSet = {}
+  const out: MarkerConditions = {}
   for (const [k, val] of Object.entries(v)) {
-    if (!(MARKER_KEYS as readonly string[]).includes(k) || val !== true) return undefined
-    out[k as keyof MarkerSet] = true
+    if (!(MARKER_KEYS as readonly string[]).includes(k) || typeof val !== 'boolean') return undefined
+    out[k as MarkerKey] = val
   }
   return out
 }

@@ -1,7 +1,7 @@
-import type { DateAnchor, DateFilters, FilterNegation, MarkerSet, MarkersFilter, TodoPredicate } from '../models'
+import type { DateAnchor, DateFilters, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
 import { hasDateFilters, normalizeDateFilters, readDateFilters } from './date-filters'
 import { withNormalizedNegation } from './filter-negation'
-import { activeMarkers, hasMarkers, isHotFilter } from './markers'
+import { activeMarkers, hasMarkers, isHotFilter, markerConditions } from './markers'
 
 /**
  * Runtime filter state: same fields as the serializable `TodoPredicate`, but
@@ -32,9 +32,9 @@ export interface FilterCriteria {
    */
   dates: DateFilters
   /**
-   * Markers filter: the task must be hot (Settings' Hot rule) or have every
-   * listed marker (Urgent = effective urgent, `utils/urgency.ts`). null = no
-   * filter.
+   * Markers filter: the task must be hot (Settings' Hot rule) or meet every
+   * marker's Yes (`true`) / No (`false`) (Urgent = effective urgent,
+   * `utils/urgency.ts`). null = no filter.
    */
   markers: MarkersFilter | null
   /**
@@ -124,12 +124,8 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   return withNormalizedNegation(p.negate ? { ...f, negate: { ...p.negate } } : f)
 }
 
-/** Hot, a copy of the required markers, or null when none is ticked. */
+/** Hot, a copy of the markers' Yes / No conditions, or null when no marker is tested. */
 function normalizeMarkers(m: MarkersFilter | null | undefined): MarkersFilter | null {
   if (isHotFilter(m)) return m
-  const keys = activeMarkers(m)
-  if (keys.length === 0) return null
-  const out: MarkerSet = {}
-  for (const k of keys) out[k] = true
-  return out
+  return activeMarkers(m).length > 0 ? markerConditions(m) : null
 }

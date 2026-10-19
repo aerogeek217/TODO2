@@ -32,6 +32,7 @@ export {
   type MarkerKey,
   type MarkersFilter,
   type MarkerSet,
+  type MarkerConditions,
   HOT_MARKERS,
   MARKER_KEYS,
   type NegatableField,

@@ -11,6 +11,11 @@ import { useTagStore } from '../../../../stores/tag-store'
 import { emptyPredicate } from '../../../../models'
 import { makePerson } from '../../../helpers'
 
+/** A marker's Any / Yes / No segment in the Priority picker. */
+function markerChoice(marker: string, choice: 'Any' | 'Yes' | 'No'): HTMLElement {
+  return within(screen.getByRole('radiogroup', { name: marker })).getByRole('radio', { name: choice })
+}
+
 function seedStores() {
   usePersonStore.setState({
     people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
@@ -89,33 +94,62 @@ describe('FilterChipBar — primitive', () => {
         .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
     })
 
-    it('the Markers button ticks markers that AND; unticking the last clears it', () => {
+    it('the Priority button sets each marker to Any / Yes / No (AND); Any on the last clears it', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
       expect(screen.queryByRole('button', { name: /^Focus filter/ })).toBeNull()
 
       fireEvent.click(screen.getByRole('button', { name: 'Priority filter' }))
-      expect(screen.getByText(/strict AND/)).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Focus' }))
+      expect(screen.getByText(/Yes: tasks must have it\. No: tasks must not\./)).toBeInTheDocument()
+      for (const marker of ['Focus', 'Urgent', 'Important']) expect(markerChoice(marker, 'Any')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(markerChoice('Focus', 'Yes'))
       expect(updates.at(-1)?.markers).toEqual({ focus: true })
       // The picker stays open for a second pick.
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { focus: true } }} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('checkbox', { name: 'Focus' })).toHaveAttribute('aria-checked', 'true')
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Urgent' }))
-      expect(updates.at(-1)?.markers).toEqual({ urgent: true, focus: true })
-      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true, focus: true } }} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('button', { name: 'Priority filter: Focus +1' })).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Urgent' }))
+      expect(markerChoice('Focus', 'Yes')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(markerChoice('Important', 'No'))
+      expect(updates.at(-1)?.markers).toEqual({ focus: true, important: false })
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { focus: true, important: false } }} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByRole('button', { name: 'Priority filter: Focus, not Important' })).toBeInTheDocument()
+      expect(markerChoice('Important', 'No')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(markerChoice('Focus', 'Any'))
+      expect(updates.at(-1)?.markers).toEqual({ important: false })
       fireEvent.click(screen.getByRole('button', { name: 'Clear priority filter' }))
       expect(updates.at(-1)?.markers).toBeNull()
+    })
+
+    it('arrow keys move a marker between Any, Yes and No', () => {
+      const updates: TodoPredicate[] = []
+      const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Priority filter' }))
+      fireEvent.keyDown(markerChoice('Urgent', 'Any'), { key: 'ArrowLeft' })
+      expect(updates.at(-1)?.markers).toEqual({ urgent: false })
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: false } }} onChange={(p) => updates.push(p)} />)
+      expect(markerChoice('Urgent', 'No')).toHaveAttribute('tabindex', '0')
+      fireEvent.keyDown(markerChoice('Urgent', 'No'), { key: 'ArrowRight' })
+      expect(updates.at(-1)?.markers).toBeNull()
+    })
+
+    it('a Priority No shows in the button and its tooltip says what it hides', () => {
+      vi.useFakeTimers()
+      try {
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true, important: false } }} onChange={() => {}} />)
+        const button = screen.getByRole('button', { name: 'Priority filter: Urgent, not Important' })
+        expect(button).toHaveTextContent('Urgent, not Important')
+        fireEvent.pointerEnter(button, { pointerType: 'mouse' })
+        act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+        expect(screen.getByRole('tooltip')).toHaveTextContent('Hides tasks that are Important')
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('Hot comes first; ticking it replaces the single markers and greys them out', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true } }} onChange={(p) => updates.push(p)} />)
       fireEvent.click(screen.getByRole('button', { name: 'Priority filter: Urgent' }))
-      const names = screen.getAllByRole('checkbox').map((c) => c.textContent)
-      expect(names).toEqual(['Hot', 'Focus', 'Urgent', 'Important'])
+      expect(screen.getAllByRole('checkbox').map((c) => c.textContent)).toEqual(['Hot'])
+      expect(screen.getAllByRole('radiogroup').map((g) => g.getAttribute('aria-label'))).toEqual(['Focus', 'Urgent', 'Important'])
       fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' }))
       expect(updates.at(-1)?.markers).toBe('hot')
 
@@ -123,12 +157,13 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.getByRole('button', { name: 'Priority filter: Hot' })).toBeInTheDocument()
       expect(screen.getByRole('checkbox', { name: 'Hot' })).toHaveAttribute('aria-checked', 'true')
       for (const name of ['Urgent', 'Important', 'Focus']) {
-        expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-disabled', 'true')
-        expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-checked', 'false')
+        expect(screen.getByRole('radiogroup', { name })).toHaveAttribute('aria-disabled', 'true')
+        expect(markerChoice(name, 'Any')).toHaveAttribute('aria-checked', 'true')
       }
       expect(screen.getByText('Hot already combines these. Clear Hot to pick them one by one.')).toBeInTheDocument()
       const before = updates.length
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Important' }))
+      fireEvent.click(markerChoice('Important', 'Yes'))
+      fireEvent.keyDown(markerChoice('Important', 'Any'), { key: 'ArrowRight' })
       expect(updates.length).toBe(before)
       fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' }))
       expect(updates.at(-1)?.markers).toBeNull()
@@ -373,22 +408,25 @@ describe('FilterChipBar — primitive', () => {
       expect(updates.at(-1)?.dates).toEqual({})
     })
 
-    it('switches markers on at mobile density', () => {
+    it('sets markers to Yes / No at mobile density', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
       fireEvent.click(screen.getByText('Priority'))
-      fireEvent.click(screen.getByRole('switch', { name: 'Only focus tasks' }))
+      fireEvent.click(markerChoice('Focus', 'Yes'))
       expect(updates.at(-1)?.markers).toEqual({ focus: true })
       rerender(<FilterChipBar density="mobile" predicate={updates.at(-1)!} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('switch', { name: 'Only focus tasks' })).toHaveAttribute('aria-checked', 'true')
-      fireEvent.click(screen.getByRole('switch', { name: 'Only urgent tasks' }))
-      expect(updates.at(-1)?.markers).toEqual({ urgent: true, focus: true })
+      expect(markerChoice('Focus', 'Yes')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(markerChoice('Urgent', 'No'))
+      expect(updates.at(-1)?.markers).toEqual({ focus: true, urgent: false })
+      rerender(<FilterChipBar density="mobile" predicate={updates.at(-1)!} onChange={(p) => updates.push(p)} />)
+      // With a No, the section spells the filter out instead of a count.
+      expect(screen.getByText('Focus, not Urgent')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('switch', { name: 'Only hot tasks' }))
       expect(updates.at(-1)?.markers).toBe('hot')
       rerender(<FilterChipBar density="mobile" predicate={updates.at(-1)!} onChange={(p) => updates.push(p)} />)
       expect(screen.getByRole('switch', { name: 'Only hot tasks' })).toHaveAttribute('aria-checked', 'true')
-      expect(screen.getByRole('switch', { name: 'Only urgent tasks' })).toBeDisabled()
-      expect(screen.getByRole('switch', { name: 'Only urgent tasks' })).toHaveAttribute('aria-checked', 'false')
+      expect(screen.getByRole('radiogroup', { name: 'Urgent' })).toHaveAttribute('aria-disabled', 'true')
+      expect(markerChoice('Urgent', 'Any')).toHaveAttribute('aria-checked', 'true')
     })
 
     it('renders the show-completed switch with correct aria-label and toggles it', () => {

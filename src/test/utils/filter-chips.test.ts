@@ -104,14 +104,21 @@ describe('filterChips', () => {
     expect(chips.map(chipKey)).toEqual(['people', 'dates:deadline', 'dates:followup'])
   })
 
-  it('a Markers clause reads the first marker (+N), first among the chips', () => {
+  it('a Markers clause reads every tested marker, first among the chips', () => {
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true } }, names)).toEqual([
       { field: 'markers', label: 'Priority', value: 'Focus' },
     ])
     expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true }, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
       .toEqual(['markers', 'status', 'text'])
     // Display order is Focus › Urgent › Important, whatever the stored order.
-    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Focus +1')
+    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Focus, Urgent')
+    // A No marker reads `not <marker>`, and the tooltip says what it hides.
+    expect(filterChips({ ...emptyPredicate(), markers: { important: false, urgent: true } }, names)[0]).toEqual({
+      field: 'markers', label: 'Priority', value: 'Urgent, not Important',
+      tooltip: 'Priority: Urgent, not Important\nHides tasks that are Important',
+    })
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: false } })).toBe(true)
+    expect(describeFilters(filterChips({ ...emptyPredicate(), markers: { urgent: true, important: false } }, names))).toBe('Priority Urgent, not Important')
     expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: true } })).toBe(true)
     expect(hasNarrowingFilters({ ...emptyPredicate(), markers: {} })).toBe(false)
     expect(filterChips({ ...emptyPredicate(), markers: {} }, names)).toEqual([])

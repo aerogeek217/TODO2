@@ -91,21 +91,28 @@ export const MARKER_KEYS: readonly MarkerKey[] = ['focus', 'urgent', 'important'
 
 /**
  * A set of markers: only `true` values are stored, an empty object is none.
- * A Markers filter's ticked markers, one line of the Hot rule, the flags a
- * filter seeds on new tasks.
+ * One line of the Hot rule (a task has every marker of the line).
  */
 export type MarkerSet = { [K in MarkerKey]?: true }
+
+/**
+ * What a Priority filter asks of each marker: `true` = the task must have it
+ * (Yes), `false` = it must not (No), absent = either (Any). An empty object
+ * tests nothing. Also the flags a filter seeds on new tasks (`false` = off).
+ */
+export type MarkerConditions = { [K in MarkerKey]?: boolean }
 
 /** The Markers filter's Hot choice: the task must be hot (Settings' Hot rule, `utils/hot.ts`). */
 export const HOT_MARKERS = 'hot'
 
 /**
- * The Markers filter: either `'hot'` — the task must be hot — or a set of
- * markers the task must **all** have (strict AND). `urgent` means effective
- * urgent — flagged, or due within the Settings range (`utils/urgency.ts`).
- * Hot excludes picking single markers.
+ * The Markers (Priority) filter: either `'hot'` — the task must be hot — or
+ * a condition per marker, all of which must hold (strict AND): e.g. Urgent
+ * Yes and Important No. `urgent` means effective urgent — flagged, or due
+ * within the Settings range (`utils/urgency.ts`), so Urgent No also leaves
+ * out tasks urgent by their due date. Hot excludes the single markers.
  */
-export type MarkersFilter = typeof HOT_MARKERS | MarkerSet
+export type MarkersFilter = typeof HOT_MARKERS | MarkerConditions
 
 /** The id filters an "is not" switch can turn round: people, status, tags. */
 export type NegatableField = 'personIds' | 'statusIds' | 'tags'
@@ -147,8 +154,8 @@ export interface TodoPredicate {
   /** The date filters, one clause per date type (AND); `{}` = none. */
   dates: DateFilters
   /**
-   * Markers filter (Hot, or Focus / Urgent / Important with strict AND);
-   * null or absent = no filter. Optional on read.
+   * Markers (Priority) filter: Hot, or Yes / No per marker (Focus / Urgent /
+   * Important, strict AND); null or absent = no filter. Optional on read.
    */
   markers?: MarkersFilter | null
   /**

@@ -354,6 +354,20 @@ describe('sanitisable-row audit', () => {
     expect((await auditData()).issues).toEqual([])
   })
 
+  it('keeps a Priority filter with No markers; reports one it cannot read and cleanup drops it', async () => {
+    const id = await db.listDefinitions.add(list('Odd', { statusIds: [2], markers: { urgent: false, important: 'no' } }) as any)
+    const fine = await db.listDefinitions.add(list('Delegate', { markers: { urgent: true, important: false } }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: priority filter dropped')
+    await cleanupIssues(report.issues)
+    expect((await db.listDefinitions.get(id))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ statusIds: [2], markers: null }) })
+    expect((await db.listDefinitions.get(fine))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ markers: { urgent: true, important: false } }) })
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {
     const id = await db.listDefinitions.add(list('Bad', { personIds: 5, statusIds: [2], searchText: 'x'.repeat(600) }) as any)
 

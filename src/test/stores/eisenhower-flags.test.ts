@@ -58,6 +58,11 @@ describe('withUrgentImportant', () => {
     expect(withUrgentImportant({ ...base, markers: { urgent: true } }, { urgent: false, important: false })).toEqual(base)
     expect(withUrgentImportant(base, { urgent: true, important: true })).toEqual({ ...base, markers: { urgent: true, important: true } })
   })
+
+  it('keeps a Focus No and drops an Urgent / Important No (the quadrant decides those)', () => {
+    expect(withUrgentImportant({ ...base, markers: { focus: false, important: false } }, { urgent: true, important: false }))
+      .toEqual({ ...base, markers: { focus: false, urgent: true } })
+  })
 })
 
 describe('dragTasks', () => {

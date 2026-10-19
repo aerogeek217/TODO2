@@ -68,6 +68,16 @@ describe('computeListTileCounts', () => {
     expect(computeListTileCounts([hot], tasks, opts(undefined, null))[0]).toMatchObject({ total: 1 })
   })
 
+  it('a Priority No counts the tasks without that marker (Urgent No: not urgent by flag or by due date)', () => {
+    // Open tasks: 1 (none), 2 (urgent + important), 4 (important, due tomorrow).
+    expect(computeListTileCounts([list(1, { markers: { important: false } })], tasks, opts())[0]).toMatchObject({ total: 1 })
+    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 1 })
+    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(undefined, null))[0]).toMatchObject({ total: 2 })
+    // Screen Important Yes + list Urgent No: task 4 only while it isn't urgent by its due date.
+    const screen = { ...NONE, markers: { important: true } }
+    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(screen, null))[0]).toMatchObject({ shown: 1, total: 2 })
+  })
+
   it('no lists, or no tasks, gives no / zero counts', () => {
     expect(computeListTileCounts([], tasks, opts())).toEqual([])
     expect(computeListTileCounts([list(1, {})], [], opts(NONE))[0]).toMatchObject({ shown: 0, total: 0 })

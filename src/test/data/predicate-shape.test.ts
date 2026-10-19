@@ -40,6 +40,8 @@ const APP_PREDICATES: Array<[string, TodoPredicate]> = [
     negate: { personIds: true, statusIds: true, tags: true },
   }],
   ['"is not" on one field', { ...emptyPredicate(), statusIds: [1, 0], tags: [3], negate: { statusIds: true } }],
+  ['Priority Yes and No', { ...emptyPredicate(), markers: { urgent: true, important: false } }],
+  ['Priority No on every marker', { ...emptyPredicate(), markers: { focus: false, urgent: false, important: false } }],
 ]
 
 describe('pickPredicate', () => {
@@ -70,7 +72,11 @@ describe('pickPredicate', () => {
     expect(pickPredicate({ ...emptyPredicate(), personIds: ids })).toEqual({ predicate: { ...emptyPredicate(), personIds: ids }, fixes: [] })
   })
 
-  it.each([['an unknown string', 'warm'], ['hot as a key', { hot: true }], ['a non-true value', { urgent: 'yes' }], ['an array', ['hot']], ['a number', 1]])(
+  it.each([
+    ['an unknown string', 'warm'], ['hot as a key', { hot: true }], ['a non-boolean value', { urgent: 'yes' }],
+    ['a null value', { important: null }], ['a number value', { focus: 0 }], ['a No beside a bad value', { urgent: false, important: 1 }],
+    ['an array', ['hot']], ['a number', 1],
+  ])(
     'drops a Markers filter that is %s',
     (_name, markers) => {
       expect(pickPredicate({ ...emptyPredicate(), markers })).toEqual({ predicate: emptyPredicate(), fixes: ['priority filter dropped'] })

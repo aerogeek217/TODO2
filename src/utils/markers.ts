@@ -1,4 +1,4 @@
-import { HOT_MARKERS, MARKER_KEYS, type MarkerKey, type MarkerSet, type MarkersFilter } from '../models/filter-predicate'
+import { HOT_MARKERS, MARKER_KEYS, type MarkerConditions, type MarkerKey, type MarkersFilter } from '../models/filter-predicate'
 import { hasMarker, isHot, type HotRule, type MarkerFields } from './hot'
 import { urgentByDateReason, urgentMark, type UrgentDueWithinDays, type UrgentMark } from './urgency'
 
@@ -84,28 +84,55 @@ export function isHotFilter(m: MarkersFilter | null | undefined): m is typeof HO
 }
 
 /**
- * The single markers a filter requires, in display order; empty for no
- * filter and for Hot (Hot is its own choice, not a set of ticked markers).
+ * What a filter asks of `key`: `true` (Yes, must have it), `false` (No, must
+ * not), `undefined` (Any) — also for no filter and for Hot (Hot is its own
+ * choice, not a condition per marker).
  */
-export function activeMarkers(m: MarkersFilter | null | undefined): MarkerKey[] {
-  if (m == null || isHotFilter(m)) return []
-  return MARKER_KEYS.filter((k) => m[k] === true)
+export function markerCondition(m: MarkersFilter | null | undefined, key: MarkerKey): boolean | undefined {
+  if (m == null || isHotFilter(m)) return undefined
+  const v = m[key]
+  return typeof v === 'boolean' ? v : undefined
 }
 
-/** Whether a Markers filter narrows anything (Hot, or at least one ticked marker). */
+/**
+ * The single markers a filter tests (Yes or No), in display order; empty for
+ * no filter and for Hot.
+ */
+export function activeMarkers(m: MarkersFilter | null | undefined): MarkerKey[] {
+  return MARKER_KEYS.filter((k) => markerCondition(m, k) !== undefined)
+}
+
+/**
+ * The filter's conditions as a fresh object with the keys in display order,
+ * `false` and `true` only (`{}` for no filter and for Hot).
+ */
+export function markerConditions(m: MarkersFilter | null | undefined): MarkerConditions {
+  const out: MarkerConditions = {}
+  for (const k of activeMarkers(m)) out[k] = markerCondition(m, k)
+  return out
+}
+
+/** Whether a Markers filter narrows anything (Hot, or a Yes / No on at least one marker). */
 export function hasMarkers(m: MarkersFilter | null | undefined): boolean {
   return isHotFilter(m) || activeMarkers(m).length > 0
 }
 
 /**
- * `m` with `key` ticked or unticked; `null` once nothing is ticked. While
- * Hot is on the single markers are disabled: `m` comes back unchanged.
+ * `m` with `key` set to Yes (`true`), No (`false`) or Any (`undefined`);
+ * `null` once no marker is tested. While Hot is on the single markers are
+ * disabled: `m` comes back unchanged.
  */
-export function toggleMarker(m: MarkersFilter | null | undefined, key: MarkerKey): MarkersFilter | null {
+export function withMarkerCondition(
+  m: MarkersFilter | null | undefined,
+  key: MarkerKey,
+  condition: boolean | undefined,
+): MarkersFilter | null {
   if (isHotFilter(m)) return m
-  const next: MarkerSet = {}
-  for (const k of activeMarkers(m)) if (k !== key) next[k] = true
-  if (m?.[key] !== true) next[key] = true
+  const next: MarkerConditions = {}
+  for (const k of MARKER_KEYS) {
+    const v = k === key ? condition : markerCondition(m, k)
+    if (v !== undefined) next[k] = v
+  }
   return activeMarkers(next).length > 0 ? next : null
 }
 
@@ -114,26 +141,45 @@ export function toggleHot(m: MarkersFilter | null | undefined): MarkersFilter | 
   return isHotFilter(m) ? null : HOT_MARKERS
 }
 
-/** Whether two Markers filters require the same (absent == null == `{}`; Hot only equals Hot). */
+/** Whether two Markers filters ask the same (absent == null == `{}`; Hot only equals Hot). */
 export function markersEqual(a: MarkersFilter | null | undefined, b: MarkersFilter | null | undefined): boolean {
   if (isHotFilter(a) || isHotFilter(b)) return a === b
-  const x = activeMarkers(a)
-  const y = activeMarkers(b)
-  return x.length === y.length && x.every((k, i) => k === y[i])
+  return MARKER_KEYS.every((k) => markerCondition(a, k) === markerCondition(b, k))
 }
 
-/** `Hot`, `Urgent`, `Urgent +1` — the filter's value as a chip / button shows it. */
+/**
+ * `Hot`, `Urgent`, `Focus, Urgent, not Important` — the filter's value as a
+ * chip / button shows it: every tested marker in display order, a No one as
+ * `not <marker>`.
+ */
 export function markersValue(m: MarkersFilter | null | undefined): string {
   if (isHotFilter(m)) return HOT_LABEL
-  const keys = activeMarkers(m)
-  const first = keys[0]
-  if (first == null) return ''
-  return keys.length > 1 ? `${MARKER_LABELS[first]} +${keys.length - 1}` : MARKER_LABELS[first]
+  return activeMarkers(m)
+    .map((k) => (markerCondition(m, k) === false ? `not ${MARKER_LABELS[k]}` : MARKER_LABELS[k]))
+    .join(', ')
+}
+
+/** `a`, `a or b`, `a, b or c`. */
+function orNames(names: readonly string[]): string {
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`
+}
+
+/**
+ * The tooltip of a Priority filter with a No: its value, then what it hides
+ * (`Hides tasks that are Important`; for Urgent, `(flagged or due soon)`).
+ * `null` when no marker is No.
+ */
+export function markersTooltip(m: MarkersFilter | null | undefined): string | null {
+  const excluded = activeMarkers(m).filter((k) => markerCondition(m, k) === false)
+  if (excluded.length === 0) return null
+  const names = excluded.map((k) => (k === 'urgent' ? `${MARKER_LABELS[k]} (flagged or due soon)` : MARKER_LABELS[k]))
+  return `${MARKERS_LABEL}: ${markersValue(m)}\nHides tasks that are ${orNames(names)}`
 }
 
 /**
  * Whether `todo` passes the Markers filter: hot by `settings.hotRule`, or
- * having every ticked marker (strict AND; Urgent = effective urgent).
+ * meeting every marker's condition — having each Yes marker and none of the
+ * No ones (strict AND; Urgent = effective urgent).
  */
 export function matchesMarkers(
   todo: MarkerFields,
@@ -142,5 +188,5 @@ export function matchesMarkers(
   settings: MarkerSettings,
 ): boolean {
   if (isHotFilter(m)) return isHot(todo, settings.hotRule, today, settings.urgentRange)
-  return activeMarkers(m).every((k) => hasMarker(todo, k, today, settings.urgentRange))
+  return activeMarkers(m).every((k) => hasMarker(todo, k, today, settings.urgentRange) === markerCondition(m, k))
 }

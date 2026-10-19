@@ -106,7 +106,7 @@ const markerTasks = [
   { title: 'Plain' },
 ]
 
-test('the top-bar Markers filter (first of the filters) keeps tasks with every ticked marker', async ({ page }) => {
+test('the top-bar Markers filter (first of the filters) keeps tasks with every Yes marker', async ({ page }) => {
   const widget = await seedTaskList(page, { statuses: ['Doing'], people: ['Ann'], tags: ['home'], tasks: markerTasks })
   await expect.poll(() => rowTitles(widget)).toHaveLength(5)
   await expect(page.getByRole('button', { name: /^Focus filter/ })).toHaveCount(0)
@@ -114,17 +114,19 @@ test('the top-bar Markers filter (first of the filters) keeps tasks with every t
     .getByRole('button').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')).filter((n) => n?.endsWith(' filter')))
   expect(names).toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
 
+  const marker = (name: string, choice: 'Any' | 'Yes') =>
+    page.getByRole('radiogroup', { name, exact: true }).getByRole('radio', { name: choice })
   await page.getByRole('button', { name: 'Priority filter' }).click()
-  await page.getByRole('checkbox', { name: 'Urgent' }).click()
+  await marker('Urgent', 'Yes').click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Flagged urgent', 'Due tomorrow'])
 
   // Several markers AND; the picker stays open for the second pick.
-  await page.getByRole('checkbox', { name: 'Urgent' }).click()
-  await page.getByRole('checkbox', { name: 'Important' }).click()
-  await page.getByRole('checkbox', { name: 'Focus' }).click()
+  await marker('Urgent', 'Any').click()
+  await marker('Important', 'Yes').click()
+  await marker('Focus', 'Yes').click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Important focus'])
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Priority filter: Focus +1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Priority filter: Focus, Important' })).toBeVisible()
   await expect(page.locator('[data-filter-row]')).toHaveAttribute('data-filtered', 'true')
 
   await page.getByRole('button', { name: 'Clear priority filter' }).click()
@@ -139,7 +141,7 @@ test('a list’s own Markers filter (+ Filter › Markers) narrows the list and 
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
   const picker = page.getByTestId('list-filter-picker')
-  await picker.getByRole('checkbox', { name: 'Important' }).click()
+  await picker.getByRole('radiogroup', { name: 'Important', exact: true }).getByRole('radio', { name: 'Yes' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
   await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Important/)

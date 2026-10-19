@@ -167,6 +167,14 @@ describe('selectCheckinTasks', () => {
     expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 2 }, ctx).comingUp)).toEqual([1, 2])
   })
 
+  it('list: a Priority No leaves out the tasks with that marker', () => {
+    const todos = [makeTodo({ id: 1, important: true }), makeTodo({ id: 2, urgent: true }), makeTodo({ id: 3, urgent: true, important: true })]
+    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada] }, {
+      listDefinitions: [list(1, { markers: { urgent: true, important: false } })],
+    })
+    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([2])
+  })
+
   it('list with a prompt: a person prompt gets this person; other prompts narrow nothing', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
     const ctx = context(todos, { 1: [ada], 2: [ada, bob], 3: [bob] }, {

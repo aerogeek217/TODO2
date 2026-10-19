@@ -781,6 +781,20 @@ describe('validateImportData', () => {
       ])
     })
 
+    it('keeps a Priority filter’s Yes and No markers; any other value drops the filter with a warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [
+          list(1, 'Delegate', { markers: { urgent: true, important: false } }),
+          list(2, 'Odd', { statusIds: [2], markers: { urgent: true, important: 'no' } }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [delegate, odd] = result.data.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate : null)
+      expect(delegate?.markers).toEqual({ urgent: true, important: false })
+      expect(odd).toMatchObject({ statusIds: [2], markers: null })
+      expect(result.warnings).toEqual(['Fixed 1 list: "Odd" (priority filter dropped)'])
+    })
+
     it('still rejects a predicate missing its core shape', () => {
       const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { showCompleted: 'yes' })] }))
       expect(result).toEqual({ ok: false, error: expect.stringContaining('bad field "membership"') })
