@@ -186,6 +186,13 @@ describe('sendPersonCheckin', () => {
     expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [99] })
   })
 
+  it('a follow-up that can’t be written after the send: a notice says so (no unhandled rejection)', async () => {
+    useTodoStore.setState({ markFollowedUp: () => Promise.reject(new Error('disk full')) })
+    expect(await sendPersonCheckin(1)).toBe('opened')
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar)
+      .toEqual({ description: 'Check-in for Ada Lovelace opened, but the follow-up couldn’t be recorded.', notice: true }))
+  })
+
   it('a second click while the first send runs sends nothing', async () => {
     const first = sendPersonCheckin(1)
     expect(await sendPersonCheckin(1)).toBe('busy')
