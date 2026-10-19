@@ -467,6 +467,12 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
   })
 
+  it('a list whose only Priority clause is a No offers + Add task (the new task starts without the marker)', () => {
+    setup(def({}, { markers: { urgent: false } }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
+  })
+
   it('a Hot list re-filters when the Hot rule or the urgent range changes, and offers no + Add task', () => {
     const tomorrow = new Date()
     tomorrow.setHours(0, 0, 0, 0)

@@ -101,6 +101,10 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
   { name: 'hot with urgent', a: { markers: 'hot' }, b: { markers: { urgent: true } }, onlyA: [2, 3], onlyB: [1, 2, 3], both: [2, 3] },
   { name: 'hot with important', a: { markers: 'hot' }, b: { markers: { important: true } }, onlyA: [2, 3], onlyB: [4], both: [] },
   { name: 'hot with people', a: { markers: 'hot' }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
+  // A No (P6): Urgent No = neither flagged nor due within the range (4 only).
+  { name: 'urgent yes with urgent no', a: { markers: { urgent: true } }, b: { markers: { urgent: false } }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
+  { name: 'urgent no with important yes', a: { markers: { urgent: false } }, b: { markers: { important: true } }, onlyA: [4], onlyB: [4], both: [4] },
+  { name: 'focus no with people', a: { markers: { focus: false } }, b: { personIds: new Set([1]) }, onlyA: [1, 4], onlyB: [1, 3], both: [1] },
 ]
 
 describe('composeScreenFilter', () => {

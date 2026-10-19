@@ -621,6 +621,16 @@ describe('QuickAddBar — preset (e.g. an Eisenhower quadrant\'s "+")', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     expect(chipTexts()).toEqual([])
   })
+
+  it('a No preset marker (a list or pane that wants it off) shows no chip; alone it is no preset', () => {
+    const { rerender } = render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: false, important: true, source: 'Schedule' }} />)
+    const texts = chipTexts()
+    expect(texts[0]).toBe('Important')
+    expect(texts).not.toContain('Urgent')
+    expect(texts.at(-1)).toBe('Adding to Schedule')
+    rerender(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ urgent: false }} />)
+    expect(chipTexts()).toEqual([])
+  })
 })
 
 describe('QuickAddBar — submit', () => {

@@ -8,6 +8,8 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useFilterStore } from '../../../stores/filter-store'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import type { EisenhowerQuadrant, EisenhowerTab, EisenhowerTabConfig, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { defaultPaneFilter } from '../../../utils/eisenhower-panes'
@@ -201,6 +203,35 @@ describe('CustomizePanesDialog', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset all' }))
     expect(tabConfig()).toEqual({})
     expect(within(dialog).getByRole('button', { name: 'Reset all' })).toHaveProperty('disabled', true)
+  })
+
+  it('its counts are the widget’s: on a saved list, under a screen filter', () => {
+    useListDefinitionStore.setState({
+      listDefinitions: [{
+        id: 7, name: 'Not delegated', sortOrder: 0, sort: 'deadline', grouping: 'none',
+        membership: { kind: 'custom', predicate: { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } } },
+      }],
+    })
+    // The screen filter leaves out Blog; the list leaves out Chase vendor (Delegated).
+    useFilterStore.getState().setSearchText('a')
+    const config: EisenhowerTabConfig = {
+      listDefinitionId: 7,
+      panes: { do: { filter: { ...emptyPredicate(), searchText: 'zzz' } }, schedule: { filter: { ...emptyPredicate(), statusIds: [3] } } },
+    }
+    const layout = layoutWith({ id: 'eis', kind: 'eisenhower', config })
+    useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+    render(<DndContext><Host customize /><CustomizePanesDialog tabId="eis" onClose={() => {}} /></DndContext>)
+    const dialog = screen.getByRole('dialog', { name: 'Customize panes' })
+    const widgetCounts = ['do', 'schedule', 'delegate', 'drop'].map((q) => within(quadrant(q)).getByTestId('eisenhower-count').textContent)
+    const dialogCounts = ['do', 'schedule', 'delegate', 'drop'].map((q) => {
+      const c = dialog.querySelector<HTMLElement>(`[data-pane-card="${q}"]`)!
+      return within(c).getByTestId('customize-pane-count').textContent?.replace(' now', '')
+    })
+    expect(widgetCounts).toEqual(['0', '0', '1', '0'])
+    expect(dialogCounts).toEqual(widgetCounts)
+    // Draft OKRs (Important, no status) matches no pane, in both.
+    expect(screen.getByTestId('eisenhower-no-pane').textContent).toBe('1 open task in no pane')
+    expect(within(dialog).getByTestId('customize-panes-no-pane').textContent).toContain('1 open task is in no pane')
   })
 
   it('a chip’s × edits the pane’s filter', () => {

@@ -92,6 +92,14 @@ function makePredicate(overrides: Partial<TodoPredicate> = {}): TodoPredicate {
   }
 }
 
+describe('getFilterDefaults — Priority Yes / No', () => {
+  it('seeds each Yes on and each No off; Hot seeds nothing', () => {
+    expect(getFilterDefaults(makeFilters({ markers: { urgent: true, important: false } })).markers).toEqual({ urgent: true, important: false })
+    expect(getFilterDefaults(makeFilters({ markers: { focus: false } })).markers).toEqual({ focus: false })
+    expect(getFilterDefaults(makeFilters({ markers: 'hot' })).markers).toBeUndefined()
+  })
+})
+
 describe('predicateToFilterDefaults', () => {
   it('mirrors getFilterDefaults for a populated predicate', () => {
     const result = predicateToFilterDefaults(makePredicate({
