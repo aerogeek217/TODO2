@@ -7,9 +7,9 @@ import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
 import { listsLosingLastWidgetToSource } from '../../../hooks/use-list-widget-count'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useSettingsStore } from '../../../stores/settings-store'
-
+import { useFilterStore } from '../../../stores/filter-store'
 import { eisenhowerPaneFocus } from '../../../stores/ui-store'
-
+import { countActiveFilters } from '../../../utils/filter-criteria'
 import { classifyPanes } from '../../../utils/eisenhower'
 import {
   eisenhowerSourceDescription,
@@ -51,7 +51,8 @@ function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfi
  * open tasks are in no pane, and Reset all panes (asked first). Every change
  * is saved at once as one undo step (a name typed in one go is one); all but
  * a typed name show the undo snackbar — the place to undo while Settings is
- * open. Desktop only.
+ * open. While a screen filter narrows the counts, a line says so. Desktop
+ * only.
  */
 export function EisenhowerSection() {
   const source = useEisenhowerSource()
@@ -65,13 +66,14 @@ export function EisenhowerSection() {
   const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
   const noneOpen = none.filter((t) => !t.isCompleted).length
   const anyCustom = panes.some((p) => p.customName || p.customFilter)
-
+  // Completed tasks aren't counted, so showing them narrows nothing here.
+  const screenFilters = useFilterStore((s) => countActiveFilters({ ...s.filters, showCompleted: false }))
   const [confirmReset, setConfirmReset] = useState(false)
   useStackedLayer(confirmReset)
 
   return (
     <div className={sectionStyles.section}>
-      <SettingRow label="Show" help="The tasks every Eisenhower and the dashboard sort into the panes. The screen filter narrows them.">
+      <SettingRow label="Show" help="The tasks every Eisenhower and the dashboard sort into the panes.">
         <SourceSelect />
       </SettingRow>
       <p className={styles.intro}>
@@ -97,7 +99,11 @@ export function EisenhowerSection() {
           {noneOpen === 0
             ? 'Every open task is in a pane.'
             : `${noneOpen} open ${noneOpen === 1 ? 'task is' : 'tasks are'} in no pane — hidden from the matrix, counted under it.`}
-
+          {screenFilters > 0 && (
+            <span data-testid="eisenhower-settings-filter-note">
+              {` The counts leave out what the screen filter hides (${screenFilters} ${screenFilters === 1 ? 'filter' : 'filters'} on).`}
+            </span>
+          )}
         </p>
         <button
           type="button"

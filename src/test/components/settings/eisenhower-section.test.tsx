@@ -166,7 +166,12 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'Changed pane “Delegate”' })
   })
 
-
+  it('says the screen filter narrows the counts only while one is on', () => {
+    const { part } = open()
+    expect(within(part).queryByTestId('eisenhower-settings-filter-note')).toBeNull()
+    act(() => useFilterStore.getState().setSearchText('a'))
+    expect(within(part).getByTestId('eisenhower-settings-filter-note').textContent).toContain('(1 filter on)')
+  })
 
   it('Esc in a pane’s filter picker closes the picker only, not Settings', () => {
     const { part } = open({ delegate: { filter: NOT_DELEGATED } })
