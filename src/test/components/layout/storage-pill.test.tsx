@@ -171,7 +171,7 @@ describe('StoragePill', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('paused: Retry (closes) and a confirmed Keep browser data… in place', () => {
+  it('paused: Retry and a confirmed Keep browser data… (in place) each close the popover', () => {
     const retry = vi.fn().mockResolvedValue(undefined)
     const overwrite = vi.fn().mockResolvedValue(undefined)
     useFileStorageStore.setState({ fileName: 'todo2.json', paused: { reason: 'too-new', message: 'File sync paused — todo2.json was saved by a newer version of TODO2.' }, retry, overwriteFileWithBrowser: overwrite })
@@ -194,6 +194,8 @@ describe('StoragePill', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(retry).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(pill)
   })
 
   it('sync error is red; Dismiss drops back to the state underneath and closes the popover', () => {
