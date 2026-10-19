@@ -48,6 +48,15 @@ export function isValidEmail(value: string): boolean {
   return LOCAL_PART.test(address.slice(0, at)) && labels.length >= 2 && labels.every((l) => DOMAIN_LABEL.test(l))
 }
 
+/**
+ * The address a check-in email goes to: `email` trimmed when it is one valid
+ * address (`isValidEmail`), else `''` — no recipient, typed in the mail app.
+ * A missing or invalid address never becomes some other text in a To field.
+ */
+export function checkinAddress(email: string | undefined): string {
+  return email != null && isValidEmail(email) ? email.trim() : ''
+}
+
 /** `person` with `email` normalized: trimmed, or the key dropped when empty. */
 export function withEmail<T extends { email?: string }>(person: T, email: string | null | undefined): T {
   const next = { ...person }

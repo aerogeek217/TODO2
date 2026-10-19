@@ -42,12 +42,21 @@ interface Toast {
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
 /** Whether the person has an email a check-in can go to (one valid address). */
 const hasEmail = (p: PersistedPerson) => isValidEmail(p.email ?? '')
+/** A row's address line: the address, or what happens without one. */
+const addressLine = (p: PersistedPerson) => {
+  if (hasEmail(p)) return p.email
+  return p.email
+    ? 'Invalid email address — sent without a recipient'
+    : 'No email address — add the recipient in your mail app'
+}
 
 /**
  * The email check-in dialog (`ui-store.checkinDialog`): one row per person
  * with open tasks (plus the people it was opened for), each sent on its own
  * with the row's button — one message per click, since the clipboard holds
- * one body at a time. Sending puts the body on the clipboard and opens a
+ * one body at a time. Anyone can be ticked: without a valid address the
+ * email goes without a recipient, added in the mail app. Sending puts the
+ * body on the clipboard and opens a
  * `mailto:` link, or downloads an `.eml` draft (Settings' choice, also set
  * here), then records a follow-up on the email's tasks (one undo entry).
  *
@@ -112,7 +121,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
     (p: PersistedPerson, s: CheckinTaskScope) => checkinTaskCount(selectCheckinTasks(p, s, selectCtx)),
     [selectCtx],
   )
-  const isChecked = (p: PersistedPerson) => ticked.has(p.id) && hasEmail(p)
+  const isChecked = (p: PersistedPerson) => ticked.has(p.id)
   const checkedPeople = recipients.filter(isChecked)
   // The menu counts the people ticked; with nobody ticked, everyone listed.
   const menuPeople = checkedPeople.length > 0 ? checkedPeople : recipients
@@ -153,11 +162,12 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
       setToast({ text: `${p.name}’s email address isn’t valid, so nothing was sent. Fix it in People.`, error: true })
       return
     }
+    const noAddress = email.to === '' ? ' Add the recipient in your mail app.' : ''
     setSent((prev) => new Map(prev).set(p.id, result))
     setToast({
       text: result === 'opened'
-        ? `Opened a message to ${p.name}. The body is on your clipboard: paste it with Ctrl+V.`
-        : `Downloaded the draft for ${p.name} (${checkinEmlFileName(p.name, sentAt)}) — open it from your Downloads folder to review and send.`,
+        ? `Opened a message to ${p.name}. The body is on your clipboard: paste it with Ctrl+V.${noAddress}`
+        : `Downloaded the draft for ${p.name} (${checkinEmlFileName(p.name, sentAt)}) — open it from your Downloads folder to review and send.${noAddress}`,
     })
     // Sending counts as a follow-up on every task in the email (one undo entry).
     void useTodoStore.getState().markFollowedUp(taskIds)
@@ -241,13 +251,12 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
             const sentAs = sent.get(p.id)
             const inputId = `${titleId}-person-${p.id}`
             return (
-              <div key={p.id} className={`${styles.row} ${email ? '' : styles.rowNoEmail}`} data-checkin-row={p.id}>
+              <div key={p.id} className={styles.row} data-checkin-row={p.id}>
                 <input
                   id={inputId}
                   type="checkbox"
                   className={styles.checkbox}
                   checked={checked}
-                  disabled={!email}
                   onChange={() => toggle(p.id)}
                 />
                 <span className={styles.avatar} style={{ background: p.color ?? NEUTRAL_PERSON_COLOR }} aria-hidden="true">
@@ -255,7 +264,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
                 </span>
                 <label htmlFor={inputId} className={styles.who}>
                   <span className={styles.name}>{p.name}</span>
-                  <span className={styles.email}>{email ? p.email : p.email ? 'Invalid email address' : 'No email address'}</span>
+                  <span className={styles.email} title={addressLine(p)}>{addressLine(p)}</span>
                 </label>
                 <span className={styles.count} data-checkin-count="">{tasksLabel(count)}</span>
                 {!email && (
@@ -409,7 +418,9 @@ function CheckinPreview({ people, build, onClose }: {
             </select>
           </label>
         )}
-        <div><span className={styles.previewKey}>To</span> {person.name} &lt;{email.to}&gt;</div>
+        <div>
+          <span className={styles.previewKey}>To</span> {email.to === '' ? `${person.name} (no address)` : <>{person.name} &lt;{email.to}&gt;</>}
+        </div>
         <div><span className={styles.previewKey}>Subject</span> {email.subject}</div>
       </div>
       <iframe

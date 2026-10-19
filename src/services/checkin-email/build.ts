@@ -25,6 +25,7 @@ import { mdToHtml } from '../notes-export'
 import { taskRef } from './ref'
 import type { CheckinSections } from './select'
 import { collapseWhitespace } from '../../utils/text'
+import { checkinAddress } from '../../utils/person'
 
 export interface CheckinEmailContext {
   /** Today (only the day is used): overdue days and "Today" labels. */
@@ -50,7 +51,10 @@ export interface CheckinEmailOptions {
 }
 
 export interface CheckinEmail {
-  /** The person's email address ('' when they have none). */
+  /**
+   * The person's email address when it is one valid address, else `''`: the
+   * email goes without a recipient, typed in the mail app.
+   */
   to: string
   subject: string
   /** The body as email-safe HTML (a fragment: one wrapping `<div>`). */
@@ -336,7 +340,7 @@ export function buildCheckinEmail(
   const views = sectionViews(person, sections, ctx, opts)
   const count = sections.overdue.length + sections.comingUp.length
   return {
-    to: person.email ?? '',
+    to: checkinAddress(person.email),
     subject: checkinSubject(count),
     html: buildHtml(person, views, opts),
     plain: buildPlain(person, views, opts),

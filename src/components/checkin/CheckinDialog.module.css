@@ -95,11 +95,6 @@
   border-radius: 10px;
 }
 
-.rowNoEmail .avatar,
-.rowNoEmail .who {
-  opacity: 0.7;
-}
-
 .checkbox {
   flex-shrink: 0;
   width: 18px;
@@ -163,7 +158,6 @@
 .outlineBtn,
 .sendBtn {
   flex: none;
-  min-width: 118px;
   padding: 6px 10px;
   border-radius: 6px;
   font-family: inherit;
@@ -171,13 +165,19 @@
   cursor: pointer;
 }
 
+.sendBtn {
+  min-width: 118px;
+}
+
+/* Add / Fix email: secondary — the row sends without an address too. */
 .outlineBtn {
-  border: 1px solid var(--color-accent-dim);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--color-accent);
 }
 
 .outlineBtn:hover {
+  border-color: var(--color-accent-dim);
   background: var(--color-accent-bg-subtle);
 }
 

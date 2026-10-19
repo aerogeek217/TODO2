@@ -13,7 +13,8 @@ import { buildEml, buildMailtoUrl, checkinEmlFileName, copyCheckinRich, openMail
  * `opened` — the body is on the clipboard and the `mailto:` link was opened;
  * `downloaded` — the `.eml` draft was downloaded; `copy-failed` — the
  * clipboard refused the body, so nothing was opened; `invalid-address` — the
- * recipient isn't one valid email address, so nothing was copied or opened.
+ * recipient is neither empty (no address: the user types one in the mail
+ * app) nor one valid email address, so nothing was copied or opened.
  */
 export type CheckinSendResult = 'opened' | 'downloaded' | 'copy-failed' | 'invalid-address'
 
@@ -36,7 +37,8 @@ export interface SendCheckinInput {
  * - `eml`: downloads `Check-in - <name> - <date>.eml`, an unsent draft.
  */
 export async function sendCheckinEmail({ email, personName, method, sentAt }: SendCheckinInput): Promise<CheckinSendResult> {
-  if (!isValidEmail(email.to)) return 'invalid-address'
+  // No address (`''`) is fine: the user adds the recipient in the mail app.
+  if (email.to !== '' && !isValidEmail(email.to)) return 'invalid-address'
   if (method === 'eml') {
     const eml = buildEml({ to: email.to, toName: personName, subject: email.subject, html: email.html, plain: email.plain })
     downloadTextFile(eml, checkinEmlFileName(personName, sentAt), 'message/rfc822')

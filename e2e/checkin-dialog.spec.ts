@@ -178,7 +178,9 @@ test('Which tasks menu shows counts and saves the choice; Add email opens the pe
   await seedWorkspace(page, seed)
   const dialog = await openFromPalette(page)
   const cy = dialog.locator('[data-checkin-row]').filter({ hasText: 'Cy Young' })
-  await expect(cy.getByRole('checkbox')).toBeDisabled()
+  // No address: still tickable (the recipient is added in the mail app).
+  await expect(cy.getByRole('checkbox')).toBeEnabled()
+  await expect(cy).toContainText('No email address — add the recipient in your mail app')
 
   await dialog.getByRole('button', { name: /Which tasks/ }).click()
   const menu = page.getByRole('menu', { name: 'Which tasks' })

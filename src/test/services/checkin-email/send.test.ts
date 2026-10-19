@@ -93,6 +93,13 @@ describe('sendCheckinEmail — open in the mail app', () => {
     expect(blobs).toEqual([])
   })
 
+  it('no address: copies, then opens mailto: with an empty To', async () => {
+    stubClipboard(true)
+    expect(await sendCheckinEmail({ email: { ...email, to: '' }, personName: 'Ada Lovelace', method: 'mailto', sentAt })).toBe('opened')
+    expect(events).toEqual(['clipboard', 'anchor'])
+    expect(clicked[0]!.getAttribute('href')).toBe('mailto:?subject=Task%20check-in%3A%202%20open%20tasks')
+  })
+
   it('opens nothing when the clipboard refuses', async () => {
     stubClipboard(false)
     expect(await sendCheckinEmail({ email, personName: 'Ada Lovelace', method: 'mailto', sentAt })).toBe('copy-failed')
@@ -113,6 +120,17 @@ describe('sendCheckinEmail — .eml draft', () => {
     expect(text).toMatch(/^X-Unsent: 1\r\n/)
     expect(text).toContain('To: "Ada Lovelace" <ada@example.com>\r\n')
     expect(text).toContain('Subject: Task check-in: 2 open tasks\r\n')
+  })
+})
+
+describe('sendCheckinEmail — .eml draft without an address', () => {
+  it('downloads a draft with no To header (the name only in the file name)', async () => {
+    stubClipboard(true)
+    expect(await sendCheckinEmail({ email: { ...email, to: '' }, personName: 'Ada Lovelace', method: 'eml', sentAt })).toBe('downloaded')
+    expect(clicked[0]!.download).toBe('Check-in - Ada Lovelace - 2026-10-12.eml')
+    const text = await blobs[0]!.text()
+    expect(text).toMatch(/^X-Unsent: 1\r\nSubject: Task check-in: 2 open tasks\r\n/)
+    expect(text).not.toMatch(/^To:/im)
   })
 })
 

@@ -77,6 +77,14 @@ describe('checkin email basics', () => {
     expect(email.to).toBe('marcus.chen@example.com')
   })
 
+  it('goes without a recipient when the person has no valid address — never their name or the bad value', () => {
+    const { sections, ctx } = sample()
+    for (const email of [undefined, '', 'Marcus Chen', 'marcus@example.com,evil@x.com', '"M" <m@x.com>']) {
+      expect(buildCheckinEmail({ ...marcus, email }, sections, ctx, ON).to).toBe('')
+    }
+    expect(buildCheckinEmail({ ...marcus, email: ' marcus.chen@example.com ' }, sections, ctx, ON).to).toBe('marcus.chen@example.com')
+  })
+
   it('greets by first name; a colon prefix keeps the whole name', () => {
     expect(checkinFirstName('Marcus Chen')).toBe('Marcus')
     expect(checkinFirstName('  Ada\n Lovelace ')).toBe('Ada')
