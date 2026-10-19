@@ -20,7 +20,7 @@ interface EditState {
 
 interface TagEditorProps {
   onClose: () => void
-  /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…). */
+  /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…); saving that row closes the editor. */
   editTagId?: number
   /** The modal's tier (`EditorModal`). */
   layer?: DialogLayer
@@ -74,6 +74,11 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
     if (!editing || !editing.name.trim()) return
     try {
       await update({ id: editing.id, name: editing.name.trim(), color: editing.color })
+      // Opened onto this tag (a menu's Edit…): saving it is what the editor was for.
+      if (editing.id === editTagId) {
+        onClose()
+        return
+      }
       setEditing(null)
       setNameError('')
     } catch (e) {

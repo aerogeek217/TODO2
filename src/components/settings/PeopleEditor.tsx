@@ -64,7 +64,8 @@ interface PeopleEditorProps {
   onClose: () => void
   /**
    * Open straight onto this person's edit row (e.g. "Add email" in the
-   * check-in dialog, a task row's avatar menu › Edit…).
+   * check-in dialog, a task row's avatar menu › Edit…); saving that row
+   * closes the editor.
    */
   editPersonId?: number
   /** The field focused on that row: `email` (default) or `name`. */
@@ -165,6 +166,11 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
         name: editing.name.trim(),
         initials: editing.initials || generateInitials(editing.name),
       }, editing.color), editing.email))
+      // Opened onto this person (Add email, a menu's Edit…): saving it is what the editor was for.
+      if (editing.id === editPersonId) {
+        onClose()
+        return
+      }
       setEditing(null)
       setNameError('')
       setEmailTouched(false)
@@ -246,13 +252,13 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
         <span className={styles.nameEditable} onClick={() => startEditPerson(p)}>{p.name}</span>
         {p.email && <span className={styles.email} title={p.email}>{p.email}</span>}
         <span className={styles.initials}>{p.initials}</span>
+        <TaskCount count={counts.get(p.id!) ?? 0} />
         <div className={styles.actions}>
           <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} title="Delete">&times;</button>
         </div>
       </div>
     )
   }
-        <TaskCount count={counts.get(p.id!) ?? 0} />
 
   return (
     <>
