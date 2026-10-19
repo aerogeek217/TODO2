@@ -115,6 +115,18 @@ describe('EisenhowerWidget with custom panes', () => {
     })
   })
 
+  it('a pane’s "+" never seeds a status that no longer exists', () => {
+    setup({ panes: { drop: { name: 'Waiting', filter: { ...emptyPredicate(), statusIds: [99], markers: { focus: true } } } } })
+    fireEvent.click(within(quadrant('drop')).getByRole('button', { name: 'Add task to Waiting' }))
+    expect(useUIStore.getState().quickAddDraft?.defaults).toEqual({ personIds: [], tagIds: [], statusId: undefined, markers: { focus: true } })
+  })
+
+  it('the corner gear comes before the panes in the Tab order (it sits at the top-right corner)', () => {
+    setup({})
+    const gear = screen.getByRole('button', { name: 'Customize panes' })
+    expect(gear.compareDocumentPosition(quadrant('do')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('the corner gear and a pane header’s menu open Customize panes; Reset pane puts the default back', () => {
     setup({ panes: { delegate: { filter: NOT_DELEGATED } } })
     fireEvent.click(screen.getByRole('button', { name: 'Customize panes' }))
@@ -162,6 +174,8 @@ describe('CustomizePanesDialog', () => {
   it('shows each pane’s name, filter chips and count now, and the open tasks in no pane', () => {
     const { dialog } = open({ panes: { delegate: { filter: NOT_DELEGATED } } })
     expect(within(card(dialog, 'delegate')).getByTestId('customize-pane-count').textContent).toBe('1 now')
+    expect(within(card(dialog, 'delegate')).getByRole('img', { name: '1 open task now' })).toBeTruthy()
+    expect(within(card(dialog, 'do')).getByRole('img', { name: '0 open tasks now' })).toBeTruthy()
     expect(within(card(dialog, 'delegate')).getByTestId('customize-pane-filter').textContent).toContain('not Delegated')
     expect(within(dialog).getByTestId('customize-panes-no-pane').textContent).toContain('1 open task is in no pane')
     expect(within(card(dialog, 'do')).getByRole('button', { name: 'Reset pane' })).toHaveProperty('disabled', true)

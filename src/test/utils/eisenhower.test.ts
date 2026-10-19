@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  blockedDropLines,
   blockedPaneLines,
   buildQuadrants,
   classifyPanes,
@@ -9,14 +8,14 @@ import {
   dropDescription,
   dropPreviewLabel,
   insertionIndex,
+  paneAddHint,
   quadrantOf,
   resolvePaneDrop,
-  resolveQuadrantDrop,
 } from '../../utils/eisenhower'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
-import { emptyPredicate } from '../../models'
+import { emptyPredicate, type TodoPredicate } from '../../models'
 import type { EisenhowerQuadrant } from '../../models/workspace-layout'
-import { makePaneContext, makeTodo } from '../helpers'
+import { blockedDropLines, makePaneContext, makeTodo, resolveQuadrantDrop } from '../helpers'
 
 // Sat 10 Oct 2026, range 3 days (due by Tue 13 counts as urgent).
 const TODAY = new Date(2026, 9, 10)
@@ -278,6 +277,21 @@ describe('classifyPanes on custom panes', () => {
     expect(byPane.schedule).toEqual([])
   })
 
+  it('a pane naming a status, person or tag that no longer exists matches no task: they go to no pane', () => {
+    const panes = resolvePanes({ drop: { filter: { ...defaultPaneFilter('drop'), statusIds: [99] } } })
+    const { byPane, none } = classifyPanes([makeTodo({ id: 1 }), makeTodo({ id: 2, statusId: 3 })], panes, ctx)
+    expect(byPane.drop).toEqual([])
+    expect(none.map((t) => t.id)).toEqual([1, 2])
+  })
+
+  it('a Hot pane takes the hot tasks (the Hot rule from the settings) first', () => {
+    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: 'hot' } } })
+    const todos = [makeTodo({ id: 1, focus: true }), makeTodo({ id: 2, urgent: true, important: true }), makeTodo({ id: 3, important: true })]
+    const { byPane } = classifyPanes(todos, panes, ctx)
+    expect(byPane.do.map((t) => t.id)).toEqual([1, 2])
+    expect(byPane.schedule.map((t) => t.id)).toEqual([3])
+  })
+
   it('a pane filter ignores Show completed (the source decides) and reads people and text by name', () => {
     const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), personIds: [1], searchText: 'ann' } } })
     const { byPane } = classifyPanes([makeTodo({ id: 2, isCompleted: true, title: 'Call' })], panes, ctx)
@@ -363,6 +377,43 @@ describe('resolvePaneDrop on custom panes', () => {
       '1 of 2 tasks wouldn’t land in “Delegate”: A is still Delegated.',
       'Change its status first, or edit the pane.',
     ])
+  })
+
+  it.each<[string, Partial<TodoPredicate>, string]>([
+    ['status', { statusIds: [99] }, 'The status this pane sets no longer exists.'],
+    ['people', { personIds: [98] }, 'The person this pane adds no longer exists.'],
+    ['tags', { tags: [97] }, 'The tag this pane adds no longer exists.'],
+  ])('never writes a %s that no longer exists: the drop is refused, saying so', (field, clause, why) => {
+    const panes = resolvePanes({ do: { name: 'Waiting on', filter: { ...emptyPredicate(), ...clause } } })
+    const task = t({})
+    const res = resolvePaneDrop([task], 'do', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'deleted', field } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)).toEqual(['Can’t move to Waiting on', why, 'Edit the pane first.'])
+  })
+
+  it('a task that already has a deleted status still lands on its pane (nothing to write)', () => {
+    const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), statusIds: [99] } } })
+    expect(resolvePaneDrop([t({ statusId: 99 })], 'do', panes, ctx)).toEqual({ kind: 'none' })
+  })
+
+  it('a Hot pane writes nothing: a task that isn’t hot is refused, naming Priority', () => {
+    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: 'hot' } } })
+    const task = t({ important: true })
+    const res = resolvePaneDrop([task], 'do', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'markers' } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Priority filter (Hot).')
+    expect(resolvePaneDrop([t({ focus: true })], 'do', panes, ctx)).toEqual({ kind: 'none' })
+  })
+
+  it('a pane’s "+" hint: what a new task gets — its Yes markers, status, person, tag; a No or a deleted status gives nothing', () => {
+    const [doPane] = resolvePanes(undefined)
+    expect(paneAddHint(doPane!, ctx)).toBe('Opens Quick Add marked urgent and important.')
+    const [, , delegate] = resolvePanes({ delegate: { filter: { ...defaultPaneFilter('delegate'), statusIds: [4] } } })
+    expect(paneAddHint(delegate!, ctx)).toBe('Opens Quick Add with + Urgent · → Waiting.')
+    const [, , , drop] = resolvePanes({ drop: { filter: { ...defaultPaneFilter('drop'), statusIds: [99] } } })
+    expect(paneAddHint(drop!, ctx)).toBe('Opens Quick Add.')
   })
 
   it('preview and undo text name the status, person and tag', () => {

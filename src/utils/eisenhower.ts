@@ -1,16 +1,15 @@
 import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import { daysUntil } from './effective-date'
-import type { TextMatchContext } from './filter'
+import type { TodoNameLookups } from './filter'
 import { filterChips, type FilterChipField, type FilterChipNames } from './filter-chips'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
-import { matchesFilter, type FilterSettings } from './filter-match'
+import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
 import { formatFollowupDay } from './followup'
-import { DEFAULT_HOT_RULE } from './hot'
-import { MARKER_LABELS } from './markers'
+import { isHotFilter, MARKER_LABELS } from './markers'
 import { isEffectivelyUrgent, isUrgentByDate, type UrgentDueWithinDays } from './urgency'
-import { paneWrites, QUADRANT_NAME, resolvePanes, type EisenhowerPane } from './eisenhower-panes'
+import { paneWrites, QUADRANT_ADD_HINT, QUADRANT_NAME, type EisenhowerPane, type PaneEntityField } from './eisenhower-panes'
 
 /**
  * The Eisenhower matrix: a task shows in the first pane (in position order)
@@ -100,16 +99,20 @@ export interface PaneContext {
   statuses: readonly Status[]
 }
 
-/** A task as the pane filters see it: its fields and its people / tags. */
+/**
+ * A task as the pane filters see it: its fields, and the lookups its people /
+ * tags / status names are read from (`matchesFilterWithLookups` — the one
+ * evaluation path the lists and the screen filter use).
+ */
 interface TaskView {
   todo: PersistedTodoItem
-  personIds: number[]
-  tagIds: number[]
+  lookups: TodoNameLookups
 }
 
 interface PaneMatcher {
   viewOf: (todo: PersistedTodoItem) => TaskView
-  matches: (pane: EisenhowerPane, view: TaskView) => boolean
+  /** `view` with `change` applied (a drop's writes, before they are made). */
+  applied: (view: TaskView, change: PaneChange) => TaskView
   /** The first pane the task matches, or `null`. */
   paneOf: (view: TaskView) => EisenhowerQuadrant | null
   /** The first clause of `pane`'s filter the task fails (`null` when it matches). */
@@ -138,30 +141,45 @@ function onlyField(c: FilterCriteria, field: FilterChipField | DateField): Filte
 /** The clause fields in the order a refusal names the first one failing. */
 const CLAUSE_ORDER: readonly (FilterChipField | DateField)[] = ['markers', 'status', 'people', 'tags', ...DATE_FIELD_VALUES, 'text']
 
+/** `rows` with row `id` of `all` added (when it isn't there yet). */
+function withRow<T extends { id?: number }>(rows: readonly T[], all: readonly T[], id: number | undefined): readonly T[] {
+  if (id === undefined || rows.some((r) => r.id === id)) return rows
+  const row = all.find((r) => r.id === id)
+  return row ? [...rows, row] : rows
+}
+
+function hasRow(rows: readonly { id?: number }[] | undefined, id: number): boolean {
+  return (rows ?? []).some((r) => r.id === id)
+}
+
 function createPaneMatcher(panes: readonly EisenhowerPane[], ctx: PaneContext): PaneMatcher {
   // A pane ignores Show completed: the matrix's source decides about completed tasks.
   const criteria = new Map(panes.map((p) => [p.id, predicateToCriteria({ ...p.filter, showCompleted: true })]))
-  const personName = new Map(ctx.people.map((p) => [p.id, p.name]))
-  const tagName = new Map(ctx.tags.map((t) => [t.id, t.name]))
-  const statusName = new Map(ctx.statuses.map((s) => [s.id, s.name]))
-  const names = (ids: readonly number[], byId: ReadonlyMap<number | undefined, string>) => ids.flatMap((id) => byId.get(id) ?? [])
-  const searchCtx = (v: TaskView): TextMatchContext => ({
-    personNames: names(v.personIds, personName),
-    statusName: v.todo.statusId != null ? statusName.get(v.todo.statusId) : undefined,
-    tagNames: names(v.tagIds, tagName),
-  })
-  const test = (c: FilterCriteria, v: TaskView) =>
-    matchesFilter(c, v.todo, v.personIds, ctx.today, c.searchText ? searchCtx(v) : undefined, v.tagIds, ctx.settings)
+  const lookups: TodoNameLookups = {
+    assignedPeopleMap: ctx.assignedPeopleMap,
+    assignedTagsMap: ctx.assignedTagsMap,
+    statusesById: new Map(ctx.statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
+  }
+  const test = (c: FilterCriteria, v: TaskView) => matchesFilterWithLookups(c, v.todo, v.lookups, ctx.today, ctx.settings)
   const criteriaOf = (pane: EisenhowerPane) => criteria.get(pane.id) ?? predicateToCriteria({ ...pane.filter, showCompleted: true })
-  const matches = (pane: EisenhowerPane, v: TaskView) => test(criteriaOf(pane), v)
   return {
-    viewOf: (todo) => ({
-      todo,
-      personIds: (ctx.assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => (p.id != null ? [p.id] : [])),
-      tagIds: (ctx.assignedTagsMap.get(todo.id) ?? []).flatMap((t) => (t.id != null ? [t.id] : [])),
-    }),
-    matches,
-    paneOf: (v) => panes.find((p) => matches(p, v))?.id ?? null,
+    viewOf: (todo) => ({ todo, lookups }),
+    applied: (view, change) => {
+      const todo: PersistedTodoItem = { ...view.todo }
+      if (change.urgent !== undefined) todo.urgent = change.urgent || undefined
+      if (change.important !== undefined) todo.important = change.important || undefined
+      if (change.focus !== undefined) todo.focus = change.focus || undefined
+      if (change.statusId !== undefined) todo.statusId = change.statusId
+      if (change.personId === undefined && change.tagId === undefined) return { todo, lookups: view.lookups }
+      // This task's people / tags with the one added (the lookups are read by the task's id).
+      const people = withRow(view.lookups.assignedPeopleMap?.get(todo.id) ?? [], ctx.people, change.personId)
+      const tags = withRow(view.lookups.assignedTagsMap?.get(todo.id) ?? [], ctx.tags, change.tagId)
+      return {
+        todo,
+        lookups: { ...view.lookups, assignedPeopleMap: new Map([[todo.id, people]]), assignedTagsMap: new Map([[todo.id, tags]]) },
+      }
+    },
+    paneOf: (v) => panes.find((p) => test(criteriaOf(p), v))?.id ?? null,
     failingField: (pane, v) => {
       const c = criteriaOf(pane)
       return CLAUSE_ORDER.find((f) => !test(onlyField(c, f), v)) ?? null
@@ -208,9 +226,6 @@ export interface PaneChange {
   tagId?: number
 }
 
-/** The Urgent / Important writes of the default quadrants (a {@link PaneChange} without the rest). */
-export type FlagChange = Pick<PaneChange, 'todoId' | 'urgent' | 'important'>
-
 /** Why a dropped task wouldn't land in the pane. */
 export type PaneMiss =
   /** Its due date keeps it urgent and the pane wants it not urgent. */
@@ -219,6 +234,8 @@ export type PaneMiss =
   | { kind: 'earlier'; pane: EisenhowerQuadrant }
   /** It fails the pane's clause on `field`, which the drop can't change. */
   | { kind: 'clause'; field: FilterChipField | DateField }
+  /** The status / person / tag the pane's clause on `field` names no longer exists (nothing is written). */
+  | { kind: 'deleted'; field: PaneEntityField }
 
 export interface BlockedTask<T> {
   task: T
@@ -232,28 +249,15 @@ export type PaneDropResult<T> =
   | { kind: 'blocked'; blocked: BlockedTask<T>[] }
   | { kind: 'apply'; changes: PaneChange[] }
 
-/** `view` with `change` applied. */
-function applied(view: TaskView, change: PaneChange): TaskView {
-  const todo: PersistedTodoItem = { ...view.todo }
-  if (change.urgent !== undefined) todo.urgent = change.urgent || undefined
-  if (change.important !== undefined) todo.important = change.important || undefined
-  if (change.focus !== undefined) todo.focus = change.focus || undefined
-  if (change.statusId !== undefined) todo.statusId = change.statusId
-  return {
-    todo,
-    personIds: change.personId !== undefined ? [...view.personIds, change.personId] : view.personIds,
-    tagIds: change.tagId !== undefined ? [...view.tagIds, change.tagId] : view.tagIds,
-  }
-}
-
 /**
  * What dropping `todos` on pane `target` does. Each task gets what the
  * pane's filter implies (`paneWrites`) where it differs: each Priority
  * marker the filter tests set Yes or No — except that Urgent Yes is never
  * written for a task already urgent by its due date —, "Status is" one
- * status, "People is" / "Tags is" one person / tag added. Then, if a task
- * still wouldn't land in `target` (its first matching pane, so an earlier
- * pane counts too), the whole drop is refused, naming why per task.
+ * status, "People is" / "Tags is" one person / tag added — never one that no
+ * longer exists. Then, if a task still wouldn't land in `target` (its first
+ * matching pane, so an earlier pane counts too), the whole drop is refused,
+ * naming why per task.
  */
 export function resolvePaneDrop<T extends PersistedTodoItem>(
   todos: readonly T[],
@@ -261,10 +265,30 @@ export function resolvePaneDrop<T extends PersistedTodoItem>(
   panes: readonly EisenhowerPane[],
   ctx: PaneContext,
 ): PaneDropResult<T> {
+  return dropOn(todos, target, panes, ctx, createPaneMatcher(panes, ctx))
+}
+
+/** {@link resolvePaneDrop} on each pane, with one matcher for the four (a drag's start works them all out). */
+export function resolvePaneDrops<T extends PersistedTodoItem>(
+  todos: readonly T[],
+  panes: readonly EisenhowerPane[],
+  ctx: PaneContext,
+): Record<EisenhowerQuadrant, PaneDropResult<T>> {
+  const m = createPaneMatcher(panes, ctx)
+  const of = (q: EisenhowerQuadrant) => dropOn(todos, q, panes, ctx, m)
+  return { do: of('do'), schedule: of('schedule'), delegate: of('delegate'), drop: of('drop') }
+}
+
+function dropOn<T extends PersistedTodoItem>(
+  todos: readonly T[],
+  target: EisenhowerQuadrant,
+  panes: readonly EisenhowerPane[],
+  ctx: PaneContext,
+  m: PaneMatcher,
+): PaneDropResult<T> {
   const pane = panes.find((p) => p.id === target)
   if (!pane) return { kind: 'none' }
-  const m = createPaneMatcher(panes, ctx)
-  const w = paneWrites(pane.filter)
+  const w = paneWrites(pane.filter, ctx)
   const range = ctx.settings.urgentRange
   const blocked: BlockedTask<T>[] = []
   const changes: PaneChange[] = []
@@ -279,13 +303,13 @@ export function resolvePaneDrop<T extends PersistedTodoItem>(
       if (want !== undefined && (t[k] === true) !== want) change[k] = want
     }
     if (w.statusId !== undefined && t.statusId !== w.statusId) change.statusId = w.statusId
-    if (w.personId !== undefined && !view.personIds.includes(w.personId)) change.personId = w.personId
-    if (w.tagId !== undefined && !view.tagIds.includes(w.tagId)) change.tagId = w.tagId
+    if (w.personId !== undefined && !hasRow(view.lookups.assignedPeopleMap?.get(t.id), w.personId)) change.personId = w.personId
+    if (w.tagId !== undefined && !hasRow(view.lookups.assignedTagsMap?.get(t.id), w.tagId)) change.tagId = w.tagId
 
-    const after = applied(view, change)
+    const after = m.applied(view, change)
     const landed = m.paneOf(after)
     if (landed !== target) {
-      blocked.push({ task: t, miss: missOf(m, pane, after, landed, ctx) })
+      blocked.push({ task: t, miss: missOf(m, pane, after, landed, w.deleted ?? [], ctx) })
       continue
     }
     if (Object.keys(change).length > 1) changes.push(change)
@@ -294,50 +318,24 @@ export function resolvePaneDrop<T extends PersistedTodoItem>(
   return changes.length > 0 ? { kind: 'apply', changes } : { kind: 'none' }
 }
 
-function missOf(m: PaneMatcher, pane: EisenhowerPane, after: TaskView, landed: EisenhowerQuadrant | null, ctx: PaneContext): PaneMiss {
+function missOf(
+  m: PaneMatcher,
+  pane: EisenhowerPane,
+  after: TaskView,
+  landed: EisenhowerQuadrant | null,
+  deleted: readonly PaneEntityField[],
+  ctx: PaneContext,
+): PaneMiss {
   const field = m.failingField(pane, after)
   if (field == null) return landed ? { kind: 'earlier', pane: landed } : { kind: 'clause', field: 'markers' }
-  if (field === 'markers' && pane.filter.markers !== 'hot' && pane.filter.markers?.urgent === false
+  const gone = deleted.find((f) => f === field)
+  if (gone) return { kind: 'deleted', field: gone }
+  const markers = pane.filter.markers
+  if (field === 'markers' && markers != null && !isHotFilter(markers) && markers.urgent === false
     && isUrgentByDate(after.todo, ctx.today, ctx.settings.urgentRange)) {
     return { kind: 'urgent-date' }
   }
   return { kind: 'clause', field }
-}
-
-/** The settings the default quadrants' drop is resolved with (the Hot rule and week start don't matter to them). */
-function defaultPaneContext(today: Date, range: UrgentDueWithinDays): PaneContext {
-  return {
-    today,
-    settings: { urgentRange: range, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 },
-    assignedPeopleMap: new Map(),
-    assignedTagsMap: new Map(),
-    people: [],
-    tags: [],
-    statuses: [],
-  }
-}
-
-export type QuadrantDropResult<T> =
-  | { kind: 'none' }
-  | { kind: 'blocked'; blocked: T[] }
-  | { kind: 'apply'; changes: FlagChange[] }
-
-/**
- * {@link resolvePaneDrop} on the default panes, in their terms: sideways
- * sets Urgent, up / down Important, diagonal both; a task urgent by its due
- * date (flagged or not) blocks a drop on a not-urgent quadrant — one blocked
- * task refuses the whole drop — and into an urgent quadrant only its
- * Important flag changes.
- */
-export function resolveQuadrantDrop<T extends PersistedTodoItem>(
-  todos: readonly T[],
-  target: EisenhowerQuadrant,
-  today: Date,
-  range: UrgentDueWithinDays,
-): QuadrantDropResult<T> {
-  const res = resolvePaneDrop(todos, target, resolvePanes(undefined), defaultPaneContext(today, range))
-  if (res.kind === 'blocked') return { kind: 'blocked', blocked: res.blocked.map((b) => b.task) }
-  return res
 }
 
 /** Names for the writes and refusals: people, tags, statuses. */
@@ -371,6 +369,27 @@ export function dropPreviewLabel(changes: readonly PaneChange[], names?: PaneNam
   if (w.personId !== undefined) parts.push(`+ ${(names && nameIn(names.people, w.personId)) ?? 'person'}`)
   if (w.tagId !== undefined) parts.push(`+ #${(names && nameIn(names.tags, w.tagId)) ?? 'tag'}`)
   return parts.join(' · ')
+}
+
+/**
+ * A pane's "+" hint: a default pane's plain words, else what the new task
+ * gets from the pane's filter — `Opens Quick Add with + Urgent · → Waiting.` —
+ * its Yes markers, status, person and tag (a No gives nothing: a new task
+ * starts without the flag).
+ */
+export function paneAddHint(pane: EisenhowerPane, names: PaneNames): string {
+  if (!pane.customFilter) return QUADRANT_ADD_HINT[pane.id]
+  const w = paneWrites(pane.filter, names)
+  const what = dropPreviewLabel([{
+    todoId: 0,
+    ...(w.markers.urgent === true ? { urgent: true } : {}),
+    ...(w.markers.important === true ? { important: true } : {}),
+    ...(w.markers.focus === true ? { focus: true } : {}),
+    ...(w.statusId !== undefined ? { statusId: w.statusId } : {}),
+    ...(w.personId !== undefined ? { personId: w.personId } : {}),
+    ...(w.tagId !== undefined ? { tagId: w.tagId } : {}),
+  }], names)
+  return what ? `Opens Quick Add with ${what}.` : 'Opens Quick Add.'
 }
 
 /**
@@ -428,20 +447,6 @@ function dueDateLines(
   return [title, why, `Change ${n === 1 ? 'its due date' : 'their due dates'} or the due-soon range first.`]
 }
 
-/**
- * The refusal tooltip's lines for a blocked drop on a default quadrant:
- * `Can’t move to Drop` / why / what to change.
- */
-export function blockedDropLines(
-  target: EisenhowerQuadrant,
-  blocked: readonly (MatrixFields & { title: string })[],
-  total: number,
-  today: Date,
-  range: UrgentDueWithinDays,
-): [string, string, string] {
-  return dueDateLines(`Can’t move to ${QUADRANT_NAME[target]}`, blocked, total, today, range)
-}
-
 /** A clause's name in a refusal (`Priority`, `People`, `Due`, …). */
 function clauseName(field: FilterChipField | DateField): string {
   switch (field) {
@@ -457,6 +462,13 @@ function clauseName(field: FilterChipField | DateField): string {
   }
 }
 
+/** Why a pane's drop is refused when what its clause names was deleted. */
+const DELETED_SENTENCE: Record<PaneEntityField, string> = {
+  status: 'The status this pane sets no longer exists.',
+  people: 'The person this pane adds no longer exists.',
+  tags: 'The tag this pane adds no longer exists.',
+}
+
 /** Why one task wouldn't land in `pane`, as a sentence. */
 function missSentence(
   task: { title: string; statusId?: number },
@@ -469,6 +481,7 @@ function missSentence(
     const first = panes.find((p) => p.id === miss.pane)?.name ?? QUADRANT_NAME[miss.pane]
     return `${task.title} matches “${first}” first.`
   }
+  if (miss.kind === 'deleted') return DELETED_SENTENCE[miss.field]
   if (miss.kind === 'clause' && miss.field === 'status') {
     const status = task.statusId != null ? nameIn(names.statuses, task.statusId) : undefined
     return status ? `${task.title} is still ${status}.` : `${task.title} has no status.`
@@ -500,9 +513,11 @@ export function blockedPaneLines<T extends PersistedTodoItem>(
   }
   const first = blocked.find((b) => b.miss.kind !== 'urgent-date') ?? blocked[0]
   const why = first ? missSentence(first.task, first.miss, pane, panes, names) : ''
-  const hint = first?.miss.kind === 'clause' && first.miss.field === 'status'
-    ? `Change ${blocked.length === 1 ? 'its status' : 'their statuses'} first, or edit the pane.`
-    : `Change ${blocked.length === 1 ? 'the task' : 'the tasks'} first, or edit the panes.`
+  const hint = first?.miss.kind === 'deleted'
+    ? 'Edit the pane first.'
+    : first?.miss.kind === 'clause' && first.miss.field === 'status'
+      ? `Change ${blocked.length === 1 ? 'its status' : 'their statuses'} first, or edit the pane.`
+      : `Change ${blocked.length === 1 ? 'the task' : 'the tasks'} first, or edit the panes.`
   if (blocked.length === 1 && total === 1) return [title, why, hint]
   const n = blocked.length
   return [title, `${n} of ${total} ${total === 1 ? 'task' : 'tasks'} wouldn’t land in “${pane.name}”: ${why}`, hint]

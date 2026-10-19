@@ -24,7 +24,7 @@ import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignme
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
-import { applyPaneDrop, currentPaneContext } from '../services/eisenhower-drop'
+import { applyPaneDrop, currentPaneContext, currentPanes } from '../services/eisenhower-drop'
 import { startOfToday } from '../utils/date'
 import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
 import { dropChangesLayout, dropTargetForHit, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
@@ -403,6 +403,7 @@ export function WorkspacePage() {
       },
       eisenhower: {
         tasksFor: dragTasks,
+        panes: currentPanes,
         context: () => currentPaneContext(startOfToday()),
         apply: applyPaneDrop,
       },

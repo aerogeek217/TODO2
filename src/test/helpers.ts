@@ -10,7 +10,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
-import type { PaneContext } from '../utils/eisenhower'
+import { blockedPaneLines, resolvePaneDrop, type PaneChange, type PaneContext } from '../utils/eisenhower'
+import { resolvePanes } from '../utils/eisenhower-panes'
+import type { EisenhowerQuadrant } from '../models/workspace-layout'
 import { DEFAULT_HOT_RULE } from '../utils/hot'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 
@@ -29,6 +31,39 @@ export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: 
     statuses: [],
     ...extra,
   }
+}
+
+/**
+ * `resolvePaneDrop` on the default panes, in their terms (the blocked tasks
+ * without their reasons) — the default quadrants' drop rules, for tests.
+ */
+export function resolveQuadrantDrop<T extends PersistedTodoItem>(
+  todos: readonly T[],
+  target: EisenhowerQuadrant,
+  today: Date,
+  range: UrgentDueWithinDays,
+):
+  | { kind: 'none' }
+  | { kind: 'blocked'; blocked: T[] }
+  | { kind: 'apply'; changes: PaneChange[] } {
+  const res = resolvePaneDrop(todos, target, resolvePanes(undefined), makePaneContext(today, range))
+  if (res.kind === 'blocked') return { kind: 'blocked', blocked: res.blocked.map((b) => b.task) }
+  return res
+}
+
+/** `blockedPaneLines` for default-pane drops refused by due dates (`Can’t move to Drop` / why / what to change). */
+export function blockedDropLines(
+  target: EisenhowerQuadrant,
+  blocked: readonly PersistedTodoItem[],
+  total: number,
+  today: Date,
+  range: UrgentDueWithinDays,
+): [string, string, string] {
+  const panes = resolvePanes(undefined)
+  const pane = panes.find((p) => p.id === target)
+  if (!pane) throw new Error(`no pane ${target}`)
+  const ctx = makePaneContext(today, range)
+  return blockedPaneLines(pane, blocked.map((task) => ({ task, miss: { kind: 'urgent-date' as const } })), total, panes, ctx, ctx)
 }
 
 let makeTodoUidSeq = 0

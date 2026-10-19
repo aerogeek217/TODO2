@@ -49,12 +49,20 @@ export const QUADRANT_COLOR: Record<EisenhowerQuadrant, string> = {
   drop: 'var(--color-text-muted)',
 }
 
-/** The plain-words subtitle of a default pane. */
+/** The plain-words subtitle of a default pane (its {@link QUADRANT_FLAGS} in words). */
 export const QUADRANT_SUBTITLE: Record<EisenhowerQuadrant, string> = {
   do: 'Urgent and important',
   schedule: 'Important, not urgent',
   delegate: 'Urgent, not important',
   drop: 'Neither',
+}
+
+/** A default pane's "+" hint (the Yes flags of its {@link QUADRANT_FLAGS}). */
+export const QUADRANT_ADD_HINT: Record<EisenhowerQuadrant, string> = {
+  do: 'Opens Quick Add marked urgent and important.',
+  schedule: 'Opens Quick Add marked important.',
+  delegate: 'Opens Quick Add marked urgent.',
+  drop: 'Opens Quick Add.',
 }
 
 /** A position's default filter: its quadrant's Urgent / Important, each Yes or No. */
@@ -82,6 +90,14 @@ function storedFilter(filter: TodoPredicate): TodoPredicate {
 /** Whether two pane filters filter the same (`showCompleted` is ignored). */
 export function paneFiltersEqual(a: TodoPredicate, b: TodoPredicate): boolean {
   return predicatesEqual(storedFilter(a), storedFilter(b))
+}
+
+/** Whether two sets of panes sort tasks the same (names aside): same positions, same filters. */
+export function samePaneFilters(a: readonly EisenhowerPane[], b: readonly EisenhowerPane[]): boolean {
+  return a.length === b.length && a.every((p, i) => {
+    const q = b[i]
+    return q !== undefined && p.id === q.id && paneFiltersEqual(p.filter, q.filter)
+  })
 }
 
 /**
@@ -154,19 +170,28 @@ export function paneSubtitle(pane: EisenhowerPane, names: FilterChipNames): stri
   return words.length > 0 ? words.join(' · ') : 'Every task'
 }
 
+/** The clauses whose one value a drop / "+" writes: a status, a person, a tag. */
+export type PaneEntityField = 'status' | 'people' | 'tags'
+
 /**
  * What a pane's filter writes on a task dropped on it or added with its "+":
  * each Priority marker it tests set Yes (`true`) or No (`false`); the status
  * when it is "Status is" one status; a person when it is "People is" one
- * person; a tag when it is "Tags is" one tag. A Hot filter, "is not",
- * several values, "No status" / "Unassigned" / "Untagged", dates and text
- * imply nothing.
+ * person; a tag when it is "Tags is" one tag — only one that exists. A Hot
+ * filter, "is not", several values, "No status" / "Unassigned" /
+ * "Untagged", dates and text imply nothing.
  */
 export interface PaneWrites {
   markers: MarkerConditions
   statusId?: number
   personId?: number
   tagId?: number
+  /**
+   * The clauses naming one status / person / tag that no longer exists
+   * (deleted since, or a crafted file): nothing is written for them, so a
+   * drop that needs them is refused (`resolvePaneDrop`).
+   */
+  deleted?: PaneEntityField[]
 }
 
 /** The one id an "is" filter on `field` holds, else `undefined`. */
@@ -177,20 +202,24 @@ function singleId(filter: TodoPredicate, field: 'personIds' | 'statusIds' | 'tag
   return only !== 0 ? only : undefined
 }
 
-export function paneWrites(filter: TodoPredicate): PaneWrites {
+/** `filter`'s writes, against the statuses / people / tags there are now (`known`). */
+export function paneWrites(filter: TodoPredicate, known: FilterChipNames): PaneWrites {
   const out: PaneWrites = { markers: markerConditions(filter.markers) }
-  const statusId = singleId(filter, 'statusIds')
-  const personId = singleId(filter, 'personIds')
-  const tagId = singleId(filter, 'tags')
+  const deleted: PaneEntityField[] = []
+  const pick = (field: 'personIds' | 'statusIds' | 'tags', clause: PaneEntityField, rows: readonly { id?: number }[]) => {
+    const id = singleId(filter, field)
+    if (id === undefined) return undefined
+    if (rows.some((r) => r.id === id)) return id
+    deleted.push(clause)
+    return undefined
+  }
+  const statusId = pick('statusIds', 'status', known.statuses)
+  const personId = pick('personIds', 'people', known.people)
+  const tagId = pick('tags', 'tags', known.tags)
   if (statusId !== undefined) out.statusId = statusId
   if (personId !== undefined) out.personId = personId
   if (tagId !== undefined) out.tagId = tagId
-  return out
-}
-
-/** Whether a pane's filter writes anything. */
-export function hasPaneWrites(w: PaneWrites): boolean {
-  return activeMarkers(w.markers).length > 0 || w.statusId !== undefined || w.personId !== undefined || w.tagId !== undefined
+  return deleted.length > 0 ? { ...out, deleted } : out
 }
 
 /**

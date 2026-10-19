@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type R
 import type { TodoPredicate } from '../../../models'
 import type { EisenhowerQuadrant, EisenhowerTab, WorkspaceLayout } from '../../../models/workspace-layout'
 import { usePaneContext } from '../../../hooks/use-pane-context'
+import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { classifyPanes } from '../../../utils/eisenhower'
 import {
@@ -9,6 +10,7 @@ import {
   QUADRANT_COLOR,
   QUADRANT_NAME,
   resolvePanes,
+  samePaneFilters,
   withPaneConfig,
   type EisenhowerPane,
 } from '../../../utils/eisenhower-panes'
@@ -62,7 +64,9 @@ function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane
   const names = useChipNames()
   const panes = useMemo(() => resolvePanes(tab.config.panes), [tab.config.panes])
   const shown = source.kind === 'tasks' ? source.shown : NO_TASKS
-  const { byPane, none } = useMemo(() => classifyPanes(shown, panes, paneCtx), [shown, panes, paneCtx])
+  // Classified again only when a filter changes (not on each keystroke of a rename).
+  const sortingPanes = useEqualValue(panes, samePaneFilters)
+  const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
   const noneOpen = none.filter((t) => !t.isCompleted).length
   const focusRef = useRef<HTMLInputElement>(null)
 
@@ -150,7 +154,8 @@ function PaneCard({ pane, names, count, inputRef, onRename, onFilter, onReset }:
     setSyncedFrom(stored)
     if (name.trim() !== stored) setName(stored)
   }
-  const hasChips = filterChips(pane.filter, names).length > 0
+  const hasChips = useMemo(() => filterChips(pane.filter, names).length > 0, [pane.filter, names])
+  const subtitle = useMemo(() => paneSubtitle(pane, names), [pane, names])
   return (
     <section
       className={styles.card}
@@ -171,7 +176,14 @@ function PaneCard({ pane, names, count, inputRef, onRename, onFilter, onReset }:
             onRename(e.target.value)
           }}
         />
-        <span className={styles.count} data-testid="customize-pane-count">{count} now</span>
+        <span
+          className={styles.count}
+          data-testid="customize-pane-count"
+          role="img"
+          aria-label={`${count} open ${count === 1 ? 'task' : 'tasks'} now`}
+        >
+          {count} now
+        </span>
       </div>
       <div className={styles.chips} data-testid="customize-pane-filter">
         <PredicateChips
@@ -183,7 +195,7 @@ function PaneCard({ pane, names, count, inputRef, onRename, onFilter, onReset }:
         />
       </div>
       <div className={styles.cardFoot}>
-        <span className={styles.subtitle}>{paneSubtitle(pane, names)}</span>
+        <span className={styles.subtitle}>{subtitle}</span>
         <button
           type="button"
           className={styles.resetBtn}

@@ -4,7 +4,7 @@ import type { CalendarDateType, CalendarDateTypes } from '../../models/workspace
 import { isEisenhowerQuadrant } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
 import { resolvePaneDrop, type PaneChange, type PaneContext } from '../eisenhower'
-import { resolvePanes, type EisenhowerPane } from '../eisenhower-panes'
+import type { EisenhowerPane } from '../eisenhower-panes'
 import { TASK_DROP_KIND } from './kinds'
 
 /** A list drag dropped on a day of a calendar showing both date types. */
@@ -38,21 +38,21 @@ export interface CalendarOps {
  * Eisenhower side of {@link dispatchTaskDrop}: a task (or the selection it
  * belongs to) dropped on a pane gets what the pane's filter implies, unless
  * a task still wouldn't land in that pane — then nothing changes (see
- * `resolvePaneDrop`). The widget puts its panes on each pane's drop target
- * (`panes`; absent = the default panes).
+ * `resolvePaneDrop`).
  */
 export interface EisenhowerOps {
   /** The tasks the drag moves (current copies): the dragged task, or its selection. */
   tasksFor: (activeData: Record<string, unknown>) => PersistedTodoItem[]
+  /**
+   * The panes of the Eisenhower tab `tabId` (the pane's drop target's
+   * `scope`) as the layout has them now; `null` when there is no such tab —
+   * the drop then writes nothing.
+   */
+  panes: (tabId: string) => readonly EisenhowerPane[] | null
   /** What the pane filters are evaluated with, as it is now. */
   context: () => PaneContext
   /** Writes the changes as one undo step. */
   apply: (changes: PaneChange[]) => Promise<void>
-}
-
-/** The panes a pane's drop target carries (its widget's; absent or unreadable = the defaults). */
-function panesOf(v: unknown): readonly EisenhowerPane[] {
-  return Array.isArray(v) && v.length === 4 ? (v as EisenhowerPane[]) : resolvePanes(undefined)
 }
 
 export interface TaskDropDispatchDeps {
@@ -161,8 +161,13 @@ export async function dispatchTaskDrop(
     const quadrant = overData.quadrant
     if (isEisenhowerQuadrant(quadrant)) {
       const ops = deps.eisenhower
+      const panes = typeof overData.scope === 'string' ? ops.panes(overData.scope) : null
+      if (!panes) {
+        dndLog('dispatch.eisenhower-no-tab', { todoId: activeTodo.id, quadrant, scope: overData.scope ?? null })
+        return true
+      }
       const tasks = ops.tasksFor(activeData)
-      const result = resolvePaneDrop(tasks, quadrant, panesOf(overData.panes), ops.context())
+      const result = resolvePaneDrop(tasks, quadrant, panes, ops.context())
       dndLog('dispatch.eisenhower-drop', { todoIds: tasks.map((t) => t.id), quadrant, result: result.kind })
       if (result.kind === 'apply') await ops.apply(result.changes)
       return true

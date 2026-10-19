@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { emptyPredicate, type TodoPredicate } from '../../models'
 import {
   defaultPaneFilter,
-  hasPaneWrites,
   normalizePaneConfig,
   paneSubtitle,
   paneWrites,
@@ -43,6 +42,7 @@ describe('a pane’s stored settings', () => {
     expect(normalizePaneConfig('do', { name: 'Do', filter: p({ showCompleted: true, markers: { important: true, urgent: true } }) })).toBeUndefined()
     expect(normalizePaneConfig('drop', { name: '   ' })).toBeUndefined()
   })
+
   it('a name is one plain line: line breaks and control characters become spaces, bidi controls go; no length cap', () => {
     expect(normalizePaneConfig('do', { name: 'Now\nCan’t move to Do' })).toEqual({ name: 'Now Can’t move to Do' })
     expect(normalizePaneConfig('do', { name: '\u202Eolleh\u202C \u2066x\u2069\u200F\u0007' })).toEqual({ name: 'olleh x' })
@@ -54,7 +54,6 @@ describe('a pane’s stored settings', () => {
     expect(normalizePaneConfig('do', { name: '\u202E\u0000' })).toBeUndefined()
     expect(resolvePanes({ schedule: { name: 'Later\r\nnow' } })[1]?.name).toBe('Later  now')
   })
-
 
   it('an "is not" with nothing ticked is no filter', () => {
     expect(normalizePaneConfig('drop', { filter: { ...defaultPaneFilter('drop'), statusIds: [], negate: { statusIds: true } } })).toBeUndefined()
@@ -93,19 +92,24 @@ describe('paneSubtitle of a custom filter', () => {
 
 describe('paneWrites — what a drop / "+" on the pane writes', () => {
   it('each marker it tests, Yes or No', () => {
-    expect(paneWrites(defaultPaneFilter('schedule'))).toEqual({ markers: { urgent: false, important: true } })
-    expect(paneWrites(p({ markers: 'hot' }))).toEqual({ markers: {} })
-    expect(hasPaneWrites(paneWrites(p({ markers: 'hot' })))).toBe(false)
+    expect(paneWrites(defaultPaneFilter('schedule'), NAMES)).toEqual({ markers: { urgent: false, important: true } })
+    expect(paneWrites(p({ markers: 'hot' }), NAMES)).toEqual({ markers: {} })
   })
 
   it('one status, person or tag picked with "is"', () => {
-    expect(paneWrites(p({ statusIds: [4], personIds: [1], tags: [5] }))).toEqual({ markers: {}, statusId: 4, personId: 1, tagId: 5 })
+    expect(paneWrites(p({ statusIds: [4], personIds: [1], tags: [5] }), NAMES)).toEqual({ markers: {}, statusId: 4, personId: 1, tagId: 5 })
   })
 
   it('nothing from "is not", several values or the "none" sentinels', () => {
-    expect(paneWrites(NOT_DELEGATED)).toEqual({ markers: { urgent: true, important: false } })
-    expect(paneWrites(p({ statusIds: [3, 4], personIds: [1, 2], tags: [5, 6] }))).toEqual({ markers: {} })
-    expect(paneWrites(p({ statusIds: [0], personIds: [0], tags: [0] }))).toEqual({ markers: {} })
+    expect(paneWrites(NOT_DELEGATED, NAMES)).toEqual({ markers: { urgent: true, important: false } })
+    expect(paneWrites(p({ statusIds: [3, 4], personIds: [1, 2], tags: [5, 6] }), NAMES)).toEqual({ markers: {} })
+    expect(paneWrites(p({ statusIds: [0], personIds: [0], tags: [0] }), NAMES)).toEqual({ markers: {} })
+  })
+
+  it('never a status, person or tag that no longer exists: that clause is named instead', () => {
+    expect(paneWrites(p({ markers: { urgent: true }, statusIds: [99], personIds: [98], tags: [97] }), NAMES))
+      .toEqual({ markers: { urgent: true }, deleted: ['status', 'people', 'tags'] })
+    expect(paneWrites(p({ statusIds: [4], personIds: [98] }), NAMES)).toEqual({ markers: {}, statusId: 4, deleted: ['people'] })
   })
 })
 
