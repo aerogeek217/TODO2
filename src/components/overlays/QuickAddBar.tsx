@@ -68,7 +68,7 @@ import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { MarkerIcon } from '../shared/MarkerIcons'
 import { NlpPopup } from '../shared/NlpPopup'
-import { DialogLayerContext } from '../shared/dialog-layer'
+import { DialogLayerContext, MODAL_BACKDROP_ATTR } from '../shared/dialog-layer'
 import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -726,6 +726,7 @@ export function QuickAddBar({
       ref={overlayRef}
       className={styles.overlay}
       data-testid="quickadd-backdrop"
+      {...{ [MODAL_BACKDROP_ATTR]: '' }}
       {...backdropPress}
     >
       <div

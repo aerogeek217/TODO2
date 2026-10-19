@@ -24,6 +24,10 @@
   --radius-pill: 999px;
   --radius-lg: 16px;
 
+  /* How much a modal's backdrop blurs the page behind it (every modal, once:
+   * a dialog stacked on another adds none). */
+  --backdrop-blur: 6px;
+
   /* Z-Index */
   --z-above: 1;
   --z-above-2: 2;

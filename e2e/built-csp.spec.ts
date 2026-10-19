@@ -75,7 +75,11 @@ async function watchCsp(page: Page): Promise<() => Promise<string[]>> {
   ]
 }
 
-/** Starts the app, adds a task through Quick Add and opens Settings. */
+/**
+ * Starts the app, adds a task through Quick Add and opens Settings — whose
+ * backdrop blurs the page in the built CSS too (the minifier once kept only
+ * a `-webkit-` prefixed blur, which Chromium ignores).
+ */
 async function exercise(page: Page) {
   await expect(page.locator('[data-ws-area]')).toBeVisible()
   await page.keyboard.press('Control+Space')
@@ -84,6 +88,7 @@ async function exercise(page: Page) {
   await page.keyboard.press('Enter')
   await expect(quickAdd).toBeHidden()
   await openSettings(page, 'Backups')
+  await expect.poll(() => page.locator('[data-modal-backdrop]').evaluate((el) => getComputedStyle(el).backdropFilter)).toMatch(/^blur\(\d+px\)$/)
 }
 
 function cspOf(html: string): string {

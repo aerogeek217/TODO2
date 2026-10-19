@@ -1,5 +1,4 @@
 .backdrop {
-  composes: blurScrim from '../shared/Dialog.module.css';
   position: fixed;
   inset: 0;
   z-index: var(--z-overlay);

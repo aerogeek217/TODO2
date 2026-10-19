@@ -3,7 +3,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref
 import { createPortal } from 'react-dom'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
-import { DialogLayerContext } from './dialog-layer'
+import { DialogLayerContext, MODAL_BACKDROP_ATTR } from './dialog-layer'
 import { useBackdropPress } from './use-backdrop-press'
 
 /**
@@ -103,7 +103,9 @@ const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
  *   the panel (Tab with nothing focused comes back in), and focus returns to
  *   where it was when the dialog closes.
  * - **Backdrop:** a press that starts and ends on it closes the dialog, so a
- *   text drag that ends outside the panel doesn't.
+ *   text drag that ends outside the panel doesn't. It dims and blurs the
+ *   page (`--backdrop-blur`) — unless the dialog opened over another modal
+ *   or on the `raised` / `nested` tiers, whose backdrop adds no second blur.
  * - **Keys stay in:** the panel is `data-shortcut-scope="modal"`, so no app
  *   shortcut fires from inside it.
  * - **Tier:** what it renders (portaled layers too) reads its `layer` with
@@ -138,6 +140,8 @@ export function DialogFrame({
   // What had the focus when the dialog opened — read before its content
   // mounts, since an `autoFocus` control inside takes the focus first.
   const [opener] = useState(() => document.activeElement as HTMLElement | null)
+  // Opened over another modal: that one's backdrop already blurs the page.
+  const [stacked] = useState(() => layer === 'nested' || layer === 'raised' || document.querySelector(`[${MODAL_BACKDROP_ATTR}]`) != null)
 
   // Focus moves in on open (unless a control inside already took it) and
   // goes back to the opener once the dialog is gone.
@@ -221,8 +225,9 @@ export function DialogFrame({
   const frame = (
     <>
       <div
-        className={`${styles.backdrop} ${layerClass} ${backdropClassName ?? ''}`}
+        className={`${styles.backdrop} ${layerClass} ${stacked ? '' : styles.backdropBlur} ${backdropClassName ?? ''}`}
         data-dialog-backdrop=""
+        {...{ [MODAL_BACKDROP_ATTR]: '' }}
         {...backdropPress}
       />
       <div

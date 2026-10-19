@@ -395,3 +395,31 @@ describe('ConfirmDialog', () => {
     expect(confirmBtn.className).toMatch(/dangerButton/)
   })
 })
+
+describe('DialogFrame backdrop blur', () => {
+  const blurred = (el: Element) => /backdropBlur/.test(el.className)
+
+  it('blurs the page behind a dialog; one opened over it adds no second blur', () => {
+    const { rerender } = render(
+      <DialogFrame onClose={() => {}} aria-label="First"><button>a</button></DialogFrame>,
+    )
+    rerender(
+      <>
+        <DialogFrame onClose={() => {}} aria-label="First"><button>a</button></DialogFrame>
+        <DialogFrame onClose={() => {}} aria-label="Second"><button>b</button></DialogFrame>
+      </>,
+    )
+    const backdrops = [...document.querySelectorAll('[data-modal-backdrop]')]
+    expect(backdrops.map(blurred)).toEqual([true, false])
+  })
+
+  it('the raised and nested tiers never blur', () => {
+    render(
+      <>
+        <DialogFrame onClose={() => {}} layer="raised" aria-label="Raised"><button>a</button></DialogFrame>
+        <DialogFrame onClose={() => {}} layer="nested" aria-label="Nested"><button>b</button></DialogFrame>
+      </>,
+    )
+    expect([...document.querySelectorAll('[data-modal-backdrop]')].map(blurred)).toEqual([false, false])
+  })
+})

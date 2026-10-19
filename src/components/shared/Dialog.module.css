@@ -11,10 +11,16 @@
   background: var(--color-overlay);
 }
 
-/* The dimmed, blurred backdrop of the command palette and Quick Add. */
+/* A modal's blur of the page behind it: the frame adds it to its backdrop
+ * unless the dialog is stacked on another one. */
+.backdropBlur {
+  backdrop-filter: blur(var(--backdrop-blur));
+}
+
+/* Quick Add's scrim (its own element, not the frame's): dimmed and blurred. */
 .blurScrim {
+  composes: backdropBlur;
   background: var(--color-overlay);
-  backdrop-filter: blur(4px);
 }
 
 /* Centred by auto margins, not a transform: a transformed panel would become
