@@ -124,11 +124,16 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
- * Store specs of the v63 schema: the current specs (v64 changed no store).
+ * Store specs of the v64 schema: the current specs (v65 changed no store).
  * Update when a later version changes a store spec.
  */
-export function v63StoreSpecs(): Record<string, string> {
+export function v64StoreSpecs(): Record<string, string> {
   return currentStoreSpecs()
+}
+
+/** Store specs of the v63 schema — v64 changed no store spec. */
+export function v63StoreSpecs(): Record<string, string> {
+  return v64StoreSpecs()
 }
 
 /** Store specs of the v62 schema — v63 changed no store spec. */

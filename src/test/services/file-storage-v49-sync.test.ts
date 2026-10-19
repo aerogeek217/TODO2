@@ -3,6 +3,7 @@ import Dexie from 'dexie'
 import fixture from '../fixtures/v49-export.json'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { prepareImportText } from '../../data/import-pipeline'
+import { buildExportData } from '../../data/export-data'
 import { FILE_SYNC_STATE_KEY } from '../../services/file-sync-state'
 import { fileStorageService as svc } from '../../services/file-storage'
 import type { SyncConflictInfo } from '../../services/file-storage'
@@ -298,5 +299,36 @@ describe('a sync file missing some data tables still loads (missing tables arriv
     expect(await db.tags.count()).toBe(0)
     expect(await db.listOrders.count()).toBe(0)
     expect(await db.layouts.count()).toBe(text === v49RequiredOnly ? 1 : 0)
+  })
+})
+
+describe('first load after deploying over a v64 build (synced, with a sync record)', () => {
+  it('asks 64 → CURRENT, not a conflict; confirming backs up the raw v64 text and rewrites the file with the same data', async () => {
+    await db.listDefinitions.add({
+      name: 'Not mine', sortOrder: 0, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null } },
+    })
+    const fileText = JSON.stringify({ ...await buildExportData(), __schemaVersion: 64, savedAt: SAVED_AT }, null, 2)
+    setSyncState({ fileSavedAt: SAVED_AT, dirtySince: null })
+    const { handle, write } = makeHandle(fileText)
+    mockLoadFileHandle.mockResolvedValue(handle)
+    const ask = vi.fn().mockResolvedValue(true)
+    svc.onConfirmFileUpgrade(ask)
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 64, toVersion: CURRENT_DB_VERSION })
+    expect(svc.status.paused).toBeNull()
+    expect((await db.backups.toArray()).filter((b) => b.data === fileText)).toHaveLength(1)
+    expect(write).toHaveBeenCalledTimes(1)
+    const written = prepareImportText(write.mock.calls[0]![0])
+    expect(written).toMatchObject({ ok: true, sourceVersion: CURRENT_DB_VERSION, upgraded: false })
+    if (!written.ok) return
+    expect(await browserMatchesFile(written.data)).toBe(true)
+    expect(written.data.todos.map((t) => t.title)).toEqual([BROWSER_TASK])
+    expect(written.data.listDefinitions.map((d) => d.name)).toEqual(['Not mine'])
   })
 })

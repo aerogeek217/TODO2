@@ -861,10 +861,23 @@ describe('v49 fixture → v64: date filters per date type; the list and tag caps
   })
 })
 
+describe('v49 fixture → v65: a version marker, no data change', () => {
+  it('every table at v65 is the v64 table', () => {
+    const at64 = fixtureAt(64)
+    expect(upgradeDataSet(at64, 64, 65)).toBe(at64)
+    expect(fixtureAt(65)).toEqual(at64)
+  })
+
+  it('upgrading the v65 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 64, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
 // ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
 /**
  * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
- * hex digits). The transforms up to v64 are frozen, so these never change:
+ * hex digits). The transforms up to v65 are frozen, so these never change:
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
@@ -888,6 +901,7 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   62: '7a756537e39297bf',
   63: '13816223c358d095',
   64: 'd89ed146e9a87d82',
+  65: 'd89ed146e9a87d82',
 }
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 
