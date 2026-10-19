@@ -62,6 +62,12 @@ export async function refreshAllStores() {
     // working copy); untouched until the workspace has been opened once.
     ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),
   ])
+  // The replaced data may hold no Eisenhower list (or a setting naming
+  // another): made / named again. A failure leaves the Eisenhower on every
+  // task, as that list's empty filter would.
+  await useListDefinitionStore.getState().ensureEisenhowerList().catch((err: unknown) => {
+    console.warn('[refresh] the Eisenhower list could not be made', err)
+  })
   // Reload assignment maps after entities and todos are loaded. Refetch every
   // id: the replaced tables can keep a todo's id while changing its people /
   // tags, and the cached entries describe the old data.

@@ -65,8 +65,9 @@ export interface WorkspaceSeed {
   layouts: WsLayoutSeed[]
   /**
    * The app-wide Eisenhower settings (every Eisenhower tab and the dashboard
-   * section): its source list (index into `listDefinitions`; none = all
-   * tasks) and its custom panes.
+   * section): its own list (index into `listDefinitions` — that list is
+   * made the Eisenhower's, a hidden list; none = the one the app made, with
+   * no filter) and its custom panes.
    */
   eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
   /** Names, or a name with initials / colour / email. */
@@ -86,6 +87,8 @@ export interface WorkspaceSeed {
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
+    /** A layout-only list: the layout (index into `layouts`) that owns it. */
+    layoutIdx?: number
   }>
   tasks?: Array<{
     title: string
@@ -133,7 +136,7 @@ export function emptyPredicate(): Record<string, unknown> {
 }
 
 /**
- * Seeds layouts (replacing the app's own), list definitions, people, tags and
+ * Seeds layouts and list definitions (replacing the app's own), people, tags and
  * tasks straight into IndexedDB, then reloads on the workspace. The app must
  * have booted once (Dexie upgraded) — this opens the workspace (`/#/`) first.
  */
@@ -155,6 +158,11 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       r.onerror = () => reject(r.error)
     })
     const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags'], 'readwrite')
+    const get = (store: IDBObjectStore, key: number) => new Promise<Record<string, unknown>>((resolve, reject) => {
+      const r = store.get(key)
+      r.onsuccess = () => resolve(r.result as Record<string, unknown>)
+      r.onerror = () => reject(r.error)
+    })
     const done = new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
@@ -178,6 +186,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     for (const name of seed.statuses ?? []) {
       statusIds.set(name, await add(tx.objectStore('statuses'), { name, color: '#4caf50', icon: 'circle', sortOrder: ++statusOrder }))
     }
+    // The seed's lists replace the app's own (the Eisenhower's list it made
+    // at launch): the app makes that again on the reload unless the seed
+    // names one (`eisenhower.listDefIdx`).
+    tx.objectStore('listDefinitions').clear()
     const defIds: number[] = []
     let defOrder = 0
     for (const def of seed.listDefinitions ?? []) {
@@ -192,6 +204,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
+        ...(seed.eisenhower?.listDefIdx === defIds.length ? { owner: { eisenhower: true } } : {}),
       }))
     }
     let taskOrder = 0
@@ -228,6 +241,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     }
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
+    const layoutIds: number[] = []
     type TabSeed = (typeof seed.layouts)[number]['columns'][number]['cells'][number]['tabs'][number]
     const buildTab = (tab: TabSeed) => {
       const base = structuredClone(seed.newTabs[tab.kind])
@@ -278,6 +292,15 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       }
       const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, createdAt: now, modifiedAt: now })
       firstId ??= id
+      layoutIds.push(id)
+    }
+    // Layout-only lists: owned by their layout, now that it has an id.
+    for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
+      const listId = defIds[i]
+      const layoutId = def.layoutIdx != null ? layoutIds[def.layoutIdx] : undefined
+      if (listId == null || layoutId == null) continue
+      const store = tx.objectStore('listDefinitions')
+      store.put({ ...(await get(store, listId)), owner: { layoutId } })
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })
     const eis = seed.eisenhower

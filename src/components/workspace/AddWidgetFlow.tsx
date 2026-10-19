@@ -4,7 +4,7 @@ import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { WidgetKindIcon } from '../shared/icons'
-import { createListThenEdit, useAddWidget } from './widget-hooks'
+import { createListThenEdit, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 
 interface AddWidgetFlowProps {
   target: LayoutDropTarget
@@ -16,8 +16,10 @@ interface AddWidgetFlowProps {
 
 /**
  * Adds a widget at `target`: picks the kind (unless `kind` is given), then —
- * for a list — which saved list to show ("Create new" makes a blank list and
- * opens that list's editor). A list tab is never added without a list.
+ * for a list — which list to show (a saved list or one of this layout's
+ * own; "Create new" makes a blank one — a saved list, or for this layout
+ * only — and opens that list's editor). A list tab is never added without
+ * a list.
  */
 export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowProps) {
   const [step, setStep] = useState<'kind' | 'list'>(kind != null && WIDGET_KIND_SPECS[kind].showsList ? 'list' : 'kind')
@@ -25,6 +27,7 @@ export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowPr
   // list picker instead of ending the flow.
   const movingOnRef = useRef(false)
   const add = useAddWidget()
+  const layoutId = useListOwnerLayoutId()
 
   if (step === 'kind') {
     return (
@@ -49,8 +52,9 @@ export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowPr
       x={anchor.x}
       y={anchor.y}
       header="Add list"
+      layoutId={layoutId}
       onSelect={(id) => { add('lens', target, id) }}
-      onCreateNew={() => createListThenEdit((id) => add('lens', target, id))}
+      onCreateNew={(layoutOnly) => createListThenEdit((id) => add('lens', target, id), layoutOnly ? layoutId : undefined)}
       onClose={onClose}
     />
   )

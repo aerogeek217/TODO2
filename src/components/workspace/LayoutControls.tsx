@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { ownerLayoutId } from '../../models/list-definition'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
@@ -29,6 +31,10 @@ export function LayoutControls() {
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
   const isNew = useWorkspaceStore((s) => s.working !== null && s.saved === null)
   const unsavedLists = useUnsavedListIds()
+  // The lists only the open layout shows: Delete layout takes them with it.
+  const ownedLists = useListDefinitionStore((s) => (activeLayoutId == null
+    ? 0
+    : s.listDefinitions.filter((d) => ownerLayoutId(d) === activeLayoutId).length))
   const [menuOpen, setMenuOpen] = useState(false)
   const [pending, setPending] = useState<Pending | null>(null)
   const pickerRef = useRef<HTMLButtonElement | null>(null)
@@ -156,6 +162,7 @@ export function LayoutControls() {
       {pending?.kind === 'delete' && (
         <DeleteLayoutDialog
           layoutName={name}
+          ownedLists={ownedLists}
           onConfirm={() => {
             close()
             if (isNew) store().discard()

@@ -7,17 +7,20 @@ interface Props {
   x: number
   y: number
   onSelect: (listDefinitionId: number) => void
-  onCreateNew: () => void
+  /** "Create new list…"; `layoutOnly` = This layout only was chosen (see `layoutId`). */
+  onCreateNew: (layoutOnly: boolean) => void
   onClose: () => void
   /** Ids to hide from the picker. Omit to show every def. */
   excludeIds?: number[]
   /** Heading above the list. */
   header?: string
+  /** The saved layout whose tab picks the list: its own lists are offered, and a new one may be made for it alone. */
+  layoutId?: number
 }
 
 const WIDTH_PX = 280
 
-export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds, header = 'Add list' }: Props) {
+export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds, header = 'Add list', layoutId }: Props) {
   const { panelRef, style } = usePopoverAnchor({
     anchor: { kind: 'point', x, y },
     open: true,
@@ -36,8 +39,9 @@ export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose
         header={header}
         actionLabel="Add"
         excludeIds={excludeIds}
+        layoutId={layoutId}
         onPick={(id) => { onSelect(id); onClose() }}
-        onCreateNew={() => { onCreateNew(); onClose() }}
+        onCreateNew={(layoutOnly) => { onCreateNew(layoutOnly); onClose() }}
       />
     </div>,
     document.body

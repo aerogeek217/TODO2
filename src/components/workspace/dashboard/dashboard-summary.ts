@@ -50,8 +50,6 @@ export function sectionSummaryLines(sections: readonly DashboardSectionConfig[],
         lines.push([{ label: 'Recently completed', count: countOf(data.recent.shown.ids.length, data.recent.total.ids.length) }])
         break
       case 'eisenhower':
-        // Nothing to count while the Eisenhower's list is deleted.
-        if (data.eisenhowerSetup.deleted) break
         lines.push(data.eisenhowerSetup.panes.map((p) => ({
           label: p.name,
           count: countOf(data.eisenhower.shown[p.id].ids.length, data.eisenhower.total[p.id].ids.length),

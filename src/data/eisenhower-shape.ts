@@ -11,8 +11,8 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  *
  * - `eisenhowerPanes`: JSON of an object of panes by position, each with an
  *   optional `name` (a string) and `filter` (a list predicate).
- * - `eisenhowerSource`: `list:<id>` (a saved list); `all` reads as all tasks
- *   (the app stores that as no row).
+ * - `eisenhowerSource`: `list:<id>` (the Eisenhower's own list); `all`
+ *   (older data) reads as none.
  */
 
 /** A part `pickPanes` dropped or reset, counted. */

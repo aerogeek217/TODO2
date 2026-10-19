@@ -325,9 +325,9 @@ export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSe
 }
 
 /**
- * The saved list a tab shows — a list tab's own list; an Eisenhower tab
- * shows the app-wide Eisenhower source, `eisenhowerListId` (`null` = all
- * tasks) —, else `undefined`. A tab with a list counts as a widget showing
+ * The list a tab shows — a list tab's own list; an Eisenhower tab shows
+ * the Eisenhower's own list, `eisenhowerListId` (`null` until it is
+ * loaded) —, else `undefined`. A tab with a list counts as a widget showing
  * that list (its unsaved edits, the last-widget prompt).
  */
 export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): number | undefined {

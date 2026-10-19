@@ -197,7 +197,7 @@ function urgentIncludes(range: UrgentDueWithinDays): string {
 export interface EisenhowerDialogSource {
   /** The app-wide urgent range (what Urgent includes). */
   urgentRange: UrgentDueWithinDays
-  /** The source list's name; `null` = all tasks. */
+  /** The Eisenhower's list's name while its filter narrows the tasks; `null` = every task. */
   listName: string | null
 }
 

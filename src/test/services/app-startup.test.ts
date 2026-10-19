@@ -6,6 +6,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { backupScheduler } from '../../data/backup-scheduler'
 import { todoRepository } from '../../data/todo-repository'
 import { db } from '../../data/database'
@@ -49,6 +50,7 @@ function spyLaunchWork() {
     people: vi.spyOn(usePersonStore.getState(), 'ensureLoaded'),
     statuses: vi.spyOn(useStatusStore.getState(), 'ensureLoaded'),
     tags: vi.spyOn(useTagStore.getState(), 'ensureLoaded'),
+    eisenhowerList: vi.spyOn(useListDefinitionStore.getState(), 'ensureEisenhowerList'),
     readTasks: vi.spyOn(todoRepository, 'getAll'),
     backups: vi.spyOn(backupScheduler, 'start').mockImplementation(() => {}),
   }
@@ -71,6 +73,7 @@ describe('runAppStartup — the launch question', () => {
     expect(work.people).not.toHaveBeenCalled()
     expect(work.statuses).not.toHaveBeenCalled()
     expect(work.tags).not.toHaveBeenCalled()
+    expect(work.eisenhowerList).not.toHaveBeenCalled()
     expect(onPurgeCheck).not.toHaveBeenCalled()
     expect(work.readTasks).not.toHaveBeenCalled()
     expect(work.backups).not.toHaveBeenCalled()
@@ -82,6 +85,7 @@ describe('runAppStartup — the launch question', () => {
     expect(work.people).toHaveBeenCalled()
     expect(work.statuses).toHaveBeenCalled()
     expect(work.tags).toHaveBeenCalled()
+    expect(work.eisenhowerList).toHaveBeenCalled()
     expect(onPurgeCheck).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ expiredUids: new Set([expiredUid]) })
     // In order: the stores, the purge check, then automatic backups.
@@ -121,5 +125,21 @@ describe('runAppStartup — the launch question', () => {
     await expect(runAppStartup()).resolves.toEqual({ expiredUids: new Set([expiredUid]) })
     expect(useFileStorageStore.getState().pendingLaunchPermission).toBeNull()
     expect(work.backups).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes the Eisenhower’s own list when the data has none, and names it in the setting', async () => {
+    vi.spyOn(fileStorageService, 'initialize').mockResolvedValue(undefined)
+    spyLaunchWork()
+    await db.listDefinitions.clear()
+    await db.settings.delete(SETTING_KEYS.eisenhowerSource)
+    await runAppStartup()
+    const lists = await db.listDefinitions.toArray()
+    expect(lists).toHaveLength(1)
+    expect(lists[0]).toMatchObject({ name: 'Eisenhower', owner: { eisenhower: true } })
+    expect(useSettingsStore.getState().eisenhowerListId).toBe(lists[0]!.id)
+    expect((await db.settings.get(SETTING_KEYS.eisenhowerSource))?.value).toBe(`list:${lists[0]!.id}`)
+    // Once there: the next launch writes nothing.
+    await runAppStartup()
+    expect(await db.listDefinitions.count()).toBe(1)
   })
 })

@@ -20,12 +20,21 @@ function screenChipText(chip: FilterChip): string {
 }
 
 interface ListFilterRowProps {
-  /** The tab showing the list (Edit list opens beside its panel). */
-  tabId: string
+  /**
+   * The tab showing the list (Edit list opens beside its panel). Absent
+   * outside a widget (Settings › Tasks › Eisenhower): no summary.
+   */
+  tabId?: string
   /** The list as shown: its unsaved draft, else the saved list. */
   definition: PersistedListDefinition
   /** The group · sort summary that opens Edit list (off where the list's group and sort don't apply). */
   summary?: boolean
+  /**
+   * Inside a modal (Settings): shown whatever the list's Show filter line
+   * (that switch is about its widgets), and a filter picker's Esc closes
+   * only the picker.
+   */
+  inDialog?: boolean
 }
 
 /**
@@ -33,22 +42,23 @@ interface ListFilterRowProps {
  * chips (read-only, set in the top bar), then the list's own filter chips
  * (editing them makes the list unsaved; `No filters` when there are none),
  * + Filter, the group · sort summary that opens Edit list,
- * and — while the list is unsaved — Revert · Save. Used by list widgets and
- * by an Eisenhower widget on a list (without the summary). Phones (a
+ * and — while the list is unsaved — Revert · Save. Used by list widgets, by
+ * the Eisenhower widget (its own list, without the summary) and by Settings
+ * › Tasks › Eisenhower (the same list and draft). Phones (a
  * `data-touch-chips` ancestor) get touch sizes.
  *
- * A list set not to show it (`showFilterLine: false`) shows nothing — but
- * the whole line while it is unsaved, so Revert · Save are there; Edit list
- * stays in the tab menu.
+ * A list set not to show it (`showFilterLine: false`) shows nothing in its
+ * widgets — but the whole line while it is unsaved, so Revert · Save are
+ * there; Edit list stays in the tab menu.
  */
 export function ListFilterRow(props: ListFilterRowProps) {
   const unsaved = useIsListDirty(props.definition.id)
-  if (props.definition.showFilterLine === false && !unsaved) return null
+  if (props.definition.showFilterLine === false && !unsaved && !props.inDialog) return null
   return <FilterRowBody {...props} unsaved={unsaved} />
 }
 
-function FilterRowBody({ tabId, definition, summary = true, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
-  const editorOpen = useUIStore((s) => s.listEditor?.tabId === tabId)
+function FilterRowBody({ tabId, definition, summary = true, inDialog = false, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
+  const editorOpen = useUIStore((s) => tabId != null && s.listEditor?.tabId === tabId)
   const names = useChipNames()
   const screenChips = useScreenChips()
   const predicate = definition.membership.predicate
@@ -63,6 +73,7 @@ function FilterRowBody({ tabId, definition, summary = true, unsaved }: ListFilte
         <PredicateChips
           predicate={predicate}
           onChange={(next) => useListDraftStore.getState().edit(id, (d) => ({ ...d, membership: { kind: 'custom', predicate: next } }))}
+          inDialog={inDialog}
           before={(
             <>
               {screenChips.map((chip) => (
@@ -77,7 +88,7 @@ function FilterRowBody({ tabId, definition, summary = true, unsaved }: ListFilte
           )}
         />
       </div>
-      {summary && (
+      {summary && tabId != null && (
         <button
           type="button"
           className={`${chipStyles.summary} ${editorOpen ? chipStyles.summaryOpen : ''}`}

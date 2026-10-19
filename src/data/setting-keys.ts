@@ -58,8 +58,10 @@ export const SETTING_KEYS = {
   eisenhowerPanes: 'eisenhowerPanes',
   /**
    * Which tasks the Eisenhower considers: `list:<listDefinitionId>` — its
-   * own list (`owner: { eisenhower: true }`), or one saved list's. Absent =
-   * all tasks; a deleted list stays named (the matrix says so).
+   * own list (`owner: { eisenhower: true }`). The app makes and names it
+   * when it is missing or names another list (app startup, a data replace —
+   * `listDefinitionRepository.ensureEisenhowerList`); `all` (older data)
+   * reads as no list yet.
    */
   eisenhowerSource: 'eisenhowerSource',
 } as const

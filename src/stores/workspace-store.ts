@@ -1,8 +1,11 @@
 import { create } from 'zustand'
-import { byLayoutOrder, layoutRepository, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type ListCopy, type ReadLayout } from '../data/layout-repository'
 import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
+import { ownerLayoutId } from '../models/list-definition'
 import { useUndoStore } from './undo-store'
 import { useListDefinitionStore } from './list-definition-store'
+import { useListDraftStore } from './list-draft-store'
+import { useListOrderStore } from './list-order-store'
 import { registerModuleReset } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
@@ -25,9 +28,11 @@ import {
   closeCell,
   closeTab,
   layoutIds,
+  layoutListRefs,
   layoutStructureEqual,
   layoutTabs,
   movePanel,
+  repointLayoutLists,
   moveTab,
   patchTabConfig,
   patchTabViewState,
@@ -107,12 +112,17 @@ export interface WorkspaceState {
    * Writes the working copy over the saved layout (a new layout: stores it
    * under its name and opens it). Resolves `false` when the
    * write failed — the layout stays unsaved and the snackbar says so; never
-   * rejects (as `saveAs` → `null`, `rename` → `false`).
+   * rejects (as `saveAs` → `null`, `rename` → `false`). Once saved, the
+   * layout-only lists it owns that no tab of it shows any more are deleted
+   * (with their manual order and unsaved edits); Discard keeps them.
    */
   save: () => Promise<boolean>
   /**
    * Saves the working copy as a new layout and opens it; the layout it came
-   * from stays as last saved. Returns the new id, or `null` for an empty name.
+   * from stays as last saved. The layout-only lists it shows are copied for
+   * the new layout (as edited, with their manual order) and its tabs show
+   * the copies; originals that only its edits showed go. Returns the new
+   * id, or `null` for an empty name.
    */
   saveAs: (name: string) => Promise<number | null>
   /** Reverts the working copy to the saved layout; a new layout is dropped for the one open before. */
@@ -124,7 +134,8 @@ export interface WorkspaceState {
   rename: (id: number, name: string) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
-   * opens the most recently used remaining one.
+   * opens the most recently used remaining one. The lists it owns go with
+   * it (their manual order and unsaved edits too). Not undoable.
    */
   delete: (id: number) => Promise<boolean>
   /**
@@ -263,6 +274,51 @@ function listsStillMatch(listNames: Readonly<Record<string, string>>, body: Layo
     const def = defs.find((d) => d.id === id)
     return def != null && listNames[id] === def.name
   })
+}
+
+/**
+ * Lists deleted with their layout (or no longer shown by it when it was
+ * saved): out of the list stores, their unsaved edits dropped.
+ */
+function forgetDeletedLists(ids: readonly number[]): void {
+  if (ids.length === 0) return
+  useListDefinitionStore.getState().forgetLists(ids)
+  const drafts = useListDraftStore.getState()
+  for (const id of ids) drafts.discard(id)
+}
+
+/**
+ * Deletes the lists layout `layoutId` owns that none of `bodies` (the
+ * layout as now saved, and as edited since) shows. A failed delete only
+ * leaves them in place (hidden, unshown) until the layout is saved again.
+ */
+async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<void> {
+  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
+  try {
+    forgetDeletedLists(await layoutRepository.pruneOwnedLists(layoutId, shown))
+  } catch (err) {
+    console.warn('[workspace] removing the layout\'s unshown lists failed', err)
+  }
+}
+
+/**
+ * The layout-only lists of layout `layoutId` that `body` shows, as copies
+ * for a new layout: each list as edited (its unsaved draft, else as saved;
+ * a blank draft name keeps the saved name).
+ */
+function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
+  const shown = layoutListRefs(body)
+  const drafts = useListDraftStore.getState().drafts
+  const copies: ListCopy[] = []
+  for (const saved of useListDefinitionStore.getState().listDefinitions) {
+    if (!shown.has(saved.id) || ownerLayoutId(saved) !== layoutId) continue
+    const { id: _id, sortOrder: _order, owner: _owner, ...def } = drafts[saved.id] ?? saved
+    void _id
+    void _order
+    void _owner
+    copies.push({ from: saved.id, def: { ...def, name: def.name.trim() || saved.name } })
+  }
+  return copies
 }
 
 /** The ids of the read layouts that were repaired. */
@@ -459,24 +515,36 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         layouts: replaceLayout(get().layouts, next),
       })
       keepDraft()
+      // Its layout-only lists that no saved tab shows any more go — unless
+      // an edit made meanwhile shows one again.
+      await pruneOwnedLists(next.id, next, kept)
       return true
     },
 
     async saveAs(name) {
       const clean = cleanName(name)
       const source = get().working
+      const from = get().saved
       if (!clean || !source) return null
       const now = new Date()
       const { id: _from, sortOrder: _order, ...body } = source
       void _from
       void _order
-      const record = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
+      // The layout-only lists it shows are copied for the new layout (as
+      // edited); the originals stay with the layout they came from.
+      const copies = from ? ownedListCopies(from.id, source) : []
+      const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number
+      let listIds: ReadonlyMap<number, number>
       try {
-        id = await layoutRepository.insert(record)
+        ({ id, listIds } = await layoutRepository.insertWithListCopies(original, copies))
       } catch (err) {
         reportWriteFailure(`Couldn't save layout "${clean}".`, err)
         return null
+      }
+      const record = repointLayoutLists(original, listIds)
+      if (listIds.size > 0) {
+        await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
       }
       await layoutRepository.setActiveId(id).catch((err: unknown) => {
         console.warn('[workspace] remembering the open layout failed', err)
@@ -485,7 +553,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
       const saved: Layout = { ...record, id, sortOrder }
       // Keep any edit made while the insert was in flight.
-      const current = get().working ?? source
+      const current = repointLayoutLists(get().working ?? source, listIds)
       const working: Layout = { ...current, id, sortOrder, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       set({
         layouts: [...get().layouts, saved],
@@ -497,6 +565,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         previousLayoutId: null,
       })
       keepDraft()
+      // The layout it came from stays as last saved: its layout-only lists
+      // only the edits showed (now copied) go.
+      if (from) await pruneOwnedLists(from.id, from)
       return id
     },
 
@@ -549,19 +620,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async delete(id) {
-      const deleted = await layoutRepository.deleteUnlessLast(id)
-      if (!deleted) return false
+      // Its layout-only lists go with it (no other layout shows them).
+      const deletedLists = await layoutRepository.deleteUnlessLast(id)
+      if (!deletedLists) return false
       const reads = await layoutRepository.getAll()
       const layouts = reads.map((r) => r.layout)
       const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
       if (get().activeLayoutId !== id) {
         set({ layouts, repairedIds })
+        forgetDeletedLists(deletedLists)
         return true
       }
       set({ repairedIds })
       const next = mostRecentlyUsed(layouts)
       if (next) await get().load(next.id)
       set({ layouts: get().layouts.filter((l) => l.id !== id) })
+      forgetDeletedLists(deletedLists)
       return true
     },
 

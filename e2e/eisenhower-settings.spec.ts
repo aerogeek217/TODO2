@@ -6,12 +6,13 @@ import { readStore } from './fixtures/db'
  * Settings › Tasks › Eisenhower in a real browser: the app-wide panes and
  * source are edited there — Delegate gets `Status is not Delegated` and
  * every Eisenhower tab (on two layouts) and the dashboard's Eisenhower
- * section follow; Esc in a pane's filter picker closes only the picker; Show
- * › a list moves every Eisenhower to it; each change is one undo step and is
- * kept across a reload. The workspace's entries are shortcuts into it: the
- * tab menu's Customize panes… (whose first line names the source), the cell
- * ⋯ menu's, a pane header's Edit pane… (focuses that pane's name). On a
- * phone there is no entry.
+ * section follow; Esc in a pane's filter picker closes only the picker; each
+ * change is one undo step and is kept across a reload. The Eisenhower's own
+ * list's filter is edited there too — the same unsaved draft as every
+ * Eisenhower's filter line, with Revert · Save. The workspace's entries are
+ * shortcuts into it: the tab menu's Customize panes…, the cell ⋯ menu's, a
+ * pane header's Edit pane… (focuses that pane's name). On a phone there is
+ * no entry.
  */
 
 const SEED: WorkspaceSeed = {
@@ -116,52 +117,53 @@ test.describe('desktop', () => {
     await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
   })
 
-  test('Show › a list: every Eisenhower follows; the tab menu names it; Undo; reload keeps it', async ({ page }) => {
-    await seedWorkspace(page, {
-      ...SEED,
-      layouts: [{
-        name: 'Main',
-        columns: [
-          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] },
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] }] },
-        ],
-      }],
-    })
+  test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the dashboard follows; reload', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('2')
     await openSettings(page, 'Eisenhower')
-    const show = part(page).getByTestId('eisenhower-source')
-    await expect(show).toHaveText('All tasks')
-    await show.click()
-    const menu = page.getByRole('menu', { name: 'Eisenhower shows' })
-    await expect(menu.getByRole('menuitemradio', { name: 'All tasks' })).toHaveAttribute('aria-checked', 'true')
-    await menu.getByRole('menuitemradio', { name: 'Team' }).click()
-    await expect(menu).toHaveCount(0)
-    await expect(show).toHaveText('Team')
-    const team = (await readListDefinitions(page)).find((d) => d.name === 'Team')!.id
-    await expect.poll(() => storedSource(page)).toBe(`list:${team}`)
-    await closeSettings(page)
-
-    for (const id of ['eisTab', 'eis2']) await expect(wsTab(page, id)).toHaveAttribute('title', 'Eisenhower · Team')
-    await expect(wsCell(page, 'a1').getByTestId('list-filter-row')).toBeVisible()
-    await expect(wsCell(page, 'b1').getByTestId('list-filter-row')).toBeVisible()
-    // The tab menu's first line names the source; Edit list… is there.
-    await wsTab(page, 'eisTab').click({ button: 'right' })
-    const tabMenu = page.getByRole('menu', { name: 'Change widget' })
-    await expect(tabMenu).toContainText('Shows “Team”')
-    await expect(tabMenu.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
-    await expect(tabMenu.getByRole('menuitem', { name: /^Show/ })).toHaveCount(0)
+    // No Show › choice: the Eisenhower's own list, its filter as chips.
+    await expect(part(page).getByTestId('eisenhower-source')).toHaveCount(0)
+    const line = part(page).getByTestId('eisenhower-list-line')
+    await expect(line).toContainText('No filters')
+    await line.getByRole('button', { name: 'Filter', exact: true }).click()
+    await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
+    const picker = page.getByTestId('list-filter-picker')
+    await picker.getByRole('radio', { name: 'Is not' }).click()
+    await picker.locator('label', { hasText: 'Delegated' }).click()
+    // Esc closes the picker only.
     await page.keyboard.press('Escape')
-
-    await page.getByRole('button', { name: 'Undo' }).click()
-    for (const id of ['eisTab', 'eis2']) await expect(wsTab(page, id)).toHaveAttribute('title', 'Eisenhower')
-    await expect.poll(() => storedSource(page)).toBeUndefined()
-
-    await openSettings(page, 'Eisenhower')
-    await part(page).getByTestId('eisenhower-source').click()
-    await page.getByRole('menu', { name: 'Eisenhower shows' }).getByRole('menuitemradio', { name: 'Other' }).click()
+    await expect(picker).toBeHidden()
+    await expect(settingsDialog(page)).toBeVisible()
+    // Unsaved: Revert · Save beside it; the counts follow the draft.
+    await expect(line.getByTestId('save-list')).toBeVisible()
+    await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('1 now')
     await closeSettings(page)
-    await expect.poll(() => storedSource(page)).toMatch(/^list:/)
+
+    // The widget's filter line shows the same draft, unsaved; the dashboard counts it too.
+    const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
+    await expect(widgetLine).toContainText('not Delegated')
+    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+    await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
+    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
+    // Save from the widget: Settings' line is saved too.
+    await widgetLine.getByTestId('save-list').click()
+    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+    const source = await storedSource(page)
+    const eisenhower = (await readListDefinitions(page)).find((d) => `list:${d.id}` === source)!
+    expect(eisenhower.owner).toEqual({ eisenhower: true })
+    await expect.poll(async () => ((await readListDefinitions(page)).find((d) => d.id === eisenhower.id)?.membership as { predicate: unknown }).predicate)
+      .toMatchObject({ negate: { statusIds: true } })
+    await openSettings(page, 'Eisenhower')
+    await expect(part(page).getByTestId('eisenhower-list-line').getByTestId('save-list')).toHaveCount(0)
+    await expect(part(page).getByTestId('eisenhower-list-line')).toContainText('not Delegated')
+    await closeSettings(page)
+
+    // Kept across a reload; the other layout's Eisenhower too.
     await page.reload()
-    for (const id of ['eisTab', 'eis2']) await expect(wsTab(page, id)).toHaveAttribute('title', 'Eisenhower · Other')
+    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
+    await switchLayout(page, 'Second')
+    await expect(row(quadrant(page, 'eis2', 'delegate'), 'Review analytics')).toBeVisible()
+    await expect(row(quadrant(page, 'eis2', 'delegate'), 'Chase vendor')).toHaveCount(0)
   })
 
   test('a pane edit is undone from the snackbar while Settings is open; Reset all panes asks first', async ({ page }) => {
@@ -207,57 +209,34 @@ test.describe('desktop', () => {
     await expect(settingsDialog(page)).toBeVisible()
   })
 
-  test('Show’s menu: Esc closes only the menu; leaving a source list’s unsaved edits asks first, over Settings', async ({ page }) => {
-    await seedWorkspace(page, { ...SEED, eisenhower: { listDefIdx: 0 } })
-    // Edit the source list from the Eisenhower's filter line: it becomes unsaved.
-    const filterLine = wsCell(page, 'a1').getByTestId('list-filter-row')
-    await filterLine.getByRole('button', { name: 'Filter', exact: true }).click()
+  test('Revert in Settings drops the draft for every Eisenhower; the snackbar’s Undo brings it back', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
+    await widgetLine.getByRole('button', { name: 'Filter', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Status' }).click()
     await page.getByTestId('list-filter-picker').locator('label', { hasText: 'Delegated' }).click()
     await page.keyboard.press('Escape')
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
 
     await openSettings(page, 'Eisenhower')
-    const show = part(page).getByTestId('eisenhower-source')
-    await expect(show).toHaveText('Team')
-    await show.click()
-    const menu = page.getByRole('menu', { name: 'Eisenhower shows' })
-    await expect(menu).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(menu).toHaveCount(0)
-    await expect(settingsDialog(page)).toBeVisible()
-    await expect(show).toBeFocused()
-
-    // Only Eisenhower tabs show Team: picking another list asks first, over Settings.
-    await show.click()
-    await menu.getByRole('menuitemradio', { name: 'Other' }).click()
-    const prompt = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
-    await expect(prompt).toBeVisible()
-    await expect(prompt.getByRole('button', { name: 'Cancel' })).toBeInViewport()
-    // Esc is the prompt's: Settings stays, the source too.
-    await page.keyboard.press('Escape')
-    await expect(prompt).toHaveCount(0)
-    await expect(settingsDialog(page)).toBeVisible()
-    await expect(show).toHaveText('Team')
-    await expect.poll(() => storedSource(page)).toMatch(/^list:/)
-
-    await show.click()
-    await menu.getByRole('menuitemradio', { name: 'Other' }).click()
-    await prompt.getByRole('button', { name: 'Discard' }).click()
-    await expect(prompt).toHaveCount(0)
-    await expect(show).toHaveText('Other')
-    const other = (await readListDefinitions(page)).find((d) => d.name === 'Other')!.id
-    await expect.poll(() => storedSource(page)).toBe(`list:${other}`)
-    await expect(settingsDialog(page)).toBeVisible()
+    const line = part(page).getByTestId('eisenhower-list-line')
+    await expect(line).toContainText('Delegated')
+    await line.getByTestId('revert-list').click()
+    await expect(line).toContainText('No filters')
+    await expect(line.getByTestId('save-list')).toHaveCount(0)
+    const snackbar = page.locator('[data-keeps-selection]').filter({ hasText: 'Undo' })
+    await expect(snackbar).toContainText('List changes reverted')
+    await snackbar.getByRole('button', { name: 'Undo' }).click()
+    await expect(line.getByTestId('save-list')).toBeVisible()
     await closeSettings(page)
-    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   })
 
   test('the tab menu’s and the cell menu’s Customize panes…, a pane header’s Edit pane…, land on the part', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsTab(page, 'eisTab').click({ button: 'right' })
     const tabMenu = page.getByRole('menu', { name: 'Change widget' })
-    await expect(tabMenu).toContainText('Shows all tasks')
+    await expect(tabMenu.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
     await tabMenu.getByRole('menuitem', { name: 'Customize panes…' }).click()
     await expect(settingsDialog(page).getByRole('heading', { level: 2 })).toHaveText('Tasks')
     await expect(part(page)).toBeInViewport()
@@ -284,7 +263,7 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('no entry: not in the Settings page, the tab sheet only says what it shows, no pane menu', async ({ page }) => {
+  test('no entry: not in the Settings page, the tab sheet has Edit list… but no Customize, no pane menu', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{ name: 'Main', columns: [{ id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] }] }],
@@ -292,7 +271,8 @@ test.describe('phone', () => {
     await expect(page.locator('[data-eisenhower="eisTab"]')).toHaveAttribute('data-layout', 'stacked')
     await wsTab(page, 'eisTab').dispatchEvent('contextmenu')
     const sheet = page.getByRole('menu', { name: 'Eisenhower' })
-    await expect(sheet.getByTestId('eisenhower-sheet-source')).toHaveText(/Show\s*All tasks/)
+    await expect(sheet.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
+    await expect(sheet).toContainText('To change the panes, use Settings on a wider screen.')
     await expect(sheet.getByText('Customize panes…')).toHaveCount(0)
     await page.keyboard.press('Escape')
     await quadrant(page, 'eisTab', 'do').getByTestId('eisenhower-pane-subtitle').dispatchEvent('contextmenu')

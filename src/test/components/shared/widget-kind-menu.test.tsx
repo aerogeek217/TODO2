@@ -120,13 +120,12 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
   })
 
-  it('renders an "Edit list" item only when current kind is lens and onEditList is provided', () => {
+  it('renders an "Edit list" item only when onEditList is provided', () => {
     const { rerender } = render(
       <WidgetKindMenu
         anchor={ANCHOR}
         currentKind="notes"
         onChangeKind={() => {}}
-        onEditList={() => {}}
         onClose={() => {}}
       />,
     )
@@ -421,6 +420,39 @@ describe('WidgetKindMenu — Change list submenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('in a saved layout: its own lists follow the saved ones, marked This layout; never another layout’s', () => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        { id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition,
+        { id: 3, name: 'Mine', sortOrder: 2, owner: { layoutId: 7 } } as PersistedListDefinition,
+        { id: 4, name: 'Theirs', sortOrder: 3, owner: { layoutId: 8 } } as PersistedListDefinition,
+        { id: 5, name: 'Eisenhower', sortOrder: 4, owner: { eisenhower: true } } as PersistedListDefinition,
+      ],
+    })
+    render(
+      <WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onEditList={() => {}} listLayoutId={7} onClose={() => {}} />,
+    )
+    const row = screen.getByRole('menuitem', { name: /Change list/ })
+    row.focus()
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    const sub = screen.getByRole('menu', { name: 'Change list' })
+    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.getAttribute('data-menu-label'))).toEqual(['First', 'Mine'])
+    expect(screen.getByRole('menuitem', { name: /Mine/ })).toHaveTextContent('This layout')
+  })
+
+  it('a layout-only list: Save to my lists after Change list', () => {
+    const save = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onEditList={() => {}} onSaveToMyLists={save} onClose={onClose} />,
+    )
+    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
+      .toEqual(['Edit list…', 'Change list', 'Save to my lists'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Save to my lists' }))
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('says so when there are no lists', () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onClose={() => {}} />)
@@ -429,7 +461,7 @@ describe('WidgetKindMenu — Change list submenu', () => {
   })
 })
 
-describe('WidgetKindMenu — an Eisenhower tab’s source line', () => {
+describe('WidgetKindMenu — an Eisenhower tab', () => {
   const setting = {
     label: 'Due date makes a task urgent',
     value: '3 days',
@@ -437,7 +469,8 @@ describe('WidgetKindMenu — an Eisenhower tab’s source line', () => {
     options: [{ key: '3', label: '3 days', checked: true, onSelect: () => {} }],
   }
 
-  it('on all tasks: the source as a muted line, then Customize panes… · the setting · Change widget', () => {
+  it('Edit list… (its own list) first, then Customize panes… · the setting · Change widget; no source line', () => {
+    const onEditList = vi.fn()
     const onCustomize = vi.fn()
     const onClose = vi.fn()
     render(
@@ -445,41 +478,17 @@ describe('WidgetKindMenu — an Eisenhower tab’s source line', () => {
         anchor={ANCHOR}
         currentKind="eisenhower"
         onChangeKind={() => {}}
+        onEditList={onEditList}
         widgetSetting={setting}
-        sourceNote="Shows all tasks"
         sourceActions={[{ label: 'Customize panes…', onSelect: onCustomize }]}
         onClose={onClose}
       />,
     )
-    const menu = screen.getByRole('menu', { name: 'Change widget' })
-    expect(menu.firstElementChild).toHaveTextContent('Shows all tasks')
-    expect(screen.queryByRole('menuitem', { name: /^Show/ })).toBeNull()
-    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
-      .toEqual(['Customize panes…', 'Due date makes a task urgent'])
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Customize panes…' }))
-    expect(onCustomize).toHaveBeenCalledTimes(1)
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('on a list: Edit list… under the source line', () => {
-    const onEditList = vi.fn()
-    render(
-      <WidgetKindMenu
-        anchor={ANCHOR}
-        currentKind="eisenhower"
-        onChangeKind={() => {}}
-        onEditList={onEditList}
-        widgetSetting={setting}
-        sourceNote="Shows “First”"
-        sourceActions={[{ label: 'Customize panes…', onSelect: () => {} }]}
-        onClose={() => {}}
-      />,
-    )
-    expect(screen.getByRole('menu', { name: 'Change widget' })).toHaveTextContent('Shows “First”')
+    expect(screen.getByRole('menu', { name: 'Change widget' })).not.toHaveTextContent('Shows')
     expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
       .toEqual(['Edit list…', 'Customize panes…', 'Due date makes a task urgent'])
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit list…' }))
     expect(onEditList).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalled()
   })
 })
-

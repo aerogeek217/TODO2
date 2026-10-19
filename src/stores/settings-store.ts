@@ -38,7 +38,6 @@ import {
 } from '../utils/shortcut-bindings'
 import type { EisenhowerPanes } from '../models/eisenhower-settings'
 import {
-  formatEisenhowerSource,
   formatPanesSetting,
   parseEisenhowerSource,
   pickPanes,
@@ -46,7 +45,6 @@ import {
 } from '../data/eisenhower-shape'
 import { readFresh, trackWrite } from './store-helpers'
 import { useUndoStore, type UndoEntry } from './undo-store'
-import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -86,9 +84,12 @@ interface SettingsState {
    */
   eisenhowerPanes: EisenhowerPanes
   /**
-   * The saved list whose tasks the Eisenhower considers (every Eisenhower
-   * tab and the dashboard section); `null` = all tasks. May name a list
-   * that was deleted (the matrix says so).
+   * The Eisenhower's own list (a hidden list, `owner: { eisenhower: true }`)
+   * whose tasks every Eisenhower tab and the dashboard section consider —
+   * the `eisenhowerSource` setting, kept naming it by
+   * `useListDefinitionStore.ensureEisenhowerList` (app startup, a data
+   * replace). `null` only until then: the Eisenhower then reads all tasks,
+   * as the new, empty list would.
    */
   eisenhowerListId: number | null
 
@@ -127,8 +128,6 @@ interface SettingsState {
    * last show again.
    */
   setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
-  /** Saves the Eisenhower source at once (`null` = all tasks) as one undo step, with the undo snackbar; a failed save as `setEisenhowerPanes`. */
-  setEisenhowerListId: (listDefinitionId: number | null, description: string) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -528,23 +527,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     recordPanesUndo(saved.before, next, description, mergeKey)
   },
 
-  async setEisenhowerListId(listDefinitionId: number | null, description: string) {
-    if (get().eisenhowerListId === listDefinitionId) return
-    const saved = await writeEisenhowerListId(listDefinitionId)
-    if (saved.stale) return
-    if (!saved.ok) {
-      useUndoStore.getState().notify('Couldn’t save what the Eisenhower shows.')
-      return
-    }
-    lastPanesUndo = null
-    const before = saved.before
-    undoable(
-      description,
-      () => mustSave(writeEisenhowerListId(listDefinitionId)),
-      () => mustSave(writeEisenhowerListId(before)),
-      true,
-    )
-  },
 }))
 
 /**
@@ -607,7 +589,7 @@ async function mustSave<T>(write: Promise<SettingSave<T>>): Promise<void> {
  * never leaves the screen and the database apart. `before` is the value
  * saved before the write (the database's, not the one shown).
  */
-function serialSettingWriter<K extends 'eisenhowerPanes' | 'eisenhowerListId'>(
+function serialSettingWriter<K extends 'eisenhowerPanes'>(
   field: K,
   persist: (value: SettingsState[K]) => Promise<void>,
   label: string,
@@ -658,16 +640,6 @@ const writeEisenhowerPanes = serialSettingWriter(
     else await settingsRepository.put(SETTING_KEYS.eisenhowerPanes, formatPanesSetting(panes))
   },
   'the Eisenhower panes',
-)
-
-/** Shows the Eisenhower source at once, then saves it (all tasks = no row). */
-const writeEisenhowerListId = serialSettingWriter(
-  'eisenhowerListId',
-  async (listDefinitionId) => {
-    if (listDefinitionId == null) await settingsRepository.delete(SETTING_KEYS.eisenhowerSource)
-    else await settingsRepository.put(SETTING_KEYS.eisenhowerSource, formatEisenhowerSource(listDefinitionId))
-  },
-  'the Eisenhower source',
 )
 
 /** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */

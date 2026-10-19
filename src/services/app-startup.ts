@@ -2,6 +2,7 @@ import { useSettingsStore } from '../stores/settings-store'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
+import { useListDefinitionStore } from '../stores/list-definition-store'
 import { backupScheduler } from '../data/backup-scheduler'
 import { useFileStorageStore } from './file-storage-store'
 import { expiredCompletedUids } from './purge-completed'
@@ -24,7 +25,8 @@ export interface AppStartupOptions {
  *    permission the launch question: this waits for the user's answer, so
  *    nothing below reads, purges or backs up this browser's data before the
  *    user chose between the file and this browser;
- * 3. persistent storage, then people / statuses / tags;
+ * 3. persistent storage, then people / statuses / tags, and the
+ *    Eisenhower's own list (made when the data has none);
  * 4. the completed tasks past retention (asked about, never purged
  *    silently — the caller shows the prompt);
  * 5. automatic backups.
@@ -39,6 +41,10 @@ export async function runAppStartup({ onPurgeCheck }: AppStartupOptions = {}): P
     usePersonStore.getState().ensureLoaded(),
     useStatusStore.getState().ensureLoaded(),
     useTagStore.getState().ensureLoaded(),
+    // A failure only leaves the Eisenhower on every task (what its new, empty list would hold).
+    useListDefinitionStore.getState().ensureEisenhowerList().catch((err: unknown) => {
+      console.warn('[startup] the Eisenhower list could not be made', err)
+    }),
   ])
   onPurgeCheck?.()
   const expiredUids = await expiredCompletedUids()

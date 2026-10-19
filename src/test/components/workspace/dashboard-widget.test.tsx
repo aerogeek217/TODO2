@@ -472,7 +472,7 @@ describe('DashboardWidget — Tags, Stale tasks, Recently completed, Eisenhower'
   })
 })
 
-describe('DashboardWidget — the Eisenhower section follows the app-wide panes and source', () => {
+describe('DashboardWidget — the Eisenhower section follows the app-wide panes and the Eisenhower’s list', () => {
   const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('dash-eis-count').textContent
   const Q4_LIST = {
     id: 90, name: 'Q4 work', sortOrder: 9, sort: 'manual' as const, grouping: 'none' as const,
@@ -481,7 +481,7 @@ describe('DashboardWidget — the Eisenhower section follows the app-wide panes 
   /** Delegate renamed and narrowed: not Waiting (a status of the sample). */
   const waiting = STATUSES.find((s) => s.name === 'Waiting')!
 
-  it('a saved list as the source and a custom pane: counts, names, Copy summary and drills', () => {
+  it('its list with a filter and a custom pane: counts, names, Copy summary and drills', () => {
     useListDefinitionStore.setState({ listDefinitions: [...SAMPLE_LISTS, Q4_LIST] })
     useSettingsStore.setState({
       eisenhowerListId: 90,
@@ -512,12 +512,20 @@ describe('DashboardWidget — the Eisenhower section follows the app-wide panes 
     expect(sectionCount('eisenhower')).toBe('19 open')
   })
 
-  it('a deleted source list: the section says so and counts nothing', () => {
+  it('its list without a filter: every task, the sub line names no list', () => {
+    useListDefinitionStore.setState({ listDefinitions: [...SAMPLE_LISTS, { ...Q4_LIST, name: 'Eisenhower', membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { eisenhower: true } }] })
+    useSettingsStore.setState({ eisenhowerListId: 90 })
+    setup(tabWith({ tiles: ['open'], sections: [{ id: 'eisenhower' }] }))
+    expect(sectionCount('eisenhower')).toBe('19 open')
+    expect(section('eisenhower')!.textContent).not.toContain('“Eisenhower”')
+    expect(section('eisenhower')!.textContent).toContain('Urgent × important')
+  })
+
+  it('its list not loaded yet: every task is counted', () => {
     useSettingsStore.setState({ eisenhowerListId: 99 })
     setup(tabWith({ tiles: ['open'], sections: [{ id: 'eisenhower' }] }))
-    expect(section('eisenhower')!.textContent).toContain('This list was deleted')
-    expect(within(section('eisenhower')!).queryByTestId('dash-section-count')).toBeNull()
-    expect(section('eisenhower')!.querySelector('[data-eis-cell]')).toBeNull()
-    expect(lastResult?.summary.plain).toBe('Open 19')
+    expect(section('eisenhower')!.textContent).not.toContain('deleted')
+    expect(sectionCount('eisenhower')).toBe('19 open')
   })
+
 })

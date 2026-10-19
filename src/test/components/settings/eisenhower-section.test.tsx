@@ -22,8 +22,8 @@ import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 
 /**
- * Settings › Tasks › Eisenhower: Show (all tasks / a saved list, asking
- * first about a source list's unsaved edits), the four pane cards (name,
+ * Settings › Tasks › Eisenhower: its list's filter line (the shared draft,
+ * Revert · Save), the four pane cards (name,
  * filter chips, count now, Reset pane), the open tasks in no pane and Reset
  * all panes — each change one undo step; the workspace's shortcuts open it.
  */
@@ -189,7 +189,7 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(useUIStore.getState().settingsOpen).toBe(false)
   })
 
-  it('its counts are the widget’s: on a saved list, under a screen filter', () => {
+  it('its counts are the widget’s: on its list, under a screen filter', () => {
     useListDefinitionStore.setState({ listDefinitions: [list(7, 'Not delegated', { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } })] })
     // The screen filter leaves out Blog; the list leaves out Chase vendor (Delegated).
     useFilterStore.getState().setSearchText('a')
@@ -209,58 +209,72 @@ describe('Settings › Tasks › Eisenhower', () => {
   })
 })
 
-describe('Settings › Tasks › Eisenhower › Show', () => {
+describe('Settings › Tasks › Eisenhower › its list’s filter line', () => {
+  const NOT_DELEGATED_LIST: TodoPredicate = { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } }
+  const own = (predicate: TodoPredicate = emptyPredicate(), extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition => ({
+    ...list(8, 'Eisenhower', predicate), owner: { eisenhower: true }, ...extra,
+  })
+  const line = (part: HTMLElement) => within(part).getByTestId('eisenhower-list-line')
+
   beforeEach(() => {
-    useListDefinitionStore.setState({ listDefinitions: [list(8, 'Team'), list(7, 'Other')] })
-  })
-
-  const show = (part: HTMLElement) => within(part).getByTestId('eisenhower-source')
-
-  it('picks all tasks or a saved list (the Change list choices), at once, one undo step each; the widget follows', async () => {
-    const { part } = open({}, { widget: true })
-    expect(show(part)).toHaveAccessibleName('Eisenhower shows All tasks')
-    fireEvent.click(show(part))
-    const menu = screen.getByRole('menu', { name: 'Eisenhower shows' })
-    const choices = Array.from(menu.querySelectorAll('[role="menuitemradio"]'))
-    expect(choices.map((el) => el.textContent)).toEqual(['All tasks', 'Other', 'Team'])
-    expect(choices.map((el) => el.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
-    fireEvent.click(within(menu).getByRole('menuitemradio', { name: 'Team' }))
-    expect(screen.queryByRole('menu', { name: 'Eisenhower shows' })).toBeNull()
-    expect(useSettingsStore.getState().eisenhowerListId).toBe(8)
-    expect(show(part)).toHaveTextContent('Team')
-    expect(screen.getByTestId('list-filter-row')).toBeTruthy()
-
-    fireEvent.click(show(part))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'All tasks' }))
-    expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
-    await vi.waitFor(() => expect(undoNames()).toEqual(['Eisenhower shows “Team”', 'Eisenhower shows all tasks']))
-    await act(() => useUndoStore.getState().undo())
-    expect(useSettingsStore.getState().eisenhowerListId).toBe(8)
-  })
-
-  it('a deleted source list reads (Deleted list)', () => {
-    useSettingsStore.setState({ eisenhowerListId: 99 })
-    const { part } = open()
-    expect(show(part)).toHaveTextContent('(Deleted list)')
-  })
-
-  it('asks first when the source list’s unsaved edits would be left with no widget; Cancel keeps it, Discard goes on', () => {
     useSettingsStore.setState({ eisenhowerListId: 8 })
-    useListDraftStore.setState({ drafts: { 8: { ...list(8, 'Team'), name: 'Team edited' } } })
-    const { part } = open()
-    fireEvent.click(show(part))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Other' }))
-    const prompt = screen.getByRole('dialog', { name: 'Save changes to list “Team”?' })
-    // Esc is the prompt's: Settings stays open.
-    fireEvent.keyDown(prompt, { key: 'Escape' })
-    expect(screen.queryByRole('dialog', { name: 'Save changes to list “Team”?' })).toBeNull()
-    expect(useUIStore.getState().settingsOpen).toBe(true)
-    expect(useSettingsStore.getState().eisenhowerListId).toBe(8)
+  })
 
-    fireEvent.click(show(part))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Other' }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Save changes to list “Team”?' })).getByRole('button', { name: 'Discard' }))
-    expect(useSettingsStore.getState().eisenhowerListId).toBe(7)
+  it('shows the list’s filter as chips — no Show › choice', () => {
+    useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST), list(7, 'Other')] })
+    const { part } = open()
+    expect(within(part).queryByTestId('eisenhower-source')).toBeNull()
+    expect(within(line(part)).getByTestId('list-filter-chip').textContent).toContain('not Delegated')
+    // Group · sort don't apply to the panes: no summary.
+    expect(within(line(part)).queryByTestId('list-summary')).toBeNull()
+  })
+
+  it('a change edits the same draft as the widget’s filter line: both unsaved, Save from Settings writes it', async () => {
+    useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST)] })
+    const { part } = open({}, { widget: true })
+    const widgetLine = () => document.querySelector<HTMLElement>('[data-eisenhower]')!.parentElement!.querySelector<HTMLElement>('[data-testid="list-filter-row"]')!
+    expect(within(quadrant('delegate')).getByTestId('eisenhower-count').textContent).toBe('1')
+    fireEvent.click(within(line(part)).getByRole('button', { name: 'Remove filter' }))
+    expect(useListDraftStore.getState().drafts[8]?.membership.predicate.statusIds).toBeNull()
+    // Both lines show it unsaved; the widget counts the draft.
+    expect(within(line(part)).getByTestId('save-list')).toBeTruthy()
+    expect(within(widgetLine()).getByTestId('save-list')).toBeTruthy()
+    expect(within(quadrant('delegate')).getByTestId('eisenhower-count').textContent).toBe('2')
+    fireEvent.click(within(line(part)).getByTestId('save-list'))
     expect(useListDraftStore.getState().drafts[8]).toBeUndefined()
+    const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 8)!
+    expect(saved.membership.predicate.statusIds).toBeNull()
+    // Still the Eisenhower's own list.
+    expect(saved.owner).toEqual({ eisenhower: true })
+    await vi.waitFor(async () => expect((await db.listDefinitions.get(8))?.owner).toEqual({ eisenhower: true }))
+    expect(within(line(part)).queryByTestId('save-list')).toBeNull()
+  })
+
+  it('Revert drops the draft, undoable from the snackbar', async () => {
+    useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST)] })
+    useListDraftStore.setState({ drafts: { 8: own() } })
+    const { part } = open()
+    fireEvent.click(within(line(part)).getByTestId('revert-list'))
+    expect(useListDraftStore.getState().drafts[8]).toBeUndefined()
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'List changes reverted' })
+    await act(() => useUndoStore.getState().undo())
+    expect(useListDraftStore.getState().drafts[8]).toBeDefined()
+  })
+
+  it('shown even when the list hides its filter line in its widgets', () => {
+    useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST, { showFilterLine: false })] })
+    const { part } = open({}, { widget: true })
+    expect(within(line(part)).getByTestId('list-filter-chip')).toBeTruthy()
+    // The widget's line stays hidden while the list is saved.
+    expect(document.querySelector('[data-eisenhower]')!.parentElement!.querySelector('[data-testid="list-filter-row"]')).toBeNull()
+  })
+
+  it('Esc in its filter picker closes the picker only, not Settings', () => {
+    useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST)] })
+    const { part } = open()
+    fireEvent.click(within(line(part)).getByTestId('list-filter-chip'))
+    fireEvent.keyDown(screen.getByTestId('list-filter-picker'), { key: 'Escape' })
+    expect(screen.queryByTestId('list-filter-picker')).toBeNull()
+    expect(useUIStore.getState().settingsOpen).toBe(true)
   })
 })

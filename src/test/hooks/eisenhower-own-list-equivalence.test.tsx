@@ -78,11 +78,9 @@ describe('the Eisenhower’s new list (no filter) shows what All tasks showed', 
     useSettingsStore.setState({ eisenhowerListId: null })
     const { result, rerender } = renderHook(() => useEisenhowerSource())
     const all = result.current
-    if (all.kind !== 'tasks') throw new Error('all tasks: no tasks')
     act(() => useSettingsStore.setState({ eisenhowerListId: madeList.id }))
     rerender()
     const own = result.current
-    if (own.kind !== 'tasks') throw new Error('its list: no tasks')
     expect(own.list?.definition.id).toBe(madeList.id)
     expect(ids(own.shown)).toEqual(ids(all.shown))
     expect(own.openTotal).toBe(all.openTotal)

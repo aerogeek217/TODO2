@@ -51,11 +51,12 @@ export interface EisenhowerSourceOptions {
 
 /**
  * The tasks the Eisenhower considers, as the dashboard counts them: `shown`
- * passes the screen filter too, `total` doesn't (the `of N`). With a saved
- * list as the source (`definition`: its unsaved draft, if any), its members
- * — the list's own filter, its prompt ignored —, through the same
- * evaluators a list widget uses (`createScreenComposedEvaluator`); else
- * every task (`shownAll`: the dashboard's screen-filtered tasks).
+ * passes the screen filter too, `total` doesn't (the `of N`). The
+ * Eisenhower's own list (`definition`: its unsaved draft, if any): its
+ * members — the list's own filter, its prompt ignored —, through the same
+ * evaluators a list widget uses (`createScreenComposedEvaluator`); before
+ * it is loaded, every task (`shownAll`: the dashboard's screen-filtered
+ * tasks).
  */
 export function eisenhowerSourceTasks(
   todos: readonly PersistedTodoItem[],

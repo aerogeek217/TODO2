@@ -13,7 +13,7 @@ import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
 import { countActiveFilters } from '../../../utils/filter-criteria'
-import { hasNarrowingFilters, type FilterChipNames } from '../../../utils/filter-chips'
+import type { FilterChipNames } from '../../../utils/filter-chips'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -29,7 +29,6 @@ import {
   type PaneDropResult,
 } from '../../../utils/eisenhower'
 import {
-  eisenhowerSourceDescription,
   paneSubtitle,
   paneWrites,
   resolvePanes,
@@ -369,11 +368,12 @@ interface WidgetProps {
 
 /**
  * The Eisenhower widget: four panes, as a 2×2 grid or — in narrow cells and
- * on phones — four collapsible sections. Its panes and its source are
- * app-wide settings, the same in every Eisenhower tab: it considers all
- * tasks, or one saved list's (`settings-store.eisenhowerListId`: its unsaved
- * draft included, its prompt, group and sort ignored, its filter line above
- * the panes); the screen filter narrows either. Each task shows in the first
+ * on phones — four collapsible sections. Its panes and its list are
+ * app-wide, the same in every Eisenhower tab: it considers the tasks of the
+ * Eisenhower's own list (`settings-store.eisenhowerListId`, a hidden list —
+ * no filter = every task; its unsaved draft included, its prompt, group and
+ * sort ignored, its filter line above the panes), the screen filter
+ * narrowing them. Each task shows in the first
  * pane whose filter it matches (`settings-store.eisenhowerPanes`; by default
  * the quadrants of effective Urgent × Important, `utils/urgency`); tasks in
  * no pane are counted under the grid. Rows drag
@@ -384,20 +384,6 @@ interface WidgetProps {
  */
 export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
   const source = useEisenhowerSource()
-  if (source.kind === 'deleted') {
-    return (
-      <div className={styles.missing}>
-        <span className={styles.noteTitle}>This list was deleted</span>
-        <button
-          type="button"
-          className={styles.noteAction}
-          onClick={() => { void useSettingsStore.getState().setEisenhowerListId(null, eisenhowerSourceDescription(null)) }}
-        >
-          Show all tasks
-        </button>
-      </div>
-    )
-  }
   return (
     <EisenhowerBody
       tab={tab}
@@ -423,9 +409,9 @@ function tasksAre(n: number, where = ''): string {
 interface BodyProps extends WidgetProps {
   /** The tasks considered: the source's members passing the screen filter. */
   shown: PersistedTodoItem[]
-  /** Open tasks of the source before the screen filter (all, or the list's). */
+  /** Open tasks of the list before the screen filter. */
   openTotal: number
-  /** Set when the widget shows a saved list. */
+  /** The Eisenhower's list (absent only until it is loaded). */
   list?: ListSourceContext
 }
 
@@ -491,18 +477,19 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   }
 
   const add = (pane: EisenhowerPane) => {
-    // On a list: what the list's own Add task seeds; on all tasks: the screen filter's.
-    const seed = list
-      ? predicateToFilterDefaults(list.definition.membership.predicate)
+    // A list that narrows: what the list's own Add task seeds; else (every
+    // task) the screen filter's.
+    const narrowing = list?.narrows ? list : undefined
+    const seed = narrowing
+      ? predicateToFilterDefaults(narrowing.definition.membership.predicate)
       : getFilterDefaults(useFilterStore.getState().filters)
     const defaults = withPaneSeed(seed, paneWrites(pane.filter, names))
-    useUIStore.getState().openQuickAdd({ defaults, source: list ? `${pane.name} · ${list.title}` : pane.name })
+    useUIStore.getState().openQuickAdd({ defaults, source: narrowing ? `${pane.name} · ${narrowing.title}` : pane.name })
   }
 
   // What hides every task, if anything: the list's own filter (no open task
   // is in the list), else the screen filter.
-  const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0
-    && hasNarrowingFilters(list.definition.membership.predicate)
+  const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0 && list.narrows
   const screenHidesAll = shown.length === 0 && openTotal > 0
   const filterCount = countActiveFilters(screen)
   const ctx: RowContext = {
@@ -573,7 +560,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
             <span className={styles.noteHint}>
-              All {openTotal} open {tasksAre(openTotal, list ? ` in “${list.title}”` : '')} hidden by the screen filter.
+              All {openTotal} open {tasksAre(openTotal, list?.narrows ? ` in “${list.title}”` : '')} hidden by the screen filter.
             </span>
             <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
               {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}

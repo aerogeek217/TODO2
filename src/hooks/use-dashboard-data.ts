@@ -29,6 +29,7 @@ import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { usePaneContext } from './use-pane-context'
 import { useFilterStore } from '../stores/filter-store'
 import { countActiveFilters } from '../utils/filter-criteria'
+import { hasNarrowingFilters } from '../utils/filter-chips'
 import { applyFilter } from '../utils/filter-match'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
@@ -83,12 +84,10 @@ export interface EisenhowerSetup {
   /** The four panes, in position order. */
   panes: readonly EisenhowerPane[]
   /**
-   * The source list's name (as edited) when the source is a saved list;
-   * `null` for all tasks.
+   * The Eisenhower's list's name (as edited) when its filter narrows the
+   * tasks; `null` while it holds every task.
    */
   listName: string | null
-  /** The source list was deleted: nothing is counted. */
-  deleted: boolean
 }
 
 function sectionOption<K extends keyof DashboardSectionOptions>(config: DashboardTabConfig, id: DashboardSectionId, key: K) {
@@ -153,31 +152,28 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     () => ({ shown: computeRecentlyCompleted(shown, ctx, recentDays), total: computeRecentlyCompleted(todos, ctx, recentDays) }),
     [shown, todos, ctx, recentDays],
   )
-  // The Eisenhower section: the app-wide source (all tasks, or a saved list's
-  // members — its unsaved draft included) sorted by the app-wide panes.
+  // The Eisenhower section: the Eisenhower's own list's members (its unsaved
+  // draft included; every task until it is loaded) sorted by the app-wide panes.
   const eisenhowerPanes = useMemo(() => resolvePanes(storedPanes), [storedPanes])
   const eisenhowerList = useMemo(() => {
-    if (eisenhowerListId == null) return undefined
-    const saved = listDefinitions.find((d) => d.id === eisenhowerListId)
-    return saved ? (drafts[eisenhowerListId] ?? saved) : null
+    const saved = eisenhowerListId != null ? listDefinitions.find((d) => d.id === eisenhowerListId) : undefined
+    return saved ? (drafts[saved.id] ?? saved) : undefined
   }, [eisenhowerListId, listDefinitions, drafts])
   const eisenhowerSetup = useMemo<EisenhowerSetup>(() => {
     const savedName = listDefinitions.find((d) => d.id === eisenhowerListId)?.name
+    const narrows = eisenhowerList != null && hasNarrowingFilters(eisenhowerList.membership.predicate)
     return {
       panes: eisenhowerPanes,
-      listName: eisenhowerList ? (eisenhowerList.name.trim() || savedName || '') : null,
-      deleted: eisenhowerList === null,
+      listName: narrows ? (eisenhowerList.name.trim() || savedName || '') : null,
     }
   }, [eisenhowerPanes, eisenhowerList, eisenhowerListId, listDefinitions])
   const eisenhower = useMemo(() => {
-    const source = eisenhowerList === null
-      ? { shown: [], total: [] }
-      : eisenhowerSourceTasks(todos, shown, eisenhowerList, {
-        screen: statsFilter(screen),
-        lookups: { assignedPeopleMap, assignedTagsMap, statusesById: new Map(statuses.map((st) => [st.id!, st])) },
-        today,
-        settings: markerSettings,
-      })
+    const source = eisenhowerSourceTasks(todos, shown, eisenhowerList, {
+      screen: statsFilter(screen),
+      lookups: { assignedPeopleMap, assignedTagsMap, statusesById: new Map(statuses.map((st) => [st.id!, st])) },
+      today,
+      settings: markerSettings,
+    })
     return {
       shown: computeEisenhowerSummary(source.shown, eisenhowerPanes, paneCtx),
       total: computeEisenhowerSummary(source.total, eisenhowerPanes, paneCtx),

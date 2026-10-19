@@ -146,7 +146,7 @@ export function layoutTabs(layout: LayoutBody): LayoutTab[] {
 
 /**
  * How many tabs in `layout` show list `listDefinitionId` — its list tabs,
- * and its Eisenhower tabs while the app-wide Eisenhower source is that list
+ * and its Eisenhower tabs when it is the Eisenhower's own list
  * (`eisenhowerListId`; `tabListId`) —, not counting the tabs in
  * `exceptTabIds` (e.g. the ones about to be closed).
  */
@@ -161,6 +161,54 @@ export function countListTabs(
     if (tabListId(tab, eisenhowerListId) === listDefinitionId && !exceptTabIds.has(tab.id)) n++
   }
   return n
+}
+
+/**
+ * The ids of the lists a layout itself names: its list tabs' lists and its
+ * dashboard tabs' list tiles (an Eisenhower tab's list is the Eisenhower's,
+ * not the layout's).
+ */
+export function layoutListRefs(layout: LayoutBody): Set<number> {
+  const ids = new Set<number>()
+  for (const tab of layoutTabs(layout)) {
+    if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
+    else if (tab.kind === 'dashboard') for (const id of tab.config.listTiles) ids.add(id)
+  }
+  return ids
+}
+
+/**
+ * The layout with the lists it names (`layoutListRefs`) renamed by `ids`
+ * (old id → new id; ids it doesn't hold stay). The same object when
+ * nothing changes.
+ */
+export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: ReadonlyMap<number, number>): B {
+  if (ids.size === 0) return layout
+  const tabOf = (tab: LayoutTab): LayoutTab => {
+    if (tab.kind === 'lens') {
+      const to = tab.config.listDefinitionId != null ? ids.get(tab.config.listDefinitionId) : undefined
+      return to == null ? tab : { ...tab, config: { ...tab.config, listDefinitionId: to } }
+    }
+    if (tab.kind === 'dashboard' && tab.config.listTiles.some((id) => ids.has(id))) {
+      return { ...tab, config: { ...tab.config, listTiles: tab.config.listTiles.map((id) => ids.get(id) ?? id) } }
+    }
+    return tab
+  }
+  let changed = false
+  const tabsOf = <P extends LayoutPanel>(panel: P): P => {
+    const tabs = panel.tabs.map(tabOf)
+    if (tabs.every((t, i) => t === panel.tabs[i])) return panel
+    changed = true
+    return { ...panel, tabs }
+  }
+  const columns = layout.columns.map((col) => {
+    const cells = col.cells.map(tabsOf)
+    return cells.every((c, i) => c === col.cells[i]) ? col : { ...col, cells }
+  })
+  const top = layout.top && tabsOf(layout.top)
+  const bottom = layout.bottom && tabsOf(layout.bottom)
+  if (!changed) return layout
+  return { ...layout, columns, ...(top ? { top } : {}), ...(bottom ? { bottom } : {}) }
 }
 
 /** Every column / cell / band / tab id in the layout (new ids must not repeat one). */

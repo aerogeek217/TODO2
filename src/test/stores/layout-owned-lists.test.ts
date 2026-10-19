@@ -1,0 +1,247 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { db } from '../../data/database'
+import { layoutRepository } from '../../data/layout-repository'
+import { createTab, layoutBodyOf, type LayoutTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { emptyPredicate } from '../../models/filter-predicate'
+import type { ListDefinition, ListOwner, PersistedListDefinition } from '../../models/list-definition'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useListDraftStore } from '../../stores/list-draft-store'
+import { useListOrderStore } from '../../stores/list-order-store'
+import { useUndoStore } from '../../stores/undo-store'
+import { layoutListRefs } from '../../utils/workspace-layout-ops'
+import { resetDb } from '../helpers'
+
+/**
+ * Layout-only lists live and die with their layout: a layout Save deletes
+ * the ones no saved tab shows (Discard keeps them), Save as copies the ones
+ * it shows (as edited, with their manual order) for the new layout, Delete
+ * layout takes them with it — never a saved list, another layout's or the
+ * Eisenhower's. "Save to my lists" makes one a saved list (one undo step).
+ */
+
+const T0 = new Date('2026-09-01T09:00:00.000Z')
+const ws = () => useWorkspaceStore.getState()
+
+const lens = (id: string, listDefinitionId: number): LayoutTab => createTab('lens', id, { listDefinitionId })
+
+function layoutWith(name: string, tabs: LayoutTab[]): Omit<WorkspaceLayout, 'id' | 'sortOrder'> {
+  return { name, createdAt: T0, modifiedAt: T0, columns: [{ id: `c-${name}`, weight: 1, cells: [{ id: `k-${name}`, weight: 1, tabs }] }] }
+}
+
+function def(name: string, owner?: ListOwner, extra: Partial<ListDefinition> = {}): Omit<ListDefinition, 'id'> {
+  return { name, sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, ...(owner ? { owner } : {}), ...extra }
+}
+
+interface World {
+  a: number
+  b: number
+  saved: number
+  mine1: number
+  mine2: number
+  theirs: number
+  eisenhower: number
+}
+
+/**
+ * Layout A (open) shows a saved list and its two own lists; layout B shows
+ * its own list; the Eisenhower has its list. A's first own list and B's
+ * list have a manual order.
+ */
+async function world(): Promise<World> {
+  const a = await layoutRepository.insert(layoutWith('A', []))
+  const b = await layoutRepository.insert(layoutWith('B', []))
+  const saved = (await db.listDefinitions.add(def('Saved'))) as number
+  const mine1 = (await db.listDefinitions.add(def('Mine 1', { layoutId: a }))) as number
+  const mine2 = (await db.listDefinitions.add(def('Mine 2', { layoutId: a }))) as number
+  const theirs = (await db.listDefinitions.add(def('Theirs', { layoutId: b }))) as number
+  const eisenhower = (await db.listDefinitions.add(def('Eisenhower', { eisenhower: true }))) as number
+  await db.layouts.update(a, layoutWith('A', [lens('s', saved), lens('m1', mine1), lens('m2', mine2), createTab('eisenhower', 'e')]))
+  await db.layouts.update(b, layoutWith('B', [lens('t', theirs)]))
+  await db.listOrders.bulkAdd([
+    { listDefinitionId: mine1, todoId: 1, rank: 1 },
+    { listDefinitionId: mine1, todoId: 2, rank: 2 },
+    { listDefinitionId: theirs, todoId: 1, rank: 5 },
+  ])
+  await layoutRepository.setActiveId(a)
+  await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load(), useListDraftStore.getState().restore()])
+  await ws().init()
+  return { a, b, saved, mine1, mine2, theirs, eisenhower }
+}
+
+const storedListIds = async () => (await db.listDefinitions.toArray()).map((d) => d.id).sort((x, y) => x! - y!)
+const storeListIds = () => useListDefinitionStore.getState().listDefinitions.map((d) => d.id).sort((x, y) => x - y)
+const ranksOf = async (listId: number) => (await db.listOrders.where('listDefinitionId').equals(listId).toArray()).map((r) => [r.todoId, r.rank])
+const editName = (id: number, name: string) => useListDraftStore.getState().edit(id, (d) => ({ ...d, name }))
+async function stored(id: number): Promise<PersistedWorkspaceLayout> {
+  return (await db.layouts.get(id)) as PersistedWorkspaceLayout
+}
+
+beforeEach(async () => {
+  await resetDb()
+  useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+  useListDefinitionStore.setState({ listDefinitions: [], loaded: false })
+  useListOrderStore.setState({ ranks: new Map(), loaded: false })
+  useListDraftStore.setState({ drafts: {} })
+})
+
+describe('layout Save', () => {
+  it('deletes the layout’s own lists no saved tab shows — with their manual order and unsaved edits — and nothing else', async () => {
+    const w = await world()
+    editName(w.mine1, 'Mine 1 edited')
+    ws().closeTab('m1')
+    // Closing the tab alone deletes nothing: it is a layout edit.
+    expect(await storedListIds()).toContain(w.mine1)
+    expect(await ws().save()).toBe(true)
+    expect(await storedListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
+    expect(storeListIds()).toEqual([w.saved, w.mine2, w.theirs, w.eisenhower])
+    expect(await ranksOf(w.mine1)).toEqual([])
+    expect(useListOrderStore.getState().ranks.has(w.mine1)).toBe(false)
+    expect(useListDraftStore.getState().drafts[w.mine1]).toBeUndefined()
+    // Another layout's list keeps its order.
+    expect(await ranksOf(w.theirs)).toEqual([[1, 5]])
+  })
+
+  it('Change list away from one is a layout edit too: deleted on Save', async () => {
+    const w = await world()
+    ws().patchTabConfig('m2', 'lens', { listDefinitionId: w.saved })
+    expect(await storedListIds()).toContain(w.mine2)
+    await ws().save()
+    expect(await storedListIds()).not.toContain(w.mine2)
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+
+  it('Discard keeps it, and its tab is back', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    ws().discard()
+    expect(await storedListIds()).toContain(w.mine1)
+    expect(layoutListRefs(ws().working!).has(w.mine1)).toBe(true)
+    // A later Save that shows it keeps it.
+    await ws().save()
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+
+  it('never touches the Eisenhower’s list or another layout’s, though no tab of this layout shows them', async () => {
+    const w = await world()
+    ws().closeTab('e')
+    await ws().save()
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+  })
+})
+
+describe('layout Save as', () => {
+  it('copies the shown own lists — as edited, with their manual order — for the new layout, whose tabs show the copies', async () => {
+    const w = await world()
+    editName(w.mine1, 'Mine 1 edited')
+    useListDraftStore.getState().edit(w.mine1, (d) => ({ ...d, sort: 'deadline' }))
+    const before = layoutBodyOf(await stored(w.a))
+    const id = await ws().saveAs('A copy')
+    expect(id).not.toBeNull()
+    const lists = (await db.listDefinitions.toArray()) as PersistedListDefinition[]
+    const copies = lists.filter((d) => d.owner && 'layoutId' in d.owner && d.owner.layoutId === id)
+    expect(copies.map((d) => d.name).sort()).toEqual(['Mine 1 edited', 'Mine 2'])
+    const copy1 = copies.find((d) => d.name === 'Mine 1 edited')!
+    const copy2 = copies.find((d) => d.name === 'Mine 2')!
+    expect(copy1.sort).toBe('deadline')
+    expect(copy1.id).not.toBe(w.mine1)
+    expect(await ranksOf(copy1.id)).toEqual([[1, 1], [2, 2]])
+    // The new layout shows the copies (and the saved list itself), as stored and on screen.
+    const refs = layoutListRefs(await stored(id!))
+    expect([...refs].sort((x, y) => x - y)).toEqual([w.saved, copy1.id, copy2.id].sort((x, y) => x - y))
+    expect(layoutListRefs(ws().working!)).toEqual(refs)
+    expect(ws().isDirty).toBe(false)
+    expect(storeListIds()).toEqual(expect.arrayContaining([copy1.id, copy2.id]))
+    expect(useListOrderStore.getState().ranks.get(copy1.id)?.size).toBe(2)
+    // The originals stay with A, their edits still unsaved; A as last saved.
+    expect(await storedListIds()).toEqual(expect.arrayContaining([w.mine1, w.mine2]))
+    expect(useListDraftStore.getState().drafts[w.mine1]?.name).toBe('Mine 1 edited')
+    expect(layoutBodyOf(await stored(w.a))).toEqual(before)
+    // The copy edits on its own.
+    editName(copy2.id, 'Copy only')
+    expect(useListDraftStore.getState().drafts[w.mine2]).toBeUndefined()
+  })
+
+  it('an own list only the edits showed is copied, and the original (no saved tab of its layout shows it) goes', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'New here', owner: { layoutId: w.a } })
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })
+    const id = await ws().saveAs('With new')
+    const lists = (await db.listDefinitions.toArray()) as PersistedListDefinition[]
+    expect(lists.find((d) => d.id === fresh)).toBeUndefined()
+    expect(lists.filter((d) => d.name === 'New here').map((d) => d.owner)).toEqual([{ layoutId: id }])
+    expect(storeListIds()).not.toContain(fresh)
+  })
+
+  it('a failed write makes nothing: no layout, no copies', async () => {
+    await world()
+    const count = await db.listDefinitions.count()
+    const insert = layoutRepository.insert
+    layoutRepository.insert = () => Promise.reject(new Error('full'))
+    try {
+      expect(await ws().saveAs('Nope')).toBeNull()
+    } finally {
+      layoutRepository.insert = insert
+    }
+    expect(await db.listDefinitions.count()).toBe(count)
+    expect(await db.layouts.count()).toBe(2)
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t save layout "Nope".')
+  })
+})
+
+describe('Delete layout', () => {
+  it('deletes the open layout’s own lists, their manual order and unsaved edits; never a saved list, another layout’s or the Eisenhower’s', async () => {
+    const w = await world()
+    editName(w.mine2, 'Edited')
+    expect(await ws().delete(w.a)).toBe(true)
+    expect(await storedListIds()).toEqual([w.saved, w.theirs, w.eisenhower])
+    expect(storeListIds()).toEqual([w.saved, w.theirs, w.eisenhower])
+    expect(await ranksOf(w.mine1)).toEqual([])
+    expect(useListDraftStore.getState().drafts[w.mine2]).toBeUndefined()
+    expect(ws().activeLayoutId).toBe(w.b)
+  })
+
+  it('another layout: its own lists go, the open layout’s stay', async () => {
+    const w = await world()
+    expect(await ws().delete(w.b)).toBe(true)
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.eisenhower])
+    expect(await ranksOf(w.theirs)).toEqual([])
+    expect(ws().activeLayoutId).toBe(w.a)
+  })
+
+  it('the last layout is never deleted, nor its lists', async () => {
+    const w = await world()
+    await ws().delete(w.b)
+    expect(await ws().delete(w.a)).toBe(false)
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+})
+
+describe('Save to my lists', () => {
+  it('clears the owner (stored and shown) as one undo step with the snackbar; undo / redo', async () => {
+    const w = await world()
+    editName(w.mine1, 'Edited')
+    await useListDefinitionStore.getState().saveToMyLists(w.mine1)
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toBeUndefined()
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === w.mine1)?.owner).toBeUndefined()
+    expect(useUndoStore.getState().snackbar?.description).toBe('Saved “Mine 1” to my lists')
+    // Its unsaved edits stay unsaved.
+    expect(useListDraftStore.getState().drafts[w.mine1]?.name).toBe('Edited')
+    // A saved list is no longer the layout's: Save keeps it though no tab shows it.
+    await useUndoStore.getState().undo()
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.a })
+    await useUndoStore.getState().redo()
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toBeUndefined()
+    ws().closeTab('m1')
+    await ws().save()
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+
+  it('a saved list or the Eisenhower’s: nothing happens', async () => {
+    const w = await world()
+    await useListDefinitionStore.getState().saveToMyLists(w.saved)
+    await useListDefinitionStore.getState().saveToMyLists(w.eisenhower)
+    expect((await db.listDefinitions.get(w.eisenhower))?.owner).toEqual({ eisenhower: true })
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+  })
+})

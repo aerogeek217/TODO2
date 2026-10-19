@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { LAYOUT_NAME_MAX } from '../../models/workspace-layout'
+import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
 interface UnsavedChangesDialogProps {
@@ -74,15 +75,17 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, onConfirm, 
 
 interface DeleteLayoutDialogProps {
   layoutName: string
+  /** How many layout-only lists go with it. */
+  ownedLists?: number
   onConfirm: () => void
   onCancel: () => void
 }
 
-export function DeleteLayoutDialog({ layoutName, onConfirm, onCancel }: DeleteLayoutDialogProps) {
+export function DeleteLayoutDialog({ layoutName, ownedLists = 0, onConfirm, onCancel }: DeleteLayoutDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   return (
     <Dialog open onClose={onCancel} title={`Delete layout “${layoutName}”?`} initialFocusRef={cancelRef} nested>
-      <DialogBody>The layout is removed. Your tasks, lists and notes are not affected.</DialogBody>
+      <DialogBody>{deleteLayoutMessage(ownedLists)}</DialogBody>
       <DialogActions>
         <button ref={cancelRef} type="button" className={styles.ghost} onClick={onCancel}>Cancel</button>
         <button type="button" className={styles.danger} onClick={onConfirm}>Delete layout</button>

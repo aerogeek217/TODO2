@@ -240,11 +240,3 @@ export function withPaneSeed(fd: FilterDefaults, writes: PaneWrites): FilterDefa
   }
   return activeMarkers(markers).length > 0 ? { ...out, markers } : out
 }
-
-/**
- * The undo / snackbar name of a change of the Eisenhower source: `Eisenhower
- * shows all tasks` (`listName` null) or `Eisenhower shows “Team”`.
- */
-export function eisenhowerSourceDescription(listName: string | null): string {
-  return listName == null ? 'Eisenhower shows all tasks' : `Eisenhower shows “${listName}”`
-}

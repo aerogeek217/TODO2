@@ -3,9 +3,13 @@ import { SETTING_KEYS } from './setting-keys'
 import { rowFixes, sanitizeRow } from './import-validation'
 import {
   DEFAULT_LAYOUT_NAME,
+  layoutBodyOf,
   type PersistedWorkspaceLayout,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
+import { ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
+import { repointLayoutLists } from '../utils/workspace-layout-ops'
+import { nextSortOrder } from './create-repository'
 
 /** A stored layout as the app opens it, and what was repaired on the way. */
 export interface ReadLayout {
@@ -48,6 +52,27 @@ async function nextLayoutOrder(): Promise<number> {
   return next
 }
 
+/** A layout-only list a new layout gets a copy of: the list it copies, and the copy as it is to be. */
+export interface ListCopy {
+  /** The list copied (its manual order is copied too). */
+  from: number
+  /** The copy's definition (its id, sort order and owner are given on insert). */
+  def: Omit<ListDefinition, 'id' | 'sortOrder' | 'owner'>
+}
+
+/** The ids of the lists `layoutId` owns. Call inside a transaction on `listDefinitions`. */
+async function ownedListIds(layoutId: number): Promise<number[]> {
+  const rows = (await db.listDefinitions.toArray()) as PersistedListDefinition[]
+  return rows.filter((d) => ownerLayoutId(d) === layoutId).map((d) => d.id)
+}
+
+/** Deletes lists and their manual order. Call inside a transaction on `listDefinitions` + `listOrders`. */
+async function deleteLists(ids: readonly number[]): Promise<void> {
+  if (ids.length === 0) return
+  await db.listOrders.where('listDefinitionId').anyOf([...ids]).delete()
+  await db.listDefinitions.bulkDelete([...ids])
+}
+
 export const layoutRepository = {
   /** Every layout, repaired for use (`ReadLayout`), in the picker's order. */
   async getAll(): Promise<ReadLayout[]> {
@@ -85,6 +110,50 @@ export const layoutRepository = {
     })
   },
 
+  /**
+   * Adds a layout after the others (as `insert`) together with copies of
+   * the layout-only lists it shows: each copy is a new list owned by the
+   * new layout, with the manual order of the list it copies, and the new
+   * layout's tabs show the copies instead. One transaction. Returns the
+   * new layout's id and the copies' ids (copied id → copy's id).
+   */
+  async insertWithListCopies(
+    layout: Omit<WorkspaceLayout, 'id' | 'sortOrder'>,
+    copies: readonly ListCopy[],
+  ): Promise<{ id: number; listIds: Map<number, number> }> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
+      const id = await layoutRepository.insert(layout)
+      const listIds = new Map<number, number>()
+      for (const { from, def } of copies) {
+        const sortOrder = await nextSortOrder(db.listDefinitions, -1)
+        const copyId = await db.listDefinitions.add({ ...def, sortOrder, owner: { layoutId: id } })
+        listIds.set(from, copyId)
+        const ranks = await db.listOrders.where('listDefinitionId').equals(from).toArray()
+        if (ranks.length > 0) {
+          await db.listOrders.bulkAdd(ranks.map((r) => ({ listDefinitionId: copyId, todoId: r.todoId, rank: r.rank })))
+        }
+      }
+      if (listIds.size > 0) {
+        const row = (await db.layouts.get(id)) as PersistedWorkspaceLayout
+        await db.layouts.put({ ...row, ...repointLayoutLists(layoutBodyOf(row), listIds) })
+      }
+      return { id, listIds }
+    })
+  },
+
+  /**
+   * Deletes the lists `layoutId` owns that are not in `shown` (the lists the
+   * layout as saved now shows — `layoutListRefs`), and their manual order.
+   * Returns their ids.
+   */
+  async pruneOwnedLists(layoutId: number, shown: ReadonlySet<number>): Promise<number[]> {
+    return db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
+      const ids = (await ownedListIds(layoutId)).filter((id) => !shown.has(id))
+      await deleteLists(ids)
+      return ids
+    })
+  },
+
   /** Gives each layout of `orderedIds` its position as `sortOrder`, in one transaction (a missing id is skipped). */
   async reorder(orderedIds: readonly number[]): Promise<void> {
     await db.transaction('rw', db.layouts, async () => {
@@ -102,13 +171,19 @@ export const layoutRepository = {
     await db.layouts.update(id, { name })
   },
 
-  /** Deletes a layout unless it is the last one. Returns whether it was deleted. */
-  async deleteUnlessLast(id: number): Promise<boolean> {
-    return db.transaction('rw', db.layouts, async () => {
-      if ((await db.layouts.count()) <= 1) return false
-      if (!(await db.layouts.get(id))) return false
+  /**
+   * Deletes a layout unless it is the last one, with the lists it owns and
+   * their manual order, in one transaction. Returns the deleted lists' ids,
+   * or `null` when nothing was deleted.
+   */
+  async deleteUnlessLast(id: number): Promise<number[] | null> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
+      if ((await db.layouts.count()) <= 1) return null
+      if (!(await db.layouts.get(id))) return null
       await db.layouts.delete(id)
-      return true
+      const listIds = await ownedListIds(id)
+      await deleteLists(listIds)
+      return listIds
     })
   },
 

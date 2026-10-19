@@ -2,7 +2,9 @@ import { create } from 'zustand'
 import { listDefinitionRepository } from '../data/list-definition-repository'
 import {
   isListedList,
+  ownerLayoutId,
   type ListDefinition,
+  type ListOwner,
   type ListGrouping,
   type ListMembership,
   type ListSort,
@@ -21,6 +23,8 @@ interface AddInput {
   membership?: ListMembership
   sort?: ListSort
   grouping?: ListGrouping
+  /** A hidden list's owner (e.g. the layout a layout-only list belongs to); absent = a saved list. */
+  owner?: ListOwner
 }
 
 interface ListDefinitionState {
@@ -44,6 +48,14 @@ interface ListDefinitionState {
    * `settings-store.eisenhowerListId` reloaded to name it. Returns its id.
    */
   ensureEisenhowerList: () => Promise<number>
+  /**
+   * "Save to my lists": a layout-only list becomes a saved list (its owner
+   * cleared), as one undo step with the undo snackbar. Its unsaved edits
+   * stay unsaved. A list no layout owns → no-op.
+   */
+  saveToMyLists: (id: number) => Promise<void>
+  /** Drops lists the database no longer has (deleted with their layout) from the store. */
+  forgetLists: (ids: readonly number[]) => void
 }
 
 /**
@@ -70,7 +82,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
   ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, grouping }) {
+  async add({ name, membership, sort, grouping, owner }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
     const entry: Omit<ListDefinition, 'sortOrder'> = {
@@ -78,6 +90,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
       sort: sort ?? 'manual',
       grouping: grouping ?? 'none',
+      ...(owner ? { owner } : {}),
     }
     return mutate(
       async () => {
@@ -160,6 +173,38 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     // After the tracked write (a load waits for writes in flight).
     if (!get().listDefinitions.some((d) => d.id === id)) await get().load()
     return id
+  },
+
+  async saveToMyLists(id) {
+    const def = get().listDefinitions.find((d) => d.id === id)
+    if (!def || ownerLayoutId(def) == null) return
+    const owner = def.owner
+    const setOwner = async (next: ListOwner | undefined) => {
+      const current = get().listDefinitions.find((d) => d.id === id)
+      if (!current) return
+      const { owner: _owner, ...rest } = current
+      void _owner
+      await get().update(next ? { ...rest, owner: next } : rest)
+    }
+    try {
+      await setOwner(undefined)
+    } catch {
+      // The store logged it and showed the list as it was.
+      return
+    }
+    undoable(
+      `Saved “${def.name}” to my lists`,
+      () => setOwner(undefined),
+      () => setOwner(owner),
+      true,
+    )
+  },
+
+  forgetLists(ids) {
+    if (ids.length === 0) return
+    const gone = new Set(ids)
+    set({ listDefinitions: get().listDefinitions.filter((d) => !gone.has(d.id)) })
+    for (const id of ids) useListOrderStore.getState().forgetList(id)
   },
   }
 })

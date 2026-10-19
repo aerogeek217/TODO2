@@ -173,4 +173,45 @@ describe('ListDefinitionPickerPopup — hidden lists', () => {
     expect(queryByText('Layout only')).toBeNull()
     expect(queryByText('Eisenhower')).toBeNull()
   })
+
+  it('in a saved layout: its own lists too (marked), never another layout’s; Saved list / This layout only before Create, Saved first', () => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 1, name: 'Saved' }),
+        makeDef({ id: 2, name: 'Mine', owner: { layoutId: 4 } }),
+        makeDef({ id: 3, name: 'Theirs', owner: { layoutId: 5 } }),
+      ],
+    })
+    const onCreateNew = vi.fn()
+    const { getByText, queryByText, getByRole } = render(
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,
+    )
+    expect(getByText('Mine')).toBeInTheDocument()
+    expect(getByText('This layout')).toBeInTheDocument()
+    expect(queryByText('Theirs')).toBeNull()
+    expect(getByRole('radio', { name: 'Saved list' })).toBeChecked()
+    fireEvent.click(getByText('+ Create new list…'))
+    expect(onCreateNew).toHaveBeenLastCalledWith(false)
+  })
+
+  it('This layout only: Create says so', () => {
+    const onCreateNew = vi.fn()
+    const { getByRole, getByText } = render(
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,
+    )
+    // No list yet: the choice sits above the primary Create.
+    fireEvent.click(getByRole('radio', { name: 'This layout only' }))
+    fireEvent.click(getByText('+ Create new list…'))
+    expect(onCreateNew).toHaveBeenLastCalledWith(true)
+  })
+
+  it('no layout to keep it in (a new layout not saved yet): no choice, a saved list', () => {
+    const onCreateNew = vi.fn()
+    const { queryByRole, getByText } = render(
+      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,
+    )
+    expect(queryByRole('radio')).toBeNull()
+    fireEvent.click(getByText('+ Create new list…'))
+    expect(onCreateNew).toHaveBeenLastCalledWith(false)
+  })
 })

@@ -685,7 +685,7 @@ export function RecentSection({ data, rows, onDrill, style }: DashboardSectionPr
 
 export function EisenhowerSection({ data, onDrill, style }: DashboardSectionProps) {
   const { shown, total } = data.eisenhower
-  const { panes, listName, deleted } = data.eisenhowerSetup
+  const { panes, listName } = data.eisenhowerSetup
   const names = useChipNames()
   const subtitles = useMemo(() => panes.map((p) => paneSubtitle(p, names)), [panes, names])
   const source = { urgentRange: data.ctx.urgentRange, listName }
@@ -696,45 +696,39 @@ export function EisenhowerSection({ data, onDrill, style }: DashboardSectionProp
     <Panel
       def={SECTION_META.eisenhower}
       style={style}
-      count={deleted ? undefined : `${countOf(sum(shown), sum(total))} open`}
-      onCount={onDrill && !deleted ? () => onDrill(eisenhowerSummaryDialog(panes, {
+      count={`${countOf(sum(shown), sum(total))} open`}
+      onCount={onDrill ? () => onDrill(eisenhowerSummaryDialog(panes, {
         do: shown.do.ids, schedule: shown.schedule.ids, delegate: shown.delegate.ids, drop: shown.drop.ids,
       }, source)) : undefined}
-      sub={deleted ? 'The Eisenhower’s list was deleted' : sub}
+      sub={sub}
     >
-      {deleted ? (
-        <div className={styles.panelBody}>
-          <Empty title="This list was deleted" hint="Show all tasks or another list in Settings › Tasks › Eisenhower." />
-        </div>
-      ) : (
-        <div className={styles.matrix}>
-          {panes.map((pane, i) => {
-            const q = pane.id
-            const n = shown[q].ids.length
-            const t = total[q].ids.length
-            const byDate = shown[q].byDate
-            const subtitle = subtitles[i] ?? ''
-            return (
-              <Clickable
-                key={q}
-                as="div"
-                className={styles.quadrant}
-                data-eis-cell={q}
-                label={`${pane.name}, ${subtitle.toLowerCase()}: ${countOf(n, t)}. Show tasks`}
-                onClick={onDrill && n > 0 ? () => onDrill(eisenhowerQuadrantDialog(pane, subtitle, shown[q].ids, source)) : undefined}
-              >
-                <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{pane.name}</span>
-                <span className={styles.quadrantSub}>{subtitle}</span>
-                <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
-                  {n}
-                  {n !== t && <span className={styles.of}>of {t}</span>}
-                </span>
-                {byDate > 0 && <span className={styles.quadrantSub}>{byDate} by due date</span>}
-              </Clickable>
-            )
-          })}
-        </div>
-      )}
+      <div className={styles.matrix}>
+        {panes.map((pane, i) => {
+          const q = pane.id
+          const n = shown[q].ids.length
+          const t = total[q].ids.length
+          const byDate = shown[q].byDate
+          const subtitle = subtitles[i] ?? ''
+          return (
+            <Clickable
+              key={q}
+              as="div"
+              className={styles.quadrant}
+              data-eis-cell={q}
+              label={`${pane.name}, ${subtitle.toLowerCase()}: ${countOf(n, t)}. Show tasks`}
+              onClick={onDrill && n > 0 ? () => onDrill(eisenhowerQuadrantDialog(pane, subtitle, shown[q].ids, source)) : undefined}
+            >
+              <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{pane.name}</span>
+              <span className={styles.quadrantSub}>{subtitle}</span>
+              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
+                {n}
+                {n !== t && <span className={styles.of}>of {t}</span>}
+              </span>
+              {byDate > 0 && <span className={styles.quadrantSub}>{byDate} by due date</span>}
+            </Clickable>
+          )
+        })}
+      </div>
     </Panel>
   )
 }

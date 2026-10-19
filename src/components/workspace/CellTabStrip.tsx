@@ -5,7 +5,7 @@ import { getActiveTab, tabListId } from '../../models/workspace-layout'
 import { useIsListDirty } from '../../hooks/use-list-draft'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { useTabLabels, useTabTitles } from './widget-hooks'
+import { useTabTitle, useTabTitles } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
@@ -26,8 +26,8 @@ interface TabProps {
 }
 
 function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef }: TabProps) {
-  const { title, tooltip } = useTabLabels(tab)
-  // A list tab's list, or an Eisenhower tab's (the app-wide source): its unsaved dot.
+  const title = useTabTitle(tab)
+  // A list tab's list, or an Eisenhower tab's (the Eisenhower's own): its unsaved dot.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
   const listUnsaved = useIsListDirty(tabListId(tab, eisenhowerListId))
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
@@ -51,7 +51,7 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
         touch ? styles.touch : '',
         isDragging ? styles.dragSource : '',
       ].join(' ')}
-      title={tooltip}
+      title={title}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
