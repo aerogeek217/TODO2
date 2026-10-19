@@ -18,6 +18,7 @@
  */
 
 import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
+import type { TodoPredicate } from './filter-predicate'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -100,9 +101,34 @@ export interface TaskRowsViewState {
   detailsWidth?: number
 }
 
+/**
+ * One Eisenhower pane's own settings, saved with the layout. An absent field
+ * is that position's default (Do = Urgent and Important, Schedule =
+ * Important not Urgent, Delegate = Urgent not Important, Drop = neither).
+ */
+export interface EisenhowerPaneConfig {
+  /** Its name (trimmed, not empty); absent = the position's default name. */
+  name?: string
+  /**
+   * Which tasks it holds, in the list filter model. Its `showCompleted` is
+   * ignored (stored `false`): the matrix's source decides whether completed
+   * tasks are considered. Absent = the position's default filter.
+   */
+  filter?: TodoPredicate
+}
+
+/** The panes that differ from their defaults, by position. */
+export type EisenhowerPanes = Partial<Record<EisenhowerQuadrant, EisenhowerPaneConfig>>
+
 export interface EisenhowerTabConfig {
   /** The saved list whose tasks the quadrants show; absent = all tasks. */
   listDefinitionId?: number
+  /**
+   * Each pane's name and filter where they differ from the defaults; absent
+   * = every pane is its default. A task shows in the first pane (in
+   * position order) whose filter it matches, or in none.
+   */
+  panes?: EisenhowerPanes
 }
 
 export interface EisenhowerTabViewState extends TaskRowsViewState {

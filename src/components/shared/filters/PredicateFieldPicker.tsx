@@ -30,6 +30,8 @@ export interface PredicateFieldPickerProps {
   adding?: boolean
   /** The date type the date panel opens on (a date chip's); default the first that filters, else Due. */
   dateField?: DateField
+  /** Esc closes the picker only, not what it was opened from (e.g. a dialog). Default: it goes on. */
+  consumeEscape?: boolean
   onClose: () => void
 }
 
@@ -37,7 +39,7 @@ export interface PredicateFieldPickerProps {
  * The picker for one filter field of a list's predicate — the same pickers
  * the top bar's filter buttons open (entity checklist, date range, text).
  */
-export function PredicateFieldPicker({ field, predicate: stored, onChange, at, adding = false, dateField, onClose }: PredicateFieldPickerProps) {
+export function PredicateFieldPicker({ field, predicate: stored, onChange, at, adding = false, dateField, consumeEscape = false, onClose }: PredicateFieldPickerProps) {
   // A stored predicate may predate some fields; read it with their defaults.
   const predicate = useMemo(() => ({ ...DEFAULT_PREDICATE, ...stored }), [stored])
   const { panelRef, style } = usePopoverAnchor({
@@ -45,6 +47,7 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
     open: true,
     placement: at.align === 'start' ? 'bottom-start' : 'bottom-end',
     closeOnScroll: false,
+    consumeEscape,
     onClose,
   })
 

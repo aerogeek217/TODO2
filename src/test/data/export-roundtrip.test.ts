@@ -142,6 +142,15 @@ function buildSeed(): Seed {
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
                 { id: 't11', kind: 'eisenhower', config: { listDefinitionId: 2 } },
+                {
+                  id: 't12', kind: 'eisenhower', config: {
+                    panes: {
+                      do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: { focus: true, urgent: false }, tags: [2], negate: { tags: true } } },
+                      delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true } } },
+                      drop: { name: 'Someday' },
+                    },
+                  },
+                },
               ] },
               { id: 'k4', weight: 1, tabs: [] },
             ],
@@ -245,6 +254,9 @@ describe('export → JSON → import round-trip', () => {
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'eisenhower' && t.config.listDefinitionId !== undefined)).toBe(true)
+    const panes = tabs.flatMap((t) => (t.kind === 'eisenhower' && t.config.panes ? Object.values(t.config.panes) : []))
+    expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
+    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers !== 'hot' && p.filter.markers?.important === false)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     const dashboard = tabs.find((t) => t.kind === 'dashboard')
     expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)

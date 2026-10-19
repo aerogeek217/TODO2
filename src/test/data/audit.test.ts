@@ -448,6 +448,18 @@ describe('layouts audit', () => {
     expect((await auditData()).issues).toEqual([])
   })
 
+  it('an Eisenhower pane with parts import would drop is reported; cleanup drops just those', async () => {
+    const eis = (config: unknown) => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] }] }]
+    await db.layouts.add(layout('Custom', eis({ panes: { drop: { name: 'Someday' } } })) as any)
+    expect((await auditData()).issues).toEqual([])
+    const id = await db.layouts.add(layout('Odd', eis({ panes: { later: {}, drop: { name: 'Someday', colour: 'red' } } })) as any) as number
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
+    await cleanupIssues(report.issues)
+    expect((await db.layouts.get(id))?.columns[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: { panes: { drop: { name: 'Someday' } } } })
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('a layout with nothing usable left is kept, empty', async () => {
     const id = await db.layouts.add({ name: 'Only', columns: 'garbage', createdAt: 'never', modifiedAt: at } as any) as number
 

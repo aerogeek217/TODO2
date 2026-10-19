@@ -3,6 +3,7 @@ import type { PersistedTodoItem } from '../../models'
 import {
   eisenhowerQuadrantDialog,
   eisenhowerSummaryDialog,
+  noPaneTaskDialog,
   personTaskDialog,
   recentlyCompletedDialog,
   staleTasksDialog,
@@ -186,6 +187,17 @@ describe('dashboard section payloads', () => {
         { key: 'delegate', label: 'Delegate', color: 'var(--color-text-secondary)', todoIds: [5] },
         { key: 'drop', label: 'Drop', color: 'var(--color-text-muted)', todoIds: [6] },
       ],
+    })
+  })
+})
+
+describe('noPaneTaskDialog', () => {
+  it('lists an Eisenhower tab’s open tasks in no pane, in the order given', () => {
+    expect(noPaneTaskDialog([4, 2])).toEqual({
+      title: 'In no pane',
+      glyph: 'matrix',
+      description: 'Open tasks the Eisenhower considers that match none of its panes’ filters.',
+      source: { kind: 'todos', todoIds: [4, 2] },
     })
   })
 })

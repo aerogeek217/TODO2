@@ -497,4 +497,25 @@ describe('WidgetKindMenu — an Eisenhower tab’s Show submenu', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'All tasks' }))
     expect(onPick).toHaveBeenCalledWith(undefined)
   })
+  it('items after Show › (Customize panes…) come before the setting; a click runs and closes', () => {
+    const onCustomize = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="eisenhower"
+        onChangeKind={() => {}}
+        widgetSetting={setting}
+        listSource={{ listDefinitionId: undefined, note: 'All tasks', onPick: () => {} }}
+        sourceActions={[{ label: 'Customize panes…', onSelect: onCustomize }]}
+        onClose={onClose}
+      />,
+    )
+    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
+      .toEqual(['Show', 'Customize panes…', 'Due date makes a task urgent'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Customize panes…' }))
+    expect(onCustomize).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalled()
+  })
 })
+

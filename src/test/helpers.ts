@@ -10,6 +10,26 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
+import type { PaneContext } from '../utils/eisenhower'
+import { DEFAULT_HOT_RULE } from '../utils/hot'
+import type { UrgentDueWithinDays } from '../utils/urgency'
+
+/**
+ * An Eisenhower pane context for tests: `today`, the urgent `range`, the
+ * default Hot rule and week start; no people / tags / statuses unless given.
+ */
+export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: Partial<PaneContext> = {}): PaneContext {
+  return {
+    today,
+    settings: { urgentRange: range, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 },
+    assignedPeopleMap: new Map(),
+    assignedTagsMap: new Map(),
+    people: [],
+    tags: [],
+    statuses: [],
+    ...extra,
+  }
+}
 
 let makeTodoUidSeq = 0
 

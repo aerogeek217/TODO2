@@ -5,7 +5,7 @@
  * relies on:
  *   - calendar-day target → reschedule (which date: the entry's own, the
  *     one the calendar shows, or the user's pick when it shows both)
- *   - Eisenhower quadrant target → the quadrant's flags
+ *   - Eisenhower pane target → what the pane's filter implies
  *   - any other target (or none) → not handled; the caller's own
  *     handler runs
  */
@@ -20,7 +20,7 @@ import {
   taskDragId,
   type TaskDropKind,
 } from '../../../utils/task-dnd'
-import { makeTodo } from '../../helpers'
+import { makePaneContext, makeTodo } from '../../helpers'
 
 function makeEvent(opts: {
   activeId?: string
@@ -212,7 +212,7 @@ describe('dispatchTaskDrop — every drop kind, and nothing else', () => {
   }
   const deps = () => ({
     calendar: { reschedule: vi.fn(async () => {}) },
-    eisenhower: { tasksFor: () => [makeTodo({ id: 1 })], today: () => new Date(2026, 9, 10), range: () => null, apply: vi.fn(async () => {}) },
+    eisenhower: { tasksFor: () => [makeTodo({ id: 1 })], context: () => makePaneContext(new Date(2026, 9, 10), null), apply: vi.fn(async () => {}) },
   })
 
   it.each(Object.values(TASK_DROP_KIND))('a drop on a %s is handled', async (kind) => {
@@ -265,8 +265,7 @@ describe('dispatchTaskDrop — Eisenhower quadrant drops', () => {
   const quadrantOver = (quadrant: string) => ({ id: `eis-t1-${quadrant}`, type: TASK_DROP_KIND.eisenhowerQuadrant, extra: { quadrant, scope: 't1' } })
   const ops = (tasks: ReturnType<typeof makeTodo>[]) => ({
     tasksFor: vi.fn(() => tasks),
-    today: () => TODAY,
-    range: () => 3,
+    context: () => makePaneContext(TODAY, 3),
     apply: vi.fn(async () => {}),
   })
 

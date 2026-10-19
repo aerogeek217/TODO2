@@ -49,21 +49,6 @@ export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefin
 }
 
 /**
- * `fd` with its Urgent / Important seeds replaced by `flags` (an Eisenhower
- * quadrant's "+": Do → both, Schedule → Important, Delegate → Urgent, Drop →
- * neither). Other markers (Focus, Yes or No) and the people / tags / status
- * stay.
- */
-export function withUrgentImportant(fd: FilterDefaults, flags: { urgent: boolean; important: boolean }): FilterDefaults {
-  const markers: MarkerConditions = {}
-  if (fd.markers?.focus !== undefined) markers.focus = fd.markers.focus
-  if (flags.urgent) markers.urgent = true
-  if (flags.important) markers.important = true
-  const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId }
-  return activeMarkers(markers).length > 0 ? { ...base, markers } : base
-}
-
-/**
  * `fd` without the given marker seeds (Quick Add: a preset marker chip
  * removed with its ×). The people / tags / status and other markers stay.
  */

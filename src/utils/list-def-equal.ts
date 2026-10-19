@@ -14,7 +14,8 @@ function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null |
   return true
 }
 
-function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
+/** Whether two predicates filter the same (id lists as sets, the "is not" switches included). */
+export function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
   return (
     a.showCompleted === b.showCompleted &&
     a.searchText === b.searchText &&

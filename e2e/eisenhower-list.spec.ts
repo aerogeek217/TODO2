@@ -131,7 +131,7 @@ test.describe('desktop', () => {
 
     await quadrant(page, 'drop').hover()
     await quadrant(page, 'drop').getByRole('button', { name: 'Add task to Drop' }).click()
-    await expect(page.getByRole('group', { name: 'What the task gets' })).toContainText('Adding to Team · Drop')
+    await expect(page.getByRole('group', { name: 'What the task gets' })).toContainText('Adding to Drop · Team')
     await page.keyboard.type('Tidy the backlog')
     await page.keyboard.press('Enter')
     await expect(row(quadrant(page, 'drop'), 'Tidy the backlog')).toBeVisible()

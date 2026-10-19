@@ -7,6 +7,8 @@ import {
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
+  type EisenhowerPaneConfig,
+  type EisenhowerPanes,
   type EisenhowerTabConfig,
   type LayoutBand,
   type LayoutBody,
@@ -21,6 +23,8 @@ import {
 } from '../models/workspace-layout'
 import { normalizeDashboardConfig } from '../models/dashboard-config'
 import { isRecord } from '../utils/is-record'
+import { normalizePaneConfig } from '../utils/eisenhower-panes'
+import { checkPredicateShape, pickPredicate } from './predicate-shape'
 
 /**
  * Shape check + whitelist reconstruction for the nested part of a `layouts`
@@ -87,6 +91,8 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'eisenhower': {
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
+      const panes = checkPanes(config.panes, `${path}.config.panes`)
+      if (panes !== true) return panes
       const collapsed = view?.collapsed
       if (collapsed !== undefined && (!Array.isArray(collapsed) || !collapsed.every(isEisenhowerQuadrant))) {
         return `${path}.viewState.collapsed`
@@ -102,6 +108,75 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     case 'notes':
       return true
   }
+}
+
+/**
+ * An Eisenhower tab's `panes` (absent is fine): an object whose known panes
+ * are objects with a string `name` and a `filter` of the list predicate's
+ * core shape. Unknown panes and unknown keys inside a pane pass (the pick
+ * drops them, as a fix); the filter's inner clauses are sanitised by the
+ * pick too (`pickPredicate`).
+ */
+function checkPanes(panes: unknown, path: string): true | string {
+  if (panes === undefined) return true
+  if (!isRecord(panes)) return path
+  for (const [key, pane] of Object.entries(panes)) {
+    if (!isEisenhowerQuadrant(key)) continue
+    if (!isRecord(pane)) return `${path}.${key}`
+    if (pane.name !== undefined && typeof pane.name !== 'string') return `${path}.${key}.name`
+    if (pane.filter !== undefined) {
+      const filter = checkPredicateShape(pane.filter)
+      if (filter !== true) return `${path}.${key}.filter.${filter}`
+    }
+  }
+  return true
+}
+
+/**
+ * An Eisenhower tab's stored panes, rebuilt: known panes in position order,
+ * each with its name and filter (`pickPredicate`), normalised — a part equal
+ * to the default goes (`normalizePaneConfig`); `undefined` when every pane
+ * is its default. An unknown pane or key, or a filter clause `pickPredicate`
+ * drops, is a `pane` fix; a pane or part `checkPanes` rejects is reset (a
+ * `settings` fix).
+ */
+function pickPanes(raw: unknown, fix: (what: LayoutFix) => void): EisenhowerPanes | undefined {
+  if (raw === undefined) return undefined
+  if (!isRecord(raw)) {
+    fix('settings')
+    return undefined
+  }
+  const picked: EisenhowerPanes = {}
+  for (const [key, pane] of Object.entries(raw)) {
+    if (!isEisenhowerQuadrant(key)) {
+      fix('pane')
+      continue
+    }
+    if (!isRecord(pane)) {
+      fix('settings')
+      continue
+    }
+    const config: EisenhowerPaneConfig = {}
+    for (const k of Object.keys(pane)) if (k !== 'name' && k !== 'filter') fix('pane')
+    if (typeof pane.name === 'string') config.name = pane.name
+    else if (pane.name !== undefined) fix('settings')
+    if (pane.filter !== undefined) {
+      if (checkPredicateShape(pane.filter) !== true) fix('settings')
+      else {
+        const { predicate, fixes } = pickPredicate(pane.filter)
+        for (let i = 0; i < fixes.length; i++) fix('pane')
+        config.filter = predicate
+      }
+    }
+    picked[key] = config
+  }
+  const out: EisenhowerPanes = {}
+  for (const q of EISENHOWER_QUADRANTS) {
+    const config = picked[q]
+    const normalized = config ? normalizePaneConfig(q, config) : undefined
+    if (normalized) out[q] = normalized
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /** A tracker of the ids seen so far: `fresh(id)` is false for an id seen before. */
@@ -193,7 +268,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 }
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'columns' | 'column' | 'cell' | 'band' | 'tab' | 'size' | 'settings'
+type LayoutFix = 'columns' | 'column' | 'cell' | 'band' | 'tab' | 'size' | 'settings' | 'pane'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   columns: ['columns reset', 'columns reset'],
@@ -203,6 +278,7 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
+  pane: ['Eisenhower pane setting dropped', 'Eisenhower pane settings dropped'],
 }
 
 export interface PickedLayoutColumns {
@@ -232,8 +308,10 @@ export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
  * Rebuilds a layout body (columns + bands) with only the model's keys. For a
  * body that passes `checkLayoutBody` (all import ever picks) nothing is
  * dropped but a stale `activeTabId` (= first tab), unknown dashboard ids /
- * options, duplicate collapsed quadrants, and an out-of-range calendar
- * offset (clamped); a details width is rounded.
+ * options, duplicate collapsed quadrants, an out-of-range calendar offset
+ * (clamped), and an Eisenhower pane's unknown keys or malformed filter
+ * clauses (reported in `fixes`); a details width is rounded, and a pane's
+ * name / filter equal to its default is left out.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
  * the audit can repair a stored layout instead of deleting it: a column /
@@ -310,6 +388,8 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const eisenhowerConfig: EisenhowerTabConfig = {}
         if (isFiniteNum(config.listDefinitionId)) eisenhowerConfig.listDefinitionId = config.listDefinitionId
         else if (config.listDefinitionId !== undefined) fix('settings')
+        const panes = pickPanes(config.panes, fix)
+        if (panes) eisenhowerConfig.panes = panes
         const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: eisenhowerConfig }
         // Known quadrants, once each, in display order.
         const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []

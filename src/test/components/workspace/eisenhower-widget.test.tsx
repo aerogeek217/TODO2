@@ -250,7 +250,7 @@ describe('EisenhowerWidget on a saved list', () => {
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 'eis' })
   })
 
-  it('a quadrant\'s "+" seeds the list\'s defaults and the quadrant\'s flags, from "<list> · <quadrant>"', () => {
+  it('a quadrant\'s "+" seeds the list\'s defaults and the quadrant\'s flags, from "<pane> · <list>"', () => {
     usePersonStore.setState({ people: [makePerson({ id: 9, name: 'Dana' })] })
     useListDefinitionStore.setState({ listDefinitions: [listDef({ name: 'Dana' }, { personIds: [9], ...notWaiting })] })
     setup(onList)
@@ -261,7 +261,7 @@ describe('EisenhowerWidget on a saved list', () => {
       rawTitle: '',
       // "is not Waiting" seeds no status.
       defaults: { personIds: [9], tagIds: [], statusId: undefined, markers: { urgent: true, important: true } },
-      source: 'Dana · Do',
+      source: 'Do · Dana',
     })
   })
 

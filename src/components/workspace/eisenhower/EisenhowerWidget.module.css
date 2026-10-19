@@ -156,13 +156,37 @@
   color: var(--color-marker-important);
 }
 
+.glyphFocus {
+  display: inline-flex;
+  color: var(--color-marker-focus);
+}
+
+.glyphHot {
+  display: inline-flex;
+  color: var(--color-marker-urgent);
+}
+
+/* A custom name may be long: it keeps at most half the header. */
 .name {
   flex-shrink: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--eis-label);
+}
+
+/* A pane whose filter differs from its default. */
+.customDot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
 .subtitle {
@@ -372,6 +396,72 @@
 .noteAction:hover {
   background: var(--color-tint-14);
   color: var(--color-text-primary);
+}
+
+/* ── Customize panes: the corner gear, the no-pane line ─────────────────── */
+
+/* The matrix's top-right corner, shown while the pointer is over the
+ * widget or the gear has keyboard focus. The pane header under it keeps
+ * its room free (`data-gear-slot`). */
+.customizeGear {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface-high);
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-dropdown);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.widget:hover .customizeGear,
+.customizeGear:focus-visible {
+  opacity: 1;
+}
+
+.customizeGear:hover {
+  color: var(--color-text-primary);
+}
+
+.widget[data-dragging='true'] .customizeGear {
+  display: none;
+}
+
+.header[data-gear-slot] {
+  padding-right: 36px;
+}
+
+/* Open tasks in no pane: a muted line under the panes; opens them in the task dialog. */
+.noPane {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin: 0 6px 6px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.noPane:hover,
+.noPane:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
 }
 
 /* ── Blocked drop ───────────────────────────────────────────────────────── */

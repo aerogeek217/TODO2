@@ -25,6 +25,10 @@ interface PredicateChipsProps {
   onChange: (next: TodoPredicate) => void
   /** Rendered before the list chips (e.g. the screen filter chips). */
   before?: ReactNode
+  /** The + Filter menu's heading. */
+  addLabel?: string
+  /** Inside a dialog: Esc closes an open field picker only, not the dialog. */
+  inDialog?: boolean
 }
 
 /**
@@ -34,7 +38,7 @@ interface PredicateChipsProps {
  * only its type) — and a "+ Filter" menu that adds one (priority, tags,
  * people, dates, status, text).
  */
-export function PredicateChips({ predicate, onChange, before }: PredicateChipsProps) {
+export function PredicateChips({ predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false }: PredicateChipsProps) {
   const names = useChipNames()
   const chips = useMemo(() => filterChips(predicate, names), [predicate, names])
   const [picker, setPicker] = useState<OpenPicker | null>(null)
@@ -48,7 +52,7 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
   const isOpen = (chip: FilterChip) => picker != null && !picker.adding && picker.field === chip.field && picker.dateField === chip.dateField
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'label', text: 'Add a filter to this list' },
+    { kind: 'label', text: addLabel },
     ...ADD_FILTER_ITEMS.map((item): MenuEntry => ({
       kind: 'item',
       label: item.label,
@@ -107,6 +111,7 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
           at={picker.at}
           adding={picker.adding}
           dateField={picker.dateField}
+          consumeEscape={inDialog}
           onClose={() => setPicker(null)}
         />
       )}

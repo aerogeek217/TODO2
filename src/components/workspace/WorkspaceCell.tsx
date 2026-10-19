@@ -5,6 +5,7 @@ import {
   tabListId,
   WIDGET_KIND_SPECS,
   type BandEdge,
+  type EisenhowerQuadrant,
   type LayoutCell,
   type LayoutPanel,
   type LayoutTab,
@@ -47,6 +48,7 @@ import {
 } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
+import { CUSTOMIZE_PANES_LABEL, CustomizePanesDialog } from './eisenhower/CustomizePanesDialog'
 import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
@@ -230,6 +232,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
   const [changeToList, setChangeToList] = useState<{ tabId: string; anchor: { x: number; y: number } } | null>(null)
   const [customize, setCustomize] = useState<{ tabId: string; focusListTiles: boolean } | null>(null)
+  const [customizePanes, setCustomizePanes] = useState<{ tabId: string; pane?: EisenhowerQuadrant } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
   const activeCount = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result.countLabel : undefined
@@ -243,6 +246,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
   const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
   const closeCustomize = useCallback(() => setCustomize(null), [])
+  const closeCustomizePanes = useCallback(() => setCustomizePanes(null), [])
   const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
 
   const hit = drag?.hit
@@ -321,6 +325,15 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
         label: 'Customize dashboard…',
         icon: <DashGlyph name="sliders" />,
         onSelect: () => setCustomize({ tabId: active.id, focusListTiles: false }),
+      },
+      { kind: 'separator' as const },
+    ] : []),
+    ...(active?.kind === 'eisenhower' ? [
+      {
+        kind: 'item' as const,
+        label: CUSTOMIZE_PANES_LABEL,
+        icon: <DashGlyph name="sliders" />,
+        onSelect: () => setCustomizePanes({ tabId: active.id }),
       },
       { kind: 'separator' as const },
     ] : []),
@@ -436,6 +449,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             onResult={(result) => setWidgetResult({ tabId: active.id, result })}
             onAddListTile={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: true }) : undefined}
             onCustomize={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: false }) : undefined}
+            onCustomizePanes={active.kind === 'eisenhower' ? (pane) => setCustomizePanes({ tabId: active.id, pane }) : undefined}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} join={join} />}
           {bandHit && <BandDropZone accepts={drag?.accepts === true} join={join} />}
@@ -475,6 +489,9 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             : undefined}
           currentListName={menuListName}
           listSource={eisenhowerSource}
+          sourceActions={menuTab.kind === 'eisenhower'
+            ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => setCustomizePanes({ tabId: menuTab.id }) }]
+            : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [{
@@ -507,6 +524,13 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           tabId={customize.tabId}
           focusListTiles={customize.focusListTiles}
           onClose={closeCustomize}
+        />
+      )}
+      {customizePanes && (
+        <CustomizePanesDialog
+          tabId={customizePanes.tabId}
+          focusPane={customizePanes.pane}
+          onClose={closeCustomizePanes}
         />
       )}
       {changeToList && (

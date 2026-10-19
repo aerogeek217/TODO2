@@ -83,6 +83,11 @@ export interface WidgetKindMenuProps {
    * closes the menu.
    */
   listSource?: ListSource
+  /**
+   * Items right after `Show ›` (e.g. the Eisenhower's Customize panes…),
+   * before the widget setting. Each closes the menu after running.
+   */
+  sourceActions?: ReadonlyArray<{ label: string; icon?: ReactNode; onSelect: () => void }>
 }
 
 /** What a widget that can show a saved list shows (see `WidgetKindMenuProps.listSource`). */
@@ -121,6 +126,7 @@ export function WidgetKindMenu({
   currentListName,
   widgetSetting,
   listSource,
+  sourceActions,
 }: WidgetKindMenuProps) {
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const showChangeList = currentKind === 'lens' && pickListForLens != null
@@ -174,6 +180,7 @@ export function WidgetKindMenu({
         childrenWidth: CHANGE_LIST_WIDTH_PX,
         childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
       })
+      for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
       if (!widgetSetting) entries.push({ kind: 'separator' })
     }
     if (widgetSetting) {
