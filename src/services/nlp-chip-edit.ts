@@ -33,33 +33,60 @@ const isSpace = (ch: string | undefined): boolean => ch !== undefined && /\s/.te
  * words around it — none at the start or the end of the text; the rest of
  * the text's spacing is kept as typed. The caret keeps its place in the
  * text around the cuts (inside a cut, it goes where the cut was).
+ *
+ * One pass, last cut first: the text left of a cut is still as typed, the
+ * text right of it is final (kept pieces, collected in reverse) — so the
+ * work is linear in the text, however many spans there are.
  */
 export function removeTextSpans(text: string, spans: readonly Span[], caret: number): TextEdit {
-  let out = text
   let at = Math.max(0, Math.min(caret, text.length))
   const ordered = [...spans]
     .filter((s) => s.start < s.end && s.start >= 0 && s.end <= text.length)
     .sort((a, b) => b.start - a.start)
+  // The text right of the last cut, as pieces in reverse order; `skip` is
+  // how many leading characters of the newest piece a cut has dropped.
+  const right: string[] = []
+  let skip = 0
+  /** The first character right of the cut (`undefined` at the end of the text). */
+  const rightFirst = (): string | undefined => {
+    while (right.length > 0) {
+      const head = right.at(-1) ?? ''
+      if (skip < head.length) return head[skip]
+      right.pop()
+      skip = 0
+    }
+    return undefined
+  }
+  // `text.slice(0, cursor)` is the text left of every cut so far, as typed.
+  let cursor = text.length
   let lastStart = Infinity
   for (const { start, end } of ordered) {
     if (end > lastStart) continue // overlaps a span already cut
     lastStart = start
-    out = out.slice(0, start) + out.slice(end)
+    const kept = text.slice(end, cursor)
+    if (kept.length > 0) {
+      // The newest piece's dropped characters go with it (they were its first ones).
+      if (right.length > 0 && skip > 0) right[right.length - 1] = (right.at(-1) ?? '').slice(skip)
+      right.push(kept)
+      skip = 0
+    }
+    cursor = Math.min(cursor, start)
     if (at >= end) at -= end - start
     else if (at > start) at = start
-    const before = out[start - 1]
-    const after = out[start]
+    const before = start > 0 ? text[start - 1] : undefined
+    const after = rightFirst()
     if ((before === undefined || isSpace(before)) && isSpace(after)) {
       // A doubled space, or a space now leading the text.
-      out = out.slice(0, start) + out.slice(start + 1)
+      skip += 1
       if (at > start) at -= 1
     } else if (after === undefined && isSpace(before)) {
       // A space now trailing the text.
-      out = out.slice(0, start - 1)
+      cursor = start - 1
       if (at >= start) at -= 1
     }
   }
-  return { text: out, caret: at }
+  if (right.length > 0 && skip > 0) right[right.length - 1] = (right.at(-1) ?? '').slice(skip)
+  return { text: text.slice(0, cursor) + right.reverse().join(''), caret: at }
 }
 
 /**

@@ -62,7 +62,56 @@ describe('removeTextSpans', () => {
   })
 })
 
-describe('removeTextSpans on a huge paste', () => {
+/**
+ * The cut-by-cut definition removeTextSpans keeps to (each cut rebuilds the
+ * text, so a huge paste with many tokens can take seconds): the one-pass
+ * version must give the same text and caret.
+ */
+function removeTextSpansByCuts(text: string, spans: ReadonlyArray<{ start: number; end: number }>, caret: number) {
+  const isSpace = (ch: string | undefined) => ch !== undefined && /\s/.test(ch)
+  let out = text
+  let at = Math.max(0, Math.min(caret, text.length))
+  const ordered = [...spans].filter((x) => x.start < x.end && x.start >= 0 && x.end <= text.length).sort((a, b) => b.start - a.start)
+  let lastStart = Infinity
+  for (const { start, end } of ordered) {
+    if (end > lastStart) continue
+    lastStart = start
+    out = out.slice(0, start) + out.slice(end)
+    if (at >= end) at -= end - start
+    else if (at > start) at = start
+    const before = out[start - 1]
+    const after = out[start]
+    if ((before === undefined || isSpace(before)) && isSpace(after)) {
+      out = out.slice(0, start) + out.slice(start + 1)
+      if (at > start) at -= 1
+    } else if (after === undefined && isSpace(before)) {
+      out = out.slice(0, start - 1)
+      if (at >= start) at -= 1
+    }
+  }
+  return { text: out, caret: at }
+}
+
+describe('removeTextSpans in one pass', () => {
+  it('gives what cutting span by span gives, on random texts, spans and carets', () => {
+    // A small deterministic generator: the same cases every run.
+    let seed = 42
+    const rand = (n: number) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return seed % n
+    }
+    const alphabet = ['a', 'b', ' ', ' ', '#', '\t']
+    for (let i = 0; i < 3000; i++) {
+      const text = Array.from({ length: rand(16) }, () => alphabet[rand(alphabet.length)]).join('')
+      const spans = Array.from({ length: rand(5) }, () => {
+        const start = rand(text.length + 2) - 1
+        return { start, end: start + rand(5) }
+      })
+      const caret = rand(text.length + 3) - 1
+      expect(removeTextSpans(text, spans, caret), JSON.stringify({ text, spans, caret })).toEqual(removeTextSpansByCuts(text, spans, caret))
+    }
+  })
+
   it('stays fast: 25,000 tokens cut from a pasted 100,000-character text', () => {
     const text = '#a '.repeat(33_000).trimEnd()
     const spans = Array.from({ length: 25_000 }, (_, i) => ({ start: i * 3, end: i * 3 + 2 }))
