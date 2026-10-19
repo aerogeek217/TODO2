@@ -129,6 +129,12 @@
   letter-spacing: -0.01em;
 }
 
+/* No square ring inside the rounded card (the global input ring outranks
+ * the `outline: none` above); the caret marks the focus. */
+.titleInput:focus-visible {
+  outline: none;
+}
+
 .titleInput::placeholder {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-semibold);
