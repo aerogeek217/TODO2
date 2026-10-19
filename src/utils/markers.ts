@@ -164,13 +164,23 @@ function orNames(names: readonly string[]): string {
   return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`
 }
 
+/** The markers a Priority filter wants a task not to have (No). */
+function excludedMarkers(m: MarkersFilter | null | undefined): MarkerKey[] {
+  return activeMarkers(m).filter((k) => markerCondition(m, k) === false)
+}
+
+/** Whether a Priority filter has a No (its value is then spelled out, like an "is not" field's). */
+export function hasExcludedMarker(m: MarkersFilter | null | undefined): boolean {
+  return excludedMarkers(m).length > 0
+}
+
 /**
  * The tooltip of a Priority filter with a No: its value, then what it hides
  * (`Hides tasks that are Important`; for Urgent, `(flagged or due soon)`).
  * `null` when no marker is No.
  */
 export function markersTooltip(m: MarkersFilter | null | undefined): string | null {
-  const excluded = activeMarkers(m).filter((k) => markerCondition(m, k) === false)
+  const excluded = excludedMarkers(m)
   if (excluded.length === 0) return null
   const names = excluded.map((k) => (k === 'urgent' ? `${MARKER_LABELS[k]} (flagged or due soon)` : MARKER_LABELS[k]))
   return `${MARKERS_LABEL}: ${markersValue(m)}\nHides tasks that are ${orNames(names)}`

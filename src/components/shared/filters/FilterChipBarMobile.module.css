@@ -8,6 +8,11 @@
   padding: 4px 0;
 }
 
+/* Hot is on: the single markers are greyed out (as the desktop picker's rows). */
+.filterRowDisabled {
+  opacity: 0.4;
+}
+
 .filterLabel {
   font-size: 14px;
   color: var(--color-text-primary);

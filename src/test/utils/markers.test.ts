@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { activeMarkers, hasMarkers, markerCondition, markerConditions, markerSummary, isHotFilter, markersEqual, markersTooltip, markersValue, matchesMarkers, priorityRank, toggleHot, withMarkerCondition, type MarkerSettings } from '../../utils/markers'
+import { activeMarkers, hasExcludedMarker, hasMarkers, markerCondition, markerConditions, markerSummary, isHotFilter, markersEqual, markersTooltip, markersValue, matchesMarkers, priorityRank, toggleHot, withMarkerCondition, type MarkerSettings } from '../../utils/markers'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 const today = new Date(2026, 9, 10)
@@ -58,6 +58,7 @@ describe('Priority filter helpers', () => {
     expect(markersTooltip({ urgent: false, focus: false })).toBe('Priority: not Focus, not Urgent\nHides tasks that are Focus or Urgent (flagged or due soon)')
     expect(markersTooltip({ urgent: true })).toBeNull()
     expect(markersTooltip('hot')).toBeNull()
+    expect([hasExcludedMarker({ urgent: true, important: false }), hasExcludedMarker({ urgent: true }), hasExcludedMarker('hot'), hasExcludedMarker(null)]).toEqual([true, false, false, false])
     expect(markersTooltip(null)).toBeNull()
   })
 

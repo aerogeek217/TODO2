@@ -3,7 +3,7 @@ import { ClearableField } from '../ClearableField'
 import { datesValue, filterChips } from '../../../utils/filter-chips'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
-import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, markerCondition, markersValue, toggleHot } from '../../../utils/markers'
+import { activeMarkers, hasExcludedMarker, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, markersValue, toggleHot } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
 import { FilterModeToggle, MarkerConditionToggle } from './FilterPanels'
@@ -206,7 +206,7 @@ export function FilterChipBarMobile({
   const hot = isHotFilter(p.markers)
   const markersActiveCount = (hot ? 1 : 0) + activeMarkers(p.markers).length
   // With a No marker the row spells the filter out (`Urgent, not Important`), like an "is not" field.
-  const markersNot = activeMarkers(p.markers).some((k) => markerCondition(p.markers, k) === false)
+  const markersNot = hasExcludedMarker(p.markers)
 
   return (
     <>
@@ -236,7 +236,7 @@ export function FilterChipBarMobile({
             />
           </div>
           {MARKER_KEYS.map((key) => (
-            <div key={key} className={sheet.filterRow} style={hot ? { opacity: 0.4 } : undefined}>
+            <div key={key} className={`${sheet.filterRow} ${hot ? sheet.filterRowDisabled : ''}`}>
               <span className={sheet.filterLabel} aria-hidden>
                 <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
                 {MARKER_LABELS[key]}
