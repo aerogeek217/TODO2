@@ -21,7 +21,7 @@ function Cell() {
   return (
     <section data-ws-cell="c1">
       <div data-ws-cell-header="c1"><button type="button" data-ws-tab="t1">Waiting on</button></div>
-      <div data-list-widget="t1"><button type="button">A row</button></div>
+      <div data-list-host="t1"><button type="button">A row</button></div>
     </section>
   )
 }

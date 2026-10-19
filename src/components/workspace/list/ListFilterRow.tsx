@@ -1,0 +1,111 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PersistedListDefinition } from '../../../models/list-definition'
+import { useIsListDirty } from '../../../hooks/use-list-draft'
+import { useListDraftStore } from '../../../stores/list-draft-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { chipKey, filterChips, type FilterChip } from '../../../utils/filter-chips'
+import { groupSortSummary } from '../../../utils/list-options'
+import { ChevronDownIcon, FunnelIcon } from '../../shared/icons'
+import { PredicateChips } from '../../shared/filters/PredicateChips'
+import { useChipNames } from '../../shared/filters/filter-menu'
+import { ListDraftButtons } from './ListDraftButtons'
+import { useScreenChips } from './use-screen-chips'
+import { openEditList } from '../widget-hooks'
+import chipStyles from '../../shared/filters/ListFilterChips.module.css'
+import styles from './ListFilterRow.module.css'
+
+/** Value-only text for a screen chip (dates keep their field name). */
+function screenChipText(chip: FilterChip): string {
+  return chip.field === 'dates' ? `${chip.label} ${chip.value}` : chip.value
+}
+
+interface ListFilterRowProps {
+  /** The tab showing the list (Edit list opens beside its panel). */
+  tabId: string
+  /** The list as shown: its unsaved draft, else the saved list. */
+  definition: PersistedListDefinition
+  /** The group · sort summary that opens Edit list (off where the list's group and sort don't apply). */
+  summary?: boolean
+}
+
+/**
+ * A list's top line, always shown (the way in to setting its filters):
+ * screen filter chips (read-only, set in the top bar), then the list's own
+ * filter chips (editing them makes the list unsaved; `No filters` when
+ * there are none), + Filter, the group · sort summary that opens Edit list,
+ * and — while the list is unsaved — Revert · Save. Used by list widgets and
+ * by an Eisenhower widget on a list (without the summary). Phones (a
+ * `data-touch-chips` ancestor) get touch sizes.
+ */
+export function ListFilterRow({ tabId, definition, summary = true }: ListFilterRowProps) {
+  const editorOpen = useUIStore((s) => s.listEditor?.tabId === tabId)
+  const unsaved = useIsListDirty(definition.id)
+  const names = useChipNames()
+  const screenChips = useScreenChips()
+  const predicate = definition.membership.predicate
+  const hasListChips = useMemo(() => filterChips(predicate, names).length > 0, [predicate, names])
+  const chipsRef = useRef<HTMLDivElement>(null)
+  const chipsOverflow = useOverflowsX(chipsRef)
+  const id = definition.id
+
+  return (
+    <div className={styles.filterRow} data-testid="list-filter-row">
+      <div ref={chipsRef} className={`${styles.chips} ${chipsOverflow ? styles.chipsClipped : ''}`}>
+        <PredicateChips
+          predicate={predicate}
+          onChange={(next) => useListDraftStore.getState().edit(id, (d) => ({ ...d, membership: { kind: 'custom', predicate: next } }))}
+          before={(
+            <>
+              {screenChips.map((chip) => (
+                <span key={`screen-${chipKey(chip)}`} className={chipStyles.screenChip} title={chip.tooltip ? `${chip.tooltip}\nScreen filter · set in the top bar` : 'Screen filter · set in the top bar'} data-testid="screen-filter-chip">
+                  <FunnelIcon />
+                  {screenChipText(chip)}
+                </span>
+              ))}
+              {screenChips.length > 0 && hasListChips && <span className={styles.chipSep} aria-hidden="true" />}
+              {screenChips.length === 0 && !hasListChips && <span className={styles.noFilters}>No filters</span>}
+            </>
+          )}
+        />
+      </div>
+      {summary && (
+        <button
+          type="button"
+          className={`${chipStyles.summary} ${editorOpen ? chipStyles.summaryOpen : ''}`}
+          aria-haspopup="dialog"
+          aria-expanded={editorOpen}
+          title={`Edit list “${definition.name.trim() || 'List'}”`}
+          data-testid="list-summary"
+          onClick={() => {
+            if (editorOpen) useUIStore.getState().closeListEditor()
+            else openEditList(tabId, id)
+          }}
+        >
+          {groupSortSummary(definition.grouping, definition.sort, definition.sortDirection)}
+          <ChevronDownIcon />
+        </button>
+      )}
+      {unsaved && <ListDraftButtons listDefinitionId={id} />}
+    </div>
+  )
+}
+
+/** Whether the element's content is wider than it (re-checked on resize and content changes). */
+function useOverflowsX(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [overflows, setOverflows] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const check = () => setOverflows(el.scrollWidth > el.clientWidth + 1)
+    check()
+    const ro = new ResizeObserver(check)
+    ro.observe(el)
+    const mo = new MutationObserver(check)
+    mo.observe(el, { childList: true, subtree: true, characterData: true })
+    return () => {
+      ro.disconnect()
+      mo.disconnect()
+    }
+  }, [ref])
+  return overflows
+}

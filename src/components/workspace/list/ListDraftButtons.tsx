@@ -3,7 +3,7 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { useTooltip } from '../../shared/use-tooltip'
 import { RevertIcon, SaveIcon } from '../../shared/icons'
-import styles from './ListWidget.module.css'
+import styles from './ListFilterRow.module.css'
 
 /**
  * The filter line's Revert · Save for a list with unsaved edits. The edits
