@@ -30,8 +30,6 @@ test('add tab › List › Create new list…: the tab appears with the list\'s 
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
   await expect(editListDialog(page, 'Errands')).toBeVisible()
   await editListDialog(page, 'Errands').getByRole('button', { name: 'Save list' }).click()
-  await expect(editListDialog(page, 'Errands').getByRole('button', { name: 'Save list' })).toBeDisabled()
-  await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(listsManager(page)).toHaveCount(0)
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()

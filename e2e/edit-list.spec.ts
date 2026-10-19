@@ -91,7 +91,7 @@ test('a panel too wide for either side: the popover drops below its filter line,
   expect(Math.round(p.x + p.width)).toBe(Math.round(cell.x + cell.width - 6))
 })
 
-test('edits show live in every widget showing the list; the popover stays open; Save list writes and stays open', async ({ page }) => {
+test('edits show live in every widget showing the list; the popover stays open; Save list writes and closes it', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   // Opened from the filter line's summary (shown with no filters set and the list saved).
@@ -132,8 +132,8 @@ test('edits show live in every widget showing the list; the popover stays open; 
   await expect(wsTab(page, 't2')).toContainText('Team A')
 
   await popover.getByRole('button', { name: 'Save list' }).click()
-  await expect(popover).toBeVisible()
-  await expect(popover.getByRole('button', { name: 'Save list' })).toBeDisabled()
+  await expect(popover).toHaveCount(0)
+  await expect(summary).toBeFocused()
   await expect(wsListWidget(page, 't2').getByTestId('save-list')).toHaveCount(0)
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team A')).toMatchObject({ grouping: 'people', sort: 'name' })
 })
@@ -165,6 +165,19 @@ test('with it open, the previewed list stays usable: rows select and drag; a cli
   await wsListWidget(page, 't0').click({ position: { x: 40, y: 200 } })
   await expect(popover).toHaveCount(0)
   await expect(widget.getByTestId('save-list')).toBeVisible()
+})
+
+test('Revert drops the edit and closes it, with Undo', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  const popover = await openFromTabMenu(page, 't1')
+  await pick(page, 'Group by', 'People')
+  await expect(wsListWidget(page, 't1').getByTestId('save-list')).toBeVisible()
+  await popover.getByRole('button', { name: 'Revert' }).click()
+  await expect(popover).toHaveCount(0)
+  await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(wsListWidget(page, 't1').getByTestId('save-list')).toBeVisible()
 })
 
 test('Esc closes it (after a menu inside), keeps the draft and returns focus to the summary', async ({ page }) => {
