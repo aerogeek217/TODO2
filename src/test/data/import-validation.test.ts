@@ -754,6 +754,33 @@ describe('validateImportData', () => {
       expect(result.warnings).toEqual(['Fixed 1 list: "Sideways" (unknown sort direction dropped)'])
     })
 
+    it('keeps the "is not" switches; an unknown one is dropped with a warning', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [
+          list(1, 'Not waiting', { statusIds: [2], negate: { statusIds: true } }),
+          list(2, 'Old', { personIds: [1] }),
+          list(3, 'Bad switch', { personIds: [1], statusIds: [2], negate: { personIds: 'yes', statusIds: true } }),
+          list(4, 'Future switch', { tags: [1], negate: { markers: true } }),
+          list(5, 'Nothing ticked', { personIds: [], negate: { personIds: true } }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [not, old, bad, future, nothing] = result.data.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate : null)
+      expect(not).toMatchObject({ statusIds: [2], negate: { statusIds: true } })
+      expect(old).toMatchObject({ personIds: [1] })
+      expect('negate' in old!).toBe(false)
+      // Which way the people filter went is unknown: it goes, rather than turning round.
+      expect(bad).toMatchObject({ personIds: null, statusIds: [2], negate: { statusIds: true } })
+      expect(future).toMatchObject({ tags: [1] })
+      expect('negate' in future!).toBe(false)
+      // An "is not" with nothing ticked is no filter.
+      expect(nothing).toMatchObject({ personIds: null })
+      expect('negate' in nothing!).toBe(false)
+      expect(result.warnings).toEqual([
+        'Fixed 2 lists: "Bad switch" (people filter dropped); "Future switch" (unknown "is not" switch dropped)',
+      ])
+    })
+
     it('still rejects a predicate missing its core shape', () => {
       const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { showCompleted: 'yes' })] }))
       expect(result).toEqual({ ok: false, error: expect.stringContaining('bad field "membership"') })

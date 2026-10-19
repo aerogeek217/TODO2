@@ -34,6 +34,9 @@ export {
   type MarkerSet,
   HOT_MARKERS,
   MARKER_KEYS,
+  type NegatableField,
+  type FilterNegation,
+  NEGATABLE_FIELDS,
   emptyPredicate,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'

@@ -1,7 +1,8 @@
-import type { DateAnchor, DateFilters, DateMatch, MarkersFilter, Person, Status, Tag, TodoPredicate } from '../models'
+import type { DateAnchor, DateFilters, DateMatch, FilterNegation, MarkersFilter, NegatableField, Person, Status, Tag, TodoPredicate } from '../models'
 import type { DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
+import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { hasMarkers, MARKERS_LABEL, markersValue } from './markers'
 
@@ -17,8 +18,12 @@ export interface FilterChip {
   dateField?: DateField
   /** Field name, e.g. `Due`, `Status` (list chips show it muted before the value). */
   label: string
-  /** Value text, e.g. `within 14 days`, `Alice +2`, `#q4`. */
+  /** Value text, e.g. `within 14 days`, `Alice +2`, `#q4`, `not Waiting`. */
   value: string
+  /** An "is not" People / Status / Tags chip: its value starts `not `. */
+  negated?: true
+  /** Spelled out for a tooltip (an "is not" chip: what it hides); absent when the chip says it all. */
+  tooltip?: string
 }
 
 /** Entity registries the chip text resolves ids against. */
@@ -31,12 +36,37 @@ export interface FilterChipNames {
 /** Narrowing clauses of a filter, in the shape both predicates and screen criteria share. */
 export interface FilterClauses {
   showCompleted: boolean
-  personIds: Iterable<number> | null
-  statusIds: Iterable<number> | null
-  tags?: Iterable<number> | null
+  personIds: IdList | null
+  statusIds: IdList | null
+  tags?: IdList | null
   searchText: string
   dates: DateFilters
   markers?: MarkersFilter | null
+  negate?: FilterNegation
+}
+
+/** Every resolved name (ids with no row left out), `zeroName` for id 0. */
+function allNames(ids: Iterable<number>, nameOf: (id: number) => string | undefined, zeroName: string, prefix = ''): string[] {
+  return [...ids].flatMap((id) => {
+    if (id === 0) return [zeroName]
+    const n = nameOf(id)
+    return n == null ? [] : [`${prefix}${n}`]
+  })
+}
+
+/** `a, b or c`. */
+function orList(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`
+}
+
+/** What an "is not" chip hides, spelled out (its tooltip). */
+function negatedTooltip(field: NegatableField, names: readonly string[]): string {
+  switch (field) {
+    case 'statusIds': return `Status: not ${orList(names)}\nHides tasks with ${names.length === 1 ? 'that status' : 'any of these statuses'}`
+    case 'personIds': return `People: not ${orList(names)}\nHides tasks assigned to ${names.length === 1 ? 'them' : 'any of them'}`
+    case 'tags': return `Tags: not ${orList(names)}\nHides tasks with ${names.length === 1 ? 'that tag' : 'any of these tags'}; untagged tasks stay`
+  }
 }
 
 /** `first +N` over the resolved names; `none` when nothing is picked. */
@@ -158,10 +188,16 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
   const chips: FilterChip[] = []
   const byId = <T extends { id?: number; name: string }>(rows: readonly T[]) => (id: number) => rows.find((r) => r.id === id)?.name
   if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers) })
-  if (c.tags != null) chips.push({ field: 'tags', label: 'Tags', value: namesValue(c.tags, byId(names.tags), 'Untagged', '#') })
-  if (c.personIds != null) chips.push({ field: 'people', label: 'People', value: namesValue(c.personIds, byId(names.people), 'Unassigned') })
+  // An id chip: `Alice +2`, or — "is not" — `not Alice +2` with a tooltip saying what it hides.
+  const idChip = (field: 'tags' | 'people' | 'status', key: NegatableField, label: string, ids: Iterable<number>, nameOf: (id: number) => string | undefined, zeroName: string, prefix = ''): FilterChip => {
+    const value = namesValue(ids, nameOf, zeroName, prefix)
+    if (!isNegated(c, key)) return { field, label, value }
+    return { field, label, value: `not ${value}`, negated: true, tooltip: negatedTooltip(key, allNames(ids, nameOf, zeroName, prefix)) }
+  }
+  if (c.tags != null) chips.push(idChip('tags', 'tags', 'Tags', c.tags, byId(names.tags), 'Untagged', '#'))
+  if (c.personIds != null) chips.push(idChip('people', 'personIds', 'People', c.personIds, byId(names.people), 'Unassigned'))
   chips.push(...dateChips(c.dates))
-  if (c.statusIds != null) chips.push({ field: 'status', label: 'Status', value: namesValue(c.statusIds, byId(names.statuses), 'No status') })
+  if (c.statusIds != null) chips.push(idChip('status', 'statusIds', 'Status', c.statusIds, byId(names.statuses), 'No status'))
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
   if (includeCompleted && c.showCompleted) chips.push({ field: 'completed', label: 'Completed', value: 'Completed shown' })
@@ -186,12 +222,13 @@ export function describeFilters(chips: readonly FilterChip[]): string {
 /**
  * The predicate without the clauses of one chip field — for `dates`, only
  * `dateField`'s clause when given (a date chip's ×), else every date type.
+ * Clearing People / Status / Tags drops its "is not" switch too.
  */
 export function clearChipField(p: TodoPredicate, field: FilterChipField, dateField?: DateField): TodoPredicate {
   switch (field) {
-    case 'people': return { ...p, personIds: null }
-    case 'tags': return { ...p, tags: null }
-    case 'status': return { ...p, statusIds: null }
+    case 'people': return withIdFilter(p, 'personIds', null, false)
+    case 'tags': return withIdFilter(p, 'tags', null, false)
+    case 'status': return withIdFilter(p, 'statusIds', null, false)
     case 'markers': return { ...p, markers: null }
     case 'text': return { ...p, searchText: '' }
     case 'dates': return { ...p, dates: dateField ? withDateMatch(p.dates, dateField, null) : {} }

@@ -153,6 +153,20 @@ describe('selectCheckinTasks', () => {
     expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 2 }, ctx).comingUp)).toEqual([3])
   })
 
+  it('list: "is not" clauses leave out the ticked status / people', () => {
+    const waiting: Status = { id: 3, name: 'Waiting', color: '#fff', sortOrder: 0 }
+    const todos = [makeTodo({ id: 1, statusId: 3 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada, bob] }, {
+      statuses: [waiting],
+      listDefinitions: [
+        list(1, { statusIds: [3], negate: { statusIds: true } }),
+        list(2, { personIds: [2], negate: { personIds: true } }),
+      ],
+    })
+    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([2, 3])
+    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 2 }, ctx).comingUp)).toEqual([1, 2])
+  })
+
   it('list with a prompt: a person prompt gets this person; other prompts narrow nothing', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
     const ctx = context(todos, { 1: [ada], 2: [ada, bob], 3: [bob] }, {

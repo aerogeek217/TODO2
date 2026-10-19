@@ -1,5 +1,6 @@
-import type { DateAnchor, DateFilters, MarkerSet, MarkersFilter, TodoPredicate } from '../models'
+import type { DateAnchor, DateFilters, FilterNegation, MarkerSet, MarkersFilter, TodoPredicate } from '../models'
 import { hasDateFilters, normalizeDateFilters, readDateFilters } from './date-filters'
+import { withNormalizedNegation } from './filter-negation'
 import { activeMarkers, hasMarkers, isHotFilter } from './markers'
 
 /**
@@ -12,9 +13,12 @@ import { activeMarkers, hasMarkers, isHotFilter } from './markers'
  */
 export interface FilterCriteria {
   showCompleted: boolean
-  /** null = no filter (all shown); Set = only tasks assigned to one of these people (0 = unassigned) */
+  /**
+   * null = no filter (all shown); Set = only tasks assigned to one of these
+   * people (0 = unassigned) — or, with `negate.personIds`, to none of them.
+   */
   personIds: Set<number> | null
-  /** null = no filter; Set = only those statuses shown (0 = no status) */
+  /** null = no filter; Set = only those statuses shown (0 = no status), or with `negate.statusIds` all but those. */
   statusIds: Set<number> | null
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
   searchText: string
@@ -37,9 +41,12 @@ export interface FilterCriteria {
    * null = no filter; Set of tag ids (into the `tags` registry) — todo must
    * have at least one assigned tag in the set (OR semantics). An empty Set
    * matches zero todos; a todo with no tag assignments is excluded whenever
-   * this clause is non-null and non-empty.
+   * this clause is non-null and non-empty. With `negate.tags`: only tasks
+   * with none of these tags (untagged passes).
    */
   tags: Set<number> | null
+  /** The "is not" switches of people / status / tags (`utils/filter-negation`); absent = every field "is". */
+  negate?: FilterNegation
 }
 
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
@@ -72,7 +79,9 @@ export function countActiveFilters(f: FilterCriteria): number {
  * - Narrowing clauses (people, status, tags, markers, search, dates) AND
  *   together — strictly, even on the same field: screen `@Alice` + list
  *   `@Bob` keeps only tasks assigned to both; screen Hot + list Urgent
- *   keeps only hot tasks that are urgent.
+ *   keeps only hot tasks that are urgent. Each side keeps its own "is not"
+ *   switches: screen Status is not Waiting + list Status is Waiting, Done
+ *   keeps only Done.
  * - `showCompleted` ORs: completed tasks show when either side shows them.
  */
 export function composeScreenFilter(
@@ -83,9 +92,13 @@ export function composeScreenFilter(
   return [{ ...screen, showCompleted }, { ...list, showCompleted }]
 }
 
-/** Runtime (Sets) → serializable (arrays) for saved views / list definitions. */
+/**
+ * Runtime (Sets) → serializable (arrays) for saved views / list definitions.
+ * The "is not" switches are normalised (`withNormalizedNegation`): `negate`
+ * is present only while some field reads "is not".
+ */
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
-  return {
+  const p: TodoPredicate = {
     showCompleted: f.showCompleted,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     statusIds: f.statusIds ? Array.from(f.statusIds) : null,
@@ -94,11 +107,12 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     markers: normalizeMarkers(f.markers),
     tags: f.tags ? Array.from(f.tags) : null,
   }
+  return withNormalizedNegation(f.negate ? { ...p, negate: { ...f.negate } } : p)
 }
 
 /** Serializable → runtime. Inverse of `criteriaToPredicate`. Reads date anchors through `readDateAnchor` (legacy ISO strings → fixed). */
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
-  return {
+  const f: FilterCriteria = {
     showCompleted: p.showCompleted,
     personIds: Array.isArray(p.personIds) ? new Set(p.personIds) : null,
     statusIds: Array.isArray(p.statusIds) ? new Set(p.statusIds) : null,
@@ -107,6 +121,7 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     markers: normalizeMarkers(p.markers),
     tags: Array.isArray(p.tags) ? new Set(p.tags) : null,
   }
+  return withNormalizedNegation(p.negate ? { ...f, negate: { ...p.negate } } : f)
 }
 
 /** Hot, a copy of the required markers, or null when none is ticked. */

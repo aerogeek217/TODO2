@@ -2,17 +2,21 @@ import { DATE_FIELD_VALUES, type DateField } from '../models'
 import {
   HOT_MARKERS,
   MARKER_KEYS,
+  NEGATABLE_FIELDS,
   OPTIONAL_DATE_FIELDS,
   PREDICATE_SEARCH_TEXT_MAX,
   RELATIVE_DATE_TOKENS,
   type DateAnchor,
   type DateFilters,
   type DateMatch,
+  type FilterNegation,
   type MarkerSet,
   type MarkersFilter,
+  type NegatableField,
   type RelativeDateToken,
   type TodoPredicate,
 } from '../models/filter-predicate'
+import { withNormalizedNegation } from '../utils/filter-negation'
 import { isRecord } from '../utils/is-record'
 
 /**
@@ -25,7 +29,10 @@ import { isRecord } from '../utils/is-record'
  *   malformed id filter (people / statuses / tags), Priority filter or date
  *   clause (an unknown date type included) is dropped — no filter — and a
  *   too-long text filter is shortened; all are reported in `fixes`, so
- *   import can warn and the audit can report. The
+ *   import can warn and the audit can report. An "is not" switch this build
+ *   can't read drops the filter it switched (which way it filtered is
+ *   unknown, so the filter goes rather than turning round); an unknown
+ *   switch is dropped. The
  *   core fields fall back to their defaults when malformed (only reachable
  *   for rows already in the database: import rejects those), so a bad stored
  *   predicate can't crash the lists showing it.
@@ -212,5 +219,48 @@ export function pickPredicate(raw: unknown): PickedPredicate {
     predicate.markers = markers ?? null
   }
   if ('tags' in v && v.tags !== undefined) predicate.tags = ids(v.tags, 'tag')
-  return { predicate, fixes }
+  readNegation(v.negate, predicate, fixes)
+  // An "is not" with nothing ticked is no filter; a switch on a field that doesn't filter goes.
+  return { predicate: withNormalizedNegation(predicate), fixes }
+}
+
+/** An id filter's name in a fix (`people filter dropped`). */
+const NEGATABLE_WORDS: Record<NegatableField, string> = {
+  personIds: 'people',
+  statusIds: 'status',
+  tags: 'tag',
+}
+
+/**
+ * Reads the stored "is not" switches into `predicate.negate`. A switch is
+ * `true`; `false`, `null` or absent = "is". Any other value on a known field
+ * drops that field's filter (it can't tell which way the field filtered); a
+ * `negate` that isn't an object drops every id filter that is set; an unknown
+ * key is dropped. Each is named in `fixes`.
+ */
+function readNegation(raw: unknown, predicate: TodoPredicate, fixes: PredicateFix[]): void {
+  if (raw === undefined || raw === null) return
+  const dropFilter = (field: NegatableField) => {
+    if (predicate[field] == null) return
+    predicate[field] = null
+    fixes.push(`${NEGATABLE_WORDS[field]} filter dropped`)
+  }
+  if (!isRecord(raw)) {
+    fixes.push('unknown "is not" switches dropped')
+    for (const field of NEGATABLE_FIELDS) dropFilter(field)
+    return
+  }
+  const negate: FilterNegation = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (!(NEGATABLE_FIELDS as readonly string[]).includes(key)) {
+      fixes.push('unknown "is not" switch dropped')
+      continue
+    }
+    const field = key as NegatableField
+    if (value === true) negate[field] = true
+    else if (value === false || value === null || value === undefined) continue
+    else if (predicate[field] != null) dropFilter(field)
+    else fixes.push('unknown "is not" switch dropped')
+  }
+  if (Object.keys(negate).length > 0) predicate.negate = negate
 }

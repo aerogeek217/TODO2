@@ -9,7 +9,7 @@ import {
 } from '../../data/draft-storage'
 import { CURRENT_DB_VERSION } from '../../data/database'
 import { createTab, type LayoutBand, type LayoutColumn } from '../../models/workspace-layout'
-import { emptyPredicate } from '../../models'
+import { emptyPredicate, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 const columns: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [createTab('notes', 'n')] }] }]
@@ -99,6 +99,23 @@ describe('draft storage', () => {
     const back = readListDrafts()
     expect([...back.keys()]).toEqual([4])
     expect('sortDirection' in back.get(4)!.draft).toBe(false)
+  })
+
+  it('a list draft keeps its "is not" switches; one kept without them stays valid; an unknown switch is not taken back', () => {
+    const base = listDef()
+    const not = (negate: unknown) => ({ kind: 'custom' as const, predicate: { ...emptyPredicate(), statusIds: [2], negate } as TodoPredicate })
+    const draft = listDef({ membership: not({ statusIds: true }) })
+    writeListDrafts(new Map([[4, { draft, base }]]))
+    expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
+
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
+      4: { draft: listDef({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), statusIds: [2] } } }), base, schemaVersion: CURRENT_DB_VERSION },
+      5: { draft: { ...listDef({ membership: not({ statusIds: 'yes' }) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+    }))
+    const back = readListDrafts()
+    expect([...back.keys()]).toEqual([4])
+    const kept = back.get(4)!.draft.membership
+    expect(kept.kind === 'custom' && 'negate' in kept.predicate).toBe(false)
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {

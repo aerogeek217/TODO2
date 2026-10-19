@@ -7,7 +7,7 @@ import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
-import type { TodoPredicate } from '../../models/filter-predicate'
+import { NEGATABLE_FIELDS, type TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { makeTodo, resetDb } from '../helpers'
 
@@ -102,7 +102,7 @@ function buildSeed(): Seed {
       sort: 'followup', grouping: 'followup',
     }, {
       id: 1, name: 'By person', sortOrder: 0,
-      membership: { kind: 'custom', predicate: FULL_PREDICATE },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'deadline', sortDirection: 'desc', grouping: 'people',
       runtimeFilter: { field: 'person', label: 'Who' },
     }],
@@ -223,6 +223,9 @@ describe('export → JSON → import round-trip', () => {
     const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
     expect(markers).toContain('hot')
     expect(markers.some((m) => typeof m === 'object' && m !== null)).toBe(true)
+    // Every "is not" switch.
+    const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
+    expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(['deadline', 'followup', 'created', 'modified']))

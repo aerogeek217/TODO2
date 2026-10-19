@@ -1,6 +1,7 @@
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import type { MarkerKey, MarkerSet, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers } from './markers'
+import { isNegated } from './filter-negation'
 
 export interface FilterDefaults {
   personIds: number[]
@@ -19,14 +20,19 @@ export interface FilterDefaults {
  * Strips sentinel value 0 (None/Unaffiliated) from entity ID sets.
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
  * A Markers filter makes new tasks start with those markers flagged; a Hot
- * filter seeds none.
+ * filter seeds none. An "is not" People / Status / Tags filter seeds nothing
+ * (the new task simply has none of the excluded values).
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
-  const personIds = filters.personIds ? [...filters.personIds].filter(id => id !== 0) : []
-  const tagIds = filters.tags ? [...filters.tags].filter(id => id !== 0) : []
+  const seeds = (field: 'personIds' | 'tags') => {
+    const ids = filters[field]
+    return ids && !isNegated(filters, field) ? [...ids].filter(id => id !== 0) : []
+  }
+  const personIds = seeds('personIds')
+  const tagIds = seeds('tags')
 
   let statusId: number | undefined
-  if (filters.statusIds && filters.statusIds.size === 1) {
+  if (filters.statusIds && filters.statusIds.size === 1 && !isNegated(filters, 'statusIds')) {
     const [only] = filters.statusIds
     if (only !== 0) statusId = only
   }

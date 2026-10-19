@@ -53,6 +53,15 @@ describe('computeListTileCounts', () => {
     expect(computeListTileCounts([list(1, { showCompleted: true })], tasks, opts(screen))[0]).toMatchObject({ shown: 4, total: 4 })
   })
 
+  it('an "is not" list counts the tasks without the ticked values, composed with an "is not" screen filter', () => {
+    // People is not Bob: 2 (Alice) and 4 (nobody).
+    const notBob = list(1, { personIds: [2], negate: { personIds: true } })
+    expect(computeListTileCounts([notBob], tasks, opts())[0]).toMatchObject({ shown: 2, total: 2 })
+    // Screen: People is not Unassigned (has someone) — leaves 2.
+    const screen = { ...NONE, personIds: new Set([0]), negate: { personIds: true as const } }
+    expect(computeListTileCounts([notBob], tasks, opts(screen))[0]).toMatchObject({ shown: 1, total: 2 })
+  })
+
   it('Markers clauses use the given settings (Hot list, urgent range)', () => {
     const hot = list(1, { markers: 'hot' })
     expect(computeListTileCounts([hot], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 2 })

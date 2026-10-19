@@ -1,6 +1,8 @@
 import { create } from 'zustand'
+import type { NegatableField } from '../models'
 import { withDateMatch } from '../utils/date-filters'
 import { countActiveFilters, fixedAnchor, type FilterCriteria } from '../utils/filter-criteria'
+import { isNegated, withIdFilter, withNormalizedNegation } from '../utils/filter-negation'
 
 /**
  * The screen (top-bar) filter. The criteria type, its converters and the
@@ -19,6 +21,12 @@ interface FilterState {
   /** The due-date range, Date endpoints as `{kind:'fixed', iso}` anchors; both `null` = no due-date filter. */
   setDateRange: (start: Date | null, end: Date | null) => void
   setTags: (tags: Set<number> | null) => void
+  /**
+   * Turns a People / Status / Tags filter's "is not" switch on or off,
+   * keeping its ticks. A field that doesn't filter has no switch to keep
+   * (the pickers hold an "is not" with nothing ticked themselves).
+   */
+  setNegated: (field: NegatableField, negated: boolean) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
 }
@@ -37,8 +45,10 @@ function isFilterActive(f: FilterCriteria): boolean {
   return countActiveFilters(f) > 0
 }
 
+/** Stores `filters` with its "is not" switches normalised (an "is not" with nothing ticked = no filter). */
 function commit(set: (s: Partial<FilterState>) => void, filters: FilterCriteria) {
-  set({ filters, isActive: isFilterActive(filters) })
+  const normalized = withNormalizedNegation(filters)
+  set({ filters: normalized, isActive: isFilterActive(normalized) })
 }
 
 export const useFilterStore = create<FilterState>((set, get) => ({
@@ -50,11 +60,13 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   },
 
   setPersonIds(personIds: Set<number> | null) {
-    commit(set, { ...get().filters, personIds })
+    const filters = get().filters
+    commit(set, withIdFilter(filters, 'personIds', personIds, isNegated(filters, 'personIds')))
   },
 
   setStatusIds(statusIds: Set<number> | null) {
-    commit(set, { ...get().filters, statusIds })
+    const filters = get().filters
+    commit(set, withIdFilter(filters, 'statusIds', statusIds, isNegated(filters, 'statusIds')))
   },
 
   setSearchText(searchText: string) {
@@ -74,7 +86,13 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   },
 
   setTags(tags: Set<number> | null) {
-    commit(set, { ...get().filters, tags })
+    const filters = get().filters
+    commit(set, withIdFilter(filters, 'tags', tags, isNegated(filters, 'tags')))
+  },
+
+  setNegated(field: NegatableField, negated: boolean) {
+    const filters = get().filters
+    commit(set, withIdFilter(filters, field, filters[field], negated))
   },
 
   setAllFilters(filters: FilterCriteria) {

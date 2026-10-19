@@ -107,6 +107,23 @@ export const HOT_MARKERS = 'hot'
  */
 export type MarkersFilter = typeof HOT_MARKERS | MarkerSet
 
+/** The id filters an "is not" switch can turn round: people, status, tags. */
+export type NegatableField = 'personIds' | 'statusIds' | 'tags'
+
+/** The negatable id filters in display order of their pickers' fields (People, Status, Tags). */
+export const NEGATABLE_FIELDS: readonly NegatableField[] = ['personIds', 'statusIds', 'tags']
+
+/**
+ * Which id filters read "is not": only `true` values are stored, and only
+ * for a field that filters (a non-empty id list). Absent = every field "is".
+ *
+ * - Status is not {…}: the task's status (0 = no status) is not ticked.
+ * - People is not {…}: the task has none of the ticked people (0 =
+ *   unassigned, so "is not Unassigned" = has someone).
+ * - Tags is not {…}: the task has none of the ticked tags (untagged passes).
+ */
+export type FilterNegation = { [K in NegatableField]?: true }
+
 /**
  * Serializable predicate describing the live filter fields.
  *
@@ -118,8 +135,13 @@ export type MarkersFilter = typeof HOT_MARKERS | MarkerSet
  */
 export interface TodoPredicate {
   showCompleted: boolean
-  /** null = no filter (all shown); array = only those IDs shown (0 = "unassigned" sentinel) */
+  /**
+   * null = no filter (all shown); array = only tasks with one of those people
+   * shown (0 = "unassigned" sentinel) — or, with `negate.personIds`, only
+   * tasks with none of them.
+   */
   personIds: number[] | null
+  /** null = no filter; array = only those statuses (0 = no status), or with `negate.statusIds` all but those. */
   statusIds: number[] | null
   searchText: string
   /** The date filters, one clause per date type (AND); `{}` = none. */
@@ -135,8 +157,15 @@ export interface TodoPredicate {
    * with no tag assignments is excluded when this clause is a non-empty array.
    * Optional on read so pre-tags predicates (stored in `listDefinitions` /
    * `savedViews`) deserialize as `tags: null` without a data rewrite.
+   * With `negate.tags`: only tasks with none of the tags (untagged passes).
    */
   tags?: number[] | null
+  /**
+   * The "is not" switches of the id filters (`personIds` / `statusIds` /
+   * `tags`); absent = every field "is". Optional on read: older predicates
+   * have none.
+   */
+  negate?: FilterNegation
 }
 
 /** Empty predicate — matches every open task (completed tasks need `showCompleted`). */

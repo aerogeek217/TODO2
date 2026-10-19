@@ -340,6 +340,20 @@ describe('sanitisable-row audit', () => {
     expect(row && 'sortDirection' in row).toBe(false)
   })
 
+  it('reports a list with an unknown "is not" switch; cleanup drops the filter it switched and keeps a valid one', async () => {
+    const id = await db.listDefinitions.add(list('Odd', { personIds: [1], statusIds: [2], negate: { personIds: 2, statusIds: true } }) as any)
+    await db.listDefinitions.add(list('Fine', { statusIds: [2], negate: { statusIds: true } }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped')
+    await cleanupIssues(report.issues)
+    const row = await db.listDefinitions.get(id)
+    expect(row?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ personIds: null, statusIds: [2], negate: { statusIds: true } }) })
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {
     const id = await db.listDefinitions.add(list('Bad', { personIds: 5, statusIds: [2], searchText: 'x'.repeat(600) }) as any)
 

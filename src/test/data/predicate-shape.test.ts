@@ -35,6 +35,11 @@ const APP_PREDICATES: Array<[string, TodoPredicate]> = [
   ['a due date that must be set', { ...emptyPredicate(), dates: { deadline: { match: 'set' } } }],
   ['empty id filters (match nothing)', { ...emptyPredicate(), personIds: [], statusIds: [], tags: [], markers: {} }],
   ['a predicate stored before the optional fields existed', requiredOnly()],
+  ['"is not" on people, status and tags', {
+    ...emptyPredicate(), personIds: [0, 2], statusIds: [1], tags: [3],
+    negate: { personIds: true, statusIds: true, tags: true },
+  }],
+  ['"is not" on one field', { ...emptyPredicate(), statusIds: [1, 0], tags: [3], negate: { statusIds: true } }],
 ]
 
 describe('pickPredicate', () => {
@@ -135,6 +140,55 @@ describe('pickPredicate', () => {
     const { predicate, fixes } = pickPredicate({ showCompleted: 'yes', searchText: 7, dates: [] })
     expect(predicate).toEqual(requiredOnly())
     expect(fixes).toEqual(['text filter reset', 'date filters reset', 'show completed reset'])
+  })
+
+  describe('"is not" switches', () => {
+    it('drops a switch on a field that does not filter, and an "is not" with nothing ticked, silently', () => {
+      const { predicate, fixes } = pickPredicate({
+        ...emptyPredicate(), personIds: [], statusIds: null, tags: [2],
+        negate: { personIds: true, statusIds: true, tags: true },
+      })
+      expect(fixes).toEqual([])
+      expect(predicate).toMatchObject({ personIds: null, statusIds: null, tags: [2], negate: { tags: true } })
+      expect(predicate.negate).toEqual({ tags: true })
+    })
+
+    it('reads false or null as "is", with no fix and no negate key', () => {
+      const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), personIds: [1], negate: { personIds: false, statusIds: null } })
+      expect(fixes).toEqual([])
+      expect(predicate.personIds).toEqual([1])
+      expect('negate' in predicate).toBe(false)
+      expect(pickPredicate({ ...emptyPredicate(), negate: null })).toEqual({ predicate: emptyPredicate(), fixes: [] })
+    })
+
+    it('drops the filter an unreadable switch turned (which way it filtered is unknown), and says so', () => {
+      const { predicate, fixes } = pickPredicate({
+        ...emptyPredicate(), personIds: [1], statusIds: [2], tags: [3],
+        negate: { personIds: 'yes', statusIds: true, tags: 1 },
+      })
+      expect(predicate).toMatchObject({ personIds: null, statusIds: [2], tags: null, negate: { statusIds: true } })
+      expect(fixes).toEqual(['people filter dropped', 'tag filter dropped'])
+    })
+
+    it('reports an unreadable switch on a field that does not filter', () => {
+      const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), negate: { statusIds: 'on' } })
+      expect(predicate).toEqual(emptyPredicate())
+      expect(fixes).toEqual(['unknown "is not" switch dropped'])
+    })
+
+    it('drops an unknown switch and keeps the rest', () => {
+      const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), statusIds: [2], markers: { urgent: true }, negate: { markers: true, statusIds: true } })
+      expect(predicate).toMatchObject({ statusIds: [2], markers: { urgent: true }, negate: { statusIds: true } })
+      expect(predicate.negate).toEqual({ statusIds: true })
+      expect(fixes).toEqual(['unknown "is not" switch dropped'])
+    })
+
+    it('a negate that is not an object drops every id filter that is set', () => {
+      const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), personIds: [1], tags: [3], negate: 'people' })
+      expect(predicate).toMatchObject({ personIds: null, statusIds: null, tags: null })
+      expect('negate' in predicate).toBe(false)
+      expect(fixes).toEqual(['unknown "is not" switches dropped', 'people filter dropped', 'tag filter dropped'])
+    })
   })
 
   it('turns a missing or non-object predicate into the empty one', () => {
