@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
 import type { ListDefinition } from '../../models/list-definition'
 import { emptyPredicate } from '../../models'
+import { expectWithin } from '../timing'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
   chipKey,
@@ -129,6 +130,30 @@ describe('filterChips', () => {
     expect(describeFilters(filterChips(p, names))).toBe('Follow-up by end of week · Status Waiting')
     const two = { ...emptyPredicate(), dates: { deadline: { match: 'set' as const }, created: { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null } } }
     expect(describeFilters(filterChips(two, names))).toBe('Due has a date · Created from start of month')
+  })
+})
+
+describe('filterChips on a list with many ids', () => {
+  const many = (n: number): Person[] => Array.from({ length: n }, (_, i) => ({ id: i + 1, name: `P${i + 1}`, initials: 'P' }))
+
+  it('an "is not" tooltip spells out ten names and counts the rest', () => {
+    const crowd = many(25)
+    const [chip] = filterChips(
+      { ...emptyPredicate(), personIds: crowd.map((p) => p.id!), negate: { personIds: true } },
+      { people: crowd, tags: [], statuses: [] },
+    )
+    expect(chip?.value).toBe('not P1 +24')
+    expect(chip?.tooltip).toBe('People: not P1, P2, P3, P4, P5, P6, P7, P8, P9, P10 and 15 more\nHides tasks assigned to any of them')
+  })
+
+  it('stays fast: 20,000 ids against 20,000 people (one lookup map, not a scan per id)', () => {
+    const crowd = many(20_000)
+    // Ids of nobody make every scan go to the end.
+    const ids = crowd.map((p) => p.id! + 20_000)
+    expectWithin(500, () => {
+      const [chip] = filterChips({ ...emptyPredicate(), personIds: ids, negate: { personIds: true } }, { people: crowd, tags: [], statuses: [] })
+      expect(chip?.value).toBe('not none')
+    })
   })
 })
 

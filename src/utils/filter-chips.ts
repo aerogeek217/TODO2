@@ -54,10 +54,27 @@ function allNames(ids: Iterable<number>, nameOf: (id: number) => string | undefi
   })
 }
 
-/** `a, b or c`. */
+/** The most names an "is not" tooltip spells out; the rest are counted. */
+export const TOOLTIP_NAMES_MAX = 10
+
+/** `a, b or c`; past `TOOLTIP_NAMES_MAX` names, `a, b, … j and 5 more`. */
 function orList(names: readonly string[]): string {
+  if (names.length > TOOLTIP_NAMES_MAX) {
+    return `${names.slice(0, TOOLTIP_NAMES_MAX).join(', ')} and ${names.length - TOOLTIP_NAMES_MAX} more`
+  }
   if (names.length <= 1) return names.join('')
   return `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`
+}
+
+/**
+ * An id → name lookup over `rows`, built once per field that filters (a
+ * stored list may hold many ids, each one a lookup); the first row with an
+ * id wins, as a scan would.
+ */
+function namesById(rows: readonly { id?: number; name: string }[]): (id: number) => string | undefined {
+  const names = new Map<number, string>()
+  for (const r of rows) if (r.id != null && !names.has(r.id)) names.set(r.id, r.name)
+  return (id) => names.get(id)
 }
 
 /** What an "is not" chip hides, spelled out (its tooltip). */
@@ -186,7 +203,6 @@ export function datesSpokenValue(dates: DateFilters): string | null {
  */
 export function filterChips(c: FilterClauses, names: FilterChipNames, includeCompleted = false): FilterChip[] {
   const chips: FilterChip[] = []
-  const byId = <T extends { id?: number; name: string }>(rows: readonly T[]) => (id: number) => rows.find((r) => r.id === id)?.name
   if (hasMarkers(c.markers)) chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers) })
   // An id chip: `Alice +2`, or — "is not" — `not Alice +2` with a tooltip saying what it hides.
   const idChip = (field: 'tags' | 'people' | 'status', key: NegatableField, label: string, ids: Iterable<number>, nameOf: (id: number) => string | undefined, zeroName: string, prefix = ''): FilterChip => {
@@ -194,10 +210,10 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
     if (!isNegated(c, key)) return { field, label, value }
     return { field, label, value: `not ${value}`, negated: true, tooltip: negatedTooltip(key, allNames(ids, nameOf, zeroName, prefix)) }
   }
-  if (c.tags != null) chips.push(idChip('tags', 'tags', 'Tags', c.tags, byId(names.tags), 'Untagged', '#'))
-  if (c.personIds != null) chips.push(idChip('people', 'personIds', 'People', c.personIds, byId(names.people), 'Unassigned'))
+  if (c.tags != null) chips.push(idChip('tags', 'tags', 'Tags', c.tags, namesById(names.tags), 'Untagged', '#'))
+  if (c.personIds != null) chips.push(idChip('people', 'personIds', 'People', c.personIds, namesById(names.people), 'Unassigned'))
   chips.push(...dateChips(c.dates))
-  if (c.statusIds != null) chips.push(idChip('status', 'statusIds', 'Status', c.statusIds, byId(names.statuses), 'No status'))
+  if (c.statusIds != null) chips.push(idChip('status', 'statusIds', 'Status', c.statusIds, namesById(names.statuses), 'No status'))
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
   if (includeCompleted && c.showCompleted) chips.push({ field: 'completed', label: 'Completed', value: 'Completed shown' })
