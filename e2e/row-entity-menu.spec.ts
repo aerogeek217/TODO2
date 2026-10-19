@@ -41,8 +41,8 @@ test('an avatar’s menu: Show tasks opens the person’s task dialog, Edit… t
   await expect(name).toHaveValue('Alice Chen')
   await expect(name).toBeFocused()
   await name.fill('Alice Brown')
+  // Saving the entry it opened on closes the editor.
   await name.press('Enter')
-  await editor.getByRole('button', { name: '×' }).first().click()
   await expect(editor).toHaveCount(0)
   await expect(row.locator('[data-person-avatar="Alice Brown"]')).toBeVisible()
 })

@@ -83,7 +83,7 @@ test.describe('Quick Add', () => {
     await expect(input).toHaveValue('Call @an')
   })
 
-  test('Edit… opens the editor above the bar; the rename shows in the open popup; the bar keeps the text', async ({ page }) => {
+  test('Edit… opens the editor above the bar; the rename shows in the open popup; saving closes it, the bar keeps the text', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const input = await openQuickAdd(page)
     await page.keyboard.type('Call @an')
@@ -97,7 +97,7 @@ test.describe('Quick Add', () => {
     await name.fill('Annabel')
     await name.press('Enter')
     await expect(popup(page).getByRole('option', { name: '@Annabel' })).toBeAttached()
-    await editor.getByRole('button', { name: '×' }).first().click()
+    // Saving the entry it opened on closes the editor.
     await expect(editor).toHaveCount(0)
     await expect(input).toBeFocused()
     await expect(input).toHaveValue('Call @an')
@@ -162,7 +162,7 @@ test.describe('notes editor', () => {
     await expect(editor.locator('.cm-line').first()).toHaveText('- Call @and')
   })
 
-  test('Edit… opens the editor above the popup; the rename shows in it; closing hands the caret back', async ({ page }) => {
+  test('Edit… opens the editor above the popup; the rename shows in it; saving closes it and hands the caret back', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const editor = await typeInNotes(page, '- Call @an')
     await popup(page).getByRole('option', { name: '@Anna' }).click({ button: 'right' })
@@ -176,7 +176,7 @@ test.describe('notes editor', () => {
     await name.fill('Annabel')
     await name.press('Enter')
     await expect(popup(page).getByRole('option', { name: '@Annabel' })).toBeAttached()
-    await peopleEditor.getByRole('button', { name: '×' }).first().click()
+    // Saving the entry it opened on closes the editor.
     await expect(peopleEditor).toHaveCount(0)
     await expect(editor).toBeFocused()
     await expect(popup(page)).toBeVisible()

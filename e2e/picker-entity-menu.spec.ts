@@ -109,8 +109,8 @@ test('Edit… on a tag opens the Tags editor above the picker; the rename shows 
   expect(await isOnTop(name)).toBe(true)
 
   await name.fill('office')
+  // Saving the entry it opened on closes the editor.
   await name.press('Enter')
-  await editor.getByRole('button', { name: '×' }).first().click()
   await expect(editor).toHaveCount(0)
   await expect(panel.getByRole('option', { name: 'office' })).toBeVisible()
   await expect(panel.getByRole('option', { name: 'work' })).toHaveCount(0)
