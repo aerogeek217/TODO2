@@ -62,6 +62,30 @@ describe('QuickAddBar', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('a click on the backdrop closes the bar; a press inside the bar or a drag that ends on the backdrop does not', () => {
+    const onClose = vi.fn()
+    render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)
+    const backdrop = screen.getByTestId('quickadd-backdrop')
+    // A text drag from the input that is let go over the backdrop.
+    fireEvent.mouseDown(getInput())
+    fireEvent.click(backdrop)
+    fireEvent.mouseDown(getInput())
+    fireEvent.click(getInput())
+    expect(onClose).not.toHaveBeenCalled()
+
+    const press = fireEvent.mouseDown(backdrop)
+    expect(press).toBe(false) // the focus stays in the input
+    fireEvent.click(backdrop)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a press elsewhere on top of the page (outside the backdrop) still closes the bar', () => {
+    const onClose = vi.fn()
+    render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)
+    fireEvent.mouseDown(document.body)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('renders chips for "@anna #x /due tomorrow /urgent" in task-row order', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     changeInput('Fix the build @anna #x /due tomorrow /urgent')

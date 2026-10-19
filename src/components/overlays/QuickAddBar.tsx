@@ -19,6 +19,10 @@
  *   @person   #tag   /focus /urgent /important /due /followup /repeat /status
  * Plain words are never read as dates.
  *
+ * The bar sits on the command palette's backdrop (dimmed, blurred): a click
+ * on it closes the bar and never reaches the app underneath. The `@ # /`
+ * popup, its person / tag menu and the editors that menu opens stack above.
+ *
  * Title input carries `data-shortcut-scope="none"` so global keyboard
  * shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
  */
@@ -369,6 +373,9 @@ export function QuickAddBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  /** The backdrop press began on the backdrop itself (not a text drag out of the bar). */
+  const downOnBackdropRef = useRef(false)
 
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -466,15 +473,15 @@ export function QuickAddBar({
   const [popupAnchor, setPopupAnchor] = useState<PopupAnchorRect | null>(null)
   const popupRef = useRef<HTMLDivElement | null>(null)
 
-  // Click-outside that also excludes the portal'd autocomplete popup. The
-  // standard `useClickOutside` only checks one ref; mousedown listeners run in
-  // capture phase, so a popup-side stopPropagation can't help — we have to
-  // include `popupRef` in the contain check directly.
+  // A press outside the bar and its backdrop (the backdrop closes on its own
+  // click) — anything else on top of the page — closes the bar, except the
+  // portal'd autocomplete popup and the layers it opens. Capture phase, so a
+  // popup-side stopPropagation can't help — `popupRef` is checked directly.
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
-      if (surfaceRef.current?.contains(target)) return
+      if (overlayRef.current?.contains(target)) return
       if (popupRef.current?.contains(target)) return
       // A person's / tag's menu from the popup, or the editor / confirm it opened.
       if (surfaceRef.current && isInLayerAbove(surfaceRef.current, target)) return
@@ -588,7 +595,23 @@ export function QuickAddBar({
   return (
     <>
       {createPortal(
-    <div className={`${styles.overlay} ${styles.open}`} onClick={onClose}>
+    <div
+      ref={overlayRef}
+      className={styles.overlay}
+      data-testid="quickadd-backdrop"
+      // A press that starts and ends on the backdrop closes the bar; the
+      // backdrop takes the click, so nothing underneath gets it. The press
+      // keeps the focus in the input.
+      onMouseDown={(e) => {
+        downOnBackdropRef.current = e.target === e.currentTarget
+        if (e.target === e.currentTarget) e.preventDefault()
+      }}
+      onClick={(e) => {
+        const pressed = downOnBackdropRef.current
+        downOnBackdropRef.current = false
+        if (pressed && e.target === e.currentTarget) onClose()
+      }}
+    >
       <div
         ref={surfaceRef}
         className={`${styles.surface} ${styles.focused}`}

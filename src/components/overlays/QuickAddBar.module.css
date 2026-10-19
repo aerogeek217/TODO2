@@ -2,20 +2,19 @@
 
 /* ─── Overlay ─────────────────────────────────────────────────── */
 
+/* The command palette's backdrop: it dims and blurs the app, and a click on
+ * it closes the bar without reaching what is underneath. */
 .overlay {
   position: fixed;
   inset: 0;
   z-index: var(--z-dialog);
-  pointer-events: none; /* click-through outside the bar */
+  background: var(--color-overlay);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   /* Bar sits ~120px from top — visually anchored, not centered */
   align-items: flex-start;
   padding-top: 120px;
-}
-
-.overlay.open .surface {
-  pointer-events: auto;
 }
 
 /* ─── Surface (the bar itself) ────────────────────────────────── */
@@ -28,7 +27,6 @@
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-modal);
-  pointer-events: auto;
 }
 
 .surface.focused {
