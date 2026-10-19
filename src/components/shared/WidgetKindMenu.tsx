@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
+import type { PersistedListDefinition } from '../../models/list-definition'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { bySortOrder } from '../../utils/sort-order'
 import { WidgetKindIcon } from './icons'
@@ -55,11 +56,12 @@ export interface WidgetKindMenuProps {
    */
   pickListForLens?: (listDefinitionId: number) => void
   /**
-   * Lens-only: when provided alongside `currentKind === 'lens'`, the menu
-   * opens with the list's own items — "Edit list…", then "Change list ›"
-   * (showing `currentListName`) — then the widget actions, then "Change
-   * widget". The caller binds the widget's list; the menu forwards the click
-   * and closes.
+   * "Edit list…" for the tab's list: a list tab's menu opens with the list's
+   * own items — "Edit list…", then "Change list ›" (showing
+   * `currentListName`) — then the widget actions, then "Change widget"; an
+   * Eisenhower tab on a list (`listSource`) opens with "Edit list…" before
+   * "Show ›". The caller binds the widget's list; the menu forwards the
+   * click and closes.
    */
   onEditList?: () => void
   onClose: () => void
@@ -74,7 +76,31 @@ export interface WidgetKindMenuProps {
   currentListName?: string
   /** A setting of the widget, listed first (see {@link WidgetSetting}). */
   widgetSetting?: WidgetSetting
+  /**
+   * An Eisenhower tab: what it shows, as a `Show ›` submenu — All tasks,
+   * then the saved lists (the list choices of a list tab's Change list) —
+   * with Edit list… above it while a list is set (`onEditList`). A pick
+   * closes the menu.
+   */
+  listSource?: ListSource
+  /**
+   * Items right after `Show ›` (e.g. the Eisenhower's Customize panes…),
+   * before the widget setting. Each closes the menu after running.
+   */
+  sourceActions?: ReadonlyArray<{ label: string; icon?: ReactNode; onSelect: () => void }>
 }
+
+/** What a widget that can show a saved list shows (see `WidgetKindMenuProps.listSource`). */
+export interface ListSource {
+  /** The list shown; `undefined` = all tasks. */
+  listDefinitionId: number | undefined
+  /** The current choice in words, the note on `Show ›` (the list's name, `All tasks`). */
+  note: string
+  onPick: (listDefinitionId: number | undefined) => void
+}
+
+/** The `Show ›` choice that is no list. */
+export const ALL_TASKS_LABEL = 'All tasks'
 
 const CHANGE_LIST_WIDTH_PX = 240
 const CHANGE_LIST_MAX_HEIGHT_PX = 320
@@ -99,17 +125,21 @@ export function WidgetKindMenu({
   widgetActions,
   currentListName,
   widgetSetting,
+  listSource,
+  sourceActions,
 }: WidgetKindMenuProps) {
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const showChangeList = currentKind === 'lens' && pickListForLens != null
   const listFirst = currentKind === 'lens' && onEditList != null
 
-  const listChoices = useMemo<MenuEntry[]>(() => {
-    if (!pickListForLens) return []
-    const defs = [...listDefinitions].sort(bySortOrder)
-    if (defs.length === 0) return [{ kind: 'note', text: 'No lists yet.' }]
-    return defs.map((d) => ({ kind: 'item', label: d.name, onSelect: () => pickListForLens(d.id as number) }))
-  }, [listDefinitions, pickListForLens])
+  const listChoices = useMemo<MenuEntry[]>(
+    () => (pickListForLens ? listChoiceEntries(listDefinitions, (id) => { if (id != null) pickListForLens(id) }) : []),
+    [listDefinitions, pickListForLens],
+  )
+  const sourceChoices = useMemo<MenuEntry[]>(
+    () => (listSource ? listChoiceEntries(listDefinitions, listSource.onPick, { current: listSource.listDefinitionId }) : []),
+    [listDefinitions, listSource],
+  )
 
   const entries: MenuEntry[] = []
   const changeList: MenuItemEntry = {
@@ -140,6 +170,19 @@ export function WidgetKindMenu({
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
     entries.push({ kind: 'label', text: heading }, ...kinds)
   } else {
+    if (listSource) {
+      if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
+      entries.push({
+        kind: 'item',
+        label: 'Show',
+        note: listSource.note,
+        children: sourceChoices,
+        childrenWidth: CHANGE_LIST_WIDTH_PX,
+        childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
+      })
+      for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
+      if (!widgetSetting) entries.push({ kind: 'separator' })
+    }
     if (widgetSetting) {
       entries.push({
         kind: 'item',
@@ -167,4 +210,27 @@ export function WidgetKindMenu({
   }
 
   return <MenuPopover point={anchor} entries={entries} label={heading} onClose={onClose} />
+}
+
+/**
+ * The saved lists (in their order) as the entries of a list submenu —
+ * a list tab's Change list ›, an Eisenhower tab's Show › — each picking its
+ * list. `allTasks` puts an `All tasks` choice (`undefined`) first and makes
+ * the choices radios, the `current` one checked.
+ */
+function listChoiceEntries(
+  listDefinitions: readonly PersistedListDefinition[],
+  onPick: (listDefinitionId: number | undefined) => void,
+  allTasks?: { current: number | undefined },
+): MenuEntry[] {
+  const defs = [...listDefinitions].sort(bySortOrder)
+  const choice = (label: string, id: number | undefined): MenuEntry => (allTasks
+    ? { kind: 'item', label, radio: true, checked: id === allTasks.current, onSelect: () => onPick(id) }
+    : { kind: 'item', label, onSelect: () => onPick(id) })
+  const lists = defs.map((d) => choice(d.name, d.id))
+  if (!allTasks) return lists.length > 0 ? lists : [{ kind: 'note', text: 'No lists yet.' }]
+  return [
+    choice(ALL_TASKS_LABEL, undefined),
+    ...(lists.length > 0 ? [{ kind: 'separator' } as const, { kind: 'label', text: 'Saved lists' } as const, ...lists] : []),
+  ]
 }

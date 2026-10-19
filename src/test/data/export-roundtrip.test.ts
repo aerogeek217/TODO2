@@ -7,7 +7,7 @@ import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
-import type { TodoPredicate } from '../../models/filter-predicate'
+import { NEGATABLE_FIELDS, type TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { makeTodo, resetDb } from '../helpers'
 
@@ -42,7 +42,7 @@ const FULL_PREDICATE: TodoPredicate = {
     created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
     modified: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
   },
-  markers: { urgent: true, important: true },
+  markers: { urgent: true, important: false },
   tags: [1],
 }
 
@@ -102,7 +102,7 @@ function buildSeed(): Seed {
       sort: 'followup', grouping: 'followup',
     }, {
       id: 1, name: 'By person', sortOrder: 0,
-      membership: { kind: 'custom', predicate: FULL_PREDICATE },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'deadline', sortDirection: 'desc', grouping: 'people',
       runtimeFilter: { field: 'person', label: 'Who' },
     }],
@@ -141,6 +141,16 @@ function buildSeed(): Seed {
                 },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
+                { id: 't11', kind: 'eisenhower', config: { listDefinitionId: 2 } },
+                {
+                  id: 't12', kind: 'eisenhower', config: {
+                    panes: {
+                      do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: { focus: true, urgent: false }, tags: [2], negate: { tags: true } } },
+                      delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true } } },
+                      drop: { name: 'Someday' },
+                    },
+                  },
+                },
               ] },
               { id: 'k4', weight: 1, tabs: [] },
             ],
@@ -219,10 +229,14 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
-    // Both forms of the Markers filter: Hot and ticked markers.
+    // Both forms of the Markers filter: Hot and markers set to Yes and No.
     const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
     expect(markers).toContain('hot')
-    expect(markers.some((m) => typeof m === 'object' && m !== null)).toBe(true)
+    const conditions = markers.flatMap((m) => (typeof m === 'object' && m !== null ? Object.values(m) : []))
+    expect(new Set(conditions)).toEqual(new Set([true, false]))
+    // Every "is not" switch.
+    const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
+    expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(['deadline', 'followup', 'created', 'modified']))
@@ -239,6 +253,10 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'eisenhower' && t.config.listDefinitionId !== undefined)).toBe(true)
+    const panes = tabs.flatMap((t) => (t.kind === 'eisenhower' && t.config.panes ? Object.values(t.config.panes) : []))
+    expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
+    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers !== 'hot' && p.filter.markers?.important === false)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     const dashboard = tabs.find((t) => t.kind === 'dashboard')
     expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)

@@ -1,7 +1,7 @@
 import { emptyPredicate, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
-import { QUADRANT_COLOR, QUADRANT_NAME } from '../utils/eisenhower'
+import { QUADRANT_COLOR, QUADRANT_NAME } from '../utils/eisenhower-panes'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../utils/urgency'
 import type { FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
@@ -232,5 +232,15 @@ export function tagTaskDialog(tag: Pick<Tag, 'id' | 'name'>): TaskDialogPayload 
       kind: 'predicate',
       predicate: { ...emptyPredicate(), tags: [tag.id!] },
     },
+  }
+}
+
+/** An Eisenhower tab's open tasks that no pane's filter matches (the line under its panes). */
+export function noPaneTaskDialog(todoIds: readonly number[]): TaskDialogPayload {
+  return {
+    title: 'In no pane',
+    glyph: 'matrix',
+    description: 'Open tasks the Eisenhower considers that match none of its panes’ filters.',
+    source: { kind: 'todos', todoIds },
   }
 }

@@ -340,6 +340,34 @@ describe('sanitisable-row audit', () => {
     expect(row && 'sortDirection' in row).toBe(false)
   })
 
+  it('reports a list with an unknown "is not" switch; cleanup drops the filter it switched and keeps a valid one', async () => {
+    const id = await db.listDefinitions.add(list('Odd', { personIds: [1], statusIds: [2], negate: { personIds: 2, statusIds: true } }) as any)
+    await db.listDefinitions.add(list('Fine', { statusIds: [2], negate: { statusIds: true } }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped')
+    await cleanupIssues(report.issues)
+    const row = await db.listDefinitions.get(id)
+    expect(row?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ personIds: null, statusIds: [2], negate: { statusIds: true } }) })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('keeps a Priority filter with No markers; reports one it cannot read and cleanup drops it', async () => {
+    const id = await db.listDefinitions.add(list('Odd', { statusIds: [2], markers: { urgent: false, important: 'no' } }) as any)
+    const fine = await db.listDefinitions.add(list('Delegate', { markers: { urgent: true, important: false } }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: priority filter dropped')
+    await cleanupIssues(report.issues)
+    expect((await db.listDefinitions.get(id))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ statusIds: [2], markers: null }) })
+    expect((await db.listDefinitions.get(fine))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ markers: { urgent: true, important: false } }) })
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('cleanup drops only the malformed parts, keeping the list and its other filters', async () => {
     const id = await db.listDefinitions.add(list('Bad', { personIds: 5, statusIds: [2], searchText: 'x'.repeat(600) }) as any)
 
@@ -403,6 +431,32 @@ describe('layouts audit', () => {
       id, name: 'Layout', createdAt: at, modifiedAt: at,
       columns: [{ id: 'c1', weight: 2, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }],
     })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('an Eisenhower tab on a list is valid; an unreadable list id is reported, and cleanup puts it on all tasks', async () => {
+    const eis = (config: unknown) => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] }] }]
+    // A list id is kept even when the list is gone (the tab says so, as a list tab does).
+    await db.layouts.add(layout('On a list', eis({ listDefinitionId: 99 })) as any)
+    expect((await auditData()).issues).toEqual([])
+    const id = await db.layouts.add(layout('Bad', eis({ listDefinitionId: 'Team' })) as any) as number
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
+    expect(report.issues[0]!.samples![0]!.badFields).toEqual(['columns[0].cells[0].tabs[0].config.listDefinitionId'])
+    await cleanupIssues(report.issues)
+    expect((await db.layouts.get(id))?.columns[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: {} })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('an Eisenhower pane with parts import would drop is reported; cleanup drops just those', async () => {
+    const eis = (config: unknown) => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] }] }]
+    await db.layouts.add(layout('Custom', eis({ panes: { drop: { name: 'Someday' } } })) as any)
+    expect((await auditData()).issues).toEqual([])
+    const id = await db.layouts.add(layout('Odd', eis({ panes: { later: {}, drop: { name: 'Someday', colour: 'red' } } })) as any) as number
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
+    await cleanupIssues(report.issues)
+    expect((await db.layouts.get(id))?.columns[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: { panes: { drop: { name: 'Someday' } } } })
     expect((await auditData()).issues).toEqual([])
   })
 

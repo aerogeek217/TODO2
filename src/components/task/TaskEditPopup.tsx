@@ -51,7 +51,7 @@ interface EditModeProps extends TaskEditPopupBaseProps {
   onToggleComplete: () => void
   onDelete: () => void
   onDuplicate?: () => void
-  /** "Followed up" (bulk-aware in the views). Defaults to stamping just this task. */
+  /** "Mark followed up" (bulk-aware in the views). Defaults to stamping just this task. */
   onFollowedUp?: () => void
   onCreate?: never
   /** Stacks the editor above dialogs (the task dialog it was opened from). */
@@ -75,7 +75,7 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   /**
    * Draft mode (editing a row of the convert preview): nothing is stored.
    * The footer's Save draft hands the fields back instead of creating, and
-   * there is no Last follow-up / Followed up (a draft has no history).
+   * there is no Last follow-up / Mark followed up (a draft has no history).
    */
   onSaveDraft?: (todo: Partial<TodoItem>, assignments: { personIds: number[], tagIds: number[] }) => void
   /** Stacks the editor above dialogs (the convert preview, another editor). */

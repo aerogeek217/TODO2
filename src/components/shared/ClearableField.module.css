@@ -1,0 +1,43 @@
+.field {
+  position: relative;
+}
+
+.field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Room for the × so the text never runs under it. */
+.field[data-clearable] input {
+  padding-right: 26px;
+}
+
+/* The follow-up pill's ×, on the field's neutral colours. */
+.clear {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.clear:hover {
+  opacity: 1;
+  color: var(--color-text-primary);
+  background: var(--color-tint-8);
+}

@@ -8,8 +8,8 @@ import {
   writeListDrafts,
 } from '../../data/draft-storage'
 import { CURRENT_DB_VERSION } from '../../data/database'
-import { createTab, type LayoutBand, type LayoutColumn } from '../../models/workspace-layout'
-import { emptyPredicate } from '../../models'
+import { createTab, type EisenhowerTab, type LayoutBand, type LayoutColumn } from '../../models/workspace-layout'
+import { emptyPredicate, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 const columns: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [createTab('notes', 'n')] }] }]
@@ -52,6 +52,28 @@ describe('draft storage', () => {
     expect(readLayoutDraft()).toEqual(record)
     writeLayoutDraft({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
     expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
+  })
+
+  it('keeps an Eisenhower tab’s list in a layout draft; an unreadable one makes it no draft', () => {
+    const onList: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [createTab('eisenhower', 'e', { listDefinitionId: 3 })] }] }]
+    const record = { kind: 'new', name: 'N', body: { columns: onList }, listNames: { 3: 'Inbox' } } as const
+    writeLayoutDraft(record)
+    expect(readLayoutDraft()).toEqual(record)
+    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 'x' } }] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad }))
+    expect(readLayoutDraft()).toBeNull()
+  })
+
+  it('keeps an Eisenhower tab’s panes in a layout draft; a pane the layout repair would change makes it no draft', () => {
+    const filter: TodoPredicate = { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true } }
+    const tab: EisenhowerTab = { id: 'e', kind: 'eisenhower', config: { panes: { delegate: { name: 'Hand off', filter } } } }
+    const panes: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }]
+    const record = { kind: 'new', name: 'N', body: { columns: panes }, listNames: {} } as const
+    writeLayoutDraft(record)
+    expect(readLayoutDraft()).toEqual(record)
+    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { panes: { delegate: { name: 'Hand off', filter, colour: 'red' } } } }] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad }))
+    expect(readLayoutDraft()).toBeNull()
   })
 
   it('reads a band the layout repair would change as no layout draft', () => {
@@ -99,6 +121,36 @@ describe('draft storage', () => {
     const back = readListDrafts()
     expect([...back.keys()]).toEqual([4])
     expect('sortDirection' in back.get(4)!.draft).toBe(false)
+  })
+
+  it('a list draft keeps its "is not" switches; one kept without them stays valid; an unknown switch is not taken back', () => {
+    const base = listDef()
+    const not = (negate: unknown) => ({ kind: 'custom' as const, predicate: { ...emptyPredicate(), statusIds: [2], negate } as TodoPredicate })
+    const draft = listDef({ membership: not({ statusIds: true }) })
+    writeListDrafts(new Map([[4, { draft, base }]]))
+    expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
+
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
+      4: { draft: listDef({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), statusIds: [2] } } }), base, schemaVersion: CURRENT_DB_VERSION },
+      5: { draft: { ...listDef({ membership: not({ statusIds: 'yes' }) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+    }))
+    const back = readListDrafts()
+    expect([...back.keys()]).toEqual([4])
+    const kept = back.get(4)!.draft.membership
+    expect(kept.kind === 'custom' && 'negate' in kept.predicate).toBe(false)
+  })
+
+  it('a list draft keeps a Priority filter with No markers; one it cannot read is not taken back', () => {
+    const base = listDef()
+    const withMarkers = (markers: unknown) => ({ kind: 'custom' as const, predicate: { ...emptyPredicate(), markers } as TodoPredicate })
+    const draft = listDef({ membership: withMarkers({ urgent: true, important: false }) })
+    writeListDrafts(new Map([[4, { draft, base }]]))
+    expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
+
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
+      5: { draft: { ...listDef({ membership: withMarkers({ urgent: 'no' }) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+    }))
+    expect([...readListDrafts().keys()]).toEqual([])
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {

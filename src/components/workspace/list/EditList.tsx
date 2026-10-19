@@ -139,7 +139,7 @@ function measurePlacement(cell: HTMLElement, tabId: string): Placement {
     return { mode: 'beside', rect: { left: r.left, right: r.right, top: r.top + TOP_INSET_PX, bottom: r.bottom } }
   }
   // Last resort: over the lower rows, under the filter line (else the header), right-aligned to the panel.
-  const widget = cell.querySelector(`[data-list-widget="${tabId}"]`)
+  const widget = cell.querySelector(`[data-list-host="${tabId}"]`)
   const line = widget?.querySelector('[data-testid="list-filter-row"]') ?? cell.querySelector('[data-ws-cell-header]')
   const b = (line ?? cell).getBoundingClientRect()
   return { mode: 'below', rect: { left: r.left, right: r.right - TOP_INSET_PX, top: b.top, bottom: b.bottom } }
@@ -154,7 +154,7 @@ const MISSING = 'missing'
  */
 function readPlacement(tabId: string): string {
   const cell = cellOf(tabId)
-  if (!cell?.querySelector(`[data-list-widget="${tabId}"]`)) return MISSING
+  if (!cell?.querySelector(`[data-list-host="${tabId}"]`)) return MISSING
   return JSON.stringify(measurePlacement(cell, tabId))
 }
 

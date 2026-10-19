@@ -52,7 +52,7 @@ interface SettingsState {
   seededAssignedStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
-  /** Next follow-up for new tasks and after "Followed up" = today + this. */
+  /** Next follow-up for new tasks and after "Mark followed up" = today + this. */
   followupDefaultInterval: FollowupInterval
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays

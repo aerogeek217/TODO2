@@ -10,6 +10,7 @@ import {
   UNSAVED_LAYOUT_ID,
   createTab,
   layoutBodyOf,
+  tabListId,
   withLayoutBody,
   type BandEdge,
   type LayoutBody,
@@ -215,11 +216,12 @@ function reportWriteFailure(message: string, err: unknown): void {
 let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
-/** The ids of the lists a layout's list tabs show. */
+/** The ids of the lists a layout's tabs show (list tabs, Eisenhower tabs on a list). */
 function listIdsOf(body: LayoutBody): number[] {
   const ids = new Set<number>()
   for (const tab of layoutTabs(body)) {
-    if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
+    const id = tabListId(tab)
+    if (id != null) ids.add(id)
   }
   return [...ids]
 }

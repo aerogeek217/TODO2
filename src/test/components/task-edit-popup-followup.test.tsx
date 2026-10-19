@@ -95,9 +95,9 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onCreate.mock.calls[0]![0].nextFollowupAt).toEqual(day(2026, 10, 24))
   })
 
-  it('create mode: Followed up stamps last = now and next = default', async () => {
+  it('create mode: Mark followed up stamps last = now and next = default', async () => {
     const { onCreate } = renderCreate()
-    fireEvent.click(screen.getByRole('button', { name: 'Followed up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
     expect(screen.getByText('✓ Today')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Create task'))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
@@ -137,7 +137,7 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onUpdate.mock.calls[1]![0].nextFollowupAt).toBeUndefined()
   })
 
-  it('edit mode: Last rejects future dates; Followed up goes to the bulk-aware handler', () => {
+  it('edit mode: Last rejects future dates; Mark followed up goes to the bulk-aware handler', () => {
     const onFollowedUp = vi.fn()
     const todo = makeTodo({ id: 7, nextFollowupAt: day(2026, 10, 13) })
     const { onUpdate } = renderEdit(todo, { onFollowedUp })
@@ -148,16 +148,16 @@ describe('TaskEditPopup — follow-up group', () => {
     fireEvent.change(lastInput(), { target: { value: '13 Sep' } })
     fireEvent.blur(lastInput())
     expect(onUpdate.mock.calls[0]![0].lastFollowupAt).toEqual(day(2026, 9, 13))
-    fireEvent.click(screen.getByRole('button', { name: 'Followed up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
     expect(onFollowedUp).toHaveBeenCalledTimes(1)
   })
 
-  it('edit mode: Followed up is dimmed when the task was already followed up today', () => {
+  it('edit mode: Mark followed up is dimmed when the task was already followed up today', () => {
     renderEdit(makeTodo({ id: 7, lastFollowupAt: day(2026, 10, 9) }))
-    expect(screen.getByRole('button', { name: 'Followed up' })).not.toHaveAttribute('data-done-today')
+    expect(screen.getByRole('button', { name: 'Mark followed up' })).not.toHaveAttribute('data-done-today')
     cleanup()
     renderEdit(makeTodo({ id: 7, lastFollowupAt: new Date(2026, 9, 10, 9, 0) }))
-    expect(screen.getByRole('button', { name: 'Followed up' })).toHaveAttribute('data-done-today', 'true')
+    expect(screen.getByRole('button', { name: 'Mark followed up' })).toHaveAttribute('data-done-today', 'true')
   })
 })
 

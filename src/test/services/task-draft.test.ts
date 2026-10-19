@@ -65,11 +65,22 @@ describe('draftFromText', () => {
   })
 
   it('adds the screen filter defaults: people only when nobody is named, tags, markers', () => {
-    const defaults = { personIds: [2], tagIds: [11, 12], statusId: 7, markers: { focus: true as const } }
+    const defaults = { personIds: [2], tagIds: [11], statusId: 7, markers: { focus: true as const } }
     const plain = draftFromText('Plain', { ...ctx, defaults })
-    expect(plain).toMatchObject({ personIds: [2], tagIds: [11, 12], focus: true, statusId: 7 })
+    expect(plain).toMatchObject({ personIds: [2], tagIds: [11], focus: true, statusId: 7 })
     expect(draftFromText('With @Priya', { ...ctx, defaults }).personIds).toEqual([1])
     expect(draftFromText('With @Nobody', { ...ctx, defaults }).personIds).toEqual([])
+  })
+
+  it('never seeds a status, person or tag that no longer exists (a filter or pane naming a deleted one)', () => {
+    const defaults = { personIds: [2, 98], tagIds: [97, 11], statusId: 99 }
+    const d = draftFromText('Plain', { ...ctx, defaults, statusDefaultFirst: 'filter' })
+    expect(d).toMatchObject({ personIds: [2], tagIds: [11] })
+    expect(d.statusId).toBeUndefined()
+    // The filter's deleted status gives way to Settings' default, as no filter status would.
+    expect(draftFromText('Plain', { ...ctx, defaults, defaultStatusId: 8, statusDefaultFirst: 'filter' }).statusId).toBe(8)
+    // A deleted Settings default status is no status either.
+    expect(draftFromText('Plain', { ...ctx, defaultStatusId: 96 }).statusId).toBeUndefined()
   })
 
   it('status: typed /status, else the Settings default, else the filter', () => {
@@ -109,6 +120,12 @@ describe('draftFromEditor', () => {
     )
     expect(d).toMatchObject({ title: 'Ask for access', statusId: 7, urgent: true, personIds: [2], tagIds: [11], newPeople: ['Marco'] })
     expect(d.dueDate).toEqual(new Date(2026, 9, 12))
+  })
+
+  it('drops a picked status, person or tag that no longer exists (seeded from a filter naming a deleted one)', () => {
+    const d = draftFromEditor({ title: 'x', statusId: 99 }, { personIds: [98, 1], tagIds: [97] }, ctx)
+    expect(d).toMatchObject({ personIds: [1], tagIds: [] })
+    expect(d.statusId).toBeUndefined()
   })
 
   it('the editor’s due date wins over a typed one', () => {

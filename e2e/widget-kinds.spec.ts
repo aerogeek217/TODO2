@@ -78,7 +78,7 @@ test.describe('desktop', () => {
   })
 
   test('a list tab whose list was deleted reads “(Deleted list)” in the overflow menu', async ({ page }) => {
-    const tabs = [{ id: 'gone', kind: 'lens' as const, listDefIdx: 1 }, ...WIDGET_KINDS.map((kind, i) => ({ id: `t${i}`, kind, listDefIdx: 0 }))]
+    const tabs = [{ id: 'gone', kind: 'lens' as const, listDefIdx: 1 }, ...WIDGET_KINDS.map((kind, i) => ({ id: `t${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }))]
     await seedWorkspace(page, {
       listDefinitions: [{ name: LIST }, { name: 'Old list' }],
       layouts: [{
@@ -103,6 +103,35 @@ test.describe('desktop', () => {
     await expect(menu.getByRole('menuitem', { name: '(Deleted list)' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'List', exact: true })).toHaveCount(0)
   })
+
+  test('the overflow menu names a list as its tab does: the unsaved name while it is being edited', async ({ page }) => {
+    const tabs = [{ id: 'renamed', kind: 'lens' as const, listDefIdx: 1 }, ...WIDGET_KINDS.map((kind, i) => ({ id: `t${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }))]
+    await seedWorkspace(page, {
+      listDefinitions: [{ name: LIST }, { name: 'Old name' }],
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'c1', weight: 1, cells: [{ id: 'k1', tabs, activeTabId: 't4' }] },
+          { id: 'c2', weight: 4, cells: [{ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] }] },
+        ],
+      }],
+    })
+    // An unsaved rename (what Edit list's name field writes).
+    await page.evaluate(async () => {
+      const defs = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
+        useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }> } }
+      }
+      const drafts = (await import(/* @vite-ignore */ '/src/stores/list-draft-store.ts' as string)) as {
+        useListDraftStore: { getState: () => { edit: (id: number, fn: (d: { name: string }) => { name: string }) => void } }
+      }
+      const old = defs.useListDefinitionStore.getState().listDefinitions.find((d) => d.name === 'Old name')
+      if (old) drafts.useListDraftStore.getState().edit(old.id, (d) => ({ ...d, name: 'New name' }))
+    })
+    await wsCell(page, 'k1').getByRole('button', { name: /more tabs$/ }).click()
+    const menu = page.getByRole('menu', { name: 'More tabs' })
+    await expect(menu.getByRole('menuitem', { name: 'New name' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Old name' })).toHaveCount(0)
+  })
 })
 
 test.describe('phone', () => {
@@ -111,7 +140,7 @@ test.describe('phone', () => {
   test('the column view shows every kind', async ({ page }) => {
     const layout: WsLayoutSeed = {
       name: 'Kinds',
-      columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, cells: [{ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, listDefIdx: 0 }] }] })),
+      columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, cells: [{ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] }] })),
     }
     await seedWorkspace(page, { listDefinitions: [{ name: LIST }], tasks: [{ title: 'A task' }], layouts: [layout] })
     const strip = page.getByRole('tablist', { name: 'Columns' })

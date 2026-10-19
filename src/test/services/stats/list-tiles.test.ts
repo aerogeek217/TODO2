@@ -53,10 +53,29 @@ describe('computeListTileCounts', () => {
     expect(computeListTileCounts([list(1, { showCompleted: true })], tasks, opts(screen))[0]).toMatchObject({ shown: 4, total: 4 })
   })
 
+  it('an "is not" list counts the tasks without the ticked values, composed with an "is not" screen filter', () => {
+    // People is not Bob: 2 (Alice) and 4 (nobody).
+    const notBob = list(1, { personIds: [2], negate: { personIds: true } })
+    expect(computeListTileCounts([notBob], tasks, opts())[0]).toMatchObject({ shown: 2, total: 2 })
+    // Screen: People is not Unassigned (has someone) — leaves 2.
+    const screen = { ...NONE, personIds: new Set([0]), negate: { personIds: true as const } }
+    expect(computeListTileCounts([notBob], tasks, opts(screen))[0]).toMatchObject({ shown: 1, total: 2 })
+  })
+
   it('Markers clauses use the given settings (Hot list, urgent range)', () => {
     const hot = list(1, { markers: 'hot' })
     expect(computeListTileCounts([hot], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 2 })
     expect(computeListTileCounts([hot], tasks, opts(undefined, null))[0]).toMatchObject({ total: 1 })
+  })
+
+  it('a Priority No counts the tasks without that marker (Urgent No: not urgent by flag or by due date)', () => {
+    // Open tasks: 1 (none), 2 (urgent + important), 4 (important, due tomorrow).
+    expect(computeListTileCounts([list(1, { markers: { important: false } })], tasks, opts())[0]).toMatchObject({ total: 1 })
+    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 1 })
+    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(undefined, null))[0]).toMatchObject({ total: 2 })
+    // Screen Important Yes + list Urgent No: task 4 only while it isn't urgent by its due date.
+    const screen = { ...NONE, markers: { important: true } }
+    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(screen, null))[0]).toMatchObject({ shown: 1, total: 2 })
   })
 
   it('no lists, or no tasks, gives no / zero counts', () => {

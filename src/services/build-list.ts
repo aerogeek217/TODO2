@@ -12,6 +12,7 @@ import type {
 } from '../models/list-definition'
 import type { WeekStart } from '../utils/effective-date'
 import { startOfDay } from '../utils/date'
+import { isNegated, withIdFilter } from '../utils/filter-negation'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
 import type { ListRanks } from '../utils/list-order'
 import type { UrgentDueWithinDays } from '../utils/urgency'
@@ -65,8 +66,11 @@ export interface ListContents {
 }
 
 /**
- * Narrow `field` to `values` (OR-combined). Empty `values` is a no-op so
- * "user cleared all chips" doesn't short-circuit to "match nothing".
+ * Narrow `field` to `values` (OR-combined): the prompt pick takes the place
+ * of the list's own clause on that field, and is always "is" (a list's "is
+ * not" switch on the field goes with the clause it switched). Empty `values`
+ * is a no-op so "user cleared all chips" doesn't short-circuit to "match
+ * nothing".
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -75,9 +79,9 @@ export function applyRuntimeFilter(
 ): TodoPredicate {
   if (values.length === 0) return predicate
   switch (spec.field) {
-    case 'person': return { ...predicate, personIds: [...values] }
-    case 'status': return { ...predicate, statusIds: [...values] }
-    case 'tag': return { ...predicate, tags: [...values] }
+    case 'person': return withIdFilter(predicate, 'personIds', [...values], false)
+    case 'status': return withIdFilter(predicate, 'statusIds', [...values], false)
+    case 'tag': return withIdFilter(predicate, 'tags', [...values], false)
   }
 }
 
@@ -105,6 +109,8 @@ export function buildList(
     : todos.filter((t) => matchesMembership(membership, t, ctx.evalPredicate))
   // The effective predicate's person / tag picks narrow the visible groups
   // so a multi-assignee task doesn't emit sections for non-picked people.
+  // An "is not" pick doesn't: its members have none of the picked people /
+  // tags, so their groups never show anyway.
   const predicate = membership.kind === 'custom' ? membership.predicate : undefined
   const sections = buildListSections(
     members,
@@ -112,8 +118,8 @@ export function buildList(
       groupBy: def.grouping,
       sortBy: def.sort,
       sortDirection: def.sortDirection,
-      restrictToPersonIds: predicate?.personIds,
-      restrictToTagIds: predicate?.tags,
+      restrictToPersonIds: predicate && !isNegated(predicate, 'personIds') ? predicate.personIds : null,
+      restrictToTagIds: predicate && !isNegated(predicate, 'tags') ? predicate.tags : null,
     },
     {
       today: startOfDay(ctx.today),

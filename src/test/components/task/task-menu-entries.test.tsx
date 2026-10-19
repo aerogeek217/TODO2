@@ -45,7 +45,7 @@ describe('buildTaskMenuEntries — the one task menu', () => {
   it('single task: Open · Mark complete | due · follow-up · followed up · people · tag | Markers | Delete', () => {
     expect(shape(build(makeTodo({ id: 1 })))).toEqual([
       'Open', 'Mark complete', '--',
-      'Set due date…', 'Follow-up', 'Followed up', 'Assign people…', 'Add tag…', '--',
+      'Set due date…', 'Follow-up', 'Mark followed up', 'Assign people…', 'Add tag…', '--',
       '[Priority]', 'Focus', 'Urgent', 'Important', '--',
       'Delete',
     ])
@@ -56,7 +56,7 @@ describe('buildTaskMenuEntries — the one task menu', () => {
       h: handlers({ onOpen: undefined, onSetDueDate: undefined, onAssignPeople: undefined, onAddTag: undefined, onPickFollowup: undefined }),
     })
     expect(shape(entries)).toEqual([
-      'Mark complete', '--', 'Follow-up', 'Followed up', '--',
+      'Mark complete', '--', 'Follow-up', 'Mark followed up', '--',
       '[Priority]', 'Focus', 'Urgent', 'Important', '--', 'Delete',
     ])
     expect(shape(item(entries, 'Follow-up').children!)).toEqual(['1 week', '2 weeks', '1 month', '3 months'])
@@ -123,12 +123,12 @@ describe('buildTaskMenuEntries — the one task menu', () => {
     expect(item(entries, 'Set due date…').note).toBeUndefined()
   })
 
-  it('Followed up is dimmed (with a "Today" note) only when every task was followed up today', () => {
+  it('Mark followed up is dimmed (with a "Today" note) only when every task was followed up today', () => {
     const todayAt = new Date(2026, 9, 10, 9, 30)
     const done = makeTodo({ id: 1, lastFollowupAt: todayAt })
     const notDone = makeTodo({ id: 2, lastFollowupAt: new Date(2026, 9, 9) })
-    expect(item(build(done), 'Followed up')).toMatchObject({ dim: true, note: 'Today' })
-    expect(item(build(notDone), 'Followed up')).toMatchObject({ dim: false })
-    expect(item(build(done, { targets: [done, notDone] }), 'Followed up').dim).toBe(false)
+    expect(item(build(done), 'Mark followed up')).toMatchObject({ dim: true, note: 'Today' })
+    expect(item(build(notDone), 'Mark followed up')).toMatchObject({ dim: false })
+    expect(item(build(done, { targets: [done, notDone] }), 'Mark followed up').dim).toBe(false)
   })
 })

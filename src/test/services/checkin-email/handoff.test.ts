@@ -88,10 +88,24 @@ describe('buildMailtoUrl', () => {
     ['angle brackets', '<a@b.com>'],
     ['a display name', '"Ann" a@b.com'],
     ['a line break', 'a@b.com\r\nBcc: z@z.com'],
-    ['nothing', ''],
+    ['a bare name', 'Ann'],
+    ['a name with a line break', 'Ann\r\nBcc: z@z.com'],
   ])('refuses an address with %s', (_name, to) => {
     expect(() => buildMailtoUrl(to, 'Hi')).toThrow(InvalidRecipientError)
     expect(() => buildEml({ ...input, to })).toThrow(InvalidRecipientError)
+  })
+
+  it('no address: an empty To (the recipient is added in the mail app)', () => {
+    expect(buildMailtoUrl('', 'Task check-in: 3 open tasks')).toBe('mailto:?subject=Task%20check-in%3A%203%20open%20tasks')
+    expect(buildMailtoUrl(' \t ', 'Hi')).toBe('mailto:?subject=Hi')
+  })
+
+  it('no address: the subject still cannot add fields or recipients', () => {
+    const url = buildMailtoUrl('', 'Hi&to=evil@x.com&bcc=z@z.com\r\nTo: y@y.com')
+    expect(url.startsWith('mailto:?subject=')).toBe(true)
+    const query = url.slice(url.indexOf('?') + 1)
+    expect(query.split('&')).toHaveLength(1)
+    expect(query).not.toMatch(/%0[ad]/i)
   })
 })
 
@@ -173,6 +187,36 @@ describe('buildEml', () => {
     const { parts } = parseEml(buildEml({ ...input, plain }))
     expect(parts).toHaveLength(2)
     expect(decodeBase64Utf8(parts[0]!.body)).toBe(`--${EML_BOUNDARY}--\r\nfake`)
+  })
+})
+
+describe('buildEml without an address', () => {
+  it('has no To header at all — the name is never put in a To field — and stays an unsent draft', () => {
+    for (const to of ['', '  ', '\r\n']) {
+      const eml = buildEml({ ...input, to })
+      const { headerLines, headers, parts } = parseEml(eml)
+      const names = headerLines.filter((l) => !l.startsWith(' ')).map((l) => l.slice(0, l.indexOf(':')))
+      expect(names).toEqual(['X-Unsent', 'Subject', 'MIME-Version', 'Content-Type'])
+      expect(headers.get('X-Unsent')).toBe('1')
+      expect(eml).not.toMatch(/^To:/im)
+      expect(eml.slice(0, eml.indexOf('\r\n\r\n'))).not.toContain('Marcus Chen')
+      expect(parts).toHaveLength(2)
+    }
+  })
+
+  it('header injection: an odd name or subject cannot add a To / Bcc header', () => {
+    const eml = buildEml({
+      ...input,
+      to: '',
+      toName: 'Ann <evil@x.com>\r\nTo: evil2@x.com\nBcc: evil3@x.com',
+      subject: 'Hi\r\nTo: evil4@x.com\rBcc: evil5@x.com\n\nbody',
+    })
+    const { headerLines, headers } = parseEml(eml)
+    const names = headerLines.filter((l) => !l.startsWith(' ')).map((l) => l.slice(0, l.indexOf(':')))
+    expect(names).toEqual(['X-Unsent', 'Subject', 'MIME-Version', 'Content-Type'])
+    expect(eml).not.toMatch(/^(To|Bcc|Cc):/im)
+    expect(eml).not.toContain('evil@x.com')
+    expect(headers.get('Subject')).toBe('Hi To: evil4@x.com Bcc: evil5@x.com body')
   })
 })
 

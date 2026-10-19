@@ -52,7 +52,8 @@ beforeEach(() => {
   clearFilterStore()
   useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 })
   useTodoStore.setState({ todos: SAMPLE_TASKS })
-  usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: ASSIGNED_PEOPLE })
+  // Loaded as the store loads them: an entry for every task, empty when nobody is on it.
+  usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: new Map(SAMPLE_TASKS.map((t) => [t.id, ASSIGNED_PEOPLE.get(t.id) ?? []])) })
   useTagStore.setState({ tags: TAGS, assignedTagsMap: ASSIGNED_TAGS })
   useStatusStore.setState({ statuses: STATUSES })
   useListDefinitionStore.setState({ listDefinitions: SAMPLE_LISTS })
@@ -170,13 +171,17 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog offers Email check-in next to Copy tasks, opening the check-in with that person ticked', () => {
+  it('a person’s dialog offers Email check-in next to Copy tasks, which sends that person’s check-in at once', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
     const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
     expect(footerButtons.slice(0, 2)).toEqual(['Copy tasks', 'Email check-in'])
+    // No clipboard here: the send can't copy, so the check-in dialog opens for her with the reason.
     fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [priya.id] })
+    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toEqual({
+      personIds: [priya.id],
+      notice: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.',
+    }))
     // The task dialog stays open underneath.
     expect(dialog()).not.toBeNull()
   })

@@ -18,7 +18,9 @@ export interface FilterSettings extends MarkerSettings {
 
 /**
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
- * single todo; returns whether the todo passes the filter.
+ * single todo; returns whether the todo passes the filter. A People / Status
+ * / Tags clause with its "is not" switch passes the tasks the clause without
+ * it would fail (`FilterNegation`).
  */
 export function matchesFilter(
   filters: FilterCriteria,
@@ -31,11 +33,11 @@ export function matchesFilter(
 ): boolean {
   if (todo.isCompleted && !filters.showCompleted) return false
 
+  const negate = filters.negate
   if (filters.statusIds !== null) {
-    const hasStatus = todo.statusId != null
-    if (!hasStatus) {
-      if (!filters.statusIds.has(0)) return false
-    } else if (!filters.statusIds.has(todo.statusId!)) return false
+    // 0 = no status.
+    const ticked = filters.statusIds.has(todo.statusId ?? 0)
+    if (ticked === (negate?.statusIds === true)) return false
   }
 
   if (filters.searchText) {
@@ -43,19 +45,23 @@ export function matchesFilter(
     if (!matched) return false
   }
 
-  if (filters.personIds !== null) {
-    const hasPerson = !!assignedPersonIds && assignedPersonIds.length > 0
-    const personMatch = hasPerson && assignedPersonIds!.some((id) => filters.personIds!.has(id))
-    const unassignedSentinel = !hasPerson && filters.personIds.has(0)
-    if (!personMatch && !unassignedSentinel) return false
+  const personIds = filters.personIds
+  if (personIds !== null) {
+    const people = assignedPersonIds ?? []
+    const hasPerson = people.length > 0
+    const personMatch = people.some((id) => personIds.has(id))
+    const unassignedSentinel = !hasPerson && personIds.has(0)
+    // Is: one of the ticked people (or unassigned when ticked). Is not: none of them.
+    if ((personMatch || unassignedSentinel) === (negate?.personIds === true)) return false
   }
   if (filters.markers != null && !matchesMarkers(todo, filters.markers, today, settings)) {
     return false
   }
-  if (filters.tags !== null) {
-    const ids = assignedTagIds ?? []
-    if (ids.length === 0) return false
-    if (!ids.some((id) => filters.tags!.has(id))) return false
+  const tags = filters.tags
+  if (tags !== null) {
+    // Is: one of the ticked tags (untagged fails). Is not: none of them (untagged passes).
+    const tagMatch = (assignedTagIds ?? []).some((id) => tags.has(id))
+    if (tagMatch === (negate?.tags === true)) return false
   }
 
   for (const field of DATE_FIELD_VALUES) {

@@ -6,7 +6,7 @@ import { box, pointIn, type Point } from './geometry'
 export interface WsTabSeed {
   id: string
   kind: WidgetKind
-  /** Lens tabs: index into `listDefinitions`. */
+  /** List / Eisenhower tabs: index into `listDefinitions` (an Eisenhower tab without one shows all tasks). */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
   dateTypes?: { due: boolean; followup: boolean }
@@ -15,6 +15,8 @@ export interface WsTabSeed {
   offset?: number
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
+  /** Eisenhower tabs: custom panes (config); a filter is merged over the empty predicate. */
+  panes?: Partial<Record<'do' | 'schedule' | 'delegate' | 'drop', { name?: string; filter?: Record<string, unknown> }>>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
@@ -221,7 +223,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
       const config = { ...(base.config as Record<string, unknown>) }
-      if (tab.kind === 'lens' && tab.listDefIdx != null) {
+      if ((tab.kind === 'lens' || tab.kind === 'eisenhower') && tab.listDefIdx != null) {
         const listDefinitionId = defIds[tab.listDefIdx]
         if (listDefinitionId != null) config.listDefinitionId = listDefinitionId
       }
@@ -236,6 +238,12 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         if (d.sections) config.sections = d.sections
       }
       if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
+      if (tab.kind === 'eisenhower' && tab.panes) {
+        config.panes = Object.fromEntries(Object.entries(tab.panes).map(([q, p]) => [q, {
+          ...(p?.name != null ? { name: p.name } : {}),
+          ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
+        }]))
+      }
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       out.config = config
       return out

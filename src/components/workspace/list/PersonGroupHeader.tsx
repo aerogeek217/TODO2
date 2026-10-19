@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTooltip } from '../../shared/use-tooltip'
 import { EnvelopeIcon } from '../../shared/icons'
-import { openPersonCheckin, type GroupPerson } from './person-group'
+import { emailPersonCheckin, type GroupPerson } from './person-group'
 import styles from './ListWidget.module.css'
 
 /**
@@ -48,7 +48,7 @@ function CheckinButton({ person }: { person: GroupPerson }) {
         type="button"
         className={styles.groupAction}
         aria-label={`Email check-in to ${person.name}`}
-        onClick={() => openPersonCheckin(person)}
+        onClick={() => emailPersonCheckin(person)}
         {...triggerProps}
       >
         <EnvelopeIcon />

@@ -82,7 +82,7 @@ test('an unsaved list filter survives a reload, still unsaved; Save writes it', 
   const widget = wsListWidget(page, TASK_LIST_TAB)
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('checkbox', { name: 'Important' }).click()
+  await page.getByTestId('list-filter-picker').getByRole('radiogroup', { name: 'Important', exact: true }).getByRole('radio', { name: 'Yes' }).click()
   await page.keyboard.press('Escape')
   await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
   expect(await unloadAsks(page)).toBe(false)
@@ -142,7 +142,7 @@ test('a backup restore drops a kept list change too', async ({ page }) => {
   await page.getByRole('button', { name: 'Show completed' }).click()
   await wsListWidget(page, TASK_LIST_TAB).getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('checkbox', { name: 'Important' }).click()
+  await page.getByTestId('list-filter-picker').getByRole('radiogroup', { name: 'Important', exact: true }).getByRole('radio', { name: 'Yes' }).click()
   await page.keyboard.press('Escape')
   await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
 

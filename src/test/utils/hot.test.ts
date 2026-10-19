@@ -96,6 +96,7 @@ describe('Hot rule storage', () => {
     ['an empty line', [{ urgent: true }, {}]],
     ['an unknown key', [{ urgent: true, hot: true }]],
     ['a non-true value', [{ urgent: false }]],
+    ['a No beside a Yes (lines stay true-only, unlike a Priority filter)', [{ urgent: true, important: false }]],
     ['a string value', [{ urgent: 'yes' }]],
     ['a line that is an array', [['urgent']]],
     ['a null line', [null]],

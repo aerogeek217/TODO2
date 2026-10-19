@@ -237,6 +237,26 @@ describe('weights, view state, tab settings', () => {
     expect(layoutStructureEqual(l, set)).toBe(true)
   })
 
+  it('a config key patched to undefined is removed (an Eisenhower tab back on all tasks)', () => {
+    const l = replaceTab(base(), 'a1', createTab('eisenhower', 'a1'))
+    const onList = patchTabConfig(l, 'a1', 'eisenhower', { listDefinitionId: 7 })
+    expect(onList.columns[0]!.cells[0]!.tabs[0]!.config).toEqual({ listDefinitionId: 7 })
+    expect(layoutStructureEqual(l, onList)).toBe(false)
+    const back = patchTabConfig(onList, 'a1', 'eisenhower', { listDefinitionId: undefined })
+    expect(back.columns[0]!.cells[0]!.tabs[0]!.config).toEqual({})
+    expect('listDefinitionId' in back.columns[0]!.cells[0]!.tabs[0]!.config).toBe(false)
+    expect(layoutStructureEqual(l, back)).toBe(true)
+  })
+
+  it('counts the tabs showing a list: list tabs and Eisenhower tabs on it', () => {
+    let l = replaceTab(base(), 'a1', createTab('lens', 'a1', { listDefinitionId: 7 }))
+    l = replaceTab(l, 'b1', createTab('eisenhower', 'b1', { listDefinitionId: 7 }))
+    l = replaceTab(l, 'c1', createTab('eisenhower', 'c1'))
+    expect(countListTabs(l, 7)).toBe(2)
+    expect(countListTabs(l, 7, new Set(['a1']))).toBe(1)
+    expect(countListTabs(l, 7, new Set(['a1', 'b1']))).toBe(0)
+  })
+
   it('replaceTab swaps a tab in place and keeps it active', () => {
     const l = base()
     const next = replaceTab(l, 'a1', createTab('eisenhower', 'a1'))

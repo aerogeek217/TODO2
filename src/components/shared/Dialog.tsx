@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
 import { DialogLayerContext } from './dialog-layer'
+import { useBackdropPress } from './use-backdrop-press'
 
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
@@ -133,7 +134,7 @@ export function DialogFrame({
   const onCloseRef = useLatestRef(onClose)
   const elsewhereRef = useLatestRef(escapeBelongsElsewhere)
   const initialFocusRef = useLatestRef(initialFocus)
-  const downOnBackdrop = useRef(false)
+  const backdropPress = useBackdropPress(onClose, { enabled: !blockBackdropClose })
   // What had the focus when the dialog opened — read before its content
   // mounts, since an `autoFocus` control inside takes the focus first.
   const [opener] = useState(() => document.activeElement as HTMLElement | null)
@@ -222,12 +223,7 @@ export function DialogFrame({
       <div
         className={`${styles.backdrop} ${layerClass} ${backdropClassName ?? ''}`}
         data-dialog-backdrop=""
-        onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget }}
-        onClick={(e) => {
-          const pressed = downOnBackdrop.current
-          downOnBackdrop.current = false
-          if (!blockBackdropClose && pressed && e.target === e.currentTarget) onClose()
-        }}
+        {...backdropPress}
       />
       <div
         ref={panelRef}

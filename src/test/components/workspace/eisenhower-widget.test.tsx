@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, act, within } from '@testing-library/react'
+import { render, cleanup, fireEvent, act, within, screen } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { EisenhowerWidget, type EisenhowerResult } from '../../../components/workspace/eisenhower/EisenhowerWidget'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -9,6 +9,12 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { EisenhowerTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import type { PersistedListDefinition } from '../../../models/list-definition'
+import { emptyPredicate, type TodoPredicate } from '../../../models'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { useListDraftStore } from '../../../stores/list-draft-store'
+import { useListOrderStore } from '../../../stores/list-order-store'
+import { useStatusStore } from '../../../stores/status-store'
 import { clearFilterStore, makePerson, makeTodo, patchScreenFilter, resetEntityStores } from '../../helpers'
 
 const TODAY = new Date(2026, 9, 10, 10) // Sat 10 Oct 2026
@@ -160,5 +166,111 @@ describe('EisenhowerWidget', () => {
     expect(count('schedule')).toBe('2')
     fireEvent.keyDown(within(quadrant('schedule')).getByRole('button', { expanded: false }), { key: 'ArrowRight' })
     expect(titles('schedule')).toEqual(['Draft OKRs', 'Board update'])
+  })
+})
+
+describe('EisenhowerWidget on a saved list', () => {
+  const waiting = { id: 2, name: 'Waiting', color: '#888', sortOrder: 1 }
+  function listDef(over: Partial<PersistedListDefinition> = {}, predicate: Partial<TodoPredicate> = {}): PersistedListDefinition {
+    return {
+      id: 7, name: 'Not waiting', sortOrder: 0,
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...predicate } },
+      sort: 'manual', grouping: 'none',
+      ...over,
+    }
+  }
+  const notWaiting = { statusIds: [2], negate: { statusIds: true as const } }
+  const onList: EisenhowerTab = { id: 'eis', kind: 'eisenhower', config: { listDefinitionId: 7 } }
+
+  beforeEach(() => {
+    useStatusStore.setState({ statuses: [waiting] })
+    useListOrderStore.setState({ ranks: new Map(), loaded: true })
+    useListDraftStore.setState({ drafts: {} })
+    useTodoStore.setState({
+      todos: useTodoStore.getState().todos.map((t) => (t.id === 2 || t.id === 7 ? { ...t, statusId: 2 } : t)),
+    })
+  })
+
+  it('shows only the list\'s members; the count is against the list, not all tasks', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
+    setup(onList)
+    // Draft OKRs (2) and Blog (7) are Waiting: the list leaves them out.
+    expect(titles('schedule')).toEqual(['Board update'])
+    expect(titles('drop')).toEqual(['Vendor'])
+    expect(lastResult).toEqual({ countLabel: '5' })
+    // The list's filter line, without the group · sort summary.
+    const line = within(document.querySelector<HTMLElement>('[data-list-host="eis"]')!).getByTestId('list-filter-row')
+    expect(line).toHaveTextContent('not Waiting')
+    expect(within(line).queryByTestId('list-summary')).toBeNull()
+  })
+
+  it('switching the source back to all tasks shows every task again', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
+    setup(onList)
+    expect(lastResult).toEqual({ countLabel: '5' })
+    act(() => useWorkspaceStore.getState().patchTabConfig('eis', 'eisenhower', { listDefinitionId: undefined }))
+    expect(useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]?.config).toEqual({})
+    expect(titles('schedule')).toEqual(['Draft OKRs', 'Board update'])
+    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(document.querySelector('[data-list-host]')).toBeNull()
+  })
+
+  it('shows the list as edited (its unsaved draft), with Revert · Save on the filter line', () => {
+    const saved = listDef()
+    useListDefinitionStore.setState({ listDefinitions: [saved] })
+    setup(onList)
+    expect(lastResult).toEqual({ countLabel: '7' })
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...d.membership.predicate, ...notWaiting } } })))
+    expect(lastResult).toEqual({ countLabel: '5' })
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+  })
+
+  it('composes the screen filter in: "shown of the list\'s total"', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
+    setup(onList)
+    act(() => useFilterStore.getState().setSearchText('outage'))
+    expect(lastResult).toEqual({ countLabel: '1 of 5' })
+    act(() => useFilterStore.getState().setSearchText('zzz'))
+    expect(within(widget()).getByRole('status')).toHaveTextContent('All 5 open tasks in “Not waiting” are hidden by the screen filter.')
+  })
+
+  it('ignores the list\'s prompt (a temporary pick): every member shows', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({ runtimeFilter: { field: 'status' } }, notWaiting)] })
+    setup(onList)
+    expect(lastResult).toEqual({ countLabel: '5' })
+  })
+
+  it('names the list\'s filter when it hides every open task', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({}, { searchText: 'nothing like this' })] })
+    setup(onList)
+    expect(lastResult).toEqual({ countLabel: '0' })
+    const panel = within(widget()).getByRole('status')
+    expect(panel).toHaveTextContent('All 7 open tasks are hidden by the filters of “Not waiting”.')
+    fireEvent.click(within(panel).getByRole('button', { name: 'Edit list' }))
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 'eis' })
+  })
+
+  it('a quadrant\'s "+" seeds the list\'s defaults and the quadrant\'s flags, from "<pane> · <list>"', () => {
+    usePersonStore.setState({ people: [makePerson({ id: 9, name: 'Dana' })] })
+    useListDefinitionStore.setState({ listDefinitions: [listDef({ name: 'Dana' }, { personIds: [9], ...notWaiting })] })
+    setup(onList)
+    // The screen filter seeds nothing here: the list's own Add task doesn't use it either.
+    act(() => useFilterStore.getState().setPersonIds(new Set([5])))
+    fireEvent.click(within(quadrant('do')).getByRole('button', { name: 'Add task to Do' }))
+    expect(useUIStore.getState().quickAddDraft).toEqual({
+      rawTitle: '',
+      // "is not Waiting" seeds no status.
+      defaults: { personIds: [9], tagIds: [], statusId: undefined, markers: { urgent: true, important: true } },
+      source: 'Do · Dana',
+    })
+  })
+
+  it('a deleted list: says so, and offers all tasks', () => {
+    useListDefinitionStore.setState({ listDefinitions: [] })
+    setup(onList)
+    expect(screen.getByText('This list was deleted')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show all tasks' }))
+    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
   })
 })

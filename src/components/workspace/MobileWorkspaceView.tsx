@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   getActiveTab,
   type BandEdge,
+  type EisenhowerTab,
   type LayoutBand,
   type LayoutColumn,
   type LayoutPanel,
@@ -14,6 +15,8 @@ import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-page
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
+import { ALL_TASKS_LABEL } from '../shared/WidgetKindMenu'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { DialogFrame } from '../shared/Dialog'
 import type { ListWidgetResult } from './list/ListWidget'
@@ -176,16 +179,20 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
   )
 }
 
-/** Long-press on a list tab: the tab menu's list items as a bottom sheet. */
 /**
- * An Eisenhower tab's long-press sheet: the app-wide "Due date makes a task
- * urgent" range (the desktop tab menu's submenu).
+ * An Eisenhower tab's long-press sheet: Edit list… while it shows a list,
+ * what it shows (changed on a wider screen, like a list tab's list), and the
+ * app-wide "Due date makes a task urgent" range (the desktop tab menu's
+ * submenu).
  */
-function SettingSheet({ onClose }: { onClose: () => void }) {
+function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => void }) {
   const setting = useUrgentRangeSetting()
+  const listId = tab.config.listDefinitionId
+  const listName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
+  const title = useTabTitle(tab)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
-    sheetRef.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()
+    sheetRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"], [aria-checked="true"]')?.focus()
   }, [])
   return createPortal(
     <>
@@ -194,11 +201,28 @@ function SettingSheet({ onClose }: { onClose: () => void }) {
         ref={sheetRef}
         className={styles.sheet}
         role="menu"
-        aria-label={setting.heading}
+        aria-label="Eisenhower"
         onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}
       >
         <span className={styles.handle} aria-hidden="true" />
-        <div className={styles.sheetTitle}>{setting.heading}</div>
+        <div className={styles.sheetRows}>
+          {listId != null && listName != null && (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.sheetRow}
+              onClick={() => { onClose(); openEditList(tab.id, listId) }}
+            >
+              <span className={styles.sheetName}>Edit list…</span>
+            </button>
+          )}
+          <div className={styles.sheetInfo} data-testid="eisenhower-sheet-source">
+            <span className={styles.sheetName}>Show</span>
+            <span className={styles.sheetNote}>{listId == null ? ALL_TASKS_LABEL : title}</span>
+          </div>
+        </div>
+        <div className={styles.sheetFootnote}>To show another list, use a wider screen.</div>
+        <div className={`${styles.sheetTitle} ${styles.sheetSectionTitle}`}>{setting.heading}</div>
         <div className={styles.sheetRows}>
           {setting.options.map((o) => (
             <button
@@ -222,6 +246,7 @@ function SettingSheet({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** Long-press on a list tab: the tab menu's list items as a bottom sheet. */
 function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   tabId: string
   listDefinitionId: number
@@ -290,7 +315,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
   const collapsed = cell.collapsed === true
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
-  const [rangeSheet, setRangeSheet] = useState(false)
+  const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
@@ -302,6 +327,9 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
       </section>
     )
   }
+
+  const sheetTab = eisenhowerSheet != null ? cell.tabs.find((t) => t.id === eisenhowerSheet) : undefined
+  const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
 
   const menuEntries: MenuEntry[] = [
     { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setCellCollapsed(cell.id, true) } },
@@ -322,7 +350,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
           onOpenTabMenu={(tabId) => {
             const tab = cell.tabs.find((t) => t.id === tabId)
             if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
-            if (tab?.kind === 'eisenhower') setRangeSheet(true)
+            if (tab?.kind === 'eisenhower') setEisenhowerSheet(tabId)
           }}
           onActivate={(tabId) => {
             void setActiveTab(tabId)
@@ -368,7 +396,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
           />
         </div>
       )}
-      {rangeSheet && <SettingSheet onClose={() => setRangeSheet(false)} />}
+      {eisenhowerTab && <EisenhowerSheet tab={eisenhowerTab} onClose={() => setEisenhowerSheet(null)} />}
       {tabSheet && (
         <ListTabSheet
           tabId={tabSheet.tabId}

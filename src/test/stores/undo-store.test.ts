@@ -72,6 +72,15 @@ describe('useUndoStore', () => {
     expect(after.snackbarTimerId).toBeNull()
   })
 
+  it('an entry with a detail shows it as the snackbar’s second line, for as long as a notice', () => {
+    useUndoStore.getState().push({ ...makeEntry('Check-in for Ann opened'), detail: 'Paste the body.' }, true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Ann opened', detail: 'Paste the body.' })
+    vi.advanceTimersByTime(5000)
+    expect(useUndoStore.getState().snackbar).not.toBeNull()
+    vi.advanceTimersByTime(3000)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
   // 4. push without showSnackbar: no snackbar change
   it('push without showSnackbar does not set snackbar', () => {
     useUndoStore.getState().push(makeEntry('quiet'))
@@ -416,6 +425,41 @@ describe('useUndoStore — an undo or redo that fails', () => {
     expect(state.undoStack).toEqual([])
     expect(state.isPerformingUndoRedo).toBe(false)
     expect(state.snackbar).toEqual({ description: "Couldn't redo: Add \"Milk\"", notice: true })
+  })
+
+  it('abortGroup takes back what the group holds, newest first, and leaves no entry', async () => {
+    const order: string[] = []
+    const kept = { description: 'Before', undo: vi.fn(), redo: vi.fn() }
+    useUndoStore.getState().push(kept)
+    useUndoStore.getState().beginGroup()
+    for (const label of ['A', 'B']) {
+      useUndoStore.getState().push({ description: label, undo: vi.fn(() => { order.push(label) }), redo: vi.fn() })
+    }
+    await expect(useUndoStore.getState().abortGroup('Drop')).resolves.toBe(true)
+    const state = useUndoStore.getState()
+    expect(order).toEqual(['B', 'A'])
+    expect(state.undoStack).toEqual([kept])
+    expect(state.groupStartIndex).toBeNull()
+    expect(state.isPerformingUndoRedo).toBe(false)
+  })
+
+  it('abortGroup: an entry that can’t be taken back stays undoable with what is left, as one entry', async () => {
+    const undoneA = vi.fn()
+    useUndoStore.getState().beginGroup()
+    useUndoStore.getState().push({ description: 'A', undo: undoneA, redo: vi.fn() })
+    useUndoStore.getState().push({ description: 'B', undo: vi.fn(async () => { throw new Error('write failed') }), redo: vi.fn() })
+    useUndoStore.getState().push({ description: 'C', undo: vi.fn(), redo: vi.fn() })
+    await expect(useUndoStore.getState().abortGroup('Drop')).resolves.toBe(false)
+    const state = useUndoStore.getState()
+    expect(state.undoStack.map((e) => e.description)).toEqual(['Drop'])
+    expect(state.isPerformingUndoRedo).toBe(false)
+    // C was taken back; A and B are left — undoing the entry takes them back.
+    expect(undoneA).not.toHaveBeenCalled()
+  })
+
+  it('abortGroup without an open group does nothing', async () => {
+    await expect(useUndoStore.getState().abortGroup('Drop')).resolves.toBe(true)
+    expect(useUndoStore.getState().undoStack).toEqual([])
   })
 
   it('a failed undo goes back where it was: an entry pushed meanwhile stays on top', async () => {

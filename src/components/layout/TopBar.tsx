@@ -424,10 +424,14 @@ export function TopBar() {
             data-search-input
           />
           {localSearch ? (
+            // Not `ClearableField`: this slot shows the `/` key hint while the
+            // search is empty. Like that ×, a mouse target only (it acts on
+            // mousedown); from the keyboard, Esc in the field clears it.
             <button
               type="button"
               className={styles.searchClear}
               aria-label="Clear search"
+              tabIndex={-1}
               onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
             >
               <CloseIcon size={8} />

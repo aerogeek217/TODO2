@@ -8,6 +8,7 @@ import { CloseIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker } from './PredicateFieldPicker'
 import { pointBelow } from './popover-point'
+import { useTooltip } from '../use-tooltip'
 import styles from './ListFilterChips.module.css'
 
 /** A field picker to show: which field, where, and whether it adds the filter. */
@@ -24,6 +25,10 @@ interface PredicateChipsProps {
   onChange: (next: TodoPredicate) => void
   /** Rendered before the list chips (e.g. the screen filter chips). */
   before?: ReactNode
+  /** The + Filter menu's heading. */
+  addLabel?: string
+  /** Inside a dialog: Esc closes an open field picker only, not the dialog. */
+  inDialog?: boolean
 }
 
 /**
@@ -33,7 +38,7 @@ interface PredicateChipsProps {
  * only its type) — and a "+ Filter" menu that adds one (priority, tags,
  * people, dates, status, text).
  */
-export function PredicateChips({ predicate, onChange, before }: PredicateChipsProps) {
+export function PredicateChips({ predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false }: PredicateChipsProps) {
   const names = useChipNames()
   const chips = useMemo(() => filterChips(predicate, names), [predicate, names])
   const [picker, setPicker] = useState<OpenPicker | null>(null)
@@ -47,7 +52,7 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
   const isOpen = (chip: FilterChip) => picker != null && !picker.adding && picker.field === chip.field && picker.dateField === chip.dateField
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'label', text: 'Add a filter to this list' },
+    { kind: 'label', text: addLabel },
     ...ADD_FILTER_ITEMS.map((item): MenuEntry => ({
       kind: 'item',
       label: item.label,
@@ -63,37 +68,13 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
     <>
       {before}
       {chips.map((chip) => (
-        <span
+        <ListChip
           key={chipKey(chip)}
-          role="button"
-          tabIndex={0}
-          aria-expanded={isOpen(chip)}
-          className={`${styles.listChip} ${isOpen(chip) ? styles.listChipOpen : ''}`}
-          data-testid="list-filter-chip"
-          data-date-field={chip.dateField}
-          onClick={(e) => edit(chip, e.currentTarget)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              edit(chip, e.currentTarget)
-            } else if (e.key === 'Delete' || e.key === 'Backspace') {
-              e.preventDefault()
-              remove(chip)
-            }
-          }}
-        >
-          <span className={styles.chipLabel}>{chip.label}</span>
-          {chip.value}
-          <button
-            type="button"
-            className={styles.chipRemove}
-            aria-label="Remove filter"
-            title="Remove filter"
-            onClick={(e) => { e.stopPropagation(); remove(chip) }}
-          >
-            <CloseIcon size={9} />
-          </button>
-        </span>
+          chip={chip}
+          open={isOpen(chip)}
+          onEdit={(el) => edit(chip, el)}
+          onRemove={() => remove(chip)}
+        />
       ))}
       <button
         type="button"
@@ -130,9 +111,61 @@ export function PredicateChips({ predicate, onChange, before }: PredicateChipsPr
           at={picker.at}
           adding={picker.adding}
           dateField={picker.dateField}
+          consumeEscape={inDialog}
           onClose={() => setPicker(null)}
         />
       )}
+    </>
+  )
+}
+
+/**
+ * One list filter chip: click (or Enter / Space) edits it, Delete /
+ * Backspace or its × removes it. An "is not" chip spells out what it hides
+ * in a tooltip.
+ */
+function ListChip({ chip, open, onEdit, onRemove }: {
+  chip: FilterChip
+  open: boolean
+  onEdit: (el: Element) => void
+  onRemove: () => void
+}) {
+  const { triggerProps, tooltip } = useTooltip(open ? null : chip.tooltip, { labelLines: 1 })
+  return (
+    <>
+      <span
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        className={`${styles.listChip} ${open ? styles.listChipOpen : ''}`}
+        data-testid="list-filter-chip"
+        data-date-field={chip.dateField}
+        data-negated={chip.negated ? '' : undefined}
+        {...triggerProps}
+        onClick={(e) => onEdit(e.currentTarget)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onEdit(e.currentTarget)
+          } else if (e.key === 'Delete' || e.key === 'Backspace') {
+            e.preventDefault()
+            onRemove()
+          }
+        }}
+      >
+        <span className={styles.chipLabel}>{chip.label}</span>
+        {chip.value}
+        <button
+          type="button"
+          className={styles.chipRemove}
+          aria-label="Remove filter"
+          title="Remove filter"
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+        >
+          <CloseIcon size={9} />
+        </button>
+      </span>
+      {tooltip}
     </>
   )
 }

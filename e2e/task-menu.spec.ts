@@ -136,7 +136,7 @@ test.describe('task menu', () => {
   })
 })
 
-test('list bulk bar fits 320px; ⋯ More holds Followed up and the markers (mixed)', async ({ page }) => {
+test('list bulk bar fits 320px; ⋯ More holds Mark followed up and the markers (mixed)', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
     tasks: [{ title: 'one', focus: true }, { title: 'two' }],
@@ -153,7 +153,7 @@ test('list bulk bar fits 320px; ⋯ More holds Followed up and the markers (mixe
   await more.click()
   const menu = page.getByRole('menu', { name: 'More actions' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: /^Followed up/ })).toBeFocused()
+  await expect(menu.getByRole('menuitem', { name: /^Mark followed up/ })).toBeFocused()
   const focus = menu.getByRole('menuitemcheckbox', { name: /Focus/ })
   await expect(focus).toHaveAttribute('aria-checked', 'mixed')
   await expect(focus).toContainText('1 of 2')

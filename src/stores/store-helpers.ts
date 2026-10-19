@@ -173,6 +173,8 @@ export function optimistic(
     redo: () => void | Promise<void>
     undo: () => void | Promise<void>
     showSnackbar?: boolean
+    /** The snackbar's second line (`UndoEntry.detail`). */
+    detail?: string
   },
 ): Promise<void> {
   return trackWrite(async () => {
@@ -180,7 +182,7 @@ export function optimistic(
     try {
       await persist()
       if (undo) {
-        undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+        undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar, undo.detail)
       }
     } catch (e) {
       console.error(`${label}:`, e)
@@ -250,10 +252,10 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   set: SetFn,
   opts: { showSnackbar?: boolean } = {},
 ): Promise<void> {
-  const prevValues = get().todos
-    .filter((t) => ids.includes(t.id))
-    .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   const idSet = new Set(ids)
+  const prevValues = get().todos
+    .filter((t) => idSet.has(t.id))
+    .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   // One timestamp for the store and the database write.
   const now = new Date()
 

@@ -353,7 +353,7 @@ function ReplyChanges({ reply, selected, onToggle, recordFollowup, onRecordFollo
           <span>
             Record a follow-up on these tasks{' '}
             <span className={styles.followupHint}>
-              (Last follow-up → today; Next follow-up moves by your default interval, the same as “Followed up”)
+              (Last follow-up → today; Next follow-up moves by your default interval, the same as “Mark followed up”)
             </span>
           </span>
         </label>

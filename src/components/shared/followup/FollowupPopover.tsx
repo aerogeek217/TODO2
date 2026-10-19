@@ -24,7 +24,7 @@ interface FollowupPopoverProps {
   onClose: () => void
   /** Set (or with `null`, clear) the next follow-up. */
   onSetNext: (date: Date | null) => void
-  /** "Followed up": last = now, next = today + the default interval. */
+  /** "Mark followed up": last = now, next = today + the default interval. */
   onFollowedUp: () => void
   /**
    * Already followed up today (dims "Mark followed up"). Defaults to `todo`'s own

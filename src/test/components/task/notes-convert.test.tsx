@@ -197,7 +197,7 @@ describe('Convert preview', () => {
     expect(await screen.findByText('Draft')).toBeInTheDocument()
     expect(screen.getByText('Nothing is saved until you create the tasks')).toBeInTheDocument()
     expect(screen.queryByLabelText('Last follow-up')).toBeNull()
-    expect(screen.queryByRole('button', { name: /Followed up/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Mark followed up/ })).toBeNull()
     const title = screen.getByDisplayValue('Renew domain')
     fireEvent.change(title, { target: { value: 'Renew the domain' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))

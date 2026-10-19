@@ -190,7 +190,7 @@
   color: var(--color-text-primary);
 }
 
-/* ═══ "Followed up" buttons ═══ */
+/* ═══ "Mark followed up" buttons ═══ */
 
 .followedUpPrimary {
   display: inline-flex;

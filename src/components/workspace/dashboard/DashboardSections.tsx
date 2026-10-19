@@ -14,7 +14,7 @@ import {
   tagsSectionDialog,
 } from '../../../services/task-dialog'
 import { EISENHOWER_QUADRANTS } from '../../../models/workspace-layout'
-import { QUADRANT_COLOR, QUADRANT_NAME, QUADRANT_SUBTITLE } from '../../../utils/eisenhower'
+import { QUADRANT_COLOR, QUADRANT_NAME, QUADRANT_SUBTITLE } from '../../../utils/eisenhower-panes'
 import { bySortOrder } from '../../../utils/sort-order'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { usePersonStore } from '../../../stores/person-store'

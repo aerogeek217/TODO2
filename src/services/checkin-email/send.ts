@@ -6,16 +6,14 @@
 import type { CheckinOpenMethod } from '../../utils/checkin-settings'
 import { downloadTextFile } from '../save-file'
 import type { CheckinEmail } from './build'
-import { isValidEmail } from '../../utils/person'
 import { buildEml, buildMailtoUrl, checkinEmlFileName, copyCheckinRich, openMailtoLink } from './handoff'
 
 /**
  * `opened` — the body is on the clipboard and the `mailto:` link was opened;
  * `downloaded` — the `.eml` draft was downloaded; `copy-failed` — the
- * clipboard refused the body, so nothing was opened; `invalid-address` — the
- * recipient isn't one valid email address, so nothing was copied or opened.
+ * clipboard refused the body, so nothing was opened.
  */
-export type CheckinSendResult = 'opened' | 'downloaded' | 'copy-failed' | 'invalid-address'
+export type CheckinSendResult = 'opened' | 'downloaded' | 'copy-failed'
 
 export interface SendCheckinInput {
   email: CheckinEmail
@@ -34,16 +32,23 @@ export interface SendCheckinInput {
  *   then opens the `mailto:` link (To + Subject); the user pastes the body.
  *   If the clipboard refuses, the link isn't opened.
  * - `eml`: downloads `Check-in - <name> - <date>.eml`, an unsent draft.
+ *
+ * `email.to` is blank (no address: the user adds the recipient in the mail
+ * app) or one valid address — `buildCheckinEmail` takes it from
+ * `checkinAddress`. Anything else makes the builders throw
+ * `InvalidRecipientError` before anything is copied, opened or downloaded.
  */
 export async function sendCheckinEmail({ email, personName, method, sentAt }: SendCheckinInput): Promise<CheckinSendResult> {
-  if (!isValidEmail(email.to)) return 'invalid-address'
   if (method === 'eml') {
     const eml = buildEml({ to: email.to, toName: personName, subject: email.subject, html: email.html, plain: email.plain })
     downloadTextFile(eml, checkinEmlFileName(personName, sentAt), 'message/rfc822')
     return 'downloaded'
   }
+  // Built before the copy, so a bad recipient copies nothing; still no
+  // `await` before the clipboard write starts.
+  const url = buildMailtoUrl(email.to, email.subject)
   const copied = await copyCheckinRich(email.html, email.plain)
   if (!copied) return 'copy-failed'
-  openMailtoLink(buildMailtoUrl(email.to, email.subject))
+  openMailtoLink(url)
   return 'opened'
 }

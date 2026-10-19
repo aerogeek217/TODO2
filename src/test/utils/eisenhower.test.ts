@@ -1,17 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import {
-  blockedDropLines,
+  blockedPaneLines,
   buildQuadrants,
+  classifyPanes,
   classifyEisenhower,
   compareInQuadrant,
   dropDescription,
   dropPreviewLabel,
   insertionIndex,
+  paneAddHint,
   quadrantOf,
-  resolveQuadrantDrop,
+  resolvePaneDrop,
 } from '../../utils/eisenhower'
+import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
+import { emptyPredicate, type TodoPredicate } from '../../models'
 import type { EisenhowerQuadrant } from '../../models/workspace-layout'
-import { makeTodo } from '../helpers'
+import { blockedDropLines, makePaneContext, makeTodo, resolveQuadrantDrop } from '../helpers'
 
 // Sat 10 Oct 2026, range 3 days (due by Tue 13 counts as urgent).
 const TODAY = new Date(2026, 9, 10)
@@ -195,5 +199,227 @@ describe('drop labels', () => {
       '2 of 3 tasks are due within 3 days, so they count as urgent.',
       'Change their due dates or the due-soon range first.',
     ])
+  })
+})
+
+// ── Panes ───────────────────────────────────────────────────────────────────
+
+const statusRow = (id: number, name: string) => ({ id, name, color: '#000', icon: 'circle' as const, sortOrder: id })
+const personRow = (id: number, name: string) => ({ id, name, initials: name.slice(0, 2) })
+const tagRow = (id: number, name: string) => ({ id, name, color: '#000' })
+
+describe('classifyPanes on the default panes', () => {
+  // A small deterministic generator (mulberry32): the same tasks every run.
+  function rng(seed: number): () => number {
+    let a = seed
+    return () => {
+      a = (a + 0x6d2b79f5) | 0
+      let t = Math.imul(a ^ (a >>> 15), 1 | a)
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+
+  it('places every task exactly as classifyEisenhower does (generated tasks, every urgent range)', () => {
+    const next = rng(20261019)
+    const todos = Array.from({ length: 2000 }, (_, i) => makeTodo({
+      id: i + 1,
+      sortOrder: i,
+      ...(next() < 0.4 ? { urgent: true } : {}),
+      ...(next() < 0.4 ? { important: true } : {}),
+      ...(next() < 0.2 ? { focus: true } : {}),
+      ...(next() < 0.2 ? { isCompleted: true } : {}),
+      ...(next() < 0.6 ? { dueDate: day(Math.floor(next() * 21) - 10) } : {}),
+      ...(next() < 0.2 ? { nextFollowupAt: day(Math.floor(next() * 7) - 3) } : {}),
+    }))
+    for (const range of [null, 0, 1, 3, 7, 14] as const) {
+      const { byPane, none } = classifyPanes(todos, resolvePanes(undefined), makePaneContext(TODAY, range))
+      expect(none).toEqual([])
+      const expected = buildQuadrants(todos, TODAY, range)
+      for (const q of ['do', 'schedule', 'delegate', 'drop'] as const) {
+        expect(byPane[q].map((t) => t.id)).toEqual(expected[q].map((t) => t.id))
+      }
+    }
+    // The generator covers every quadrant, urgent-by-date and completed tasks included.
+    const covered = buildQuadrants(todos, TODAY, 3)
+    for (const q of ['do', 'schedule', 'delegate', 'drop'] as const) expect(covered[q].length).toBeGreaterThan(50)
+    expect(todos.some((t) => t.urgent !== true && classifyEisenhower(t, TODAY, 3).urgentByDate)).toBe(true)
+    expect(todos.some((t) => t.isCompleted && t.dueDate != null && t.urgent !== true)).toBe(true)
+  })
+})
+
+describe('classifyPanes on custom panes', () => {
+  const ctx = makePaneContext(TODAY, 3, {
+    statuses: [statusRow(3, 'Delegated')],
+    people: [personRow(1, 'Ann')],
+    assignedPeopleMap: new Map([[2, [personRow(1, 'Ann')]]]),
+  })
+
+  it('first match wins; a task no pane matches is in none', () => {
+    const panes = resolvePanes({
+      delegate: { filter: { ...defaultPaneFilter('delegate'), statusIds: [3], negate: { statusIds: true } } },
+    })
+    const todos = [
+      makeTodo({ id: 1, urgent: true, statusId: 3 }),
+      makeTodo({ id: 2, urgent: true }),
+      makeTodo({ id: 3, important: true }),
+    ]
+    const { byPane, none } = classifyPanes(todos, panes, ctx)
+    expect(byPane.delegate.map((t) => t.id)).toEqual([2])
+    expect(byPane.schedule.map((t) => t.id)).toEqual([3])
+    expect(none.map((t) => t.id)).toEqual([1])
+  })
+
+  it('an earlier pane that overlaps a later one takes the task', () => {
+    const panes = resolvePanes({ do: { name: 'Focus', filter: { ...emptyPredicate(), markers: { focus: true } } } })
+    const { byPane } = classifyPanes([makeTodo({ id: 1, focus: true, important: true })], panes, ctx)
+    expect(byPane.do.map((t) => t.id)).toEqual([1])
+    expect(byPane.schedule).toEqual([])
+  })
+
+  it('a pane naming a status, person or tag that no longer exists matches no task: they go to no pane', () => {
+    const panes = resolvePanes({ drop: { filter: { ...defaultPaneFilter('drop'), statusIds: [99] } } })
+    const { byPane, none } = classifyPanes([makeTodo({ id: 1 }), makeTodo({ id: 2, statusId: 3 })], panes, ctx)
+    expect(byPane.drop).toEqual([])
+    expect(none.map((t) => t.id)).toEqual([1, 2])
+  })
+
+  it('a Hot pane takes the hot tasks (the Hot rule from the settings) first', () => {
+    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: 'hot' } } })
+    const todos = [makeTodo({ id: 1, focus: true }), makeTodo({ id: 2, urgent: true, important: true }), makeTodo({ id: 3, important: true })]
+    const { byPane } = classifyPanes(todos, panes, ctx)
+    expect(byPane.do.map((t) => t.id)).toEqual([1, 2])
+    expect(byPane.schedule.map((t) => t.id)).toEqual([3])
+  })
+
+  it('a pane filter ignores Show completed (the source decides) and reads people and text by name', () => {
+    const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), personIds: [1], searchText: 'ann' } } })
+    const { byPane } = classifyPanes([makeTodo({ id: 2, isCompleted: true, title: 'Call' })], panes, ctx)
+    expect(byPane.do.map((t) => t.id)).toEqual([2])
+  })
+})
+
+describe('resolvePaneDrop on custom panes', () => {
+  const ctx = makePaneContext(TODAY, 3, {
+    statuses: [statusRow(3, 'Delegated'), statusRow(4, 'Waiting')],
+    people: [personRow(1, 'Ann')],
+    tags: [tagRow(5, 'home')],
+  })
+  const t = (fields: Parameters<typeof makeTodo>[0]) => makeTodo({ id: 1, title: 'Chase vendor', ...fields })
+
+  it('writes a single "is" status, person and tag, with the flags', () => {
+    const panes = resolvePanes({ drop: { filter: { ...defaultPaneFilter('drop'), statusIds: [4], personIds: [1], tags: [5] } } })
+    expect(resolvePaneDrop([t({ urgent: true })], 'drop', panes, ctx))
+      .toEqual({ kind: 'apply', changes: [{ todoId: 1, urgent: false, statusId: 4, personId: 1, tagId: 5 }] })
+  })
+
+  it('writes Focus Yes / No', () => {
+    const panes = resolvePanes({
+      do: { filter: { ...emptyPredicate(), markers: { focus: true } } },
+      schedule: { filter: { ...emptyPredicate(), markers: { focus: false } } },
+    })
+    expect(resolvePaneDrop([t({})], 'do', panes, ctx)).toEqual({ kind: 'apply', changes: [{ todoId: 1, focus: true }] })
+    expect(resolvePaneDrop([t({ focus: true })], 'schedule', panes, ctx)).toEqual({ kind: 'apply', changes: [{ todoId: 1, focus: false }] })
+  })
+
+  it('refuses when a clause the drop can’t change fails, naming it', () => {
+    const panes = resolvePanes({ delegate: { filter: { ...defaultPaneFilter('delegate'), statusIds: [3], negate: { statusIds: true } } } })
+    const task = t({ urgent: true, statusId: 3 })
+    const res = resolvePaneDrop([task], 'delegate', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'status' } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[2]!, res.blocked, 1, panes, ctx, ctx)).toEqual([
+      'Can’t move to Delegate',
+      'Chase vendor is still Delegated.',
+      'Change its status first, or edit the pane.',
+    ])
+  })
+
+  it('refuses when an earlier pane would take the task first', () => {
+    const panes = resolvePanes({ do: { name: 'Now', filter: { ...emptyPredicate(), markers: { focus: true } } } })
+    const task = t({ focus: true })
+    const res = resolvePaneDrop([task], 'drop', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'earlier', pane: 'do' } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[3]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor matches “Now” first.')
+  })
+
+  it('a date clause implies nothing: a task outside it is refused', () => {
+    const panes = resolvePanes({ schedule: { filter: { ...defaultPaneFilter('schedule'), dates: { deadline: { match: 'set' } } } } })
+    const task = t({})
+    const res = resolvePaneDrop([task], 'schedule', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'deadline' } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[1]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Due filter (has a date).')
+  })
+
+  it('a renamed pane wanting Urgent No keeps the due-date refusal, under its own name', () => {
+    const panes = resolvePanes({ drop: { name: 'Later' } })
+    const task = t({ dueDate: day(1) })
+    const res = resolvePaneDrop([task], 'drop', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'urgent-date' } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[3]!, res.blocked, 1, panes, ctx, ctx)).toEqual([
+      'Can’t move to Later',
+      'Chase vendor is due Sun 11, within 3 days, so it counts as urgent.',
+      'Change its due date or the due-soon range first.',
+    ])
+  })
+
+  it('several refused: how many, then the first one’s reason', () => {
+    const panes = resolvePanes({ delegate: { filter: { ...defaultPaneFilter('delegate'), statusIds: [3], negate: { statusIds: true } } } })
+    const a = makeTodo({ id: 1, title: 'A', urgent: true, statusId: 3 })
+    const b = makeTodo({ id: 2, title: 'B' })
+    const res = resolvePaneDrop([a, b], 'delegate', panes, ctx)
+    if (res.kind !== 'blocked') throw new Error('expected a refusal')
+    expect(blockedPaneLines(panes[2]!, res.blocked, 2, panes, ctx, ctx)).toEqual([
+      'Can’t move to Delegate',
+      '1 of 2 tasks wouldn’t land in “Delegate”: A is still Delegated.',
+      'Change its status first, or edit the pane.',
+    ])
+  })
+
+  it.each<[string, Partial<TodoPredicate>, string]>([
+    ['status', { statusIds: [99] }, 'The status this pane sets no longer exists.'],
+    ['people', { personIds: [98] }, 'The person this pane adds no longer exists.'],
+    ['tags', { tags: [97] }, 'The tag this pane adds no longer exists.'],
+  ])('never writes a %s that no longer exists: the drop is refused, saying so', (field, clause, why) => {
+    const panes = resolvePanes({ do: { name: 'Waiting on', filter: { ...emptyPredicate(), ...clause } } })
+    const task = t({})
+    const res = resolvePaneDrop([task], 'do', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'deleted', field } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)).toEqual(['Can’t move to Waiting on', why, 'Edit the pane first.'])
+  })
+
+  it('a task that already has a deleted status still lands on its pane (nothing to write)', () => {
+    const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), statusIds: [99] } } })
+    expect(resolvePaneDrop([t({ statusId: 99 })], 'do', panes, ctx)).toEqual({ kind: 'none' })
+  })
+
+  it('a Hot pane writes nothing: a task that isn’t hot is refused, naming Priority', () => {
+    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: 'hot' } } })
+    const task = t({ important: true })
+    const res = resolvePaneDrop([task], 'do', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'markers' } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Priority filter (Hot).')
+    expect(resolvePaneDrop([t({ focus: true })], 'do', panes, ctx)).toEqual({ kind: 'none' })
+  })
+
+  it('a pane’s "+" hint: what a new task gets — its Yes markers, status, person, tag; a No or a deleted status gives nothing', () => {
+    const [doPane] = resolvePanes(undefined)
+    expect(paneAddHint(doPane!, ctx)).toBe('Opens Quick Add marked urgent and important.')
+    const [, , delegate] = resolvePanes({ delegate: { filter: { ...defaultPaneFilter('delegate'), statusIds: [4] } } })
+    expect(paneAddHint(delegate!, ctx)).toBe('Opens Quick Add with + Urgent · → Waiting.')
+    const [, , , drop] = resolvePanes({ drop: { filter: { ...defaultPaneFilter('drop'), statusIds: [99] } } })
+    expect(paneAddHint(drop!, ctx)).toBe('Opens Quick Add.')
+  })
+
+  it('preview and undo text name the status, person and tag', () => {
+    const change = { todoId: 1, urgent: true, statusId: 4, personId: 1, tagId: 5 }
+    expect(dropPreviewLabel([change], ctx)).toBe('+ Urgent · → Waiting · + Ann · + #home')
+    expect(dropDescription([change], () => 'Chase vendor', ctx)).toBe('Marked urgent, status Waiting, assigned to Ann, tagged #home · Chase vendor')
+    expect(dropDescription([{ todoId: 1, statusId: 4 }, { todoId: 2, statusId: 4 }], () => undefined, ctx)).toBe('Status Waiting · 2 tasks')
   })
 })

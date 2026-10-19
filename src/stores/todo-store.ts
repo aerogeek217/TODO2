@@ -24,11 +24,12 @@ export interface NewTaskWithAssignments {
   tagIds: readonly number[]
 }
 
-/** One task's Urgent / Important writes (`setMarkerFlags`): only the flags that change. */
+/** One task's Urgent / Important / Focus writes (`setMarkerFlags`): only the flags that change. */
 export interface MarkerFlagChange {
   todoId: number
   urgent?: boolean
   important?: boolean
+  focus?: boolean
 }
 
 /**
@@ -107,19 +108,20 @@ interface TodoState {
   /** Flags every task in `ids` important (`on`) or clears the flag. One undo step. */
   bulkSetImportant: (ids: number[], on: boolean) => Promise<void>
   /**
-   * Writes per-task Urgent / Important changes (e.g. an Eisenhower drop) as
+   * Writes per-task Urgent / Important / Focus changes (e.g. an Eisenhower drop) as
    * one undo step with the undo snackbar (`description`).
    */
   setMarkerFlags: (changes: readonly MarkerFlagChange[], description: string) => Promise<void>
   /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
   bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
-   * "Followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
+   * "Mark followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
    * Settings default interval`, on every task in `ids`. One undo step with
-   * the undo snackbar. The timestamps are resolved once and shared by the
-   * store and the DB write.
+   * the undo snackbar — `description` names it (default `Followed up · next
+   * follow-up …`), `detail` is the snackbar's second line. The timestamps
+   * are resolved once and shared by the store and the DB write.
    */
-  markFollowedUp: (ids: number[]) => Promise<void>
+  markFollowedUp: (ids: number[], description?: string, detail?: string) => Promise<void>
   /**
    * Deletes `ids` as one undo step (with the snackbar). More than
    * `BULK_DELETE_SNAPSHOT_MIN` tasks are backed up first; if that backup
@@ -550,10 +552,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const byId = new Map(changes.map((c) => [c.todoId, c]))
     const targets = get().todos.filter((t) => byId.has(t.id))
     if (targets.length === 0) return
-    const prev = new Map(targets.map((t) => [t.id, { urgent: t.urgent, important: t.important, modifiedAt: t.modifiedAt }]))
+    const prev = new Map(targets.map((t) => [t.id, { urgent: t.urgent, important: t.important, focus: t.focus, modifiedAt: t.modifiedAt }]))
     const patch = (c: MarkerFlagChange): Partial<PersistedTodoItem> => ({
       ...(c.urgent !== undefined ? { urgent: flagValue(c.urgent) } : {}),
       ...(c.important !== undefined ? { important: flagValue(c.important) } : {}),
+      ...(c.focus !== undefined ? { focus: flagValue(c.focus) } : {}),
     })
     const ids = targets.map((t) => t.id)
     const restore = async (persist: boolean) => {
@@ -561,13 +564,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
         // The earlier modifiedAt goes back too, as in the store below.
         await todoRepository.bulkUpdate(ids.map((todoId) => {
           const p = prev.get(todoId)
-          return { todoId, changes: { urgent: p?.urgent, important: p?.important, modifiedAt: p?.modifiedAt } }
+          return { todoId, changes: { urgent: p?.urgent, important: p?.important, focus: p?.focus, modifiedAt: p?.modifiedAt } }
         }))
       }
       set({
         todos: get().todos.map((t) => {
           const p = prev.get(t.id)
-          return p ? { ...t, urgent: p.urgent, important: p.important, modifiedAt: p.modifiedAt } : t
+          return p ? { ...t, urgent: p.urgent, important: p.important, focus: p.focus, modifiedAt: p.modifiedAt } : t
         }),
       })
     }
@@ -586,7 +589,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         return c ? [{ todoId: t.id, changes: patch(c) }] : []
       }), now),
       () => { void restore(false) },
-      'Failed to update urgent / important',
+      'Failed to update the priority flags',
       {
         description,
         redo: () => get().setMarkerFlags(changes, description),
@@ -602,7 +605,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'dueDate', undefined, label, get, set, { showSnackbar: true })
   },
 
-  async markFollowedUp(ids: number[]) {
+  async markFollowedUp(ids: number[], description?: string, detail?: string) {
     const targets = get().todos.filter((t) => ids.includes(t.id))
     if (targets.length === 0) return
     const now = new Date()
@@ -614,7 +617,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       modifiedAt: t.modifiedAt,
     }]))
     const targetIds = targets.map((t) => t.id)
-    const description = `Followed up · next follow-up ${formatFollowupDate(next, now)}`
+    const name = description ?? `Followed up · next follow-up ${formatFollowupDate(next, now)}`
     return optimistic(
       () => set({
         todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changes, modifiedAt: now } : t)),
@@ -628,8 +631,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
       }),
       'Failed to mark tasks followed up',
       {
-        description,
-        redo: () => get().markFollowedUp(targetIds),
+        description: name,
+        detail,
+        redo: () => get().markFollowedUp(targetIds, description, detail),
         undo: async () => {
           const undoNow = new Date()
           await todoRepository.bulkUpdate(targetIds.map((todoId) => {

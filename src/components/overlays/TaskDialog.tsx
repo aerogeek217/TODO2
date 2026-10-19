@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useIsMobile } from '../../hooks/use-is-mobile'
+import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
 import { copyTasksRich } from '../../services/task-copy'
 import {
   resolveTaskDialog,
@@ -208,7 +209,7 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
             type="button"
             className={styles.ghostBtn}
             data-task-dialog-checkin=""
-            onClick={() => useUIStore.getState().openCheckinDialog([personId])}
+            onClick={() => { void sendPersonCheckin(personId) }}
           >
             <EnvelopeIcon size={12} />
             Email check-in

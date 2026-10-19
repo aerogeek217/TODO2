@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateInitials, isValidEmail, normalizeEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
+import { checkinAddress, generateInitials, isValidEmail, normalizeEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
 
 describe('generateInitials', () => {
   it('"John Doe" → "JD"', () => {
@@ -63,5 +63,14 @@ describe('person email helpers', () => {
     const cleared = withEmail({ name: 'Ann', email: 'old@x.io' }, '  ')
     expect(cleared).toEqual({ name: 'Ann' })
     expect('email' in cleared).toBe(false)
+  })
+})
+
+describe('checkinAddress', () => {
+  it('is the trimmed address when it is one valid address, else empty — never the name or the bad value', () => {
+    expect(checkinAddress(' ada@example.com ')).toBe('ada@example.com')
+    for (const bad of [undefined, '', '   ', 'Ada Lovelace', 'a@b.com,evil@x.com', '"Ada" <a@b.com>', 'a@b.com\r\nBcc: z@z.com']) {
+      expect(checkinAddress(bad), JSON.stringify(bad)).toBe('')
+    }
   })
 })

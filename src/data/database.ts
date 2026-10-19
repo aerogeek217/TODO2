@@ -24,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 64
+export const CURRENT_DB_VERSION = 65
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -361,9 +361,16 @@ export class Todo2Database extends Dexie {
     // each stored list predicate's date range and has-due-date / has-follow-up
     // filters into `dates` (a clause per date type), and drops the lists'
     // `maxTasks` / `limitMode` and the `maxTags` setting.
+    this.version(64).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 64))
+
+    // v65: a version marker. No index or data change
+    // (`upgrades/v65-is-not-and-eisenhower-list.ts` returns its input); v65
+    // data may hold list "is not" switches, Priority No markers and
+    // Eisenhower tabs on a list or with custom panes, which an older build
+    // would drop silently, so older builds refuse it.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `64` first.
+    // docblock above). When bumping, turn this into a literal `65` first.
     this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }

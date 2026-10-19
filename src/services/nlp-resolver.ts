@@ -37,7 +37,7 @@ export interface ResolvedInput {
 /**
  * Case-insensitive name matching. Tries exact match, then prefix.
  */
-function matchByName<T>(name: string, items: T[], getKey: (item: T) => string): T | undefined {
+function matchByName<T>(name: string, items: readonly T[], getKey: (item: T) => string): T | undefined {
   const lower = name.toLowerCase()
   return items.find((item) => getKey(item).toLowerCase() === lower)
     ?? items.find((item) => getKey(item).toLowerCase().startsWith(lower))
@@ -47,7 +47,7 @@ function matchByName<T>(name: string, items: T[], getKey: (item: T) => string): 
  * Case-insensitive prefix match: find the best person matching a parsed name.
  * Extends matchByName with initials and first-name matching.
  */
-function matchPerson(name: string, people: Person[]): Person | undefined {
+export function matchPerson(name: string, people: readonly Person[]): Person | undefined {
   const lower = name.toLowerCase()
   return matchByName(name, people, (p) => p.name)
     ?? people.find((p) => p.initials.toLowerCase() === lower)

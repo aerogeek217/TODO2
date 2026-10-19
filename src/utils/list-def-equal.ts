@@ -3,6 +3,7 @@ import type { TodoPredicate } from '../models'
 import { effectiveSortDirection } from '../models'
 import { dateFiltersEqual } from './date-filters'
 import { markersEqual } from './markers'
+import { negationEqual } from './filter-negation'
 
 function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null | undefined): boolean {
   if (a == null && b == null) return true
@@ -13,7 +14,8 @@ function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null |
   return true
 }
 
-function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
+/** Whether two predicates filter the same (id lists as sets, the "is not" switches included). */
+export function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
   return (
     a.showCompleted === b.showCompleted &&
     a.searchText === b.searchText &&
@@ -21,7 +23,8 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
     markersEqual(a.markers, b.markers) &&
     idArraysEqualAsSet(a.personIds, b.personIds) &&
     idArraysEqualAsSet(a.statusIds, b.statusIds) &&
-    idArraysEqualAsSet(a.tags, b.tags)
+    idArraysEqualAsSet(a.tags, b.tags) &&
+    negationEqual(a, b)
   )
 }
 
@@ -52,8 +55,9 @@ export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt'
 
 /**
  * The editor rows whose value differs between `a` and `b` (e.g. a draft and
- * the saved list). Show completed counts as part of the filters and the sort
- * direction as part of the sort; `sortOrder` is never compared.
+ * the saved list). Show completed and the "is not" switches count as part
+ * of the filters and the sort direction as part of the sort; `sortOrder` is
+ * never compared.
  */
 export function changedListFields(a: PersistedListDefinition, b: PersistedListDefinition): ReadonlySet<ListDefField> {
   const out = new Set<ListDefField>()

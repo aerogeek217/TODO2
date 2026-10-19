@@ -29,6 +29,20 @@
   max-width: min(360px, calc(100vw - 96px));
 }
 
+/* An undo message with a second line (e.g. how to finish a check-in). */
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.detail {
+  max-width: min(360px, calc(100vw - 140px));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+}
+
 .undoButton {
   background: none;
   border: none;

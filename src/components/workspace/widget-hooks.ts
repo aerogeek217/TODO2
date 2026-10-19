@@ -1,43 +1,77 @@
 import { useMemo } from 'react'
-import { getActiveTab, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 
+/** A deleted list's name in a tab title. */
+export const DELETED_LIST_TITLE = '(Deleted list)'
+
 /**
- * A tab's title: a list tab shows its list's name (`listName`, looked up by
- * the caller; `(Deleted list)` when its list is gone), other tabs their
- * kind's name.
+ * A tab's title: a tab on a list (a list tab, an Eisenhower tab on a list)
+ * shows its list's name (`listName`, looked up by the caller; `(Deleted
+ * list)` when its list is gone), other tabs their kind's name.
  */
 export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
-  if (tab.kind === 'lens') return tab.config.listDefinitionId == null ? widgetKindLabel('lens') : (listName ?? '(Deleted list)')
-  return widgetKindLabel(tab.kind)
+  if (tabListId(tab) == null) return widgetKindLabel(tab.kind)
+  return listName ?? DELETED_LIST_TITLE
 }
 
 /**
- * A tab's title (`tabTitle`), kept current. A list tab shows the name as
- * edited (the list's unsaved draft), else the saved name.
+ * A tab's tooltip: its title, with the kind first on an Eisenhower tab on a
+ * list (`Eisenhower · <list>`) — its title alone reads like a list tab.
  */
-export function useTabTitle(tab: LayoutTab | undefined): string {
-  const listId = tab?.kind === 'lens' ? tab.config.listDefinitionId : undefined
+export function tabTooltip(tab: LayoutTab, listName: string | undefined): string {
+  const title = tabTitle(tab, listName)
+  return tab.kind === 'eisenhower' && tabListId(tab) != null ? `${widgetKindLabel(tab.kind)} · ${title}` : title
+}
+
+/**
+ * The name a tab's list shows, from its saved name and its unsaved draft's:
+ * as edited (a blank draft name aside), else saved; `undefined` when the
+ * list is gone. The one rule for every tab title — the strip, the `+N`
+ * overflow menu, the phone.
+ */
+function shownName(savedName: string | undefined, draftName: string | undefined): string | undefined {
+  if (savedName == null) return undefined
+  return draftName?.trim() || savedName
+}
+
+/** `shownName` of the list `listId`. */
+function shownListName(
+  listId: number | undefined,
+  defs: readonly { id: number; name: string }[],
+  drafts: Readonly<Record<number, { name: string } | undefined>>,
+): string | undefined {
+  if (listId == null) return undefined
+  return shownName(defs.find((d) => d.id === listId)?.name, drafts[listId]?.name)
+}
+
+/**
+ * A tab's title (`tabTitle`) and tooltip (`tabTooltip`), kept current. A
+ * tab on a list shows the name as edited (the list's unsaved draft), else
+ * the saved name.
+ */
+export function useTabLabels(tab: LayoutTab | undefined): { title: string; tooltip: string } {
+  const listId = tab ? tabListId(tab) : undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
-  const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name.trim() : undefined))
-  const listName = savedName != null ? (draftName || savedName) : undefined
-  return tab ? tabTitle(tab, listName) : ''
+  const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name : undefined))
+  const listName = shownName(savedName, draftName)
+  return tab ? { title: tabTitle(tab, listName), tooltip: tabTooltip(tab, listName) } : { title: '', tooltip: '' }
+}
+
+/** A tab's title (`tabTitle`), kept current (see `useTabLabels`). */
+export function useTabTitle(tab: LayoutTab | undefined): string {
+  return useTabLabels(tab).title
 }
 
 /** `useTabTitle` for every tab of a strip, in order. */
 export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
-  return useMemo(() => tabs.map((tab) => {
-    const listId = tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
-    const savedName = listId != null ? defs.find((d) => d.id === listId)?.name : undefined
-    const draftName = listId != null ? drafts[listId]?.name.trim() : undefined
-    return tabTitle(tab, savedName != null ? (draftName || savedName) : undefined)
-  }), [tabs, defs, drafts])
+  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab), defs, drafts))), [tabs, defs, drafts])
 }
 
 /**

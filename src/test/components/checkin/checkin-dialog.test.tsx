@@ -108,7 +108,11 @@ describe('CheckinDialog — rows', () => {
   it('lists people with open tasks; the people it was opened for come first, ticked', () => {
     open([2])
     const names = Array.from(dialog().querySelectorAll('[data-checkin-row]')).map((r) => r.querySelector('label')?.textContent)
-    expect(names).toEqual(['Bob Stonebob@example.com', 'Ada Lovelaceada@example.com', 'Cy YoungNo email address'])
+    expect(names).toEqual([
+      'Bob Stonebob@example.com',
+      'Ada Lovelaceada@example.com',
+      'Cy YoungNo email address — add the recipient in your mail app',
+    ])
     expect(within(row(2)).getByRole('checkbox')).toHaveProperty('checked', true)
     expect(within(row(1)).getByRole('checkbox')).toHaveProperty('checked', false)
     // Only a ticked row has a send button.
@@ -122,23 +126,42 @@ describe('CheckinDialog — rows', () => {
     expect(screen.getByRole('button', { name: 'Preview email' })).toHaveProperty('disabled', true)
   })
 
-  it('a person without an email: checkbox disabled, Add email instead of send, even when opened for them', () => {
+  it('a person without an email can be ticked and sent; Add email stays as a secondary action', () => {
     open([3])
     const box = within(row(3)).getByRole('checkbox')
-    expect(box).toHaveProperty('disabled', true)
-    expect(box).toHaveProperty('checked', false)
-    expect(within(row(3)).getByText('No email address')).toBeTruthy()
+    expect(box).toHaveProperty('disabled', false)
+    expect(box).toHaveProperty('checked', true)
+    expect(within(row(3)).getByText('No email address — add the recipient in your mail app')).toBeTruthy()
     expect(within(row(3)).getByRole('button', { name: 'Add email for Cy Young' })).toBeTruthy()
-    expect(within(row(3)).queryByRole('button', { name: /Copy & open/ })).toBeNull()
+    expect(within(row(3)).getByRole('button', { name: 'Copy & open for Cy Young' })).toBeTruthy()
+    // Not ticked by default when the dialog wasn't opened for them, but tickable.
+    cleanup()
+    open()
+    fireEvent.click(within(row(3)).getByRole('checkbox'))
+    expect(within(row(3)).getByRole('checkbox')).toHaveProperty('checked', true)
   })
 
-  it('a person whose stored email is not one valid address is treated like one without: Fix email, nothing to send', () => {
+  it('a person whose stored email is not one valid address: Fix email, sent without a recipient', () => {
     usePersonStore.setState({ people: [ada, bob, { ...cy, email: 'cy@example.com, evil@x.com' }] })
     open([3])
-    expect(within(row(3)).getByRole('checkbox')).toHaveProperty('disabled', true)
-    expect(within(row(3)).getByText('Invalid email address')).toBeTruthy()
+    expect(within(row(3)).getByRole('checkbox')).toHaveProperty('disabled', false)
+    expect(within(row(3)).getByText('Invalid email address — sent without a recipient')).toBeTruthy()
     expect(within(row(3)).getByRole('button', { name: 'Fix email for Cy Young' })).toBeTruthy()
-    expect(within(row(3)).queryByRole('button', { name: /Copy & open/ })).toBeNull()
+    expect(within(row(3)).getByRole('button', { name: 'Copy & open for Cy Young' })).toBeTruthy()
+  })
+
+  it('shows the notice it was opened with (a one-click send that could not send)', () => {
+    render(<CheckinDialog />)
+    act(() => useUIStore.getState().openCheckinDialog([1], 'Ada Lovelace has no open tasks in “Hot”, so nothing was sent.'))
+    expect(screen.getByRole('status').textContent).toBe('Ada Lovelace has no open tasks in “Hot”, so nothing was sent.')
+    // Already there when the dialog opens, so a live region wouldn't announce it: it describes the dialog.
+    const describedBy = dialog().getAttribute('aria-describedby')
+    expect(describedBy && document.getElementById(describedBy)?.textContent).toBe('Ada Lovelace has no open tasks in “Hot”, so nothing was sent.')
+  })
+
+  it('opened without a notice, the dialog has no description', () => {
+    open([1])
+    expect(dialog().hasAttribute('aria-describedby')).toBe(false)
   })
 
   it('counts open tasks per person for the Which tasks choice (completed ones never count)', async () => {
@@ -195,7 +218,7 @@ describe('CheckinDialog — sending', () => {
     expect(clicked[0]!.getAttribute('href')).toBe('mailto:ada@example.com?subject=Task%20check-in%3A%203%20open%20tasks')
     expect(within(row(1)).getByText('Opened ✓')).toBeTruthy()
     expect(screen.getByRole('status').textContent)
-      .toBe('Opened a message to Ada Lovelace. The body is on your clipboard: paste it with Ctrl+V.')
+      .toBe('Opened a message to Ada Lovelace <ada@example.com>. The body is on your clipboard: paste it with Ctrl+V.')
 
     // Sending counts as a follow-up on the email's tasks only — one undo entry.
     await waitFor(() => expect(useTodoStore.getState().todos.find((t) => t.id === 1)?.lastFollowupAt).toEqual(NOW))
@@ -203,6 +226,7 @@ describe('CheckinDialog — sending', () => {
     expect(followed).toEqual([1, 2, 3])
     expect((await db.todos.get(3))?.lastFollowupAt).toEqual(NOW)
     expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Ada Lovelace opened · 3 tasks followed up' })
 
     await act(() => useUndoStore.getState().undo())
     expect(useTodoStore.getState().todos.filter((t) => t.lastFollowupAt)).toEqual([])
@@ -227,6 +251,21 @@ describe('CheckinDialog — sending', () => {
     expect(clicked[0]!.getAttribute('href')).toContain('subject=Task%20check-in%3A%202%20open%20tasks')
   })
 
+  it('no address (missing or invalid): mailto: with an empty To — the name or bad value never in it', async () => {
+    for (const email of [undefined, 'cy@example.com,evil@x.com']) {
+      events = []
+      clicked = []
+      usePersonStore.setState({ people: [ada, bob, { ...cy, email }] })
+      open([3])
+      await act(async () => { fireEvent.click(within(row(3)).getByRole('button', { name: 'Copy & open for Cy Young' })) })
+      expect(events).toEqual(['clipboard', 'anchor'])
+      expect(clicked[0]!.getAttribute('href')).toBe('mailto:?subject=Task%20check-in%3A%201%20open%20task')
+      expect(screen.getByRole('status').textContent)
+        .toBe('Opened a message to Cy Young. The body is on your clipboard: paste it with Ctrl+V. Add the recipient in your mail app.')
+      cleanup()
+    }
+  })
+
   it('clipboard refused: nothing opened, no follow-up, an error line', async () => {
     clipboardOk = false
     open([1])
@@ -245,7 +284,7 @@ describe('CheckinDialog — sending', () => {
     expect(clicked[0]!.download).toBe('Check-in - Ada Lovelace - 2026-10-12.eml')
     expect(within(row(1)).getByText('Downloaded ✓')).toBeTruthy()
     expect(screen.getByRole('status').textContent)
-      .toBe('Downloaded the draft for Ada Lovelace (Check-in - Ada Lovelace - 2026-10-12.eml) — open it from your Downloads folder to review and send.')
+      .toBe('Downloaded the draft for Ada Lovelace <ada@example.com> (Check-in - Ada Lovelace - 2026-10-12.eml) — open it from your Downloads folder to review and send.')
     await waitFor(() => expect(document.activeElement?.getAttribute('aria-label')).toBe('Download .eml for Bob Stone'))
   })
 })
@@ -277,6 +316,14 @@ describe('CheckinDialog — layers and closing', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByTitle('Check-in email for Ada Lovelace')).toBeNull()
     expect(useUIStore.getState().checkinDialog).not.toBeNull()
+  })
+
+  it('Preview without an address: To reads “<name> (no address)”', () => {
+    open([3])
+    fireEvent.click(screen.getByRole('button', { name: 'Preview email' }))
+    const preview = screen.getByRole('dialog', { name: 'Preview email' })
+    expect(preview.textContent).toContain('To Cy Young (no address)')
+    expect(preview.textContent).not.toContain('<')
   })
 
   it('Esc, Done and the × close it', () => {

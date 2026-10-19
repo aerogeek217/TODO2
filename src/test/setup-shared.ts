@@ -22,6 +22,10 @@ afterAll(() => {
   const html = document.documentElement
   for (const name of html.getAttributeNames()) html.removeAttribute(name)
   vi.useRealTimers()
+  // Clipboard stubs a file defined straight on `navigator` / `globalThis`
+  // (jsdom has neither): a later file would find a working clipboard.
+  Reflect.deleteProperty(navigator, 'clipboard')
+  Reflect.deleteProperty(globalThis, 'ClipboardItem')
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   vi.restoreAllMocks()

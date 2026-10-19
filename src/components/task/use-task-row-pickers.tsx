@@ -53,7 +53,7 @@ export function useTaskRowPickers({
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [followupOpen, setFollowupOpen] = useState(false)
-  /** The pill / flag open the follow-up popover on "Followed up"; the menu's "Pick a date or interval…" on the date field. */
+  /** The pill / flag open the follow-up popover on "Mark followed up"; the menu's "Pick a date or interval…" on the date field. */
   const [followupFocus, setFollowupFocus] = useState<'followedUp' | 'next'>('followedUp')
   const [notesOpen, setNotesOpen] = useState(false)
   const peopleRef = useRef<HTMLElement>(null)

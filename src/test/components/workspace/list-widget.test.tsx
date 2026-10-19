@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
@@ -368,7 +368,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     return screen.getByRole('menu', { name: 'More actions' })
   }
 
-  it('the bulk bar keeps its button order and puts Followed up + Markers under ⋯ More', () => {
+  it('the bulk bar keeps its button order and puts Mark followed up + Markers under ⋯ More', () => {
     setup(def())
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })
@@ -377,7 +377,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
       .toEqual(['Set due date', 'Set follow-up', 'Assign people', 'Add tag', 'Complete', 'More', 'Delete', 'Clear selection'])
     const menu = openMore()
     expect(Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((b) => b.getAttribute('data-menu-label')))
-      .toEqual(['Followed up', 'Focus', 'Urgent', 'Important'])
+      .toEqual(['Mark followed up', 'Focus', 'Urgent', 'Important'])
   })
 
   it('⋯ More › Focus puts every selected task in focus, then takes them out', async () => {
@@ -441,7 +441,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     }))
   })
 
-  it('⋯ More › Followed up stamps every selected task, and is dimmed once they all were today', async () => {
+  it('⋯ More › Mark followed up stamps every selected task, and is dimmed once they all were today', async () => {
     useTodoStore.setState({
       todos: [
         makeTodo({ id: 1, title: 'Alice task', sortOrder: 1 }),
@@ -452,12 +452,12 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })
     openMore()
-    const followedUp = screen.getByRole('menuitem', { name: 'Followed up' })
+    const followedUp = screen.getByRole('menuitem', { name: 'Mark followed up' })
     expect(followedUp).not.toHaveTextContent('Today')
     await act(async () => { fireEvent.click(followedUp) })
     expect(useTodoStore.getState().todos.every((t) => t.lastFollowupAt instanceof Date)).toBe(true)
     openMore()
-    expect(screen.getByRole('menuitem', { name: /^Followed up/ })).toHaveTextContent('Today')
+    expect(screen.getByRole('menuitem', { name: /^Mark followed up/ })).toHaveTextContent('Today')
   })
 
   it('a Markers list offers + Add task (new tasks start with those markers)', () => {
@@ -465,6 +465,12 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
+  })
+
+  it('a list whose only Priority clause is a No offers + Add task (the new task starts without the marker)', () => {
+    setup(def({}, { markers: { urgent: false } }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
   })
 
   it('a Hot list re-filters when the Hot rule or the urgent range changes, and offers no + Add task', () => {
@@ -508,17 +514,20 @@ describe('ListWidget People group headers: email check-in', () => {
   beforeEach(() => {
     useUIStore.setState({ checkinDialog: null, taskDialog: null })
     useTodoStore.setState((s) => ({ todos: [...s.todos, makeTodo({ id: 5, title: 'Nobody’s task', sortOrder: 5 })] }))
+    // Its people loaded, as the store loads them: nobody.
+    usePersonStore.setState((s) => ({ assignedPeopleMap: new Map([...s.assignedPeopleMap, [5, []]]) }))
   })
 
   const header = (key: string) => document.querySelector(`[data-list-group="${key}"] button[aria-expanded]`) as HTMLElement
 
-  it('each person’s group has an envelope that opens the check-in with them ticked; Unassigned has none', () => {
+  // No clipboard in this environment: a one-click send can't copy, so it opens the check-in dialog for the person.
+  it('each person’s group has an envelope that sends their check-in (here: the dialog, as the copy fails); Unassigned has none', async () => {
     setup(def({ grouping: 'people' }))
     expect(screen.getAllByRole('button', { name: /^Email check-in to / }).map((b) => b.getAttribute('aria-label')))
       .toEqual(['Email check-in to Alice', 'Email check-in to Bob'])
     expect(document.querySelector('[data-list-group="unassigned"] [aria-label^="Email check-in"]')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2], notice: expect.stringMatching(/clipboard/) }))
     // The header itself still collapses its group.
     fireEvent.click(header('person-1'))
     expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
@@ -543,11 +552,11 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(useUIStore.getState().checkinDialog).toBeNull()
   })
 
-  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', () => {
+  it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', async () => {
     setup(def({ grouping: 'people' }))
     fireEvent.keyDown(header('person-2'), { key: 'F10', shiftKey: true })
     fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in: Bob' }))
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+    await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2] }))
     fireEvent.keyDown(screen.getByRole('button', { name: 'Email check-in to Alice' }), { key: 'ContextMenu' })
     expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
   })

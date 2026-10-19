@@ -9,39 +9,47 @@ import {
 } from '../../../models/workspace-layout'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useToday } from '../../../hooks/use-today'
-import { useFilterSettings } from '../../../hooks/use-filter-settings'
+import { usePaneContext } from '../../../hooks/use-pane-context'
+import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
 import { countActiveFilters } from '../../../utils/filter-criteria'
-import { applyFilter } from '../../../utils/filter-match'
+import { hasNarrowingFilters, type FilterChipNames } from '../../../utils/filter-chips'
 import { usePersonStore } from '../../../stores/person-store'
-import { useSettingsStore } from '../../../stores/settings-store'
-import { useStatusStore } from '../../../stores/status-store'
-import { useTagStore } from '../../../stores/tag-store'
-import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import {
-  blockedDropLines,
-  buildQuadrants,
+  blockedPaneLines,
+  classifyPanes,
   dropPreviewLabel,
   insertionIndex,
-  QUADRANT_FLAGS,
-  QUADRANT_NAME,
-  QUADRANT_SUBTITLE,
-  resolveQuadrantDrop,
-  type QuadrantDropResult,
+  paneAddHint,
+  resolvePaneDrops,
+  type PaneContext,
+  type PaneDropResult,
 } from '../../../utils/eisenhower'
-import { getFilterDefaults, withUrgentImportant } from '../../../utils/filter-defaults'
+import {
+  paneSubtitle,
+  paneWrites,
+  resolvePanes,
+  samePaneFilters,
+  withPaneConfig,
+  withPaneSeed,
+  type EisenhowerPane,
+} from '../../../utils/eisenhower-panes'
+import { getFilterDefaults, predicateToFilterDefaults } from '../../../utils/filter-defaults'
+import { isHotFilter, markerCondition } from '../../../utils/markers'
+import { noPaneTaskDialog } from '../../../services/task-dialog'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
+import { getTab } from '../../../utils/workspace-layout-ops'
 import { eisenhowerQuadrantDropId, TASK_DROP_KIND } from '../../../utils/task-dnd'
-import type { UrgentDueWithinDays } from '../../../utils/urgency'
 import { createValueStore, type ValueStore } from '../../../utils/value-store'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
-import { ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
-import { ChevronDownIcon, PlusIcon } from '../../shared/icons'
+import { FocusIcon, HotIcon, ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
+import { ChevronDownIcon, GearIcon, PlusIcon } from '../../shared/icons'
+import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
+import { useChipNames } from '../../shared/filters/filter-menu'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../list/ListWidgetRow'
@@ -49,6 +57,9 @@ import { dragTasks } from './eisenhower-drag'
 import tooltipStyles from '../../shared/Tooltip.module.css'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
+import { ListFilterRow } from '../list/ListFilterRow'
+import { openEditList, useTabTitle } from '../widget-hooks'
+import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../../hooks/use-eisenhower-source'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -58,10 +69,11 @@ const REFUSAL_OFFSET = { x: 4, y: 26 }
 
 /** What the widget reports to its cell: the tab count. */
 export interface EisenhowerResult {
-  /** Open tasks shown; `shown of total` when the screen filter hides some. */
+  /** Open tasks shown; `shown of total` when the screen filter (or the panes) hide some. */
   countLabel: string
 }
 
+/** The default panes' empty lines (their `QUADRANT_FLAGS` in words). */
 const EMPTY_LINES: Record<EisenhowerQuadrant, [string, string]> = {
   do: ['Nothing urgent and important', 'Drop a task here to mark it urgent and important.'],
   schedule: ['Nothing to schedule', 'Drop a task here to mark it important.'],
@@ -69,11 +81,9 @@ const EMPTY_LINES: Record<EisenhowerQuadrant, [string, string]> = {
   drop: ['Nothing here', 'Tasks with neither flag land here.'],
 }
 
-const ADD_HINT: Record<EisenhowerQuadrant, string> = {
-  do: 'Opens Quick Add marked urgent and important.',
-  schedule: 'Opens Quick Add marked important.',
-  delegate: 'Opens Quick Add marked urgent.',
-  drop: 'Opens Quick Add.',
+/** A custom pane's empty lines. */
+function emptyLines(pane: EisenhowerPane): [string, string] {
+  return pane.customFilter ? [`Nothing in ${pane.name}`, 'Tasks that match this pane show here.'] : EMPTY_LINES[pane.id]
 }
 
 /** A task drag over the workspace, as this widget sees it. */
@@ -82,13 +92,13 @@ interface QuadrantDrag {
   tasks: PersistedTodoItem[]
   /** The dragged task. */
   primary: PersistedTodoItem
-  /** What a drop on each quadrant would do. */
-  results: Record<EisenhowerQuadrant, QuadrantDropResult<PersistedTodoItem>>
+  /** What a drop on each pane would do. */
+  results: Record<EisenhowerQuadrant, PaneDropResult<PersistedTodoItem>>
   /** The dragged row's key when it came from this widget. */
   sourceKey: string | null
-  /** The quadrant of this widget under the pointer. */
+  /** The pane of this widget under the pointer. */
   over: EisenhowerQuadrant | null
-  /** The pointer (viewport), tracked while over a refusing quadrant. */
+  /** The pointer (viewport), tracked while over a refusing pane. */
   pointer: { x: number; y: number } | null
 }
 
@@ -99,24 +109,15 @@ function dragPoint(event: { activatorEvent: Event | null; delta: { x: number; y:
   return { x: e.clientX + event.delta.x, y: e.clientY + event.delta.y }
 }
 
-function dropResults(tasks: PersistedTodoItem[], today: Date, range: UrgentDueWithinDays): QuadrantDrag['results'] {
-  return {
-    do: resolveQuadrantDrop(tasks, 'do', today, range),
-    schedule: resolveQuadrantDrop(tasks, 'schedule', today, range),
-    delegate: resolveQuadrantDrop(tasks, 'delegate', today, range),
-    drop: resolveQuadrantDrop(tasks, 'drop', today, range),
-  }
-}
-
 /**
  * Follows task drags (from this widget or any other) and works out, per
- * quadrant, what a drop would do — for the valid-target hairlines, the hover
+ * pane, what a drop would do — for the valid-target hairlines, the hover
  * preview and the refusal tooltip. The drop itself is applied by the page
- * (`dispatchTaskDrop`).
+ * (`dispatchTaskDrop`), with the same rules (`resolvePaneDrop`).
  */
-function useQuadrantDrag(tabId: string, today: Date, range: UrgentDueWithinDays): QuadrantDrag | null {
+function useQuadrantDrag(tabId: string, panes: readonly EisenhowerPane[], ctx: PaneContext): QuadrantDrag | null {
   const [drag, setDrag] = useState<QuadrantDrag | null>(null)
-  const ctxRef = useLatestRef({ today, range })
+  const latest = useLatestRef({ panes, ctx })
   useDndMonitor({
     onDragStart(event: DragStartEvent) {
       const data = event.active.data.current
@@ -124,11 +125,11 @@ function useQuadrantDrag(tabId: string, today: Date, range: UrgentDueWithinDays)
       const tasks = dragTasks(data)
       const primary = tasks.find((t) => t.id === (data.todo as PersistedTodoItem).id) ?? tasks[0]
       if (!primary) return
-      const { today: t, range: r } = ctxRef.current
+      const { panes: p, ctx: c } = latest.current
       setDrag({
         tasks,
         primary,
-        results: dropResults(tasks, t, r),
+        results: resolvePaneDrops(tasks, p, c),
         sourceKey: data.listTabId === tabId && typeof data.rowKey === 'string' ? data.rowKey : null,
         over: null,
         pointer: null,
@@ -196,24 +197,49 @@ function RefusalTooltip({ lines, pointer, boundsRef }: {
   )
 }
 
-/** The flag glyphs of a quadrant's header. */
-function QuadrantGlyphs({ q }: { q: EisenhowerQuadrant }) {
-  const flags = QUADRANT_FLAGS[q]
-  if (!flags.urgent && !flags.important) return null
+/** The marker glyphs of a pane's header: the markers its filter wants (Yes), or the flame for Hot. */
+function PaneGlyphs({ pane }: { pane: EisenhowerPane }) {
+  const m = pane.filter.markers
+  if (isHotFilter(m)) {
+    return <span className={styles.glyphs} aria-hidden="true"><span className={styles.glyphHot}><HotIcon /></span></span>
+  }
+  const urgent = markerCondition(m, 'urgent') === true
+  const important = markerCondition(m, 'important') === true
+  const focus = markerCondition(m, 'focus') === true
+  if (!urgent && !important && !focus) return null
   return (
     <span className={styles.glyphs} aria-hidden="true">
-      {flags.urgent && <span className={styles.glyphUrgent}><UrgentIcon /></span>}
-      {flags.important && <span className={styles.glyphImportant}><ImportantIcon /></span>}
+      {urgent && <span className={styles.glyphUrgent}><UrgentIcon /></span>}
+      {important && <span className={styles.glyphImportant}><ImportantIcon /></span>}
+      {focus && <span className={styles.glyphFocus}><FocusIcon /></span>}
     </span>
   )
 }
 
-function AddButton({ q, onAdd }: { q: EisenhowerQuadrant; onAdd: () => void }) {
-  const label = `Add task to ${QUADRANT_NAME[q]}`
-  const { triggerProps, tooltip } = useTooltip(`${label}\n${ADD_HINT[q]}`)
+function AddButton({ pane, hint, onAdd }: { pane: EisenhowerPane; hint: string; onAdd: () => void }) {
+  const label = `Add task to ${pane.name}`
+  const { triggerProps, tooltip } = useTooltip(`${label}\n${hint}`)
   return (
     <button type="button" className={styles.add} aria-label={label} onClick={onAdd} {...triggerProps}>
       <PlusIcon size={12} strokeWidth={2} />
+      {tooltip}
+    </button>
+  )
+}
+
+/** The matrix's corner gear (shown on hover / focus): opens Customize panes. */
+function CustomizeGear({ onClick }: { onClick: () => void }) {
+  const { triggerProps, tooltip } = useTooltip('Customize panes')
+  return (
+    <button
+      type="button"
+      className={styles.customizeGear}
+      aria-label="Customize panes"
+      data-eisenhower-customize=""
+      onClick={onClick}
+      {...triggerProps}
+    >
+      <GearIcon size={14} />
       {tooltip}
     </button>
   )
@@ -229,27 +255,35 @@ interface RowContext {
   cursorKey: string | null
   onSelect: (key: string, todoId: number, mods: ListRowSelectMods) => void
   onOpen: (todoId: number) => void
-  /** The tab's task-row details width (one value for every quadrant). */
+  /** The tab's task-row details width (one value for every pane). */
   detailsWidth: number | undefined
   onDetailsWidthChange: (width: number | undefined) => void
-  /** The width while a quadrant's divider is dragged: every quadrant follows it live. */
+  /** The width while a pane's divider is dragged: every pane follows it live. */
   liveDetailsWidth: ValueStore<number | null>
 }
 
 interface QuadrantProps {
-  q: EisenhowerQuadrant
+  pane: EisenhowerPane
+  subtitle: string
+  addHint: string
   tasks: PersistedTodoItem[]
   openCount: number
   stacked: boolean
   collapsed: boolean
-  /** The screen filter hides every task: no per-quadrant empty lines. */
+  /** The screen filter hides every task: no per-pane empty lines. */
   hideEmptyLines: boolean
+  /** This pane's header holds the corner gear's slot (the matrix's top-right corner). */
+  gearSlot: boolean
   ctx: RowContext
+  names: FilterChipNames
   onToggle: (collapse: boolean) => void
   onAdd: () => void
+  /** Opens the pane's header menu (right-click / Shift+F10); absent on phones. */
+  onOpenMenu?: (at: { x: number; y: number }) => void
 }
 
-function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx, onToggle, onAdd }: QuadrantProps) {
+function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, collapsed, hideEmptyLines, gearSlot, ctx, names, onToggle, onAdd, onOpenMenu }: QuadrantProps) {
+  const q = pane.id
   const { drag, isMobile, tabId } = ctx
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const { setNodeRef } = useDroppable({
@@ -267,7 +301,7 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
       : result.kind === 'blocked'
         ? (isOver ? 'refused' : 'blocked')
         : 'current'
-  const preview = isOver && result?.kind === 'apply' ? dropPreviewLabel(result.changes) : ''
+  const preview = isOver && result?.kind === 'apply' ? dropPreviewLabel(result.changes, names) : ''
   const fromHere = drag?.sourceKey != null && tasks.some((t) => rowKey(q, t.id) === drag.sourceKey)
   const lineAt = isOver && result?.kind === 'apply' && drag ? insertionIndex(tasks, drag.primary) : -1
 
@@ -312,13 +346,14 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
   if (lineAt >= 0 && j === lineAt) rows.push(<div key="drop-line" className={styles.dropLine} data-drop-line="" />)
 
   const showBody = !stacked || !collapsed
-  const [emptyTitle, emptyHint] = EMPTY_LINES[q]
+  const [emptyTitle, emptyHint] = emptyLines(pane)
   const headerContent = (
     <>
       {stacked && <span className={styles.chevron} aria-hidden="true"><ChevronDownIcon /></span>}
-      <QuadrantGlyphs q={q} />
-      <span className={styles.name}>{QUADRANT_NAME[q]}</span>
-      <span className={styles.subtitle}>{QUADRANT_SUBTITLE[q]}</span>
+      <PaneGlyphs pane={pane} />
+      <span className={styles.name}>{pane.name}</span>
+      {pane.customFilter && <span className={styles.customDot} role="img" aria-label="custom filter" title="This pane’s filter differs from its default" data-testid="eisenhower-pane-custom" />}
+      <span className={styles.subtitle} data-testid="eisenhower-pane-subtitle">{subtitle}</span>
     </>
   )
 
@@ -329,9 +364,23 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
       data-eis-quadrant={q}
       data-drop-state={state}
       data-collapsed={stacked && collapsed ? 'true' : undefined}
-      aria-label={`${QUADRANT_NAME[q]}: ${QUADRANT_SUBTITLE[q]}`}
+      aria-label={`${pane.name}: ${subtitle}`}
     >
-      <div className={styles.header}>
+      <div
+        className={styles.header}
+        data-gear-slot={gearSlot ? '' : undefined}
+        onContextMenu={onOpenMenu ? (e) => {
+          e.preventDefault()
+          onOpenMenu({ x: e.clientX, y: e.clientY })
+        } : undefined}
+        onKeyDown={onOpenMenu ? (e) => {
+          if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+            e.preventDefault()
+            const r = e.currentTarget.getBoundingClientRect()
+            onOpenMenu({ x: r.left + 8, y: r.bottom + 4 })
+          }
+        } : undefined}
+      >
         {stacked ? (
           <button
             type="button"
@@ -349,7 +398,7 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
           <div className={styles.title}>{headerContent}</div>
         )}
         <span className={styles.headerEnd}>
-          {!drag && <AddButton q={q} onAdd={onAdd} />}
+          {!drag && <AddButton pane={pane} hint={hint} onAdd={onAdd} />}
           {preview && <span className={styles.preview} data-testid="eisenhower-drop-preview">{preview}</span>}
           <span className={styles.count} data-testid="eisenhower-count">{openCount}</span>
         </span>
@@ -376,27 +425,87 @@ function Quadrant({ q, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx
   )
 }
 
+interface WidgetProps {
+  tab: EisenhowerTab
+  onResult?: (r: EisenhowerResult) => void
+  /**
+   * Opens Customize panes (on `pane` when given) — from the corner gear and
+   * a pane header's menu; absent = neither (phones: no layout edits).
+   */
+  onCustomizePanes?: (pane?: EisenhowerQuadrant) => void
+}
+
 /**
- * The Eisenhower widget: the screen-filtered tasks in four quadrants by
- * effective Urgent (flag or due date, `utils/urgency`) × Important, as a 2×2
- * grid or — in narrow cells and on phones — four collapsible sections. Rows
- * drag between quadrants (and in from other widgets) to set the flags; a task
- * urgent by its due date can't be dropped on a not-urgent quadrant. Each
- * quadrant's "+" opens Quick Add with its flags.
+ * The Eisenhower widget: four panes, as a 2×2 grid or — in narrow cells and
+ * on phones — four collapsible sections. It considers all tasks, or one
+ * saved list's (`config.listDefinitionId`: its unsaved draft included, its
+ * prompt, group and sort ignored, its filter line above the panes); the
+ * screen filter narrows either. Each task shows in the first pane whose
+ * filter it matches (by default the quadrants of effective Urgent × Important,
+ * `utils/urgency`); tasks in no pane are counted under the grid. Rows drag
+ * between panes (and in from other widgets) to get what the pane's filter
+ * implies; a drop that wouldn't land the task there is refused, with why.
+ * Each pane's "+" opens Quick Add with the same writes (and the list's
+ * defaults).
  */
-export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResult?: (r: EisenhowerResult) => void }) {
+export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProps) {
+  const source = useEisenhowerSource(tab, useTabTitle(tab))
+  if (source.kind === 'deleted') {
+    return (
+      <div className={styles.missing}>
+        <span className={styles.noteTitle}>This list was deleted</span>
+        <button
+          type="button"
+          className={styles.noteAction}
+          onClick={() => useWorkspaceStore.getState().patchTabConfig(tab.id, 'eisenhower', { listDefinitionId: undefined })}
+        >
+          Show all tasks
+        </button>
+      </div>
+    )
+  }
+  return (
+    <EisenhowerBody
+      tab={tab}
+      onResult={onResult}
+      onCustomizePanes={onCustomizePanes}
+      shown={source.shown}
+      openTotal={source.openTotal}
+      list={source.list}
+    />
+  )
+}
+
+/** Resets pane `q` of Eisenhower tab `tabId` to its defaults, from the config as it is now. */
+function resetPane(tabId: string, q: EisenhowerQuadrant): void {
+  const store = useWorkspaceStore.getState()
+  const tab = store.working ? getTab(store.working, tabId) : undefined
+  if (tab?.kind !== 'eisenhower') return
+  store.patchTabConfig(tabId, 'eisenhower', { panes: withPaneConfig(tab.config.panes, q, null) })
+}
+
+/** `N tasks are` / `1 task is`. */
+function tasksAre(n: number, where = ''): string {
+  return n === 1 ? `task${where} is` : `tasks${where} are`
+}
+
+interface BodyProps extends WidgetProps {
+  /** The tasks considered: the source's members passing the screen filter. */
+  shown: PersistedTodoItem[]
+  /** Open tasks of the source before the screen filter (all, or the list's). */
+  openTotal: number
+  /** Set when the widget shows a saved list. */
+  list?: ListSourceContext
+}
+
+function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, list }: BodyProps) {
   const isMobile = useIsMobile()
-  // A quadrant divider's width while it is dragged: every quadrant follows it live.
+  // A pane divider's width while it is dragged: every pane follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
   const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
-  const today = useToday()
-  const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const todos = useTodoStore((s) => s.todos)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const statuses = useStatusStore((s) => s.statuses)
+  const paneCtx = usePaneContext()
+  const names = useChipNames()
   const screen = useFilterStore((s) => s.filters)
-  const markerSettings = useFilterSettings()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -404,17 +513,21 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
     rootRef.current = el
     sizeRef(el)
   }, [sizeRef])
+  const [paneMenu, setPaneMenu] = useState<{ q: EisenhowerQuadrant; x: number; y: number } | null>(null)
 
   const stacked = isMobile || (size.width > 0 && size.width < EISENHOWER_STACK_BREAKPOINT_PX)
   const collapsed = useMemo(() => new Set(tab.viewState?.collapsed ?? []), [tab.viewState?.collapsed])
 
-  const shown = useMemo(
-    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
+  const panes = useMemo(() => resolvePanes(tab.config.panes), [tab.config.panes])
+  // Classified again only when a filter changes (not on a rename).
+  const sortingPanes = useEqualValue(panes, samePaneFilters)
+  const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
+  const labels = useMemo(
+    () => new Map(panes.map((p) => [p.id, { subtitle: paneSubtitle(p, names), addHint: paneAddHint(p, names) }])),
+    [panes, names],
   )
-  const quadrants = useMemo(() => buildQuadrants(shown, today, range), [shown, today, range])
-  const openShown = useMemo(() => shown.filter((t) => !t.isCompleted).length, [shown])
-  const openTotal = useMemo(() => todos.filter((t) => !t.isCompleted).length, [todos])
+  const noneOpen = useMemo(() => none.filter((t) => !t.isCompleted), [none])
+  const openShown = useMemo(() => countOpen(shown) - noneOpen.length, [shown, noneOpen])
   const countLabel = openShown < openTotal ? `${openShown} of ${openTotal}` : String(openShown)
 
   const onResultRef = useLatestRef(onResult)
@@ -422,10 +535,11 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
     onResultRef.current?.({ countLabel })
   }, [countLabel, onResultRef])
 
-  const drag = useQuadrantDrag(tab.id, today, range)
+  const drag = useQuadrantDrag(tab.id, panes, paneCtx)
   const overResult = drag?.over ? drag.results[drag.over] : undefined
-  const refused = drag?.over != null && overResult?.kind === 'blocked' ? { q: drag.over, blocked: overResult.blocked } : null
-  const refusedQ = refused?.q ?? null
+  const refusedPane = drag?.over != null && overResult?.kind === 'blocked' ? panes.find((p) => p.id === drag.over) : undefined
+  const refused = refusedPane && overResult?.kind === 'blocked' ? { pane: refusedPane, blocked: overResult.blocked } : null
+  const refusedQ = refused?.pane.id ?? null
   const pointer = drag?.pointer ?? null
 
   // A refused target shows the not-allowed cursor wherever the pointer is.
@@ -439,8 +553,8 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
     () => EISENHOWER_QUADRANTS.flatMap((q) =>
-      stacked && collapsed.has(q) ? [] : quadrants[q].map((t) => ({ key: rowKey(q, t.id), todoId: t.id }))),
-    [quadrants, stacked, collapsed],
+      stacked && collapsed.has(q) ? [] : byPane[q].map((t) => ({ key: rowKey(q, t.id), todoId: t.id }))),
+    [byPane, stacked, collapsed],
   )
   const { inScope, selectedIds, cursorKey, onSelect } = useWidgetSelection(tab.id, () => rows)
 
@@ -449,12 +563,20 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'eisenhower', { collapsed: next })
   }
 
-  const add = (q: EisenhowerQuadrant) => {
-    const defaults = withUrgentImportant(getFilterDefaults(useFilterStore.getState().filters), QUADRANT_FLAGS[q])
-    useUIStore.getState().openQuickAdd({ defaults, source: QUADRANT_NAME[q] })
+  const add = (pane: EisenhowerPane) => {
+    // On a list: what the list's own Add task seeds; on all tasks: the screen filter's.
+    const seed = list
+      ? predicateToFilterDefaults(list.definition.membership.predicate)
+      : getFilterDefaults(useFilterStore.getState().filters)
+    const defaults = withPaneSeed(seed, paneWrites(pane.filter, names))
+    useUIStore.getState().openQuickAdd({ defaults, source: list ? `${pane.name} · ${list.title}` : pane.name })
   }
 
-  const filterHidesAll = shown.length === 0 && openTotal > 0
+  // What hides every task, if anything: the list's own filter (no open task
+  // is in the list), else the screen filter.
+  const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0
+    && hasNarrowingFilters(list.definition.membership.predicate)
+  const screenHidesAll = shown.length === 0 && openTotal > 0
   const filterCount = countActiveFilters(screen)
   const ctx: RowContext = {
     tabId: tab.id, isMobile, drag, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
@@ -463,49 +585,107 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
     liveDetailsWidth,
   }
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
+  const customize = !isMobile ? onCustomizePanes : undefined
+  // The corner gear sits at the matrix's top-right: the second pane in the grid, the first when stacked.
+  const gearPane: EisenhowerQuadrant = stacked ? 'do' : 'schedule'
+
+  const menuPane = paneMenu ? panes.find((p) => p.id === paneMenu.q) : undefined
+  const paneMenuEntries: MenuEntry[] = menuPane && customize ? [
+    { kind: 'item', label: 'Edit pane…', onSelect: () => customize(menuPane.id) },
+    ...(menuPane.customName || menuPane.customFilter ? [{
+      kind: 'item' as const,
+      label: 'Reset pane',
+      onSelect: () => resetPane(tab.id, menuPane.id),
+    }] : []),
+  ] : []
 
   return (
     <div
-      ref={setRootRef}
-      className={`${styles.widget} ${stacked ? styles.stacked : styles.grid} ${isMobile ? styles.touch : ''}`}
-      data-eisenhower={tab.id}
-      data-layout={stacked ? 'stacked' : 'grid'}
-      data-dragging={drag ? 'true' : undefined}
-      data-selection-scope={isMobile ? undefined : tab.id}
+      className={styles.frame}
+      data-list-host={list ? tab.id : undefined}
+      // Phones: the list's filter chips (a shared stylesheet) get their touch height.
+      data-touch-chips={list && isMobile ? '' : undefined}
     >
-      {EISENHOWER_QUADRANTS.map((q) => (
-        <Quadrant
-          key={q}
-          q={q}
-          tasks={quadrants[q]}
-          openCount={quadrants[q].filter((t) => !t.isCompleted).length}
-          stacked={stacked}
-          collapsed={collapsed.has(q)}
-          hideEmptyLines={filterHidesAll}
-          ctx={ctx}
-          onToggle={(c) => toggle(q, c)}
-          onAdd={() => add(q)}
-        />
-      ))}
-      {filterHidesAll && !drag && (
-        <div className={styles.notePanel} role="status">
-          <span className={styles.noteTitle}>No tasks match</span>
-          <span className={styles.noteHint}>
-            All {openTotal} open {openTotal === 1 ? 'task is' : 'tasks are'} hidden by the screen filter.
-          </span>
-          <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
-            {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
-          </button>
-        </div>
+      {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} />}
+      <div
+        ref={setRootRef}
+        className={`${styles.widget} ${stacked ? styles.stacked : styles.grid} ${isMobile ? styles.touch : ''}`}
+        data-eisenhower={tab.id}
+        data-layout={stacked ? 'stacked' : 'grid'}
+        data-dragging={drag ? 'true' : undefined}
+        data-selection-scope={isMobile ? undefined : tab.id}
+      >
+        {/* First in the DOM (it sits at the top-right corner), so Tab reaches it before the rows. */}
+        {customize && <CustomizeGear onClick={() => customize()} />}
+        {panes.map((pane) => (
+          <Quadrant
+            key={pane.id}
+            pane={pane}
+            subtitle={labels.get(pane.id)?.subtitle ?? ''}
+            addHint={labels.get(pane.id)?.addHint ?? ''}
+            tasks={byPane[pane.id]}
+            openCount={byPane[pane.id].filter((t) => !t.isCompleted).length}
+            stacked={stacked}
+            collapsed={collapsed.has(pane.id)}
+            hideEmptyLines={listHidesAll || screenHidesAll}
+            gearSlot={customize != null && pane.id === gearPane}
+            ctx={ctx}
+            names={names}
+            onToggle={(c) => toggle(pane.id, c)}
+            onAdd={() => add(pane)}
+            onOpenMenu={customize ? (at) => setPaneMenu({ q: pane.id, ...at }) : undefined}
+          />
+        ))}
+        {listHidesAll && !drag && (
+          <div className={styles.notePanel} role="status">
+            <span className={styles.noteTitle}>No tasks match</span>
+            <span className={styles.noteHint}>
+              All {list.appOpen} open {tasksAre(list.appOpen)} hidden by the filters of “{list.title}”.
+            </span>
+            <button type="button" className={styles.noteAction} onClick={() => openEditList(tab.id, list.definition.id)}>
+              Edit list
+            </button>
+          </div>
+        )}
+        {screenHidesAll && !drag && (
+          <div className={styles.notePanel} role="status">
+            <span className={styles.noteTitle}>No tasks match</span>
+            <span className={styles.noteHint}>
+              All {openTotal} open {tasksAre(openTotal, list ? ` in “${list.title}”` : '')} hidden by the screen filter.
+            </span>
+            <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
+              {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
+            </button>
+          </div>
+        )}
+        {refused && pointer && drag && (
+          <RefusalTooltip
+            lines={blockedPaneLines(refused.pane, refused.blocked, drag.tasks.length, panes, paneCtx, names)}
+            pointer={pointer}
+            boundsRef={rootRef}
+          />
+        )}
+        {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
+      </div>
+      {noneOpen.length > 0 && (
+        <button
+          type="button"
+          className={styles.noPane}
+          data-testid="eisenhower-no-pane"
+          onClick={() => useUIStore.getState().showTaskDialog(noPaneTaskDialog(noneOpen.map((t) => t.id)))}
+        >
+          {noneOpen.length} open {noneOpen.length === 1 ? 'task' : 'tasks'} in no pane
+        </button>
       )}
-      {refused && pointer && drag && (
-        <RefusalTooltip
-          lines={blockedDropLines(refused.q, refused.blocked, drag.tasks.length, today, range)}
-          pointer={pointer}
-          boundsRef={rootRef}
+      {paneMenu && paneMenuEntries.length > 0 && (
+        <MenuPopover
+          point={{ x: paneMenu.x, y: paneMenu.y }}
+          label={`${menuPane?.name ?? 'Pane'} pane`}
+          entries={paneMenuEntries}
+          restoreFocus
+          onClose={() => setPaneMenu(null)}
         />
       )}
-      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
     </div>
   )
 }

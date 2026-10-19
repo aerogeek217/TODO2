@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CheckinEmail } from '../../../services/checkin-email/build'
-import { checkinEmlFileName, openMailtoLink } from '../../../services/checkin-email/handoff'
+import { checkinEmlFileName, InvalidRecipientError, openMailtoLink } from '../../../services/checkin-email/handoff'
 import { sendCheckinEmail } from '../../../services/checkin-email/send'
 
 const email: CheckinEmail = {
@@ -83,14 +83,21 @@ describe('sendCheckinEmail — open in the mail app', () => {
     expect(events).toEqual(['clipboard'])
   })
 
-  it('copies and opens nothing for an address that is not one valid address', async () => {
+  it('throws, copying and opening nothing, for an address that is not one valid address', async () => {
     stubClipboard(true)
     for (const method of ['mailto', 'eml'] as const) {
       const to = 'ada@example.com,evil@x.com'
-      expect(await sendCheckinEmail({ email: { ...email, to }, personName: 'Ada', method, sentAt })).toBe('invalid-address')
+      await expect(sendCheckinEmail({ email: { ...email, to }, personName: 'Ada', method, sentAt })).rejects.toThrow(InvalidRecipientError)
     }
     expect(events).toEqual([])
     expect(blobs).toEqual([])
+  })
+
+  it('no address: copies, then opens mailto: with an empty To', async () => {
+    stubClipboard(true)
+    expect(await sendCheckinEmail({ email: { ...email, to: '' }, personName: 'Ada Lovelace', method: 'mailto', sentAt })).toBe('opened')
+    expect(events).toEqual(['clipboard', 'anchor'])
+    expect(clicked[0]!.getAttribute('href')).toBe('mailto:?subject=Task%20check-in%3A%202%20open%20tasks')
   })
 
   it('opens nothing when the clipboard refuses', async () => {
@@ -113,6 +120,17 @@ describe('sendCheckinEmail — .eml draft', () => {
     expect(text).toMatch(/^X-Unsent: 1\r\n/)
     expect(text).toContain('To: "Ada Lovelace" <ada@example.com>\r\n')
     expect(text).toContain('Subject: Task check-in: 2 open tasks\r\n')
+  })
+})
+
+describe('sendCheckinEmail — .eml draft without an address', () => {
+  it('downloads a draft with no To header (the name only in the file name)', async () => {
+    stubClipboard(true)
+    expect(await sendCheckinEmail({ email: { ...email, to: '' }, personName: 'Ada Lovelace', method: 'eml', sentAt })).toBe('downloaded')
+    expect(clicked[0]!.download).toBe('Check-in - Ada Lovelace - 2026-10-12.eml')
+    const text = await blobs[0]!.text()
+    expect(text).toMatch(/^X-Unsent: 1\r\nSubject: Task check-in: 2 open tasks\r\n/)
+    expect(text).not.toMatch(/^To:/im)
   })
 })
 

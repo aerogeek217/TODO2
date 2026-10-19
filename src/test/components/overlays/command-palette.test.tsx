@@ -46,14 +46,14 @@ describe('CommandPalette', () => {
       { id: 2, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' },
       { id: 3, name: 'Mark Twain', initials: 'MT', email: 'mark@example.com' },
     ]
-    function realCommands(openCheckinDialog = vi.fn()): Command[] {
+    function realCommands(sendPersonCheckin = vi.fn()): Command[] {
       const ctx: CommandContext = {
         openSettings: vi.fn(), openQuickAdd: vi.fn(), selectionCount: 2,
         bulkSetCompleted: vi.fn(), bulkSetStatus: vi.fn(), bulkRemove: vi.fn(), getSelectedIds: () => [],
         clearAllFilters: vi.fn(), setShowCompleted: vi.fn(), getShowCompleted: () => false, setDateRange: vi.fn(),
         getTodos: () => [], focusTask: vi.fn(), openShortcutsModal: vi.fn(),
         getStatuses: () => [{ id: 1, name: 'Waiting', color: '#888888', sortOrder: 0 }],
-        openCheckinDialog, openCheckinImport: vi.fn(),
+        openCheckinDialog: vi.fn(), sendPersonCheckin, openCheckinImport: vi.fn(),
         getPeople: () => people, getOpenTaskCounts: () => new Map([[1, 3], [2, 4], [3, 1]]),
       }
       return createCommands(ctx)
@@ -80,7 +80,7 @@ describe('CommandPalette', () => {
       // Enter runs the top match.
       type('email mar')
       fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
-      expect(open).toHaveBeenCalledWith([1])
+      expect(open).toHaveBeenCalledWith(1)
       expect(onClose).toHaveBeenCalled()
     })
 

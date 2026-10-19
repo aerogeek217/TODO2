@@ -95,7 +95,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout
   await ada.getByRole('checkbox').check()
   await ada.getByRole('button', { name: 'Copy & open for Ada Lovelace' }).click()
   await expect(ada).toContainText('Opened ✓')
-  await expect(dialog.getByRole('status')).toHaveText('Opened a message to Ada Lovelace. The body is on your clipboard: paste it with Ctrl+V.')
+  await expect(dialog.getByRole('status')).toHaveText('Opened a message to Ada Lovelace <ada@example.com>. The body is on your clipboard: paste it with Ctrl+V.')
 
   // The mailto: link went to a new browsing context: the page stayed, no prompt.
   expect(await anchors(page)).toEqual([
@@ -178,7 +178,9 @@ test('Which tasks menu shows counts and saves the choice; Add email opens the pe
   await seedWorkspace(page, seed)
   const dialog = await openFromPalette(page)
   const cy = dialog.locator('[data-checkin-row]').filter({ hasText: 'Cy Young' })
-  await expect(cy.getByRole('checkbox')).toBeDisabled()
+  // No address: still tickable (the recipient is added in the mail app).
+  await expect(cy.getByRole('checkbox')).toBeEnabled()
+  await expect(cy).toContainText('No email address — add the recipient in your mail app')
 
   await dialog.getByRole('button', { name: /Which tasks/ }).click()
   const menu = page.getByRole('menu', { name: 'Which tasks' })

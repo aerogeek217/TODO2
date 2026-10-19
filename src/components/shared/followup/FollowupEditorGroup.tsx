@@ -16,7 +16,7 @@ interface FollowupEditorGroupProps {
   onFollowedUp: () => void
   /** Replaces the Next hint while the input shows the stored value (create mode: `Default · 1 month`). */
   nextHint?: string
-  /** Hides the Last row and the Followed up button (a draft task has no history). */
+  /** Hides the Last row and the Mark followed up button (a draft task has no history). */
   hideLast?: boolean
   /** Row / label classes from the host editor so the group lines up with its other rows. */
   rowClassName?: string
@@ -44,7 +44,7 @@ function HelpText({ state, today, fallback, fallbackClass }: {
 /**
  * Task editor's Follow-up group: Next (interval or date, × clears, quick
  * intervals) and Last (date, never in the future, date picker) plus the
- * "Followed up" button. ⏎ / Tab / blur commit; Esc reverts; invalid input
+ * "Mark followed up" button. ⏎ / Tab / blur commit; Esc reverts; invalid input
  * keeps the old value until fixed.
  */
 export function FollowupEditorGroup({
@@ -199,7 +199,7 @@ export function FollowupEditorGroup({
           data-done-today={lastIsToday ? 'true' : undefined}
         >
           <FollowedUpIcon />
-          Followed up
+          Mark followed up
         </button>
       </div>}
     </div>

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_CHECKIN_OPEN_METHOD,
   DEFAULT_CHECKIN_TASK_SCOPE,
+  checkinScopeLabel,
   checkinTaskScopeEqual,
   formatCheckinTaskScope,
   isCheckinOpenMethod,
@@ -48,5 +49,16 @@ describe('check-in settings', () => {
     expect(checkinTaskScopeEqual({ kind: 'list', listDefinitionId: 1 }, { kind: 'list', listDefinitionId: 1 })).toBe(true)
     expect(checkinTaskScopeEqual({ kind: 'list', listDefinitionId: 1 }, { kind: 'list', listDefinitionId: 2 })).toBe(false)
     expect(checkinTaskScopeEqual({ kind: 'all' }, { kind: 'hot' })).toBe(false)
+  })
+})
+
+describe('checkinScopeLabel', () => {
+  const lists = [{ id: 7, name: 'Reviews' }]
+  it('names a quick pick by its label and a saved list by its name; a missing list reads as all', () => {
+    expect(checkinScopeLabel({ kind: 'all' }, lists)).toBe('All open tasks')
+    expect(checkinScopeLabel({ kind: 'due-soon' }, lists)).toBe('Overdue + next 2 weeks')
+    expect(checkinScopeLabel({ kind: 'hot' }, lists)).toBe('Hot')
+    expect(checkinScopeLabel({ kind: 'list', listDefinitionId: 7 }, lists)).toBe('Reviews')
+    expect(checkinScopeLabel({ kind: 'list', listDefinitionId: 8 }, lists)).toBe('All open tasks')
   })
 })

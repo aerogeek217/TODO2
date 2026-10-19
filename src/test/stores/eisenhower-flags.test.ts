@@ -3,7 +3,7 @@ import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { withUrgentImportant } from '../../utils/filter-defaults'
+import { defaultPaneFilter, paneWrites, withPaneSeed } from '../../utils/eisenhower-panes'
 import { dragTasks } from '../../components/workspace/eisenhower/eisenhower-drag'
 import { makeTodo } from '../helpers'
 
@@ -50,13 +50,19 @@ describe('setMarkerFlags', () => {
   })
 })
 
-describe('withUrgentImportant', () => {
+describe('withPaneSeed on the default panes', () => {
   const base = { personIds: [1], tagIds: [2], statusId: 3 }
+  const seed = (q: Parameters<typeof defaultPaneFilter>[0]) => paneWrites(defaultPaneFilter(q), { people: [], tags: [], statuses: [] })
   it('replaces Urgent / Important, keeps Focus and the rest', () => {
-    expect(withUrgentImportant({ ...base, markers: { urgent: true, focus: true } }, { urgent: false, important: true }))
+    expect(withPaneSeed({ ...base, markers: { urgent: true, focus: true } }, seed('schedule')))
       .toEqual({ ...base, markers: { focus: true, important: true } })
-    expect(withUrgentImportant({ ...base, markers: { urgent: true } }, { urgent: false, important: false })).toEqual(base)
-    expect(withUrgentImportant(base, { urgent: true, important: true })).toEqual({ ...base, markers: { urgent: true, important: true } })
+    expect(withPaneSeed({ ...base, markers: { urgent: true } }, seed('drop'))).toEqual(base)
+    expect(withPaneSeed(base, seed('do'))).toEqual({ ...base, markers: { urgent: true, important: true } })
+  })
+
+  it('keeps a Focus No and drops an Urgent / Important No (the pane decides those)', () => {
+    expect(withPaneSeed({ ...base, markers: { focus: false, important: false } }, seed('delegate')))
+      .toEqual({ ...base, markers: { focus: false, urgent: true } })
   })
 })
 

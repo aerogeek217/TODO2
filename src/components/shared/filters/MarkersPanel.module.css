@@ -1,7 +1,7 @@
 /* The Markers filter picker (top bar, list filter row, Edit list). */
 
 .panel {
-  width: 216px;
+  width: 256px;
 }
 
 .row {
@@ -50,6 +50,17 @@
   height: 1px;
   margin: 4px 0;
   background: var(--color-border-muted);
+}
+
+/* A marker: glyph, name, then its Any · Yes · No. */
+.markerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  font-size: var(--font-size-nav);
+  color: var(--color-text-primary);
+  white-space: nowrap;
 }
 
 /* Hot is ticked: the single markers are greyed out and can't be picked. */

@@ -1,7 +1,9 @@
 /**
  * Handing a check-in email to the mail app, offline: a `mailto:` link (To +
  * Subject; the body goes on the clipboard to paste) or an unsent `.eml` draft
- * (`X-Unsent: 1`) with the HTML and plain-text bodies.
+ * (`X-Unsent: 1`) with the HTML and plain-text bodies. Without an address
+ * (`''`) the link has an empty To and the draft no To header: the user types
+ * the recipient in the mail app.
  */
 import { toDateInputValue } from '../../utils/date'
 import { isValidEmail } from '../../utils/person'
@@ -30,20 +32,22 @@ export class InvalidRecipientError extends Error {
 }
 
 /**
- * The one address a header or `mailto:` may carry: `address` trimmed, when
- * it is a single valid address (`isValidEmail` — no `,` `;` quotes, angle
- * brackets, whitespace or controls). Anything else throws
- * `InvalidRecipientError`, so no value can add a recipient.
+ * The one address a header or `mailto:` may carry: `''` for none (blank),
+ * else `address` trimmed when it is a single valid address (`isValidEmail` —
+ * no `,` `;` quotes, angle brackets, whitespace or controls). Anything else
+ * throws `InvalidRecipientError`, so no value can add a recipient.
  */
 function recipientAddress(address: string): string {
+  if (address.trim() === '') return ''
   if (!isValidEmail(address)) throw new InvalidRecipientError()
   return address.trim()
 }
 
 /**
  * `mailto:<to>?subject=<subject>` — no body (the body is pasted from the
- * clipboard). The address must be one valid address (else this throws
- * `InvalidRecipientError`) and is percent-encoded, `@` kept readable; the
+ * clipboard). A blank `to` gives `mailto:?subject=…` (an empty To, RFC 6068);
+ * otherwise it must be one valid address (else this throws
+ * `InvalidRecipientError`) and is percent-encoded, `@` kept readable. The
  * subject is percent-encoded, so it can't add fields.
  */
 export function buildMailtoUrl(to: string, subject: string): string {
@@ -115,8 +119,7 @@ function headerText(s: string): string {
 }
 
 /** `"Name" <address>` (quoted string, or encoded words when not ASCII); just the address without a name. */
-function headerMailbox(address: string, name: string | undefined): string {
-  const addr = recipientAddress(address)
+function headerMailbox(addr: string, name: string | undefined): string {
   const display = stripControls(name ?? '')
   if (display === '') return addr
   const phrase = PRINTABLE_ASCII.test(display) && display.length <= 200
@@ -126,9 +129,9 @@ function headerMailbox(address: string, name: string | undefined): string {
 }
 
 export interface EmlInput {
-  /** Recipient address. */
+  /** Recipient address; `''` for none (no To header). */
   to: string
-  /** Recipient display name (optional). */
+  /** Recipient display name (optional; only used with an address). */
   toName?: string
   subject: string
   /** The HTML body fragment (wrapped in a full document here). */
@@ -140,11 +143,13 @@ export interface EmlInput {
  * An unsent draft as an `.eml` file (RFC 5322 + MIME): `X-Unsent: 1`,
  * `multipart/alternative` with a UTF-8 plain-text part then an HTML part,
  * both base64. Every header value has its control characters (CR / LF
- * included) removed, so no value can start a new header; the recipient must
- * be one valid address (else this throws `InvalidRecipientError`). CRLF line
- * endings.
+ * included) removed, so no value can start a new header. A blank `to` leaves
+ * the To header out — the display name too: a name is never put in a To
+ * field on its own. Otherwise `to` must be one valid address (else this
+ * throws `InvalidRecipientError`). CRLF line endings.
  */
 export function buildEml(input: EmlInput): string {
+  const to = recipientAddress(input.to)
   const htmlDoc = [
     '<!DOCTYPE html>',
     '<html><head><meta charset="utf-8"></head>',
@@ -152,7 +157,7 @@ export function buildEml(input: EmlInput): string {
   ].join('\n')
   const lines = [
     'X-Unsent: 1',
-    `To: ${headerMailbox(input.to, input.toName)}`,
+    ...(to === '' ? [] : [`To: ${headerMailbox(to, input.toName)}`]),
     `Subject: ${headerText(input.subject)}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${EML_BOUNDARY}"`,

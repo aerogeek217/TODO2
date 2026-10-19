@@ -42,7 +42,7 @@ test.describe('task-row context menu — portalized dismissal contract', () => {
 
     const menu = page.getByRole('menu', { name: 'Task actions' })
     await expect(menu.getByRole('menuitem')).toHaveText([
-      /^Open/, /^Mark complete/, /^Set due date…/, /^Follow-up/, /^Followed up/, /^Assign people…/, /^Add tag…/, /^Delete/,
+      /^Open/, /^Mark complete/, /^Set due date…/, /^Follow-up/, /^Mark followed up/, /^Assign people…/, /^Add tag…/, /^Delete/,
     ])
     await expect(menu.getByRole('menuitemcheckbox')).toHaveText(['Focus', 'Urgent', 'Important'])
     // Portalization invariant: the menu lives at body level, not inside the

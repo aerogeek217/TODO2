@@ -32,7 +32,7 @@ describe('useTaskEditCallbacks — edits apply to the other selected tasks', () 
   const field = (id: number, key: 'lastFollowupAt' | 'nextFollowupAt' | 'title') =>
     useTodoStore.getState().todos.find((t) => t.id === id)![key]
 
-  it('a manual Last follow-up edit goes to every selected task (like Next and Followed up)', () => {
+  it('a manual Last follow-up edit goes to every selected task (like Next and Mark followed up)', () => {
     edit({ lastFollowupAt: day(2026, 9, 13) })
     expect(field(1, 'lastFollowupAt')).toEqual(day(2026, 9, 13))
     expect(field(2, 'lastFollowupAt')).toEqual(day(2026, 9, 13))

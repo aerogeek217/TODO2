@@ -65,7 +65,7 @@ describe('searchMenuHandlers — search context menu', () => {
     expect(bulkSetUrgent).toHaveBeenCalledWith([9], true)
   })
 
-  it('Follow-up and Followed up act on just this task', () => {
+  it('Follow-up and Mark followed up act on just this task', () => {
     const markFollowedUp = vi.fn()
     const bulkSetFollowup = vi.fn()
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ markFollowedUp, bulkSetFollowup } as never)

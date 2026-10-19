@@ -15,7 +15,7 @@ interface FollowupIntervalSettingProps {
 
 /**
  * Settings → Task defaults row for the default follow-up interval (`1m`,
- * `2w`, `10d`, `1y`). New tasks and "Followed up" set the next follow-up to
+ * `2w`, `10d`, `1y`). New tasks and "Mark followed up" set the next follow-up to
  * today + this. Commits on Enter / blur; invalid text reverts.
  */
 export function FollowupIntervalSetting({
@@ -46,7 +46,7 @@ export function FollowupIntervalSetting({
   return (
     <div
       className={rowClassName}
-      title="New tasks get a next follow-up this far ahead; “Followed up” moves it on by the same amount. Use d, w, m or y — e.g. 10d, 2w, 1m."
+      title="New tasks get a next follow-up this far ahead; “Mark followed up” moves it on by the same amount. Use d, w, m or y — e.g. 10d, 2w, 1m."
     >
       <span className={labelClassName}>Default follow-up for new tasks</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>

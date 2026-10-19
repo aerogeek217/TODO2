@@ -1,11 +1,13 @@
-import { useCallback, useState } from 'react'
-import { toggleItem } from '../../../utils/filter'
-import { datesValue } from '../../../utils/filter-chips'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { ClearableField } from '../ClearableField'
+import { datesValue, filterChips } from '../../../utils/filter-chips'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
-import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, toggleHot, toggleMarker } from '../../../utils/markers'
+import { activeMarkers, hasExcludedMarker, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, markersValue, toggleHot } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
+import { FilterModeToggle, MarkerConditionToggle } from './FilterPanels'
+import { entityTicked, entityToggle } from '../../../utils/filter-negation'
 import {
   useFilterChipBarState,
   type EntityKey,
@@ -43,8 +45,13 @@ function AccordionSection({ label, badge, value, valueOn = false, open, onToggle
 }
 
 interface MobileEntityListProps {
+  /** The field's name (`People`, `Status`): the Is / Is not toggle's name. */
+  field: string
   entities: { id?: number; name: string; color?: string }[]
   filterIds: Set<number> | null
+  /** "Is not": the ticked rows hide tasks. */
+  negated: boolean
+  onNegatedChange: (negated: boolean) => void
   onToggle: (id: number) => void
   noneLabel: string
   searchPlaceholder: string
@@ -57,8 +64,11 @@ interface MobileEntityListProps {
 }
 
 function MobileEntityList({
+  field,
   entities,
   filterIds,
+  negated,
+  onNegatedChange,
   onToggle,
   noneLabel,
   searchPlaceholder,
@@ -67,14 +77,25 @@ function MobileEntityList({
   namePrefix,
   showNoneSentinel = true,
 }: MobileEntityListProps) {
+  const searchRef = useRef<HTMLInputElement>(null)
   return (
     <div className={sheet.entityList}>
-      <input
-        className={sheet.entitySearchInput}
-        placeholder={searchPlaceholder}
+      <FilterModeToggle field={field} negated={negated} onChange={onNegatedChange} touch />
+      <ClearableField
+        className={sheet.entitySearchField}
         value={searchText}
-        onChange={(e) => onSearchChange(e.target.value)}
-      />
+        onClear={() => onSearchChange('')}
+        inputRef={searchRef}
+        label="Clear search"
+      >
+        <input
+          ref={searchRef}
+          className={sheet.entitySearchInput}
+          placeholder={searchPlaceholder}
+          value={searchText}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+      </ClearableField>
       {showNoneSentinel && (
         <div className={sheet.entityItem} onClick={() => onToggle(0)}>
           <span
@@ -87,7 +108,7 @@ function MobileEntityList({
             className={sheet.entityCheck}
             tabIndex={-1}
             aria-hidden="true"
-            checked={filterIds === null || filterIds.has(0)}
+            checked={entityTicked(filterIds, negated, 0)}
             readOnly
           />
         </div>
@@ -110,7 +131,7 @@ function MobileEntityList({
               className={sheet.entityCheck}
               tabIndex={-1}
               aria-hidden="true"
-              checked={filterIds === null || filterIds.has(e.id!)}
+              checked={entityTicked(filterIds, negated, e.id!)}
               readOnly
             />
           </div>
@@ -144,14 +165,26 @@ export function FilterChipBarMobile({
     statusIdsSet,
     tagIdsSet,
     active,
+    negated,
     update,
     setPersonIds,
     setStatusIds,
     setTags,
+    setNegated,
     clearAll,
   } = s
 
   const dates = datesValue(p.dates)
+  // An "is not" section shows its chip value (`not Waiting`) instead of a count.
+  const names = useMemo(() => ({ people, tags: sortedTags, statuses }), [people, sortedTags, statuses])
+  const notValues = useMemo(() => {
+    const out: Partial<Record<'people' | 'status' | 'tags', string>> = {}
+    for (const chip of filterChips(p, names)) {
+      if (chip.negated && (chip.field === 'people' || chip.field === 'status' || chip.field === 'tags')) out[chip.field] = chip.value
+    }
+    return out
+  }, [p, names])
+  const sectionCount = (key: 'people' | 'status' | 'tags', ids: Set<number> | null) => (notValues[key] != null ? undefined : ids?.size)
 
   const handleSection = (next: MobileSection) => {
     setOpenSection(openSection === next ? null : next)
@@ -160,31 +193,35 @@ export function FilterChipBarMobile({
 
   const handlePersonToggle = (personId: number) => {
     const allIds = [0, ...people.map((x) => x.id!)]
-    setPersonIds(toggleItem(personIdsSet, personId, allIds))
+    setPersonIds(entityToggle(personIdsSet, negated.people, personId, allIds))
   }
   const handleStatusToggle = (statusId: number) => {
     const allIds = [0, ...statuses.map((st) => st.id!)]
-    setStatusIds(toggleItem(statusIdsSet, statusId, allIds))
+    setStatusIds(entityToggle(statusIdsSet, negated.status, statusId, allIds))
   }
   const handleTagToggle = (tagId: number) => {
-    setTags(toggleItem(tagIdsSet, tagId, allTagIds))
+    setTags(entityToggle(tagIdsSet, negated.tags, tagId, allTagIds))
   }
 
   const hot = isHotFilter(p.markers)
   const markersActiveCount = (hot ? 1 : 0) + activeMarkers(p.markers).length
+  // With a No marker the row spells the filter out (`Urgent, not Important`), like an "is not" field.
+  const markersNot = hasExcludedMarker(p.markers)
 
   return (
     <>
       {/* Priority section */}
       <AccordionSection
         label={MARKERS_LABEL}
-        badge={markersActiveCount}
+        badge={markersNot ? undefined : markersActiveCount}
+        value={markersNot ? markersValue(p.markers) : undefined}
+        valueOn
         open={openSection === 'markers'}
         onToggle={() => handleSection('markers')}
       >
         <div>
-          {/* Priority: Hot, or every switched-on marker (strict AND). Hot
-              switches the single markers off and disables them. */}
+          {/* Priority: Hot, or Any · Yes · No per marker (strict AND). Hot
+              clears the single markers and disables them. */}
           <div className={sheet.filterRow}>
             <span className={sheet.filterLabel}>
               <span className={sheet.filterLabelIcon} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
@@ -198,32 +235,24 @@ export function FilterChipBarMobile({
               aria-label="Only hot tasks"
             />
           </div>
-          {MARKER_KEYS.map((key) => {
-            const on = activeMarkers(p.markers).includes(key)
-            return (
-              <div key={key} className={sheet.filterRow} style={hot ? { opacity: 0.4 } : undefined}>
-                <span className={sheet.filterLabel}>
-                  <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
-                  {MARKER_LABELS[key]}
-                </span>
-                <button
-                  className={`${sheet.toggle} ${on ? sheet.toggleActive : ''}`}
-                  onClick={() => update({ markers: toggleMarker(p.markers, key) })}
-                  role="switch"
-                  aria-checked={on}
-                  disabled={hot}
-                  aria-label={`Only ${MARKER_LABELS[key].toLowerCase()} tasks`}
-                />
-              </div>
-            )
-          })}
+          {MARKER_KEYS.map((key) => (
+            <div key={key} className={`${sheet.filterRow} ${hot ? sheet.filterRowDisabled : ''}`}>
+              <span className={sheet.filterLabel} aria-hidden>
+                <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
+                {MARKER_LABELS[key]}
+              </span>
+              <MarkerConditionToggle marker={key} value={p.markers} onChange={(markers) => update({ markers })} touch disabled={hot} />
+            </div>
+          ))}
         </div>
       </AccordionSection>
 
       {/* Tags */}
       <AccordionSection
         label="Tags"
-        badge={tagIdsSet?.size}
+        badge={sectionCount('tags', tagIdsSet)}
+        value={notValues.tags}
+        valueOn
         open={openSection === 'tags'}
         onToggle={() => handleSection('tags')}
       >
@@ -234,6 +263,7 @@ export function FilterChipBarMobile({
             </div>
           ) : (
             <>
+              <FilterModeToggle field="Tags" negated={negated.tags} onChange={(on) => setNegated('tags', on)} touch />
               <input
                 className={sheet.entitySearchInput}
                 placeholder="Search tags..."
@@ -261,7 +291,7 @@ export function FilterChipBarMobile({
                       className={sheet.entityCheck}
                       tabIndex={-1}
                       aria-hidden="true"
-                      checked={tagIdsSet === null || tagIdsSet.has(tag.id!)}
+                      checked={entityTicked(tagIdsSet, negated.tags, tag.id!)}
                       readOnly
                     />
                   </div>
@@ -275,13 +305,18 @@ export function FilterChipBarMobile({
       {people.length > 0 && (
         <AccordionSection
           label="People"
-          badge={personIdsSet?.size}
+          badge={sectionCount('people', personIdsSet)}
+          value={notValues.people}
+          valueOn
           open={openSection === 'people'}
           onToggle={() => handleSection('people')}
         >
           <MobileEntityList
+            field="People"
             entities={people}
             filterIds={personIdsSet}
+            negated={negated.people}
+            onNegatedChange={(on) => setNegated('people', on)}
             onToggle={handlePersonToggle}
             noneLabel="Unassigned"
             searchPlaceholder="Search people..."
@@ -308,13 +343,18 @@ export function FilterChipBarMobile({
       {statuses.length > 0 && (
         <AccordionSection
           label="Status"
-          badge={statusIdsSet?.size}
+          badge={sectionCount('status', statusIdsSet)}
+          value={notValues.status}
+          valueOn
           open={openSection === 'status'}
           onToggle={() => handleSection('status')}
         >
           <MobileEntityList
+            field="Status"
             entities={statuses}
             filterIds={statusIdsSet}
+            negated={negated.status}
+            onNegatedChange={(on) => setNegated('status', on)}
             onToggle={handleStatusToggle}
             noneLabel="No status"
             searchPlaceholder="Search statuses..."

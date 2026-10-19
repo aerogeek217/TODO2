@@ -46,6 +46,18 @@ async function blurAll(page: Page) {
   await expect.poll(() => page.evaluate(() => document.activeElement === document.body)).toBe(true)
 }
 
+/**
+ * The clipboard refuses every write: a person's Email check-in then can't
+ * send at once and opens the check-in dialog over the task dialog instead.
+ */
+async function refuseClipboard(page: Page) {
+  await page.evaluate(() => {
+    const refuse = () => Promise.reject(new DOMException('denied', 'NotAllowedError'))
+    Object.defineProperty(navigator.clipboard, 'write', { configurable: true, value: refuse })
+    Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: refuse })
+  })
+}
+
 const focusInside = (dialog: Locator) => dialog.evaluate((panel) => panel.contains(document.activeElement))
 
 /**
@@ -185,6 +197,7 @@ test('task dialog → editor: the editor owns Esc, focused or not; then Esc clos
 
 test('check-in dialog over the task dialog: contract; focus back to Email check-in; Esc with nothing focused closes only the top one', async ({ page }) => {
   await seedWorkspace(page, SEED)
+  await refuseClipboard(page)
   await openPersonDialog(page, 'Plan the offsite', 'Alice Chen')
   const trigger = taskDialog(page).locator('[data-task-dialog-checkin]')
   await checkContract(page, {
@@ -212,6 +225,7 @@ test('check-in dialog over the task dialog: contract; focus back to Email check-
 
 test('check-in → the email editor: Esc cancels its edit, then closes it (focused or not); the check-in dialog stays', async ({ page }) => {
   await seedWorkspace(page, SEED)
+  await refuseClipboard(page)
   await openPersonDialog(page, 'Call the plumber', 'Ben Ortiz')
   await taskDialog(page).locator('[data-task-dialog-checkin]').click()
   const dialog = checkin(page)

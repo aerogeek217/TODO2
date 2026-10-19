@@ -78,5 +78,15 @@ export const CHECKIN_QUICK_SCOPES: ReadonlyArray<{ scope: CheckinTaskScope; labe
   { scope: { kind: 'hot' }, label: 'Hot', hint: 'Your Hot rule from Settings' },
 ]
 
+/** A scope's name as "Which tasks" shows it: a quick pick's label or the saved list's name (a missing list reads as all). */
+export function checkinScopeLabel(
+  scope: CheckinTaskScope,
+  listDefinitions: ReadonlyArray<{ id: number; name: string }>,
+): string {
+  const all = CHECKIN_QUICK_SCOPES[0]?.label ?? 'All open tasks'
+  if (scope.kind === 'list') return listDefinitions.find((d) => d.id === scope.listDefinitionId)?.name ?? all
+  return CHECKIN_QUICK_SCOPES.find((q) => checkinTaskScopeEqual(q.scope, scope))?.label ?? all
+}
+
 /** The hint under a saved list in "Which tasks". */
 export const CHECKIN_LIST_SCOPE_HINT = 'Its filters, narrowed to each recipient'

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   createTab,
   isWidgetKind,
+  tabListId,
   toggleCalendarDateType,
   WIDGET_KIND_SPECS,
   WIDGET_KINDS,
@@ -9,7 +10,7 @@ import {
 } from '../../models/workspace-layout'
 import { defaultDashboardConfig } from '../../models/dashboard-config'
 import { checkLayoutColumns, pickLayoutColumns } from '../../data/layout-shape'
-import { tabTitle } from '../../components/workspace/widget-hooks'
+import { tabTitle, tabTooltip } from '../../components/workspace/widget-hooks'
 
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
@@ -36,6 +37,7 @@ describe('widget kinds', () => {
     expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true } } })
     expect(createTab('notes', 'c')).toEqual({ id: 'c', kind: 'notes', config: {} })
     expect(createTab('eisenhower', 'd')).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
+    expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: { listDefinitionId: 4 } })
     expect(createTab('dashboard', 'e')).toEqual({ id: 'e', kind: 'dashboard', config: defaultDashboardConfig() })
     // A fresh config each time.
     const one = createTab('calendar', 'x')
@@ -54,6 +56,22 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('lens', 'a', { listDefinitionId: 4 }), undefined)).toBe('(Deleted list)')
     expect(tabTitle(createTab('lens', 'a'), undefined)).toBe('List')
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
+    expect(tabTitle(createTab('eisenhower', 'b', { listDefinitionId: 4 }), 'Team')).toBe('Team')
+    expect(tabTitle(createTab('eisenhower', 'b', { listDefinitionId: 4 }), undefined)).toBe('(Deleted list)')
+  })
+
+  it('a tab’s tooltip: its title, with the kind first on an Eisenhower tab on a list', () => {
+    expect(tabTooltip(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team')).toBe('Team')
+    expect(tabTooltip(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
+    expect(tabTooltip(createTab('eisenhower', 'b', { listDefinitionId: 4 }), 'Team')).toBe('Eisenhower · Team')
+  })
+
+  it('the list a tab shows: a list tab’s, an Eisenhower tab’s; none for the rest', () => {
+    expect(tabListId(createTab('lens', 'a', { listDefinitionId: 4 }))).toBe(4)
+    expect(tabListId(createTab('eisenhower', 'b', { listDefinitionId: 5 }))).toBe(5)
+    expect(tabListId(createTab('eisenhower', 'b'))).toBeUndefined()
+    expect(tabListId(createTab('calendar', 'c'))).toBeUndefined()
+    expect(tabListId(createTab('dashboard', 'd'))).toBeUndefined()
   })
 })
 
