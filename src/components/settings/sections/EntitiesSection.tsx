@@ -3,6 +3,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { listedLists } from '../../../models/list-definition'
 import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { CHECKIN_OPEN_METHOD_OPTIONS } from '../../../utils/checkin-settings'
@@ -53,7 +54,7 @@ export function EntitiesSection() {
   const peopleCount = usePersonStore((s) => s.people.length)
   const statusCount = useStatusStore((s) => s.statuses.length)
   const tagCount = useTagStore((s) => s.tags.length)
-  const listCount = useListDefinitionStore((s) => s.listDefinitions.length)
+  const listCount = useListDefinitionStore((s) => listedLists(s.listDefinitions).length)
   const loadLists = useListDefinitionStore((s) => s.load)
   const openListsEditor = useUIStore((s) => s.openListsEditor)
   const [editor, setEditor] = useState<'people' | 'statuses' | 'tags' | null>(null)

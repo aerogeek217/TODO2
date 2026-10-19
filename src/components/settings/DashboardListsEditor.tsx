@@ -16,7 +16,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useListWidgetCount } from '../../hooks/use-list-widget-count'
-import type { PersistedListDefinition } from '../../models/list-definition'
+import { listedLists, type PersistedListDefinition } from '../../models/list-definition'
 import { DragHandle } from '../shared/DragHandle'
 import { ConfirmDialog } from '../shared/Dialog'
 import { ListEditorDialog } from '../shared/ListEditorDialog'
@@ -80,7 +80,8 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
 
   useEffect(() => { load() }, [load])
 
-  const sorted = useMemo(() => [...listDefinitions].sort(bySortOrder), [listDefinitions])
+  // Hidden lists (a layout's, the Eisenhower's) aren't listed here; reorder moves among these rows.
+  const sorted = useMemo(() => listedLists([...listDefinitions].sort(bySortOrder)), [listDefinitions])
   const sortedIds = useMemo(() => sorted.map(d => d.id), [sorted])
 
   const editingList = useMemo(() => {

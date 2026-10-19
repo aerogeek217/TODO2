@@ -23,6 +23,7 @@ import {
   type DashboardTabConfig,
 } from '../../../models/dashboard-config'
 import type { DashboardTab, WorkspaceLayout } from '../../../models/workspace-layout'
+import { listedLists } from '../../../models/list-definition'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useToday } from '../../../hooks/use-today'
 import { useSortableReorderHandler, useSortableRow } from '../../../hooks/use-sortable-row'
@@ -134,9 +135,10 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
   const draggingRef = useLatestRef(dragging)
   const escapeBelongsElsewhere = useCallback(() => draggingRef.current, [draggingRef])
 
-  const addListEntries: MenuEntry[] = defs.length === 0
+  const offered = listedLists(defs)
+  const addListEntries: MenuEntry[] = offered.length === 0
     ? [{ kind: 'item', label: 'No saved lists yet', disabled: true }]
-    : defs.map((d) => {
+    : offered.map((d) => {
       const added = listTiles.includes(d.id)
       const eligible = isListTileEligible(d)
       return {

@@ -1,4 +1,4 @@
-import type { PersistedListDefinition } from '../../models/list-definition'
+import { listedLists, type PersistedListDefinition } from '../../models/list-definition'
 import { bySortOrder } from '../../utils/sort-order'
 import type { MenuEntry } from './MenuPopover'
 
@@ -9,7 +9,7 @@ export const ALL_TASKS_LABEL = 'All tasks'
 export const DELETED_LIST_TITLE = '(Deleted list)'
 
 /**
- * The saved lists (in their order) as menu entries — a list tab's Change
+ * The saved lists (in their order; never a hidden list — `listedLists`) as menu entries — a list tab's Change
  * list ›, the Eisenhower's Show (Settings › Tasks › Eisenhower) — each
  * picking its list. `allTasks` puts an `All tasks` choice (`undefined`)
  * first and makes the choices radios, the `current` one checked.
@@ -19,7 +19,7 @@ export function listChoiceEntries(
   onPick: (listDefinitionId: number | undefined) => void,
   allTasks?: { current: number | undefined },
 ): MenuEntry[] {
-  const defs = [...listDefinitions].sort(bySortOrder)
+  const defs = listedLists([...listDefinitions].sort(bySortOrder))
   const choice = (label: string, id: number | undefined): MenuEntry => (allTasks
     ? { kind: 'item', label, radio: true, checked: id === allTasks.current, onSelect: () => onPick(id) }
     : { kind: 'item', label, onSelect: () => onPick(id) })

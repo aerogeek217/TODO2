@@ -156,3 +156,21 @@ describe('ListDefinitionPickerPopup', () => {
     })
   })
 })
+
+describe('ListDefinitionPickerPopup — hidden lists', () => {
+  it('offers no list a layout or the Eisenhower owns', () => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 1, name: 'Saved' }),
+        makeDef({ id: 2, name: 'Layout only', owner: { layoutId: 1 } }),
+        makeDef({ id: 3, name: 'Eisenhower', owner: { eisenhower: true } }),
+      ],
+    })
+    const { getByText, queryByText } = render(
+      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
+    )
+    expect(getByText('Saved')).toBeInTheDocument()
+    expect(queryByText('Layout only')).toBeNull()
+    expect(queryByText('Eisenhower')).toBeNull()
+  })
+})
