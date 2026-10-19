@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../../data/database'
 import type { Person, PersistedTodoItem } from '../../../models'
 import {
+  ASSIGNMENTS_LOADING_NOTICE,
   CHECKIN_INCLUDE_DEFAULTS,
   checkinSentMessage,
+  checkinSentStatus,
   COPY_FAILED_NOTICE,
   noTasksNotice,
   sendPersonCheckin,
@@ -104,7 +106,12 @@ describe('sendPersonCheckin', () => {
     expect(useUIStore.getState().checkinDialog).toBeNull()
     await vi.waitFor(() => expect(useUndoStore.getState().undoStack).toHaveLength(1))
     expect(followedUp()).toEqual([1, 2])
-    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Ada Lovelace opened · 2 tasks followed up' })
+    // The second line: where it went (the address) and how to finish — the dialog's own words.
+    expect(useUndoStore.getState().snackbar).toEqual({
+      description: 'Check-in for Ada Lovelace opened · 2 tasks followed up',
+      detail: 'Opened a message to Ada Lovelace <ada@example.com>. The body is on your clipboard: paste it with Ctrl+V.',
+    })
+    expect(useUndoStore.getState().snackbar?.detail).toBe(checkinSentStatus('Ada Lovelace', 'ada@example.com', 'opened', NOW))
 
     await useUndoStore.getState().undo()
     expect(followedUp()).toEqual([])
@@ -138,12 +145,17 @@ describe('sendPersonCheckin', () => {
     expect(events).toEqual(['download'])
     expect(clicked[0]!.download).toBe('Check-in - Bob Stone - 2026-10-12.eml')
     expect(await blobs[0]!.text()).toContain('To: "Bob Stone" <bob@example.com>\r\n')
-    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toEqual({ description: 'Check-in for Bob Stone downloaded · 1 task followed up' }))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toEqual({
+      description: 'Check-in for Bob Stone downloaded · 1 task followed up',
+      detail: 'Downloaded the draft for Bob Stone <bob@example.com> (Check-in - Bob Stone - 2026-10-12.eml) — open it from your Downloads folder to review and send.',
+    }))
   })
 
   it('no address: mailto: with an empty To, an .eml with no To header', async () => {
     expect(await sendPersonCheckin(3)).toBe('opened')
     expect(clicked[0]!.getAttribute('href')).toBe('mailto:?subject=Task%20check-in%3A%201%20open%20task')
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar?.detail)
+      .toBe('Opened a message to Cy Young. The body is on your clipboard: paste it with Ctrl+V. Add the recipient in your mail app.'))
     useSettingsStore.setState({ checkinOpenMethod: 'eml' })
     expect(await sendPersonCheckin(3)).toBe('downloaded')
     const eml = await blobs[0]!.text()
@@ -173,11 +185,64 @@ describe('sendPersonCheckin', () => {
     expect(await sendPersonCheckin(99)).toBe('dialog')
     expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [99] })
   })
+
+  it('a second click while the first send runs sends nothing', async () => {
+    const first = sendPersonCheckin(1)
+    expect(await sendPersonCheckin(1)).toBe('busy')
+    expect(await first).toBe('opened')
+    expect(events).toEqual(['clipboard', 'anchor'])
+    // Once it is done, the next click sends again.
+    expect(await sendPersonCheckin(1)).toBe('opened')
+  })
+})
+
+describe('sendPersonCheckin before the tasks’ people and tags are loaded', () => {
+  const home = { id: 7, name: 'home', color: '#888888' }
+  // "Tags is not #home": Ada's report (no tags) is in, the shared review (#home) is not.
+  const notHome = {
+    id: 5, name: 'Not home', sortOrder: 0, sort: 'manual' as const, grouping: 'none' as const,
+    membership: { kind: 'custom' as const, predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: [7], negate: { tags: true as const } } },
+  }
+  beforeEach(() => {
+    useListDefinitionStore.setState({ listDefinitions: [notHome] })
+    useSettingsStore.setState({ checkinTaskScope: { kind: 'list', listDefinitionId: 5 } })
+  })
+
+  it('a saved-list scope sends once every open task’s tags are loaded', async () => {
+    useTagStore.setState({ tags: [home], assignedTagsMap: new Map([[1, []], [2, [home]], [3, []], [4, []]]) })
+    expect(await sendPersonCheckin(1)).toBe('opened')
+    expect(clicked[0]!.getAttribute('href')).toContain('subject=Task%20check-in%3A%201%20open%20task')
+  })
+
+  it('a saved-list scope with tags not loaded opens the dialog instead: an "is not" tag clause would let #home tasks in', async () => {
+    useTagStore.setState({ tags: [home], assignedTagsMap: new Map([[1, []]]) })
+    expect(await sendPersonCheckin(1)).toBe('dialog')
+    expect(events).toEqual([])
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+  })
+
+  it('any scope with an open task’s people not loaded opens the dialog instead', async () => {
+    useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
+    usePersonStore.setState({ assignedPeopleMap: new Map([[1, [ada]], [2, [ada, bob]]]) })
+    expect(await sendPersonCheckin(1)).toBe('dialog')
+    expect(events).toEqual([])
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })
+  })
 })
 
 describe('checkinSentMessage', () => {
   it('names the person, how it went and the follow-ups', () => {
     expect(checkinSentMessage('Ann', 'opened', 5)).toBe('Check-in for Ann opened · 5 tasks followed up')
     expect(checkinSentMessage('Ann', 'downloaded', 1)).toBe('Check-in for Ann downloaded · 1 task followed up')
+  })
+})
+
+describe('checkinSentStatus', () => {
+  it('shows the address it went to and how to finish; without one, to add the recipient', () => {
+    expect(checkinSentStatus('Ann', 'ann@example.com', 'opened', NOW))
+      .toBe('Opened a message to Ann <ann@example.com>. The body is on your clipboard: paste it with Ctrl+V.')
+    expect(checkinSentStatus('Ann', '', 'downloaded', NOW))
+      .toBe('Downloaded the draft for Ann (Check-in - Ann - 2026-10-12.eml) — open it from your Downloads folder to review and send. Add the recipient in your mail app.')
   })
 })

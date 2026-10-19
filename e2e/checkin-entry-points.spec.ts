@@ -105,6 +105,11 @@ async function expectSent(page: Page, { mailto, person, titles }: { mailto: stri
   await expect(checkinDialog(page)).toHaveCount(0)
   const n = titles.length
   await expect(page.getByText(`Check-in for ${person} opened · ${n} ${n === 1 ? 'task' : 'tasks'} followed up`)).toBeVisible()
+  // The snackbar's second line: the address it went to (or none) and how to finish.
+  const to = decodeURIComponent(mailto.slice('mailto:'.length).split('?')[0] ?? '')
+  await expect(page.locator('[data-snackbar-detail]')).toHaveText(to === ''
+    ? `Opened a message to ${person}. The body is on your clipboard: paste it with Ctrl+V. Add the recipient in your mail app.`
+    : `Opened a message to ${person} <${to}>. The body is on your clipboard: paste it with Ctrl+V.`)
   await expect.poll(() => followedUp(page)).toEqual([...titles].sort())
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect.poll(() => followedUp(page)).toEqual([])
@@ -350,6 +355,8 @@ test('.eml method: the one-click send downloads the draft (no To header without 
   expect(eml).not.toMatch(/^To:/im)
   await expect(checkinDialog(page)).toHaveCount(0)
   await expect(page.getByText('Check-in for Cy Young downloaded · 1 task followed up')).toBeVisible()
+  await expect(page.locator('[data-snackbar-detail]'))
+    .toHaveText(/^Downloaded the draft for Cy Young \(Check-in - Cy Young - \d{4}-\d{2}-\d{2}\.eml\) — open it from your Downloads folder to review and send\. Add the recipient in your mail app\.$/)
   await expect.poll(() => followedUp(page)).toEqual(['Cy only'])
   expect(await mailtoLinks(page)).toEqual([])
 })

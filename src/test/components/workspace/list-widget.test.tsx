@@ -508,6 +508,8 @@ describe('ListWidget People group headers: email check-in', () => {
   beforeEach(() => {
     useUIStore.setState({ checkinDialog: null, taskDialog: null })
     useTodoStore.setState((s) => ({ todos: [...s.todos, makeTodo({ id: 5, title: 'Nobody’s task', sortOrder: 5 })] }))
+    // Its people loaded, as the store loads them: nobody.
+    usePersonStore.setState((s) => ({ assignedPeopleMap: new Map([...s.assignedPeopleMap, [5, []]]) }))
   })
 
   const header = (key: string) => document.querySelector(`[data-list-group="${key}"] button[aria-expanded]`) as HTMLElement

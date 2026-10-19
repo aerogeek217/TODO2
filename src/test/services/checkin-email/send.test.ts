@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CheckinEmail } from '../../../services/checkin-email/build'
-import { checkinEmlFileName, openMailtoLink } from '../../../services/checkin-email/handoff'
+import { checkinEmlFileName, InvalidRecipientError, openMailtoLink } from '../../../services/checkin-email/handoff'
 import { sendCheckinEmail } from '../../../services/checkin-email/send'
 
 const email: CheckinEmail = {
@@ -83,11 +83,11 @@ describe('sendCheckinEmail — open in the mail app', () => {
     expect(events).toEqual(['clipboard'])
   })
 
-  it('copies and opens nothing for an address that is not one valid address', async () => {
+  it('throws, copying and opening nothing, for an address that is not one valid address', async () => {
     stubClipboard(true)
     for (const method of ['mailto', 'eml'] as const) {
       const to = 'ada@example.com,evil@x.com'
-      expect(await sendCheckinEmail({ email: { ...email, to }, personName: 'Ada', method, sentAt })).toBe('invalid-address')
+      await expect(sendCheckinEmail({ email: { ...email, to }, personName: 'Ada', method, sentAt })).rejects.toThrow(InvalidRecipientError)
     }
     expect(events).toEqual([])
     expect(blobs).toEqual([])

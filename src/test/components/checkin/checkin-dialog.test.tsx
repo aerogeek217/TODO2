@@ -154,6 +154,14 @@ describe('CheckinDialog — rows', () => {
     render(<CheckinDialog />)
     act(() => useUIStore.getState().openCheckinDialog([1], 'Ada Lovelace has no open tasks in “Hot”, so nothing was sent.'))
     expect(screen.getByRole('status').textContent).toBe('Ada Lovelace has no open tasks in “Hot”, so nothing was sent.')
+    // Already there when the dialog opens, so a live region wouldn't announce it: it describes the dialog.
+    const describedBy = dialog().getAttribute('aria-describedby')
+    expect(describedBy && document.getElementById(describedBy)?.textContent).toBe('Ada Lovelace has no open tasks in “Hot”, so nothing was sent.')
+  })
+
+  it('opened without a notice, the dialog has no description', () => {
+    open([1])
+    expect(dialog().hasAttribute('aria-describedby')).toBe(false)
   })
 
   it('counts open tasks per person for the Which tasks choice (completed ones never count)', async () => {
@@ -210,7 +218,7 @@ describe('CheckinDialog — sending', () => {
     expect(clicked[0]!.getAttribute('href')).toBe('mailto:ada@example.com?subject=Task%20check-in%3A%203%20open%20tasks')
     expect(within(row(1)).getByText('Opened ✓')).toBeTruthy()
     expect(screen.getByRole('status').textContent)
-      .toBe('Opened a message to Ada Lovelace. The body is on your clipboard: paste it with Ctrl+V.')
+      .toBe('Opened a message to Ada Lovelace <ada@example.com>. The body is on your clipboard: paste it with Ctrl+V.')
 
     // Sending counts as a follow-up on the email's tasks only — one undo entry.
     await waitFor(() => expect(useTodoStore.getState().todos.find((t) => t.id === 1)?.lastFollowupAt).toEqual(NOW))
@@ -276,7 +284,7 @@ describe('CheckinDialog — sending', () => {
     expect(clicked[0]!.download).toBe('Check-in - Ada Lovelace - 2026-10-12.eml')
     expect(within(row(1)).getByText('Downloaded ✓')).toBeTruthy()
     expect(screen.getByRole('status').textContent)
-      .toBe('Downloaded the draft for Ada Lovelace (Check-in - Ada Lovelace - 2026-10-12.eml) — open it from your Downloads folder to review and send.')
+      .toBe('Downloaded the draft for Ada Lovelace <ada@example.com> (Check-in - Ada Lovelace - 2026-10-12.eml) — open it from your Downloads folder to review and send.')
     await waitFor(() => expect(document.activeElement?.getAttribute('aria-label')).toBe('Download .eml for Bob Stone'))
   })
 })

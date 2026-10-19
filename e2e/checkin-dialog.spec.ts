@@ -95,7 +95,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout
   await ada.getByRole('checkbox').check()
   await ada.getByRole('button', { name: 'Copy & open for Ada Lovelace' }).click()
   await expect(ada).toContainText('Opened ✓')
-  await expect(dialog.getByRole('status')).toHaveText('Opened a message to Ada Lovelace. The body is on your clipboard: paste it with Ctrl+V.')
+  await expect(dialog.getByRole('status')).toHaveText('Opened a message to Ada Lovelace <ada@example.com>. The body is on your clipboard: paste it with Ctrl+V.')
 
   // The mailto: link went to a new browsing context: the page stayed, no prompt.
   expect(await anchors(page)).toEqual([

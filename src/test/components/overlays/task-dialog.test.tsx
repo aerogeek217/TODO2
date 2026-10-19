@@ -52,7 +52,8 @@ beforeEach(() => {
   clearFilterStore()
   useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 })
   useTodoStore.setState({ todos: SAMPLE_TASKS })
-  usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: ASSIGNED_PEOPLE })
+  // Loaded as the store loads them: an entry for every task, empty when nobody is on it.
+  usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: new Map(SAMPLE_TASKS.map((t) => [t.id, ASSIGNED_PEOPLE.get(t.id) ?? []])) })
   useTagStore.setState({ tags: TAGS, assignedTagsMap: ASSIGNED_TAGS })
   useStatusStore.setState({ statuses: STATUSES })
   useListDefinitionStore.setState({ listDefinitions: SAMPLE_LISTS })

@@ -6,16 +6,14 @@ import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { useToday } from '../../hooks/use-today'
 import type { CheckinEmail } from '../../services/checkin-email/build'
 import { checkinRecipients } from '../../services/checkin-email/recipients'
-import { createTaskRefLookup } from '../../services/checkin-email/ref'
 import { checkinTaskCount, selectCheckinTasks } from '../../services/checkin-email/select'
-import { checkinEmlFileName } from '../../services/checkin-email/handoff'
 import {
+  buildCheckinContext,
   CHECKIN_INCLUDE_DEFAULTS,
+  checkinSentStatus,
   COPY_FAILED_NOTICE,
-  invalidAddressNotice,
   prepareCheckin,
   sendPreparedCheckin,
-  type CheckinBuildContext,
 } from '../../services/checkin-email/person-checkin'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -45,6 +43,8 @@ type SentAs = 'opened' | 'downloaded'
 interface Toast {
   text: string
   error?: boolean
+  /** The reason the dialog opened instead of a one-click send: it describes the dialog until the next message. */
+  opening?: true
 }
 
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
@@ -79,7 +79,7 @@ export function CheckinDialog() {
   return <CheckinDialogPanel openedFor={state.personIds} notice={state.notice} />
 }
 
-const noticeToast = (notice: string | undefined): Toast | null => (notice ? { text: notice, error: true } : null)
+const noticeToast = (notice: string | undefined): Toast | null => (notice ? { text: notice, error: true, opening: true } : null)
 
 function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice?: string }) {
   // A new open request while open (another entry point): start afresh.
@@ -107,10 +107,9 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   const todos = useTodoStore((s) => s.todos)
   const statuses = useStatusStore((s) => s.statuses)
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const scopeSetting = useSettingsStore((s) => s.checkinTaskScope)
   const method = useSettingsStore((s) => s.checkinOpenMethod)
-  const markerSettings = useFilterSettings()
+  const filterSettings = useFilterSettings()
   const today = useToday()
 
   const titleId = useId()
@@ -121,10 +120,9 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
     () => checkinRecipients(people, todos, assignedPeopleMap, opened),
     [people, todos, assignedPeopleMap, opened],
   )
-  const refOf = useMemo(() => createTaskRefLookup(todos.map((t) => t.uid)), [todos])
-  const buildCtx = useMemo<CheckinBuildContext>(() => ({
-    todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, markerSettings, weekStartsOn, refOf,
-  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, markerSettings, weekStartsOn, refOf])
+  const buildCtx = useMemo(() => buildCheckinContext({
+    todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, filterSettings,
+  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, filterSettings])
   const scope = useMemo(
     () => resolveCheckinTaskScope(scopeSetting, listDefinitions.map((d) => d.id)),
     [scopeSetting, listDefinitions],
@@ -160,29 +158,28 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
     })
   }
 
+  // People whose send is running: a second click meanwhile sends nothing.
+  const sendingRef = useRef<Set<number>>(new Set())
   const send = async (p: PersistedPerson) => {
+    if (sendingRef.current.has(p.id)) return
     const sentAt = new Date()
     const prepared = buildEmail(p, sentAt)
     if (prepared.taskIds.length === 0) return
-    // First thing in the click: the clipboard needs the user gesture. A
-    // successful send records the follow-up (one undo entry).
-    const result = await sendPreparedCheckin(p, prepared, method, sentAt)
-    if (result === 'copy-failed') {
-      setToast({ text: COPY_FAILED_NOTICE, error: true })
-      return
+    sendingRef.current.add(p.id)
+    try {
+      // First thing in the click: the clipboard needs the user gesture. A
+      // successful send records the follow-up (one undo entry).
+      const result = await sendPreparedCheckin(p, prepared, method, sentAt)
+      if (result === 'copy-failed') {
+        setToast({ text: COPY_FAILED_NOTICE, error: true })
+        return
+      }
+      setSent((prev) => new Map(prev).set(p.id, result))
+      setToast({ text: checkinSentStatus(p.name, prepared.email.to, result, sentAt) })
+      focusNext()
+    } finally {
+      sendingRef.current.delete(p.id)
     }
-    if (result === 'invalid-address') {
-      setToast({ text: invalidAddressNotice(p.name), error: true })
-      return
-    }
-    const noAddress = prepared.email.to === '' ? ' Add the recipient in your mail app.' : ''
-    setSent((prev) => new Map(prev).set(p.id, result))
-    setToast({
-      text: result === 'opened'
-        ? `Opened a message to ${p.name}. The body is on your clipboard: paste it with Ctrl+V.${noAddress}`
-        : `Downloaded the draft for ${p.name} (${checkinEmlFileName(p.name, sentAt)}) — open it from your Downloads folder to review and send.${noAddress}`,
-    })
-    focusNext()
   }
 
   const toggle = (id: number) => {
@@ -240,6 +237,10 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
         initialFocus="panel"
         escapeBelongsElsewhere={escapeBelongsElsewhere}
         aria-labelledby={titleId}
+        // The status line is already there when the dialog opens with the
+        // reason a one-click send didn't go, so a live region wouldn't
+        // announce it: it describes the dialog, read as the focus lands.
+        aria-describedby={toast?.opening ? `${titleId}-toast` : undefined}
         className={styles.dialog}
         data={{ 'checkin-dialog': '' }}
         panelRef={panelRef}
@@ -353,7 +354,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
         {toast && (
           <div className={`${styles.toast} ${toast.error ? styles.toastError : ''}`} data-checkin-toast="">
             <span className={styles.toastDot} aria-hidden="true" />
-            <span>{toast.text}</span>
+            <span id={`${titleId}-toast`}>{toast.text}</span>
           </div>
         )}
         </div>
