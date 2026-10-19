@@ -8,7 +8,7 @@ import { FILE_SYNC_STATE_KEY } from '../../services/file-sync-state'
 import { fileStorageService as svc } from '../../services/file-storage'
 import type { SyncConflictInfo } from '../../services/file-storage'
 import { browserMatchesFile } from '../../services/file-sync-compare'
-import { resetDb, v50StoreSpecs, v65StoreSpecs } from '../helpers'
+import { resetDb, v50StoreSpecs, v65StoreSpecs, v66StoreSpecs } from '../helpers'
 
 /**
  * CURRENT_DB_VERSION is past 49 (v50 Dates, v51 uid + completedAt, …), so a
@@ -329,7 +329,9 @@ describe('first load after deploying over a v64 build (synced, with a sync recor
     if (!written.ok) return
     expect(await browserMatchesFile(written.data)).toBe(true)
     expect(written.data.todos.map((t) => t.title)).toEqual([BROWSER_TASK])
-    expect(written.data.listDefinitions.map((d) => d.name)).toEqual(['Not mine'])
+    // v67 gave the Eisenhower (on all tasks) its own list, on both sides alike.
+    expect(written.data.listDefinitions.map((d) => d.name)).toEqual(['Not mine', 'Eisenhower'])
+    expect(written.data.listDefinitions[1]?.owner).toEqual({ eisenhower: true })
   })
 })
 
@@ -384,5 +386,53 @@ describe('first load after deploying over a v65 build with customized Eisenhower
       { key: 'eisenhowerSource', value: 'list:4' },
     ]))
     expect(written.data.layouts[0]!.columns[0]!.cells[0]!.tabs.map((t) => t.config)).toEqual([{}, {}])
+  })
+})
+
+describe('first load after deploying over a v66 build whose Eisenhower list a list tab shows too (synced, with a sync record)', () => {
+  it('asks 66 → CURRENT, not a conflict: both sides number the layouts and make the same copy of the list, with its ranks', async () => {
+    const at = new Date('2026-10-19T09:00:00.000Z')
+    const list = {
+      id: 4, name: 'Team', sortOrder: 0, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null } },
+    }
+    const layouts = [2, 1].map((id) => ({
+      id, name: `L${id}`, createdAt: at, modifiedAt: at,
+      columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }, { id: 'e', kind: 'eisenhower', config: {} }] }] }],
+    }))
+    db.close()
+    await Dexie.delete(db.name)
+    const v66 = new Dexie(db.name)
+    v66.version(66).stores(v66StoreSpecs())
+    await v66.open()
+    await v66.table('settings').put({ key: 'eisenhowerSource', value: 'list:4' })
+    await v66.table('listDefinitions').add(list)
+    await v66.table('listOrders').add({ listDefinitionId: 4, todoId: 9, rank: 1 })
+    for (const l of layouts) await v66.table('layouts').add(l)
+    const tables: Record<string, unknown[]> = {}
+    for (const t of v66.tables) if (t.name !== 'backups') tables[t.name] = await t.toArray()
+    v66.close()
+    const fileText = JSON.stringify({ ...tables, __schemaVersion: 66, savedAt: SAVED_AT }, null, 2)
+    await db.open()
+
+    setSyncState({ fileSavedAt: SAVED_AT, dirtySince: null })
+    const { handle, write } = makeHandle(fileText)
+    mockLoadFileHandle.mockResolvedValue(handle)
+    const ask = vi.fn().mockResolvedValue(true)
+    svc.onConfirmFileUpgrade(ask)
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 66, toVersion: CURRENT_DB_VERSION })
+    const written = prepareImportText(write.mock.calls[0]![0])
+    if (!written.ok) throw new Error(written.error)
+    expect(await browserMatchesFile(written.data)).toBe(true)
+    expect(written.data.listDefinitions.map((d) => [d.id, d.name, d.owner])).toEqual([[4, 'Team', undefined], [5, 'Eisenhower', { eisenhower: true }]])
+    expect(written.data.listOrders.map((r) => [r.listDefinitionId, r.todoId])).toEqual([[4, 9], [5, 9]])
+    expect(written.data.settings).toEqual(expect.arrayContaining([{ key: 'eisenhowerSource', value: 'list:5' }]))
+    expect(written.data.layouts.map((l) => [l.id, l.sortOrder])).toEqual([[1, 0], [2, 1]])
   })
 })

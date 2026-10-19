@@ -11,7 +11,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 const AT = new Date(2026, 0, 1)
 
 function layout(id: number, tabs: LayoutTab[]): PersistedWorkspaceLayout {
-  return { id, name: `L${id}`, createdAt: AT, modifiedAt: AT, columns: [{ id: `c${id}`, weight: 1, cells: [{ id: `k${id}`, weight: 1, tabs }] }] }
+  return { id, sortOrder: 0, name: `L${id}`, createdAt: AT, modifiedAt: AT, columns: [{ id: `c${id}`, weight: 1, cells: [{ id: `k${id}`, weight: 1, tabs }] }] }
 }
 
 const list = (id: number): PersistedListDefinition => ({

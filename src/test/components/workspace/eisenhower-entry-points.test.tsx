@@ -23,7 +23,7 @@ const CELL: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'eis', kind: 'eisenh
 beforeEach(() => {
   resetEntityStores()
   useUIStore.setState(useUIStore.getInitialState(), true)
-  const layout: PersistedWorkspaceLayout = { id: 1, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, cells: [CELL] }] }
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, cells: [CELL] }] }
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
   useListDefinitionStore.setState({
     listDefinitions: [{ id: 8, name: 'Team', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() } }],

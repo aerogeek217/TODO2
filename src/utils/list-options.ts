@@ -19,6 +19,7 @@ export const GROUP_LABEL: Record<TodoGroupBy, string> = {
   people: 'People',
   status: 'Status',
   tag: 'Tag',
+  priority: 'Priority',
 }
 
 export const SORT_LABEL: Record<TodoSortBy, string> = {

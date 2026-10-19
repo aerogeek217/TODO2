@@ -139,7 +139,7 @@ describe('export → restore round-trip', () => {
       todoId, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString(),
     } as any)
     await db.layouts.add({
-      name: 'Default', createdAt: now, modifiedAt: now,
+      sortOrder: 0, name: 'Default', createdAt: now, modifiedAt: now,
       columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }],
     })
     await db.listOrders.add({ listDefinitionId: 1, todoId, rank: 2.5 })

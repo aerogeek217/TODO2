@@ -12,7 +12,7 @@ const T0 = new Date('2026-09-01T09:00:00.000Z')
 /** [A: (a1 a2)] [B: (b1)] */
 function twoColumns(name = 'Daily', extra: Partial<WorkspaceLayout> = {}): Omit<WorkspaceLayout, 'id'> {
   return {
-    name,
+    sortOrder: 0, name,
     createdAt: T0,
     modifiedAt: T0,
     columns: [

@@ -20,6 +20,11 @@ export const SETTING_KEYS = {
   /** Default next-follow-up interval for new tasks / "Mark followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',
   /**
+   * Whether new tasks get a next follow-up (today + the default interval):
+   * `false` = no; absent (or `true`) = yes.
+   */
+  newTaskFollowup: 'newTaskFollowup',
+  /**
    * "Due date makes a task urgent": days ahead (`0` = today) or `off`.
    * Absent = the default (3 days).
    */
@@ -52,9 +57,9 @@ export const SETTING_KEYS = {
    */
   eisenhowerPanes: 'eisenhowerPanes',
   /**
-   * Which tasks the Eisenhower considers: `list:<listDefinitionId>` (one
-   * saved list's). Absent = all tasks; a deleted list stays named (the
-   * matrix says so).
+   * Which tasks the Eisenhower considers: `list:<listDefinitionId>` — its
+   * own list (`owner: { eisenhower: true }`), or one saved list's. Absent =
+   * all tasks; a deleted list stays named (the matrix says so).
    */
   eisenhowerSource: 'eisenhowerSource',
 } as const

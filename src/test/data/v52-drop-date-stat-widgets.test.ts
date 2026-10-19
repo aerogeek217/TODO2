@@ -132,8 +132,9 @@ describe('v52 Dexie upgrade', () => {
     }
 
     const settings = await db.settings.orderBy('key').toArray()
-    // `activeLayoutId` comes from the later v56 layout seed; v60 drops `canvasRails`.
-    expect(settings.map((s) => s.key)).toEqual(['activeLayoutId', 'themeMode'])
+    // `activeLayoutId` comes from the later v56 layout seed; v60 drops `canvasRails`;
+    // v67 names the Eisenhower's list.
+    expect(settings.map((s) => s.key)).toEqual(['activeLayoutId', 'eisenhowerSource', 'themeMode'])
 
     // The stripped rails (and the surviving floats) became the Default layout
     // at v56: no tab of a removed kind made it there (v62 then drops the

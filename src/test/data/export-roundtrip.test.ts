@@ -78,6 +78,7 @@ function buildSeed(): Seed {
       { key: 'seededAssignedStatusId', value: '1' },
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
+      { key: 'newTaskFollowup', value: 'false' },
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'checkinOpenMethod', value: 'eml' },
@@ -103,6 +104,12 @@ function buildSeed(): Seed {
       id: 2, name: 'Follow-ups', sortOrder: 1,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: 'hot' } },
       sort: 'followup', grouping: 'followup',
+      owner: { layoutId: 2 }, showFilterLine: false,
+    }, {
+      id: 3, name: 'Eisenhower', sortOrder: 2,
+      membership: { kind: 'custom', predicate: FULL_PREDICATE },
+      sort: 'manual', grouping: 'priority',
+      owner: { eisenhower: true },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true } } },
@@ -116,9 +123,9 @@ function buildSeed(): Seed {
       { id: 3, todoId: 1, type: 'status', fromValue: 1, toValue: 2, timestamp: '2026-09-11T09:31:00.000Z' },
     ],
     layouts: [
-      { id: 1, name: 'Empty', columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
+      { id: 1, name: 'Empty', sortOrder: 1, columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
       {
-        id: 2, name: 'Daily',
+        id: 2, name: 'Daily', sortOrder: 0,
         createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'),
         columns: [
           {
@@ -229,6 +236,9 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
+    // Both kinds of owner: a layout's list and the Eisenhower's.
+    expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
+    expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)
     // Both forms of the Markers filter: Hot and markers set to Yes and No.
     const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
     expect(markers).toContain('hot')

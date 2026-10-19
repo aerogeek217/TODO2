@@ -39,7 +39,7 @@ const list = (id: number, name: string, predicate: TodoPredicate = emptyPredicat
 /** The open layout: one Eisenhower tab. */
 function showLayout(): void {
   const layout: PersistedWorkspaceLayout = {
-    id: 1, name: 'Main', createdAt: AT, modifiedAt: AT,
+    id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT,
     columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }] }],
   }
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })

@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { listDefinitionRepository } from '../data/list-definition-repository'
-import type {
-  ListDefinition,
-  ListGrouping,
-  ListMembership,
-  ListSort,
-  PersistedListDefinition,
+import {
+  isListedList,
+  type ListDefinition,
+  type ListGrouping,
+  type ListMembership,
+  type ListSort,
+  type PersistedListDefinition,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
 import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
@@ -32,7 +33,17 @@ interface ListDefinitionState {
   add: (input: AddInput) => Promise<number>
   update: (def: PersistedListDefinition) => Promise<void>
   remove: (id: number) => Promise<void>
+  /**
+   * Moves a list among the lists Settings › Lists shows (`isListedList`:
+   * indexes into those, in order); hidden lists keep their order after them.
+   */
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
+  /**
+   * The Eisenhower's own list (made when there is none —
+   * `listDefinitionRepository.ensureEisenhowerList`), with the lists and
+   * `settings-store.eisenhowerListId` reloaded to name it. Returns its id.
+   */
+  ensureEisenhowerList: () => Promise<number>
 }
 
 /**
@@ -126,12 +137,13 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   reorder(fromIndex, toIndex) {
     return trackWrite(async () => {
       const prev = get().listDefinitions
-      const sorted = [...prev].sort(bySortOrder)
+      const all = [...prev].sort(bySortOrder)
+      const sorted = all.filter((d) => isListedList(d))
       if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
       const [moved] = sorted.splice(fromIndex, 1)
       if (!moved) return
       sorted.splice(toIndex, 0, moved)
-      const updated = sorted.map((d, i) => ({ ...d, sortOrder: i }))
+      const updated = [...sorted, ...all.filter((d) => !isListedList(d))].map((d, i) => ({ ...d, sortOrder: i }))
       set({ listDefinitions: updated })
       try {
         await listDefinitionRepository.reorder(updated.map(d => d.id))
@@ -140,6 +152,14 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
         set({ listDefinitions: prev })
       }
     })
+  },
+
+  async ensureEisenhowerList() {
+    const id = await trackWrite(() => listDefinitionRepository.ensureEisenhowerList())
+    useSettingsStore.setState({ eisenhowerListId: id })
+    // After the tracked write (a load waits for writes in flight).
+    if (!get().listDefinitions.some((d) => d.id === id)) await get().load()
+    return id
   },
   }
 })

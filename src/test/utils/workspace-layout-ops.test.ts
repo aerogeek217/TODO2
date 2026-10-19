@@ -36,7 +36,7 @@ function col(id: string, cells: LayoutCell[], weight = 1): LayoutColumn {
 }
 
 function layout(...columns: LayoutColumn[]): WorkspaceLayout {
-  return { name: 'L', columns, createdAt: new Date(0), modifiedAt: new Date(0) }
+  return { sortOrder: 0, name: 'L', columns, createdAt: new Date(0), modifiedAt: new Date(0) }
 }
 
 /** Tab ids per cell per column. */

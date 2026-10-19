@@ -263,8 +263,8 @@ describe('v53 Dexie upgrade', () => {
     expect(todos.find((t) => t.id === 1)!.nextFollowupAt).toEqual(new Date(2026, 9, 12))
     expect(todos.find((t) => t.id === 4)!.dueDate).toEqual(new Date(2026, 9, 5))
     const defs = await db.listDefinitions.orderBy('id').toArray()
-    // The last list is the Focus list v59 adds.
-    expect(defs.map((d) => d.sort)).toEqual(['deadline', 'deadline', 'deadline', 'followup', 'manual'])
+    // Then the Focus list v59 adds and the Eisenhower's list v67 adds.
+    expect(defs.map((d) => d.sort)).toEqual(['deadline', 'deadline', 'deadline', 'followup', 'manual', 'manual'])
     expect(await db.settings.get('seededFollowupStatusId')).toBeUndefined()
 
     // A JSON copy of the same v52 data (an export carries the empty

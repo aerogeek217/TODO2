@@ -34,7 +34,8 @@ describe('v58 Dexie upgrade', () => {
     expect(await db.listOrders.count()).toBe(0)
     expect(await db.todos.count()).toBe(1)
     // Plus the Focus list v59 adds.
-    expect((await db.listDefinitions.orderBy('id').toArray()).map((d) => d.name)).toEqual(['L', 'Focus'])
+    // v59 adds the Focus list, v67 the Eisenhower's.
+    expect((await db.listDefinitions.orderBy('id').toArray()).map((d) => d.name)).toEqual(['L', 'Focus', 'Eisenhower'])
   })
 })
 

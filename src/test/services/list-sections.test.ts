@@ -676,3 +676,10 @@ describe('buildListSections — accents and sentinels', () => {
   })
 })
 
+
+describe('buildListSections — a list grouped by Priority', () => {
+  it('reads as ungrouped (no Priority sections yet): one section of every member', () => {
+    const todos = [makeTodo({ id: 1, urgent: true }), makeTodo({ id: 2 })]
+    expect(build(todos, 'priority')).toEqual([{ key: 'all', label: 'All tasks', todos }])
+  })
+})

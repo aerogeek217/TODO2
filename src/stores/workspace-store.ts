@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { layoutRepository, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type ReadLayout } from '../data/layout-repository'
 import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
 import { useUndoStore } from './undo-store'
 import { useListDefinitionStore } from './list-definition-store'
@@ -70,7 +70,7 @@ export interface ResizeOptions {
  *   goes back to the layout open before.
  */
 export interface WorkspaceState {
-  /** Saved layouts, oldest first (the picker's order). */
+  /** Saved layouts in the picker's order (`sortOrder`, then oldest first). */
   layouts: Layout[]
   activeLayoutId: number | null
   /** The open layout as edited (`null` until `init`). */
@@ -127,6 +127,13 @@ export interface WorkspaceState {
    * opens the most recently used remaining one.
    */
   delete: (id: number) => Promise<boolean>
+  /**
+   * Puts the saved layouts in `orderedIds`' order (the picker's), saved at
+   * once — not a layout change: nothing becomes unsaved. Layouts it leaves
+   * out keep their order after the named ones. Resolves `false` when the
+   * write failed (the order on screen goes back; the snackbar says so).
+   */
+  reorderLayouts: (orderedIds: readonly number[]) => Promise<boolean>
 
   /** Adds a new widget tab at `target`. Returns its id, or `null` when the target is unknown. */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
@@ -184,6 +191,13 @@ function cleanName(name: string): string | null {
 
 function replaceLayout(layouts: Layout[], layout: Layout): Layout[] {
   return layouts.map((l) => (l.id === layout.id ? layout : l))
+}
+
+/** The order a layout added after `layouts` takes (as `layoutRepository.insert` picks it). */
+function orderAfter(layouts: readonly Layout[]): number {
+  let next = 0
+  for (const l of layouts) if (Number.isFinite(l.sortOrder)) next = Math.max(next, Math.floor(l.sortOrder) + 1)
+  return next
 }
 
 /** Most recently opened (`lastUsedAt`, else `createdAt`); ties → picker order. */
@@ -288,7 +302,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     if (listsStillMatch(draft.listNames, draft.body)) {
       const now = new Date()
       set({
-        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, ...draft.body, createdAt: now, modifiedAt: now },
+        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, sortOrder: orderAfter(get().layouts), ...draft.body, createdAt: now, modifiedAt: now },
         saved: null,
         activeLayoutId: null,
         previousLayoutId: saved.id,
@@ -409,7 +423,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { activeLayoutId, previousLayoutId } = get()
       const now = new Date()
       set({
-        working: { id: UNSAVED_LAYOUT_ID, name: NEW_LAYOUT_NAME, columns: [], createdAt: now, modifiedAt: now },
+        working: { id: UNSAVED_LAYOUT_ID, name: NEW_LAYOUT_NAME, sortOrder: orderAfter(get().layouts), columns: [], createdAt: now, modifiedAt: now },
         saved: null,
         activeLayoutId: null,
         // A new layout over a new layout still goes back to the stored one.
@@ -453,8 +467,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const source = get().working
       if (!clean || !source) return null
       const now = new Date()
-      const { id: _from, ...body } = source
+      const { id: _from, sortOrder: _order, ...body } = source
       void _from
+      void _order
       const record = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number
       try {
@@ -466,10 +481,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       await layoutRepository.setActiveId(id).catch((err: unknown) => {
         console.warn('[workspace] remembering the open layout failed', err)
       })
-      const saved: Layout = { ...record, id }
+      // The order the insert gave it (after the others).
+      const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
+      const saved: Layout = { ...record, id, sortOrder }
       // Keep any edit made while the insert was in flight.
       const current = get().working ?? source
-      const working: Layout = { ...current, id, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
+      const working: Layout = { ...current, id, sortOrder, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       set({
         layouts: [...get().layouts, saved],
         activeLayoutId: id,
@@ -546,6 +563,36 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (next) await get().load(next.id)
       set({ layouts: get().layouts.filter((l) => l.id !== id) })
       return true
+    },
+
+    async reorderLayouts(orderedIds) {
+      const before = get().layouts
+      const rank = new Map(orderedIds.map((id, i) => [id, i]))
+      const ordered = [...before].sort((a, b) =>
+        (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || byLayoutOrder(a, b))
+      const ids = ordered.map((l) => l.id)
+      const orderOf = new Map(ids.map((id, i) => [id, i]))
+      const show = (orderById: ReadonlyMap<number, number>, layouts: Layout[]) => {
+        const { working, saved } = get()
+        const placed = (l: Layout): Layout => {
+          const order = orderById.get(l.id)
+          return order === undefined || order === l.sortOrder ? l : { ...l, sortOrder: order }
+        }
+        set({
+          layouts,
+          ...(saved ? { saved: placed(saved) } : {}),
+          ...(working ? { working: placed(working) } : {}),
+        })
+      }
+      show(orderOf, ordered.map((l) => ({ ...l, sortOrder: orderOf.get(l.id) ?? l.sortOrder })))
+      try {
+        await layoutRepository.reorder(ids)
+        return true
+      } catch (err) {
+        show(new Map(before.map((l) => [l.id, l.sortOrder])), before)
+        reportWriteFailure("Couldn't save the layout order.", err)
+        return false
+      }
     },
 
     addWidget(kind, target, seed) {

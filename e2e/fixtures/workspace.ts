@@ -273,7 +273,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
           tabs: band.tabs.map(buildTab),
         }
       }
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, columns, ...bands, createdAt: now, modifiedAt: now })
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, createdAt: now, modifiedAt: now })
       firstId ??= id
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })

@@ -43,6 +43,7 @@ function parseId(prefix: string, key: string): number | null {
  * (`overdue` / `today` / `week` / `later`, see `utils/bucket-by-date`).
  *
  * `'none'` is a no-op at this layer (means "ungrouped"; callers gate on it).
+ * `'priority'` groups nothing here yet: lists grouped by it read as ungrouped.
  */
 export function getGroupKey(
   todo: PersistedTodoItem,
@@ -72,6 +73,7 @@ export function getGroupKey(
       return dateBucketKey(todo.dueDate ? new Date(todo.dueDate) : null, ctx.today, ctx.weekStartsOn)
     case 'followup':
       return dateBucketKey(todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null, ctx.today, ctx.weekStartsOn)
+    case 'priority':
     case 'none':
       return null
   }
@@ -116,6 +118,7 @@ export function getGroupLabel(
     case 'deadline':
     case 'followup':
       return isDateBucketKey(key) ? DATE_BUCKET_LABELS[key] : ''
+    case 'priority':
     case 'none':
       return ''
   }
@@ -162,6 +165,7 @@ export function getGroupColor(
     }
     case 'deadline':
     case 'followup':
+    case 'priority':
     case 'none':
       return undefined
   }
@@ -209,6 +213,7 @@ function orderGroupKeys(
         return keys.slice().sort((a, b) =>
           getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
         )
+      case 'priority':
       case 'none':
         return keys.slice()
     }

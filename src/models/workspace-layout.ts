@@ -223,6 +223,12 @@ export function withLayoutBody<L extends LayoutBody>(layout: L, body: LayoutBody
 export interface WorkspaceLayout {
   id?: number
   name: string
+  /**
+   * Position among the layouts (the picker's order, lowest first; ties by
+   * creation). Written only when a layout is added (after the others) or
+   * the layouts are reordered — never by a layout save.
+   */
+  sortOrder: number
   columns: LayoutColumn[]
   /** The band above the columns; absent = none. */
   top?: LayoutBand

@@ -33,16 +33,26 @@ function readable(row: PersistedWorkspaceLayout): ReadLayout {
   return { layout: { ...sanitizeRow('layouts', row), id: row.id } as PersistedWorkspaceLayout, fixes }
 }
 
-/** Picker order: oldest first. */
-function byCreated(a: ReadLayout, b: ReadLayout): number {
-  return a.layout.createdAt.getTime() - b.layout.createdAt.getTime() || a.layout.id - b.layout.id
+/** Picker order: by `sortOrder`, then oldest first. */
+export function byLayoutOrder(a: PersistedWorkspaceLayout, b: PersistedWorkspaceLayout): number {
+  return a.sortOrder - b.sortOrder || a.createdAt.getTime() - b.createdAt.getTime() || a.id - b.id
+}
+
+/** The order a layout added now takes: one past the highest stored (0 for the first). Call inside the add's transaction. */
+async function nextLayoutOrder(): Promise<number> {
+  let next = 0
+  await db.layouts.each((row) => {
+    const order = (row as Partial<WorkspaceLayout>).sortOrder
+    if (typeof order === 'number' && Number.isFinite(order)) next = Math.max(next, Math.floor(order) + 1)
+  })
+  return next
 }
 
 export const layoutRepository = {
-  /** Every layout, repaired for use (`ReadLayout`), oldest first. */
+  /** Every layout, repaired for use (`ReadLayout`), in the picker's order. */
   async getAll(): Promise<ReadLayout[]> {
     const rows = (await db.layouts.toArray()) as PersistedWorkspaceLayout[]
-    return rows.map(readable).sort(byCreated)
+    return rows.map(readable).sort((a, b) => byLayoutOrder(a.layout, b.layout))
   },
 
   /** One layout, repaired for use (`ReadLayout`). */
@@ -51,12 +61,35 @@ export const layoutRepository = {
     return row ? readable(row) : undefined
   },
 
-  async insert(layout: Omit<WorkspaceLayout, 'id'>): Promise<number> {
-    return db.layouts.add(layout as WorkspaceLayout)
+  /**
+   * Adds a layout after the others: its `sortOrder` is picked here (one
+   * past the highest stored), whatever `layout` holds. Returns its id.
+   */
+  async insert(layout: Omit<WorkspaceLayout, 'id' | 'sortOrder'> & { sortOrder?: number }): Promise<number> {
+    return db.transaction('rw', db.layouts, async () => {
+      const sortOrder = await nextLayoutOrder()
+      return db.layouts.add({ ...layout, sortOrder } as WorkspaceLayout)
+    })
   },
 
+  /**
+   * Writes the layout. Its position stays as stored (only `insert` and
+   * `reorder` set it), so a save never undoes a reorder made meanwhile.
+   */
   async put(layout: PersistedWorkspaceLayout): Promise<void> {
-    await db.layouts.put(layout)
+    await db.transaction('rw', db.layouts, async () => {
+      const stored = (await db.layouts.get(layout.id)) as Partial<WorkspaceLayout> | undefined
+      const order = stored?.sortOrder
+      const sortOrder = typeof order === 'number' && Number.isFinite(order) ? order : layout.sortOrder
+      await db.layouts.put({ ...layout, sortOrder })
+    })
+  },
+
+  /** Gives each layout of `orderedIds` its position as `sortOrder`, in one transaction (a missing id is skipped). */
+  async reorder(orderedIds: readonly number[]): Promise<void> {
+    await db.transaction('rw', db.layouts, async () => {
+      for (const [i, id] of orderedIds.entries()) await db.layouts.update(id, { sortOrder: i })
+    })
   },
 
   /** Records when the layout was last opened; nothing else in the row changes. */
@@ -100,7 +133,7 @@ export const layoutRepository = {
     await db.transaction('rw', db.layouts, db.settings, async () => {
       if ((await db.layouts.count()) > 0) return
       const now = new Date()
-      const id = await db.layouts.add({ name: DEFAULT_LAYOUT_NAME, columns: [], createdAt: now, modifiedAt: now })
+      const id = await db.layouts.add({ name: DEFAULT_LAYOUT_NAME, sortOrder: 0, columns: [], createdAt: now, modifiedAt: now })
       await db.settings.put({ key: SETTING_KEYS.activeLayoutId, value: String(id) })
     })
   },

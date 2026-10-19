@@ -18,7 +18,7 @@ function layoutWith(config: DashboardTabConfig): PersistedWorkspaceLayout {
   const tab: DashboardTab = { id: 'dash', kind: 'dashboard', config }
   return {
     id: 1,
-    name: 'Dash',
+    sortOrder: 0, name: 'Dash',
     createdAt: T0,
     modifiedAt: T0,
     columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, activeTabId: 'dash', tabs: [tab] }] }],

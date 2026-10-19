@@ -64,6 +64,8 @@ interface SettingsState {
   weekStartsOn: WeekStart
   /** Next follow-up for new tasks and after "Mark followed up" = today + this. */
   followupDefaultInterval: FollowupInterval
+  /** Whether new tasks get a next follow-up (today + `followupDefaultInterval`). */
+  newTaskFollowup: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
@@ -99,6 +101,8 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
+  /** Whether new tasks get a next follow-up; shown at once, put back when the save fails. */
+  setNewTaskFollowup: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
@@ -260,6 +264,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
+  newTaskFollowup: true,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
@@ -283,6 +288,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
+      let newTaskFollowup = true
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
@@ -313,6 +319,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidWeekStart(parsed)) weekStartsOn = parsed
         } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
+        } else if (row.key === SETTING_KEYS.newTaskFollowup) {
+          newTaskFollowup = row.value !== 'false'
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
           const parsed = parseUrgentDueWithinDays(row.value)
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
@@ -331,7 +339,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides, eisenhowerPanes, eisenhowerListId })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, newTaskFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides, eisenhowerPanes, eisenhowerListId })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -425,6 +433,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (!parseFollowupInterval(value)) return
       await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
       set({ followupDefaultInterval: { ...interval } })
+    })
+  },
+
+  setNewTaskFollowup(on: boolean) {
+    return trackWrite(async () => {
+      const prev = get().newTaskFollowup
+      set({ newTaskFollowup: on })
+      try {
+        // Stored only when off: absent = on.
+        if (on) await settingsRepository.delete(SETTING_KEYS.newTaskFollowup)
+        else await settingsRepository.put(SETTING_KEYS.newTaskFollowup, 'false')
+      } catch (e) {
+        console.error('Failed to save whether new tasks get a follow-up:', e)
+        set({ newTaskFollowup: prev })
+      }
     })
   },
 

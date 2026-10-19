@@ -23,7 +23,7 @@ const day = (n: number) => new Date(2026, 9, 10 + n)
 
 function layoutWith(tab: EisenhowerTab): PersistedWorkspaceLayout {
   const now = new Date(2026, 0, 1)
-  return { id: 1, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }] }
+  return { id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }] }
 }
 
 let lastResult: EisenhowerResult | null = null

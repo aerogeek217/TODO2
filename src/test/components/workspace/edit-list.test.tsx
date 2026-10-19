@@ -35,7 +35,7 @@ function open() {
 const draft = () => useListDraftStore.getState().drafts[7]
 
 const layout: PersistedWorkspaceLayout = {
-  id: 1, name: 'Default', createdAt: new Date(), modifiedAt: new Date(),
+  id: 1, sortOrder: 0, name: 'Default', createdAt: new Date(), modifiedAt: new Date(),
   columns: [{ id: 'col', weight: 1, cells: [{ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }] }] }],
 }
 

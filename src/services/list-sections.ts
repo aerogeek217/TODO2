@@ -149,7 +149,7 @@ const DATE_ACCENTS: Partial<Record<DateBucketKey, string>> = {
 const UNGROUPED_ACCENT = 'var(--color-text-muted)'
 
 /** Trailing section for tasks with no value on the grouped axis. */
-const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; label: string }> = {
+const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none' | 'priority'>, { key: string; label: string }> = {
   deadline: { key: 'none', label: 'No Due Date' },
   followup: { key: 'none', label: 'No Follow-up' },
   people: { key: 'unassigned', label: 'Unassigned' },
@@ -159,7 +159,7 @@ const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; lab
 
 /** Whether `key` is the trailing "No …" / "Unassigned" section of `groupBy`. */
 export function isUngroupedSectionKey(groupBy: TodoGroupBy, key: string): boolean {
-  return groupBy !== 'none' && UNGROUPED_SECTION[groupBy]?.key === key
+  return groupBy !== 'none' && groupBy !== 'priority' && UNGROUPED_SECTION[groupBy]?.key === key
 }
 
 function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped: boolean } {
@@ -191,8 +191,8 @@ export function buildListSections(
   ctx: ListSectionsContext,
 ): Section[] {
   // A stored grouping this build doesn't know reads as ungrouped rather than
-  // breaking the surface.
-  const groupBy = isTodoGroupBy(spec.groupBy) ? spec.groupBy : 'none'
+  // breaking the surface; so does Priority, which has no sections yet.
+  const groupBy = isTodoGroupBy(spec.groupBy) && spec.groupBy !== 'priority' ? spec.groupBy : 'none'
   const sorted = [...members].sort(listSortComparator(spec.sortBy, {
     manualRanks: ctx.manualRanks,
     today: ctx.today,

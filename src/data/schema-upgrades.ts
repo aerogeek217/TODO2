@@ -15,6 +15,7 @@ import { upgradeV63 } from './upgrades/v63-app-background-and-list-pin'
 import { upgradeV64 } from './upgrades/v64-date-filters-and-caps'
 import { upgradeV65 } from './upgrades/v65-is-not-and-eisenhower-list'
 import { upgradeV66 } from './upgrades/v66-eisenhower-settings'
+import { upgradeV67 } from './upgrades/v67-layout-order-and-eisenhower-list'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -87,6 +88,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [64, upgradeV64],
   [65, upgradeV65],
   [66, upgradeV66],
+  [67, upgradeV67],
 ])
 
 /**

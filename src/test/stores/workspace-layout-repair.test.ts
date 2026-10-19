@@ -15,7 +15,7 @@ const T0 = new Date('2026-09-01T09:00:00.000Z')
 
 function corrupt(name = 'Daily'): Omit<WorkspaceLayout, 'id'> {
   return {
-    name,
+    sortOrder: 0, name,
     createdAt: T0,
     modifiedAt: T0,
     columns: [
@@ -26,7 +26,7 @@ function corrupt(name = 'Daily'): Omit<WorkspaceLayout, 'id'> {
 }
 
 function valid(name = 'Plain'): Omit<WorkspaceLayout, 'id'> {
-  return { name, createdAt: T0, modifiedAt: T0, columns: [{ id: 'P', weight: 1, cells: [{ id: 'kp', weight: 1, tabs: [createTab('notes', 'p1')] }] }] }
+  return { sortOrder: 0, name, createdAt: T0, modifiedAt: T0, columns: [{ id: 'P', weight: 1, cells: [{ id: 'kp', weight: 1, tabs: [createTab('notes', 'p1')] }] }] }
 }
 
 async function storedRow(id: number): Promise<PersistedWorkspaceLayout> {
