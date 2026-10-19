@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
+import { todoRepository } from '../../data/todo-repository'
 import { applyPaneDrop, currentPaneContext } from '../../services/eisenhower-drop'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -54,6 +55,71 @@ describe('applyPaneDrop', () => {
     await applyPaneDrop([{ todoId: a, important: true }])
     expect(mem(a).important).toBe(true)
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Marked important · A'])
+  })
+})
+
+describe('applyPaneDrop — a write that fails', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  async function seed() {
+    const home = await db.tags.add({ name: 'home', color: '#000' }) as number
+    const waiting = await db.statuses.add({ name: 'Waiting', color: '#000', icon: 'circle', sortOrder: 1 }) as number
+    await useTagStore.getState().load()
+    await useStatusStore.getState().load()
+    const a = await useTodoStore.getState().add('Chase vendor')
+    const b = await useTodoStore.getState().add('Book venue')
+    useUndoStore.setState(useUndoStore.getInitialState(), true)
+    return { home, waiting, a, b }
+  }
+
+  it('part-way: what was written is taken back, no undo entry, a notice says so — and it never rejects', async () => {
+    const { home, waiting, a, b } = await seed()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // The tag is the last write: the flags and the status went in before it.
+    vi.spyOn(db.todoTags, 'add').mockRejectedValue(new Error('disk full'))
+
+    await expect(applyPaneDrop([
+      { todoId: a, urgent: true, statusId: waiting, tagId: home },
+      { todoId: b, urgent: true, statusId: waiting, tagId: home },
+    ])).resolves.toBeUndefined()
+
+    expect(mem(a).urgent).toBeUndefined()
+    expect(mem(a).statusId).toBeUndefined()
+    expect(tagsOf(a)).toEqual([])
+    const row = await db.todos.get(a)
+    expect(row?.urgent).toBeUndefined()
+    expect(row?.statusId).toBeUndefined()
+    const undo = useUndoStore.getState()
+    expect(undo.undoStack).toEqual([])
+    expect(undo.groupStartIndex).toBeNull()
+    expect(undo.snackbar).toEqual({
+      description: 'Couldn’t save: Marked urgent, status Waiting, tagged #home · 2 tasks. Nothing changed.',
+      notice: true,
+    })
+  })
+
+  it('flags alone: the failed write is rolled back by the store; a notice, no rejection', async () => {
+    const { a } = await seed()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValue(new Error('disk full'))
+    await expect(applyPaneDrop([{ todoId: a, important: true }])).resolves.toBeUndefined()
+    expect(mem(a).important).toBeUndefined()
+    expect(useUndoStore.getState().undoStack).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t save: Marked important · Chase vendor. Nothing changed.')
+  })
+
+  it('two drops at once are written one after the other, each its own undo step', async () => {
+    const { waiting, a, b } = await seed()
+    const first = applyPaneDrop([{ todoId: a, urgent: true, statusId: waiting }])
+    const second = applyPaneDrop([{ todoId: b, important: true, statusId: waiting }])
+    await Promise.all([first, second])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([
+      'Marked urgent, status Waiting · Chase vendor',
+      'Marked important, status Waiting · Book venue',
+    ])
+    await useUndoStore.getState().undo()
+    expect(mem(b).statusId).toBeUndefined()
+    expect(mem(a).statusId).toBe(waiting)
   })
 })
 

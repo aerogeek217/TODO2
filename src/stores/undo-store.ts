@@ -11,6 +11,22 @@ export interface UndoEntry {
 
 const MAX_STACK_SIZE = 50
 
+/** One entry made of `grouped`: undo runs theirs newest first, redo oldest first. */
+function compoundOf(description: string, grouped: readonly UndoEntry[]): UndoEntry {
+  return {
+    description,
+    async undo() {
+      for (let i = grouped.length - 1; i >= 0; i--) {
+        const item = grouped[i]
+        if (item) await item.undo()
+      }
+    },
+    async redo() {
+      for (const entry of grouped) await entry.redo()
+    },
+  }
+}
+
 /** `stack` with `entry` at `index` (or last, when the stack got shorter). */
 function insertAt(stack: UndoEntry[], index: number, entry: UndoEntry): UndoEntry[] {
   const at = Math.min(index, stack.length)
@@ -43,6 +59,14 @@ interface UndoState {
   beginGroup: () => void
   /** Merge all entries pushed since beginGroup() into a single undo entry. */
   endGroup: (description: string, showSnackbar?: boolean) => void
+  /**
+   * Ends the open group by taking back what it holds, newest first — a
+   * compound operation that failed part-way leaves nothing behind and no
+   * entry. Resolves `false` when an entry can't be taken back: the entries
+   * not taken back then stay, as one entry named `description`, for the
+   * user to undo. Shows no snackbar (the caller says what happened).
+   */
+  abortGroup: (description: string) => Promise<boolean>
   /**
    * Shows `description` in the snackbar without an Undo button — the result
    * of an operation that can't be undone (e.g. one run without a backup).
@@ -173,18 +197,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
         return
       }
 
-      const compound: UndoEntry = {
-        description,
-        async undo() {
-          for (let i = grouped.length - 1; i >= 0; i--) {
-            const item = grouped[i]
-            if (item) await item.undo()
-          }
-        },
-        async redo() {
-          for (const entry of grouped) await entry.redo()
-        },
-      }
+      const compound = compoundOf(description, grouped)
 
       const base = undoStack.slice(0, groupStartIndex)
       const trimmed = base.length >= MAX_STACK_SIZE
@@ -210,6 +223,30 @@ export const useUndoStore = create<UndoState>((set, get) => {
           snackbar: null,
           snackbarTimerId: null,
         })
+      }
+    },
+
+    async abortGroup(description: string) {
+      const { undoStack, groupStartIndex } = get()
+      if (groupStartIndex == null) return true
+      const grouped = undoStack.slice(groupStartIndex)
+      // Like an undo: the stores' writes made while taking back push nothing.
+      set({ undoStack: undoStack.slice(0, groupStartIndex), groupStartIndex: null, isPerformingUndoRedo: true })
+      try {
+        for (let i = grouped.length - 1; i >= 0; i--) {
+          const entry = grouped[i]
+          if (!entry) continue
+          try {
+            await entry.undo()
+          } catch (e) {
+            console.error(`Couldn't take back: ${entry.description}`, e)
+            set({ undoStack: [...get().undoStack, compoundOf(description, grouped.slice(0, i + 1))], redoStack: [] })
+            return false
+          }
+        }
+        return true
+      } finally {
+        set({ isPerformingUndoRedo: false })
       }
     },
 

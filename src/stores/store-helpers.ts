@@ -252,10 +252,10 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   set: SetFn,
   opts: { showSnackbar?: boolean } = {},
 ): Promise<void> {
-  const prevValues = get().todos
-    .filter((t) => ids.includes(t.id))
-    .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   const idSet = new Set(ids)
+  const prevValues = get().todos
+    .filter((t) => idSet.has(t.id))
+    .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   // One timestamp for the store and the database write.
   const now = new Date()
 
