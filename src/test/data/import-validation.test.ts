@@ -446,19 +446,19 @@ describe('validateImportData', () => {
       if (!result.ok) return
       expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{"focus-filters":"n","open-settings":"g o"}' }])
       expect(result.warnings).toHaveLength(1)
-      expect(result.warnings[0]).toMatch(/^Fixed the keyboard shortcuts: unknown shortcut "nope" dropped, Undo: unreadable keys dropped, Select all visible tasks: .* \(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped$/)
+      expect(result.warnings[0]).toMatch(/^Fixed settings: keyboard shortcuts \(unknown shortcut "nope" dropped, Undo: unreadable keys dropped, Select all visible tasks: .* \(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped\)$/)
     })
 
     it('resets a huge value with one short warning instead of naming every part', () => {
       const keys = Array.from({ length: 200_000 }, (_, i) => `"k${i.toString(36)}":1`)
       const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: `{${keys.join(',')}}` }] }))
-      expect(result).toMatchObject({ ok: true, warnings: ['Fixed the keyboard shortcuts: keyboard shortcuts too long — reset'] })
+      expect(result).toMatchObject({ ok: true, warnings: ['Fixed settings: keyboard shortcuts (keyboard shortcuts too long — reset)'] })
       if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{}' }])
     })
 
     it('resets unreadable text with a warning', () => {
       const result = validateImportData(validData({ settings: [{ key: 'keyboardShortcuts', value: '{oops' }] }))
-      expect(result).toMatchObject({ ok: true, warnings: ['Fixed the keyboard shortcuts: unreadable keyboard shortcuts reset'] })
+      expect(result).toMatchObject({ ok: true, warnings: ['Fixed settings: keyboard shortcuts (unreadable keyboard shortcuts reset)'] })
       if (result.ok) expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{}' }])
     })
   })

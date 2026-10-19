@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, within, screen } from '@testing-library/react'
+import { render, cleanup, fireEvent, within, screen, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { EisenhowerWidget, type EisenhowerResult } from '../../../components/workspace/eisenhower/EisenhowerWidget'
 import { CustomizePanesDialog } from '../../../components/workspace/eisenhower/CustomizePanesDialog'
@@ -8,9 +8,11 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import type { EisenhowerQuadrant, EisenhowerTab, EisenhowerTabConfig, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import type { EisenhowerQuadrant, EisenhowerTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import type { EisenhowerPanes } from '../../../models/eisenhower-settings'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { defaultPaneFilter } from '../../../utils/eisenhower-panes'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
@@ -39,19 +41,24 @@ function Host({ customize }: { customize: boolean }) {
   )
 }
 
-function setup(config: EisenhowerTabConfig, opts: { customize?: boolean } = {}) {
-  const layout = layoutWith({ id: 'eis', kind: 'eisenhower', config })
+/** The workspace with one Eisenhower tab, the app-wide panes setting `panes`. */
+function showLayout(): void {
+  const layout = layoutWith({ id: 'eis', kind: 'eisenhower', config: {} })
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+}
+
+function setup(panes: EisenhowerPanes, opts: { customize?: boolean } = {}) {
+  useSettingsStore.setState({ eisenhowerPanes: panes })
+  showLayout()
   render(<DndContext><Host customize={opts.customize ?? true} /></DndContext>)
 }
 
 const quadrant = (q: string) => document.querySelector<HTMLElement>(`[data-eis-quadrant="${q}"]`)!
 const rowTitles = (q: string) => Array.from(quadrant(q).querySelectorAll('[data-row-todo]')).map((r) => r.querySelector('[data-row-title]')?.textContent ?? r.textContent ?? '')
 const has = (q: string, title: string) => rowTitles(q).some((t) => t.includes(title))
-const tabConfig = () => {
-  const tab = useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]
-  return tab?.kind === 'eisenhower' ? tab.config : undefined
-}
+/** The app-wide panes setting as it is now. */
+const storedPanes = () => useSettingsStore.getState().eisenhowerPanes
+const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -80,7 +87,7 @@ afterEach(() => {
 
 describe('EisenhowerWidget with custom panes', () => {
   it('a task no pane matches is hidden and counted under the panes; the count opens it in the task dialog', () => {
-    setup({ panes: { delegate: { filter: NOT_DELEGATED } } })
+    setup({ delegate: { filter: NOT_DELEGATED } })
     expect(has('delegate', 'Analytics')).toBe(true)
     expect(has('delegate', 'Chase vendor')).toBe(false)
     expect(lastResult?.countLabel).toBe('3 of 4')
@@ -96,8 +103,16 @@ describe('EisenhowerWidget with custom panes', () => {
     expect(lastResult?.countLabel).toBe('4')
   })
 
+  it('every Eisenhower follows the setting: a change shows at once', () => {
+    setup({})
+    expect(has('delegate', 'Chase vendor')).toBe(true)
+    act(() => useSettingsStore.setState({ eisenhowerPanes: { delegate: { filter: NOT_DELEGATED } } }))
+    expect(has('delegate', 'Chase vendor')).toBe(false)
+    expect(screen.getByTestId('eisenhower-no-pane').textContent).toBe('1 open task in no pane')
+  })
+
   it('a custom pane shows its name, its filter in words and the custom dot; a default one neither', () => {
-    setup({ panes: { delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } } })
+    setup({ delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } })
     expect(within(quadrant('delegate')).getByTestId('eisenhower-pane-subtitle').textContent).toBe('Urgent · not Important · not Delegated')
     expect(within(quadrant('delegate')).queryByTestId('eisenhower-pane-custom')).not.toBeNull()
     expect(quadrant('delegate').getAttribute('aria-label')).toBe('Hand off: Urgent · not Important · not Delegated')
@@ -108,7 +123,7 @@ describe('EisenhowerWidget with custom panes', () => {
   })
 
   it('a pane’s "+" seeds what its filter writes, from "<pane>"', () => {
-    setup({ panes: { drop: { name: 'Delegated', filter: { ...emptyPredicate(), statusIds: [3], markers: { focus: true } } } } })
+    setup({ drop: { name: 'Delegated', filter: { ...emptyPredicate(), statusIds: [3], markers: { focus: true } } } })
     fireEvent.click(within(quadrant('drop')).getByRole('button', { name: 'Add task to Delegated' }))
     expect(useUIStore.getState().quickAddDraft).toEqual({
       rawTitle: '',
@@ -118,7 +133,7 @@ describe('EisenhowerWidget with custom panes', () => {
   })
 
   it('a pane’s "+" never seeds a status that no longer exists', () => {
-    setup({ panes: { drop: { name: 'Waiting', filter: { ...emptyPredicate(), statusIds: [99], markers: { focus: true } } } } })
+    setup({ drop: { name: 'Waiting', filter: { ...emptyPredicate(), statusIds: [99], markers: { focus: true } } } })
     fireEvent.click(within(quadrant('drop')).getByRole('button', { name: 'Add task to Waiting' }))
     expect(useUIStore.getState().quickAddDraft?.defaults).toEqual({ personIds: [], tagIds: [], statusId: undefined, markers: { focus: true } })
   })
@@ -130,7 +145,7 @@ describe('EisenhowerWidget with custom panes', () => {
   })
 
   it('the corner gear and a pane header’s menu open Customize panes; Reset pane puts the default back', () => {
-    setup({ panes: { delegate: { filter: NOT_DELEGATED } } })
+    setup({ delegate: { filter: NOT_DELEGATED } })
     fireEvent.click(screen.getByRole('button', { name: 'Customize panes' }))
     expect(customizeCalls).toEqual([undefined])
 
@@ -141,10 +156,11 @@ describe('EisenhowerWidget with custom panes', () => {
 
     fireEvent.contextMenu(within(quadrant('delegate')).getByTestId('eisenhower-pane-subtitle'))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Delegate pane' })).getByRole('menuitem', { name: 'Reset pane' }))
-    expect(tabConfig()).toEqual({})
+    expect(storedPanes()).toEqual({})
     expect(has('delegate', 'Chase vendor')).toBe(true)
-    // The saved layout had the custom pane: the reset is an unsaved change.
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    // A setting, written at once as one undo step: the layout isn't touched.
+    expect(undoNames()).toEqual(['Reset pane “Delegate”'])
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 
   it('Shift+F10 on a pane header opens its menu; a default pane has no Reset pane', () => {
@@ -155,7 +171,7 @@ describe('EisenhowerWidget with custom panes', () => {
   })
 
   it('without Customize (phones) there is no gear and no header menu', () => {
-    setup({ panes: { do: { name: 'Now' } } }, { customize: false })
+    setup({ do: { name: 'Now' } }, { customize: false })
     expect(quadrant('do').textContent).toContain('Now')
     expect(screen.queryByRole('button', { name: 'Customize panes' })).toBeNull()
     fireEvent.contextMenu(within(quadrant('do')).getByTestId('eisenhower-pane-subtitle'))
@@ -164,17 +180,16 @@ describe('EisenhowerWidget with custom panes', () => {
 })
 
 describe('CustomizePanesDialog', () => {
-  function open(config: EisenhowerTabConfig, focusPane?: EisenhowerQuadrant) {
-    const layout = layoutWith({ id: 'eis', kind: 'eisenhower', config })
-    useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  function open(panes: EisenhowerPanes, focusPane?: EisenhowerQuadrant) {
+    useSettingsStore.setState({ eisenhowerPanes: panes })
     const onClose = vi.fn()
-    render(<CustomizePanesDialog tabId="eis" focusPane={focusPane} onClose={onClose} />)
+    render(<CustomizePanesDialog focusPane={focusPane} onClose={onClose} />)
     return { dialog: screen.getByRole('dialog', { name: 'Customize panes' }), onClose }
   }
   const card = (dialog: HTMLElement, q: string) => dialog.querySelector<HTMLElement>(`[data-pane-card="${q}"]`)!
 
   it('shows each pane’s name, filter chips and count now, and the open tasks in no pane', () => {
-    const { dialog } = open({ panes: { delegate: { filter: NOT_DELEGATED } } })
+    const { dialog } = open({ delegate: { filter: NOT_DELEGATED } })
     expect(within(card(dialog, 'delegate')).getByTestId('customize-pane-count').textContent).toBe('1 now')
     expect(within(card(dialog, 'delegate')).getByRole('img', { name: '1 open task now' })).toBeTruthy()
     expect(within(card(dialog, 'do')).getByRole('img', { name: '0 open tasks now' })).toBeTruthy()
@@ -183,26 +198,32 @@ describe('CustomizePanesDialog', () => {
     expect(within(card(dialog, 'do')).getByRole('button', { name: 'Reset pane' })).toHaveProperty('disabled', true)
   })
 
-  it('a rename is written at once (trimmed; the default name or blank = none), making the layout unsaved', () => {
+  it('a rename is written at once (trimmed; the default name or blank = none), one undo step however it is typed', async () => {
     const { dialog } = open({}, 'drop')
     const name = within(card(dialog, 'drop')).getByRole('textbox', { name: 'Name' })
     expect(document.activeElement).toBe(name)
+    fireEvent.change(name, { target: { value: 'S' } })
     fireEvent.change(name, { target: { value: 'Someday ' } })
-    expect(tabConfig()).toEqual({ panes: { drop: { name: 'Someday' } } })
+    expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     expect((name as HTMLInputElement).value).toBe('Someday ')
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
+    await act(() => useUndoStore.getState().undo())
+    expect(storedPanes()).toEqual({})
+    await act(() => useUndoStore.getState().redo())
+    expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     fireEvent.change(name, { target: { value: 'Drop' } })
-    expect(tabConfig()).toEqual({})
+    expect(storedPanes()).toEqual({})
   })
 
-  it('Reset pane and Reset all put the defaults back (the name field too)', () => {
-    const { dialog } = open({ panes: { delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } } })
+  it('Reset pane and Reset all put the defaults back (the name field too), one undo step each', () => {
+    const { dialog } = open({ delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } })
     fireEvent.click(within(card(dialog, 'delegate')).getByRole('button', { name: 'Reset pane' }))
-    expect(tabConfig()).toEqual({ panes: { drop: { name: 'Someday' } } })
+    expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     expect((within(card(dialog, 'delegate')).getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset all' }))
-    expect(tabConfig()).toEqual({})
+    expect(storedPanes()).toEqual({})
     expect(within(dialog).getByRole('button', { name: 'Reset all' })).toHaveProperty('disabled', true)
+    expect(undoNames()).toEqual(['Reset pane “Hand off”', 'Reset the Eisenhower panes'])
   })
 
   it('its counts are the widget’s: on a saved list, under a screen filter', () => {
@@ -214,13 +235,12 @@ describe('CustomizePanesDialog', () => {
     })
     // The screen filter leaves out Blog; the list leaves out Chase vendor (Delegated).
     useFilterStore.getState().setSearchText('a')
-    const config: EisenhowerTabConfig = {
-      listDefinitionId: 7,
-      panes: { do: { filter: { ...emptyPredicate(), searchText: 'zzz' } }, schedule: { filter: { ...emptyPredicate(), statusIds: [3] } } },
-    }
-    const layout = layoutWith({ id: 'eis', kind: 'eisenhower', config })
-    useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
-    render(<DndContext><Host customize /><CustomizePanesDialog tabId="eis" onClose={() => {}} /></DndContext>)
+    useSettingsStore.setState({
+      eisenhowerListId: 7,
+      eisenhowerPanes: { do: { filter: { ...emptyPredicate(), searchText: 'zzz' } }, schedule: { filter: { ...emptyPredicate(), statusIds: [3] } } },
+    })
+    showLayout()
+    render(<DndContext><Host customize /><CustomizePanesDialog onClose={() => {}} /></DndContext>)
     const dialog = screen.getByRole('dialog', { name: 'Customize panes' })
     const widgetCounts = ['do', 'schedule', 'delegate', 'drop'].map((q) => within(quadrant(q)).getByTestId('eisenhower-count').textContent)
     const dialogCounts = ['do', 'schedule', 'delegate', 'drop'].map((q) => {
@@ -235,10 +255,11 @@ describe('CustomizePanesDialog', () => {
   })
 
   it('a chip’s × edits the pane’s filter', () => {
-    const { dialog } = open({ panes: { delegate: { filter: NOT_DELEGATED } } })
+    const { dialog } = open({ delegate: { filter: NOT_DELEGATED } })
     const chips = within(card(dialog, 'delegate')).getAllByRole('button', { name: 'Remove filter' })
     // Priority, then Status: remove the status clause.
     fireEvent.click(chips[1]!)
-    expect(tabConfig()).toEqual({})
+    expect(storedPanes()).toEqual({})
+    expect(undoNames()).toEqual(['Changed pane “Delegate”'])
   })
 })

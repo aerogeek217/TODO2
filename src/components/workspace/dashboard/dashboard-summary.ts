@@ -1,9 +1,7 @@
 import type { DashboardSectionConfig, DashboardTileId } from '../../../models/dashboard-config'
-import { EISENHOWER_QUADRANTS } from '../../../models/workspace-layout'
 import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { ListTileCount } from '../../../services/stats/list-tiles'
 import type { TileStats } from '../../../services/stats/tiles'
-import { QUADRANT_NAME } from '../../../utils/eisenhower-panes'
 import { escapeHtml } from '../../../utils/html'
 import { countOf } from './dashboard-copy'
 import { TILES } from './dashboard-tiles'
@@ -22,14 +20,14 @@ export interface SummaryPart {
 }
 
 /** What the sections that add a summary line count. */
-export type SectionSummaryData = Pick<DashboardData, 'tags' | 'stale' | 'recent' | 'eisenhower'>
+export type SectionSummaryData = Pick<DashboardData, 'tags' | 'stale' | 'recent' | 'eisenhower' | 'eisenhowerSetup'>
 
 /**
  * The summary lines of the shown count sections, in their order: Tags
  * (`#q4 5 · #home 1 · No tag 3`, the No tag part only while the section
- * shows that row), Stale tasks, Recently completed, Eisenhower (`Do 3 ·
- * Schedule 1 · …`). A section with nothing to list adds no line; the other
- * sections (task rows, charts) add none.
+ * shows that row), Stale tasks, Recently completed, Eisenhower (each
+ * pane's name and count — `Do 3 · Schedule 1 · …`). A section with nothing
+ * to list adds no line; the other sections (task rows, charts) add none.
  */
 export function sectionSummaryLines(sections: readonly DashboardSectionConfig[], data: SectionSummaryData): SummaryPart[][] {
   const lines: SummaryPart[][] = []
@@ -52,9 +50,11 @@ export function sectionSummaryLines(sections: readonly DashboardSectionConfig[],
         lines.push([{ label: 'Recently completed', count: countOf(data.recent.shown.ids.length, data.recent.total.ids.length) }])
         break
       case 'eisenhower':
-        lines.push(EISENHOWER_QUADRANTS.map((q) => ({
-          label: QUADRANT_NAME[q],
-          count: countOf(data.eisenhower.shown[q].ids.length, data.eisenhower.total[q].ids.length),
+        // Nothing to count while the Eisenhower's list is deleted.
+        if (data.eisenhowerSetup.deleted) break
+        lines.push(data.eisenhowerSetup.panes.map((p) => ({
+          label: p.name,
+          count: countOf(data.eisenhower.shown[p.id].ids.length, data.eisenhower.total[p.id].ids.length),
         })))
         break
       default:

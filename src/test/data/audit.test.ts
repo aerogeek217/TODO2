@@ -434,29 +434,15 @@ describe('layouts audit', () => {
     expect((await auditData()).issues).toEqual([])
   })
 
-  it('an Eisenhower tab on a list is valid; an unreadable list id is reported, and cleanup puts it on all tasks', async () => {
+  it('an Eisenhower tab’s config key (its list and panes are settings) is reported; cleanup drops it', async () => {
     const eis = (config: unknown) => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] }] }]
-    // A list id is kept even when the list is gone (the tab says so, as a list tab does).
-    await db.layouts.add(layout('On a list', eis({ listDefinitionId: 99 })) as any)
+    await db.layouts.add(layout('Plain', eis({})) as any)
     expect((await auditData()).issues).toEqual([])
-    const id = await db.layouts.add(layout('Bad', eis({ listDefinitionId: 'Team' })) as any) as number
+    const id = await db.layouts.add(layout('Old', eis({ listDefinitionId: 3, panes: { drop: { name: 'Someday' } } })) as any) as number
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
-    expect(report.issues[0]!.samples![0]!.badFields).toEqual(['columns[0].cells[0].tabs[0].config.listDefinitionId'])
     await cleanupIssues(report.issues)
     expect((await db.layouts.get(id))?.columns[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: {} })
-    expect((await auditData()).issues).toEqual([])
-  })
-
-  it('an Eisenhower pane with parts import would drop is reported; cleanup drops just those', async () => {
-    const eis = (config: unknown) => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] }] }]
-    await db.layouts.add(layout('Custom', eis({ panes: { drop: { name: 'Someday' } } })) as any)
-    expect((await auditData()).issues).toEqual([])
-    const id = await db.layouts.add(layout('Odd', eis({ panes: { later: {}, drop: { name: 'Someday', colour: 'red' } } })) as any) as number
-    const report = await auditData()
-    expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
-    await cleanupIssues(report.issues)
-    expect((await db.layouts.get(id))?.columns[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: { panes: { drop: { name: 'Someday' } } } })
     expect((await auditData()).issues).toEqual([])
   })
 
@@ -589,6 +575,39 @@ describe('sanitisable settings audit (keyboard shortcuts)', () => {
     await db.settings.put({ key: 'keyboardShortcuts', value: '{oops' })
     await cleanupIssues((await auditData()).issues)
     expect(await db.settings.get('keyboardShortcuts')).toEqual({ key: 'keyboardShortcuts', value: '{}' })
+  })
+})
+
+describe('Eisenhower settings audit', () => {
+  it('valid panes and source are not reported', async () => {
+    await db.settings.bulkPut([
+      { key: 'eisenhowerPanes', value: '{"drop":{"name":"Someday"}}' },
+      { key: 'eisenhowerSource', value: 'list:3' },
+    ])
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('panes with parts import would drop are reported; cleanup drops just those', async () => {
+    await db.settings.put({ key: 'eisenhowerPanes', value: '{"later":{},"drop":{"name":"Someday","colour":"red"}}' })
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['eisenhowerPanes'] })])
+    expect(report.issues[0]!.samples![0]!.note).toBe('Cleanup: 2 Eisenhower pane settings dropped')
+    await cleanupIssues(report.issues)
+    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: '{"drop":{"name":"Someday"}}' })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it.each([
+    ['eisenhowerPanes', '{oops'],
+    ['eisenhowerPanes', '{"do":"Now"}'],
+    ['eisenhowerSource', 'list:x'],
+    ['eisenhowerSource', 'Team'],
+  ])('an unreadable %s value (%s) is reported; cleanup deletes the row (the default)', async (key, value) => {
+    await db.settings.put({ key, value })
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'delete', count: 1, keys: [key] })])
+    await cleanupIssues(report.issues)
+    expect(await db.settings.get(key)).toBeUndefined()
   })
 })
 

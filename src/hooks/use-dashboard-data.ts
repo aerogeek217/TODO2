@@ -24,7 +24,9 @@ import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { computeTagStats, type TagStats } from '../services/stats/tags'
 import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
 import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/stats/recently-completed'
-import { computeEisenhowerSummary, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
+import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
+import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
+import { usePaneContext } from './use-pane-context'
 import { useFilterStore } from '../stores/filter-store'
 import { countActiveFilters } from '../utils/filter-criteria'
 import { applyFilter } from '../utils/filter-match'
@@ -69,9 +71,24 @@ export interface DashboardData {
   recent: ShownOfTotal<RecentlyCompleted>
   recentDays: number
   eisenhower: ShownOfTotal<EisenhowerSummary>
+  /** The app-wide Eisenhower panes and source the Eisenhower section counts with. */
+  eisenhowerSetup: EisenhowerSetup
   /** `null` until the history has been read. */
   trend: TrendStats | null
   trendRange: DashboardTrendRange
+}
+
+/** The Eisenhower settings as the dashboard's Eisenhower section uses them. */
+export interface EisenhowerSetup {
+  /** The four panes, in position order. */
+  panes: readonly EisenhowerPane[]
+  /**
+   * The source list's name (as edited) when the source is a saved list;
+   * `null` for all tasks.
+   */
+  listName: string | null
+  /** The source list was deleted: nothing is counted. */
+  deleted: boolean
 }
 
 function sectionOption<K extends keyof DashboardSectionOptions>(config: DashboardTabConfig, id: DashboardSectionId, key: K) {
@@ -89,6 +106,9 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
   const markerSettings = useFilterSettings()
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
+  const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
+  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
+  const paneCtx = usePaneContext()
 
   const trendRange = sectionOption(config, 'trend', 'range') ?? DEFAULT_DASHBOARD_TREND_RANGE
   const lookAhead = sectionOption(config, 'followup', 'lookAhead') ?? DEFAULT_DASHBOARD_LOOK_AHEAD
@@ -133,10 +153,36 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     () => ({ shown: computeRecentlyCompleted(shown, ctx, recentDays), total: computeRecentlyCompleted(todos, ctx, recentDays) }),
     [shown, todos, ctx, recentDays],
   )
-  const eisenhower = useMemo(
-    () => ({ shown: computeEisenhowerSummary(shown, ctx), total: computeEisenhowerSummary(todos, ctx) }),
-    [shown, todos, ctx],
-  )
+  // The Eisenhower section: the app-wide source (all tasks, or a saved list's
+  // members — its unsaved draft included) sorted by the app-wide panes.
+  const eisenhowerPanes = useMemo(() => resolvePanes(storedPanes), [storedPanes])
+  const eisenhowerList = useMemo(() => {
+    if (eisenhowerListId == null) return undefined
+    const saved = listDefinitions.find((d) => d.id === eisenhowerListId)
+    return saved ? (drafts[eisenhowerListId] ?? saved) : null
+  }, [eisenhowerListId, listDefinitions, drafts])
+  const eisenhowerSetup = useMemo<EisenhowerSetup>(() => {
+    const savedName = listDefinitions.find((d) => d.id === eisenhowerListId)?.name
+    return {
+      panes: eisenhowerPanes,
+      listName: eisenhowerList ? (eisenhowerList.name.trim() || savedName || '') : null,
+      deleted: eisenhowerList === null,
+    }
+  }, [eisenhowerPanes, eisenhowerList, eisenhowerListId, listDefinitions])
+  const eisenhower = useMemo(() => {
+    const source = eisenhowerList === null
+      ? { shown: [], total: [] }
+      : eisenhowerSourceTasks(todos, shown, eisenhowerList, {
+        screen: statsFilter(screen),
+        lookups: { assignedPeopleMap, assignedTagsMap, statusesById: new Map(statuses.map((st) => [st.id!, st])) },
+        today,
+        settings: markerSettings,
+      })
+    return {
+      shown: computeEisenhowerSummary(source.shown, eisenhowerPanes, paneCtx),
+      total: computeEisenhowerSummary(source.total, eisenhowerPanes, paneCtx),
+    }
+  }, [eisenhowerList, todos, shown, screen, assignedPeopleMap, assignedTagsMap, statuses, today, markerSettings, eisenhowerPanes, paneCtx])
   const trend = useMemo(
     () => (events ? computeTrend(shown, events, ctx, trendRange) : null),
     [shown, events, ctx, trendRange],
@@ -165,6 +211,6 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
 
   return {
     ctx, shown, filtered, todoById, tiles, listTiles, followup, nextDays, status, people,
-    tags, stale, staleDays, recent, recentDays, eisenhower, trend, trendRange,
+    tags, stale, staleDays, recent, recentDays, eisenhower, eisenhowerSetup, trend, trendRange,
   }
 }

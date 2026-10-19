@@ -1,9 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useId, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import type { TodoPredicate } from '../../../models'
-import type { EisenhowerQuadrant, EisenhowerTab, WorkspaceLayout } from '../../../models/workspace-layout'
+import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
 import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { classifyPanes } from '../../../utils/eisenhower'
 import {
   paneSubtitle,
@@ -15,55 +15,43 @@ import {
   type EisenhowerPane,
 } from '../../../utils/eisenhower-panes'
 import { filterChips, type FilterChipNames } from '../../../utils/filter-chips'
-import { getTab } from '../../../utils/workspace-layout-ops'
 import { DialogFrame } from '../../shared/Dialog'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { CloseIcon } from '../../shared/icons'
 import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
-import { useTabTitle } from '../widget-hooks'
 import styles from './CustomizePanesDialog.module.css'
 
 /** The menu item (tab menu, cell menu) that opens the dialog. */
 export const CUSTOMIZE_PANES_LABEL = 'Customize panes…'
 
-/** The Eisenhower tab `tabId` of the working layout, if it's still there. */
-function eisenhowerTabOf(layout: WorkspaceLayout | null, tabId: string): EisenhowerTab | null {
-  if (!layout) return null
-  const tab = getTab(layout, tabId)
-  return tab?.kind === 'eisenhower' ? tab : null
-}
-
 export interface CustomizePanesDialogProps {
-  tabId: string
   /** Opened from a pane's header menu: that pane's name field takes the focus. */
   focusPane?: EisenhowerQuadrant
   onClose: () => void
+}
+
+/** Saves pane `q`'s settings patched (`null` = reset), from the panes as they are now (two quick edits mustn't drop one another). */
+function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfig>[2], description: string, mergeKey?: string): void {
+  const store = useSettingsStore.getState()
+  void store.setEisenhowerPanes(withPaneConfig(store.eisenhowerPanes, q, patch), description, mergeKey)
 }
 
 /**
  * Customize panes (a standard dialog): the four panes as a 2×2 of cards —
  * each with its name, its filter as the list filter chips (+ Filter adds a
  * clause), how many open tasks it holds now and Reset pane — then how many
- * open tasks are in no pane, and Reset all. Every change is written to the
- * tab's config at once — it shows behind the dialog and makes the layout
- * unsaved (Save / Discard is the undo).
+ * open tasks are in no pane, and Reset all. The panes are app-wide settings:
+ * every change is saved at once and shows in every Eisenhower tab and the
+ * dashboard section; each is one undo step (a name typed in one go is one).
  */
-export function CustomizePanesDialog({ tabId, focusPane, onClose }: CustomizePanesDialogProps) {
-  const tab = useWorkspaceStore((s) => eisenhowerTabOf(s.working, tabId))
-  useEffect(() => {
-    if (!tab) onClose()
-  }, [tab, onClose])
-  if (!tab) return null
-  return <PanesPanel tab={tab} focusPane={focusPane} onClose={onClose} />
-}
-
-function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane?: EisenhowerQuadrant; onClose: () => void }) {
+export function CustomizePanesDialog({ focusPane, onClose }: CustomizePanesDialogProps) {
   const titleId = useId()
-  const source = useEisenhowerSource(tab, useTabTitle(tab))
+  const source = useEisenhowerSource()
   const paneCtx = usePaneContext()
   const names = useChipNames()
-  const panes = useMemo(() => resolvePanes(tab.config.panes), [tab.config.panes])
+  const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
+  const panes = useMemo(() => resolvePanes(storedPanes), [storedPanes])
   const shown = source.kind === 'tasks' ? source.shown : NO_TASKS
   // Classified again only when a filter changes (not on each keystroke of a rename).
   const sortingPanes = useEqualValue(panes, samePaneFilters)
@@ -71,11 +59,6 @@ function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane
   const noneOpen = none.filter((t) => !t.isCompleted).length
   const focusRef = useRef<HTMLInputElement>(null)
 
-  const patchPane = (q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfig>[2]) => {
-    // Read the config as it is now: two quick edits mustn't drop one another.
-    const current = eisenhowerTabOf(useWorkspaceStore.getState().working, tab.id)?.config.panes
-    useWorkspaceStore.getState().patchTabConfig(tab.id, 'eisenhower', { panes: withPaneConfig(current, q, patch) })
-  }
   const anyCustom = panes.some((p) => p.customName || p.customFilter)
 
   return (
@@ -85,7 +68,7 @@ function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane
       initialFocus={focusPane ? focusRef : 'panel'}
       aria-labelledby={titleId}
       className={styles.dialog}
-      data={{ 'customize-panes': tab.id }}
+      data={{ 'customize-panes': '' }}
     >
       <div className={styles.header}>
         <h2 id={titleId} className={styles.title}>Customize panes</h2>
@@ -93,7 +76,8 @@ function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane
       </div>
       <p className={styles.sub}>
         A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left,
-        bottom right. Dropping a task on a pane gives it what the filter sets. Changes are saved with the layout.
+        bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every
+        Eisenhower and on the dashboard; changes are saved at once.
       </p>
       <div className={styles.grid}>
         {panes.map((pane) => (
@@ -103,9 +87,9 @@ function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane
             names={names}
             count={byPane[pane.id].filter((t) => !t.isCompleted).length}
             inputRef={pane.id === focusPane ? focusRef : undefined}
-            onRename={(name) => patchPane(pane.id, { name })}
-            onFilter={(filter) => patchPane(pane.id, { filter })}
-            onReset={() => patchPane(pane.id, null)}
+            onRename={(name) => patchPane(pane.id, { name }, `Renamed pane “${QUADRANT_NAME[pane.id]}”`, `name:${pane.id}`)}
+            onFilter={(filter) => patchPane(pane.id, { filter }, `Changed pane “${pane.name}”`)}
+            onReset={() => patchPane(pane.id, null, `Reset pane “${pane.name}”`)}
           />
         ))}
       </div>
@@ -119,7 +103,7 @@ function PanesPanel({ tab, focusPane, onClose }: { tab: EisenhowerTab; focusPane
           type="button"
           className={styles.ghostBtn}
           disabled={!anyCustom}
-          onClick={() => useWorkspaceStore.getState().patchTabConfig(tab.id, 'eisenhower', { panes: undefined })}
+          onClick={() => { void useSettingsStore.getState().setEisenhowerPanes(undefined, 'Reset the Eisenhower panes') }}
         >
           Reset all
         </button>

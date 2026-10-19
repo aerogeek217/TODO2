@@ -16,13 +16,15 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { eisenhowerSourceDescription } from '../../utils/eisenhower-panes'
 import { copyTasksRich } from '../../services/task-copy'
 import { ALL_TASKS_LABEL, WidgetKindMenu, type ListSource } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
-import { countListWidgets } from '../../hooks/use-list-widget-count'
+import { countListWidgets, listsLosingLastWidgetToSource } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-ops'
 import { createListThenEdit, DELETED_LIST_TITLE, openEditList, useTabTitle, useTabTitles } from './widget-hooks'
 import { UnsavedPrompt } from './UnsavedPrompt'
@@ -190,9 +192,10 @@ function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   if (!state.working || unsaved.size === 0) return []
   const except = new Set(tabIds)
   const out = new Set<number>()
+  const eisenhowerListId = useSettingsStore.getState().eisenhowerListId
   for (const tab of layoutTabs(state.working)) {
     if (!except.has(tab.id)) continue
-    const id = tabListId(tab)
+    const id = tabListId(tab, eisenhowerListId)
     if (id != null && unsaved.has(id) && countListWidgets(state, id, except) === 0) out.add(id)
   }
   return [...out]
@@ -232,7 +235,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
   const [changeToList, setChangeToList] = useState<{ tabId: string; anchor: { x: number; y: number } } | null>(null)
   const [customize, setCustomize] = useState<{ tabId: string; focusListTiles: boolean } | null>(null)
-  const [customizePanes, setCustomizePanes] = useState<{ tabId: string; pane?: EisenhowerQuadrant } | null>(null)
+  const [customizePanes, setCustomizePanes] = useState<{ pane?: EisenhowerQuadrant } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
   const activeCount = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result.countLabel : undefined
@@ -272,41 +275,53 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   }
 
   const menuTab = tabMenu ? cell.tabs.find((t) => t.id === tabMenu.tabId) : undefined
-  const menuListId = menuTab ? tabListId(menuTab) : undefined
+  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
+  const menuListId = menuTab ? tabListId(menuTab, eisenhowerListId) : undefined
   const menuListName = useListDefinitionStore((s) =>
     menuListId != null ? s.listDefinitions.find((d) => d.id === menuListId)?.name : undefined,
   )
 
-  /** An Eisenhower tab's `Show ›`: all tasks or a saved list (a layout change, like a list tab's list). */
+  /**
+   * An Eisenhower tab's `Show ›`: all tasks or a saved list — the app-wide
+   * Eisenhower source (every Eisenhower tab and the dashboard section), one
+   * undo step.
+   */
   const eisenhowerSource: ListSource | undefined = menuTab?.kind === 'eisenhower'
     ? {
         listDefinitionId: menuListId,
         note: menuListId == null ? ALL_TASKS_LABEL : (menuListName ?? DELETED_LIST_TITLE),
         onPick: (id) => {
-          if (id === menuListId) return
-          guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => {
-            patchTabConfig(menuTab.id, 'eisenhower', { listDefinitionId: id })
-          })
+          const next = id ?? null
+          if (next === eisenhowerListId) return
+          const name = next == null ? null : (useListDefinitionStore.getState().listDefinitions.find((d) => d.id === next)?.name ?? DELETED_LIST_TITLE)
+          const run = () => { void useSettingsStore.getState().setEisenhowerListId(next, eisenhowerSourceDescription(name)) }
+          const listIds = listsLosingLastWidgetToSource(next)
+          if (listIds.length === 0) run()
+          else setGuard({ listIds, lead: 'You’re changing what the Eisenhower shows.', run })
         },
       }
     : undefined
 
   /**
-   * Changes a tab's kind. A list tab and an Eisenhower tab on a list keep the
-   * list when they switch to each other; a list tab otherwise picks its list
-   * first.
+   * Changes a tab's kind. A list tab picks its list first — an Eisenhower
+   * tab switched to List keeps the Eisenhower's list (the app-wide source)
+   * while it exists. An Eisenhower tab shows the app-wide source.
    */
   const changeKind = (tab: LayoutTab, kind: WidgetKind, anchor: { x: number; y: number }) => {
     if (kind === tab.kind) return
-    const listId = tabListId(tab)
+    const listId = tabListId(tab, eisenhowerListId)
     const listExists = listId != null && useListDefinitionStore.getState().listDefinitions.some((d) => d.id === listId)
-    const keptList = listExists && (kind === 'lens' || kind === 'eisenhower') ? listId : undefined
-    if (keptList != null) {
-      changeTabKind(tab.id, kind, { listDefinitionId: keptList })
+    if (kind === 'lens' && listExists) {
+      changeTabKind(tab.id, kind, { listDefinitionId: listId })
       return
     }
     if (WIDGET_KIND_SPECS[kind].showsList) {
       setChangeToList({ tabId: tab.id, anchor })
+      return
+    }
+    // A list tab becoming an Eisenhower that shows the same list keeps showing it.
+    if (kind === 'eisenhower' && listId != null && listId === eisenhowerListId) {
+      changeTabKind(tab.id, kind)
       return
     }
     guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
@@ -333,7 +348,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
         kind: 'item' as const,
         label: CUSTOMIZE_PANES_LABEL,
         icon: <DashGlyph name="sliders" />,
-        onSelect: () => setCustomizePanes({ tabId: active.id }),
+        onSelect: () => setCustomizePanes({}),
       },
       { kind: 'separator' as const },
     ] : []),
@@ -449,7 +464,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             onResult={(result) => setWidgetResult({ tabId: active.id, result })}
             onAddListTile={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: true }) : undefined}
             onCustomize={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: false }) : undefined}
-            onCustomizePanes={active.kind === 'eisenhower' ? (pane) => setCustomizePanes({ tabId: active.id, pane }) : undefined}
+            onCustomizePanes={active.kind === 'eisenhower' ? (pane) => setCustomizePanes({ pane }) : undefined}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} join={join} />}
           {bandHit && <BandDropZone accepts={drag?.accepts === true} join={join} />}
@@ -490,7 +505,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           currentListName={menuListName}
           listSource={eisenhowerSource}
           sourceActions={menuTab.kind === 'eisenhower'
-            ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => setCustomizePanes({ tabId: menuTab.id }) }]
+            ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => setCustomizePanes({}) }]
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
@@ -528,7 +543,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       )}
       {customizePanes && (
         <CustomizePanesDialog
-          tabId={customizePanes.tabId}
           focusPane={customizePanes.pane}
           onClose={closeCustomizePanes}
         />

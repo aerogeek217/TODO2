@@ -16,6 +16,7 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { countActiveFilters } from '../../../utils/filter-criteria'
 import { hasNarrowingFilters, type FilterChipNames } from '../../../utils/filter-chips'
 import { usePersonStore } from '../../../stores/person-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import {
@@ -29,6 +30,7 @@ import {
   type PaneDropResult,
 } from '../../../utils/eisenhower'
 import {
+  eisenhowerSourceDescription,
   paneSubtitle,
   paneWrites,
   resolvePanes,
@@ -41,7 +43,6 @@ import { getFilterDefaults, predicateToFilterDefaults } from '../../../utils/fil
 import { isHotFilter, markerCondition } from '../../../utils/markers'
 import { noPaneTaskDialog } from '../../../services/task-dialog'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
-import { getTab } from '../../../utils/workspace-layout-ops'
 import { eisenhowerQuadrantDropId, TASK_DROP_KIND } from '../../../utils/task-dnd'
 import { createValueStore, type ValueStore } from '../../../utils/value-store'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
@@ -58,7 +59,7 @@ import tooltipStyles from '../../shared/Tooltip.module.css'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
-import { openEditList, useTabTitle } from '../widget-hooks'
+import { openEditList } from '../widget-hooks'
 import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../../hooks/use-eisenhower-source'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
@@ -437,19 +438,21 @@ interface WidgetProps {
 
 /**
  * The Eisenhower widget: four panes, as a 2×2 grid or — in narrow cells and
- * on phones — four collapsible sections. It considers all tasks, or one
- * saved list's (`config.listDefinitionId`: its unsaved draft included, its
- * prompt, group and sort ignored, its filter line above the panes); the
- * screen filter narrows either. Each task shows in the first pane whose
- * filter it matches (by default the quadrants of effective Urgent × Important,
- * `utils/urgency`); tasks in no pane are counted under the grid. Rows drag
+ * on phones — four collapsible sections. Its panes and its source are
+ * app-wide settings, the same in every Eisenhower tab: it considers all
+ * tasks, or one saved list's (`settings-store.eisenhowerListId`: its unsaved
+ * draft included, its prompt, group and sort ignored, its filter line above
+ * the panes); the screen filter narrows either. Each task shows in the first
+ * pane whose filter it matches (`settings-store.eisenhowerPanes`; by default
+ * the quadrants of effective Urgent × Important, `utils/urgency`); tasks in
+ * no pane are counted under the grid. Rows drag
  * between panes (and in from other widgets) to get what the pane's filter
  * implies; a drop that wouldn't land the task there is refused, with why.
  * Each pane's "+" opens Quick Add with the same writes (and the list's
  * defaults).
  */
 export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProps) {
-  const source = useEisenhowerSource(tab, useTabTitle(tab))
+  const source = useEisenhowerSource()
   if (source.kind === 'deleted') {
     return (
       <div className={styles.missing}>
@@ -457,7 +460,7 @@ export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProp
         <button
           type="button"
           className={styles.noteAction}
-          onClick={() => useWorkspaceStore.getState().patchTabConfig(tab.id, 'eisenhower', { listDefinitionId: undefined })}
+          onClick={() => { void useSettingsStore.getState().setEisenhowerListId(null, eisenhowerSourceDescription(null)) }}
         >
           Show all tasks
         </button>
@@ -476,12 +479,10 @@ export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProp
   )
 }
 
-/** Resets pane `q` of Eisenhower tab `tabId` to its defaults, from the config as it is now. */
-function resetPane(tabId: string, q: EisenhowerQuadrant): void {
-  const store = useWorkspaceStore.getState()
-  const tab = store.working ? getTab(store.working, tabId) : undefined
-  if (tab?.kind !== 'eisenhower') return
-  store.patchTabConfig(tabId, 'eisenhower', { panes: withPaneConfig(tab.config.panes, q, null) })
+/** Resets pane `q` (named `name`) to its defaults, from the panes as they are now (one undo step). */
+function resetPane(q: EisenhowerQuadrant, name: string): void {
+  const store = useSettingsStore.getState()
+  void store.setEisenhowerPanes(withPaneConfig(store.eisenhowerPanes, q, null), `Reset pane “${name}”`)
 }
 
 /** `N tasks are` / `1 task is`. */
@@ -518,7 +519,8 @@ function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, lis
   const stacked = isMobile || (size.width > 0 && size.width < EISENHOWER_STACK_BREAKPOINT_PX)
   const collapsed = useMemo(() => new Set(tab.viewState?.collapsed ?? []), [tab.viewState?.collapsed])
 
-  const panes = useMemo(() => resolvePanes(tab.config.panes), [tab.config.panes])
+  const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
+  const panes = useMemo(() => resolvePanes(storedPanes), [storedPanes])
   // Classified again only when a filter changes (not on a rename).
   const sortingPanes = useEqualValue(panes, samePaneFilters)
   const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
@@ -595,7 +597,7 @@ function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, lis
     ...(menuPane.customName || menuPane.customFilter ? [{
       kind: 'item' as const,
       label: 'Reset pane',
-      onSelect: () => resetPane(tab.id, menuPane.id),
+      onSelect: () => resetPane(menuPane.id, menuPane.name),
     }] : []),
   ] : []
 

@@ -77,8 +77,9 @@ export interface WidgetKindMenuProps {
   /** A setting of the widget, listed first (see {@link WidgetSetting}). */
   widgetSetting?: WidgetSetting
   /**
-   * An Eisenhower tab: what it shows, as a `Show ›` submenu — All tasks,
-   * then the saved lists (the list choices of a list tab's Change list) —
+   * An Eisenhower tab: what every Eisenhower shows (the app-wide source),
+   * as a `Show ›` submenu — All tasks, then the saved lists (the list
+   * choices of a list tab's Change list) —
    * with Edit list… above it while a list is set (`onEditList`). A pick
    * closes the menu.
    */

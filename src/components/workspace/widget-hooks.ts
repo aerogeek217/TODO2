@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
@@ -10,22 +11,23 @@ import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-
 export const DELETED_LIST_TITLE = '(Deleted list)'
 
 /**
- * A tab's title: a tab on a list (a list tab, an Eisenhower tab on a list)
- * shows its list's name (`listName`, looked up by the caller; `(Deleted
- * list)` when its list is gone), other tabs their kind's name.
+ * A tab's title: a list tab shows its list's name (`listName`, looked up by
+ * the caller; `(Deleted list)` when its list is gone), other tabs their
+ * kind's name — an Eisenhower tab reads `Eisenhower` whatever its source.
  */
 export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
-  if (tabListId(tab) == null) return widgetKindLabel(tab.kind)
+  if (tab.kind !== 'lens' || tab.config.listDefinitionId == null) return widgetKindLabel(tab.kind)
   return listName ?? DELETED_LIST_TITLE
 }
 
 /**
- * A tab's tooltip: its title, with the kind first on an Eisenhower tab on a
- * list (`Eisenhower · <list>`) — its title alone reads like a list tab.
+ * A tab's tooltip: its title; an Eisenhower tab on a list (the app-wide
+ * source, `listName` its name) adds it — `Eisenhower · <list>`.
  */
-export function tabTooltip(tab: LayoutTab, listName: string | undefined): string {
+export function tabTooltip(tab: LayoutTab, listName: string | undefined, eisenhowerListId: number | null): string {
   const title = tabTitle(tab, listName)
-  return tab.kind === 'eisenhower' && tabListId(tab) != null ? `${widgetKindLabel(tab.kind)} · ${title}` : title
+  if (tab.kind !== 'eisenhower' || eisenhowerListId == null) return title
+  return `${title} · ${listName ?? DELETED_LIST_TITLE}`
 }
 
 /**
@@ -51,15 +53,16 @@ function shownListName(
 
 /**
  * A tab's title (`tabTitle`) and tooltip (`tabTooltip`), kept current. A
- * tab on a list shows the name as edited (the list's unsaved draft), else
- * the saved name.
+ * tab on a list (a list tab; an Eisenhower tab while the Eisenhower source
+ * is a list) names the list as edited (its unsaved draft), else as saved.
  */
 export function useTabLabels(tab: LayoutTab | undefined): { title: string; tooltip: string } {
-  const listId = tab ? tabListId(tab) : undefined
+  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
+  const listId = tab ? tabListId(tab, eisenhowerListId) : undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name : undefined))
   const listName = shownName(savedName, draftName)
-  return tab ? { title: tabTitle(tab, listName), tooltip: tabTooltip(tab, listName) } : { title: '', tooltip: '' }
+  return tab ? { title: tabTitle(tab, listName), tooltip: tabTooltip(tab, listName, eisenhowerListId) } : { title: '', tooltip: '' }
 }
 
 /** A tab's title (`tabTitle`), kept current (see `useTabLabels`). */
@@ -71,7 +74,7 @@ export function useTabTitle(tab: LayoutTab | undefined): string {
 export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
-  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab), defs, drafts))), [tabs, defs, drafts])
+  return useMemo(() => tabs.map((tab) => tabTitle(tab, shownListName(tabListId(tab, null), defs, drafts))), [tabs, defs, drafts])
 }
 
 /**

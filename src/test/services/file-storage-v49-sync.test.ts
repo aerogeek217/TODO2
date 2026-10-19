@@ -8,7 +8,7 @@ import { FILE_SYNC_STATE_KEY } from '../../services/file-sync-state'
 import { fileStorageService as svc } from '../../services/file-storage'
 import type { SyncConflictInfo } from '../../services/file-storage'
 import { browserMatchesFile } from '../../services/file-sync-compare'
-import { resetDb, v50StoreSpecs } from '../helpers'
+import { resetDb, v50StoreSpecs, v65StoreSpecs } from '../helpers'
 
 /**
  * CURRENT_DB_VERSION is past 49 (v50 Dates, v51 uid + completedAt, …), so a
@@ -330,5 +330,59 @@ describe('first load after deploying over a v64 build (synced, with a sync recor
     expect(await browserMatchesFile(written.data)).toBe(true)
     expect(written.data.todos.map((t) => t.title)).toEqual([BROWSER_TASK])
     expect(written.data.listDefinitions.map((d) => d.name)).toEqual(['Not mine'])
+  })
+})
+
+describe('first load after deploying over a v65 build with customized Eisenhower tabs (synced, with a sync record)', () => {
+  it('asks 65 → CURRENT, not a conflict: the browser upgraded at open and the upgraded file hold the same settings', async () => {
+    const at = new Date('2026-10-19T09:00:00.000Z')
+    const panes = { delegate: { name: 'Hand off', filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true } } } }
+    const v65Layout = {
+      id: 1, name: 'Main', createdAt: at, modifiedAt: at,
+      columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [
+        { id: 'e1', kind: 'eisenhower', config: { panes, listDefinitionId: 4 } },
+        { id: 'e2', kind: 'eisenhower', config: { panes: { drop: { name: 'Later' } } } },
+      ] }] }],
+    }
+    const list = {
+      id: 4, name: 'Team', sortOrder: 0, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null } },
+    }
+    // The v65 build's database, and its sync file holding the same rows.
+    db.close()
+    await Dexie.delete(db.name)
+    const v65 = new Dexie(db.name)
+    v65.version(65).stores(v65StoreSpecs())
+    await v65.open()
+    await v65.table('settings').put({ key: 'themeMode', value: 'light' })
+    await v65.table('listDefinitions').add(list)
+    await v65.table('layouts').add(v65Layout)
+    const tables: Record<string, unknown[]> = {}
+    for (const t of v65.tables) if (t.name !== 'backups') tables[t.name] = await t.toArray()
+    v65.close()
+    const fileText = JSON.stringify({ ...tables, __schemaVersion: 65, savedAt: SAVED_AT }, null, 2)
+    await db.open()
+
+    setSyncState({ fileSavedAt: SAVED_AT, dirtySince: null })
+    const { handle, write } = makeHandle(fileText)
+    mockLoadFileHandle.mockResolvedValue(handle)
+    const ask = vi.fn().mockResolvedValue(true)
+    svc.onConfirmFileUpgrade(ask)
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 65, toVersion: CURRENT_DB_VERSION })
+    expect((await db.backups.toArray()).filter((b) => b.data === fileText)).toHaveLength(1)
+    const written = prepareImportText(write.mock.calls[0]![0])
+    if (!written.ok) throw new Error(written.error)
+    expect(await browserMatchesFile(written.data)).toBe(true)
+    expect(written.data.settings).toEqual(expect.arrayContaining([
+      { key: 'eisenhowerPanes', value: JSON.stringify(panes) },
+      { key: 'eisenhowerSource', value: 'list:4' },
+    ]))
+    expect(written.data.layouts[0]!.columns[0]!.cells[0]!.tabs.map((t) => t.config)).toEqual([{}, {}])
   })
 })

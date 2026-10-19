@@ -13,6 +13,7 @@ import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-set
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
+import { checkPanesSetting, formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { isValidEmail, normalizeEmail } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -307,6 +308,13 @@ function checkSetting(v: unknown): CheckResult {
   // read and resets an over-long text unread (`settingFixes` names what it
   // drops, a few at most), so what is stored is short.
   if (v.key === SETTING_KEYS.keyboardShortcuts) return true
+  // The Eisenhower panes: JSON of the panes (names and filters have no
+  // length limit, as list names and filters have none); malformed inner
+  // parts are dropped by the picker (`settingFixes`).
+  if (v.key === SETTING_KEYS.eisenhowerPanes) {
+    const panes = checkPanesSetting(v.value as string)
+    return panes === true ? true : `value (eisenhowerPanes: ${panes})`
+  }
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
@@ -350,6 +358,11 @@ function checkSetting(v: unknown): CheckResult {
     return parseCheckinTaskScope(v.value as string) !== undefined
       ? true
       : 'value (checkinTaskScope must be all, due-soon, hot or list:<id>)'
+  }
+  if (v.key === SETTING_KEYS.eisenhowerSource) {
+    return parseEisenhowerSource(v.value as string) !== undefined
+      ? true
+      : 'value (eisenhowerSource must be all or list:<id>)'
   }
   return true
 }
@@ -469,6 +482,10 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Only the bindings that read, pass the rules and don't clash.
     return { key, value: formatShortcutOverrides(readShortcutOverrides(value).overrides) } satisfies AllFields<SettingRow>
   }
+  if (key === SETTING_KEYS.eisenhowerPanes) {
+    // Stored normalised: known panes and keys only, what equals the default left out.
+    return { key, value: formatPanesSetting(readPanesSetting(value).panes) } satisfies AllFields<SettingRow>
+  }
   // The Hot rule is stored normalized (duplicate lines collapsed).
   const hotRule = key === SETTING_KEYS.hotRule ? parseHotRule(value) : undefined
   return { key, value: hotRule ? formatHotRule(hotRule) : value } satisfies AllFields<SettingRow>
@@ -476,8 +493,15 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
 
 /** What `pickSetting` drops from a valid settings row, in words. */
 function settingFixes(row: Raw): string[] {
-  if (row.key !== SETTING_KEYS.keyboardShortcuts || typeof row.value !== 'string') return []
-  return readShortcutOverrides(row.value).dropped
+  if (typeof row.value !== 'string') return []
+  if (row.key === SETTING_KEYS.keyboardShortcuts) return readShortcutOverrides(row.value).dropped
+  if (row.key === SETTING_KEYS.eisenhowerPanes) return readPanesSetting(row.value).fixes
+  return []
+}
+
+/** How an import warning names a settings row `pickSetting` fixed. */
+function settingLabel(row: Raw): string {
+  return row.key === SETTING_KEYS.eisenhowerPanes ? 'Eisenhower panes' : 'keyboard shortcuts'
 }
 
 function pickNote(v: Raw): AllFields<Note> {
@@ -640,7 +664,7 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
   settings: {
     check: checkSetting,
     pick: pickSetting,
-    fixer: { fixes: settingFixes, lead: () => 'Fixed the keyboard shortcuts', label: () => '' },
+    fixer: { fixes: settingFixes, lead: () => 'Fixed settings', label: settingLabel },
   },
   todoPeople: { check: checkTodoPerson, pick: pickTodoPerson },
   statuses: { check: checkStatus, pick: pickStatus },

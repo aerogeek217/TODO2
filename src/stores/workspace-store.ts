@@ -216,11 +216,14 @@ function reportWriteFailure(message: string, err: unknown): void {
 let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
-/** The ids of the lists a layout's tabs show (list tabs, Eisenhower tabs on a list). */
+/**
+ * The ids of the lists a layout's list tabs show (an Eisenhower tab's list
+ * is an app-wide setting, not part of the layout).
+ */
 function listIdsOf(body: LayoutBody): number[] {
   const ids = new Set<number>()
   for (const tab of layoutTabs(body)) {
-    const id = tabListId(tab)
+    const id = tabListId(tab, null)
     if (id != null) ids.add(id)
   }
   return [...ids]

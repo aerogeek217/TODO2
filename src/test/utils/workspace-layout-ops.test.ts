@@ -237,24 +237,27 @@ describe('weights, view state, tab settings', () => {
     expect(layoutStructureEqual(l, set)).toBe(true)
   })
 
-  it('a config key patched to undefined is removed (an Eisenhower tab back on all tasks)', () => {
-    const l = replaceTab(base(), 'a1', createTab('eisenhower', 'a1'))
-    const onList = patchTabConfig(l, 'a1', 'eisenhower', { listDefinitionId: 7 })
+  it('a config key patched to undefined is removed', () => {
+    const l = replaceTab(base(), 'a1', createTab('lens', 'a1'))
+    const onList = patchTabConfig(l, 'a1', 'lens', { listDefinitionId: 7 })
     expect(onList.columns[0]!.cells[0]!.tabs[0]!.config).toEqual({ listDefinitionId: 7 })
     expect(layoutStructureEqual(l, onList)).toBe(false)
-    const back = patchTabConfig(onList, 'a1', 'eisenhower', { listDefinitionId: undefined })
+    const back = patchTabConfig(onList, 'a1', 'lens', { listDefinitionId: undefined })
     expect(back.columns[0]!.cells[0]!.tabs[0]!.config).toEqual({})
     expect('listDefinitionId' in back.columns[0]!.cells[0]!.tabs[0]!.config).toBe(false)
     expect(layoutStructureEqual(l, back)).toBe(true)
   })
 
-  it('counts the tabs showing a list: list tabs and Eisenhower tabs on it', () => {
+  it('counts the tabs showing a list: list tabs on it, Eisenhower tabs while the Eisenhower source is it', () => {
     let l = replaceTab(base(), 'a1', createTab('lens', 'a1', { listDefinitionId: 7 }))
-    l = replaceTab(l, 'b1', createTab('eisenhower', 'b1', { listDefinitionId: 7 }))
+    l = replaceTab(l, 'b1', createTab('eisenhower', 'b1'))
     l = replaceTab(l, 'c1', createTab('eisenhower', 'c1'))
-    expect(countListTabs(l, 7)).toBe(2)
-    expect(countListTabs(l, 7, new Set(['a1']))).toBe(1)
-    expect(countListTabs(l, 7, new Set(['a1', 'b1']))).toBe(0)
+    expect(countListTabs(l, 7, 7)).toBe(3)
+    expect(countListTabs(l, 7, null)).toBe(1)
+    expect(countListTabs(l, 7, 8)).toBe(1)
+    expect(countListTabs(l, 8, 8)).toBe(2)
+    expect(countListTabs(l, 7, 7, new Set(['a1']))).toBe(2)
+    expect(countListTabs(l, 7, 7, new Set(['a1', 'b1', 'c1']))).toBe(0)
   })
 
   it('replaceTab swaps a tab in place and keeps it active', () => {
@@ -325,7 +328,7 @@ describe('bands', () => {
     expect(lens.top?.tabs[0]?.viewState).toEqual({ detailsWidth: 240 })
     expect(patchTabConfig(l, 'bot1', 'calendar', { dateTypes: { due: false, followup: true } }).bottom?.tabs[0]?.config).toEqual({ dateTypes: { due: false, followup: true } })
     expect(layoutPanels(l).map((p) => p.id)).toEqual(['tb', 'ka', 'kb', 'kc', 'kd', 'bb'])
-    expect(countListTabs(replaceTab(l, 'top1', createTab('lens', 'top1', { listDefinitionId: 7 })), 7)).toBe(1)
+    expect(countListTabs(replaceTab(l, 'top1', createTab('lens', 'top1', { listDefinitionId: 7 })), 7, null)).toBe(1)
   })
 
   it('a tab moves into a band (body: at the end; strip: at the index) and out of it; an emptied band goes', () => {

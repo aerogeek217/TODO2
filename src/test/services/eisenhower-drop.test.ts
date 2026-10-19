@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
-import { applyPaneDrop, currentPaneContext } from '../../services/eisenhower-drop'
+import { applyPaneDrop, currentPaneContext, currentPanes } from '../../services/eisenhower-drop'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import type { LayoutTab, PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -131,5 +133,24 @@ describe('currentPaneContext', () => {
     expect(ctx.today).toBe(today)
     expect(ctx.settings.urgentRange).toBe(5)
     expect(ctx.assignedPeopleMap).toBe(usePersonStore.getState().assignedPeopleMap)
+  })
+})
+
+describe('currentPanes', () => {
+  const layout = (tabs: LayoutTab[]): PersistedWorkspaceLayout => {
+    const at = new Date(2026, 0, 1)
+    return { id: 1, name: 'Main', createdAt: at, modifiedAt: at, columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs }] }] }
+  }
+
+  it('a drop on an Eisenhower tab of the open layout is resolved with the app-wide panes as they are now', () => {
+    const l = layout([{ id: 'eis', kind: 'eisenhower', config: {} }, { id: 'n', kind: 'notes', config: {} }])
+    useWorkspaceStore.setState({ working: l, saved: l })
+    useSettingsStore.setState({ eisenhowerPanes: { delegate: { name: 'Hand off' } } })
+    expect(currentPanes('eis')?.map((p) => p.name)).toEqual(['Do', 'Schedule', 'Hand off', 'Drop'])
+    useSettingsStore.setState({ eisenhowerPanes: {} })
+    expect(currentPanes('eis')?.map((p) => p.name)).toEqual(['Do', 'Schedule', 'Delegate', 'Drop'])
+    // Not an Eisenhower tab, or no such tab: nothing to drop on.
+    expect(currentPanes('n')).toBeNull()
+    expect(currentPanes('gone')).toBeNull()
   })
 })

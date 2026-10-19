@@ -54,25 +54,19 @@ describe('draft storage', () => {
     expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
   })
 
-  it('keeps an Eisenhower tab’s list in a layout draft; an unreadable one makes it no draft', () => {
-    const onList: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [createTab('eisenhower', 'e', { listDefinitionId: 3 })] }] }]
-    const record = { kind: 'new', name: 'N', body: { columns: onList }, listNames: { 3: 'Inbox' } } as const
-    writeLayoutDraft(record)
-    expect(readLayoutDraft()).toEqual(record)
-    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 'x' } }] }] }]
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad }))
-    expect(readLayoutDraft()).toBeNull()
+  it('reads a layout draft kept at v65 through v66: its Eisenhower tabs lose their list and panes (now settings)', () => {
+    const filter: TodoPredicate = { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true } }
+    const v65Columns = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [
+      { id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3, panes: { delegate: { name: 'Hand off', filter } } }, viewState: { collapsed: ['drop'] } },
+    ] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', columns: v65Columns, listNames: { 3: 'Inbox' }, schemaVersion: 65 }))
+    const tab: EisenhowerTab = { id: 'e', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }] }, listNames: { 3: 'Inbox' } })
   })
 
-  it('keeps an Eisenhower tab’s panes in a layout draft; a pane the layout repair would change makes it no draft', () => {
-    const filter: TodoPredicate = { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true } }
-    const tab: EisenhowerTab = { id: 'e', kind: 'eisenhower', config: { panes: { delegate: { name: 'Hand off', filter } } } }
-    const panes: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }]
-    const record = { kind: 'new', name: 'N', body: { columns: panes }, listNames: {} } as const
-    writeLayoutDraft(record)
-    expect(readLayoutDraft()).toEqual(record)
-    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { panes: { delegate: { name: 'Hand off', filter, colour: 'red' } } } }] }] }]
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad }))
+  it('a current draft whose Eisenhower tab holds a config key (it has none) is no draft', () => {
+    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } }] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad, schemaVersion: CURRENT_DB_VERSION }))
     expect(readLayoutDraft()).toBeNull()
   })
 

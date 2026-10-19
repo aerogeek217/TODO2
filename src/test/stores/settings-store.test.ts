@@ -4,6 +4,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { settingsRepository } from '../../data'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import type { HotRule } from '../../utils/hot'
+import { useUndoStore } from '../../stores/undo-store'
 
 beforeEach(async () => {
   await db.delete()
@@ -257,5 +258,72 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'keyboardShortcuts', value: '{"focus-filters":"Mod-k","toggle-complete":"x","nope":"y"}' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().shortcutOverrides).toEqual({ 'toggle-complete': [{ key: 'x' }] })
+  })
+})
+
+describe('the Eisenhower settings', () => {
+  const HAND_OFF = { delegate: { name: 'Hand off', filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true as const } } } }
+  const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
+
+  it('load reads the panes and the source; absent = the defaults and all tasks; unreadable values read as those too', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: {}, eisenhowerListId: null })
+    await db.settings.bulkPut([
+      { key: 'eisenhowerPanes', value: JSON.stringify({ ...HAND_OFF, later: {} }) },
+      { key: 'eisenhowerSource', value: 'list:4' },
+    ])
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: HAND_OFF, eisenhowerListId: 4 })
+    await db.settings.bulkPut([{ key: 'eisenhowerPanes', value: '{oops' }, { key: 'eisenhowerSource', value: 'Team' }])
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: {}, eisenhowerListId: null })
+  })
+
+  it('setEisenhowerPanes writes at once in the stored form (the row goes at the defaults), one undo step each', async () => {
+    await useSettingsStore.getState().setEisenhowerPanes({ ...HAND_OFF, do: { name: 'Do' } }, 'Changed pane “Delegate”')
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual(HAND_OFF)
+    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
+    await useSettingsStore.getState().setEisenhowerPanes(undefined, 'Reset the Eisenhower panes')
+    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
+    // The same panes again: nothing written, no step.
+    await useSettingsStore.getState().setEisenhowerPanes({}, 'Nothing')
+    expect(undoNames()).toEqual(['Changed pane “Delegate”', 'Reset the Eisenhower panes'])
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual(HAND_OFF)
+    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
+  })
+
+  it('writes with the same merge key in a row are one undo step; another write ends the run', async () => {
+    const set = useSettingsStore.getState().setEisenhowerPanes
+    await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')
+    await set({ drop: { name: 'Someday' } }, 'Renamed pane “Drop”', 'name:drop')
+    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
+    await set({ drop: { name: 'Someday' }, do: { name: 'Now' } }, 'Renamed pane “Do”', 'name:do')
+    await set({ drop: { name: 'Later' }, do: { name: 'Now' } }, 'Renamed pane “Drop”', 'name:drop')
+    expect(undoNames()).toEqual(['Renamed pane “Drop”', 'Renamed pane “Do”', 'Renamed pane “Drop”'])
+    await useUndoStore.getState().undo()
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ drop: { name: 'Someday' } })
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
+  })
+
+  it('setEisenhowerListId writes at once (all tasks = no row), one undo step with the snackbar', async () => {
+    await useSettingsStore.getState().setEisenhowerListId(4, 'Eisenhower shows “Team”')
+    expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:4' })
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Eisenhower shows “Team”' })
+    await useSettingsStore.getState().setEisenhowerListId(null, 'Eisenhower shows all tasks')
+    expect(await db.settings.get('eisenhowerSource')).toBeUndefined()
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerListId).toBe(4)
+    expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:4' })
+  })
+
+  it('a failed save puts the value shown before back', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
+    await useSettingsStore.getState().setEisenhowerListId(4, 'Eisenhower shows “Team”')
+    expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
+    expect(error).toHaveBeenCalled()
   })
 })

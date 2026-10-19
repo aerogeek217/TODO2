@@ -14,7 +14,8 @@ import {
   tagsSectionDialog,
 } from '../../../services/task-dialog'
 import { EISENHOWER_QUADRANTS } from '../../../models/workspace-layout'
-import { QUADRANT_COLOR, QUADRANT_NAME, QUADRANT_SUBTITLE } from '../../../utils/eisenhower-panes'
+import { paneSubtitle, QUADRANT_COLOR } from '../../../utils/eisenhower-panes'
+import { useChipNames } from '../../shared/filters/filter-menu'
 import { bySortOrder } from '../../../utils/sort-order'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { usePersonStore } from '../../../stores/person-store'
@@ -684,43 +685,56 @@ export function RecentSection({ data, rows, onDrill, style }: DashboardSectionPr
 
 export function EisenhowerSection({ data, onDrill, style }: DashboardSectionProps) {
   const { shown, total } = data.eisenhower
-  const urgentRange = data.ctx.urgentRange
+  const { panes, listName, deleted } = data.eisenhowerSetup
+  const names = useChipNames()
+  const subtitles = useMemo(() => panes.map((p) => paneSubtitle(p, names)), [panes, names])
+  const source = { urgentRange: data.ctx.urgentRange, listName }
   const sum = (s: typeof shown) => EISENHOWER_QUADRANTS.reduce((n, q) => n + s[q].ids.length, 0)
+  const custom = panes.some((p) => p.customFilter)
+  const sub = [listName != null ? `“${listName}”` : null, custom ? 'Custom panes' : 'Urgent × important'].filter((x) => x != null).join(' · ')
   return (
     <Panel
       def={SECTION_META.eisenhower}
       style={style}
-      count={`${countOf(sum(shown), sum(total))} open`}
-      onCount={onDrill ? () => onDrill(eisenhowerSummaryDialog({
+      count={deleted ? undefined : `${countOf(sum(shown), sum(total))} open`}
+      onCount={onDrill && !deleted ? () => onDrill(eisenhowerSummaryDialog(panes, {
         do: shown.do.ids, schedule: shown.schedule.ids, delegate: shown.delegate.ids, drop: shown.drop.ids,
-      }, urgentRange)) : undefined}
-      sub="Urgent × important"
+      }, source)) : undefined}
+      sub={deleted ? 'The Eisenhower’s list was deleted' : sub}
     >
-      <div className={styles.matrix}>
-        {EISENHOWER_QUADRANTS.map((q) => {
-          const n = shown[q].ids.length
-          const t = total[q].ids.length
-          const byDate = shown[q].byDate
-          return (
-            <Clickable
-              key={q}
-              as="div"
-              className={styles.quadrant}
-              data-eis-cell={q}
-              label={`${QUADRANT_NAME[q]}, ${QUADRANT_SUBTITLE[q].toLowerCase()}: ${countOf(n, t)}. Show tasks`}
-              onClick={onDrill && n > 0 ? () => onDrill(eisenhowerQuadrantDialog(q, shown[q].ids, urgentRange)) : undefined}
-            >
-              <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{QUADRANT_NAME[q]}</span>
-              <span className={styles.quadrantSub}>{QUADRANT_SUBTITLE[q]}</span>
-              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
-                {n}
-                {n !== t && <span className={styles.of}>of {t}</span>}
-              </span>
-              {byDate > 0 && <span className={styles.quadrantSub}>{byDate} by due date</span>}
-            </Clickable>
-          )
-        })}
-      </div>
+      {deleted ? (
+        <div className={styles.panelBody}>
+          <Empty title="This list was deleted" hint="Show all tasks from an Eisenhower tab’s menu, or pick another list there." />
+        </div>
+      ) : (
+        <div className={styles.matrix}>
+          {panes.map((pane, i) => {
+            const q = pane.id
+            const n = shown[q].ids.length
+            const t = total[q].ids.length
+            const byDate = shown[q].byDate
+            const subtitle = subtitles[i] ?? ''
+            return (
+              <Clickable
+                key={q}
+                as="div"
+                className={styles.quadrant}
+                data-eis-cell={q}
+                label={`${pane.name}, ${subtitle.toLowerCase()}: ${countOf(n, t)}. Show tasks`}
+                onClick={onDrill && n > 0 ? () => onDrill(eisenhowerQuadrantDialog(pane, subtitle, shown[q].ids, source)) : undefined}
+              >
+                <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{pane.name}</span>
+                <span className={styles.quadrantSub}>{subtitle}</span>
+                <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
+                  {n}
+                  {n !== t && <span className={styles.of}>of {t}</span>}
+                </span>
+                {byDate > 0 && <span className={styles.quadrantSub}>{byDate} by due date</span>}
+              </Clickable>
+            )
+          })}
+        </div>
+      )}
     </Panel>
   )
 }

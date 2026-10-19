@@ -44,6 +44,19 @@ export const SETTING_KEYS = {
    * `utils/shortcut-bindings`). Only changed bindings; absent = all defaults.
    */
   keyboardShortcuts: 'keyboardShortcuts',
+  /**
+   * The Eisenhower panes (every Eisenhower tab and the dashboard section):
+   * JSON object of the panes that differ from their defaults, by position —
+   * `{"delegate":{"name":"Hand off","filter":{…}}}` (`data/eisenhower-shape`).
+   * Absent = the four default quadrants.
+   */
+  eisenhowerPanes: 'eisenhowerPanes',
+  /**
+   * Which tasks the Eisenhower considers: `list:<listDefinitionId>` (one
+   * saved list's). Absent = all tasks; a deleted list stays named (the
+   * matrix says so).
+   */
+  eisenhowerSource: 'eisenhowerSource',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

@@ -15,6 +15,7 @@ import { resolvePanes } from '../utils/eisenhower-panes'
 import type { EisenhowerQuadrant } from '../models/workspace-layout'
 import { DEFAULT_HOT_RULE } from '../utils/hot'
 import type { UrgentDueWithinDays } from '../utils/urgency'
+import type { StatsContext } from '../services/stats/stats-context'
 
 /**
  * An Eisenhower pane context for tests: `today`, the urgent `range`, the
@@ -31,6 +32,20 @@ export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: 
     statuses: [],
     ...extra,
   }
+}
+
+/**
+ * The pane context a dashboard statistic's context (`StatsContext`) gives
+ * — what the Eisenhower summary classifies with in tests.
+ */
+export function statsPaneContext(ctx: StatsContext, extra: Partial<PaneContext> = {}): PaneContext {
+  return makePaneContext(ctx.today, ctx.urgentRange, {
+    settings: { urgentRange: ctx.urgentRange, hotRule: ctx.hotRule, weekStartsOn: ctx.weekStartsOn },
+    assignedPeopleMap: ctx.assignedPeopleMap,
+    assignedTagsMap: ctx.assignedTagsMap,
+    statuses: ctx.statuses,
+    ...extra,
+  })
 }
 
 /**
@@ -179,11 +194,16 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
- * Store specs of the v64 schema: the current specs (v65 changed no store).
+ * Store specs of the v65 schema: the current specs (v66 changed no store).
  * Update when a later version changes a store spec.
  */
-export function v64StoreSpecs(): Record<string, string> {
+export function v65StoreSpecs(): Record<string, string> {
   return currentStoreSpecs()
+}
+
+/** Store specs of the v64 schema — v65 changed no store spec. */
+export function v64StoreSpecs(): Record<string, string> {
+  return v65StoreSpecs()
 }
 
 /** Store specs of the v63 schema — v64 changed no store spec. */

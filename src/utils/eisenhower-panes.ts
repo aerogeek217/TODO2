@@ -1,10 +1,6 @@
 import { emptyPredicate, MARKER_KEYS, type MarkerConditions, type TodoPredicate } from '../models/filter-predicate'
-import {
-  EISENHOWER_QUADRANTS,
-  type EisenhowerPaneConfig,
-  type EisenhowerPanes,
-  type EisenhowerQuadrant,
-} from '../models/workspace-layout'
+import type { EisenhowerPaneConfig, EisenhowerPanes } from '../models/eisenhower-settings'
+import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import { filterChips, type FilterChip, type FilterChipNames } from './filter-chips'
 import type { FilterDefaults } from './filter-defaults'
 import { isNegated, withNormalizedNegation } from './filter-negation'
@@ -16,8 +12,8 @@ import { plainLine } from './text'
  * The Eisenhower matrix's four panes, by position (Do, Schedule, Delegate,
  * Drop — top-left, top-right, bottom-left, bottom-right). Each pane has a
  * name and a filter in the list filter model; by default they are the
- * classic quadrants of effective Urgent × Important. A tab stores only the
- * parts that differ (`EisenhowerTabConfig.panes`).
+ * classic quadrants of effective Urgent × Important. The app-wide setting
+ * stores only the parts that differ (`settings-store.eisenhowerPanes`).
  */
 
 /** The default quadrants' Urgent / Important. */
@@ -115,7 +111,7 @@ export function normalizePaneConfig(q: EisenhowerQuadrant, config: EisenhowerPan
   return out.name !== undefined || out.filter !== undefined ? out : undefined
 }
 
-/** The four panes in position order, from a tab's stored `panes`. */
+/** The four panes in position order, from the stored `panes` setting. */
 export function resolvePanes(panes: EisenhowerPanes | undefined): EisenhowerPane[] {
   return EISENHOWER_QUADRANTS.map((q) => {
     const stored = panes?.[q] ? normalizePaneConfig(q, panes[q]) : undefined
@@ -132,7 +128,7 @@ export function resolvePanes(panes: EisenhowerPanes | undefined): EisenhowerPane
 /**
  * `panes` with pane `q`'s settings patched (`null` = reset the pane to its
  * defaults), normalised; `undefined` once every pane is its default (the
- * config key goes).
+ * setting goes).
  */
 export function withPaneConfig(
   panes: EisenhowerPanes | undefined,
@@ -243,4 +239,12 @@ export function withPaneSeed(fd: FilterDefaults, writes: PaneWrites): FilterDefa
     statusId: writes.statusId ?? fd.statusId,
   }
   return activeMarkers(markers).length > 0 ? { ...out, markers } : out
+}
+
+/**
+ * The undo / snackbar name of a change of the Eisenhower source: `Eisenhower
+ * shows all tasks` (`listName` null) or `Eisenhower shows “Team”`.
+ */
+export function eisenhowerSourceDescription(listName: string | null): string {
+  return listName == null ? 'Eisenhower shows all tasks' : `Eisenhower shows “${listName}”`
 }

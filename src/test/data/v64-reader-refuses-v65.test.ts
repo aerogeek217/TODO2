@@ -50,8 +50,10 @@ describe('a v64 build reading v65 data', () => {
   })
 
   it.each([[64, true], [65, false]])('unsaved layout and list changes kept at v%i are read back: %s', (schemaVersion, kept) => {
+    // A v64 draft held no Eisenhower list or panes (this build reads such keys as unknown).
+    const columns = schemaVersion === 64 ? [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: {} }] }] }] : eisenhowerColumns
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
-      kind: 'new', name: 'N', columns: eisenhowerColumns, listNames: { 4: 'Not mine' }, schemaVersion,
+      kind: 'new', name: 'N', columns, listNames: { 4: 'Not mine' }, schemaVersion,
     }))
     localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
       4: { draft: negatedList, base: negatedList, schemaVersion },

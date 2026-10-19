@@ -13,7 +13,8 @@ import { computeTagStats } from '../../../services/stats/tags'
 import { computeStaleTasks } from '../../../services/stats/stale'
 import { computeRecentlyCompleted } from '../../../services/stats/recently-completed'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
-import { emptyFilterCriteria } from '../../helpers'
+import { emptyFilterCriteria, statsPaneContext } from '../../helpers'
+import { resolvePanes } from '../../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
   SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
@@ -216,14 +217,14 @@ describe('dashboard sample data — the Tags, Stale tasks, Recently completed an
   })
 
   it('Eisenhower: Do 3 · Schedule 1 · Delegate 5 · Drop 10 (Urgent 8 = Do + Delegate)', () => {
-    const quadrants = computeEisenhowerSummary(all, SAMPLE_CTX)
+    const quadrants = computeEisenhowerSummary(all, resolvePanes({}), statsPaneContext(SAMPLE_CTX))
     expect(titles(quadrants.do.ids)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy'])
     expect(quadrants.do.byDate).toBe(1)
     expect(titles(quadrants.schedule.ids)).toEqual(['Book venue for offsite'])
     expect(quadrants.delegate.ids).toEqual([5, 6, 7, 12, 13])
     expect(quadrants.delegate.byDate).toBe(4)
     expect(quadrants.drop.ids).toEqual([14, 8, 15, 16, 9, 10, 11, 17, 18, 19])
-    const filtered = computeEisenhowerSummary(q4, SAMPLE_CTX)
+    const filtered = computeEisenhowerSummary(q4, resolvePanes({}), statsPaneContext(SAMPLE_CTX))
     expect([filtered.do.ids, filtered.schedule.ids, filtered.delegate.ids, filtered.drop.ids]).toEqual([[], [4], [7], [14, 15, 17]])
   })
 })

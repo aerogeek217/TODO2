@@ -1,29 +1,30 @@
 import { useMemo } from 'react'
 import type { PersistedTodoItem } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import type { EisenhowerTab } from '../models/workspace-layout'
 import { useBuiltList } from './use-built-list'
 import { useFilterSettings } from './use-filter-settings'
 import { useEffectiveListDefinition } from './use-list-draft'
 import { useToday } from './use-today'
 import { useFilterStore } from '../stores/filter-store'
+import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { applyFilter } from '../utils/filter-match'
 
-/** The saved list an Eisenhower widget shows. */
+/** The saved list the Eisenhower shows (the app-wide source). */
 export interface ListSourceContext {
   /** The list as shown (its unsaved draft, else the saved list). */
   definition: PersistedListDefinition
-  /** Its name, as the tab shows it (the caller's `useTabTitle`). */
+  /** Its name as edited (its unsaved draft's, unless blank), else as saved. */
   title: string
   /** Open tasks in the app (what the list's own filter can hide). */
   appOpen: number
 }
 
-/** The tasks an Eisenhower tab considers, before its panes sort them. */
+/** The tasks the Eisenhower considers, before its panes sort them. */
 export type EisenhowerSource =
   /** Its saved list was deleted. */
   | { kind: 'deleted' }
@@ -46,14 +47,16 @@ export function countOpen(todos: readonly PersistedTodoItem[]): number {
 }
 
 /**
- * The tasks an Eisenhower tab considers: all tasks, or one saved list's (its
+ * The tasks the Eisenhower considers — the app-wide source
+ * (`settings-store.eisenhowerListId`): all tasks, or one saved list's (its
  * unsaved draft included; its prompt, group and sort ignored — every member
  * counts) as a list widget runs it; the screen filter narrows either. Used
- * by the widget and by its Customize panes dialog (the live counts). `title`
- * is the tab's title (the list's name, as its tab shows it).
+ * by every Eisenhower widget and by the Customize panes dialog (the live
+ * counts).
  */
-export function useEisenhowerSource(tab: EisenhowerTab, title: string): EisenhowerSource {
-  const listId = tab.config.listDefinitionId
+export function useEisenhowerSource(): EisenhowerSource {
+  const listId = useSettingsStore((s) => s.eisenhowerListId) ?? undefined
+  const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -80,6 +83,7 @@ export function useEisenhowerSource(tab: EisenhowerTab, title: string): Eisenhow
   const built = useBuiltList(membersOnly, undefined, screenActive ? screen : undefined)
   const listShown = built.list?.todos ?? NO_TASKS
   const listOpenTotal = useMemo(() => built.countOpenBase(), [built])
+  const title = definition?.name.trim() || savedName || ''
   const list = useMemo<ListSourceContext | undefined>(
     () => (definition ? { definition, title, appOpen } : undefined),
     [definition, title, appOpen],
