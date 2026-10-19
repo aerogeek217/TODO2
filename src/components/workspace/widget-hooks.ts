@@ -28,16 +28,25 @@ export function tabTooltip(tab: LayoutTab, listName: string | undefined): string
   return tab.kind === 'eisenhower' && tabListId(tab) != null ? `${widgetKindLabel(tab.kind)} · ${title}` : title
 }
 
-/** The name a tab's list shows: as edited (the list's unsaved draft), else saved; `undefined` when the list is gone. */
+/**
+ * The name a tab's list shows, from its saved name and its unsaved draft's:
+ * as edited (a blank draft name aside), else saved; `undefined` when the
+ * list is gone. The one rule for every tab title — the strip, the `+N`
+ * overflow menu, the phone.
+ */
+function shownName(savedName: string | undefined, draftName: string | undefined): string | undefined {
+  if (savedName == null) return undefined
+  return draftName?.trim() || savedName
+}
+
+/** `shownName` of the list `listId`. */
 function shownListName(
   listId: number | undefined,
   defs: readonly { id: number; name: string }[],
   drafts: Readonly<Record<number, { name: string } | undefined>>,
 ): string | undefined {
   if (listId == null) return undefined
-  const savedName = defs.find((d) => d.id === listId)?.name
-  if (savedName == null) return undefined
-  return drafts[listId]?.name.trim() || savedName
+  return shownName(defs.find((d) => d.id === listId)?.name, drafts[listId]?.name)
 }
 
 /**
@@ -48,8 +57,8 @@ function shownListName(
 export function useTabLabels(tab: LayoutTab | undefined): { title: string; tooltip: string } {
   const listId = tab ? tabListId(tab) : undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
-  const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name.trim() : undefined))
-  const listName = savedName != null ? (draftName || savedName) : undefined
+  const draftName = useListDraftStore((s) => (listId != null ? s.drafts[listId]?.name : undefined))
+  const listName = shownName(savedName, draftName)
   return tab ? { title: tabTitle(tab, listName), tooltip: tabTooltip(tab, listName) } : { title: '', tooltip: '' }
 }
 

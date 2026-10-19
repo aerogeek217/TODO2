@@ -2,10 +2,9 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
 import { getActiveTab, tabListId } from '../../models/workspace-layout'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useIsListDirty } from '../../hooks/use-list-draft'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { tabTitle, useTabLabels } from './widget-hooks'
+import { useTabLabels, useTabTitles } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
@@ -259,12 +258,13 @@ function OverflowMenu({ anchorRef, tabs, onPick, onClose }: {
   onPick: (tabId: string) => void
   onClose: () => void
 }) {
-  const names = useListDefinitionStore((s) => s.listDefinitions)
-  const entries = tabs.map((tab) => {
-    const listId = tabListId(tab)
-    const listName = listId != null ? names.find((d) => d.id === listId)?.name : undefined
-    const label = tabTitle(tab, listName)
-    return { kind: 'item' as const, label, icon: <WidgetKindIcon kind={tab.kind} />, onSelect: () => onPick(tab.id) }
-  })
+  // The strip's own titles: a list's unsaved name included.
+  const titles = useTabTitles(tabs)
+  const entries = tabs.map((tab, i) => ({
+    kind: 'item' as const,
+    label: titles[i] ?? '',
+    icon: <WidgetKindIcon kind={tab.kind} />,
+    onSelect: () => onPick(tab.id),
+  }))
   return <MenuPopover anchorRef={anchorRef} placement="bottom-end" entries={entries} label="More tabs" onClose={onClose} />
 }
