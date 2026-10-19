@@ -1,13 +1,8 @@
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
-import { useUIStore } from '../../../stores/ui-store'
+import { eisenhowerPaneFocus, useUIStore } from '../../../stores/ui-store'
 
 /** The menu item (tab menu, cell menu) that opens the Eisenhower settings. */
 export const CUSTOMIZE_PANES_LABEL = 'Customize panes…'
-
-/** The `data-settings-focus` of pane `q`'s name field in Settings › Tasks › Eisenhower. */
-export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
-  return `eisenhower-pane-${q}`
-}
 
 /**
  * Opens Settings › Tasks › Eisenhower — where the app-wide source and panes

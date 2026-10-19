@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
+import type { EisenhowerQuadrant } from '../models/workspace-layout'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -33,6 +34,11 @@ export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSect
   backups: 'database',
   'import-export': 'database',
   'data-integrity': 'database',
+}
+
+/** The `data-settings-focus` of pane `q`'s name field in Settings › Tasks › Eisenhower. */
+export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
+  return `eisenhower-pane-${q}`
 }
 
 /** Where Settings can open: a section, or a part of one (shown scrolled to it). */

@@ -6,9 +6,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
-
-/** A deleted list's name in a tab title. */
-export const DELETED_LIST_TITLE = '(Deleted list)'
+import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by

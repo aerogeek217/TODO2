@@ -5,6 +5,9 @@ import type { MenuEntry } from './MenuPopover'
 /** The source choice that is no list (the Eisenhower's Show). */
 export const ALL_TASKS_LABEL = 'All tasks'
 
+/** A deleted list's name where its name would show (a tab title, the Eisenhower's source). */
+export const DELETED_LIST_TITLE = '(Deleted list)'
+
 /**
  * The saved lists (in their order) as menu entries — a list tab's Change
  * list ›, the Eisenhower's Show (Settings › Tasks › Eisenhower) — each
