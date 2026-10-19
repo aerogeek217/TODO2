@@ -1,7 +1,7 @@
 import { emptyPredicate, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
-import { QUADRANT_COLOR, QUADRANT_NAME } from '../utils/eisenhower-panes'
+import type { EisenhowerQuadrant } from '../models/workspace-layout'
+import { QUADRANT_COLOR, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../utils/urgency'
 import type { FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
@@ -192,32 +192,57 @@ function urgentIncludes(range: UrgentDueWithinDays): string {
   return ` Urgent includes tasks due within ${urgentRangeLabel(range)}.`
 }
 
-/** An Eisenhower summary quadrant: its open tasks. */
+/** What the Eisenhower counts are taken from, for a dialog's description. */
+export interface EisenhowerDialogSource {
+  /** The app-wide urgent range (what Urgent includes). */
+  urgentRange: UrgentDueWithinDays
+  /** The source list's name; `null` = all tasks. */
+  listName: string | null
+}
+
+/** ` of “Team”` for a list source, else nothing. */
+function ofList(listName: string | null): string {
+  return listName == null ? '' : ` of “${listName}”`
+}
+
+/**
+ * An Eisenhower summary pane: its open tasks. A default pane is described
+ * by its quadrant (`Open tasks that are urgent and important.`), a custom
+ * one by its filter in words (`subtitle`).
+ */
 export function eisenhowerQuadrantDialog(
-  quadrant: EisenhowerQuadrant,
+  pane: EisenhowerPane,
+  subtitle: string,
   todoIds: readonly number[],
-  urgentRange: UrgentDueWithinDays,
+  { urgentRange, listName }: EisenhowerDialogSource,
 ): TaskDialogPayload {
+  const description = pane.customFilter
+    ? `Open tasks${ofList(listName)} in “${pane.name}” (${subtitle}) — the first pane each matches.`
+    : `Open tasks${ofList(listName)} that are ${QUADRANT_WORDS[pane.id]}.${urgentIncludes(urgentRange)}`
   return {
-    title: QUADRANT_NAME[quadrant],
+    title: pane.name,
     glyph: 'matrix',
-    description: `Open tasks that are ${QUADRANT_WORDS[quadrant]}.${urgentIncludes(urgentRange)}`,
+    description,
     source: { kind: 'todos', todoIds },
   }
 }
 
-/** The Eisenhower summary's count: every quadrant under its heading. */
+/** The Eisenhower summary's count: every pane under its heading. */
 export function eisenhowerSummaryDialog(
-  quadrants: Readonly<Record<EisenhowerQuadrant, readonly number[]>>,
-  urgentRange: UrgentDueWithinDays,
+  panes: readonly EisenhowerPane[],
+  ids: Readonly<Record<EisenhowerQuadrant, readonly number[]>>,
+  { urgentRange, listName }: EisenhowerDialogSource,
 ): TaskDialogPayload {
+  const custom = panes.some((p) => p.customFilter)
   return {
     title: 'Eisenhower',
     glyph: 'matrix',
-    description: `Open tasks by urgent × important.${urgentIncludes(urgentRange)}`,
+    description: custom
+      ? `Open tasks${ofList(listName)} by pane, each in the first pane it matches.${urgentIncludes(urgentRange)}`
+      : `Open tasks${ofList(listName)} by urgent × important.${urgentIncludes(urgentRange)}`,
     source: {
       kind: 'groups',
-      groups: EISENHOWER_QUADRANTS.map((q) => ({ key: q, label: QUADRANT_NAME[q], color: QUADRANT_COLOR[q], todoIds: quadrants[q] })),
+      groups: panes.map((p) => ({ key: p.id, label: p.name, color: QUADRANT_COLOR[p.id], todoIds: ids[p.id] })),
     },
   }
 }

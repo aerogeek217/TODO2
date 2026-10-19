@@ -36,7 +36,17 @@ import {
   shortcutRefusal,
   withShortcut,
 } from '../utils/shortcut-bindings'
+import type { EisenhowerPanes } from '../models/eisenhower-settings'
+import {
+  formatEisenhowerSource,
+  formatPanesSetting,
+  parseEisenhowerSource,
+  pickPanes,
+  readPanesSetting,
+} from '../data/eisenhower-shape'
 import { readFresh, trackWrite } from './store-helpers'
+import { useUndoStore, type UndoEntry } from './undo-store'
+import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -67,6 +77,18 @@ interface SettingsState {
   checkinTaskScope: CheckinTaskScope
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
+  /**
+   * The Eisenhower panes that differ from their defaults (every Eisenhower
+   * tab and the dashboard section), in their stored form; `{}` = the four
+   * default quadrants.
+   */
+  eisenhowerPanes: EisenhowerPanes
+  /**
+   * The saved list whose tasks the Eisenhower considers (every Eisenhower
+   * tab and the dashboard section); `null` = all tasks. May name a list
+   * that was deleted (the matrix says so).
+   */
+  eisenhowerListId: number | null
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
@@ -91,6 +113,18 @@ interface SettingsState {
   resetShortcut: (id: ShortcutId) => Promise<void>
   /** Puts every binding back on its default keys. */
   resetAllShortcuts: () => Promise<void>
+  /**
+   * Shows the Eisenhower panes at once (normalised; `{}` / `undefined` =
+   * the defaults) and saves them — after the Eisenhower writes before it —
+   * as one undo step named `description`, with the undo snackbar. Writes
+   * passing the same `mergeKey` one after another (e.g. a pane name typed
+   * letter by letter) stay one undo step, without the snackbar. A failed
+   * save adds no step and says so (the snackbar's notice); the panes saved
+   * last show again.
+   */
+  setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
+  /** Saves the Eisenhower source at once (`null` = all tasks) as one undo step, with the undo snackbar; a failed save as `setEisenhowerPanes`. */
+  setEisenhowerListId: (listDefinitionId: number | null, description: string) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -211,6 +245,9 @@ function isValidWeekStart(n: unknown): n is WeekStart {
  * written. */
 let customizedColorKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
 
+/** The default panes (no pane customized). */
+const NO_PANES: EisenhowerPanes = {}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: {
     dark: { ...DEFAULT_THEMED_COLORS.dark },
@@ -228,6 +265,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
   checkinTaskScope: DEFAULT_CHECKIN_TASK_SCOPE,
   shortcutOverrides: {},
+  eisenhowerPanes: NO_PANES,
+  eisenhowerListId: null,
 
   async load() {
     try {
@@ -249,6 +288,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
       let checkinTaskScope: CheckinTaskScope = DEFAULT_CHECKIN_TASK_SCOPE
       let shortcutOverrides: ShortcutOverrides = {}
+      let eisenhowerPanes: EisenhowerPanes = NO_PANES
+      let eisenhowerListId: number | null = null
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const color = parseColorSettingKey(row.key)
@@ -283,10 +324,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           checkinTaskScope = parseCheckinTaskScope(row.value) ?? DEFAULT_CHECKIN_TASK_SCOPE
         } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
           shortcutOverrides = readShortcutOverrides(row.value).overrides
+        } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
+          eisenhowerPanes = readPanesSetting(row.value).panes
+        } else if (row.key === SETTING_KEYS.eisenhowerSource) {
+          eisenhowerListId = parseEisenhowerSource(row.value) ?? null
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides, eisenhowerPanes, eisenhowerListId })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -447,7 +492,160 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   resetAllShortcuts() {
     return writeShortcuts({})
   },
+
+  async setEisenhowerPanes(panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) {
+    const next = pickPanes(panes ?? {}).panes
+    if (formatPanesSetting(get().eisenhowerPanes) === formatPanesSetting(next)) return
+    const saved = await writeEisenhowerPanes(next)
+    if (saved.stale) return
+    if (!saved.ok) {
+      useUndoStore.getState().notify('Couldn’t save the Eisenhower panes.')
+      return
+    }
+    recordPanesUndo(saved.before, next, description, mergeKey)
+  },
+
+  async setEisenhowerListId(listDefinitionId: number | null, description: string) {
+    if (get().eisenhowerListId === listDefinitionId) return
+    const saved = await writeEisenhowerListId(listDefinitionId)
+    if (saved.stale) return
+    if (!saved.ok) {
+      useUndoStore.getState().notify('Couldn’t save what the Eisenhower shows.')
+      return
+    }
+    lastPanesUndo = null
+    const before = saved.before
+    undoable(
+      description,
+      () => mustSave(writeEisenhowerListId(listDefinitionId)),
+      () => mustSave(writeEisenhowerListId(before)),
+      true,
+    )
+  },
 }))
+
+/**
+ * The newest pane write's undo entry and its merge key, so the next write
+ * with the same key updates that entry instead of adding one (while the
+ * entry is still the newest on the stack).
+ */
+let lastPanesUndo: { mergeKey: string; entry: UndoEntry; prev: EisenhowerPanes; setNext: (panes: EisenhowerPanes) => void } | null = null
+registerModuleReset(() => { lastPanesUndo = null })
+
+/**
+ * Registers a saved pane write (`prev` -> `next`) as an undo step, merged
+ * into the last one with the same `mergeKey`. A step without a merge key
+ * (a filter change, Reset pane, Reset all panes) shows the undo snackbar —
+ * Settings, where the panes are edited, takes no Ctrl+Z; a name typed in
+ * one go stays one silent step (the field's own undo covers typing).
+ */
+function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, description: string, mergeKey: string | undefined): void {
+  const undo = useUndoStore.getState()
+  if (undo.isPerformingUndoRedo) return
+  const last = lastPanesUndo
+  if (mergeKey !== undefined && last?.mergeKey === mergeKey && undo.undoStack.at(-1) === last.entry && undo.groupStartIndex == null) {
+    if (formatPanesSetting(last.prev) === formatPanesSetting(next)) {
+      // Typed back to where it started (a letter typed, then erased): no step left to undo.
+      useUndoStore.setState({ undoStack: undo.undoStack.slice(0, -1) })
+      lastPanesUndo = null
+      return
+    }
+    last.setNext(next)
+    return
+  }
+  let target = next
+  const entry: UndoEntry = {
+    description,
+    undo: () => mustSave(writeEisenhowerPanes(prev)),
+    redo: () => mustSave(writeEisenhowerPanes(target)),
+  }
+  undo.push(entry, mergeKey === undefined)
+  lastPanesUndo = mergeKey === undefined ? null : { mergeKey, entry, prev, setNext: (p) => { target = p } }
+}
+
+/** A setting write's outcome: whether it was saved, and the value saved before it (what its undo puts back). */
+interface SettingSave<T> {
+  ok: boolean
+  before: T
+  /** The store was put back to its initial state meanwhile (tests): nothing more to record. */
+  stale?: true
+}
+
+/** For an undo / redo: rejects when the write wasn't saved, so the undo store keeps the entry and says so. */
+async function mustSave<T>(write: Promise<SettingSave<T>>): Promise<void> {
+  if (!(await write).ok) throw new Error('The setting could not be saved')
+}
+
+/**
+ * Writes for one settings field, one after another: each shows its value
+ * at once, then saves it once the writes before it have settled. A failed
+ * save logs and resolves `ok: false`; once no write is left the field shows
+ * the value last saved — so a write that fails after a later one was shown
+ * never leaves the screen and the database apart. `before` is the value
+ * saved before the write (the database's, not the one shown).
+ */
+function serialSettingWriter<K extends 'eisenhowerPanes' | 'eisenhowerListId'>(
+  field: K,
+  persist: (value: SettingsState[K]) => Promise<void>,
+  label: string,
+): (value: SettingsState[K]) => Promise<SettingSave<SettingsState[K]>> {
+  let queue: Promise<unknown> = Promise.resolve()
+  let pending = 0
+  let saved: SettingsState[K] = useSettingsStore.getState()[field]
+  // A write left in flight by the reset settles without touching the new state.
+  let generation = 0
+  registerModuleReset(() => {
+    queue = Promise.resolve()
+    pending = 0
+    generation++
+  })
+  return (value) => trackWrite(() => {
+    // Nothing in flight: what is shown is what is saved.
+    if (pending === 0) saved = useSettingsStore.getState()[field]
+    pending++
+    const gen = generation
+    useSettingsStore.setState({ [field]: value } as Pick<SettingsState, K>)
+    const run = queue.then(async (): Promise<SettingSave<SettingsState[K]>> => {
+      const before = saved
+      let ok = true
+      try {
+        await persist(value)
+        if (gen === generation) saved = value
+      } catch (e) {
+        ok = false
+        console.error(`Failed to save ${label}:`, e)
+      }
+      if (gen !== generation) return { ok, before, stale: true }
+      pending--
+      if (pending === 0 && useSettingsStore.getState()[field] !== saved) {
+        useSettingsStore.setState({ [field]: saved } as Pick<SettingsState, K>)
+      }
+      return { ok, before }
+    })
+    queue = run
+    return run
+  })
+}
+
+/** Shows the Eisenhower panes at once, then saves them (the row goes when every pane is its default). */
+const writeEisenhowerPanes = serialSettingWriter(
+  'eisenhowerPanes',
+  async (panes) => {
+    if (Object.keys(panes).length === 0) await settingsRepository.delete(SETTING_KEYS.eisenhowerPanes)
+    else await settingsRepository.put(SETTING_KEYS.eisenhowerPanes, formatPanesSetting(panes))
+  },
+  'the Eisenhower panes',
+)
+
+/** Shows the Eisenhower source at once, then saves it (all tasks = no row). */
+const writeEisenhowerListId = serialSettingWriter(
+  'eisenhowerListId',
+  async (listDefinitionId) => {
+    if (listDefinitionId == null) await settingsRepository.delete(SETTING_KEYS.eisenhowerSource)
+    else await settingsRepository.put(SETTING_KEYS.eisenhowerSource, formatEisenhowerSource(listDefinitionId))
+  },
+  'the Eisenhower source',
+)
 
 /** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */
 function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {

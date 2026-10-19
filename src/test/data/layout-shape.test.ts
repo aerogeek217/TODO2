@@ -31,11 +31,6 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
-  ['bad Eisenhower list id', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: Number.NaN } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
-  ['Eisenhower panes not an object', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: ['do'] } })), 'columns[0].cells[0].tabs[0].config.panes'],
-  ['an Eisenhower pane not an object', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: { do: 'Now' } } })), 'columns[0].cells[0].tabs[0].config.panes.do'],
-  ['an Eisenhower pane name not a string', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: { do: { name: 7 } } } })), 'columns[0].cells[0].tabs[0].config.panes.do.name'],
-  ['an Eisenhower pane filter without its core shape', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: { drop: { filter: { showCompleted: false, searchText: '' } } } } })), 'columns[0].cells[0].tabs[0].config.panes.drop.filter.dates'],
   ['bad collapsed', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { collapsed: 'yes' })), 'columns[0].cells[0].collapsed'],
   ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
@@ -150,10 +145,8 @@ describe('layouts row validation', () => {
           { id: 't3', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { runtimeFilterValue: [1] } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, x: 1 } }, viewState: { offset: 500 } },
           // Collapsed quadrants: once each, in display order.
-          { id: 't4', kind: 'eisenhower', config: { x: 1 }, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
+          { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
           { id: 't5', kind: 'eisenhower', config: {}, viewState: { collapsed: [] } },
-          // An Eisenhower tab on a saved list keeps it.
-          { id: 't6', kind: 'eisenhower', config: { listDefinitionId: 9 } },
         ],
       }],
     }]
@@ -167,7 +160,6 @@ describe('layouts row validation', () => {
         { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
         { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
         { id: 't5', kind: 'eisenhower', config: {} },
-        { id: 't6', kind: 'eisenhower', config: { listDefinitionId: 9 } },
       ] }] }],
     }])
   })
@@ -311,11 +303,16 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     ])
   })
 
-  it('an Eisenhower tab with an unreadable list id is repaired to all tasks, its view state kept', () => {
-    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: '7' }, viewState: { collapsed: ['do'] } }))
-    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
-    expect(repaired.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
+  it('an Eisenhower tab’s config keys (it has none: its list and panes are settings) are dropped with a warning, its view state kept', () => {
+    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: 7, panes: { do: { name: 'Now' } } }, viewState: { collapsed: ['do'] } }))
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual(['2 Eisenhower tab settings dropped'])
+    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (2 Eisenhower tab settings dropped)'])
+    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
+    // Not an object: the tab's settings reset, as for any kind.
+    expect(rowFixes('layouts', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: 7 })))).toEqual(['tab or cell settings reset'])
   })
 
   it('a bad band is dropped, a band left without tabs too; a bad height becomes the default', () => {
@@ -366,58 +363,9 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       }
       const repaired = JSON.parse(JSON.stringify(sanitizeRow('layouts', row))) as unknown
       expect(validateRow('layouts', repaired), `case ${i}: ${JSON.stringify(row)}`).toBe(true)
-      if (validateRow('layouts', row) === true) expect(rowFixes('layouts', row), `case ${i}`).toEqual([])
+      // A valid row loses nothing but keys an Eisenhower tab's config can't hold (dropped with a warning).
+      if (validateRow('layouts', row) === true) expect(rowFixes('layouts', row).filter((f) => !/Eisenhower tab settings? dropped$/.test(f)), `case ${i}`).toEqual([])
       else expect(rowFixes('layouts', row).length, `case ${i}: ${JSON.stringify(row)}`).toBeGreaterThan(0)
     }
-  })
-})
-
-describe('an Eisenhower tab’s panes', () => {
-  const filter = (extra: Record<string, unknown>) => ({ showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, ...extra })
-  const PANES = {
-    delegate: { name: 'Hand off', filter: filter({ markers: { urgent: true, important: false }, statusIds: [4], negate: { statusIds: true } }) },
-    drop: { name: 'Someday' },
-  }
-
-  it('import keeps the panes’ names and filters as stored', () => {
-    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { listDefinitionId: 2, panes: PANES } }))
-    expect(validateRow('layouts', row)).toBe(true)
-    expect(rowFixes('layouts', row)).toEqual([])
-    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: { listDefinitionId: 2, panes: PANES } })
-  })
-
-  it('a name or filter equal to the default, a blank name and an empty pane are left out; names are trimmed', () => {
-    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: {
-      do: { name: ' Do ', filter: filter({ markers: { important: true, urgent: true } }) },
-      schedule: { name: '   ' },
-      delegate: {},
-      drop: { name: '  Later ', filter: filter({ showCompleted: true, markers: { urgent: false, important: false } }) },
-    } } }))
-    expect(rowFixes('layouts', row)).toEqual([])
-    const tab = (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]
-    expect(tab).toEqual({ id: 't', kind: 'eisenhower', config: { panes: { drop: { name: 'Later' } } } })
-  })
-
-  it('drops unknown panes, unknown keys and malformed filter clauses with a warning', () => {
-    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: {
-      later: { name: 'Later' },
-      do: { name: 'Now', colour: 'red', filter: filter({ personIds: ['ann'], markers: { urgent: true, important: true } }) },
-    } } }))
-    expect(validateRow('layouts', row)).toBe(true)
-    expect(rowFixes('layouts', row)).toEqual(['3 Eisenhower pane settings dropped'])
-    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.warnings.join('\n')).toContain('3 Eisenhower pane settings dropped')
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: { panes: { do: { name: 'Now' } } } })
-  })
-
-  it('the audit repairs a pane the schema rejects; the other panes stay', () => {
-    const row = layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: { panes: { do: 'Now', drop: { name: 'Someday' } } } }))
-    expect(validateRow('layouts', row)).not.toBe(true)
-    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
-    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
-    expect(repaired.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: { panes: { drop: { name: 'Someday' } } } })
   })
 })

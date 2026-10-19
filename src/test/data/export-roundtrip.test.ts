@@ -9,6 +9,7 @@ import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
 import { NEGATABLE_FIELDS, type TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
+import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
 
 /**
@@ -91,6 +92,8 @@ function buildSeed(): Seed {
       { key: 'color.light.appBg', value: '#fdf6e3' },
       { key: 'activeLayoutId', value: '2' },
       { key: 'keyboardShortcuts', value: '{"command-palette":"Mod-Alt-p","open-settings":"g o"}' },
+      { key: 'eisenhowerPanes', value: JSON.stringify(SEED_PANES) },
+      { key: 'eisenhowerSource', value: 'list:2' },
     ],
     statuses: [
       { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
@@ -141,16 +144,6 @@ function buildSeed(): Seed {
                 },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
-                { id: 't11', kind: 'eisenhower', config: { listDefinitionId: 2 } },
-                {
-                  id: 't12', kind: 'eisenhower', config: {
-                    panes: {
-                      do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: { focus: true, urgent: false }, tags: [2], negate: { tags: true } } },
-                      delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true } } },
-                      drop: { name: 'Someday' },
-                    },
-                  },
-                },
               ] },
               { id: 'k4', weight: 1, tabs: [] },
             ],
@@ -165,6 +158,13 @@ function buildSeed(): Seed {
       { id: 2, listDefinitionId: 2, todoId: 1, rank: 1.5 },
     ],
   }
+}
+
+/** The seed's Eisenhower panes, in their stored form (what import keeps unchanged). */
+const SEED_PANES: EisenhowerPanes = {
+  do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: { focus: true, urgent: false }, tags: [2], negate: { tags: true } } },
+  delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true } } },
+  drop: { name: 'Someday' },
 }
 
 function tableByName(name: string): Table {
@@ -253,8 +253,9 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
-    expect(tabs.some((t) => t.kind === 'eisenhower' && t.config.listDefinitionId !== undefined)).toBe(true)
-    const panes = tabs.flatMap((t) => (t.kind === 'eisenhower' && t.config.panes ? Object.values(t.config.panes) : []))
+    // The Eisenhower panes (a setting): a pane with a name and a filter, a "not" switch and a Priority No.
+    const panesRow = seed.settings.find((r) => r.key === 'eisenhowerPanes')
+    const panes = Object.values(JSON.parse(panesRow?.value ?? '{}') as EisenhowerPanes)
     expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
     expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers !== 'hot' && p.filter.markers?.important === false)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)

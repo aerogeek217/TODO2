@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { createTab, UNSAVED_LAYOUT_ID, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useSettingsStore } from '../../stores/settings-store'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -443,21 +444,23 @@ describe('unsaved changes kept for a reload', () => {
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
 
-  it('an Eisenhower tab on a list counts as showing it: a new layout with it is dropped when the list changed', async () => {
+  it('an Eisenhower tab holds no list (its source is a setting): a kept new layout with one survives a list change', async () => {
     const listId = await db.listDefinitions.add({
       name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
     } as never) as number
-    const [a] = await seedAndInit(twoColumns('A'))
+    await seedAndInit(twoColumns('A'))
     await useListDefinitionStore.getState().load()
+    useSettingsStore.setState({ eisenhowerListId: listId })
     ws().newLayout()
     ws().addWidget('eisenhower', { kind: 'layout' }, { listDefinitionId: listId })
     await reload()
-    expect(ws().working!.columns[0]!.cells[0]!.tabs[0]).toMatchObject({ kind: 'eisenhower', config: { listDefinitionId: listId } })
+    expect(ws().working!.columns[0]!.cells[0]!.tabs[0]).toMatchObject({ kind: 'eisenhower', config: {} })
 
     await db.listDefinitions.update(listId, { name: 'Someone else’s' })
     useListDefinitionStore.setState({ listDefinitions: [], loaded: false })
     await reload()
-    expect(ws()).toMatchObject({ activeLayoutId: a, isDirty: false })
+    expect(ws()).toMatchObject({ saved: null, isDirty: true, activeLayoutId: null })
+    expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID })
   })
 })

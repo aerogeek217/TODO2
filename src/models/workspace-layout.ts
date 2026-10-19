@@ -18,7 +18,6 @@
  */
 
 import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
-import type { TodoPredicate } from './filter-predicate'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -102,34 +101,10 @@ export interface TaskRowsViewState {
 }
 
 /**
- * One Eisenhower pane's own settings, saved with the layout. An absent field
- * is that position's default (Do = Urgent and Important, Schedule =
- * Important not Urgent, Delegate = Urgent not Important, Drop = neither).
+ * An Eisenhower tab has no settings of its own: its panes and its source are
+ * app-wide settings (`models/eisenhower-settings`).
  */
-export interface EisenhowerPaneConfig {
-  /** Its name (trimmed, not empty); absent = the position's default name. */
-  name?: string
-  /**
-   * Which tasks it holds, in the list filter model. Its `showCompleted` is
-   * ignored (stored `false`): the matrix's source decides whether completed
-   * tasks are considered. Absent = the position's default filter.
-   */
-  filter?: TodoPredicate
-}
-
-/** The panes that differ from their defaults, by position. */
-export type EisenhowerPanes = Partial<Record<EisenhowerQuadrant, EisenhowerPaneConfig>>
-
-export interface EisenhowerTabConfig {
-  /** The saved list whose tasks the quadrants show; absent = all tasks. */
-  listDefinitionId?: number
-  /**
-   * Each pane's name and filter where they differ from the defaults; absent
-   * = every pane is its default. A task shows in the first pane (in
-   * position order) whose filter it matches, or in none.
-   */
-  panes?: EisenhowerPanes
-}
+export type EisenhowerTabConfig = NoTabSettings
 
 export interface EisenhowerTabViewState extends TaskRowsViewState {
   /** Sections collapsed in the stacked (narrow) layout. */
@@ -284,7 +259,7 @@ export const DEFAULT_CALENDAR_DATE_TYPES: CalendarDateTypes = { due: true, follo
 
 /** Optional per-kind starting values for a new tab. */
 export interface TabSeed {
-  /** The list a new list tab shows, or a new Eisenhower tab (none = all tasks). */
+  /** The list a new list tab shows. */
   listDefinitionId?: number
 }
 
@@ -318,7 +293,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   eisenhower: {
     label: 'Eisenhower',
     showsList: false,
-    newTab: (id, seed) => ({ id, kind: 'eisenhower', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
+    newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
   },
   dashboard: { label: 'Dashboard', showsList: false, newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }) },
 }
@@ -344,12 +319,14 @@ export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSe
 }
 
 /**
- * The saved list a tab shows — a list tab's list, an Eisenhower tab's
- * (absent there = all tasks) —, else `undefined`. A tab with a list counts
- * as a widget showing that list (its unsaved edits, the last-widget prompt).
+ * The saved list a tab shows — a list tab's own list; an Eisenhower tab
+ * shows the app-wide Eisenhower source, `eisenhowerListId` (`null` = all
+ * tasks) —, else `undefined`. A tab with a list counts as a widget showing
+ * that list (its unsaved edits, the last-widget prompt).
  */
-export function tabListId(tab: LayoutTab): number | undefined {
-  return tab.kind === 'lens' || tab.kind === 'eisenhower' ? tab.config.listDefinitionId : undefined
+export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): number | undefined {
+  if (tab.kind === 'lens') return tab.config.listDefinitionId
+  return tab.kind === 'eisenhower' ? (eisenhowerListId ?? undefined) : undefined
 }
 
 /** A cell's (or band's) active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */

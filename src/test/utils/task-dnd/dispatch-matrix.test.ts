@@ -23,7 +23,7 @@ import {
 import { makePaneContext, makeTodo } from '../../helpers'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
 import { emptyPredicate } from '../../../models'
-import type { EisenhowerPanes } from '../../../models/workspace-layout'
+import type { EisenhowerPanes } from '../../../models/eisenhower-settings'
 
 function makeEvent(opts: {
   activeId?: string

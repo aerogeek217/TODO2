@@ -16,6 +16,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-events-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
@@ -468,5 +469,55 @@ describe('DashboardWidget — Tags, Stale tasks, Recently completed, Eisenhower'
     fireEvent.click(within(section('eisenhower')!).getByTestId('dash-section-count'))
     expect(onDrill.mock.lastCall?.[0].source.groups.map((g: { label: string; todoIds: number[] }) => [g.label, g.todoIds.length]))
       .toEqual([['Do', 3], ['Schedule', 1], ['Delegate', 5], ['Drop', 10]])
+  })
+})
+
+describe('DashboardWidget — the Eisenhower section follows the app-wide panes and source', () => {
+  const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('dash-eis-count').textContent
+  const Q4_LIST = {
+    id: 90, name: 'Q4 work', sortOrder: 9, sort: 'manual' as const, grouping: 'none' as const,
+    membership: { kind: 'custom' as const, predicate: { ...emptyPredicate(), tags: [Q4] } },
+  }
+  /** Delegate renamed and narrowed: not Waiting (a status of the sample). */
+  const waiting = STATUSES.find((s) => s.name === 'Waiting')!
+
+  it('a saved list as the source and a custom pane: counts, names, Copy summary and drills', () => {
+    useListDefinitionStore.setState({ listDefinitions: [...SAMPLE_LISTS, Q4_LIST] })
+    useSettingsStore.setState({
+      eisenhowerListId: 90,
+      eisenhowerPanes: { delegate: { name: 'Hand off', filter: { ...emptyPredicate(), markers: { urgent: true, important: false }, statusIds: [waiting.id!], negate: { statusIds: true } } } },
+    })
+    const onDrill = vi.fn()
+    setup(tabWith({ tiles: ['open'], sections: [{ id: 'eisenhower' }] }), onDrill)
+    // The list's five open tasks (the q4 tag), as under the q4 screen filter before.
+    expect(sectionCount('eisenhower')).toBe('5 open')
+    expect(['do', 'schedule', 'delegate', 'drop'].map(eisCount)).toEqual(['0', '1', '1', '3'])
+    expect(section('eisenhower')!.textContent).toContain('“Q4 work” · Custom panes')
+    const delegate = section('eisenhower')!.querySelector<HTMLElement>('[data-eis-cell="delegate"]')!
+    expect(delegate.textContent).toContain('Hand off')
+    expect(delegate.textContent).toContain('not Waiting')
+    expect(lastResult?.summary.plain.split('\n').at(-1)).toBe('Do 0 · Schedule 1 · Hand off 1 · Drop 3')
+    fireEvent.click(delegate)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Hand off', source: { kind: 'todos', todoIds: [7] } })
+    expect(onDrill.mock.lastCall?.[0].description).toContain('Open tasks of “Q4 work” in “Hand off”')
+    fireEvent.click(within(section('eisenhower')!).getByTestId('dash-section-count'))
+    expect(onDrill.mock.lastCall?.[0].source.groups.map((g: { label: string }) => g.label)).toEqual(['Do', 'Schedule', 'Hand off', 'Drop'])
+  })
+
+  it('the list’s unsaved draft counts, as in the widget', () => {
+    useListDefinitionStore.setState({ listDefinitions: [...SAMPLE_LISTS, Q4_LIST] })
+    useListDraftStore.setState({ drafts: { 90: { ...Q4_LIST, membership: { kind: 'custom', predicate: { ...emptyPredicate() } } } } })
+    useSettingsStore.setState({ eisenhowerListId: 90 })
+    setup(tabWith({ sections: [{ id: 'eisenhower' }] }))
+    expect(sectionCount('eisenhower')).toBe('19 open')
+  })
+
+  it('a deleted source list: the section says so and counts nothing', () => {
+    useSettingsStore.setState({ eisenhowerListId: 99 })
+    setup(tabWith({ tiles: ['open'], sections: [{ id: 'eisenhower' }] }))
+    expect(section('eisenhower')!.textContent).toContain('This list was deleted')
+    expect(within(section('eisenhower')!).queryByTestId('dash-section-count')).toBeNull()
+    expect(section('eisenhower')!.querySelector('[data-eis-cell]')).toBeNull()
+    expect(lastResult?.summary.plain).toBe('Open 19')
   })
 })

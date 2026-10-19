@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import type { EisenhowerTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
@@ -180,7 +181,11 @@ describe('EisenhowerWidget on a saved list', () => {
     }
   }
   const notWaiting = { statusIds: [2], negate: { statusIds: true as const } }
-  const onList: EisenhowerTab = { id: 'eis', kind: 'eisenhower', config: { listDefinitionId: 7 } }
+  /** The Eisenhower on list 7 (the app-wide source). */
+  const setupOnList = () => {
+    useSettingsStore.setState({ eisenhowerListId: 7 })
+    setup()
+  }
 
   beforeEach(() => {
     useStatusStore.setState({ statuses: [waiting] })
@@ -193,7 +198,7 @@ describe('EisenhowerWidget on a saved list', () => {
 
   it('shows only the list\'s members; the count is against the list, not all tasks', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
-    setup(onList)
+    setupOnList()
     // Draft OKRs (2) and Blog (7) are Waiting: the list leaves them out.
     expect(titles('schedule')).toEqual(['Board update'])
     expect(titles('drop')).toEqual(['Vendor'])
@@ -206,10 +211,9 @@ describe('EisenhowerWidget on a saved list', () => {
 
   it('switching the source back to all tasks shows every task again', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
-    setup(onList)
+    setupOnList()
     expect(lastResult).toEqual({ countLabel: '5' })
-    act(() => useWorkspaceStore.getState().patchTabConfig('eis', 'eisenhower', { listDefinitionId: undefined }))
-    expect(useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]?.config).toEqual({})
+    act(() => useSettingsStore.setState({ eisenhowerListId: null }))
     expect(titles('schedule')).toEqual(['Draft OKRs', 'Board update'])
     expect(lastResult).toEqual({ countLabel: '7' })
     expect(document.querySelector('[data-list-host]')).toBeNull()
@@ -218,7 +222,7 @@ describe('EisenhowerWidget on a saved list', () => {
   it('shows the list as edited (its unsaved draft), with Revert · Save on the filter line', () => {
     const saved = listDef()
     useListDefinitionStore.setState({ listDefinitions: [saved] })
-    setup(onList)
+    setupOnList()
     expect(lastResult).toEqual({ countLabel: '7' })
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...d.membership.predicate, ...notWaiting } } })))
     expect(lastResult).toEqual({ countLabel: '5' })
@@ -227,7 +231,7 @@ describe('EisenhowerWidget on a saved list', () => {
 
   it('composes the screen filter in: "shown of the list\'s total"', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
-    setup(onList)
+    setupOnList()
     act(() => useFilterStore.getState().setSearchText('outage'))
     expect(lastResult).toEqual({ countLabel: '1 of 5' })
     act(() => useFilterStore.getState().setSearchText('zzz'))
@@ -236,13 +240,13 @@ describe('EisenhowerWidget on a saved list', () => {
 
   it('ignores the list\'s prompt (a temporary pick): every member shows', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({ runtimeFilter: { field: 'status' } }, notWaiting)] })
-    setup(onList)
+    setupOnList()
     expect(lastResult).toEqual({ countLabel: '5' })
   })
 
   it('names the list\'s filter when it hides every open task', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, { searchText: 'nothing like this' })] })
-    setup(onList)
+    setupOnList()
     expect(lastResult).toEqual({ countLabel: '0' })
     const panel = within(widget()).getByRole('status')
     expect(panel).toHaveTextContent('All 7 open tasks are hidden by the filters of “Not waiting”.')
@@ -253,7 +257,7 @@ describe('EisenhowerWidget on a saved list', () => {
   it('a quadrant\'s "+" seeds the list\'s defaults and the quadrant\'s flags, from "<pane> · <list>"', () => {
     usePersonStore.setState({ people: [makePerson({ id: 9, name: 'Dana' })] })
     useListDefinitionStore.setState({ listDefinitions: [listDef({ name: 'Dana' }, { personIds: [9], ...notWaiting })] })
-    setup(onList)
+    setupOnList()
     // The screen filter seeds nothing here: the list's own Add task doesn't use it either.
     act(() => useFilterStore.getState().setPersonIds(new Set([5])))
     fireEvent.click(within(quadrant('do')).getByRole('button', { name: 'Add task to Do' }))
@@ -265,12 +269,15 @@ describe('EisenhowerWidget on a saved list', () => {
     })
   })
 
-  it('a deleted list: says so, and offers all tasks', () => {
+  it('a deleted list: says so, and offers all tasks', async () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
-    setup(onList)
+    setupOnList()
     expect(screen.getByText('This list was deleted')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show all tasks' }))
     expect(lastResult).toEqual({ countLabel: '7' })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    // The app-wide source goes back to all tasks (one undo step), not the layout.
+    expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
+    await vi.waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Eisenhower shows all tasks']))
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 })

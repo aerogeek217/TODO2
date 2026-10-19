@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
+import type { EisenhowerQuadrant } from '../models/workspace-layout'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -17,6 +18,7 @@ export type SettingsSectionId =
 /** The headed parts of the merged sections (Tasks, Database). */
 export type SettingsPartId =
   | 'task-defaults'
+  | 'eisenhower'
   | 'completed'
   | 'file-storage'
   | 'backups'
@@ -26,11 +28,17 @@ export type SettingsPartId =
 /** The section each part sits in. */
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
   'task-defaults': 'tasks',
+  eisenhower: 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
   backups: 'database',
   'import-export': 'database',
   'data-integrity': 'database',
+}
+
+/** The `data-settings-focus` of pane `q`'s name field in Settings › Tasks › Eisenhower. */
+export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
+  return `eisenhower-pane-${q}`
 }
 
 /** Where Settings can open: a section, or a part of one (shown scrolled to it). */
@@ -181,6 +189,12 @@ interface UIState {
   /** A part of it to scroll to (a deep link such as the storage pill's); cleared once shown. */
   settingsPart: SettingsPartId | null
   /**
+   * A control in that part to focus once shown — the one whose
+   * `data-settings-focus` it names (e.g. an Eisenhower pane's name field);
+   * set only with a part, cleared with it (and when Settings closes).
+   */
+  settingsFocus: string | null
+  /**
    * The email check-in dialog (`CheckinDialog`): the people ticked when it
    * opened (none from the general command) and `notice`: why a one-click
    * send opened it instead (shown in its status line). `null` = closed.
@@ -226,8 +240,11 @@ interface UIState {
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
-  /** Opens Settings, on `target` (a section, or a part of one) when given. */
-  openSettings: (target?: SettingsTarget) => void
+  /**
+   * Opens Settings, on `target` (a section, or a part of one) when given;
+   * `focus` names a control there to focus (its `data-settings-focus`).
+   */
+  openSettings: (target?: SettingsTarget, focus?: string) => void
   closeSettings: () => void
   setSettingsSection: (target: SettingsTarget) => void
   /** The part scroll was shown: forget it. */
@@ -266,6 +283,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsOpen: false,
   settingsSection: 'appearance',
   settingsPart: null,
+  settingsFocus: null,
   checkinDialog: null,
   checkinImportOpen: false,
   entityAction: null,
@@ -426,27 +444,28 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ recentlyCreated: null })
   },
 
-  openSettings(target) {
+  openSettings(target, focus) {
     // Edit list belongs to the workspace under the modal.
     if (!target) {
       set({ settingsOpen: true, listEditor: null })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part, listEditor: null })
+    // A control is focused only on the way to a part (the modal clears both once there).
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null, listEditor: null })
   },
 
   closeSettings() {
-    set({ settingsOpen: false })
+    set({ settingsOpen: false, settingsPart: null, settingsFocus: null })
   },
 
   setSettingsSection(target) {
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsSection: section, settingsPart: part })
+    set({ settingsSection: section, settingsPart: part, settingsFocus: null })
   },
 
   clearSettingsPart() {
-    if (get().settingsPart !== null) set({ settingsPart: null })
+    if (get().settingsPart !== null || get().settingsFocus !== null) set({ settingsPart: null, settingsFocus: null })
   },
 
   openCheckinDialog(personIds, notice) {

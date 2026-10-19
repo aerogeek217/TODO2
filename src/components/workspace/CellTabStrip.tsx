@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
 import { getActiveTab, tabListId } from '../../models/workspace-layout'
 import { useIsListDirty } from '../../hooks/use-list-draft'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTabLabels, useTabTitles } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
@@ -26,7 +27,9 @@ interface TabProps {
 
 function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef }: TabProps) {
   const { title, tooltip } = useTabLabels(tab)
-  const listUnsaved = useIsListDirty(tabListId(tab))
+  // A list tab's list, or an Eisenhower tab's (the app-wide source): its unsaved dot.
+  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
+  const listUnsaved = useIsListDirty(tabListId(tab, eisenhowerListId))
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
   const closable = !collapsed && onClose != null

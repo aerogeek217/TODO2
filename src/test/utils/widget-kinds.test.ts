@@ -37,7 +37,8 @@ describe('widget kinds', () => {
     expect(createTab('calendar', 'b')).toEqual({ id: 'b', kind: 'calendar', config: { dateTypes: { due: true, followup: true } } })
     expect(createTab('notes', 'c')).toEqual({ id: 'c', kind: 'notes', config: {} })
     expect(createTab('eisenhower', 'd')).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
-    expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: { listDefinitionId: 4 } })
+    // An Eisenhower tab has no config: its panes and source are app-wide settings.
+    expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
     expect(createTab('dashboard', 'e')).toEqual({ id: 'e', kind: 'dashboard', config: defaultDashboardConfig() })
     // A fresh config each time.
     const one = createTab('calendar', 'x')
@@ -51,27 +52,29 @@ describe('widget kinds', () => {
     expect(pickLayoutColumns(columns)).toEqual({ columns, fixes: [] })
   })
 
-  it('titles a tab by its list, “(Deleted list)” when the list is gone, else by kind', () => {
+  it('titles a list tab by its list, “(Deleted list)” when the list is gone, every other tab by kind', () => {
     expect(tabTitle(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team')).toBe('Team')
     expect(tabTitle(createTab('lens', 'a', { listDefinitionId: 4 }), undefined)).toBe('(Deleted list)')
     expect(tabTitle(createTab('lens', 'a'), undefined)).toBe('List')
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
-    expect(tabTitle(createTab('eisenhower', 'b', { listDefinitionId: 4 }), 'Team')).toBe('Team')
-    expect(tabTitle(createTab('eisenhower', 'b', { listDefinitionId: 4 }), undefined)).toBe('(Deleted list)')
+    // The Eisenhower reads Eisenhower whatever its (app-wide) source.
+    expect(tabTitle(createTab('eisenhower', 'b'), 'Team')).toBe('Eisenhower')
   })
 
-  it('a tab’s tooltip: its title, with the kind first on an Eisenhower tab on a list', () => {
-    expect(tabTooltip(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team')).toBe('Team')
-    expect(tabTooltip(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
-    expect(tabTooltip(createTab('eisenhower', 'b', { listDefinitionId: 4 }), 'Team')).toBe('Eisenhower · Team')
+  it('a tab’s tooltip: its title; an Eisenhower names its source list', () => {
+    expect(tabTooltip(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team', null)).toBe('Team')
+    expect(tabTooltip(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team', 9)).toBe('Team')
+    expect(tabTooltip(createTab('eisenhower', 'b'), undefined, null)).toBe('Eisenhower')
+    expect(tabTooltip(createTab('eisenhower', 'b'), 'Team', 4)).toBe('Eisenhower · Team')
+    expect(tabTooltip(createTab('eisenhower', 'b'), undefined, 4)).toBe('Eisenhower · (Deleted list)')
   })
 
-  it('the list a tab shows: a list tab’s, an Eisenhower tab’s; none for the rest', () => {
-    expect(tabListId(createTab('lens', 'a', { listDefinitionId: 4 }))).toBe(4)
-    expect(tabListId(createTab('eisenhower', 'b', { listDefinitionId: 5 }))).toBe(5)
-    expect(tabListId(createTab('eisenhower', 'b'))).toBeUndefined()
-    expect(tabListId(createTab('calendar', 'c'))).toBeUndefined()
-    expect(tabListId(createTab('dashboard', 'd'))).toBeUndefined()
+  it('the list a tab shows: a list tab’s own, an Eisenhower tab’s the app-wide source; none for the rest', () => {
+    expect(tabListId(createTab('lens', 'a', { listDefinitionId: 4 }), 5)).toBe(4)
+    expect(tabListId(createTab('eisenhower', 'b'), 5)).toBe(5)
+    expect(tabListId(createTab('eisenhower', 'b'), null)).toBeUndefined()
+    expect(tabListId(createTab('calendar', 'c'), 5)).toBeUndefined()
+    expect(tabListId(createTab('dashboard', 'd'), 5)).toBeUndefined()
   })
 })
 

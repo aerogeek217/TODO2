@@ -4,6 +4,7 @@ import { AppearanceSection } from './AppearanceSection'
 import { TaskDefaultsSection } from './TaskDefaultsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
+import { EisenhowerSection } from './EisenhowerSection'
 import { FileStorageSection } from './FileStorageSection'
 import { BackupsSection } from './BackupsSection'
 import { ImportExportSection } from './ImportExportSection'
@@ -53,6 +54,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     Icon: TasksIcon,
     parts: [
       { id: 'task-defaults', label: 'Task defaults', Body: TaskDefaultsSection, mobile: false },
+      { id: 'eisenhower', label: 'Eisenhower', Body: EisenhowerSection, mobile: false },
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },
     ],
   },

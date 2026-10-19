@@ -4,12 +4,13 @@ import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
- * Custom Eisenhower panes in a real browser: Customize panes (from the tab
- * menu) gives Delegate `Status is not Delegated` — a Delegated task leaves
+ * Custom Eisenhower panes in a real browser: Settings › Tasks › Eisenhower
+ * (the tab menu's Customize panes…) gives Delegate `Status is not Delegated` — a Delegated task leaves
  * the matrix and the line under it counts it (a click lists it in the task
  * dialog); the pane header shows the filter in words and the custom dot;
- * Save layout + reload keeps it; the header menu's Reset pane puts the
- * default back. A drop on a pane whose filter sets a status writes the
+ * the panes are an app-wide setting — saved at once (the layout stays
+ * saved), kept across a reload, the same in every Eisenhower tab, one undo
+ * step per change; the header menu's Reset pane puts the default back. A drop on a pane whose filter sets a status writes the
  * status; a drop that wouldn't land the task in the pane is refused with
  * why — also on a pane naming a status that no longer exists. On a phone
  * the custom names show, read-only.
@@ -39,15 +40,23 @@ const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').f
 const listRow = (page: Page, title: string) => row(wsCell(page, 'a1'), title)
 const noPane = (page: Page) => wsCell(page, 'b1').getByTestId('eisenhower-no-pane')
 
+const settings = (page: Page) => page.getByRole('dialog', { name: 'Settings', exact: true })
+
+/** The tab menu's Customize panes…: Settings › Tasks › Eisenhower. */
 async function openCustomize(page: Page): Promise<Locator> {
   await wsTab(page, 'eisTab').click({ button: 'right' })
   await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Customize panes…' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Customize panes' })
-  await expect(dialog).toBeVisible()
-  return dialog
+  const part = settings(page).getByRole('region', { name: 'Eisenhower', exact: true })
+  await expect(part).toBeVisible()
+  return part
 }
 
-/** In a pane card of the dialog: + Filter › Status › (Is / Is not) › `status`. */
+async function closeSettings(page: Page): Promise<void> {
+  await settings(page).getByRole('button', { name: 'Close settings' }).click()
+  await expect(settings(page)).toHaveCount(0)
+}
+
+/** In a pane card of the Eisenhower settings: + Filter › Status › (Is / Is not) › `status`. */
 async function addStatusFilter(page: Page, card: Locator, status: string, mode: 'Is' | 'Is not'): Promise<void> {
   await card.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
@@ -56,6 +65,12 @@ async function addStatusFilter(page: Page, card: Locator, status: string, mode: 
   await picker.locator('label', { hasText: status }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
+}
+
+/** The stored Eisenhower panes setting, parsed; `undefined` = none (the defaults). */
+async function storedPanes(page: Page): Promise<Record<string, unknown> | undefined> {
+  const row = (await readStore<{ key: string; value: string }>(page, 'settings')).find((r) => r.key === 'eisenhowerPanes')
+  return row ? JSON.parse(row.value) as Record<string, unknown> : undefined
 }
 
 async function statusId(page: Page, name: string): Promise<number> {
@@ -79,27 +94,27 @@ async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => P
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
-  test('Delegate: Status is not Delegated — the task leaves the matrix, counted under it; Save + reload; Reset pane', async ({ page }) => {
+  test('Delegate: Status is not Delegated — the task leaves the matrix, counted under it; saved at once; reload; Reset pane; Undo', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'delegate'), 'Chase vendor')).toBeVisible()
     await expect(noPane(page)).toHaveCount(0)
 
-    const dialog = await openCustomize(page)
-    const card = dialog.locator('[data-pane-card="delegate"]')
+    const part = await openCustomize(page)
+    const card = part.locator('[data-pane-card="delegate"]')
     await expect(card.getByTestId('customize-pane-count')).toHaveText('2 now')
     await addStatusFilter(page, card, 'Delegated', 'Is not')
-    // Live in the dialog and behind it.
+    // Live in Settings and behind it.
     await expect(card.getByTestId('customize-pane-count')).toHaveText('1 now')
-    await expect(dialog.getByTestId('customize-panes-no-pane')).toContainText('1 open task is in no pane')
+    await expect(part.getByTestId('customize-panes-no-pane')).toContainText('1 open task is in no pane')
     await expect(row(quadrant(page, 'delegate'), 'Chase vendor')).toHaveCount(0)
-    await dialog.getByRole('button', { name: 'Done' }).click()
-    await expect(dialog).toHaveCount(0)
+    await closeSettings(page)
 
-    // The header: the filter in words and the custom dot; the layout is unsaved.
+    // The header: the filter in words and the custom dot; a setting — the layout stays saved.
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-custom')).toBeVisible()
     await expect(quadrant(page, 'do').getByTestId('eisenhower-pane-custom')).toHaveCount(0)
-    await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+    await expect.poll(() => storedPanes(page)).toMatchObject({ delegate: { filter: { negate: { statusIds: true } } } })
     await expect(wsTab(page, 'eisTab')).toContainText('3 of 4')
 
     // The line under the matrix opens the task in the task dialog.
@@ -111,9 +126,7 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape')
     await expect(tasks).toHaveCount(0)
 
-    // Saved with the layout: kept across a reload.
-    await page.getByTestId('layout-save').click()
-    await expect(page.getByTestId('layout-save')).toHaveAttribute('aria-disabled', 'true')
+    // Saved at once: kept across a reload.
     await page.reload()
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
     await expect(noPane(page)).toHaveText('1 open task in no pane')
@@ -125,14 +138,41 @@ test.describe('desktop', () => {
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent, not important')
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-custom')).toHaveCount(0)
     await expect(noPane(page)).toHaveCount(0)
+    await expect.poll(() => storedPanes(page)).toBeUndefined()
+    // One undo step brings it back (Ctrl+Z, or the snackbar's Undo).
+    await page.locator('body').click({ position: { x: 5, y: 5 } })
+    await page.keyboard.press('Control+z')
+    await expect(row(quadrant(page, 'delegate'), 'Chase vendor')).toHaveCount(0)
+    await expect(noPane(page)).toHaveText('1 open task in no pane')
   })
 
-  test('a pane header’s Edit pane… opens the dialog on that pane; renaming shows at once', async ({ page }) => {
+  test('the panes are the same in every Eisenhower tab, on every layout', async ({ page }) => {
+    await seedWorkspace(page, {
+      ...SEED,
+      eisenhower: { panes: { delegate: { name: 'Hand off', filter: { markers: { urgent: true, important: false }, statusIds: [999], negate: { statusIds: true } } } } },
+      layouts: [
+        SEED.layouts[0]!,
+        { name: 'Second', columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] }] }] },
+      ],
+    })
+    await expect(quadrant(page, 'delegate')).toContainText('Hand off')
+    const part = await openCustomize(page)
+    await part.locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' }).fill('Someday')
+    await closeSettings(page)
+    await expect(quadrant(page, 'drop')).toContainText('Someday')
+
+    await page.getByTestId('layout-picker').click()
+    await page.getByRole('menuitemradio', { name: 'Second' }).click()
+    const other = page.locator('[data-eisenhower="eis2"]')
+    await expect(other.locator('[data-eis-quadrant="delegate"]')).toContainText('Hand off')
+    await expect(other.locator('[data-eis-quadrant="drop"]')).toContainText('Someday')
+  })
+
+  test('a pane header’s Edit pane… opens Settings on that pane; renaming shows at once', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await quadrant(page, 'drop').getByTestId('eisenhower-pane-subtitle').click({ button: 'right' })
     await page.getByRole('menu', { name: 'Drop pane' }).getByRole('menuitem', { name: 'Edit pane…' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Customize panes' })
-    const name = dialog.locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' })
+    const name = settings(page).locator('[data-pane-card="drop"]').getByRole('textbox', { name: 'Name' })
     await expect(name).toBeFocused()
     await name.fill('Someday')
     await expect(quadrant(page, 'drop')).toContainText('Someday')
@@ -144,9 +184,9 @@ test.describe('desktop', () => {
 
   test('a drop on a pane whose filter sets a status writes it; one undo step', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    const dialog = await openCustomize(page)
-    await addStatusFilter(page, dialog.locator('[data-pane-card="drop"]'), 'Waiting', 'Is')
-    await dialog.getByRole('button', { name: 'Done' }).click()
+    const part = await openCustomize(page)
+    await addStatusFilter(page, part.locator('[data-pane-card="drop"]'), 'Waiting', 'Is')
+    await closeSettings(page)
     // Migrate blog has no status now: in no pane.
     await expect(row(quadrant(page, 'drop'), 'Migrate blog')).toHaveCount(0)
     await expect(noPane(page)).toHaveText('1 open task in no pane')
@@ -167,9 +207,9 @@ test.describe('desktop', () => {
 
   test('a drop that wouldn’t land the task in the pane is refused, saying why', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    const dialog = await openCustomize(page)
-    await addStatusFilter(page, dialog.locator('[data-pane-card="delegate"]'), 'Delegated', 'Is not')
-    await dialog.getByRole('button', { name: 'Done' }).click()
+    const part = await openCustomize(page)
+    await addStatusFilter(page, part.locator('[data-pane-card="delegate"]'), 'Delegated', 'Is not')
+    await closeSettings(page)
 
     await dragOnto(page, listRow(page, 'Chase vendor'), quadrant(page, 'delegate'), async () => {
       await expect(quadrant(page, 'delegate')).toHaveAttribute('data-drop-state', 'refused')
@@ -195,10 +235,11 @@ test.describe('desktop', () => {
           {
             id: 'colB',
             weight: 2,
-            cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower', panes: { drop: { name: 'Waiting on', filter: { statusIds: [999] } } } }] }],
+            cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }],
           },
         ],
       }],
+      eisenhower: { panes: { drop: { name: 'Waiting on', filter: { statusIds: [999] } } } },
     })
     await dragOnto(page, listRow(page, 'Draft OKRs'), quadrant(page, 'drop'), async () => {
       await expect(quadrant(page, 'drop')).toHaveAttribute('data-drop-state', 'refused')
@@ -221,9 +262,10 @@ test.describe('phone', () => {
         name: 'Main',
         columns: [{
           id: 'colB',
-          cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower', panes: { do: { name: 'Now' }, drop: { name: 'Someday' } } }] }],
+          cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }],
         }],
       }],
+      eisenhower: { panes: { do: { name: 'Now' }, drop: { name: 'Someday' } } },
     })
     await expect(widget(page)).toHaveAttribute('data-layout', 'stacked')
     await expect(quadrant(page, 'do')).toContainText('Now')

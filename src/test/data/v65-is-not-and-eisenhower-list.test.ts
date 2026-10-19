@@ -46,14 +46,15 @@ describe('v65 files', () => {
     await resetDb()
   })
 
-  it('a v64 file with "is not" switches and an Eisenhower list imports as an upgraded file, both kept', () => {
+  it('a v64 file with "is not" switches and an Eisenhower list imports as an upgraded file, both kept (the list as the v66 setting)', () => {
     const prepared = prepareImport(JSON.parse(JSON.stringify({ [SCHEMA_VERSION_KEY]: 64, todos: [], settings: [], ...v64Rows() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.sourceVersion).toBe(64)
     expect(prepared.upgraded).toBe(true)
     expect(prepared.warnings).toEqual([])
     expect(prepared.data.listDefinitions[0]!.membership).toMatchObject({ predicate: { negate: { personIds: true, statusIds: true, tags: true } } })
-    expect(prepared.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.config).toEqual({ listDefinitionId: 1 })
+    expect(prepared.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.config).toEqual({})
+    expect(prepared.data.settings).toEqual([{ key: 'eisenhowerSource', value: 'list:1' }])
   })
 
   it('an export holding "is not" switches is stamped v65 or later, so a v64 build refuses it as too new', async () => {
@@ -70,7 +71,7 @@ describe('v65 Dexie upgrade', () => {
     await resetDb()
   })
 
-  it('opens a v64 database at the current version with every row as it was', async () => {
+  it('opens a v64 database at the current version with every row as it was (the Eisenhower list moved to a setting by v66)', async () => {
     db.close()
     await Dexie.delete(db.name)
     const v64 = new Dexie(db.name)
@@ -81,6 +82,8 @@ describe('v65 Dexie upgrade', () => {
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
     expect(await db.listDefinitions.toArray()).toEqual([negatedList()])
-    expect(await db.layouts.toArray()).toEqual([eisenhowerLayout()])
+    const layout = eisenhowerLayout()
+    expect(await db.layouts.toArray()).toEqual([{ ...layout, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config: {} }] }] }] }])
+    expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:1' })
   })
 })

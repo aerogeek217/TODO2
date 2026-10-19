@@ -15,7 +15,7 @@ import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-page
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { ALL_TASKS_LABEL } from '../shared/WidgetKindMenu'
+import { ALL_TASKS_LABEL, DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { DialogFrame } from '../shared/Dialog'
@@ -25,6 +25,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { copyTasksRich } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
 import styles from './MobileWorkspaceView.module.css'
@@ -181,15 +182,14 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
 
 /**
  * An Eisenhower tab's long-press sheet: Edit list… while it shows a list,
- * what it shows (changed on a wider screen, like a list tab's list), and the
+ * what it shows (the app-wide source, set in Settings on a wider screen), and the
  * app-wide "Due date makes a task urgent" range (the desktop tab menu's
  * submenu).
  */
 function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => void }) {
   const setting = useUrgentRangeSetting()
-  const listId = tab.config.listDefinitionId
+  const listId = useSettingsStore((s) => s.eisenhowerListId)
   const listName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
-  const title = useTabTitle(tab)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     sheetRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"], [aria-checked="true"]')?.focus()
@@ -218,10 +218,10 @@ function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => 
           )}
           <div className={styles.sheetInfo} data-testid="eisenhower-sheet-source">
             <span className={styles.sheetName}>Show</span>
-            <span className={styles.sheetNote}>{listId == null ? ALL_TASKS_LABEL : title}</span>
+            <span className={styles.sheetNote}>{listId == null ? ALL_TASKS_LABEL : (listName ?? DELETED_LIST_TITLE)}</span>
           </div>
         </div>
-        <div className={styles.sheetFootnote}>To show another list, use a wider screen.</div>
+        <div className={styles.sheetFootnote}>To show another list or change the panes, use Settings on a wider screen.</div>
         <div className={`${styles.sheetTitle} ${styles.sheetSectionTitle}`}>{setting.heading}</div>
         <div className={styles.sheetRows}>
           {setting.options.map((o) => (

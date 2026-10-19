@@ -24,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 65
+export const CURRENT_DB_VERSION = 66
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -44,6 +44,37 @@ export const CURRENT_DB_VERSION = 65
  * floor.
  */
 export const OLDEST_SUPPORTED_DB_VERSION = 49
+
+/** What a build says when the browser's database was written by a newer one (schema `storedVersion`). */
+export function tooNewDatabaseMessage(storedVersion: number, buildVersion: number = CURRENT_DB_VERSION): string {
+  return `This browser’s TODO2 data was saved by a newer version of TODO2 (schema v${storedVersion}); this version supports up to v${buildVersion}. Nothing was read or changed. Reload the page to get the newer version.`
+}
+
+/**
+ * The browser's database was written by a newer build (its version is above
+ * `CURRENT_DB_VERSION`): opening it fails with this, so nothing in it is
+ * read or written here — Dexie would otherwise open it at its own version
+ * and this build would read data it doesn't understand (and could write
+ * that loss back).
+ */
+export class DatabaseTooNewError extends Error {
+  readonly storedVersion: number
+
+  constructor(storedVersion: number) {
+    super(tooNewDatabaseMessage(storedVersion))
+    this.name = 'DatabaseTooNewError'
+    this.storedVersion = storedVersion
+  }
+}
+
+/** The `DatabaseTooNewError` behind `error` (Dexie wraps an open failure in the errors of later calls), if any. */
+export function findDatabaseTooNew(error: unknown): DatabaseTooNewError | null {
+  for (let e: unknown = error, depth = 0; e != null && depth < 5; depth++) {
+    if (e instanceof DatabaseTooNewError) return e
+    e = (e as { inner?: unknown }).inner
+  }
+  return null
+}
 
 export class Todo2Database extends Dexie {
   todos!: Table<TodoItem, number>
@@ -368,10 +399,26 @@ export class Todo2Database extends Dexie {
     // data may hold list "is not" switches, Priority No markers and
     // Eisenhower tabs on a list or with custom panes, which an older build
     // would drop silently, so older builds refuse it.
+    this.version(65).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 65))
+
+    // v66: the Eisenhower's panes and source become app-wide settings. No
+    // index change; the transform (`upgrades/v66-eisenhower-settings.ts`)
+    // copies the first customized Eisenhower tab's panes and the first one's
+    // list into the `eisenhowerPanes` / `eisenhowerSource` settings and
+    // removes both from every Eisenhower tab.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `65` first.
+    // docblock above). When bumping, turn this into a literal `66` first.
     this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
+
+    // A database a newer build wrote is never read or written: Dexie opens
+    // one at its own (higher) version, so the open fails here instead.
+    // (`services/migration-check.checkTooNewDB` says so before the app
+    // starts; this holds where the browser can't list its databases.)
+    this.on('ready', (vipDb) => {
+      const stored = Math.floor(vipDb.backendDB().version / 10)
+      if (stored > CURRENT_DB_VERSION) throw new DatabaseTooNewError(stored)
+    }, true)
   }
 }
 

@@ -209,10 +209,10 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   )
 
   const countLabel = countOf(data.tiles.shown.open.ids.length, data.tiles.total.open.ids.length)
-  const { tags, stale, recent, eisenhower } = data
+  const { tags, stale, recent, eisenhower, eisenhowerSetup } = data
   const summary = useMemo(
-    () => buildDashboardSummary(config.tiles, data.tiles, data.listTiles, sectionSummaryLines(config.sections, { tags, stale, recent, eisenhower })),
-    [config.tiles, config.sections, data.tiles, data.listTiles, tags, stale, recent, eisenhower],
+    () => buildDashboardSummary(config.tiles, data.tiles, data.listTiles, sectionSummaryLines(config.sections, { tags, stale, recent, eisenhower, eisenhowerSetup })),
+    [config.tiles, config.sections, data.tiles, data.listTiles, tags, stale, recent, eisenhower, eisenhowerSetup],
   )
   const onResultRef = useLatestRef(onResult)
   useEffect(() => {

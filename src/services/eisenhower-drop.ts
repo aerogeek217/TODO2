@@ -1,5 +1,5 @@
 import { usePersonStore } from '../stores/person-store'
-import { currentFilterSettings } from '../stores/settings-store'
+import { currentFilterSettings, useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -31,14 +31,14 @@ export function currentPaneContext(today: Date): PaneContext {
 }
 
 /**
- * The panes of the open layout's Eisenhower tab `tabId` as they are now —
- * what a drop on one of its panes is resolved with; `null` when there is no
- * such tab (the drop writes nothing).
+ * The Eisenhower panes as they are now (the app-wide setting) — what a drop
+ * on a pane of the open layout's Eisenhower tab `tabId` is resolved with;
+ * `null` when there is no such tab (the drop writes nothing).
  */
 export function currentPanes(tabId: string): readonly EisenhowerPane[] | null {
   const working = useWorkspaceStore.getState().working
   const tab = working ? getTab(working, tabId) : undefined
-  return tab?.kind === 'eisenhower' ? resolvePanes(tab.config.panes) : null
+  return tab?.kind === 'eisenhower' ? resolvePanes(useSettingsStore.getState().eisenhowerPanes) : null
 }
 
 /** `ids` of the changes that set `key`, grouped by the value they set. */

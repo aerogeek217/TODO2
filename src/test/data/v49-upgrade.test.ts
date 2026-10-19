@@ -874,10 +874,24 @@ describe('v49 fixture → v65: a version marker, no data change', () => {
   })
 })
 
+describe('v49 fixture → v66: the Eisenhower panes and source become settings', () => {
+  it('the fixture has no customized Eisenhower tab: every table at v66 is the v65 table', () => {
+    const at65 = fixtureAt(65)
+    expect(upgradeDataSet(at65, 65, 66)).toBe(at65)
+    expect(fixtureAt(66)).toEqual(at65)
+    expect(fixtureAt(66).settings!.some((r) => r.key === 'eisenhowerPanes' || r.key === 'eisenhowerSource')).toBe(false)
+  })
+
+  it('upgrading the v66 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 65, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
 // ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
 /**
  * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
- * hex digits). The transforms up to v65 are frozen, so these never change:
+ * hex digits). The transforms up to v66 are frozen, so these never change:
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
@@ -902,6 +916,7 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   63: '13816223c358d095',
   64: 'd89ed146e9a87d82',
   65: 'd89ed146e9a87d82',
+  66: 'd89ed146e9a87d82',
 }
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 

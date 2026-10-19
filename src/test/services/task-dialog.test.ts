@@ -18,6 +18,7 @@ import type { TaskDialogSource } from '../../stores/task-dialog-payload'
 import { buildTasksPlain } from '../../services/task-copy'
 import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { emptyFilterCriteria } from '../helpers'
+import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
 } from '../fixtures/dashboard-sample'
@@ -169,17 +170,19 @@ describe('dashboard section payloads', () => {
   })
 
   it('an Eisenhower quadrant, and every quadrant under headings, saying what Urgent includes', () => {
-    expect(eisenhowerQuadrantDialog('schedule', [4], 3)).toEqual({
+    const [doPane, schedule, , drop] = resolvePanes({})
+    const all = (urgentRange: number | null) => ({ urgentRange, listName: null })
+    expect(eisenhowerQuadrantDialog(schedule!, 'Important, not urgent', [4], all(3))).toEqual({
       title: 'Schedule',
       glyph: 'matrix',
       description: 'Open tasks that are important, not urgent. Urgent includes tasks due within 3 days.',
       source: { kind: 'todos', todoIds: [4] },
     })
-    expect(eisenhowerQuadrantDialog('do', [1], null).description).toBe('Open tasks that are urgent and important.')
-    expect(eisenhowerQuadrantDialog('drop', [1], 0).description).toBe('Open tasks that are neither urgent nor important. Urgent includes tasks due today or earlier.')
-    const all = eisenhowerSummaryDialog({ do: [1], schedule: [], delegate: [5], drop: [6] }, 7)
-    expect(all).toMatchObject({ title: 'Eisenhower', glyph: 'matrix', description: 'Open tasks by urgent × important. Urgent includes tasks due within 1 week.' })
-    expect(all.source).toEqual({
+    expect(eisenhowerQuadrantDialog(doPane!, '', [1], all(null)).description).toBe('Open tasks that are urgent and important.')
+    expect(eisenhowerQuadrantDialog(drop!, '', [1], all(0)).description).toBe('Open tasks that are neither urgent nor important. Urgent includes tasks due today or earlier.')
+    const summary = eisenhowerSummaryDialog(resolvePanes({}), { do: [1], schedule: [], delegate: [5], drop: [6] }, all(7))
+    expect(summary).toMatchObject({ title: 'Eisenhower', glyph: 'matrix', description: 'Open tasks by urgent × important. Urgent includes tasks due within 1 week.' })
+    expect(summary.source).toEqual({
       kind: 'groups',
       groups: [
         { key: 'do', label: 'Do', color: 'var(--color-danger)', todoIds: [1] },
@@ -188,6 +191,23 @@ describe('dashboard section payloads', () => {
         { key: 'drop', label: 'Drop', color: 'var(--color-text-muted)', todoIds: [6] },
       ],
     })
+  })
+
+  it('custom panes and a list source: the pane names, the filter in words, the list named', () => {
+    const panes = resolvePanes({ delegate: { name: 'Hand off', filter: { ...defaultPaneFilter('delegate'), statusIds: [3], negate: { statusIds: true } } } })
+    const source = { urgentRange: 3, listName: 'Team' }
+    const delegate = panes[2]!
+    expect(eisenhowerQuadrantDialog(delegate, 'Urgent · not Important · not Waiting', [5], source)).toEqual({
+      title: 'Hand off',
+      glyph: 'matrix',
+      description: 'Open tasks of “Team” in “Hand off” (Urgent · not Important · not Waiting) — the first pane each matches.',
+      source: { kind: 'todos', todoIds: [5] },
+    })
+    expect(eisenhowerQuadrantDialog(panes[0]!, '', [1], source).description)
+      .toBe('Open tasks of “Team” that are urgent and important. Urgent includes tasks due within 3 days.')
+    const summary = eisenhowerSummaryDialog(panes, { do: [1], schedule: [], delegate: [5], drop: [] }, source)
+    expect(summary.description).toBe('Open tasks of “Team” by pane, each in the first pane it matches. Urgent includes tasks due within 3 days.')
+    expect(summary.source).toMatchObject({ kind: 'groups', groups: [{ label: 'Do' }, { label: 'Schedule' }, { label: 'Hand off', todoIds: [5] }, { label: 'Drop' }] })
   })
 })
 

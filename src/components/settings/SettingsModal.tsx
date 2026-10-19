@@ -33,6 +33,7 @@ function anotherLayerIsOpen(): boolean {
 function SettingsModalFrame() {
   const sectionId = useUIStore((s) => s.settingsSection)
   const part = useUIStore((s) => s.settingsPart)
+  const focus = useUIStore((s) => s.settingsFocus)
   const setSection = useUIStore((s) => s.setSettingsSection)
   const contentRef = useRef<HTMLElement | null>(null)
   const close = useUIStore((s) => s.closeSettings)
@@ -42,12 +43,17 @@ function SettingsModalFrame() {
   const registerLayer = useCallback((delta: 1 | -1) => { layers.current += delta }, [])
   const section = settingsSection(sectionId)
 
-  // A deep link to a part: show the section scrolled to it, then forget it.
+  // A deep link to a part: show the section scrolled to it (and focus the
+  // control it names, before the frame takes the focus), then forget it.
   useLayoutEffect(() => {
     if (!part) return
-    if (contentRef.current) scrollToSettingsPart(contentRef.current, part)
+    const content = contentRef.current
+    if (content) {
+      scrollToSettingsPart(content, part)
+      if (focus) content.querySelector<HTMLElement>(`[data-settings-focus="${focus}"]`)?.focus()
+    }
     useUIStore.getState().clearSettingsPart()
-  }, [part, sectionId])
+  }, [part, focus, sectionId])
 
   // A section's editor or dialog, or another overlay, owns Esc while open.
   const escapeBelongsElsewhere = useCallback(() => layers.current > 0 || anotherLayerIsOpen(), [])
