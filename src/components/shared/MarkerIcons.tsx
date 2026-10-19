@@ -43,8 +43,8 @@ export function FocusIcon() {
   )
 }
 
-/** Urgent by due date: a clock (shown in the Urgent slot instead of the mark). */
-export function UrgentClockIcon() {
+/** A clock: a due date (the task row's dates cell), and urgent by due date. */
+export function ClockIcon() {
   return (
     <svg width="1em" height="1em" viewBox="0 0 16 16" style={SVG_STYLE} aria-hidden>
       <circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
@@ -52,6 +52,9 @@ export function UrgentClockIcon() {
     </svg>
   )
 }
+
+/** Urgent by due date: the clock, shown in the Urgent slot instead of the mark. */
+export const UrgentClockIcon = ClockIcon
 
 /** Hot (derived from the markers by the Settings rule): a flame. */
 export function HotIcon() {

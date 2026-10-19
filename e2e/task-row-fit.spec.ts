@@ -4,8 +4,9 @@ import { seedWorkspace, type WorkspaceSeed, type WsTabSeed } from './fixtures/wo
 /**
  * Task rows fit their container at every width: a row is never wider than
  * the list widget, Eisenhower quadrant or dashboard panel it sits in, and its
- * pills, status and ⋯ stay inside it — the chips and the title give way
- * instead. Layout-dependent, so a real browser is the authoritative surface.
+ * cells and status stay inside it — the people / tags, the dates (to icons)
+ * and the title give way instead. Layout-dependent, so a real browser is the
+ * authoritative surface.
  */
 
 const PEOPLE = ['Alice Chen', 'Ben Ortiz', 'Carla Diaz']
@@ -73,8 +74,11 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
   })
 }
 
+/** Which dates the rows show beside their icons, per column width: the narrower, the fewer. */
+const DATES_TIER: Record<number, string> = { 300: 'icons', 330: 'icons', 345: 'due', 380: 'both', 455: 'both', 560: 'both' }
+
 test.describe('task rows fit their container', () => {
-  for (const width of [300, 330, 380, 455, 560]) {
+  for (const width of [300, 330, 345, 380, 455, 560]) {
     test(`list widget column ${width}px`, async ({ page }) => {
       await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, width))
       await expect(page.locator('[data-todo-id]')).toHaveCount(TASKS.length)
@@ -84,6 +88,9 @@ test.describe('task rows fit their container', () => {
       const busiest = page.locator('[data-todo-id]').first()
       await busiest.locator('[data-task-title]').hover()
       await expect(busiest.locator('[data-row-cell="status"]')).toBeInViewport()
+      // Narrow columns drop the follow-up date first, then the due date; the icons stay.
+      await expect(busiest.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', DATES_TIER[width]!)
+      for (const part of ['due', 'followup']) await expect(busiest.locator(`[data-row-cell="${part}"] svg`).first()).toBeInViewport()
     })
   }
 

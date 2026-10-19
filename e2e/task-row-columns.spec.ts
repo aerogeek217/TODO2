@@ -5,8 +5,8 @@ import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed }
 
 /**
  * The desktop task row's columns: every row of a list shares one set of
- * tracks (markers · checkbox · title │ notes · people · tags · due ·
- * follow-up · status — no ⋯: the task menu is right-click / Shift+F10),
+ * tracks (markers · checkbox · title │ notes · people · tags · dates (due,
+ * follow-up) · status — no ⋯: the task menu is right-click / Shift+F10),
  * every column is always there, hovering shows placeholders by opacity only, and a per-tab divider sets the details
  * width (saved as view state). Layout, hover and drag are real-browser
  * behaviour, so this is the authoritative surface.
@@ -40,7 +40,7 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
   }
 }
 
-const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status'] as const
+const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'] as const
 
 /** Every row's cell boxes (by cell name) plus its title box. */
 async function cellBoxes(scope: Locator): Promise<Array<Record<string, Box>>> {
@@ -51,8 +51,8 @@ async function cellBoxes(scope: Locator): Promise<Array<Record<string, Box>>> {
       const b = el.getBoundingClientRect()
       out[name] = { x: b.x, y: b.y, width: b.width, height: b.height }
     }
-    // (The due cell's × overlay is not a column.)
-    for (const el of Array.from(row.querySelectorAll('[data-row-cell]:not([data-row-cell="due-clear"])'))) add(el.getAttribute('data-row-cell')!, el)
+    // (The date parts' × overlays are not columns.)
+    for (const el of Array.from(row.querySelectorAll('[data-row-cell]:not([data-row-cell$="-clear"])'))) add(el.getAttribute('data-row-cell')!, el)
     add('title', row.querySelector('[data-task-title]'))
     return out
   }))
@@ -94,7 +94,7 @@ test('each column lines up across rows, filled or empty, in one order', async ({
   }
 })
 
-test('status is the last column, flush with the row’s right padding; the default split gives the freed room to people and tags', async ({ page }) => {
+test('status is the last column, flush with the row’s right padding; the default split keeps people and tags their room beside both dates', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 640))
   const widget = wsListWidget(page, 'tab')
   await expect(widget.locator('[data-todo-id]')).toHaveCount(TASKS.length)
@@ -102,12 +102,15 @@ test('status is the last column, flush with the row’s right padding; the defau
     const rb = await box(r)
     const status = await box(r.locator('[data-row-cell="status"]'))
     expect(Math.round(rb.x + rb.width - 8 - (status.x + status.width))).toBe(0)
-    // The default details width (262) is unchanged, so the title keeps its width.
-    expect(await laidOutDetails(r)).toBe(262)
+    // The default details width (300) holds both dates and people / tags at about their old room.
+    expect(await laidOutDetails(r)).toBe(300)
   }
   const busy = row(widget, 'Draft the Q4 roadmap review deck')
-  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(55)
-  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(82)
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(53)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(79)
+  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(112)
+  await expect(busy.locator('[data-row-cell="due"]')).toHaveText(/^\d\d\/\d\d$/)
+  await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(/^\d\d\/\d\d$/)
   await expect(widget.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
 })
 
@@ -135,8 +138,8 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   const widget = wsListWidget(page, 'tab')
   const first = row(widget, 'Bare task')
   await expect(first).toBeVisible()
-  expect(await dividerValue(widget)).toBe(262)
-  expect(await laidOutDetails(first)).toBe(262)
+  expect(await dividerValue(widget)).toBe(300)
+  expect(await laidOutDetails(first)).toBe(300)
   const titleBefore = (await box(first.locator('[data-task-title]'))).width
 
   // The divider sits on the gap left of the notes column and spans the rows.
@@ -152,32 +155,34 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await page.mouse.down()
   await page.mouse.move(from.x - 30, from.y, { steps: 3 })
   // Live while dragging.
-  expect(await laidOutDetails(first)).toBe(292)
+  expect(await laidOutDetails(first)).toBe(330)
   await page.mouse.move(from.x - 60, from.y, { steps: 3 })
   await page.mouse.up()
-  await expect.poll(() => dividerValue(widget)).toBe(322)
-  expect(await laidOutDetails(first)).toBe(322)
+  await expect.poll(() => dividerValue(widget)).toBe(360)
+  expect(await laidOutDetails(first)).toBe(360)
   expect(Math.round((await box(first.locator('[data-task-title]'))).width)).toBe(Math.round(titleBefore - 60))
-  // People and tags grew; due / follow-up / status didn't.
-  await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 322 })
+  // People and tags grew; the dates / status didn't.
+  await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 360 })
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-  expect(Math.round((await box(first.locator('[data-row-cell="due"]'))).width)).toBe(46)
+  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(112)
 
   await page.reload()
   await expect(first).toBeVisible()
-  await expect.poll(() => dividerValue(widget)).toBe(322)
-  expect(await laidOutDetails(first)).toBe(322)
+  await expect.poll(() => dividerValue(widget)).toBe(360)
+  expect(await laidOutDetails(first)).toBe(360)
 
   // Keys: ← widens by 8, → narrows by 8, Home / End jump to min / max.
   await divider(widget).focus()
   await page.keyboard.press('ArrowLeft')
-  await expect.poll(() => dividerValue(widget)).toBe(330)
+  await expect.poll(() => dividerValue(widget)).toBe(368)
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('ArrowRight')
-  await expect.poll(() => dividerValue(widget)).toBe(314)
+  await expect.poll(() => dividerValue(widget)).toBe(352)
   await page.keyboard.press('Home')
   await expect.poll(() => dividerValue(widget)).toBe(Number(await divider(widget).getAttribute('aria-valuemin')))
-  expect(await laidOutDetails(first)).toBe(115)
+  // The narrowest details: notes, both dates, status — the divider never drops a date.
+  expect(await laidOutDetails(first)).toBe(158)
+  await expect(first.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
   await page.keyboard.press('End')
   const max = Number(await divider(widget).getAttribute('aria-valuemax'))
   await expect.poll(() => dividerValue(widget)).toBe(max)
@@ -187,7 +192,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
 
   // Double-click: back to the default, nothing stored.
   await divider(widget).dblclick()
-  await expect.poll(() => dividerValue(widget)).toBe(262)
+  await expect.poll(() => dividerValue(widget)).toBe(300)
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({})
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 })
@@ -207,9 +212,10 @@ test('a 280px column: the title keeps 80px and nothing passes the row edge', asy
       expect(cb.x + cb.width, `${t.title} ${name}`).toBeLessThanOrEqual(rb.x + rb.width + 0.5)
     }
   }
-  // Squeezed: the tags column gave way, the due column is the narrow one.
+  // Squeezed: the tags column gave way, the dates show as icons.
   await expect(widget.locator('[data-row-cell="tags"]')).toHaveCount(0)
-  expect(Math.round((await box(row(widget, 'Bare task').locator('[data-row-cell="due"]'))).width)).toBe(40)
+  await expect(widget.locator('[data-row-cell="dates"]').first()).toHaveAttribute('data-dates-tier', 'icons')
+  expect(Math.round((await box(row(widget, 'Bare task').locator('[data-row-cell="due"]'))).width)).toBe(18)
   // The stored value is kept (the column may widen again).
   expect(await storedTabView(page, 'tab')).toEqual({ detailsWidth: 4000 })
 })
@@ -224,7 +230,7 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
       name: 'Main',
       columns: [
         { id: 'a', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] }] },
-        { id: 'b', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 180, dashboard: { tiles: [], sections: [{ id: 'hot' }, { id: 'followup' }] } }] }] },
+        { id: 'b', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'hot' }, { id: 'followup' }] } }] }] },
       ],
     }],
   })
@@ -233,7 +239,7 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(160)
   const dash = page.locator('[data-dash-section]')
   await expect(dash.locator('[data-todo-id]').first()).toBeVisible()
-  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(180)
+  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
   // Their rows have no ⋯ either.
   await expect(page.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
 
@@ -252,7 +258,7 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
   // The dashboard keeps its own.
-  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(180)
+  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
 
   // The dashboard's Hot and Needs follow-up sections share theirs live too.
   const hot = page.locator('[data-dash-section="hot"]')
@@ -261,11 +267,11 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   await page.mouse.move(dFrom.x, dFrom.y)
   await page.mouse.down()
   await page.mouse.move(dFrom.x - 20, dFrom.y, { steps: 3 })
-  expect(await laidOutDetails(row(followup, 'Book the venue'))).toBe(200)
-  expect(await storedTabView(page, 'dash')).toEqual({ detailsWidth: 180 })
+  expect(await laidOutDetails(row(followup, 'Book the venue'))).toBe(220)
+  expect(await storedTabView(page, 'dash')).toEqual({ detailsWidth: 200 })
   await page.mouse.up()
-  await expect.poll(() => storedTabView(page, 'dash')).toEqual({ detailsWidth: 200 })
-  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
+  await expect.poll(() => storedTabView(page, 'dash')).toEqual({ detailsWidth: 220 })
+  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(220)
 })
 
 test('a click on a cell opens its picker anchored to the cell', async ({ page }) => {
@@ -294,6 +300,59 @@ test('a click on a cell opens its picker anchored to the cell', async ({ page })
   }
   // No editor opened along the way.
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
+})
+
+test('the dates cell: the due part opens the date picker, the follow-up part the follow-up popover; each clears on its own', async ({ page }) => {
+  // The native date picker can't be seen: count the calls that open it.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __pickers: string[] }
+    w.__pickers = []
+    HTMLInputElement.prototype.showPicker = function (this: HTMLInputElement) { w.__pickers.push(this.type) }
+  })
+  await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760))
+  const r = row(wsListWidget(page, 'tab'), 'Book the venue')
+  await expect(r).toBeVisible()
+  const due = r.locator('[data-row-cell="due"]')
+  const followup = r.locator('[data-row-cell="followup"]')
+  // Clock, MM/DD — flag, MM/DD: the due part left of the follow-up part, side by side in one cell.
+  await expect(due).toHaveText(/^\d\d\/\d\d$/)
+  await expect(followup).toHaveText(/^\d\d\/\d\d$/)
+  const [db, fb, cell] = [await box(due), await box(followup), await box(r.locator('[data-row-cell="dates"]'))]
+  expect(db.x + db.width).toBeLessThanOrEqual(fb.x + 0.5)
+  expect(db.x).toBeGreaterThanOrEqual(cell.x - 0.5)
+  expect(fb.x + fb.width).toBeLessThanOrEqual(cell.x + cell.width + 0.5)
+
+  await due.click()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __pickers: string[] }).__pickers)).toEqual(['date'])
+  await expect(page.getByRole('dialog', { name: 'Follow-up' })).toHaveCount(0)
+
+  await followup.click()
+  const popover = page.getByRole('dialog', { name: 'Follow-up' })
+  await expect(popover).toBeVisible()
+  const p = await box(popover)
+  expect(p.x <= fb.x + fb.width + 1 && p.x + p.width >= fb.x - 1).toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(popover).toHaveCount(0)
+  expect(await page.evaluate(() => (window as unknown as { __pickers: string[] }).__pickers)).toEqual(['date'])
+
+  // Each part's × shows over it on hover and clears only its own date.
+  const clearFollowup = r.getByRole('button', { name: 'Clear follow-up' })
+  await r.locator('[data-task-title]').hover()
+  await expect(clearFollowup).toHaveCSS('opacity', '0')
+  await followup.hover()
+  await expect(clearFollowup).toHaveCSS('opacity', '1')
+  await expect(r.getByRole('button', { name: 'Clear due date' })).toHaveCSS('opacity', '0')
+  await clearFollowup.click()
+  await expect(r.getByRole('button', { name: 'Set follow-up' })).toBeVisible()
+  await expect(due).toHaveText(/^\d\d\/\d\d$/)
+  await due.hover()
+  await r.getByRole('button', { name: 'Clear due date' }).click()
+  await expect(r.getByRole('button', { name: 'Set due date' })).toBeVisible()
+  // Both empty: the placeholders (clock, flag) show on hover; a click on the flag opens the popover to add one.
+  await r.locator('[data-task-title]').hover()
+  await expect(r.getByRole('button', { name: 'Set follow-up' }).locator('[aria-hidden="true"]').first()).toHaveCSS('opacity', '1')
+  await r.getByRole('button', { name: 'Set follow-up' }).click()
+  await expect(popover).toBeVisible()
 })
 
 test('the marker gutter opens the markers menu; Urgent off on a task urgent by its due date asks to remove the date', async ({ page }) => {

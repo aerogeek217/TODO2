@@ -17,7 +17,7 @@ import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
 import { progressNotesPreview } from '../../utils/notes-preview'
 import {
-  DueCell, FollowupCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
+  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
 } from './row-cells'
 import styles from './TaskRow.module.css'
 
@@ -37,12 +37,14 @@ const NO_PEOPLE: Person[] = []
  * The desktop task row: one grid column per field, the same columns on every
  * row of its list (`TaskRowGrid`; the default split outside one):
  *
- *   markers · checkbox · title │ notes · people · tags · due · follow-up · status
+ *   markers · checkbox · title │ notes · people · tags · dates · status
  *
  * Every column is always there; a click on a cell opens its picker anchored
- * to it, and an empty cell shows its placeholder only on hover / focus — by
- * opacity, so nothing moves. Only people and tags give way when the details
- * are squeezed (`utils/task-row-columns`). Click selects, a click on a
+ * to it (the dates cell: its due part the date input, its follow-up part the
+ * follow-up popover), and an empty cell shows its placeholder only on hover /
+ * focus — by opacity, so nothing moves. Only people and tags give way when
+ * the details are squeezed; a narrow list shows the dates as icons
+ * (`utils/task-row-columns`). Click selects, a click on a
  * selected row's title edits it inline, a double-click on the title or empty
  * space opens the editor, right-click opens the task menu at the pointer and
  * Shift+F10 / the context-menu key under the focused cell (there is no ⋯
@@ -245,15 +247,18 @@ export const TaskRow = memo(function TaskRow({
               onCellContextMenu={onCellContextMenu('tags', assignedTags.map((t) => ({ kind: 'tag', entity: t })))}
             />
           )}
-          <DueCell
+          <DatesCell
             todo={todo}
             today={today}
-            inputRef={deadlineInputRef}
-            onOpen={openDeadlinePicker}
-            onClear={() => bulk.setDeadline(todo.id, null)}
-            onInputChange={onDeadlineInputChange}
+            deadlineInputRef={deadlineInputRef}
+            onOpenDue={openDeadlinePicker}
+            onClearDue={() => bulk.setDeadline(todo.id, null)}
+            onDueInputChange={onDeadlineInputChange}
+            followupAnchorRef={followupAnchorRef}
+            followupOpen={followupOpen}
+            onToggleFollowup={toggleFollowup}
+            onClearFollowup={() => bulk.setFollowup(todo.id, null)}
           />
-          <FollowupCell todo={todo} today={today} anchorRef={followupAnchorRef} open={followupOpen} onToggle={toggleFollowup} />
           <StatusCell status={status} anchorRef={statusRef} open={showStatusMenu} onToggle={() => setShowStatusMenu((v) => !v)} />
         </>
       )}

@@ -191,7 +191,7 @@
   min-width: 0;
 }
 
-/* Hidden native date input behind the due cell (opened with showPicker). */
+/* Hidden native date input behind the dates cell's due part (opened with showPicker). */
 .hiddenDateInput {
   position: absolute;
   left: 0;
@@ -378,17 +378,36 @@
   text-overflow: ellipsis;
 }
 
-/* Due: MM/DD in text colour only — due soon toward the deadline colour by proximity, overdue bold. */
-.dueCell {
-  position: relative;
+/*
+ * Dates: the due part (clock + MM/DD) and the follow-up part (flag + MM/DD)
+ * side by side, each part its own button with its own width (set inline per
+ * tier); a narrow list shows a part as its icon alone.
+ */
+.datesCell {
   display: flex;
   min-width: 0;
 }
 
+.datePart {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.datePartButton {
+  flex: 1;
+  gap: 3px;
+}
+
+.dateText {
+  min-width: 0;
+}
+
+/* Due: text colour only — due soon toward the deadline colour by proximity, overdue bold; the clock follows it. */
 .due {
   --date-intensity: 0;
   --fade: calc((1 - var(--date-intensity)) * 100%);
-  flex: 1;
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
 }
 
@@ -402,13 +421,8 @@
   font-weight: 700;
 }
 
-.repeat {
-  color: var(--color-text-muted);
-  font-weight: var(--font-weight-regular);
-}
-
-/* × over the due cell's right end on hover — takes no width. */
-.dueClear {
+/* A part's × over its right end on hover — takes no width. */
+.dateClear {
   position: absolute;
   top: 50%;
   right: 1px;
@@ -432,21 +446,17 @@
   cursor: pointer;
 }
 
-.dueCell:hover .dueClear {
+.datePart:hover .dateClear {
   opacity: 1;
   pointer-events: auto;
 }
 
-.dueClear:hover {
+.dateClear:hover {
   background: var(--color-tint-12);
   color: var(--color-text-primary);
 }
 
-/* Follow-up: the flag only — upcoming outlined and muted, today filled, late filled and glowing. */
-.followup {
-  font-size: 13px;
-}
-
+/* Follow-up: upcoming outlined and muted, today filled, late filled and glowing; the date in the flag's colour. */
 .followup[data-followup="upcoming"] {
   color: color-mix(in srgb, var(--color-followup) 55%, var(--color-text-muted));
 }

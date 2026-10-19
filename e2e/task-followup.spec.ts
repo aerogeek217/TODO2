@@ -163,11 +163,11 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
   })
 
-  test('overdue follow-up: the filled flag only ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
+  test('overdue follow-up: the filled flag and its date ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
     const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
     await expect(cell).toHaveAttribute('data-followup', 'late')
-    await expect(cell).toHaveText('')
+    await expect(cell).toHaveText('10/08')
     const { filter, color, fill } = await cell.evaluate((el) => {
       const svg = el.querySelector('svg')!
       return { filter: getComputedStyle(svg).filter, color: getComputedStyle(el).color, fill: svg.getAttribute('fill') }
