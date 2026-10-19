@@ -194,6 +194,11 @@ describe('/followup argument', () => {
     ])
   })
 
+  it('while new tasks get no follow-up, none is the default', () => {
+    const rows = at('Vendor contract /followup ', { ...sources, followupDefault: null })?.rows ?? []
+    expect(rows.filter((r) => 'note' in r && r.note === 'default').map((r) => 'label' in r && r.label)).toEqual(['none'])
+  })
+
   it('reads an interval and none', () => {
     expect(labels(at('x /followup 2w'))).toEqual(['= Sat 24 Oct'])
     expect(labels(at('x /followup no'))).toEqual(['none'])

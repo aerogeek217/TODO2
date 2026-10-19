@@ -5,22 +5,19 @@ import {
   formatFollowupInterval,
   parseFollowupInterval,
 } from '../../utils/followup'
-
-interface FollowupIntervalSettingProps {
-  rowClassName?: string
-  labelClassName?: string
-  inputClassName?: string
-  hintClassName?: string
-}
+import { SettingRow } from './sections/SettingRow'
+import styles from './sections/sections.module.css'
 
 /**
- * Settings → Task defaults row for the default follow-up interval (`1m`,
- * `2w`, `10d`, `1y`). New tasks and "Mark followed up" set the next follow-up to
- * today + this. Commits on Enter / blur; invalid text reverts.
+ * Settings → Task defaults: whether new tasks get a next follow-up, and the
+ * follow-up interval (`1m`, `2w`, `10d`, `1y`). "Mark followed up" sets the
+ * next follow-up to today + the interval, and so does creating a task while
+ * the switch is on. The interval commits on Enter / blur; invalid text
+ * reverts.
  */
-export function FollowupIntervalSetting({
-  rowClassName, labelClassName, inputClassName, hintClassName,
-}: FollowupIntervalSettingProps) {
+export function FollowupIntervalSetting() {
+  const newTaskFollowup = useSettingsStore((s) => s.newTaskFollowup)
+  const setNewTaskFollowup = useSettingsStore((s) => s.setNewTaskFollowup)
   const interval = useSettingsStore((s) => s.followupDefaultInterval)
   const setInterval = useSettingsStore((s) => s.setFollowupDefaultInterval)
   const stored = formatFollowupInterval(interval)
@@ -44,18 +41,29 @@ export function FollowupIntervalSetting({
   }
 
   return (
-    <div
-      className={rowClassName}
-      title="New tasks get a next follow-up this far ahead; “Mark followed up” moves it on by the same amount. Use d, w, m or y — e.g. 10d, 2w, 1m."
-    >
-      <span className={labelClassName}>Default follow-up for new tasks</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-        {parsed && (
-          <span className={hintClassName} aria-live="polite">{describeFollowupInterval(parsed)}</span>
-        )}
+    <>
+      <SettingRow
+        label="New tasks get a follow-up date"
+        help="Off: a new task has no follow-up unless you give it one (/followup in Quick Add)."
+      >
+        <button
+          type="button"
+          role="switch"
+          aria-checked={newTaskFollowup}
+          aria-label="New tasks get a follow-up date"
+          className={`${styles.switch} ${newTaskFollowup ? styles.switchOn : ''}`}
+          onClick={() => void setNewTaskFollowup(!newTaskFollowup)}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Follow-up interval"
+        help={newTaskFollowup
+          ? '“Mark followed up” sets the next follow-up this far ahead, and so does creating a task. Use d, w, m or y — e.g. 10d, 2w, 1m.'
+          : '“Mark followed up” sets the next follow-up this far ahead. Use d, w, m or y — e.g. 10d, 2w, 1m.'}
+      >
         <input
           type="text"
-          className={inputClassName}
+          className={styles.input}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
@@ -63,14 +71,17 @@ export function FollowupIntervalSetting({
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
             if (e.key === 'Escape') setDraft(stored)
           }}
-          aria-label="Default follow-up interval"
+          aria-label="Follow-up interval"
           aria-invalid={!parsed}
           placeholder="1m"
           style={{ width: 64, textAlign: 'right' }}
           spellCheck={false}
           autoComplete="off"
         />
-      </span>
-    </div>
+        {parsed && (
+          <span className={styles.muted} aria-live="polite">{describeFollowupInterval(parsed)}</span>
+        )}
+      </SettingRow>
+    </>
   )
 }

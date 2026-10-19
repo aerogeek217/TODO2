@@ -23,8 +23,8 @@ export interface PreviewLookups {
   people: readonly Person[]
   tags: readonly Tag[]
   statuses: readonly Status[]
-  /** The next follow-up a task gets by default. */
-  defaultFollowup: Date
+  /** The next follow-up a task gets by default; `null` = none. */
+  defaultFollowup: Date | null
   today: Date
 }
 
@@ -66,7 +66,7 @@ function DraftChips({ draft, lookups }: { draft: TaskDraft; lookups: PreviewLook
       {draft.dueDate && (
         <span className={styles.chip} data-tint="due"><CalendarIcon /> {formatFollowupDay(draft.dueDate, today)}</span>
       )}
-      {draft.nextFollowupAt === undefined ? (
+      {draft.nextFollowupAt === undefined ? defaultFollowup && (
         <span className={`${styles.chip} ${styles.chipDefault}`} title="The default next follow-up">
           <FollowupFlagIcon /> {formatFollowupDate(defaultFollowup, today)}
         </span>

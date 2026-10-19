@@ -699,3 +699,20 @@ export function currentFilterSettings(): FilterSettings {
 export function defaultNextFollowup(now: Date): Date {
   return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
 }
+
+/**
+ * The interval a new task's default follow-up is set by, or `null` while
+ * new tasks get none (a selector: `useSettingsStore(newTaskFollowupInterval)`).
+ */
+export function newTaskFollowupInterval(s: Pick<SettingsState, 'newTaskFollowup' | 'followupDefaultInterval'>): FollowupInterval | null {
+  return s.newTaskFollowup ? s.followupDefaultInterval : null
+}
+
+/**
+ * The next follow-up a new task gets when it says nothing about one: today
+ * + the default interval while "New tasks get a follow-up date" is on, else
+ * none (`undefined`).
+ */
+export function newTaskDefaultFollowup(now: Date): Date | undefined {
+  return useSettingsStore.getState().newTaskFollowup ? defaultNextFollowup(now) : undefined
+}

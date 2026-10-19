@@ -19,8 +19,9 @@ function urgentChoiceLabel(range: UrgentDueWithinDays): string {
 }
 
 /**
- * Defaults for new tasks: status, next follow-up, when a due date makes a
- * task urgent, which tasks are hot, and the first day of the week.
+ * Defaults for new tasks: status, whether they get a next follow-up and the
+ * follow-up interval, when a due date makes a task urgent, which tasks are
+ * hot, and the first day of the week.
  */
 export function TaskDefaultsSection() {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
@@ -50,12 +51,7 @@ export function TaskDefaultsSection() {
           ))}
         </select>
       </SettingRow>
-      <FollowupIntervalSetting
-        rowClassName={styles.row}
-        labelClassName={styles.labelInline}
-        inputClassName={styles.input}
-        hintClassName={styles.muted}
-      />
+      <FollowupIntervalSetting />
       <SettingRow
         label="Due date makes a task urgent"
         help="Overdue tasks count too. They show a clock instead of the urgent mark."

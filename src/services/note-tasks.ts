@@ -1,5 +1,5 @@
 import { usePersonStore } from '../stores/person-store'
-import { defaultNextFollowup } from '../stores/settings-store'
+import { newTaskDefaultFollowup } from '../stores/settings-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { resolveTags, resolveUnmatchedPeople } from './nlp-resolver'
@@ -14,8 +14,8 @@ export interface CreatedTask {
  * Creates tasks from drafts, in order, as one undo step. People and tags the
  * drafts name that don't exist yet are created first (lookup-or-create; like
  * every create of a person or tag, that part isn't undone). Tasks without a
- * follow-up choice get the Settings default. Returns the created tasks in
- * draft order.
+ * follow-up choice get the Settings default (none while new tasks get no
+ * follow-up). Returns the created tasks in draft order.
  */
 export async function createTasksFromDrafts(
   drafts: readonly TaskDraft[],
@@ -23,7 +23,7 @@ export async function createTasksFromDrafts(
 ): Promise<CreatedTask[]> {
   if (drafts.length === 0) return []
   const now = new Date()
-  const defaultFollowup = defaultNextFollowup(now)
+  const defaultFollowup = newTaskDefaultFollowup(now)
   const items = []
   for (const draft of drafts) {
     const newPersonIds = draft.newPeople.length > 0

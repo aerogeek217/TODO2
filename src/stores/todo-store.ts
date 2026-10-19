@@ -5,7 +5,7 @@ import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
 import { advanceRecurring } from '../utils/recurrence'
 import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
-import { defaultNextFollowup, useSettingsStore } from './settings-store'
+import { defaultNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
 import { personRepository } from '../data/person-repository'
@@ -199,13 +199,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
     return mutate(async () => {
       const now = new Date()
       const defaultStatusId = useSettingsStore.getState().defaultStatusId
+      const nextFollowupAt = newTaskDefaultFollowup(now)
       // Goes last (the repository picks the sort order in its transaction).
       const id = await todoRepository.insert({
         title,
         isCompleted: false,
         createdAt: now,
         modifiedAt: now,
-        nextFollowupAt: defaultNextFollowup(now),
+        ...(nextFollowupAt && { nextFollowupAt }),
         ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
       const todo = await todoRepository.getById(id)

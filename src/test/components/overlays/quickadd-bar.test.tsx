@@ -4,6 +4,7 @@ import { QuickAddBar, type QuickAddDraft } from '../../../components/overlays/Qu
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import type { PersistedPerson, PersistedStatus } from '../../../models'
 
 const anna: PersistedPerson = { id: 1, name: 'Anna', initials: 'AN' }
@@ -803,6 +804,18 @@ describe('QuickAddBar — chip ×', () => {
     pressRemove('Use the default follow-up')
     expect(input).toHaveValue('Vendor call')
     expect(chipTexts()[0]).toMatch(/· default$/)
+  })
+
+  it('new tasks without a follow-up (Settings): no default chip; a typed one shows, its × removes it', () => {
+    useSettingsStore.setState({ newTaskFollowup: false })
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const input = typeAt('Vendor call')
+    expect(chipTexts()).toEqual([])
+    changeInput('Vendor /followup 2w call')
+    expect(chipTexts()).toHaveLength(1)
+    pressRemove('Remove follow-up')
+    expect(input).toHaveValue('Vendor call')
+    expect(chipTexts()).toEqual([])
   })
 
   it('a set follow-up: × goes back to the default', () => {

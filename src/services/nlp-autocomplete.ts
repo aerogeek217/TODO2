@@ -59,8 +59,12 @@ export interface AutocompleteSources {
   statuses: readonly AutocompleteItem[]
   /** Whether `/` opens the slash-command menu. */
   commands: boolean
-  /** The Settings default follow-up interval (marked `default`). */
-  followupDefault: FollowupInterval
+  /**
+   * The follow-up a new task gets by default, marked `default` in the
+   * `/followup` rows: the Settings interval, or `null` while new tasks get
+   * none (then `none` is the default).
+   */
+  followupDefault: FollowupInterval | null
   today: Date
 }
 
@@ -356,10 +360,18 @@ function dateRows(
           label: insert,
           matchLength: 0,
           detail: formatFollowupDate(addFollowupInterval(today, interval), today),
-          note: insert === formatFollowupInterval(sources.followupDefault) ? 'default' : undefined,
+          note: sources.followupDefault && insert === formatFollowupInterval(sources.followupDefault) ? 'default' : undefined,
         }
       }),
-      { kind: 'value' as const, insert: 'none', label: 'none', matchLength: 0, detail: 'No follow-up', separator: true },
+      {
+        kind: 'value' as const,
+        insert: 'none',
+        label: 'none',
+        matchLength: 0,
+        detail: 'No follow-up',
+        separator: true,
+        note: sources.followupDefault ? undefined : 'default',
+      },
     ]
   if (!lower) return { rows: suggestions, hint: DATE_ARGUMENT_HINT[command] }
   const date = parseCommandDate(typed, today)

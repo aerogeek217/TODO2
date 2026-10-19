@@ -145,6 +145,7 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
+  const newTaskFollowup = useSettingsStore((s) => s.newTaskFollowup)
 
   const currentText = useCallback(() => viewRef.current?.state.doc.toString() ?? getText(), [viewRef, getText])
 
@@ -319,7 +320,7 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
       <>
         <NotesConvertPreview
           rows={state.rows}
-          lookups={{ people, tags, statuses, today, defaultFollowup: addFollowupInterval(today, followupInterval) }}
+          lookups={{ people, tags, statuses, today, defaultFollowup: newTaskFollowup ? addFollowupInterval(today, followupInterval) : null }}
           noteName={state.noteName}
           fromSelection={state.fromSelection}
           leftOut={state.leftOut}
