@@ -15,27 +15,6 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  *   (the app stores that as no row).
  */
 
-/**
- * `true` when `panes` (parsed) is an object whose known panes are objects
- * with a string `name` and a `filter` of the list predicate's core shape,
- * else the path of the first bad part (`delegate.filter.personIds`). Unknown
- * panes and unknown keys inside a pane pass (the pick drops them, as a fix);
- * the filter's inner clauses are sanitised by the pick too (`pickPredicate`).
- */
-export function checkPanes(panes: unknown): true | string {
-  if (!isRecord(panes)) return 'panes'
-  for (const [key, pane] of Object.entries(panes)) {
-    if (!isEisenhowerQuadrant(key)) continue
-    if (!isRecord(pane)) return key
-    if (pane.name !== undefined && typeof pane.name !== 'string') return `${key}.name`
-    if (pane.filter !== undefined) {
-      const filter = checkPredicateShape(pane.filter)
-      if (filter !== true) return `${key}.filter.${filter}`
-    }
-  }
-  return true
-}
-
 /** A part `pickPanes` dropped or reset, counted. */
 type PaneFix = 'dropped' | 'reset'
 
@@ -49,8 +28,7 @@ export interface PickedPanes {
   panes: EisenhowerPanes
   /**
    * What was dropped or reset, in words (`2 Eisenhower pane settings
-   * dropped`); empty for panes that pass `checkPanes` and hold nothing
-   * malformed.
+   * dropped`); empty for panes that hold nothing malformed.
    */
   fixes: string[]
 }
@@ -59,9 +37,10 @@ export interface PickedPanes {
  * The stored panes, rebuilt: known panes in position order, each with its
  * name and filter (`pickPredicate`), normalised — a part equal to the
  * default goes (`normalizePaneConfig`). An unknown pane or key, or a filter
- * clause `pickPredicate` drops, is a `dropped` fix; a pane or part
- * `checkPanes` rejects is reset to its default (a `reset` fix; import never
- * picks such a value — it fails the file).
+ * clause `pickPredicate` drops, is a `dropped` fix; a known pane that isn't
+ * an object, a name that isn't a string or a filter without the list
+ * predicate's core shape (`checkPredicateShape`) is reset to its default (a
+ * `reset` fix) — the other panes are kept.
  */
 export function pickPanes(raw: unknown): PickedPanes {
   const counts = new Map<PaneFix, number>()
@@ -116,19 +95,23 @@ function parseJson(value: string): unknown {
   }
 }
 
-/** `true` when the stored `eisenhowerPanes` text is JSON that passes `checkPanes`, else what is wrong. */
-export function checkPanesSetting(value: string): true | string {
-  const parsed = parseJson(value)
-  if (parsed === undefined) return 'not JSON'
-  return checkPanes(parsed)
-}
+/**
+ * The longest `eisenhowerPanes` text read (a million characters). Names and
+ * filters have no length limit of their own; this bounds the whole value,
+ * so an imported one of many megabytes can't slow every Eisenhower header,
+ * the dashboard and each pane edit down — far above anything four panes
+ * hold.
+ */
+export const PANES_SETTING_MAX_LEN = 1_000_000
 
 /**
- * The stored `eisenhowerPanes` text, read leniently (the settings store's
- * load): unreadable text gives the defaults, malformed parts are dropped or
- * reset (`pickPanes`).
+ * The stored `eisenhowerPanes` text, read leniently — by import (and so the
+ * audit) and the settings store's load: text that isn't JSON, or is over
+ * `PANES_SETTING_MAX_LEN`, gives the defaults; malformed parts are dropped
+ * or reset (`pickPanes`). `fixes` says what went.
  */
 export function readPanesSetting(value: string): PickedPanes {
+  if (value.length > PANES_SETTING_MAX_LEN) return { panes: {}, fixes: ['Eisenhower panes too long — reset'] }
   const parsed = parseJson(value)
   if (parsed === undefined) return { panes: {}, fixes: ['Eisenhower panes reset'] }
   return pickPanes(parsed)

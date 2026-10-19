@@ -13,7 +13,7 @@ import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-set
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
-import { checkPanesSetting, formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
+import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { isValidEmail, normalizeEmail } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -308,13 +308,12 @@ function checkSetting(v: unknown): CheckResult {
   // read and resets an over-long text unread (`settingFixes` names what it
   // drops, a few at most), so what is stored is short.
   if (v.key === SETTING_KEYS.keyboardShortcuts) return true
-  // The Eisenhower panes: JSON of the panes (names and filters have no
-  // length limit, as list names and filters have none); malformed inner
-  // parts are dropped by the picker (`settingFixes`).
-  if (v.key === SETTING_KEYS.eisenhowerPanes) {
-    const panes = checkPanesSetting(v.value as string)
-    return panes === true ? true : `value (eisenhowerPanes: ${panes})`
-  }
+  // The Eisenhower panes: any text, as the panes were layout data the
+  // layout repair fixed rather than failed — the picker keeps the panes it
+  // can read and resets the rest (an unreadable or over-long value reads as
+  // the defaults); `settingFixes` names what it drops. Names and filters
+  // have no length limit (the whole value has one: `PANES_SETTING_MAX_LEN`).
+  if (v.key === SETTING_KEYS.eisenhowerPanes) return true
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'

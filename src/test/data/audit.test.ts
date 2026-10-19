@@ -598,8 +598,19 @@ describe('Eisenhower settings audit', () => {
   })
 
   it.each([
-    ['eisenhowerPanes', '{oops'],
-    ['eisenhowerPanes', '{"do":"Now"}'],
+    ['{oops', 'Eisenhower panes reset'],
+    ['{"do":"Now"}', 'Eisenhower pane reset'],
+  ])('panes it can’t read (%s) are reported; cleanup resets them (the defaults)', async (value, fix) => {
+    await db.settings.put({ key: 'eisenhowerPanes', value })
+    const report = await auditData()
+    expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['eisenhowerPanes'] })])
+    expect(report.issues[0]!.samples![0]!.note).toBe(`Cleanup: ${fix}`)
+    await cleanupIssues(report.issues)
+    expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: '{}' })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it.each([
     ['eisenhowerSource', 'list:x'],
     ['eisenhowerSource', 'Team'],
   ])('an unreadable %s value (%s) is reported; cleanup deletes the row (the default)', async (key, value) => {

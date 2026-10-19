@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import {
-  checkPanes,
   formatEisenhowerSource,
   formatPanesSetting,
+  PANES_SETTING_MAX_LEN,
   parseEisenhowerSource,
   pickPanes,
   readPanesSetting,
@@ -63,15 +63,29 @@ describe('the eisenhowerPanes setting', () => {
   })
 
   it.each([
-    ['not JSON', '{oops', 'not JSON'],
-    ['not an object', ['do'], 'panes'],
-    ['a pane not an object', { do: 'Now' }, 'do'],
-    ['a name not a string', { do: { name: 7 } }, 'do.name'],
-    ['a filter without its core shape', { drop: { filter: { showCompleted: false, searchText: '' } } }, 'drop.filter.dates'],
-  ])('fails the import when %s', (_what, value, bad) => {
+    ['not JSON', '{oops', 'Eisenhower panes reset'],
+    ['not an object', ['do'], 'Eisenhower pane reset'],
+    ['a pane not an object', { do: 'Now' }, 'Eisenhower pane reset'],
+    ['a name not a string', { do: { name: 7 } }, 'Eisenhower pane reset'],
+    ['a filter without its core shape', { drop: { filter: { showCompleted: false, searchText: '' } } }, 'Eisenhower pane reset'],
+    ['over a million characters', JSON.stringify({ drop: { name: 'n'.repeat(PANES_SETTING_MAX_LEN) } }), 'Eisenhower panes too long — reset'],
+  ])('import resets what it can’t read, with a warning, and keeps the file: %s', (_what, value, fix) => {
     const res = importSettings([panesRow(value)])
-    expect(res.ok).toBe(false)
-    if (!res.ok) expect(res.error).toContain(`value (eisenhowerPanes: ${bad})`)
+    if (!res.ok) throw new Error(res.error)
+    expect(res.warnings).toEqual([`Fixed settings: Eisenhower panes (${fix})`])
+    expect(res.data.settings).toEqual([panesRow({})])
+  })
+
+  it('a pane it can’t read is reset; the other panes are kept', () => {
+    const res = importSettings([panesRow({ do: 'Now', drop: { name: 'Someday' } })])
+    if (!res.ok) throw new Error(res.error)
+    expect(res.warnings).toEqual(['Fixed settings: Eisenhower panes (Eisenhower pane reset)'])
+    expect(res.data.settings).toEqual([panesRow({ drop: { name: 'Someday' } })])
+  })
+
+  it('a value up to a million characters is read (no name limit below that)', () => {
+    const name = 'n'.repeat(PANES_SETTING_MAX_LEN - 100)
+    expect(readPanesSetting(JSON.stringify({ drop: { name } }))).toEqual({ panes: { drop: { name } }, fixes: [] })
   })
 
   it('the store’s lenient read resets what the check rejects and keeps the rest', () => {
@@ -81,7 +95,7 @@ describe('the eisenhowerPanes setting', () => {
       fixes: ['2 Eisenhower panes reset'],
     })
     expect(pickPanes(null)).toEqual({ panes: {}, fixes: ['Eisenhower pane reset'] })
-    expect(checkPanes(PANES)).toBe(true)
+    expect(pickPanes(PANES)).toEqual({ panes: PANES, fixes: [] })
   })
 
   it('is written in its stored form: positions in order, only what differs', () => {

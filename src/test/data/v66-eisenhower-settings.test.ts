@@ -119,6 +119,18 @@ describe('v66 files', () => {
     expect(tabs.filter((t) => t.kind === 'eisenhower').map((t) => t.config)).toEqual([{}, {}, {}])
   })
 
+  it('a v65 tab whose panes hold parts this build can’t read still imports: those parts reset, with a warning', () => {
+    const quirky = { do: 'Now', schedule: { name: 7 }, drop: { name: 'Someday', filter: { searchText: '' } }, delegate: HAND_OFF.delegate }
+    const file = {
+      [SCHEMA_VERSION_KEY]: 65, todos: [], settings: [],
+      layouts: [layout(1, cells([eis('a', { panes: quirky })]))],
+    }
+    const prepared = prepareImport(JSON.parse(JSON.stringify(file)) as unknown)
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.warnings).toEqual(['Fixed settings: Eisenhower panes (3 Eisenhower panes reset)'])
+    expect(prepared.data.settings).toEqual([{ key: 'eisenhowerPanes', value: JSON.stringify({ delegate: HAND_OFF.delegate, drop: { name: 'Someday' } }) }])
+  })
+
   it('an export holding the settings is stamped v66 or later, so a v65 build refuses it as too new', async () => {
     await db.settings.put({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
     const exported = await buildExportData()
