@@ -11,7 +11,8 @@ import { readStore } from './fixtures/db'
  * Save layout + reload keeps it; the header menu's Reset pane puts the
  * default back. A drop on a pane whose filter sets a status writes the
  * status; a drop that wouldn't land the task in the pane is refused with
- * why. On a phone the custom names show, read-only.
+ * why — also on a pane naming a status that no longer exists. On a phone
+ * the custom names show, read-only.
  */
 
 const SEED: WorkspaceSeed = {
@@ -182,6 +183,31 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('eisenhower-refusal')).toHaveCount(0)
     expect(await taskOf(page, 'Chase vendor')).toMatchObject({ urgent: true })
     expect((await taskOf(page, 'Chase vendor')).important).toBeUndefined()
+  })
+
+  test('a pane naming a status that no longer exists refuses the drop, saying so, and writes nothing', async ({ page }) => {
+    await seedWorkspace(page, {
+      ...SEED,
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
+          {
+            id: 'colB',
+            weight: 2,
+            cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower', panes: { drop: { name: 'Waiting on', filter: { statusIds: [999] } } } }] }],
+          },
+        ],
+      }],
+    })
+    await dragOnto(page, listRow(page, 'Draft OKRs'), quadrant(page, 'drop'), async () => {
+      await expect(quadrant(page, 'drop')).toHaveAttribute('data-drop-state', 'refused')
+      const tip = page.getByTestId('eisenhower-refusal')
+      await expect(tip).toContainText('Can’t move to Waiting on')
+      await expect(tip).toContainText('The status this pane sets no longer exists.')
+    })
+    expect((await taskOf(page, 'Draft OKRs')).statusId).toBeUndefined()
+    expect((await taskOf(page, 'Draft OKRs')).important).toBe(true)
   })
 })
 
