@@ -74,7 +74,8 @@ test('another subscriber hears the sync events without taking them from the app'
   await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
   const pill = page.getByTestId('storage-pill')
   await expect(pill).toHaveAttribute('data-state', 'syncing')
-  await expect(pill).toHaveText(SYNC_FILE)
+  await expect(pill).toHaveText('Synced')
+  await expect(pill).toHaveAttribute('title', `Syncing to ${SYNC_FILE}`)
   await expect.poll(() => recorded(page)).toContain(`status ${SYNC_FILE} true`)
 
   // Retry re-runs the load: the file now matches this browser, so it is
@@ -87,7 +88,7 @@ test('another subscriber hears the sync events without taking them from the app'
   }, SERVICE_URL)
   await expect.poll(async () => (await recorded(page)).slice(before).filter((e) => !e.startsWith('status')))
     .toEqual(['before import', 'after import', 'released'])
-  await expect(pill).toHaveText(SYNC_FILE)
+  await expect(pill).toHaveText('Synced')
   expect(JSON.parse(await readSyncFile(page, SYNC_FILE)).todos).toEqual([])
 
   // Unsubscribed: it hears nothing more, while an edit still reaches the file.
@@ -100,6 +101,6 @@ test('another subscriber hears the sync events without taking them from the app'
   await page.keyboard.press('Enter')
   await expect.poll(async () => (JSON.parse(await readSyncFile(page, SYNC_FILE)).todos as Array<{ title: string }>).map((t) => t.title))
     .toEqual(['Saved after unsubscribing'])
-  await expect(pill).toHaveText(SYNC_FILE)
+  await expect(pill).toHaveText('Synced')
   expect(await recorded(page)).toHaveLength(after)
 })

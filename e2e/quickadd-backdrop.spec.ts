@@ -56,7 +56,8 @@ test('the backdrop dims and blurs the app like the command palette', async ({ pa
     return { background: s.backgroundColor, filter: s.backdropFilter }
   })
   expect(look).toEqual(paletteLook)
-  expect(look.filter).toBe('blur(4px)')
+  const blur = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--backdrop-blur').trim())
+  expect(look.filter).toBe(`blur(${blur})`)
   // It covers the page: the rows under it aren't what the page shows on top.
   expect(await isOnTop(taskRowByTitle(page, 'Plan the offsite'))).toBe(false)
 })
