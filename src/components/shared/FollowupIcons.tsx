@@ -23,7 +23,7 @@ export function FollowupFlagIcon({ filled = false }: { filled?: boolean }) {
   )
 }
 
-/** Flag with a check — the "Followed up" action. */
+/** Flag with a check — the "Mark followed up" action. */
 export function FollowedUpIcon() {
   return (
     <svg {...svgBase}>

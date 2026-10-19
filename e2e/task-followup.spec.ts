@@ -68,7 +68,7 @@ test.describe('Task follow-up', () => {
     await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
   })
 
-  test('empty follow-up cell: its flag shows on hover (the cell keeps its place), opens the popover on Followed up; typing an interval in the field + Enter sets it', async ({ page }) => {
+  test('empty follow-up cell: its flag shows on hover (the cell keeps its place), opens the popover on Mark followed up; typing an interval in the field + Enter sets it', async ({ page }) => {
     const row = taskRowByTitle(page, 'alpha')
     const flag = row.getByRole('button', { name: 'Set follow-up', exact: true })
     const placeholderOpacity = () => flag.evaluate((el) => Number(getComputedStyle(el.querySelector('[aria-hidden="true"]') as HTMLElement).opacity))
@@ -130,7 +130,7 @@ test.describe('Task follow-up', () => {
     await expect(pill).toBeVisible()
   })
 
-  test('quick interval, then "Followed up" with the undo snackbar', async ({ page }) => {
+  test('quick interval, then "Mark followed up" with the undo snackbar', async ({ page }) => {
     const row = taskRowByTitle(page, 'alpha')
     await row.hover()
     await row.getByRole('button', { name: 'Set follow-up', exact: true }).click()
@@ -178,7 +178,7 @@ test.describe('Task follow-up', () => {
     expect(color).toBe('rgb(245, 200, 66)')
   })
 
-  test('row menu: Follow-up › "Pick a date or interval…" opens the popover; "Followed up" stamps the task', async ({ page }) => {
+  test('row menu: Follow-up › "Pick a date or interval…" opens the popover; "Mark followed up" stamps the task', async ({ page }) => {
     const row = taskRowByTitle(page, 'beta')
     const title = row.locator('span[data-task-title="beta"]')
     const tb = (await title.boundingBox())!
@@ -193,7 +193,7 @@ test.describe('Task follow-up', () => {
     await expect(pop).toBeHidden()
 
     await page.mouse.click(tb.x + 5, tb.y + 5, { button: 'right' })
-    await page.getByRole('menuitem', { name: 'Followed up' }).click()
+    await page.getByRole('menuitem', { name: 'Mark followed up' }).click()
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-11-10 00:00', last: '2026-10-10 15:30' })
   })
 

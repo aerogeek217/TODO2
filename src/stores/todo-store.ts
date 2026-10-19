@@ -114,7 +114,7 @@ interface TodoState {
   /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
   bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
-   * "Followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
+   * "Mark followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
    * Settings default interval`, on every task in `ids`. One undo step with
    * the undo snackbar. The timestamps are resolved once and shared by the
    * store and the DB write.

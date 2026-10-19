@@ -10,7 +10,7 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
  * Needs follow-up row and the phone row. (There is no keyboard shortcut for
  * it; the check-in reply's Record a follow-up is in `checkin-import.spec`.)
  * The popover opened from a row's pill or flag, or the bulk bar, opens with
- * focus on **Followed up**, so ⏎ records; the Next follow-up field still
+ * focus on **Mark followed up**, so ⏎ records; the Next follow-up field still
  * edits the date when clicked, and Esc / a pick hand focus back.
  *
  * The clock is pinned to Sat 10 Oct 2026 15:30.
@@ -74,7 +74,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
   test('the pill (planned and late), the empty-slot flag and the task menu', async ({ page }) => {
     const list = page.locator('[data-list-widget="list"]')
 
-    // The pill of a planned follow-up → the popover's Followed up.
+    // The pill of a planned follow-up → the popover's Mark followed up.
     await rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
     await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(RECORDED)
@@ -93,18 +93,18 @@ test.describe('recording a follow-up from a row stamps today', () => {
 
     // The task menu (right-click).
     await titleIn(list, 'From the menu').click({ button: 'right' })
-    await page.getByRole('menuitem', { name: 'Followed up' }).click()
+    await page.getByRole('menuitem', { name: 'Mark followed up' }).click()
     await expect.poll(() => followupOf(page, 'From the menu')).toEqual(RECORDED)
   })
 
-  test('the bulk bar: ⋯ More › Followed up, and its follow-up popover', async ({ page }) => {
+  test('the bulk bar: ⋯ More › Mark followed up, and its follow-up popover', async ({ page }) => {
     const list = page.locator('[data-list-widget="list"]')
     const bulkBar = page.getByTestId('list-bulk-bar')
 
     await titleIn(list, 'Bulk one').click()
     await titleIn(list, 'Bulk two').click({ modifiers: ['Control'] })
     await bulkBar.getByRole('button', { name: 'More', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^Followed up/ }).click()
+    await page.getByRole('menuitem', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Bulk one')).toEqual(RECORDED)
     await expect.poll(() => followupOf(page, 'Bulk two')).toEqual(RECORDED)
 
@@ -116,7 +116,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(RECORDED)
   })
 
-  test('the popover opens on Followed up: ⏎ records today and focus goes back to the pill', async ({ page }) => {
+  test('the popover opens on Mark followed up: ⏎ records today and focus goes back to the pill', async ({ page }) => {
     const list = page.locator('[data-list-widget="list"]')
     await rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
     const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
@@ -127,7 +127,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await expect(rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 10 Nov', exact: true })).toBeFocused()
   })
 
-  test('the empty-slot flag opens on Followed up too; Esc closes with nothing changed and gives the flag its focus back', async ({ page }) => {
+  test('the empty-slot flag opens on Mark followed up too; Esc closes with nothing changed and gives the flag its focus back', async ({ page }) => {
     const list = page.locator('[data-list-widget="list"]')
     const row = rowIn(list, 'No follow-up yet')
     await row.hover()
@@ -151,7 +151,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await expect.poll(() => followupOf(page, 'Planned pill')).toEqual({ next: '2026-10-24 00:00', last: null })
   })
 
-  test('the bulk bar follow-up popover opens on Followed up: ⏎ records today for every selected task', async ({ page }) => {
+  test('the bulk bar follow-up popover opens on Mark followed up: ⏎ records today for every selected task', async ({ page }) => {
     const list = page.locator('[data-list-widget="list"]')
     await titleIn(list, 'Bulk pop one').click()
     await titleIn(list, 'Bulk pop two').click({ modifiers: ['Control'] })
@@ -173,12 +173,12 @@ test.describe('recording a follow-up from a row stamps today', () => {
 test.describe('the phone row', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('its follow-up pill → Followed up stamps today', async ({ page }) => {
+  test('its follow-up pill → Mark followed up stamps today', async ({ page }) => {
     await page.clock.setFixedTime(NOW)
     await seedWorkspace(page, { ...SEED, tasks: [{ title: 'Planned pill', followupInDays: 3 }] })
     const row = page.locator('[data-todo-id]').filter({ hasText: 'Planned pill' }).first()
     await row.getByRole('button', { name: /^Follow-up:/ }).click()
-    // Opens on Followed up, as on desktop.
+    // Opens on Mark followed up, as on desktop.
     const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
     await expect(followedUp).toBeFocused()
     await followedUp.click()

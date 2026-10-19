@@ -98,7 +98,7 @@ export function markerMenuEntries(
   ]
 }
 
-/** "Followed up" — dimmed when every task was already followed up today. */
+/** "Mark followed up" — dimmed when every task was already followed up today. */
 export function followedUpMenuEntry(
   targets: readonly PersistedTodoItem[],
   today: Date,
@@ -107,7 +107,7 @@ export function followedUpMenuEntry(
   const doneToday = targets.length > 0 && targets.every((t) => isFollowedUpToday(t, today))
   return {
     kind: 'item',
-    label: 'Followed up',
+    label: 'Mark followed up',
     icon: <FollowedUpIcon />,
     dim: doneToday,
     note: doneToday ? 'Today' : undefined,
@@ -117,7 +117,7 @@ export function followedUpMenuEntry(
 
 /**
  * The one task menu (a row's right-click / context-menu key, long-press, search result):
- * Open · Mark complete | Set due date… · Follow-up › · Followed up · Assign
+ * Open · Mark complete | Set due date… · Follow-up › · Mark followed up · Assign
  * people… · Add tag… | Markers | Delete. With several tasks a `N tasks` label
  * replaces Open, Delete names the count, and the markers can be mixed.
  */

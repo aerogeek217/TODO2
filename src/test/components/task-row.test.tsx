@@ -146,7 +146,7 @@ describe('TaskRow', () => {
       const menu = screen.getByRole('menu', { name: 'Task actions' })
       expect(within(menu).getByText('Priority')).toBeInTheDocument()
       expect(screen.queryByText(/project/i)).not.toBeInTheDocument()
-      for (const name of ['Open', 'Mark complete', 'Set due date…', 'Followed up', 'Assign people…', 'Add tag…', 'Delete']) {
+      for (const name of ['Open', 'Mark complete', 'Set due date…', 'Mark followed up', 'Assign people…', 'Add tag…', 'Delete']) {
         expect(screen.getByRole('menuitem', { name })).toBeInTheDocument()
       }
       expect(screen.getByRole('menuitem', { name: /^Follow-up/ })).toHaveAttribute('aria-haspopup', 'menu')
@@ -234,10 +234,10 @@ describe('TaskRow', () => {
       expect(screen.queryByRole('menu')).toBeNull()
     })
 
-    it('Followed up, Set due date…, Assign people… and Add tag… reach their row actions', () => {
+    it('Mark followed up, Set due date…, Assign people… and Add tag… reach their row actions', () => {
       render(<TaskRow todo={makeTodo({ id: 6 })} />)
       fireEvent.contextMenu(getRow())
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Followed up' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark followed up' }))
       expect(mockBulk.markFollowedUp).toHaveBeenCalledWith(6)
 
       fireEvent.contextMenu(getRow())

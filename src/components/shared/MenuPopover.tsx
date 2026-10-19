@@ -13,7 +13,7 @@ export interface MenuItemEntry {
   onSelect?: () => void
   disabled?: boolean
   danger?: boolean
-  /** Muted text: the item still works but would change little (e.g. "Followed up" twice in a day). */
+  /** Muted text: the item still works but would change little (e.g. "Mark followed up" twice in a day). */
   dim?: boolean
   /** Radio rows (e.g. the layout list): `checked` shows the trailing accent check. */
   radio?: boolean

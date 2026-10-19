@@ -368,7 +368,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     return screen.getByRole('menu', { name: 'More actions' })
   }
 
-  it('the bulk bar keeps its button order and puts Followed up + Markers under ⋯ More', () => {
+  it('the bulk bar keeps its button order and puts Mark followed up + Markers under ⋯ More', () => {
     setup(def())
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })
@@ -377,7 +377,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
       .toEqual(['Set due date', 'Set follow-up', 'Assign people', 'Add tag', 'Complete', 'More', 'Delete', 'Clear selection'])
     const menu = openMore()
     expect(Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((b) => b.getAttribute('data-menu-label')))
-      .toEqual(['Followed up', 'Focus', 'Urgent', 'Important'])
+      .toEqual(['Mark followed up', 'Focus', 'Urgent', 'Important'])
   })
 
   it('⋯ More › Focus puts every selected task in focus, then takes them out', async () => {
@@ -441,7 +441,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     }))
   })
 
-  it('⋯ More › Followed up stamps every selected task, and is dimmed once they all were today', async () => {
+  it('⋯ More › Mark followed up stamps every selected task, and is dimmed once they all were today', async () => {
     useTodoStore.setState({
       todos: [
         makeTodo({ id: 1, title: 'Alice task', sortOrder: 1 }),
@@ -452,12 +452,12 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })
     openMore()
-    const followedUp = screen.getByRole('menuitem', { name: 'Followed up' })
+    const followedUp = screen.getByRole('menuitem', { name: 'Mark followed up' })
     expect(followedUp).not.toHaveTextContent('Today')
     await act(async () => { fireEvent.click(followedUp) })
     expect(useTodoStore.getState().todos.every((t) => t.lastFollowupAt instanceof Date)).toBe(true)
     openMore()
-    expect(screen.getByRole('menuitem', { name: /^Followed up/ })).toHaveTextContent('Today')
+    expect(screen.getByRole('menuitem', { name: /^Mark followed up/ })).toHaveTextContent('Today')
   })
 
   it('a Markers list offers + Add task (new tasks start with those markers)', () => {

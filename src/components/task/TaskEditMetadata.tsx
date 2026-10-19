@@ -39,7 +39,7 @@ interface TaskEditMetadataProps {
   onFollowupNextChange: (next: Date | null) => void
   onFollowupLastChange: (last: Date | null) => void
   onFollowedUp: () => void
-  /** Draft mode: no Last follow-up row or Followed up button. */
+  /** Draft mode: no Last follow-up row or Mark followed up button. */
   hideLastFollowup?: boolean
 }
 

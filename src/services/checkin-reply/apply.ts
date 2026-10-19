@@ -66,7 +66,7 @@ export function checkinAppliedMessage(changeCount: number, personName: string): 
 /**
  * Writes `updates` as one undo entry (`Applied N changes from <name>`, with
  * the undo snackbar): completions first, then each task's progress / notes,
- * then — when `recordFollowup` — "Followed up" on every updated task.
+ * then — when `recordFollowup` — "Mark followed up" on every updated task.
  * Returns the number of changes applied. A failed write stops there; what
  * was written before it stays and is still one undo entry, named for the
  * changes that went in (N counts only those).

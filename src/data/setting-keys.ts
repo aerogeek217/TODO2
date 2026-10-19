@@ -17,7 +17,7 @@ export const SETTING_KEYS = {
   seededAssignedStatusId: 'seededAssignedStatusId',
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',
-  /** Default next-follow-up interval for new tasks / "Followed up", compact form (`1m`, `2w`, `10d`). */
+  /** Default next-follow-up interval for new tasks / "Mark followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',
   /**
    * "Due date makes a task urgent": days ahead (`0` = today) or `off`.

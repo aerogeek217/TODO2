@@ -40,7 +40,7 @@ export function useTaskEditCallbacks() {
   /**
    * Saves the editor's changes to the task, and applies the bulk-applicable
    * ones to the other selected tasks: status, due date and both follow-up
-   * dates (like "Followed up").
+   * dates (like "Mark followed up").
    */
   const bulkAwareUpdate = useCallback((id: number, changes: TodoChanges) => {
     // The task's values before this edit (the optimistic update replaces them).
