@@ -17,6 +17,7 @@ export type SettingsSectionId =
 /** The headed parts of the merged sections (Tasks, Database). */
 export type SettingsPartId =
   | 'task-defaults'
+  | 'eisenhower'
   | 'completed'
   | 'file-storage'
   | 'backups'
@@ -26,6 +27,7 @@ export type SettingsPartId =
 /** The section each part sits in. */
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
   'task-defaults': 'tasks',
+  eisenhower: 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
   backups: 'database',
@@ -181,6 +183,12 @@ interface UIState {
   /** A part of it to scroll to (a deep link such as the storage pill's); cleared once shown. */
   settingsPart: SettingsPartId | null
   /**
+   * A control in that part to focus once shown — the one whose
+   * `data-settings-focus` it names (e.g. an Eisenhower pane's name field);
+   * cleared with the part.
+   */
+  settingsFocus: string | null
+  /**
    * The email check-in dialog (`CheckinDialog`): the people ticked when it
    * opened (none from the general command) and `notice`: why a one-click
    * send opened it instead (shown in its status line). `null` = closed.
@@ -226,8 +234,11 @@ interface UIState {
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
-  /** Opens Settings, on `target` (a section, or a part of one) when given. */
-  openSettings: (target?: SettingsTarget) => void
+  /**
+   * Opens Settings, on `target` (a section, or a part of one) when given;
+   * `focus` names a control there to focus (its `data-settings-focus`).
+   */
+  openSettings: (target?: SettingsTarget, focus?: string) => void
   closeSettings: () => void
   setSettingsSection: (target: SettingsTarget) => void
   /** The part scroll was shown: forget it. */
@@ -266,6 +277,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsOpen: false,
   settingsSection: 'appearance',
   settingsPart: null,
+  settingsFocus: null,
   checkinDialog: null,
   checkinImportOpen: false,
   entityAction: null,
@@ -426,14 +438,14 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ recentlyCreated: null })
   },
 
-  openSettings(target) {
+  openSettings(target, focus) {
     // Edit list belongs to the workspace under the modal.
     if (!target) {
       set({ settingsOpen: true, listEditor: null })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part, listEditor: null })
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: focus ?? null, listEditor: null })
   },
 
   closeSettings() {
@@ -442,11 +454,11 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setSettingsSection(target) {
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsSection: section, settingsPart: part })
+    set({ settingsSection: section, settingsPart: part, settingsFocus: null })
   },
 
   clearSettingsPart() {
-    if (get().settingsPart !== null) set({ settingsPart: null })
+    if (get().settingsPart !== null || get().settingsFocus !== null) set({ settingsPart: null, settingsFocus: null })
   },
 
   openCheckinDialog(personIds, notice) {

@@ -48,7 +48,7 @@ import { createValueStore, type ValueStore } from '../../../utils/value-store'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { FocusIcon, HotIcon, ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
-import { ChevronDownIcon, GearIcon, PlusIcon } from '../../shared/icons'
+import { ChevronDownIcon, PlusIcon } from '../../shared/icons'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { useElementSize } from '../../../hooks/use-element-size'
@@ -61,6 +61,7 @@ import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
 import { openEditList } from '../widget-hooks'
 import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../../hooks/use-eisenhower-source'
+import { openEisenhowerSettings } from './eisenhower-settings-link'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -228,24 +229,6 @@ function AddButton({ pane, hint, onAdd }: { pane: EisenhowerPane; hint: string; 
   )
 }
 
-/** The matrix's corner gear (shown on hover / focus): opens Customize panes. */
-function CustomizeGear({ onClick }: { onClick: () => void }) {
-  const { triggerProps, tooltip } = useTooltip('Customize panes')
-  return (
-    <button
-      type="button"
-      className={styles.customizeGear}
-      aria-label="Customize panes"
-      data-eisenhower-customize=""
-      onClick={onClick}
-      {...triggerProps}
-    >
-      <GearIcon size={14} />
-      {tooltip}
-    </button>
-  )
-}
-
 /** What the widget's rows share. */
 interface RowContext {
   tabId: string
@@ -273,8 +256,6 @@ interface QuadrantProps {
   collapsed: boolean
   /** The screen filter hides every task: no per-pane empty lines. */
   hideEmptyLines: boolean
-  /** This pane's header holds the corner gear's slot (the matrix's top-right corner). */
-  gearSlot: boolean
   ctx: RowContext
   names: FilterChipNames
   onToggle: (collapse: boolean) => void
@@ -283,7 +264,7 @@ interface QuadrantProps {
   onOpenMenu?: (at: { x: number; y: number }) => void
 }
 
-function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, collapsed, hideEmptyLines, gearSlot, ctx, names, onToggle, onAdd, onOpenMenu }: QuadrantProps) {
+function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, collapsed, hideEmptyLines, ctx, names, onToggle, onAdd, onOpenMenu }: QuadrantProps) {
   const q = pane.id
   const { drag, isMobile, tabId } = ctx
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -369,7 +350,6 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
     >
       <div
         className={styles.header}
-        data-gear-slot={gearSlot ? '' : undefined}
         onContextMenu={onOpenMenu ? (e) => {
           e.preventDefault()
           onOpenMenu({ x: e.clientX, y: e.clientY })
@@ -429,11 +409,6 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
 interface WidgetProps {
   tab: EisenhowerTab
   onResult?: (r: EisenhowerResult) => void
-  /**
-   * Opens Customize panes (on `pane` when given) — from the corner gear and
-   * a pane header's menu; absent = neither (phones: no layout edits).
-   */
-  onCustomizePanes?: (pane?: EisenhowerQuadrant) => void
 }
 
 /**
@@ -451,7 +426,7 @@ interface WidgetProps {
  * Each pane's "+" opens Quick Add with the same writes (and the list's
  * defaults).
  */
-export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProps) {
+export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
   const source = useEisenhowerSource()
   if (source.kind === 'deleted') {
     return (
@@ -471,7 +446,6 @@ export function EisenhowerWidget({ tab, onResult, onCustomizePanes }: WidgetProp
     <EisenhowerBody
       tab={tab}
       onResult={onResult}
-      onCustomizePanes={onCustomizePanes}
       shown={source.shown}
       openTotal={source.openTotal}
       list={source.list}
@@ -499,7 +473,7 @@ interface BodyProps extends WidgetProps {
   list?: ListSourceContext
 }
 
-function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, list }: BodyProps) {
+function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   const isMobile = useIsMobile()
   // A pane divider's width while it is dragged: every pane follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
@@ -587,13 +561,11 @@ function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, lis
     liveDetailsWidth,
   }
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
-  const customize = !isMobile ? onCustomizePanes : undefined
-  // The corner gear sits at the matrix's top-right: the second pane in the grid, the first when stacked.
-  const gearPane: EisenhowerQuadrant = stacked ? 'do' : 'schedule'
 
   const menuPane = paneMenu ? panes.find((p) => p.id === paneMenu.q) : undefined
-  const paneMenuEntries: MenuEntry[] = menuPane && customize ? [
-    { kind: 'item', label: 'Edit pane…', onSelect: () => customize(menuPane.id) },
+  // Phones: no pane menu (the panes are edited in Settings on a wider screen).
+  const paneMenuEntries: MenuEntry[] = menuPane && !isMobile ? [
+    { kind: 'item', label: 'Edit pane…', onSelect: () => openEisenhowerSettings(menuPane.id) },
     ...(menuPane.customName || menuPane.customFilter ? [{
       kind: 'item' as const,
       label: 'Reset pane',
@@ -617,8 +589,6 @@ function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, lis
         data-dragging={drag ? 'true' : undefined}
         data-selection-scope={isMobile ? undefined : tab.id}
       >
-        {/* First in the DOM (it sits at the top-right corner), so Tab reaches it before the rows. */}
-        {customize && <CustomizeGear onClick={() => customize()} />}
         {panes.map((pane) => (
           <Quadrant
             key={pane.id}
@@ -630,12 +600,11 @@ function EisenhowerBody({ tab, onResult, onCustomizePanes, shown, openTotal, lis
             stacked={stacked}
             collapsed={collapsed.has(pane.id)}
             hideEmptyLines={listHidesAll || screenHidesAll}
-            gearSlot={customize != null && pane.id === gearPane}
             ctx={ctx}
             names={names}
             onToggle={(c) => toggle(pane.id, c)}
             onAdd={() => add(pane)}
-            onOpenMenu={customize ? (at) => setPaneMenu({ q: pane.id, ...at }) : undefined}
+            onOpenMenu={!isMobile ? (at) => setPaneMenu({ q: pane.id, ...at }) : undefined}
           />
         ))}
         {listHidesAll && !drag && (

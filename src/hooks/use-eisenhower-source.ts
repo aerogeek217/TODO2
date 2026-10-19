@@ -51,7 +51,7 @@ export function countOpen(todos: readonly PersistedTodoItem[]): number {
  * (`settings-store.eisenhowerListId`): all tasks, or one saved list's (its
  * unsaved draft included; its prompt, group and sort ignored — every member
  * counts) as a list widget runs it; the screen filter narrows either. Used
- * by every Eisenhower widget and by the Customize panes dialog (the live
+ * by every Eisenhower widget and by Settings › Tasks › Eisenhower (the live
  * counts).
  */
 export function useEisenhowerSource(): EisenhowerSource {

@@ -704,7 +704,7 @@ export function EisenhowerSection({ data, onDrill, style }: DashboardSectionProp
     >
       {deleted ? (
         <div className={styles.panelBody}>
-          <Empty title="This list was deleted" hint="Show all tasks from an Eisenhower tab’s menu, or pick another list there." />
+          <Empty title="This list was deleted" hint="Show all tasks or another list in Settings › Tasks › Eisenhower." />
         </div>
       ) : (
         <div className={styles.matrix}>

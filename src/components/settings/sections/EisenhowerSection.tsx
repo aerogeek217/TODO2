@@ -1,11 +1,15 @@
-import { useId, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useId, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { TodoPredicate } from '../../../models'
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
 import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
+import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
+import { listsLosingLastWidgetToSource } from '../../../hooks/use-list-widget-count'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { classifyPanes } from '../../../utils/eisenhower'
 import {
+  eisenhowerSourceDescription,
   paneSubtitle,
   QUADRANT_COLOR,
   QUADRANT_NAME,
@@ -15,21 +19,20 @@ import {
   type EisenhowerPane,
 } from '../../../utils/eisenhower-panes'
 import { filterChips, type FilterChipNames } from '../../../utils/filter-chips'
-import { DialogFrame } from '../../shared/Dialog'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
-import { CloseIcon } from '../../shared/icons'
-import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
-import styles from './CustomizePanesDialog.module.css'
+import { ChevronDownIcon } from '../../shared/icons'
+import { MenuPopover } from '../../shared/MenuPopover'
+import { ALL_TASKS_LABEL, listChoiceEntries } from '../../shared/list-choice-entries'
+import { UnsavedPrompt } from '../../workspace/UnsavedPrompt'
+import { DELETED_LIST_TITLE } from '../../workspace/widget-hooks'
+import { eisenhowerPaneFocus } from '../../workspace/eisenhower/eisenhower-settings-link'
+import { SettingRow } from './SettingRow'
+import { useStackedLayer } from './settings-layer'
+import sectionStyles from './sections.module.css'
+import styles from './EisenhowerSection.module.css'
 
-/** The menu item (tab menu, cell menu) that opens the dialog. */
-export const CUSTOMIZE_PANES_LABEL = 'Customize panes…'
-
-export interface CustomizePanesDialogProps {
-  /** Opened from a pane's header menu: that pane's name field takes the focus. */
-  focusPane?: EisenhowerQuadrant
-  onClose: () => void
-}
+const SOURCE_MENU_WIDTH_PX = 240
 
 /** Saves pane `q`'s settings patched (`null` = reset), from the panes as they are now (two quick edits mustn't drop one another). */
 function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfig>[2], description: string, mergeKey?: string): void {
@@ -38,15 +41,15 @@ function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfi
 }
 
 /**
- * Customize panes (a standard dialog): the four panes as a 2×2 of cards —
- * each with its name, its filter as the list filter chips (+ Filter adds a
- * clause), how many open tasks it holds now and Reset pane — then how many
- * open tasks are in no pane, and Reset all. The panes are app-wide settings:
- * every change is saved at once and shows in every Eisenhower tab and the
- * dashboard section; each is one undo step (a name typed in one go is one).
+ * Settings › Tasks › Eisenhower: what every Eisenhower (and the dashboard's
+ * Eisenhower section) shows — all tasks or one saved list — and its four
+ * panes as a 2×2 of cards: each with its name, its filter as the list filter
+ * chips (+ Filter adds a clause), how many open tasks it holds now (the
+ * screen filter applied, as in the widget) and Reset pane; then how many
+ * open tasks are in no pane, and Reset all. Every change is saved at once as
+ * one undo step (a name typed in one go is one). Desktop only.
  */
-export function CustomizePanesDialog({ focusPane, onClose }: CustomizePanesDialogProps) {
-  const titleId = useId()
+export function EisenhowerSection() {
   const source = useEisenhowerSource()
   const paneCtx = usePaneContext()
   const names = useChipNames()
@@ -57,24 +60,14 @@ export function CustomizePanesDialog({ focusPane, onClose }: CustomizePanesDialo
   const sortingPanes = useEqualValue(panes, samePaneFilters)
   const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
   const noneOpen = none.filter((t) => !t.isCompleted).length
-  const focusRef = useRef<HTMLInputElement>(null)
-
   const anyCustom = panes.some((p) => p.customName || p.customFilter)
 
   return (
-    <DialogFrame
-      onClose={onClose}
-      layer="overlay"
-      initialFocus={focusPane ? focusRef : 'panel'}
-      aria-labelledby={titleId}
-      className={styles.dialog}
-      data={{ 'customize-panes': '' }}
-    >
-      <div className={styles.header}>
-        <h2 id={titleId} className={styles.title}>Customize panes</h2>
-        <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}><CloseIcon size={12} /></button>
-      </div>
-      <p className={styles.sub}>
+    <div className={sectionStyles.section}>
+      <SettingRow label="Show" help="The tasks every Eisenhower and the dashboard sort into the panes. The screen filter narrows them.">
+        <SourceSelect />
+      </SettingRow>
+      <p className={styles.intro}>
         A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left,
         bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every
         Eisenhower and on the dashboard; changes are saved at once.
@@ -86,54 +79,128 @@ export function CustomizePanesDialog({ focusPane, onClose }: CustomizePanesDialo
             pane={pane}
             names={names}
             count={byPane[pane.id].filter((t) => !t.isCompleted).length}
-            inputRef={pane.id === focusPane ? focusRef : undefined}
             onRename={(name) => patchPane(pane.id, { name }, `Renamed pane “${QUADRANT_NAME[pane.id]}”`, `name:${pane.id}`)}
             onFilter={(filter) => patchPane(pane.id, { filter }, `Changed pane “${pane.name}”`)}
             onReset={() => patchPane(pane.id, null, `Reset pane “${pane.name}”`)}
           />
         ))}
       </div>
-      <p className={styles.noPane} data-testid="customize-panes-no-pane">
-        {noneOpen === 0
-          ? 'Every open task is in a pane.'
-          : `${noneOpen} open ${noneOpen === 1 ? 'task is' : 'tasks are'} in no pane — hidden from the matrix, counted under it.`}
-      </p>
       <div className={styles.footer}>
+        <p className={styles.noPane} data-testid="customize-panes-no-pane">
+          {noneOpen === 0
+            ? 'Every open task is in a pane.'
+            : `${noneOpen} open ${noneOpen === 1 ? 'task is' : 'tasks are'} in no pane — hidden from the matrix, counted under it.`}
+        </p>
         <button
           type="button"
-          className={styles.ghostBtn}
+          className={`${sectionStyles.button} ${sectionStyles.buttonSecondary}`}
           disabled={!anyCustom}
           onClick={() => { void useSettingsStore.getState().setEisenhowerPanes(undefined, 'Reset the Eisenhower panes') }}
         >
-          Reset all
+          Reset all panes
         </button>
-        <span className={styles.spacer} />
-        <button type="button" className={styles.primaryBtn} onClick={onClose}>Done</button>
       </div>
-    </DialogFrame>
+    </div>
   )
 }
 
 const NO_TASKS: never[] = []
+
+/**
+ * The Show select-button: the source now (All tasks, a list's name, or
+ * `(Deleted list)`); opens All tasks + the saved lists as radios (the
+ * choices of a list tab's Change list). A pick is saved at once as one undo
+ * step — after Save / Discard when it would leave the source list's unsaved
+ * edits with no widget showing them.
+ */
+function SourceSelect() {
+  const listId = useSettingsStore((s) => s.eisenhowerListId)
+  const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
+  const ref = useRef<HTMLButtonElement | null>(null)
+  const labelId = useId()
+  const valueId = useId()
+  const [open, setOpen] = useState(false)
+  const [guard, setGuard] = useState<{ listIds: number[]; run: () => void } | null>(null)
+  // A click on the button while its menu is open closes it (the menu's
+  // outside-click handler already did) instead of reopening it.
+  const wasOpen = useRef(false)
+  useStackedLayer(guard != null)
+
+  const nameOf = (id: number) => listDefinitions.find((d) => d.id === id)?.name
+  const value = listId == null ? ALL_TASKS_LABEL : (nameOf(listId) ?? DELETED_LIST_TITLE)
+  const pick = (id: number | undefined) => {
+    const next = id ?? null
+    if (next === listId) return
+    const name = next == null ? null : (nameOf(next) ?? DELETED_LIST_TITLE)
+    const run = () => { void useSettingsStore.getState().setEisenhowerListId(next, eisenhowerSourceDescription(name)) }
+    const listIds = listsLosingLastWidgetToSource(next)
+    if (listIds.length === 0) run()
+    else setGuard({ listIds, run })
+  }
+
+  return (
+    <>
+      <span id={labelId} hidden>Eisenhower shows</span>
+      <button
+        ref={ref}
+        type="button"
+        className={`${styles.select} ${open ? styles.selectOpen : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-labelledby={`${labelId} ${valueId}`}
+        data-testid="eisenhower-source"
+        onMouseDown={() => { wasOpen.current = open }}
+        onClick={() => {
+          if (wasOpen.current) {
+            wasOpen.current = false
+            return
+          }
+          setOpen(true)
+        }}
+      >
+        <span id={valueId} className={styles.selectValue}>{value}</span>
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <MenuPopover
+          anchorRef={ref}
+          placement="bottom-start"
+          width={SOURCE_MENU_WIDTH_PX}
+          label="Eisenhower shows"
+          entries={listChoiceEntries(listDefinitions, pick, { current: listId ?? undefined })}
+          onClose={() => setOpen(false)}
+        />
+      )}
+      {guard && (
+        <UnsavedPrompt
+          lead="You’re changing what the Eisenhower shows."
+          layout={false}
+          listIds={guard.listIds}
+          onDone={() => { guard.run(); setGuard(null) }}
+          onCancel={() => setGuard(null)}
+        />
+      )}
+    </>
+  )
+}
 
 interface PaneCardProps {
   pane: EisenhowerPane
   names: FilterChipNames
   /** Open tasks in the pane now. */
   count: number
-  inputRef?: RefObject<HTMLInputElement | null>
   onRename: (name: string) => void
   onFilter: (filter: TodoPredicate) => void
   onReset: () => void
 }
 
 /** One pane: its name, its filter as chips, its count now, Reset pane. */
-function PaneCard({ pane, names, count, inputRef, onRename, onFilter, onReset }: PaneCardProps) {
+function PaneCard({ pane, names, count, onRename, onFilter, onReset }: PaneCardProps) {
   const nameId = useId()
   // The field keeps what is typed (spaces included); the pane stores it trimmed.
   const stored = pane.customName ? pane.name : ''
   const [name, setName] = useState(stored)
-  // A change from elsewhere (Reset pane, Reset all) shows in the field.
+  // A change from elsewhere (Reset pane, Reset all, Undo) shows in the field.
   const [syncedFrom, setSyncedFrom] = useState(stored)
   if (syncedFrom !== stored) {
     setSyncedFrom(stored)
@@ -151,11 +218,11 @@ function PaneCard({ pane, names, count, inputRef, onRename, onFilter, onReset }:
       <div className={styles.cardHead}>
         <label htmlFor={nameId} className={styles.nameLabel}>Name</label>
         <input
-          ref={inputRef}
           id={nameId}
           className={styles.nameInput}
           value={name}
           placeholder={QUADRANT_NAME[pane.id]}
+          data-settings-focus={eisenhowerPaneFocus(pane.id)}
           onChange={(e) => {
             setName(e.target.value)
             onRename(e.target.value)

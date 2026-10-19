@@ -15,7 +15,7 @@ import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-page
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { ALL_TASKS_LABEL } from '../shared/WidgetKindMenu'
+import { ALL_TASKS_LABEL } from '../shared/list-choice-entries'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { DialogFrame } from '../shared/Dialog'
@@ -182,7 +182,7 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
 
 /**
  * An Eisenhower tab's long-press sheet: Edit list… while it shows a list,
- * what it shows (the app-wide source, changed on a wider screen), and the
+ * what it shows (the app-wide source, set in Settings on a wider screen), and the
  * app-wide "Due date makes a task urgent" range (the desktop tab menu's
  * submenu).
  */
@@ -221,7 +221,7 @@ function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => 
             <span className={styles.sheetNote}>{listId == null ? ALL_TASKS_LABEL : (listName ?? DELETED_LIST_TITLE)}</span>
           </div>
         </div>
-        <div className={styles.sheetFootnote}>To show another list, use a wider screen.</div>
+        <div className={styles.sheetFootnote}>To show another list or change the panes, use Settings on a wider screen.</div>
         <div className={`${styles.sheetTitle} ${styles.sheetSectionTitle}`}>{setting.heading}</div>
         <div className={styles.sheetRows}>
           {setting.options.map((o) => (

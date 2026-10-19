@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import type { EisenhowerQuadrant, LayoutTab } from '../../models/workspace-layout'
+import type { LayoutTab } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
@@ -27,14 +27,12 @@ interface WidgetBodyProps {
   onAddListTile?: () => void
   /** Dashboard: its gear opens Customize; absent = no gear. */
   onCustomize?: () => void
-  /** Eisenhower: its corner gear and pane header menus open Customize panes (on a pane); absent = neither. */
-  onCustomizePanes?: (pane?: EisenhowerQuadrant) => void
 }
 
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
 /** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one; an unknown stored kind gets a note). */
-export function WidgetBody({ tab, onResult, onAddListTile, onCustomize, onCustomizePanes }: WidgetBodyProps): ReactElement {
+export function WidgetBody({ tab, onResult, onAddListTile, onCustomize }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
       return <ListWidget tab={tab} onResult={onResult} />
@@ -47,7 +45,6 @@ export function WidgetBody({ tab, onResult, onAddListTile, onCustomize, onCustom
         <EisenhowerWidget
           tab={tab}
           onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined}
-          onCustomizePanes={onCustomizePanes}
         />
       )
     case 'dashboard':
