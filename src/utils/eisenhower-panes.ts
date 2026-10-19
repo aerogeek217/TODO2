@@ -10,6 +10,7 @@ import type { FilterDefaults } from './filter-defaults'
 import { isNegated, withNormalizedNegation } from './filter-negation'
 import { predicatesEqual } from './list-def-equal'
 import { activeMarkers, markerConditions } from './markers'
+import { plainLine } from './text'
 
 /**
  * The Eisenhower matrix's four panes, by position (Do, Schedule, Delegate,
@@ -84,13 +85,15 @@ export function paneFiltersEqual(a: TodoPredicate, b: TodoPredicate): boolean {
 }
 
 /**
- * A pane's stored settings in their stored form: the name trimmed and kept
- * only when not empty and not the default name, the filter kept only when
- * it differs from the default; `undefined` when nothing differs.
+ * A pane's stored settings in their stored form: the name as one plain line
+ * (`plainLine`: trimmed, no line breaks, control or bidi characters — no
+ * length cap) and kept only when not empty and not the default name, the
+ * filter kept only when it differs from the default; `undefined` when
+ * nothing differs.
  */
 export function normalizePaneConfig(q: EisenhowerQuadrant, config: EisenhowerPaneConfig): EisenhowerPaneConfig | undefined {
   const out: EisenhowerPaneConfig = {}
-  const name = config.name?.trim()
+  const name = config.name !== undefined ? plainLine(config.name) : undefined
   if (name && name !== QUADRANT_NAME[q]) out.name = name
   if (config.filter && !paneFiltersEqual(config.filter, defaultPaneFilter(q))) out.filter = storedFilter(config.filter)
   return out.name !== undefined || out.filter !== undefined ? out : undefined

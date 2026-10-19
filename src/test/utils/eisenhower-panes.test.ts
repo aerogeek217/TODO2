@@ -43,6 +43,18 @@ describe('a pane’s stored settings', () => {
     expect(normalizePaneConfig('do', { name: 'Do', filter: p({ showCompleted: true, markers: { important: true, urgent: true } }) })).toBeUndefined()
     expect(normalizePaneConfig('drop', { name: '   ' })).toBeUndefined()
   })
+  it('a name is one plain line: line breaks and control characters become spaces, bidi controls go; no length cap', () => {
+    expect(normalizePaneConfig('do', { name: 'Now\nCan’t move to Do' })).toEqual({ name: 'Now Can’t move to Do' })
+    expect(normalizePaneConfig('do', { name: '\u202Eolleh\u202C \u2066x\u2069\u200F\u0007' })).toEqual({ name: 'olleh x' })
+    expect(normalizePaneConfig('do', { name: 'Line\u2028two\ttabs' })).toEqual({ name: 'Line two tabs' })
+    // Emoji sequences keep their joiners; a long name stays whole.
+    expect(normalizePaneConfig('do', { name: '👩‍💻 Dev' })).toEqual({ name: '👩‍💻 Dev' })
+    expect(normalizePaneConfig('do', { name: 'x'.repeat(10_000) })?.name).toHaveLength(10_000)
+    // Only control characters: the default name.
+    expect(normalizePaneConfig('do', { name: '\u202E\u0000' })).toBeUndefined()
+    expect(resolvePanes({ schedule: { name: 'Later\r\nnow' } })[1]?.name).toBe('Later  now')
+  })
+
 
   it('an "is not" with nothing ticked is no filter', () => {
     expect(normalizePaneConfig('drop', { filter: { ...defaultPaneFilter('drop'), statusIds: [], negate: { statusIds: true } } })).toBeUndefined()
