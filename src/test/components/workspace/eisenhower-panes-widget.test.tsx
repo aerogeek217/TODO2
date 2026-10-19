@@ -133,7 +133,7 @@ describe('EisenhowerWidget with custom panes', () => {
     expect(document.querySelector('[data-eisenhower-customize]')).toBeNull()
   })
 
-  it('a pane header’s Edit pane… opens Settings › Tasks › Eisenhower on that pane; Reset pane puts the default back', () => {
+  it('a pane header’s Edit pane… opens Settings › Tasks › Eisenhower on that pane; Reset pane puts the default back', async () => {
     setup({ delegate: { filter: NOT_DELEGATED } })
     fireEvent.contextMenu(within(quadrant('delegate')).getByTestId('eisenhower-pane-subtitle'))
     const menu = screen.getByRole('menu', { name: 'Delegate pane' })
@@ -147,7 +147,7 @@ describe('EisenhowerWidget with custom panes', () => {
     expect(storedPanes()).toEqual({})
     expect(has('delegate', 'Chase vendor')).toBe(true)
     // A setting, written at once as one undo step: the layout isn't touched.
-    expect(undoNames()).toEqual(['Reset pane “Delegate”'])
+    await vi.waitFor(() => expect(undoNames()).toEqual(['Reset pane “Delegate”']))
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 

@@ -46,6 +46,7 @@ import {
 } from '../data/eisenhower-shape'
 import { readFresh, trackWrite } from './store-helpers'
 import { useUndoStore, type UndoEntry } from './undo-store'
+import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -113,13 +114,15 @@ interface SettingsState {
   /** Puts every binding back on its default keys. */
   resetAllShortcuts: () => Promise<void>
   /**
-   * Saves the Eisenhower panes at once (normalised; `{}` / `undefined` =
-   * the defaults) as one undo step named `description`. Writes passing the
-   * same `mergeKey` one after another (e.g. a pane name typed letter by
-   * letter) stay one undo step.
+   * Shows the Eisenhower panes at once (normalised; `{}` / `undefined` =
+   * the defaults) and saves them — after the Eisenhower writes before it —
+   * as one undo step named `description`. Writes passing the same
+   * `mergeKey` one after another (e.g. a pane name typed letter by letter)
+   * stay one undo step. A failed save adds no step and says so (the
+   * snackbar's notice); the panes saved last show again.
    */
   setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
-  /** Saves the Eisenhower source at once (`null` = all tasks) as one undo step, with the undo snackbar. */
+  /** Saves the Eisenhower source at once (`null` = all tasks) as one undo step, with the undo snackbar; a failed save as `setEisenhowerPanes`. */
   setEisenhowerListId: (listDefinitionId: number | null, description: string) => Promise<void>
 }
 
@@ -489,26 +492,34 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return writeShortcuts({})
   },
 
-  setEisenhowerPanes(panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) {
-    const prev = get().eisenhowerPanes
+  async setEisenhowerPanes(panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) {
     const next = pickPanes(panes ?? {}).panes
-    if (formatPanesSetting(prev) === formatPanesSetting(next)) return Promise.resolve()
-    recordPanesUndo(prev, next, description, mergeKey)
-    return writeEisenhowerPanes(next)
+    if (formatPanesSetting(get().eisenhowerPanes) === formatPanesSetting(next)) return
+    const saved = await writeEisenhowerPanes(next)
+    if (saved.stale) return
+    if (!saved.ok) {
+      useUndoStore.getState().notify('Couldn’t save the Eisenhower panes.')
+      return
+    }
+    recordPanesUndo(saved.before, next, description, mergeKey)
   },
 
-  setEisenhowerListId(listDefinitionId: number | null, description: string) {
-    const prev = get().eisenhowerListId
-    if (prev === listDefinitionId) return Promise.resolve()
-    lastPanesUndo = null
-    if (!useUndoStore.getState().isPerformingUndoRedo) {
-      useUndoStore.getState().push({
-        description,
-        undo: () => writeEisenhowerListId(prev),
-        redo: () => writeEisenhowerListId(listDefinitionId),
-      }, true)
+  async setEisenhowerListId(listDefinitionId: number | null, description: string) {
+    if (get().eisenhowerListId === listDefinitionId) return
+    const saved = await writeEisenhowerListId(listDefinitionId)
+    if (saved.stale) return
+    if (!saved.ok) {
+      useUndoStore.getState().notify('Couldn’t save what the Eisenhower shows.')
+      return
     }
-    return writeEisenhowerListId(listDefinitionId)
+    lastPanesUndo = null
+    const before = saved.before
+    undoable(
+      description,
+      () => mustSave(writeEisenhowerListId(listDefinitionId)),
+      () => mustSave(writeEisenhowerListId(before)),
+      true,
+    )
   },
 }))
 
@@ -520,7 +531,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 let lastPanesUndo: { mergeKey: string; entry: UndoEntry; setNext: (panes: EisenhowerPanes) => void } | null = null
 registerModuleReset(() => { lastPanesUndo = null })
 
-/** Registers a pane write (`prev` -> `next`) as an undo step, merged into the last one with the same `mergeKey`. */
+/** Registers a saved pane write (`prev` -> `next`) as an undo step, merged into the last one with the same `mergeKey`. */
 function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, description: string, mergeKey: string | undefined): void {
   const undo = useUndoStore.getState()
   if (undo.isPerformingUndoRedo) return
@@ -532,45 +543,96 @@ function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, descripti
   let target = next
   const entry: UndoEntry = {
     description,
-    undo: () => writeEisenhowerPanes(prev),
-    redo: () => writeEisenhowerPanes(target),
+    undo: () => mustSave(writeEisenhowerPanes(prev)),
+    redo: () => mustSave(writeEisenhowerPanes(target)),
   }
   undo.push(entry)
   lastPanesUndo = mergeKey === undefined ? null : { mergeKey, entry, setNext: (p) => { target = p } }
 }
 
+/** A setting write's outcome: whether it was saved, and the value saved before it (what its undo puts back). */
+interface SettingSave<T> {
+  ok: boolean
+  before: T
+  /** The store was put back to its initial state meanwhile (tests): nothing more to record. */
+  stale?: true
+}
+
+/** For an undo / redo: rejects when the write wasn't saved, so the undo store keeps the entry and says so. */
+async function mustSave<T>(write: Promise<SettingSave<T>>): Promise<void> {
+  if (!(await write).ok) throw new Error('The setting could not be saved')
+}
+
 /**
- * Shows `panes` at once, then saves them (the row goes when every pane is
- * its default); a failed save puts the panes shown before back.
+ * Writes for one settings field, one after another: each shows its value
+ * at once, then saves it once the writes before it have settled. A failed
+ * save logs and resolves `ok: false`; once no write is left the field shows
+ * the value last saved — so a write that fails after a later one was shown
+ * never leaves the screen and the database apart. `before` is the value
+ * saved before the write (the database's, not the one shown).
  */
-function writeEisenhowerPanes(panes: EisenhowerPanes): Promise<void> {
-  return trackWrite(async () => {
-    const prev = useSettingsStore.getState().eisenhowerPanes
-    useSettingsStore.setState({ eisenhowerPanes: panes })
-    try {
-      if (Object.keys(panes).length === 0) await settingsRepository.delete(SETTING_KEYS.eisenhowerPanes)
-      else await settingsRepository.put(SETTING_KEYS.eisenhowerPanes, formatPanesSetting(panes))
-    } catch (e) {
-      console.error('Failed to save the Eisenhower panes:', e)
-      useSettingsStore.setState({ eisenhowerPanes: prev })
-    }
+function serialSettingWriter<K extends 'eisenhowerPanes' | 'eisenhowerListId'>(
+  field: K,
+  persist: (value: SettingsState[K]) => Promise<void>,
+  label: string,
+): (value: SettingsState[K]) => Promise<SettingSave<SettingsState[K]>> {
+  let queue: Promise<unknown> = Promise.resolve()
+  let pending = 0
+  let saved: SettingsState[K] = useSettingsStore.getState()[field]
+  // A write left in flight by the reset settles without touching the new state.
+  let generation = 0
+  registerModuleReset(() => {
+    queue = Promise.resolve()
+    pending = 0
+    generation++
+  })
+  return (value) => trackWrite(() => {
+    // Nothing in flight: what is shown is what is saved.
+    if (pending === 0) saved = useSettingsStore.getState()[field]
+    pending++
+    const gen = generation
+    useSettingsStore.setState({ [field]: value } as Pick<SettingsState, K>)
+    const run = queue.then(async (): Promise<SettingSave<SettingsState[K]>> => {
+      const before = saved
+      let ok = true
+      try {
+        await persist(value)
+        if (gen === generation) saved = value
+      } catch (e) {
+        ok = false
+        console.error(`Failed to save ${label}:`, e)
+      }
+      if (gen !== generation) return { ok, before, stale: true }
+      pending--
+      if (pending === 0 && useSettingsStore.getState()[field] !== saved) {
+        useSettingsStore.setState({ [field]: saved } as Pick<SettingsState, K>)
+      }
+      return { ok, before }
+    })
+    queue = run
+    return run
   })
 }
 
-/** Shows the Eisenhower source at once, then saves it (all tasks = no row); a failed save puts the one shown before back. */
-function writeEisenhowerListId(listDefinitionId: number | null): Promise<void> {
-  return trackWrite(async () => {
-    const prev = useSettingsStore.getState().eisenhowerListId
-    useSettingsStore.setState({ eisenhowerListId: listDefinitionId })
-    try {
-      if (listDefinitionId == null) await settingsRepository.delete(SETTING_KEYS.eisenhowerSource)
-      else await settingsRepository.put(SETTING_KEYS.eisenhowerSource, formatEisenhowerSource(listDefinitionId))
-    } catch (e) {
-      console.error('Failed to save the Eisenhower source:', e)
-      useSettingsStore.setState({ eisenhowerListId: prev })
-    }
-  })
-}
+/** Shows the Eisenhower panes at once, then saves them (the row goes when every pane is its default). */
+const writeEisenhowerPanes = serialSettingWriter(
+  'eisenhowerPanes',
+  async (panes) => {
+    if (Object.keys(panes).length === 0) await settingsRepository.delete(SETTING_KEYS.eisenhowerPanes)
+    else await settingsRepository.put(SETTING_KEYS.eisenhowerPanes, formatPanesSetting(panes))
+  },
+  'the Eisenhower panes',
+)
+
+/** Shows the Eisenhower source at once, then saves it (all tasks = no row). */
+const writeEisenhowerListId = serialSettingWriter(
+  'eisenhowerListId',
+  async (listDefinitionId) => {
+    if (listDefinitionId == null) await settingsRepository.delete(SETTING_KEYS.eisenhowerSource)
+    else await settingsRepository.put(SETTING_KEYS.eisenhowerSource, formatEisenhowerSource(listDefinitionId))
+  },
+  'the Eisenhower source',
+)
 
 /** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */
 function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {

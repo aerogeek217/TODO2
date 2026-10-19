@@ -269,7 +269,7 @@ describe('EisenhowerWidget on a saved list', () => {
     })
   })
 
-  it('a deleted list: says so, and offers all tasks', () => {
+  it('a deleted list: says so, and offers all tasks', async () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     setupOnList()
     expect(screen.getByText('This list was deleted')).toBeInTheDocument()
@@ -277,7 +277,7 @@ describe('EisenhowerWidget on a saved list', () => {
     expect(lastResult).toEqual({ countLabel: '7' })
     // The app-wide source goes back to all tasks (one undo step), not the layout.
     expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
-    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Eisenhower shows all tasks'])
+    await vi.waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Eisenhower shows all tasks']))
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 })

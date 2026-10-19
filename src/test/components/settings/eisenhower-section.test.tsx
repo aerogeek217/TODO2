@@ -120,7 +120,7 @@ describe('Settings › Tasks › Eisenhower', () => {
     fireEvent.change(name, { target: { value: 'Someday ' } })
     expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     expect((name as HTMLInputElement).value).toBe('Someday ')
-    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
+    await vi.waitFor(() => expect(undoNames()).toEqual(['Renamed pane “Drop”']))
     await act(() => useUndoStore.getState().undo())
     expect(storedPanes()).toEqual({})
     expect((name as HTMLInputElement).value).toBe('')
@@ -130,7 +130,7 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(storedPanes()).toEqual({})
   })
 
-  it('Reset pane and Reset all panes put the defaults back (the name field too), one undo step each', () => {
+  it('Reset pane and Reset all panes put the defaults back (the name field too), one undo step each', async () => {
     const { part } = open({ delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } })
     fireEvent.click(within(card(part, 'delegate')).getByRole('button', { name: 'Reset pane' }))
     expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
@@ -138,16 +138,16 @@ describe('Settings › Tasks › Eisenhower', () => {
     fireEvent.click(within(part).getByRole('button', { name: 'Reset all panes' }))
     expect(storedPanes()).toEqual({})
     expect(within(part).getByRole('button', { name: 'Reset all panes' })).toHaveProperty('disabled', true)
-    expect(undoNames()).toEqual(['Reset pane “Hand off”', 'Reset the Eisenhower panes'])
+    await vi.waitFor(() => expect(undoNames()).toEqual(['Reset pane “Hand off”', 'Reset the Eisenhower panes']))
   })
 
-  it('a chip’s × edits the pane’s filter, one undo step', () => {
+  it('a chip’s × edits the pane’s filter, one undo step', async () => {
     const { part } = open({ delegate: { filter: NOT_DELEGATED } })
     const chips = within(card(part, 'delegate')).getAllByRole('button', { name: 'Remove filter' })
     // Priority, then Status: remove the status clause.
     fireEvent.click(chips[1]!)
     expect(storedPanes()).toEqual({})
-    expect(undoNames()).toEqual(['Changed pane “Delegate”'])
+    await vi.waitFor(() => expect(undoNames()).toEqual(['Changed pane “Delegate”']))
   })
 
   it('Esc in a pane’s filter picker closes the picker only, not Settings', () => {
@@ -206,7 +206,7 @@ describe('Settings › Tasks › Eisenhower › Show', () => {
     fireEvent.click(show(part))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'All tasks' }))
     expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
-    expect(undoNames()).toEqual(['Eisenhower shows “Team”', 'Eisenhower shows all tasks'])
+    await vi.waitFor(() => expect(undoNames()).toEqual(['Eisenhower shows “Team”', 'Eisenhower shows all tasks']))
     await act(() => useUndoStore.getState().undo())
     expect(useSettingsStore.getState().eisenhowerListId).toBe(8)
   })

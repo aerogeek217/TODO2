@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
 import { settingsRepository } from '../../data'
@@ -264,6 +264,7 @@ describe('useSettingsStore', () => {
 describe('the Eisenhower settings', () => {
   const HAND_OFF = { delegate: { name: 'Hand off', filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true as const } } } }
   const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('load reads the panes and the source; absent = the defaults and all tasks; unreadable values read as those too', async () => {
     await useSettingsStore.getState().load()
@@ -319,11 +320,85 @@ describe('the Eisenhower settings', () => {
     expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:4' })
   })
 
-  it('a failed save puts the value shown before back', async () => {
+  it('a failed save puts the value saved back, adds no undo step and says so once', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
     await useSettingsStore.getState().setEisenhowerListId(4, 'Eisenhower shows “Team”')
     expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
     expect(error).toHaveBeenCalled()
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Couldn’t save what the Eisenhower shows.', notice: true })
+
+    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
+    await useSettingsStore.getState().setEisenhowerPanes(HAND_OFF, 'Changed pane “Delegate”')
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
+    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Couldn’t save the Eisenhower panes.', notice: true })
+  })
+
+
+  it('writes are saved one after another: an earlier one failing late leaves the later one shown, saved and undoable', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const put = async (key: string, value: string) => { await db.settings.put({ key, value }) }
+    let failFirst!: () => void
+    vi.spyOn(settingsRepository, 'put')
+      .mockImplementationOnce(() => new Promise((_, reject) => { failFirst = () => reject(new Error('disk full')) }))
+      .mockImplementation(put)
+    const set = useSettingsStore.getState().setEisenhowerPanes
+    const first = set({ drop: { name: 'Someday' } }, 'Renamed pane “Drop”')
+    const second = set({ drop: { name: 'Someday' }, do: { name: 'Now' } }, 'Renamed pane “Do”')
+    // Both show at once; the second waits for the first's save.
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ do: { name: 'Now' }, drop: { name: 'Someday' } })
+    await vi.waitFor(() => expect(failFirst).toBeDefined())
+    failFirst()
+    await Promise.all([first, second])
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({ do: { name: 'Now' }, drop: { name: 'Someday' } })
+    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value)).toEqual({ do: { name: 'Now' }, drop: { name: 'Someday' } })
+    expect(undoNames()).toEqual(['Renamed pane “Do”'])
+    // Its undo puts back what was saved before it.
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
+    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
+  })
+
+  it('the last of several writes failing shows the value saved before them', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const put = async (key: string, value: string) => { await db.settings.put({ key, value }) }
+    let failSecond!: () => void
+    vi.spyOn(settingsRepository, 'put')
+      .mockImplementationOnce(put)
+      .mockImplementationOnce(() => new Promise((_, reject) => { failSecond = () => reject(new Error('disk full')) }))
+    const set = useSettingsStore.getState().setEisenhowerListId
+    const first = set(4, 'Eisenhower shows “Team”')
+    const second = set(5, 'Eisenhower shows “Other”')
+    await first
+    expect(useSettingsStore.getState().eisenhowerListId).toBe(5)
+    await vi.waitFor(() => expect(failSecond).toBeDefined())
+    failSecond()
+    await second
+    expect(useSettingsStore.getState().eisenhowerListId).toBe(4)
+    expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:4' })
+    expect(undoNames()).toEqual(['Eisenhower shows “Team”'])
+  })
+
+  it('an undo or redo whose save fails stays on its stack and says so', async () => {
+    await useSettingsStore.getState().setEisenhowerPanes(HAND_OFF, 'Changed pane “Hand off”')
+    await useSettingsStore.getState().setEisenhowerListId(4, 'Eisenhower shows “Team”')
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'delete').mockRejectedValueOnce(new Error('disk full'))
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerListId).toBe(4)
+    expect(undoNames()).toEqual(['Changed pane “Hand off”', 'Eisenhower shows “Team”'])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't undo: Eisenhower shows “Team”", notice: true })
+    await useUndoStore.getState().undo()
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: {}, eisenhowerListId: null })
+    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
+    await useUndoStore.getState().redo()
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
+    expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
+    expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Eisenhower shows “Team”', 'Changed pane “Hand off”'])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't redo: Changed pane “Hand off”", notice: true })
   })
 })
