@@ -529,7 +529,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
  * with the same key updates that entry instead of adding one (while the
  * entry is still the newest on the stack).
  */
-let lastPanesUndo: { mergeKey: string; entry: UndoEntry; setNext: (panes: EisenhowerPanes) => void } | null = null
+let lastPanesUndo: { mergeKey: string; entry: UndoEntry; prev: EisenhowerPanes; setNext: (panes: EisenhowerPanes) => void } | null = null
 registerModuleReset(() => { lastPanesUndo = null })
 
 /**
@@ -544,6 +544,12 @@ function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, descripti
   if (undo.isPerformingUndoRedo) return
   const last = lastPanesUndo
   if (mergeKey !== undefined && last?.mergeKey === mergeKey && undo.undoStack.at(-1) === last.entry && undo.groupStartIndex == null) {
+    if (formatPanesSetting(last.prev) === formatPanesSetting(next)) {
+      // Typed back to where it started (a letter typed, then erased): no step left to undo.
+      useUndoStore.setState({ undoStack: undo.undoStack.slice(0, -1) })
+      lastPanesUndo = null
+      return
+    }
     last.setNext(next)
     return
   }
@@ -554,7 +560,7 @@ function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, descripti
     redo: () => mustSave(writeEisenhowerPanes(target)),
   }
   undo.push(entry, mergeKey === undefined)
-  lastPanesUndo = mergeKey === undefined ? null : { mergeKey, entry, setNext: (p) => { target = p } }
+  lastPanesUndo = mergeKey === undefined ? null : { mergeKey, entry, prev, setNext: (p) => { target = p } }
 }
 
 /** A setting write's outcome: whether it was saved, and the value saved before it (what its undo puts back). */

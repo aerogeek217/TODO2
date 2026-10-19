@@ -18,6 +18,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { EisenhowerPanes } from '../../../models/eisenhower-settings'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { defaultPaneFilter } from '../../../utils/eisenhower-panes'
+import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 
 /**
@@ -120,7 +121,10 @@ describe('Settings › Tasks › Eisenhower', () => {
     fireEvent.change(name, { target: { value: 'Someday ' } })
     expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     expect((name as HTMLInputElement).value).toBe('Someday ')
-    await vi.waitFor(() => expect(undoNames()).toEqual(['Renamed pane “Drop”']))
+    // Saved (each write after the one before it); its undo step follows at once.
+    await vi.waitFor(async () => expect((await db.settings.get('eisenhowerPanes'))?.value).toBe('{"drop":{"name":"Someday"}}'))
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)))
+    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
     // A typed name shows no snackbar (the field's own undo covers typing).
     expect(useUndoStore.getState().snackbar).toBeNull()
     await act(() => useUndoStore.getState().undo())

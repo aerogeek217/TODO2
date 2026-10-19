@@ -309,6 +309,18 @@ describe('the Eisenhower settings', () => {
     expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
   })
 
+  it('a name typed back to where it started leaves no undo step', async () => {
+    const set = useSettingsStore.getState().setEisenhowerPanes
+    await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')
+    await set({}, 'Renamed pane “Drop”', 'name:drop')
+    expect(undoNames()).toEqual([])
+    // Typing on starts a new step.
+    await set({ drop: { name: 'L' } }, 'Renamed pane “Drop”', 'name:drop')
+    expect(undoNames()).toEqual(['Renamed pane “Drop”'])
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().eisenhowerPanes).toEqual({})
+  })
+
   it('setEisenhowerListId writes at once (all tasks = no row), one undo step with the snackbar', async () => {
     await useSettingsStore.getState().setEisenhowerListId(4, 'Eisenhower shows “Team”')
     expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:4' })
