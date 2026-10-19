@@ -139,7 +139,7 @@ test.describe('desktop', () => {
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-custom')).toHaveCount(0)
     await expect(noPane(page)).toHaveCount(0)
     await expect.poll(() => storedPanes(page)).toBeUndefined()
-    // One undo step brings it back (pane edits show no snackbar: Ctrl+Z).
+    // One undo step brings it back (Ctrl+Z, or the snackbar's Undo).
     await page.locator('body').click({ position: { x: 5, y: 5 } })
     await page.keyboard.press('Control+z')
     await expect(row(quadrant(page, 'delegate'), 'Chase vendor')).toHaveCount(0)

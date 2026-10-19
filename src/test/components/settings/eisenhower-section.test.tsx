@@ -121,6 +121,8 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     expect((name as HTMLInputElement).value).toBe('Someday ')
     await vi.waitFor(() => expect(undoNames()).toEqual(['Renamed pane “Drop”']))
+    // A typed name shows no snackbar (the field's own undo covers typing).
+    expect(useUndoStore.getState().snackbar).toBeNull()
     await act(() => useUndoStore.getState().undo())
     expect(storedPanes()).toEqual({})
     expect((name as HTMLInputElement).value).toBe('')
@@ -130,25 +132,41 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(storedPanes()).toEqual({})
   })
 
-  it('Reset pane and Reset all panes put the defaults back (the name field too), one undo step each', async () => {
-    const { part } = open({ delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } })
+  it('Reset pane and Reset all panes (asked first) put the defaults back (the name field too), one undo step each, with the snackbar', async () => {
+    const { settings, part } = open({ delegate: { name: 'Hand off', filter: NOT_DELEGATED }, drop: { name: 'Someday' } })
     fireEvent.click(within(card(part, 'delegate')).getByRole('button', { name: 'Reset pane' }))
     expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
     expect((within(card(part, 'delegate')).getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('')
-    fireEvent.click(within(part).getByRole('button', { name: 'Reset all panes' }))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toEqual({ description: 'Reset pane “Hand off”' }))
+
+    // Reset all panes asks first; Esc (or Cancel) keeps the panes and Settings.
+    const resetAll = within(part).getByRole('button', { name: 'Reset all panes…' })
+    fireEvent.click(resetAll)
+    const confirm = screen.getByRole('dialog', { name: 'Reset all panes?' })
+    fireEvent.keyDown(confirm, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Reset all panes?' })).toBeNull()
+    expect(settings.isConnected && useUIStore.getState().settingsOpen).toBe(true)
+    expect(storedPanes()).toEqual({ drop: { name: 'Someday' } })
+
+    fireEvent.click(resetAll)
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Reset all panes?' })).getByRole('button', { name: 'Reset all panes' }))
     expect(storedPanes()).toEqual({})
-    expect(within(part).getByRole('button', { name: 'Reset all panes' })).toHaveProperty('disabled', true)
+    expect(within(part).getByRole('button', { name: 'Reset all panes…' })).toHaveProperty('disabled', true)
     await vi.waitFor(() => expect(undoNames()).toEqual(['Reset pane “Hand off”', 'Reset the Eisenhower panes']))
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Reset the Eisenhower panes' })
   })
 
-  it('a chip’s × edits the pane’s filter, one undo step', async () => {
+  it('a chip’s × edits the pane’s filter, one undo step, with the snackbar', async () => {
     const { part } = open({ delegate: { filter: NOT_DELEGATED } })
     const chips = within(card(part, 'delegate')).getAllByRole('button', { name: 'Remove filter' })
     // Priority, then Status: remove the status clause.
     fireEvent.click(chips[1]!)
     expect(storedPanes()).toEqual({})
     await vi.waitFor(() => expect(undoNames()).toEqual(['Changed pane “Delegate”']))
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Changed pane “Delegate”' })
   })
+
+
 
   it('Esc in a pane’s filter picker closes the picker only, not Settings', () => {
     const { part } = open({ delegate: { filter: NOT_DELEGATED } })

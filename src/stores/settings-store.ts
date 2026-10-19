@@ -116,10 +116,11 @@ interface SettingsState {
   /**
    * Shows the Eisenhower panes at once (normalised; `{}` / `undefined` =
    * the defaults) and saves them — after the Eisenhower writes before it —
-   * as one undo step named `description`. Writes passing the same
-   * `mergeKey` one after another (e.g. a pane name typed letter by letter)
-   * stay one undo step. A failed save adds no step and says so (the
-   * snackbar's notice); the panes saved last show again.
+   * as one undo step named `description`, with the undo snackbar. Writes
+   * passing the same `mergeKey` one after another (e.g. a pane name typed
+   * letter by letter) stay one undo step, without the snackbar. A failed
+   * save adds no step and says so (the snackbar's notice); the panes saved
+   * last show again.
    */
   setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
   /** Saves the Eisenhower source at once (`null` = all tasks) as one undo step, with the undo snackbar; a failed save as `setEisenhowerPanes`. */
@@ -531,7 +532,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 let lastPanesUndo: { mergeKey: string; entry: UndoEntry; setNext: (panes: EisenhowerPanes) => void } | null = null
 registerModuleReset(() => { lastPanesUndo = null })
 
-/** Registers a saved pane write (`prev` -> `next`) as an undo step, merged into the last one with the same `mergeKey`. */
+/**
+ * Registers a saved pane write (`prev` -> `next`) as an undo step, merged
+ * into the last one with the same `mergeKey`. A step without a merge key
+ * (a filter change, Reset pane, Reset all panes) shows the undo snackbar —
+ * Settings, where the panes are edited, takes no Ctrl+Z; a name typed in
+ * one go stays one silent step (the field's own undo covers typing).
+ */
 function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, description: string, mergeKey: string | undefined): void {
   const undo = useUndoStore.getState()
   if (undo.isPerformingUndoRedo) return
@@ -546,7 +553,7 @@ function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, descripti
     undo: () => mustSave(writeEisenhowerPanes(prev)),
     redo: () => mustSave(writeEisenhowerPanes(target)),
   }
-  undo.push(entry)
+  undo.push(entry, mergeKey === undefined)
   lastPanesUndo = mergeKey === undefined ? null : { mergeKey, entry, setNext: (p) => { target = p } }
 }
 

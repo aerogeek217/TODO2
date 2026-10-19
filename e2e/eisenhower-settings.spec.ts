@@ -97,7 +97,7 @@ test.describe('desktop', () => {
     await expect(row(quadrant(page, 'eis2', 'delegate'), 'Review analytics')).toBeVisible()
     await expect(row(quadrant(page, 'eis2', 'delegate'), 'Chase vendor')).toHaveCount(0)
 
-    // One undo step (pane edits show no snackbar: Ctrl+Z).
+    // One undo step (Ctrl+Z, or the snackbar's Undo).
     await page.locator('body').click({ position: { x: 5, y: 5 } })
     await page.keyboard.press('Control+z')
     await expect(row(quadrant(page, 'eis2', 'delegate'), 'Chase vendor')).toBeVisible()
@@ -162,6 +162,49 @@ test.describe('desktop', () => {
     await expect.poll(() => storedSource(page)).toMatch(/^list:/)
     await page.reload()
     for (const id of ['eisTab', 'eis2']) await expect(wsTab(page, id)).toHaveAttribute('title', 'Eisenhower · Other')
+  })
+
+  test('a pane edit is undone from the snackbar while Settings is open; Reset all panes asks first', async ({ page }) => {
+    await seedWorkspace(page, { ...SEED, eisenhower: { panes: { drop: { name: 'Someday' } } } })
+    await openSettings(page, 'Eisenhower')
+    const snackbar = page.locator('[data-keeps-selection]').filter({ hasText: 'Undo' })
+
+    // A filter change shows the snackbar over Settings; its Undo puts it back, Settings stays.
+    await card(page, 'delegate').getByRole('button', { name: 'Filter', exact: true }).click()
+    await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
+    const picker = page.getByTestId('list-filter-picker')
+    await picker.getByRole('radio', { name: 'Is not' }).click()
+    await picker.locator('label', { hasText: 'Delegated' }).click()
+    await page.keyboard.press('Escape')
+    await expect(picker).toBeHidden()
+    await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('1 now')
+    await expect(snackbar).toContainText('Changed pane “Delegate”')
+    await snackbar.getByRole('button', { name: 'Undo' }).click()
+    await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('2 now')
+    await expect.poll(() => storedPanes(page)).toEqual({ drop: { name: 'Someday' } })
+    await expect(settingsDialog(page)).toBeVisible()
+
+    // Reset all panes… asks first; Esc keeps the panes and Settings.
+    const resetAll = part(page).getByRole('button', { name: 'Reset all panes…' })
+    await resetAll.click()
+    const confirm = page.getByRole('dialog', { name: 'Reset all panes?' })
+    await expect(confirm).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(confirm).toHaveCount(0)
+    await expect(settingsDialog(page)).toBeVisible()
+    await expect(card(page, 'drop').getByRole('textbox', { name: 'Name' })).toHaveValue('Someday')
+
+    await resetAll.click()
+    await confirm.getByRole('button', { name: 'Reset all panes' }).click()
+    await expect(confirm).toHaveCount(0)
+    await expect(card(page, 'drop').getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    await expect.poll(() => storedPanes(page)).toBeUndefined()
+    await expect(resetAll).toBeDisabled()
+    await expect(snackbar).toContainText('Reset the Eisenhower panes')
+    await snackbar.getByRole('button', { name: 'Undo' }).click()
+    await expect(card(page, 'drop').getByRole('textbox', { name: 'Name' })).toHaveValue('Someday')
+    await expect.poll(() => storedPanes(page)).toEqual({ drop: { name: 'Someday' } })
+    await expect(settingsDialog(page)).toBeVisible()
   })
 
   test('the tab menu’s and the cell menu’s Customize panes…, a pane header’s Edit pane…, land on the part', async ({ page }) => {

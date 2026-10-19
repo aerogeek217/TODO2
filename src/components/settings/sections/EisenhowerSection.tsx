@@ -7,7 +7,9 @@ import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
 import { listsLosingLastWidgetToSource } from '../../../hooks/use-list-widget-count'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+
 import { eisenhowerPaneFocus } from '../../../stores/ui-store'
+
 import { classifyPanes } from '../../../utils/eisenhower'
 import {
   eisenhowerSourceDescription,
@@ -23,6 +25,7 @@ import { filterChips, type FilterChipNames } from '../../../utils/filter-chips'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ChevronDownIcon } from '../../shared/icons'
+import { ConfirmDialog } from '../../shared/Dialog'
 import { MenuPopover } from '../../shared/MenuPopover'
 import { ALL_TASKS_LABEL, DELETED_LIST_TITLE, listChoiceEntries } from '../../shared/list-choice-entries'
 import { UnsavedPrompt } from '../../workspace/UnsavedPrompt'
@@ -45,8 +48,10 @@ function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfi
  * panes as a 2×2 of cards: each with its name, its filter as the list filter
  * chips (+ Filter adds a clause), how many open tasks it holds now (the
  * screen filter applied, as in the widget) and Reset pane; then how many
- * open tasks are in no pane, and Reset all. Every change is saved at once as
- * one undo step (a name typed in one go is one). Desktop only.
+ * open tasks are in no pane, and Reset all panes (asked first). Every change
+ * is saved at once as one undo step (a name typed in one go is one); all but
+ * a typed name show the undo snackbar — the place to undo while Settings is
+ * open. Desktop only.
  */
 export function EisenhowerSection() {
   const source = useEisenhowerSource()
@@ -60,6 +65,9 @@ export function EisenhowerSection() {
   const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
   const noneOpen = none.filter((t) => !t.isCompleted).length
   const anyCustom = panes.some((p) => p.customName || p.customFilter)
+
+  const [confirmReset, setConfirmReset] = useState(false)
+  useStackedLayer(confirmReset)
 
   return (
     <div className={sectionStyles.section}>
@@ -89,16 +97,28 @@ export function EisenhowerSection() {
           {noneOpen === 0
             ? 'Every open task is in a pane.'
             : `${noneOpen} open ${noneOpen === 1 ? 'task is' : 'tasks are'} in no pane — hidden from the matrix, counted under it.`}
+
         </p>
         <button
           type="button"
           className={`${sectionStyles.button} ${sectionStyles.buttonSecondary}`}
           disabled={!anyCustom}
-          onClick={() => { void useSettingsStore.getState().setEisenhowerPanes(undefined, 'Reset the Eisenhower panes') }}
+          onClick={() => setConfirmReset(true)}
         >
-          Reset all panes
+          Reset all panes…
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmReset}
+        title="Reset all panes?"
+        message="Every pane goes back to its default name and filter (Do, Schedule, Delegate, Drop), in every Eisenhower and on the dashboard."
+        confirmLabel="Reset all panes"
+        onConfirm={() => {
+          setConfirmReset(false)
+          void useSettingsStore.getState().setEisenhowerPanes(undefined, 'Reset the Eisenhower panes')
+        }}
+        onCancel={() => setConfirmReset(false)}
+      />
     </div>
   )
 }

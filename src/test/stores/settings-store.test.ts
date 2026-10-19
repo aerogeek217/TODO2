@@ -337,6 +337,15 @@ describe('the Eisenhower settings', () => {
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'Couldn’t save the Eisenhower panes.', notice: true })
   })
 
+  it('a filter change, Reset pane or Reset all panes shows the undo snackbar; a typed name does not', async () => {
+    const set = useSettingsStore.getState().setEisenhowerPanes
+    await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    await set(HAND_OFF, 'Changed pane “Hand off”')
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Changed pane “Hand off”' })
+    await set(undefined, 'Reset the Eisenhower panes')
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Reset the Eisenhower panes' })
+  })
 
   it('writes are saved one after another: an earlier one failing late leaves the later one shown, saved and undoable', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
