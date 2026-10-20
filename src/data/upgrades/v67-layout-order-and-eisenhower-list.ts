@@ -163,11 +163,13 @@ function withEisenhowerList(data: DataSet): DataSet {
 
   // A new id after every list id the dataset holds or names.
   const orders = Array.isArray(data.listOrders) ? data.listOrders : undefined
+  const named = new Set<number>(used)
+  for (const r of lists) if (isRecord(r) && isId(r.id)) named.add(r.id)
+  if (sourceId !== undefined) named.add(sourceId)
+  for (const r of orders ?? []) if (isRecord(r) && isId(r.listDefinitionId)) named.add(r.listDefinitionId)
   let top = maxId(lists)
-  for (const id of used) if (id > top) top = id
-  if (sourceId !== undefined && sourceId > top) top = sourceId
-  for (const r of orders ?? []) if (isRecord(r) && isId(r.listDefinitionId) && r.listDefinitionId > top) top = r.listDefinitionId
-  const id = Math.floor(top) + 1
+  for (const id of named) if (id > top) top = id
+  const id = idAfter(top, named)
   let lastOrder = -1
   for (const r of lists) if (isRecord(r) && isOrder(r.sortOrder) && r.sortOrder > lastOrder) lastOrder = r.sortOrder
   const sortOrder = Math.floor(lastOrder) + 1
@@ -180,8 +182,15 @@ function withEisenhowerList(data: DataSet): DataSet {
     if (orders) {
       const ranks = orders.filter((r) => isRecord(r) && r.listDefinitionId === sourceId)
       if (ranks.length > 0) {
-        let nextId = Math.floor(maxId(orders)) + 1
-        out.listOrders = [...orders, ...ranks.map((r) => ({ ...r, id: nextId++, listDefinitionId: id }))]
+        const taken = new Set<number>()
+        for (const r of orders) if (isRecord(r) && isId(r.id)) taken.add(r.id)
+        let top = maxId(orders)
+        out.listOrders = [...orders, ...ranks.map((r) => {
+          const rowId = idAfter(top, taken)
+          taken.add(rowId)
+          if (rowId > top) top = rowId
+          return { ...r, id: rowId, listDefinitionId: id }
+        })]
       }
     }
   } else {
@@ -193,6 +202,19 @@ function withEisenhowerList(data: DataSet): DataSet {
     }]
   }
   return out
+}
+
+/**
+ * A new id: one past `top` (the highest id there is) — or, when that is no
+ * longer a safe whole number (a huge id stored earlier), the smallest
+ * positive one `taken` doesn't hold.
+ */
+function idAfter(top: number, taken: ReadonlySet<number>): number {
+  const next = Math.floor(top) + 1
+  if (Number.isSafeInteger(next) && !taken.has(next)) return next
+  let id = 1
+  while (taken.has(id)) id++
+  return id
 }
 
 /** v67 — an order for every layout; the Eisenhower's own list. */

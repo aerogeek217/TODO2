@@ -133,6 +133,32 @@ describe('upgradeV67 (pure): the Eisenhower’s own list', () => {
     expect(out.settings).toEqual([{ key: 'checkinTaskScope', value: 'list:12' }, source(31)])
   })
 
+  it('past the safe ids (a huge id stored earlier) the new id is the smallest one free, and its source reads back', () => {
+    for (const huge of [2 ** 53, 1e300, Number.MAX_SAFE_INTEGER]) {
+      const out = upgradeV67({
+        listDefinitions: [list(1), list(huge), list(3)],
+        settings: [],
+        layouts: [layout(1, cells([lens('a', 2)]))],
+      })
+      const made = out.listDefinitions!.at(-1)!
+      expect(made.id).toBe(4)
+      expect(new Set(out.listDefinitions!.map((d) => d.id)).size).toBe(4)
+      expect(out.settings).toEqual([source(4)])
+    }
+  })
+
+  it('a copy’s manual-order rows past the safe ids get the smallest free ids', () => {
+    const out = upgradeV67({
+      listDefinitions: [list(1)],
+      settings: [source(1)],
+      layouts: [layout(1, cells([lens('a', 1)]))],
+      listOrders: [{ id: 2 ** 53, listDefinitionId: 1, todoId: 1, rank: 1 }, { id: 1, listDefinitionId: 1, todoId: 2, rank: 2 }],
+    })
+    const ids = out.listOrders!.map((r) => r.id)
+    expect(new Set(ids).size).toBe(4)
+    expect(ids.slice(2)).toEqual([2, 3])
+  })
+
   it('the first list made: id 1, order 0', () => {
     expect(upgradeV67({ listDefinitions: [], settings: [] })).toEqual({ listDefinitions: [NEW_LIST(1, 0)], settings: [source(1)] })
   })
