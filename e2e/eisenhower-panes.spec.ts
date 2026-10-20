@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -161,8 +161,7 @@ test.describe('desktop', () => {
     await closeSettings(page)
     await expect(quadrant(page, 'drop')).toContainText('Someday')
 
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitemradio', { name: 'Second' }).click()
+    await switchLayout(page, 'Second')
     const other = page.locator('[data-eisenhower="eis2"]')
     await expect(other.locator('[data-eis-quadrant="delegate"]')).toContainText('Hand off')
     await expect(other.locator('[data-eis-quadrant="drop"]')).toContainText('Someday')

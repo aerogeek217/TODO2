@@ -97,7 +97,8 @@ export function createListThenEdit(show: (listDefinitionId: number) => string | 
 /**
  * The open layout as a list chooser's owner: its id once it is saved (its
  * own layout-only lists are offered, and a new list may be made for it
- * alone), `undefined` while it is a new layout not saved yet.
+ * alone), `undefined` while it is a new layout an older build kept unsaved
+ * (New layout stores the layout at once).
  */
 export function useListOwnerLayoutId(): number | undefined {
   return useWorkspaceStore((s) => s.saved?.id)

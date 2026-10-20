@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -32,15 +32,11 @@ const lists = async (page: Page) => (await readListDefinitions(page)) as unknown
 const layouts = async (page: Page) => readStore<{ id: number; name: string }>(page, 'layouts')
 const layoutId = async (page: Page, name: string) => (await layouts(page)).find((l) => l.name === name)!.id
 
-async function layoutMenu(page: Page, item: string): Promise<void> {
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitem', { name: item }).click()
-}
+const layoutMenu = openLayoutAction
 
 async function switchLayout(page: Page, name: string): Promise<void> {
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName(`Layout: ${name}`)
+  await openLayout(page, name)
+  await expectOpenLayout(page, name)
 }
 
 /** The tab's Change list › submenu's choices. */
@@ -106,7 +102,7 @@ test('Save as: the new layout shows a copy of its own list that edits on its own
   const dialog = page.getByRole('dialog', { name: 'Save as new layout' })
   await dialog.getByLabel('Name').fill('Copy')
   await dialog.getByRole('button', { name: 'Save layout' }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Copy')
+  await expectOpenLayout(page, 'Copy')
   const copyId = await layoutId(page, 'Copy')
   await expect.poll(async () => (await lists(page)).filter((d) => d.name === 'Mine').map((d) => d.owner?.layoutId).sort())
     .toEqual([mine.owner!.layoutId, copyId].sort())
@@ -139,7 +135,7 @@ test('Delete layout takes its own lists with it; the confirm says so', async ({ 
   const confirm = page.getByRole('dialog', { name: 'Delete layout “Main”?' })
   await expect(confirm).toContainText('The layout and its layout-only list are removed. This can’t be undone.')
   await confirm.getByRole('button', { name: 'Delete layout' }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
+  await expectOpenLayout(page, 'Second')
   await expect.poll(async () => (await lists(page)).some((d) => d.id === mine.id)).toBe(false)
   // A saved list stays.
   expect((await lists(page)).some((d) => d.name === 'Shared')).toBe(true)

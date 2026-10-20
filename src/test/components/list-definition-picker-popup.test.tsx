@@ -205,7 +205,7 @@ describe('ListDefinitionPickerPopup — hidden lists', () => {
     expect(onCreateNew).toHaveBeenLastCalledWith(true)
   })
 
-  it('no layout to keep it in (a new layout not saved yet): no choice, a saved list', () => {
+  it('no layout to keep it in (a new layout an older build kept, not saved yet): no choice, a saved list', () => {
     const onCreateNew = vi.fn()
     const { queryByRole, getByText } = render(
       <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,

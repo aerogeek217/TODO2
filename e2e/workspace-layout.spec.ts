@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
-import { drag, dragTab, openSettings, seedWorkspace, wsCell, wsShape, wsTab, type WsLayoutSeed } from './fixtures/workspace'
+import {
+  drag, dragTab, expectOpenLayout, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, wsCell, wsShape, wsTab,
+  type WsLayoutSeed,
+} from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 
 /**
@@ -193,82 +196,84 @@ test.describe('saved layouts', () => {
 
   test('save persists across reload; switching layouts prompts Save / Discard / Cancel', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Main')
+    await expectOpenLayout(page, 'Main')
 
-    // An unsaved change: close the Eisenhower tab.
+    // An unsaved change: close the Eisenhower tab. The open tab shows the dot.
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expect(openLayoutTab(page).getByRole('img', { name: 'unsaved changes' })).toBeVisible()
 
     // Switch → prompt → Cancel stays.
-    await page.getByTestId('layout-picker').click()
-    await expect(page.getByRole('menuitemradio', { name: /Main/ })).toContainText('Edited')
-    await page.getByRole('menuitemradio', { name: 'Second' }).click()
+    await switchLayout(page, 'Second')
     const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
     await expect(dialog).toContainText('You’re switching to “Second”.')
     await dialog.getByRole('button', { name: /Cancel/ }).click()
     await expect(dialog).toBeHidden()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Main')
+    await expectOpenLayout(page, 'Main')
 
     // Switch → Save: the change is kept and the other layout opens.
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitemradio', { name: 'Second' }).click()
+    await switchLayout(page, 'Second')
     await dialog.getByRole('button', { name: 'Save layout' }).click()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
+    await expectOpenLayout(page, 'Second')
     await expect.poll(() => wsShape(page)).toEqual([[['zTab']]])
 
     // Reload: still on Second; Main kept the saved change.
     await page.reload()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitemradio', { name: 'Main' }).click()
+    await expectOpenLayout(page, 'Second')
+    await switchLayout(page, 'Main')
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   })
 
-  test('New layout: an empty, unsaved Untitled layout; Save stores it, Discard goes back', async ({ page }) => {
+  test('the folded picker: the layouts (the open one checked, Edited while unsaved) and its actions', async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 800 })
     await seedWorkspace(page, { layouts: [twoColumns, second] })
-    const picker = page.getByTestId('layout-picker')
-    await picker.click()
-    await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
-    await expect(picker).toHaveAccessibleName('Layout: Untitled layout')
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await wsTab(page, 'eisTab').click()
+    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await page.getByTestId('layout-picker').click()
+    await expect(page.getByRole('menuitemradio', { name: /Main/ })).toContainText('Edited')
+    await expect(page.getByRole('menuitemradio', { name: /Main/ })).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem')).toHaveText([
+      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Rename…', 'Delete layout…',
+    ])
+    await page.getByRole('menuitem', { name: 'Discard changes' }).click()
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    // The closed tab is back (a narrow cell may show its tabs in another order).
+    await expect(wsTab(page, 'eisTab')).toBeVisible()
+  })
+
+  test('New layout asks a name; the empty layout is stored and opened at once', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns, second] })
+    await page.getByRole('button', { name: 'New layout', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'New layout' })
+    await dialog.getByLabel('Name').fill('Planning')
+    await dialog.getByRole('button', { name: 'Create layout' }).click()
+    await expectOpenLayout(page, 'Planning')
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
     await expect(page.getByText('This layout is empty')).toBeVisible()
     expect(await wsShape(page)).toEqual([])
 
-    // The picker lists it, checked and marked New; Discard goes back to Main.
-    await picker.click()
-    await expect(page.getByRole('menuitemradio', { name: /Untitled layout/ })).toHaveAttribute('aria-checked', 'true')
-    await expect(page.getByRole('menuitemradio', { name: /Untitled layout/ })).toContainText('New')
-    await page.getByRole('menuitem', { name: 'Discard changes' }).click()
-    await expect(picker).toHaveAccessibleName('Layout: Main')
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
-
-    // Again, then Save: it's stored and stays after a reload.
-    await picker.click()
-    await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
     await page.getByRole('button', { name: 'Notes' }).first().click()
     await saveButton(page).click()
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
     await page.reload()
-    await expect(picker).toHaveAccessibleName('Layout: Untitled layout')
-    await picker.click()
-    await expect(page.getByRole('menuitemradio')).toHaveText(['Main', 'Second', 'Untitled layout'])
+    await expectOpenLayout(page, 'Planning')
+    await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Second', 'Planning'])
   })
 
   test('New layout with unsaved changes asks Save / Discard / Cancel first', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
+    await page.getByRole('button', { name: 'New layout', exact: true }).click()
+    await page.getByRole('dialog', { name: 'New layout' }).getByLabel('Name').fill('Planning')
+    await page.getByRole('dialog', { name: 'New layout' }).getByRole('button', { name: 'Create layout' }).click()
     const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
-    await expect(dialog).toContainText('You’re starting a new layout.')
+    await expect(dialog).toContainText('You’re starting a new layout “Planning”.')
     await dialog.getByRole('button', { name: 'Discard' }).click()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Untitled layout')
-    // Main lost the discarded change.
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitemradio', { name: 'Main' }).click()
-    await page.getByRole('dialog', { name: /Save changes to layout “Untitled layout”/ }).getByRole('button', { name: 'Discard' }).click()
+    await expectOpenLayout(page, 'Planning')
+    // Main lost the discarded change; nothing to ask about now.
+    await switchLayout(page, 'Main')
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
   })
 
@@ -276,12 +281,10 @@ test.describe('saved layouts', () => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitemradio', { name: 'Second' }).click()
+    await switchLayout(page, 'Second')
     await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitemradio', { name: 'Main' }).click()
+    await expectOpenLayout(page, 'Second')
+    await switchLayout(page, 'Main')
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
   })
 
@@ -325,28 +328,27 @@ test.describe('saved layouts', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   })
 
-  test('save as, rename and delete from the layout menu', async ({ page }) => {
+  test('save as, rename and delete from the open layout’s tab menu', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await page.getByTestId('layout-picker').click()
-    await expect(page.getByRole('menuitem', { name: 'Delete layout…' })).toBeDisabled()
-    await page.getByRole('menuitem', { name: 'Save as new layout…' }).click()
+    const only = await openLayoutTabMenu(page)
+    await expect(only.getByRole('menuitem', { name: 'Delete layout…' })).toBeDisabled()
+    await only.getByRole('menuitem', { name: 'Save as new layout…' }).click()
     const nameDialog = page.getByRole('dialog', { name: 'Save as new layout' })
     await expect(nameDialog.getByLabel('Name')).toHaveValue('Main copy')
     await nameDialog.getByLabel('Name').fill('Planning')
     await nameDialog.getByRole('button', { name: 'Save layout' }).click()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Planning')
+    await expectOpenLayout(page, 'Planning')
 
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitem', { name: 'Rename…' }).click()
+    await openLayoutAction(page, 'Rename…')
     const renameDialog = page.getByRole('dialog', { name: 'Rename layout' })
     await renameDialog.getByLabel('Name').fill('Weekly')
     await renameDialog.getByRole('button', { name: 'Rename' }).click()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Weekly')
+    await expectOpenLayout(page, 'Weekly')
 
-    await page.getByTestId('layout-picker').click()
-    await page.getByRole('menuitem', { name: 'Delete layout…' }).click()
+    await openLayoutAction(page, 'Delete layout…')
     await page.getByRole('dialog', { name: 'Delete layout “Weekly”?' }).getByRole('button', { name: 'Delete layout' }).click()
-    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Main')
+    await expectOpenLayout(page, 'Main')
+    await expect(page.getByTestId('layout-tab')).toHaveText(['Main'])
   })
 })
 

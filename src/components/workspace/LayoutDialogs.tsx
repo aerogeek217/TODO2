@@ -37,12 +37,14 @@ interface LayoutNameDialogProps {
   title: string
   confirmLabel: string
   initialName: string
+  /** The empty field's hint (New layout, which starts empty). */
+  placeholder?: string
   onConfirm: (name: string) => void
   onCancel: () => void
 }
 
-/** "Save as new layout…" / "Rename…": one name field, prefilled and selected. */
-export function LayoutNameDialog({ title, confirmLabel, initialName, onConfirm, onCancel }: LayoutNameDialogProps) {
+/** "New layout…" / "Save as new layout…" / "Rename…": one name field, prefilled and selected; empty can't be confirmed. */
+export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, onConfirm, onCancel }: LayoutNameDialogProps) {
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmed = name.trim()
@@ -59,6 +61,7 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, onConfirm, 
             ref={inputRef}
             className={styles.input}
             value={name}
+            placeholder={placeholder}
             maxLength={LAYOUT_NAME_MAX}
             onChange={(e) => setName(e.target.value)}
             onFocus={(e) => e.currentTarget.select()}

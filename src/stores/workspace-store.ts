@@ -3,13 +3,13 @@ import { byLayoutOrder, layoutRepository, type ListCopy, type ReadLayout } from 
 import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
 import { ownerLayoutId } from '../models/list-definition'
 import { useUndoStore } from './undo-store'
+import { undoable } from './undoable'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListDraftStore } from './list-draft-store'
 import { useListOrderStore } from './list-order-store'
 import { registerModuleReset } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
-  NEW_LAYOUT_NAME,
   UNSAVED_LAYOUT_ID,
   createTab,
   layoutBodyOf,
@@ -70,9 +70,10 @@ export interface ResizeOptions {
  *   (last write wins) — it never makes the layout dirty.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
  *   unsaved changes first.
- * - `newLayout()` opens an empty `Untitled layout` that isn't stored until
- *   it's saved (`saved` is `null`, its id `UNSAVED_LAYOUT_ID`); discarding it
- *   goes back to the layout open before.
+ * - `createLayout(name)` stores a new, empty layout at once and opens it.
+ *   Only an unsaved new layout an older build kept in the browser opens
+ *   without being stored (`saved` is `null`, its id `UNSAVED_LAYOUT_ID`);
+ *   discarding it goes back to the layout open before.
  */
 export interface WorkspaceState {
   /** Saved layouts in the picker's order (`sortOrder`, then oldest first). */
@@ -80,7 +81,7 @@ export interface WorkspaceState {
   activeLayoutId: number | null
   /** The open layout as edited (`null` until `init`). */
   working: Layout | null
-  /** The open layout as stored; `null` for a new layout not saved yet. */
+  /** The open layout as stored; `null` for a kept new layout not saved yet. */
   saved: Layout | null
   /** While a new layout is open: the layout open before it, which Discard goes back to. */
   previousLayoutId: number | null
@@ -106,11 +107,16 @@ export interface WorkspaceState {
   init: () => Promise<void>
   /** Opens a layout, dropping the working copy. Unknown id → no-op. */
   load: (id: number) => Promise<void>
-  /** Opens a new, empty, unsaved layout (`Untitled layout`), dropping the working copy. */
-  newLayout: () => void
   /**
-   * Writes the working copy over the saved layout (a new layout: stores it
-   * under its name and opens it). Resolves `false` when the
+   * Stores a new, empty layout named `name` (after the others) and opens
+   * it, dropping the working copy: callers ask about unsaved changes first.
+   * Resolves its id, or `null` for an empty name or a failed write (the
+   * snackbar says so).
+   */
+  createLayout: (name: string) => Promise<number | null>
+  /**
+   * Writes the working copy over the saved layout (a kept new layout: stores
+   * it under its name and opens it). Resolves `false` when the
    * write failed — the layout stays unsaved and the snackbar says so; never
    * rejects (as `saveAs` → `null`, `rename` → `false`). Once saved, the
    * layout-only lists it owns that no tab of it shows any more are deleted
@@ -129,7 +135,7 @@ export interface WorkspaceState {
   discard: () => void
   /**
    * Renames a layout (not a layout change: never dirty). Empty name → `false`.
-   * The new, unsaved layout (`UNSAVED_LAYOUT_ID`) is renamed in memory.
+   * A kept new layout not saved yet (`UNSAVED_LAYOUT_ID`) is renamed in memory.
    */
   rename: (id: number, name: string) => Promise<boolean>
   /**
@@ -139,12 +145,16 @@ export interface WorkspaceState {
    */
   delete: (id: number) => Promise<boolean>
   /**
-   * Puts the saved layouts in `orderedIds`' order (the picker's), saved at
-   * once — not a layout change: nothing becomes unsaved. Layouts it leaves
-   * out keep their order after the named ones. Resolves `false` when the
-   * write failed (the order on screen goes back; the snackbar says so).
+   * Puts the saved layouts in `orderedIds`' order (the tabs' and the
+   * picker's), saved at once — not a layout change: nothing becomes
+   * unsaved — as one undo step (`description`, default `Reordered layouts`).
+   * Layouts it leaves out keep their order after the named ones. Resolves
+   * `false` when the write failed (the order on screen goes back; the
+   * snackbar says so; no undo step).
    */
-  reorderLayouts: (orderedIds: readonly number[]) => Promise<boolean>
+  reorderLayouts: (orderedIds: readonly number[], description?: string) => Promise<boolean>
+  /** Moves one saved layout to position `toIndex` (`reorderLayouts`, undo step `Moved layout “<name>”`). */
+  moveLayout: (id: number, toIndex: number) => Promise<boolean>
 
   /** Adds a new widget tab at `target`. Returns its id, or `null` when the target is unknown. */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
@@ -442,6 +452,42 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     keepDraft()
   }
 
+  /**
+   * Shows and saves the saved layouts in `orderedIds`' order (the others
+   * after them). A failed write puts the order on screen back (`report`:
+   * and says so in the snackbar). Resolves whether it was saved.
+   */
+  async function applyOrder(orderedIds: readonly number[], report = true): Promise<boolean> {
+    const before = get().layouts
+    const rank = new Map(orderedIds.map((id, i) => [id, i]))
+    const ordered = [...before].sort((a, b) =>
+      (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || byLayoutOrder(a, b))
+    const ids = ordered.map((l) => l.id)
+    const orderOf = new Map(ids.map((id, i) => [id, i]))
+    const show = (orderById: ReadonlyMap<number, number>, layouts: Layout[]) => {
+      const { working, saved } = get()
+      const placed = (l: Layout): Layout => {
+        const order = orderById.get(l.id)
+        return order === undefined || order === l.sortOrder ? l : { ...l, sortOrder: order }
+      }
+      set({
+        layouts,
+        ...(saved ? { saved: placed(saved) } : {}),
+        ...(working ? { working: placed(working) } : {}),
+      })
+    }
+    show(orderOf, ordered.map((l) => ({ ...l, sortOrder: orderOf.get(l.id) ?? l.sortOrder })))
+    try {
+      await layoutRepository.reorder(ids)
+      return true
+    } catch (err) {
+      show(new Map(before.map((l) => [l.id, l.sortOrder])), before)
+      if (report) reportWriteFailure("Couldn't save the layout order.", err)
+      else console.warn("[workspace] couldn't save the layout order", err)
+      return false
+    }
+  }
+
   return {
     layouts: [],
     activeLayoutId: null,
@@ -475,18 +521,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
     },
 
-    newLayout() {
-      const { activeLayoutId, previousLayoutId } = get()
+    async createLayout(name) {
+      const clean = cleanName(name)
+      if (!clean) return null
       const now = new Date()
-      set({
-        working: { id: UNSAVED_LAYOUT_ID, name: NEW_LAYOUT_NAME, sortOrder: orderAfter(get().layouts), columns: [], createdAt: now, modifiedAt: now },
-        saved: null,
-        activeLayoutId: null,
-        // A new layout over a new layout still goes back to the stored one.
-        previousLayoutId: activeLayoutId ?? previousLayoutId,
-        isDirty: true,
+      const record = { name: clean, columns: [], createdAt: now, modifiedAt: now, lastUsedAt: now }
+      let id: number
+      try {
+        id = await layoutRepository.insert(record)
+      } catch (err) {
+        reportWriteFailure(`Couldn't create layout "${clean}".`, err)
+        return null
+      }
+      await layoutRepository.setActiveId(id).catch((err: unknown) => {
+        console.warn('[workspace] remembering the open layout failed', err)
       })
-      keepDraft()
+      // The order the insert gave it (after the others).
+      const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
+      const layout: Layout = { ...record, id, sortOrder }
+      open({ layout, fixes: [] }, [...get().layouts.filter((l) => l.id !== id), layout], get().repairedIds)
+      return id
     },
 
     async save() {
@@ -639,34 +693,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return true
     },
 
-    async reorderLayouts(orderedIds) {
-      const before = get().layouts
-      const rank = new Map(orderedIds.map((id, i) => [id, i]))
-      const ordered = [...before].sort((a, b) =>
-        (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || byLayoutOrder(a, b))
-      const ids = ordered.map((l) => l.id)
-      const orderOf = new Map(ids.map((id, i) => [id, i]))
-      const show = (orderById: ReadonlyMap<number, number>, layouts: Layout[]) => {
-        const { working, saved } = get()
-        const placed = (l: Layout): Layout => {
-          const order = orderById.get(l.id)
-          return order === undefined || order === l.sortOrder ? l : { ...l, sortOrder: order }
-        }
-        set({
-          layouts,
-          ...(saved ? { saved: placed(saved) } : {}),
-          ...(working ? { working: placed(working) } : {}),
-        })
+    async reorderLayouts(orderedIds, description = 'Reordered layouts') {
+      const before = get().layouts.map((l) => l.id)
+      if (!(await applyOrder(orderedIds))) return false
+      const after = get().layouts.map((l) => l.id)
+      if (after.length === before.length && after.every((id, i) => id === before[i])) return true
+      // Undo / redo throw on a failed write: the entry stays, to try again.
+      const apply = (ids: readonly number[]) => async () => {
+        if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
       }
-      show(orderOf, ordered.map((l) => ({ ...l, sortOrder: orderOf.get(l.id) ?? l.sortOrder })))
-      try {
-        await layoutRepository.reorder(ids)
-        return true
-      } catch (err) {
-        show(new Map(before.map((l) => [l.id, l.sortOrder])), before)
-        reportWriteFailure("Couldn't save the layout order.", err)
-        return false
-      }
+      undoable(description, apply(after), apply(before), true)
+      return true
+    },
+
+    moveLayout(id, toIndex) {
+      const ids = get().layouts.map((l) => l.id)
+      const from = ids.indexOf(id)
+      const layout = get().layouts[from]
+      if (!layout) return Promise.resolve(false)
+      const to = Math.max(0, Math.min(ids.length - 1, toIndex))
+      if (to === from) return Promise.resolve(true)
+      ids.splice(from, 1)
+      ids.splice(to, 0, id)
+      return get().reorderLayouts(ids, `Moved layout “${layout.name}”`)
     },
 
     addWidget(kind, target, seed) {

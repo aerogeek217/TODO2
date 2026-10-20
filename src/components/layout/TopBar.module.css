@@ -1,6 +1,7 @@
-/* The app's one top bar (desktop): New task, the layout picker + save,
- * the screen-filter tray, then the storage pill and the Settings gear. It
- * never wraps; narrower windows fold the filters and shorten labels. */
+/* The app's one top bar (desktop): New task, the layout tabs (or picker) +
+ * save, the screen-filter tray, then the storage pill and the Settings gear.
+ * It never wraps; when it runs out of room (measured) the filters fold into
+ * a menu, then the layout tabs into the picker. */
 
 .topBar {
   display: flex;
@@ -45,6 +46,14 @@
 .gear:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* ═══ Layout controls (tabs, or the picker once folded) ═══ */
+
+.layoutSlot {
+  display: flex;
+  align-self: stretch;
+  flex-shrink: 0;
 }
 
 /* ═══ Screen-filter tray ═══ */

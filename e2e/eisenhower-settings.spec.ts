@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -56,11 +56,6 @@ async function storedSource(page: Page): Promise<string | undefined> {
 async function closeSettings(page: Page): Promise<void> {
   await settingsDialog(page).getByRole('button', { name: 'Close settings' }).click()
   await expect(settingsDialog(page)).toHaveCount(0)
-}
-
-async function switchLayout(page: Page, name: string): Promise<void> {
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name }).click()
 }
 
 test.describe('desktop', () => {

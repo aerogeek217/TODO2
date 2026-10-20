@@ -78,7 +78,52 @@ describe('workspace store: the layout order', () => {
     expect(names()).toEqual(['A', 'B'])
     expect(ws().saved?.sortOrder).toBe(0)
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: "Couldn't save the layout order.", notice: true })
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
     spy.mockRestore()
+  })
+
+  it('a reorder is one undo step: Undo puts the old order back, Redo the new one, both saved', async () => {
+    const [a, b, c] = await seedLayouts('A', 'B', 'C')
+    expect(await ws().moveLayout(c!, 0)).toBe(true)
+    expect(names()).toEqual(['C', 'A', 'B'])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Moved layout “C”'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Moved layout “C”' })
+    await useUndoStore.getState().undo()
+    expect(names()).toEqual(['A', 'B', 'C'])
+    expect(await storedOrder()).toEqual(['A', 'B', 'C'])
+    await useUndoStore.getState().redo()
+    expect(names()).toEqual(['C', 'A', 'B'])
+    expect(await storedOrder()).toEqual(['C', 'A', 'B'])
+    expect(ws().isDirty).toBe(false)
+    void a
+    void b
+  })
+
+  it('moveLayout: one step left / right, clamped at the ends; no move = no undo step', async () => {
+    const [a, b] = await seedLayouts('A', 'B', 'C')
+    expect(await ws().moveLayout(a!, 1)).toBe(true)
+    expect(names()).toEqual(['B', 'A', 'C'])
+    expect(await ws().moveLayout(b!, -1)).toBe(true)
+    expect(names()).toEqual(['B', 'A', 'C'])
+    expect(await ws().moveLayout(a!, 9)).toBe(true)
+    expect(names()).toEqual(['B', 'C', 'A'])
+    expect(useUndoStore.getState().undoStack).toHaveLength(2)
+    expect(await ws().reorderLayouts([b!])).toBe(true)
+    expect(useUndoStore.getState().undoStack).toHaveLength(2)
+    expect(await ws().moveLayout(999, 0)).toBe(false)
+  })
+
+  it('a failed undo keeps the entry to try again', async () => {
+    const [, , c] = await seedLayouts('A', 'B', 'C')
+    await ws().moveLayout(c!, 0)
+    vi.spyOn(layoutRepository, 'reorder').mockRejectedValueOnce(new Error('disk full'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await useUndoStore.getState().undo()
+    expect(names()).toEqual(['C', 'A', 'B'])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Moved layout “C”'])
+    await useUndoStore.getState().undo()
+    expect(names()).toEqual(['A', 'B', 'C'])
   })
 
   it('Save as puts the new layout last', async () => {

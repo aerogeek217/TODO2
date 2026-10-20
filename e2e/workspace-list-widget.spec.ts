@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
@@ -190,25 +190,22 @@ test('switching layouts with an unsaved list asks first; Discard drops the edit'
   await pickChoice(page, 'Sort by', 'Name')
   await page.keyboard.press('Escape')
 
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name: 'Second' }).click()
+  await switchLayout(page, 'Second')
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
   await expect(dialog).toContainText('Your changes will be lost if you don’t save.')
   await dialog.getByRole('button', { name: /Cancel/ }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Main')
+  await expectOpenLayout(page, 'Main')
 
   // Also make the layout unsaved: one combined prompt with a row each.
   await wsTab(page, 't2').getByRole('button', { name: 'Close Other' }).click()
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name: 'Second' }).click()
+  await switchLayout(page, 'Second')
   const combined = page.getByRole('dialog', { name: 'Save your changes?' })
   await expect(combined).toContainText('You’re switching to layout “Second”.')
   await expect(combined.getByRole('checkbox')).toHaveCount(2)
   await combined.getByRole('button', { name: 'Discard all' }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
+  await expectOpenLayout(page, 'Second')
 
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name: 'Main' }).click()
+  await switchLayout(page, 'Main')
   await expect(wsTab(page, 't2')).toBeVisible()
   await openEditList(page, 't1')
   await expect(page.getByTestId('edit-list').getByRole('button', { name: /^Sort by/ })).toHaveText('Manual')

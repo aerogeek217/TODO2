@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * The app shell in a real browser: one top bar (New task, layout picker,
+ * The app shell in a real browser: one top bar (New task, the layout tabs,
  * the screen-filter tray, the storage pill, the Settings gear), the Settings
  * modal, and the narrow-window Filters menu. The unsaved-layout case (Settings
- * never prompts) lives in `workspace-layout.spec.ts`; the storage pill's
+ * never prompts) lives in `workspace-layout.spec.ts`, the layout tabs and
+ * the measured fold in `layout-tabs.spec.ts`; the storage pill's
  * warning states in `storage-pill.spec.ts`.
  */
 
@@ -115,9 +116,9 @@ test('the red funnel, left of search, clears every screen filter at once; there 
   await expect(funnel).toBeDisabled()
 })
 
-test('at 1180px the filters fold into a Filters menu that sets and clears a filter', async ({ page }) => {
+test('with other layouts taking the room, the filters fold into a Filters menu that sets and clears a filter', async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 800 })
-  await seedWorkspace(page, team)
+  await seedWorkspace(page, withSpareLayouts(team))
   await expect(page.getByRole('button', { name: 'People filter' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Show completed' })).toHaveText('Completed')
   const box = await page.locator('header').boundingBox()
