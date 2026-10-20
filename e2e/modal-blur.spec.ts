@@ -56,3 +56,23 @@ test('Quick Add and the command palette blur with the same strength', async ({ p
   await expect(page.getByPlaceholder(/Search tasks, commands/)).toBeFocused()
   await expect.poll(() => backdropFilters(page)).toEqual([blur])
 })
+
+test('a dialog the command palette or Quick Add hands off to still blurs', async ({ page }) => {
+  await seedTaskList(page, { tasks: [{ title: 'Alpha' }] })
+  const blur = await blurToken(page)
+  await page.keyboard.press('Control+k')
+  const search = page.getByPlaceholder(/Search tasks, commands/)
+  await expect(search).toBeFocused()
+  await search.fill('Open Settings')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect.poll(() => backdropFilters(page)).toEqual([blur])
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-modal-backdrop]')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'New task' }).click()
+  await page.getByRole('dialog', { name: 'Quick add task' }).getByRole('textbox').first().fill('Beta')
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('dialog', { name: 'New task' })).toBeVisible()
+  await expect.poll(() => backdropFilters(page)).toEqual([blur])
+})

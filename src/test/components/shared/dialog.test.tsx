@@ -413,6 +413,16 @@ describe('DialogFrame backdrop blur', () => {
     expect(backdrops.map(blurred)).toEqual([true, false])
   })
 
+  it('a dialog that replaces another in one render blurs (the closing one is gone by then)', () => {
+    const { rerender } = render(
+      <DialogFrame key="a" onClose={() => {}} aria-label="First"><button>a</button></DialogFrame>,
+    )
+    rerender(<DialogFrame key="b" onClose={() => {}} aria-label="Second"><button>b</button></DialogFrame>)
+    const backdrops = [...document.querySelectorAll('[data-modal-backdrop]')]
+    expect(backdrops).toHaveLength(1)
+    expect(backdrops.map(blurred)).toEqual([true])
+  })
+
   it('the raised and nested tiers never blur', () => {
     render(
       <>
