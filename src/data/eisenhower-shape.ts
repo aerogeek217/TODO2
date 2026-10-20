@@ -129,8 +129,9 @@ const LIST_SOURCE_PREFIX = 'list:'
 const LIST_ID = /^[1-9]\d{0,15}$/
 
 /**
- * The stored `eisenhowerSource` text: a saved list's id, `null` for all tasks
- * (`all`), `undefined` when unreadable.
+ * The stored `eisenhowerSource` text: the id of the Eisenhower's own list
+ * (older data: of a saved list, which the app replaces with an own list),
+ * `null` for all tasks (`all`, older data), `undefined` when unreadable.
  */
 export function parseEisenhowerSource(value: string): number | null | undefined {
   if (value === 'all') return null
@@ -141,7 +142,7 @@ export function parseEisenhowerSource(value: string): number | null | undefined 
   return Number.isSafeInteger(n) ? n : undefined
 }
 
-/** The `eisenhowerSource` text for a saved list. */
+/** The `eisenhowerSource` text naming a list (the Eisenhower's own). */
 export function formatEisenhowerSource(listDefinitionId: number): string {
   return `${LIST_SOURCE_PREFIX}${listDefinitionId}`
 }

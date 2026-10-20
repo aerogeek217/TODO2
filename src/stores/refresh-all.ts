@@ -63,8 +63,8 @@ export async function refreshAllStores() {
     ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),
   ])
   // The replaced data may hold no Eisenhower list (or a setting naming
-  // another): made / named again. A failure leaves the Eisenhower on every
-  // task, as that list's empty filter would.
+  // another): made / named again. A failure leaves the Eisenhower on what
+  // the setting names now (every task when nothing).
   await useListDefinitionStore.getState().ensureEisenhowerList().catch((err: unknown) => {
     console.warn('[refresh] the Eisenhower list could not be made', err)
   })

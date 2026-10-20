@@ -41,7 +41,8 @@ export async function runAppStartup({ onPurgeCheck }: AppStartupOptions = {}): P
     usePersonStore.getState().ensureLoaded(),
     useStatusStore.getState().ensureLoaded(),
     useTagStore.getState().ensureLoaded(),
-    // A failure only leaves the Eisenhower on every task (what its new, empty list would hold).
+    // A failure leaves the Eisenhower on what the setting names now: every
+    // task when it names nothing (what a new, empty list would hold).
     useListDefinitionStore.getState().ensureEisenhowerList().catch((err: unknown) => {
       console.warn('[startup] the Eisenhower list could not be made', err)
     }),

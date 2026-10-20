@@ -88,8 +88,8 @@ interface SettingsState {
    * whose tasks every Eisenhower tab and the dashboard section consider —
    * the `eisenhowerSource` setting, kept naming it by
    * `useListDefinitionStore.ensureEisenhowerList` (app startup, a data
-   * replace). `null` only until then: the Eisenhower then reads all tasks,
-   * as the new, empty list would.
+   * replace). Until then it is what the stored setting names — `null`
+   * (none): the Eisenhower reads all tasks, as the new, empty list would.
    */
   eisenhowerListId: number | null
 
