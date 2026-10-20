@@ -295,7 +295,9 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const changeKind = (tab: LayoutTab, kind: WidgetKind, anchor: { x: number; y: number }) => {
     if (kind === tab.kind) return
     if (WIDGET_KIND_SPECS[kind].showsList) {
-      setChangeToList({ tabId: tab.id, anchor })
+      // An Eisenhower tab shows the Eisenhower's list: asked about first,
+      // as any change of the last widget showing an unsaved list.
+      guarded([tab.id], 'You’re changing the last widget that shows it.', () => setChangeToList({ tabId: tab.id, anchor }))
       return
     }
     guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
