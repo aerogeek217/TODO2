@@ -56,8 +56,8 @@ vi.mock('../../services/file-sync-compare', () => ({
 
 // Mock ALL_DATA_TABLES with a hook API whose handlers we can fire to
 // simulate local writes.
-type Handler = () => void
-function makeMockTable() {
+type Handler = (...args: unknown[]) => void
+function makeMockTable(name = 'todos') {
   const hooks: Record<string, { subscribe: ReturnType<typeof vi.fn>; unsubscribe: ReturnType<typeof vi.fn>; handlers: Set<Handler> }> = {}
   return {
     hook: (name: string) => {
@@ -71,15 +71,21 @@ function makeMockTable() {
       }
       return hooks[name]
     },
+    name,
     _hooks: hooks,
   }
 }
 
-const mockTables = Array.from({ length: 14 }, () => makeMockTable())
+const mockTables = [...Array.from({ length: 13 }, () => makeMockTable()), makeMockTable('settings')]
 
 /** Simulate one local DB write (fires every subscribed `creating` hook on table 0). */
 function fireLocalChange() {
   for (const h of mockTables[0]!.hook('creating').handlers) h()
+}
+
+/** Simulate a write of the settings row `key` (the settings table's `updating` hook). */
+function fireSettingWrite(key: string) {
+  for (const h of mockTables.at(-1)!.hook('updating').handlers) h({ value: 'x' }, key, { key, value: 'x' })
 }
 
 vi.mock('../../data/database', () => ({
@@ -731,6 +737,32 @@ describe('FileStorageService — change tracking', () => {
     await vi.advanceTimersByTimeAsync(600)
     expect(mockSelfCheckExportJson).toHaveBeenCalledTimes(2)
     expect(svc.status.error).toBeNull()
+  })
+
+  it('the purge prompt’s stamp (a sync-neutral setting) is saved with the next save but never marks the browser changed', async () => {
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    fireSettingWrite('purgePromptLastAt')
+    expect(syncState().dirtySince).toBeNull()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(syncState().dirtySince).toBeNull()
+    // Any other setting is a change.
+    fireSettingWrite('purgePromptIntervalDays')
+    expect(syncState().dirtySince).not.toBeNull()
+  })
+
+  it('the stamp written while permission is needed leaves the browser clean (no conflict at Grant access)', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+    })
+    await svc.initialize()
+    expect(svc.status.needsPermission).toBe(true)
+    fireSettingWrite('purgePromptLastAt')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(writable.write).not.toHaveBeenCalled()
+    expect(syncState().dirtySince).toBeNull()
   })
 
   it('a failed save keeps the browser dirty', async () => {

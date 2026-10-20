@@ -8,7 +8,7 @@ import { useFileStorageStore } from './file-storage-store'
 import { expiredCompletedUids } from './purge-completed'
 
 export interface AppStartupResult {
-  /** uids of the completed tasks past retention once the data is settled (the purge prompt's list), or null. */
+  /** uids of the completed tasks past retention once the data is settled (the purge prompt's list), or null (none, or not asked again yet). */
   expiredUids: ReadonlySet<string> | null
 }
 
@@ -28,7 +28,8 @@ export interface AppStartupOptions {
  * 3. persistent storage, then people / statuses / tags, and the
  *    Eisenhower's own list (made when the data has none);
  * 4. the completed tasks past retention (asked about, never purged
- *    silently — the caller shows the prompt);
+ *    silently — the caller shows the prompt; none while it showed within
+ *    its interval);
  * 5. automatic backups.
  *
  * Rejects when a step fails (the database can't be opened).

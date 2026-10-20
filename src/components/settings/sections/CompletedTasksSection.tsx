@@ -4,7 +4,15 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { doneMessage, exportAndPurgeCompleted, keptMessage } from '../../../services/purge-completed'
 import { NO_BACKUP_NOTE } from '../../../stores/safety-snapshot'
-import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../../../utils/completed-at'
+import {
+  PURGE_PROMPT_INTERVAL_MAX_DAYS,
+  isExpiredCompleted,
+  isPurgePromptIntervalDays,
+  nextPurgePromptDay,
+  retentionCutoff,
+  selectExpiredCompleted,
+} from '../../../utils/completed-at'
+import { formatDateShort } from '../../../utils/date'
 import { DialogFrame } from '../../shared/Dialog'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
@@ -61,6 +69,10 @@ export function CompletedTasksSection() {
     ).length
     return { expired, expiringThisWeek, total: completed.length }
   }, [todos, completedRetentionDays])
+
+  const purgePromptLastAt = useSettingsStore((s) => s.purgePromptLastAt)
+  const purgePromptIntervalDays = useSettingsStore((s) => s.purgePromptIntervalDays)
+  const nextAsk = nextPurgePromptDay(purgePromptLastAt, purgePromptIntervalDays)
 
   const completedCount = useMemo(() => todos.filter((t) => t.isCompleted).length, [todos])
   const matches = useMemo(() => selectExpiredCompleted(todos, cleanupDays), [todos, cleanupDays])
@@ -144,7 +156,9 @@ export function CompletedTasksSection() {
           <>
             {retentionStats.expired > 0 && (
               <span className={styles.warningText}>
-                {plural(retentionStats.expired, 'completed task')} past retention (you'll be asked on next launch)
+                {plural(retentionStats.expired, 'completed task')} past retention ({nextAsk
+                  ? `you'll be asked at a launch from ${formatDateShort(nextAsk)}`
+                  : 'you\'ll be asked on next launch'})
               </span>
             )}
             {retentionStats.expiringThisWeek > 0 && (
@@ -156,6 +170,7 @@ export function CompletedTasksSection() {
           </>
         )}
       </SettingRow>
+      {completedRetentionDays != null && <PurgePromptIntervalSetting />}
       <SettingRow label="Delete completed tasks" help="A backup is taken first. Export & delete also saves them to a file." column>
         <button
           type="button"
@@ -222,5 +237,62 @@ export function CompletedTasksSection() {
         </DialogFrame>
       )}
     </div>
+  )
+}
+
+/**
+ * How often the launch prompt may ask about old completed tasks: at most
+ * once every N days (1–365), counted from the day it last showed, whatever
+ * the answer. A whole number, committed on Enter / blur; anything else
+ * reverts. Each change is one undo step.
+ */
+function PurgePromptIntervalSetting() {
+  const days = useSettingsStore((s) => s.purgePromptIntervalDays)
+  const setDays = useSettingsStore((s) => s.setPurgePromptIntervalDays)
+  const stored = String(days)
+  const [draft, setDraft] = useState(stored)
+  const [syncedFrom, setSyncedFrom] = useState(stored)
+  if (stored !== syncedFrom) {
+    setSyncedFrom(stored)
+    setDraft(stored)
+  }
+  const parsed = /^\d+$/.test(draft.trim()) ? Number(draft.trim()) : Number.NaN
+  const valid = isPurgePromptIntervalDays(parsed)
+
+  const commit = () => {
+    if (!valid) {
+      setDraft(stored)
+      return
+    }
+    setDraft(String(parsed))
+    if (parsed !== days) void setDays(parsed)
+  }
+
+  return (
+    <SettingRow
+      label="Ask at most every"
+      help="Days between two of those launch prompts, counted from the last one — whatever you answered."
+    >
+      <input
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={PURGE_PROMPT_INTERVAL_MAX_DAYS}
+        step={1}
+        className={styles.input}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          if (e.key === 'Escape') setDraft(stored)
+        }}
+        aria-label="Ask at most every (days)"
+        aria-invalid={!valid}
+        style={{ width: 64, textAlign: 'right' }}
+        autoComplete="off"
+      />
+      <span className={styles.muted}>{parsed === 1 ? 'day' : 'days'}</span>
+    </SettingRow>
   )
 }

@@ -159,6 +159,25 @@ test('Continue, then Grant access from the pill: the file loads and its own expi
   await expect(pill).toHaveAttribute('data-state', 'syncing')
 })
 
+test('Continue, the purge prompt shows, then Grant access from the pill: the unchanged browser loads the file with no conflict', async ({ page }) => {
+  await setUp(page)
+  await page.reload()
+  await launchQuestion(page).getByRole('button', { name: /Continue without the file/ }).click()
+  await expect(purgePrompt(page)).toBeVisible()
+  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  // The prompt stamped when it showed; that alone is no change to sync.
+  await expect.poll(async () => (await readStore<{ key: string }>(page, 'settings')).some((r) => r.key === 'purgePromptLastAt')).toBe(true)
+  const syncState = JSON.parse(await page.evaluate(() => localStorage.getItem('todo2-file-sync-state')) ?? '{}') as { dirtySince?: string | null }
+  expect(syncState.dirtySince ?? null).toBeNull()
+
+  const pill = page.getByTestId('storage-pill')
+  await pill.click()
+  await page.getByRole('dialog', { name: 'Permission needed' }).getByRole('button', { name: 'Grant access' }).click()
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
+  await expect(page.getByRole('dialog', { name: 'Browser data and sync file differ' })).toHaveCount(0)
+})
+
 test('Grant access: waiting for the browser, then the load decision — its prompt shows over the start screen', async ({ page }) => {
   await setUp(page, { differ: true })
   await page.reload()
@@ -217,8 +236,10 @@ test('refused: the question says so and stays; Try again grants and loads', asyn
     .toBeNull()
   await readSyncFile(page, SYNC_FILE)
   await page.reload()
-  await expect(purgePrompt(page)).toBeVisible()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(launchQuestion(page)).toHaveCount(0)
+  // The purge prompt showed this launch: not asked again within its interval.
+  await expect(purgePrompt(page)).toHaveCount(0)
 })
 
 test('phone: the same question, the answers as two stacked full-width buttons', async ({ page }) => {

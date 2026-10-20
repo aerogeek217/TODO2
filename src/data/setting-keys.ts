@@ -85,5 +85,14 @@ export const SETTING_KEYS = {
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
 
+/**
+ * Settings the app writes for itself while nobody changed anything — the
+ * purge prompt's last showing. With file sync, writing one is no unsynced
+ * browser change (it reaches the file with the next save, if sync is on),
+ * and the browser and the file aren't compared on them: a prompt shown
+ * while sync waits never makes the two sides conflict.
+ */
+export const SYNC_NEUTRAL_SETTING_KEYS: ReadonlySet<string> = new Set<string>([SETTING_KEYS.purgePromptLastAt])
+
 /** Allowlist used by import validation; mirrors `Object.values(SETTING_KEYS)`. */
 export const ALL_SETTING_KEYS: readonly SettingKey[] = Object.values(SETTING_KEYS)

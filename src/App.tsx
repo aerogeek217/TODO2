@@ -34,10 +34,9 @@ import type { TooNewDBInfo, UnsupportedDBInfo } from './services/migration-check
 import { DatabaseTooNewDialog, MigrationDialog } from './components/overlays/MigrationDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
-import { PurgeCompletedDialog } from './components/overlays/PurgeCompletedDialog'
+import { StartupPurgePrompt } from './components/overlays/StartupPurgePrompt'
 import { LaunchPermissionDialog } from './components/overlays/LaunchPermissionDialog'
-import { expiredCompletedUids, listExpiredCompleted } from './services/purge-completed'
-import type { PersistedTodoItem } from './models'
+import { expiredCompletedUids } from './services/purge-completed'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
@@ -161,35 +160,6 @@ function AppQuickAddBar() {
   )
 }
 
-/**
- * Prompt for completed tasks past the retention setting, at launch and
- * again after a later sync-file load (Grant access, Attach / Open file).
- * Lists the tasks that were expired when it was checked (`launchUids` —
- * uids survive a sync-file restore, ids don't) and are still expired now.
- * Read from the database, not `useTodoStore.todos` (which may not be loaded
- * yet), and re-read whenever the store reloads. Waits while a sync-file
- * prompt is open. Closing it in any way ("Not now" included) skips those
- * tasks until the next launch.
- */
-function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<string>; onClose: () => void }) {
-  const todosVersion = useTodoStore((s) => s.todosVersion)
-  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
-  const fileSyncPrompt = useFileStorageStore(
-    (s) => s.pendingLegacyImport != null || s.pendingConflict != null || s.pendingFileUpgrade != null,
-  )
-  const [tasks, setTasks] = useState<PersistedTodoItem[]>([])
-  useEffect(() => {
-    if (fileSyncPrompt || retentionDays == null) return
-    let cancelled = false
-    listExpiredCompleted(retentionDays, launchUids)
-      .then((rows) => { if (!cancelled) setTasks(rows) })
-      .catch((err) => console.warn('[purge] could not read expired tasks', err))
-    return () => { cancelled = true }
-  }, [launchUids, retentionDays, fileSyncPrompt, todosVersion])
-  if (fileSyncPrompt || retentionDays == null || tasks.length === 0) return null
-  return <PurgeCompletedDialog tasks={tasks} retentionDays={retentionDays} onDone={onClose} onDismiss={onClose} />
-}
-
 /** Both sets of uids (the prompt lists every task either asks about). */
 function mergeUids(prev: ReadonlySet<string> | null, next: ReadonlySet<string>): ReadonlySet<string> {
   return prev ? new Set([...prev, ...next]) : next
@@ -274,8 +244,10 @@ function AppShell() {
   // A sync file loaded once launch's check began (Grant access, Attach /
   // Open file, a retry or a resolved conflict) replaced the data: ask about
   // its expired tasks too — those the prompt hasn't already asked about this
-  // launch. A load before that is covered by launch's own check. Runs after
-  // the stores reloaded (an earlier subscriber).
+  // launch — unless the loaded data says the prompt showed within its
+  // interval (`expiredCompletedUids`). A load before that is covered by
+  // launch's own check. Runs after the stores reloaded (an earlier
+  // subscriber), so the interval is the loaded data's.
   useEffect(() => {
     return fileStorageService.onAfterImport(async () => {
       if (!purgeCheckStartedRef.current) return

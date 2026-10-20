@@ -3,7 +3,7 @@ import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useSettingsStore } from '../stores/settings-store'
-import { selectExpiredCompleted } from '../utils/completed-at'
+import { nextPurgePromptDay, selectExpiredCompleted } from '../utils/completed-at'
 import { buildTaskArchive, selfCheckTaskArchiveJson, taskArchiveFileName } from './task-archive'
 import { saveTextFile } from './save-file'
 
@@ -21,15 +21,27 @@ export async function listExpiredCompleted(
 }
 
 /**
- * uids of the completed tasks past the retention setting now (null when
- * retention is off or none are) — what the purge prompt asks about. uids
- * survive a sync-file restore; ids don't.
+ * uids of the completed tasks the launch prompt would ask about at `now`:
+ * those past the retention setting — null when retention is off, none are,
+ * or the prompt showed less than its interval ago (Settings' "Ask at most
+ * every N days", `nextPurgePromptDay`; whatever was answered). uids survive
+ * a sync-file restore; ids don't.
  */
-export async function expiredCompletedUids(): Promise<ReadonlySet<string> | null> {
-  const { completedRetentionDays } = useSettingsStore.getState()
+export async function expiredCompletedUids(now: Date = new Date()): Promise<ReadonlySet<string> | null> {
+  const { completedRetentionDays, purgePromptLastAt, purgePromptIntervalDays } = useSettingsStore.getState()
   if (completedRetentionDays == null) return null
+  if (nextPurgePromptDay(purgePromptLastAt, purgePromptIntervalDays, now) != null) return null
   const expired = await listExpiredCompleted(completedRetentionDays)
   return expired.length > 0 ? new Set(expired.map((t) => t.uid)) : null
+}
+
+/**
+ * Records that the launch prompt showed at `now`: the next one waits the
+ * interval from that day, whatever the answer. An internal stamp — no undo
+ * step, no notice.
+ */
+export function recordPurgePromptShown(now: Date = new Date()): Promise<void> {
+  return useSettingsStore.getState().setPurgePromptLastAt(now)
 }
 
 /**

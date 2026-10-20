@@ -188,8 +188,15 @@ function canonical(value: unknown): string {
 }
 
 /** Every data store's rows, canonical and sorted (row order never matters). */
+/**
+ * Each table's rows, canonical and sorted — without the purge prompt's
+ * last-showing stamp, which the prompt writes whenever it shows and the
+ * browser and the file aren't compared on (it reaches the file with the
+ * next save).
+ */
 function tableRows(tables: Tables, names: string[]): Record<string, string[]> {
-  return Object.fromEntries(names.map((n) => [n, (tables[n] ?? []).map(canonical).sort()]))
+  const rows = (n: string) => (tables[n] ?? []).filter((r) => n !== 'settings' || r.key !== 'purgePromptLastAt')
+  return Object.fromEntries(names.map((n) => [n, rows(n).map(canonical).sort()]))
 }
 
 test('the first load over a v49 install upgrades the browser, asks before upgrading the in-sync file, then both sides match and sync resumes', async ({ page }) => {
@@ -239,7 +246,8 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   expect(tableRows(afterCancel.stores, dataTables)).toEqual(tableRows(upgradedAtOpen.stores, dataTables))
   expect((afterCancel.stores.backups ?? []).filter((b) => b.data === fileText)).toHaveLength(0)
   // Startup goes on while sync is paused: the fixture's retention setting
-  // brings up the launch purge prompt. Not now = this launch only.
+  // brings up the launch purge prompt. Not now deletes nothing; its stamp
+  // (written as it shows) leaves the browser unchanged for the sync file.
   const purge = page.getByRole('dialog', { name: /old completed task/ })
   await purge.getByRole('button', { name: 'Not now' }).click()
   await expect(purge).toBeHidden()

@@ -16,6 +16,7 @@ import {
 import { browserMatchesFile, browserTaskCount } from './file-sync-compare'
 import { toDateInputValue } from '../utils/date'
 import { registerModuleReset } from '../utils/module-reset'
+import { SYNC_NEUTRAL_SETTING_KEYS } from '../data/setting-keys'
 
 /**
  * Why sync is paused. While paused the file is never written, no restore has
@@ -959,9 +960,17 @@ class FileStorageService {
     }, DEBOUNCE_MS)
   }
 
-  /** Every tracked DB write: record it as unsynced, then save if syncing. */
-  private onLocalChange() {
+  /**
+   * Every tracked DB write: record it as unsynced, then save if syncing. A
+   * sync-neutral setting (`SYNC_NEUTRAL_SETTING_KEYS`) is only saved with the
+   * rest, never recorded as a change.
+   */
+  private onLocalChange(neutral = false) {
     if (this.suppressSync) return
+    if (neutral) {
+      this.scheduleSave()
+      return
+    }
     this.changeGen++
     const state = readFileSyncState()
     if (state.dirtySince === null) {
@@ -973,9 +982,11 @@ class FileStorageService {
   private installTracking() {
     if (this.hookCleanups.length > 0) return
     for (const table of ALL_DATA_TABLES) {
-      const onCreating = () => this.onLocalChange()
-      const onUpdating = () => this.onLocalChange()
-      const onDeleting = () => this.onLocalChange()
+      const neutral = (key: unknown) => table.name === 'settings' && typeof key === 'string' && SYNC_NEUTRAL_SETTING_KEYS.has(key)
+      const onCreating = (key: unknown, row: unknown) =>
+        this.onLocalChange(neutral(key ?? (row as { key?: unknown } | undefined)?.key))
+      const onUpdating = (_mods: unknown, key: unknown) => this.onLocalChange(neutral(key))
+      const onDeleting = (key: unknown) => this.onLocalChange(neutral(key))
 
       table.hook('creating').subscribe(onCreating)
       table.hook('updating').subscribe(onUpdating)

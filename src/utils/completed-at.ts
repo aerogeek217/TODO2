@@ -1,4 +1,5 @@
 import type { TodoItem } from '../models'
+import { addDays, startOfDay } from './date'
 
 type CompletionFields = Pick<TodoItem, 'isCompleted' | 'completedAt'>
 
@@ -75,4 +76,19 @@ export function parsePurgePromptIntervalDays(value: string): number | undefined 
   if (!/^[1-9]\d{0,2}$/.test(value)) return undefined
   const n = Number(value)
   return isPurgePromptIntervalDays(n) ? n : undefined
+}
+
+/**
+ * The day the launch prompt about old completed tasks may ask again: the
+ * calendar day it last showed (`lastShownAt`) plus `intervalDays`; `null`
+ * when it may ask now — it never showed, the interval has passed, or the
+ * stamp is after today (a clock set back, another device's: not trusted).
+ */
+export function nextPurgePromptDay(lastShownAt: Date | null, intervalDays: number, now: Date = new Date()): Date | null {
+  if (lastShownAt == null || Number.isNaN(lastShownAt.getTime())) return null
+  const shown = startOfDay(lastShownAt)
+  const today = startOfDay(now)
+  if (shown.getTime() > today.getTime()) return null
+  const next = addDays(shown, intervalDays)
+  return today.getTime() >= next.getTime() ? null : next
 }
