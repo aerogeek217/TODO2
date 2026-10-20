@@ -176,16 +176,19 @@ function LayoutTabView({ layout, active, dirty, focusable, onActivate, onOpenMen
         onOpenMenu({ x: e.clientX, y: e.clientY })
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!active) onActivate() }
-        else if (e.key === 'ArrowRight') { e.preventDefault(); onFocusSibling(1) }
-        else if (e.key === 'ArrowLeft') { e.preventDefault(); onFocusSibling(-1) }
-        else if (e.key === 'Home') { e.preventDefault(); onFocusSibling('first') }
-        else if (e.key === 'End') { e.preventDefault(); onFocusSibling('last') }
+        if (e.key === 'Enter' || e.key === ' ') { if (!active) onActivate() }
+        else if (e.key === 'ArrowRight') onFocusSibling(1)
+        else if (e.key === 'ArrowLeft') onFocusSibling(-1)
+        else if (e.key === 'Home') onFocusSibling('first')
+        else if (e.key === 'End') onFocusSibling('last')
         else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
-          e.preventDefault()
           const r = e.currentTarget.getBoundingClientRect()
           onOpenMenu({ x: r.left, y: r.bottom + 4 })
-        }
+        } else return
+        // A key the tab handles is the tab's: the app shortcuts (Enter opens
+        // the selected task, Space completes it, …) never see it.
+        e.preventDefault()
+        e.stopPropagation()
       }}
     >
       <span className={styles.tabIcon}><LayoutIcon size={12} /></span>

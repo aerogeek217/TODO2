@@ -56,6 +56,22 @@ describe('LayoutControls — tabs', () => {
     expect(tab('Second')).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('the keys a tab handles (Enter, Space, arrows, Home, End) don’t reach the app shortcuts', async () => {
+    await seed('Main', 'Second')
+    render(<LayoutControls mode="tabs" />)
+    const reached: string[] = []
+    const listener = (e: KeyboardEvent) => reached.push(e.key)
+    window.addEventListener('keydown', listener)
+    try {
+      for (const key of ['Enter', ' ', 'ArrowRight', 'ArrowLeft', 'Home', 'End']) fireEvent.keyDown(tab('Main'), { key })
+      // Others still do (e.g. a shortcut's letter).
+      fireEvent.keyDown(tab('Main'), { key: 'g' })
+    } finally {
+      window.removeEventListener('keydown', listener)
+    }
+    expect(reached).toEqual(['g'])
+  })
+
   it('the open tab shows the unsaved dot while the layout is unsaved', async () => {
     await seed('Main')
     render(<LayoutControls mode="tabs" />)
