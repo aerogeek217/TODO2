@@ -327,6 +327,18 @@ async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promi
   }
 }
 
+/** Makes the lists of `named` that layout `layoutId` owns and none of `bodies` shows saved lists. */
+async function releaseUnshown(layoutId: number, named: ReadonlySet<number>, ...bodies: LayoutBody[]): Promise<void> {
+  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
+  const ids = new Set([...named].filter((id) => !shown.has(id)))
+  try {
+    const released = await trackWrite(() => layoutRepository.releaseOwnedLists(layoutId, ids))
+    if (released.length > 0) await useListDefinitionStore.getState().load()
+  } catch (err) {
+    console.warn("[workspace] keeping the repaired layout's lists failed", err)
+  }
+}
+
 /**
  * The layout-only lists of layout `layoutId` that `body` shows, as copies
  * for a new layout: each list as edited (its unsaved draft, else as saved;
@@ -578,6 +590,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!working) return false
       if (!stored) return (await get().saveAs(working.name)) !== null
       const next: Layout = { ...working, modifiedAt: new Date() }
+      // A layout the repair changed: the lists its stored row named before
+      // (a part the repair drops may have shown one of its own lists).
+      const named = get().repairedIds.has(next.id)
+        ? await layoutRepository.storedListRefs(next.id).catch(() => new Set<number>())
+        : null
       // Saved only once the write has landed: a failed write leaves the
       // layout unsaved (and says so) rather than lost on the next reload.
       try {
@@ -599,6 +616,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         layouts: replaceLayout(get().layouts, next),
       })
       keepDraft()
+      // Its own lists only the repaired-away parts showed become saved lists
+      // (never lost with a part this build couldn't read).
+      if (named) await releaseUnshown(next.id, named, next, kept)
       // Its layout-only lists that no saved tab shows any more go — unless
       // an edit made meanwhile shows one again.
       await pruneOwnedLists(next.id, next, kept)

@@ -224,6 +224,29 @@ describe('a list something else names', () => {
     expect(rows.find((d) => d.id === w.mine2)?.owner).toBeUndefined()
   })
 
+  /** Layout A stored with a tab this build can't read (a number id) that shows Mine 2: it opens repaired, without it. */
+  async function repairedWorld(): Promise<World> {
+    const w = await world()
+    const row = await stored(w.a)
+    const cell = row.columns[0]!.cells[0]!
+    await db.layouts.put({ ...row, columns: [{ ...row.columns[0]!, cells: [{ ...cell, tabs: [...cell.tabs.filter((t) => t.id !== 'm2'), { ...lens('x', w.mine2), id: 7 as unknown as string }] }] }] })
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await ws().init()
+    expect(ws().repairedIds.has(w.a)).toBe(true)
+    return w
+  }
+
+  it('Save of a layout the repair changed makes the lists only the dropped parts showed saved lists', async () => {
+    const w = await repairedWorld()
+    expect(await ws().save()).toBe(true)
+    const row = await db.listDefinitions.get(w.mine2)
+    expect(row).toBeDefined()
+    expect(row?.owner).toBeUndefined()
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === w.mine2)?.owner).toBeUndefined()
+    // The lists the saved layout shows stay its own.
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.a })
+  })
+
   it('Save as from a layout the repair changed keeps the lists its stored row still names', async () => {
     const w = await world()
     // A tab this build can't read (a number id) that shows Mine 2: the layout opens repaired, without it.
