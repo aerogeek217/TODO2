@@ -84,19 +84,18 @@ test.describe('desktop', () => {
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
     await expect(editList.getByTestId('list-filter-chip')).toHaveText(/People\s*not Ann/)
     await expect(editList.locator('[data-changed]')).toHaveText(['Filters'])
-    // Esc closes the picker and Edit list (the draft is kept).
+    // Esc closes the picker, then Edit list asks about the unsaved list: Save list.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
+    await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Save list' }).click()
     await expect(editList).toHaveCount(0)
+    await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 
     // The list's filter line: the chip, whose tooltip spells it out.
     const chip = wsListWidget(page, 't1').getByTestId('list-filter-chip')
     await expect(chip).toHaveText(/People\s*not Ann/)
     await chip.hover()
     await expect(page.getByRole('tooltip')).toHaveText(/People: not Ann\s*Hides tasks assigned to them/)
-    const save = wsListWidget(page, 't1').getByTestId('save-list')
-    await save.click()
-    await expect(save).toHaveCount(0)
     const people = await readStore<{ id: number; name: string }>(page, 'people')
     const ann = people.find((p) => p.name === 'Ann')!.id
     await expect.poll(async () => ((await readListDefinitions(page))[0]?.membership as { predicate: unknown }).predicate)

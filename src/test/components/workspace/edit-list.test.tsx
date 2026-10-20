@@ -129,10 +129,8 @@ describe('Edit list', () => {
     expect(within(dialog).getByRole('button', { name: 'Revert' })).toBeEnabled()
   })
 
-  it('Esc closes it and keeps the draft; an Esc that closes a menu inside only closes the menu', () => {
+  it('Esc closes a saved list at once; an Esc that closes a menu inside only closes the menu', () => {
     const dialog = open()
-    fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
@@ -141,21 +139,98 @@ describe('Edit list', () => {
     fireEvent.keyDown(within(dialog).getByLabelText('Name'), { key: 'Escape' })
     expect(useUIStore.getState().listEditor).toBeNull()
     expect(screen.queryByRole('dialog', { name: /Edit list/ })).toBeNull()
+  })
+
+  it('Esc on an unsaved list asks first: Cancel keeps it open with the edits', () => {
+    const dialog = open()
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
+    fireEvent.keyDown(within(dialog).getByLabelText('Name'), { key: 'Escape' })
+    const prompt = screen.getByRole('dialog', { name: 'Save changes to list “Waiting on”?' })
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    fireEvent.click(within(prompt).getByRole('button', { name: /^Cancel/ }))
+    expect(screen.queryByRole('dialog', { name: /^Save changes/ })).toBeNull()
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    expect(useUIStore.getState().listEditorCloseRequest).toBeNull()
     expect(draft()).toMatchObject({ grouping: 'status' })
   })
 
-  it('× closes it and keeps the draft', () => {
+  it('× on an unsaved list asks first: Discard reverts the edits (undoable) and closes it', () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Close (changes stay unsaved)' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+    const prompt = screen.getByRole('dialog', { name: /^Save changes to list/ })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Discard' }))
     expect(useUIStore.getState().listEditor).toBeNull()
-    expect(draft()!.name).toBe('Waiting')
+    expect(draft()).toBeUndefined()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
   })
 
-  it('a press in the previewed list keeps it open', () => {
+  it('the prompt’s Save list writes the edits and closes it', async () => {
+    const dialog = open()
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+    const prompt = screen.getByRole('dialog', { name: /^Save changes to list/ })
+    await act(async () => { fireEvent.click(within(prompt).getByRole('button', { name: 'Save list' })) })
+    expect(useUIStore.getState().listEditor).toBeNull()
+    expect(draft()).toBeUndefined()
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
+  })
+
+  it('× on a saved list closes it at once', () => {
+    const dialog = open()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+    expect(useUIStore.getState().listEditor).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('a press in the previewed list closes a saved list, and the press reaches the list', () => {
     open()
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'A row' }))
+    const row = screen.getByRole('button', { name: 'A row' })
+    expect(fireEvent.pointerDown(row)).toBe(true)
+    expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
+  it('a press elsewhere on an unsaved list asks first and reaches nothing underneath', () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    const row = screen.getByRole('button', { name: 'A row' })
+    let clicked = 0
+    row.addEventListener('click', () => { clicked++ })
+    // The press is swallowed: its pointerdown, mousedown and click.
+    expect(fireEvent.pointerDown(row)).toBe(false)
+    expect(fireEvent.mouseDown(row)).toBe(false)
+    fireEvent.click(row)
+    expect(clicked).toBe(0)
+    const prompt = screen.getByRole('dialog', { name: /^Save changes to list/ })
     expect(useUIStore.getState().listEditor).not.toBeNull()
+    // The next press is the user's again.
+    fireEvent.pointerDown(within(prompt).getByRole('button', { name: /^Cancel/ }))
+    fireEvent.click(within(prompt).getByRole('button', { name: /^Cancel/ }))
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    fireEvent.pointerDown(within(dialog).getByLabelText('Name'))
+    fireEvent.click(row)
+    expect(clicked).toBe(1)
+  })
+
+  it('a press on its own list’s Revert · Save or summary toggle is not a press elsewhere', () => {
+    render(<><Cell /><button type="button" data-edit-list-keep="7">Save</button><button type="button" data-edit-list-keep="8">Other list</button><EditListHost /></>)
+    act(() => useUIStore.getState().openListEditor(7, 't1'))
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Save' }))
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Other list' }))
+    expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
+  it('opening Settings asks first while the list is unsaved, and opens it after Discard', () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    act(() => useUIStore.getState().openSettings())
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    fireEvent.click(within(screen.getByRole('dialog', { name: /^Save changes to list/ })).getByRole('button', { name: 'Discard' }))
+    expect(useUIStore.getState().listEditor).toBeNull()
+    expect(useUIStore.getState().settingsOpen).toBe(true)
   })
 
   it('closes when its list is deleted', () => {

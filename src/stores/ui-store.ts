@@ -145,6 +145,13 @@ interface UIState {
    */
   listEditor: { listDefinitionId: number; tabId: string } | null
   /**
+   * A close of Edit list waiting on its host (`EditListHost`): it closes at
+   * once when the list is saved, else after the Save / Discard / Cancel
+   * prompt. `then` runs once it has closed (what the close was for, e.g.
+   * Settings opening); Cancel drops it.
+   */
+  listEditorCloseRequest: { then: (() => void) | null } | null
+  /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
    * prop-drilling. `openCreatePopup` remains the entry point for the
@@ -234,7 +241,18 @@ interface UIState {
   openListsEditor: (initialId?: number | null) => void
   closeListsEditor: () => void
   openListEditor: (listDefinitionId: number, tabId: string) => void
+  /** Closes Edit list at once, whatever its list's state (the draft is kept). */
   closeListEditor: () => void
+  /**
+   * The one way the user closes Edit list (a press elsewhere, Esc, ×,
+   * Settings opening): asks first while its list is unsaved (`EditListHost`).
+   * `then` runs once it has closed — at once when none is open.
+   */
+  requestCloseListEditor: (then?: () => void) => void
+  /** The host's answer to a close request: closes Edit list, then runs the request's `then`. */
+  finishListEditorClose: () => void
+  /** The prompt's Cancel: Edit list stays open. */
+  cancelListEditorClose: () => void
   openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
@@ -277,6 +295,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   listsEditorOpen: false,
   listsEditorInitialId: null,
   listEditor: null,
+  listEditorCloseRequest: null,
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
@@ -409,8 +428,27 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   closeListEditor() {
-    if (get().listEditor === null) return
-    set({ listEditor: null })
+    if (get().listEditor === null && get().listEditorCloseRequest === null) return
+    set({ listEditor: null, listEditorCloseRequest: null })
+  },
+
+  requestCloseListEditor(then) {
+    if (get().listEditor === null) {
+      then?.()
+      return
+    }
+    set({ listEditorCloseRequest: { then: then ?? null } })
+  },
+
+  finishListEditorClose() {
+    const then = get().listEditorCloseRequest?.then
+    set({ listEditor: null, listEditorCloseRequest: null })
+    then?.()
+  },
+
+  cancelListEditorClose() {
+    if (get().listEditorCloseRequest === null) return
+    set({ listEditorCloseRequest: null })
   },
 
   openQuickAdd(seed) {
@@ -445,14 +483,19 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSettings(target, focus) {
-    // Edit list belongs to the workspace under the modal.
+    // Edit list belongs to the workspace under the modal: it closes first
+    // (asking while its list is unsaved).
+    if (get().listEditor !== null) {
+      get().requestCloseListEditor(() => get().openSettings(target, focus))
+      return
+    }
     if (!target) {
-      set({ settingsOpen: true, listEditor: null })
+      set({ settingsOpen: true })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
     // A control is focused only on the way to a part (the modal clears both once there).
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null, listEditor: null })
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
   },
 
   closeSettings() {

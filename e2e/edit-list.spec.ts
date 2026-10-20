@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsListWidget, wsTab, readListDefinitions, dragRow, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsListWidget, wsTab, readListDefinitions, editListDraft, type WorkspaceSeed } from './fixtures/workspace'
 import { box, type Box } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -138,33 +139,138 @@ test('edits show live in every widget showing the list; the popover stays open; 
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team A')).toMatchObject({ grouping: 'people', sort: 'name' })
 })
 
-test('with it open, the previewed list stays usable: rows select and drag; a click elsewhere closes it, the draft kept', async ({ page }) => {
+/** The unsaved-list question Edit list asks before it closes. */
+const unsavedPrompt = (page: Page) => page.getByRole('dialog', { name: /^Save changes to list/ })
+
+test('a saved list: a press in its own panel closes Edit list, and the press goes through', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   const popover = await openFromTabMenu(page, 't1')
-  await pick(page, 'Group by', 'No grouping')
-  await pick(page, 'Group by', 'People')
-  await pick(page, 'Group by', 'No grouping')
-  await pick(page, 'Sort by', 'Name')
-
   const widget = wsListWidget(page, 't1')
-  await expect.poll(() => rowTitles(widget)).toEqual(['Alpha', 'Bravo', 'Charlie'])
   const row = widget.locator('[data-row-key]', { hasText: 'Charlie' })
   await row.locator('[data-task-title]').click()
-  await expect(row).toHaveAttribute('data-selected', 'true')
-  await expect(popover).toBeVisible()
-
-  // A row drag in the sorted list: the Switch to manual order question, popover still open.
-  const first = await box(widget.locator('[data-todo-id]').first())
-  await dragRow(page, row, first.y + 2)
-  await expect(page.getByRole('dialog', { name: /manual order/i })).toBeVisible()
-  await expect(popover).toBeVisible()
-  await page.keyboard.press('Escape')
-
-  // A click in another panel closes it; the edit stays unsaved.
-  await wsListWidget(page, 't0').click({ position: { x: 40, y: 200 } })
   await expect(popover).toHaveCount(0)
+  await expect(unsavedPrompt(page)).toHaveCount(0)
+  await expect(row).toHaveAttribute('data-selected', 'true')
+
+  // In another panel too: its checkbox completes the task (which then leaves the list).
+  await openFromTabMenu(page, 't1')
+  await wsListWidget(page, 't0').locator('[data-row-key]', { hasText: 'Alpha' }).getByRole('checkbox', { name: 'Mark complete' }).click()
+  await expect(popover).toHaveCount(0)
+  await expect.poll(async () => (await readStore<{ title: string; isCompleted: boolean }>(page, 'todos')).find((t) => t.title === 'Alpha')?.isCompleted).toBe(true)
+})
+
+test('an unsaved list: a press elsewhere asks first and reaches nothing; Cancel keeps Edit list open with the edits', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  const popover = await openFromTabMenu(page, 't1')
+  await pick(page, 'Sort by', 'Name')
+  const widget = wsListWidget(page, 't1')
+  await expect.poll(() => rowTitles(widget)).toEqual(['Alpha', 'Bravo', 'Charlie'])
+
+  // A press on a row's checkbox in its own panel: the question, the box not ticked.
+  const box1 = widget.locator('[data-row-key]', { hasText: 'Charlie' }).getByRole('checkbox', { name: 'Mark complete' })
+  await box1.click()
+  await expect(unsavedPrompt(page)).toBeVisible()
+  await expect(unsavedPrompt(page).getByRole('button', { name: 'Save list' })).toBeFocused()
+  await expect(box1).not.toBeChecked()
+  await expect(popover).toBeVisible()
+
+  await unsavedPrompt(page).getByRole('button', { name: /^Cancel/ }).click()
+  await expect(unsavedPrompt(page)).toHaveCount(0)
+  await expect(popover).toBeVisible()
+  await expect(box1).not.toBeChecked()
+  await expect(popover.getByRole('button', { name: /^Sort by/ })).toHaveText(/Name/)
   await expect(widget.getByTestId('save-list')).toBeVisible()
+
+  // A press in another panel asks the same; Esc on the question is Cancel.
+  const other = wsListWidget(page, 't0').locator('[data-row-key]', { hasText: 'Alpha' })
+  await other.locator('[data-task-title]').click()
+  await expect(unsavedPrompt(page)).toBeVisible()
+  await expect(other).not.toHaveAttribute('data-selected', 'true')
+  await page.keyboard.press('Escape')
+  await expect(unsavedPrompt(page)).toHaveCount(0)
+  await expect(popover).toBeVisible()
+
+  // The next press is the user's again (inside Edit list: no question).
+  await popover.getByRole('textbox', { name: 'Name' }).click()
+  await expect(unsavedPrompt(page)).toHaveCount(0)
+  await expect(popover.getByRole('textbox', { name: 'Name' })).toBeFocused()
+})
+
+test('an unsaved list: the question’s Discard reverts the edits (Undo brings them back) and closes Edit list', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  const popover = await openFromTabMenu(page, 't1')
+  await pick(page, 'Group by', 'People')
+  await wsListWidget(page, 't0').locator('[data-row-key]', { hasText: 'Alpha' }).locator('[data-task-title]').click()
+  await unsavedPrompt(page).getByRole('button', { name: 'Discard' }).click()
+  await expect(unsavedPrompt(page)).toHaveCount(0)
+  await expect(popover).toHaveCount(0)
+  // The press that asked stays swallowed: the row isn't selected.
+  await expect(wsListWidget(page, 't0').locator('[data-row-key]', { hasText: 'Alpha' })).not.toHaveAttribute('data-selected', 'true')
+  for (const tabId of ['t1', 't2']) await expect(wsListWidget(page, tabId).getByTestId('save-list')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(wsListWidget(page, 't1').getByTestId('save-list')).toBeVisible()
+  await expect(wsListWidget(page, 't1').getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
+})
+
+test('an unsaved list: the question’s Save list writes the edits and closes Edit list', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  const popover = await openFromTabMenu(page, 't1')
+  await pick(page, 'Sort by', 'Name')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(unsavedPrompt(page)).toBeVisible()
+  // The press that asked doesn't open Settings.
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+  await unsavedPrompt(page).getByRole('button', { name: 'Save list' }).click()
+  await expect(popover).toHaveCount(0)
+  await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
+  await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')).toMatchObject({ sort: 'name' })
+})
+
+test('Esc and × ask the same while the list is unsaved (also for edits made before it opened); a saved list just closes', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  // An edit from outside Edit list: unsaved when it opens.
+  await editListDraft(page, 'Team', { sort: 'name' })
+  const popover = await openFromTabMenu(page, 't1')
+  await page.keyboard.press('Escape')
+  await expect(unsavedPrompt(page)).toBeVisible()
+  await unsavedPrompt(page).getByRole('button', { name: /^Cancel/ }).click()
+  await expect(popover).toBeVisible()
+
+  await popover.getByRole('button', { name: 'Close Edit list' }).click()
+  await expect(unsavedPrompt(page)).toBeVisible()
+  await unsavedPrompt(page).getByRole('button', { name: 'Discard' }).click()
+  await expect(popover).toHaveCount(0)
+
+  // Saved now: Esc and × close at once.
+  await openFromTabMenu(page, 't1')
+  await page.keyboard.press('Escape')
+  await expect(popover).toHaveCount(0)
+  await openFromTabMenu(page, 't1')
+  await popover.getByRole('button', { name: 'Close Edit list' }).click()
+  await expect(popover).toHaveCount(0)
+  await expect(unsavedPrompt(page)).toHaveCount(0)
+})
+
+test('the summary toggles Edit list: a second press asks first while the list is unsaved', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  const summary = wsListWidget(page, 't1').getByTestId('list-summary')
+  await summary.click()
+  const popover = editList(page)
+  await expect(popover).toBeVisible()
+  await summary.click()
+  await expect(popover).toHaveCount(0)
+  await summary.click()
+  await pick(page, 'Sort by', 'Name')
+  await summary.click()
+  await expect(unsavedPrompt(page)).toBeVisible()
+  await unsavedPrompt(page).getByRole('button', { name: 'Save list' }).click()
+  await expect(popover).toHaveCount(0)
 })
 
 test('Revert drops the edit and closes it, with Undo', async ({ page }) => {
@@ -180,19 +286,25 @@ test('Revert drops the edit and closes it, with Undo', async ({ page }) => {
   await expect(wsListWidget(page, 't1').getByTestId('save-list')).toBeVisible()
 })
 
-test('Esc closes it (after a menu inside), keeps the draft and returns focus to the summary', async ({ page }) => {
+test('Esc closes it (after a menu inside) and returns focus to the summary; after the question, too', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, { ...shared, listDefinitions: [{ name: 'Team', predicate: { searchText: 'a' } }, { name: 'Other' }] })
   const summary = wsListWidget(page, 't1').getByTestId('list-summary')
   await summary.click()
   const popover = editList(page)
-  await pick(page, 'Sort by', 'Name')
   await popover.getByRole('button', { name: /^Group by/ }).click()
   await expect(page.getByRole('menu', { name: 'Group by' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu', { name: 'Group by' })).toHaveCount(0)
   await expect(popover).toBeVisible()
   await page.keyboard.press('Escape')
+  await expect(popover).toHaveCount(0)
+  await expect(summary).toBeFocused()
+
+  await summary.click()
+  await pick(page, 'Sort by', 'Name')
+  await page.keyboard.press('Escape')
+  await unsavedPrompt(page).getByRole('button', { name: 'Save list' }).click()
   await expect(popover).toHaveCount(0)
   await expect(summary).toBeFocused()
   await expect(summary).toHaveText('Name')
@@ -214,9 +326,7 @@ test('the filter line always shows (No filters + the summary); Revert · Save jo
   const lineBox = await box(saved)
   expect((await box(widget.locator('[data-todo-id]').first())).y).toBeGreaterThanOrEqual(lineBox.y + lineBox.height - 1)
 
-  await openFromTabMenu(page, 't1')
-  await pick(page, 'Sort by', 'Priority')
-  await page.keyboard.press('Escape')
+  await editListDraft(page, 'Team', { sort: 'priority' })
   const line = widget.getByTestId('list-filter-row')
   await expect(line).toContainText('No filters')
   await expect(line.getByTestId('list-summary')).toHaveText('Priority')
@@ -265,9 +375,7 @@ test('a narrow widget: Revert · Save become icon buttons, never hidden', async 
   })
   const narrow = wsListWidget(page, 'tn')
   expect((await box(narrow)).width).toBeLessThan(360)
-  await openFromTabMenu(page, 'tn')
-  await pick(page, 'Sort by', 'Name')
-  await page.keyboard.press('Escape')
+  await editListDraft(page, 'Team', { sort: 'name' })
   const line = narrow.getByTestId('list-filter-row')
   for (const id of ['revert-list', 'save-list']) {
     const b = await box(line.getByTestId(id))

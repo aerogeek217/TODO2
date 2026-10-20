@@ -80,9 +80,10 @@ test.describe('desktop', () => {
     await page.keyboard.press('Enter')
     await expect(summary(page, 't1')).toHaveText('Due date ↓')
 
+    // Esc: Edit list asks about the unsaved list — Save list.
     await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Save list' }).click()
     await expect(editList(page)).toHaveCount(0)
-    await wsListWidget(page, 't1').getByTestId('save-list').click()
     await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
     // The save button goes as the write starts: wait for the stored row.
     await expect.poll(async () => (await readListDefinitions(page))[0]).toMatchObject({ sort: 'deadline', sortDirection: 'desc' })
@@ -110,9 +111,10 @@ test.describe('desktop', () => {
     await toggle(page).click()
     await expect(summary(page, 't1')).toHaveText('Due date')
     await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(ASCENDING)
+    // Esc: Edit list asks about the unsaved list — Discard reverts it.
     await page.keyboard.press('Escape')
-
-    await wsListWidget(page, 't1').getByTestId('revert-list').click()
+    await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Discard' }).click()
+    await expect(editList(page)).toHaveCount(0)
     for (const tabId of ['t1', 't2']) {
       await expect(summary(page, tabId)).toHaveText('Due date ↓')
       await expect.poll(() => rowTitles(wsListWidget(page, tabId))).toEqual(DESCENDING)

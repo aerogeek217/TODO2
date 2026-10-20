@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
+import { EditListHost } from '../../../components/workspace/list/EditList'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { emptyPredicate } from '../../../models'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -142,6 +143,8 @@ describe('ListWidget', () => {
 
   it('the group · sort summary opens Edit list, and closes it when it is open', () => {
     setup(def({ grouping: 'status', sort: 'priority' }, { searchText: 'task' }))
+    // Edit list's host answers the close (the list is saved: at once).
+    render(<EditListHost />)
     const summary = screen.getByTestId('list-summary')
     expect(summary).toHaveTextContent('Status · Priority')
     fireEvent.click(summary)

@@ -59,17 +59,23 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 /**
  * Opens Edit list for a list tab: the tab is made its panel's active one and
  * the panel expanded (so the list it previews is on screen), then the
- * surface opens beside it.
+ * surface opens beside it. Another list's open Edit list closes first (asking
+ * while that list is unsaved — Cancel keeps it, and nothing else changes).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
-  const ws = useWorkspaceStore.getState()
-  const working = ws.working
-  const cell = working ? panelOfTab(working, tabId) : undefined
-  if (cell) {
-    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-    if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
+  const open = () => {
+    const ws = useWorkspaceStore.getState()
+    const working = ws.working
+    const cell = working ? panelOfTab(working, tabId) : undefined
+    if (cell) {
+      if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
+      if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
+    }
+    useUIStore.getState().openListEditor(listDefinitionId, tabId)
   }
-  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+  const ui = useUIStore.getState()
+  if (ui.listEditor != null && ui.listEditor.listDefinitionId !== listDefinitionId) ui.requestCloseListEditor(open)
+  else open()
 }
 
 /** A list name not used by any saved list: "New list", "New list 2", … */

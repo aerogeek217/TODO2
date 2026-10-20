@@ -64,8 +64,17 @@ function widgetCount(id: number): number {
   return countListWidgets(useWorkspaceStore.getState(), id)
 }
 
-/** "Save changes to list …?" for one list. */
-function UnsavedListDialog({ listId, onDone, onCancel }: { listId: number; onDone: () => void; onCancel: () => void }) {
+/**
+ * "Save changes to list …?" for one list. `revertOnDiscard`: Discard drops
+ * the edits as an undo step (the snackbar's Undo brings them back), as the
+ * list's Revert does.
+ */
+export function UnsavedListDialog({ listId, onDone, onCancel, revertOnDiscard = false }: {
+  listId: number
+  onDone: () => void
+  onCancel: () => void
+  revertOnDiscard?: boolean
+}) {
   const saveRef = useRef<HTMLButtonElement>(null)
   const name = listName(listId)
   const n = widgetCount(listId)
@@ -76,7 +85,18 @@ function UnsavedListDialog({ listId, onDone, onCancel }: { listId: number; onDon
     <Dialog open onClose={onCancel} title={`Save changes to list “${name}”?`} initialFocusRef={saveRef} nested>
       <DialogBody>{body}</DialogBody>
       <DialogActions className={styles.actions}>
-        <button type="button" className={styles.dangerGhost} onClick={() => { useListDraftStore.getState().discard(listId); onDone() }}>Discard</button>
+        <button
+          type="button"
+          className={styles.dangerGhost}
+          onClick={() => {
+            const drafts = useListDraftStore.getState()
+            if (revertOnDiscard) drafts.revert(listId)
+            else drafts.discard(listId)
+            onDone()
+          }}
+        >
+          Discard
+        </button>
         <span className={styles.spacer} />
         <button type="button" className={styles.ghost} onClick={onCancel}>
           Cancel <kbd className={styles.kbd}>Esc</kbd>

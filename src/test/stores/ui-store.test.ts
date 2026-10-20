@@ -137,10 +137,32 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('opening Settings closes Edit list (it belongs to the workspace)', () => {
+  it('opening Settings closes Edit list first (it belongs to the workspace), through its close request', () => {
     useUIStore.getState().openListEditor(7, 'tab-1')
-    useUIStore.getState().openSettings()
-    expect(useUIStore.getState().listEditor).toBeNull()
+    useUIStore.getState().openSettings('tasks')
+    // Waiting on Edit list's host (it asks while the list is unsaved).
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    expect(useUIStore.getState().listEditorCloseRequest).not.toBeNull()
+    useUIStore.getState().finishListEditorClose()
+    expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null, settingsOpen: true, settingsSection: 'tasks' })
+  })
+
+  it('a close request runs its follow-up at once when no Edit list is open; Cancel drops it', () => {
+    let ran = 0
+    useUIStore.getState().requestCloseListEditor(() => { ran++ })
+    expect(ran).toBe(1)
+    expect(useUIStore.getState().listEditorCloseRequest).toBeNull()
+
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    useUIStore.getState().requestCloseListEditor(() => { ran++ })
+    useUIStore.getState().cancelListEditorClose()
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    expect(ran).toBe(1)
+    // closeListEditor (the list left the screen) drops a waiting request too.
+    useUIStore.getState().requestCloseListEditor(() => { ran++ })
+    useUIStore.getState().closeListEditor()
+    expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null })
+    expect(ran).toBe(1)
   })
 
   it('a control to focus is kept only on the way to a part, and forgotten when Settings closes', () => {

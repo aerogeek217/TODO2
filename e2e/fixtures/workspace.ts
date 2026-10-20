@@ -511,6 +511,25 @@ export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
 }
 
+/**
+ * An unsaved edit to the list named `listName` made outside Edit list (as the
+ * filter line's chips make them): its shared draft, with Edit list closed —
+ * Edit list itself asks before it closes on an unsaved list.
+ */
+export async function editListDraft(page: Page, listName: string, changes: Record<string, unknown>): Promise<void> {
+  await page.evaluate(async ({ name, patch }) => {
+    const defs = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
+      useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }> } }
+    }
+    const drafts = (await import(/* @vite-ignore */ '/src/stores/list-draft-store.ts' as string)) as {
+      useListDraftStore: { getState: () => { edit: (id: number, fn: (d: Record<string, unknown>) => Record<string, unknown>) => void } }
+    }
+    const def = defs.useListDefinitionStore.getState().listDefinitions.find((d) => d.name === name)
+    if (!def) throw new Error(`no list “${name}”`)
+    drafts.useListDraftStore.getState().edit(def.id, (d) => ({ ...d, ...patch }))
+  }, { name: listName, patch: changes })
+}
+
 /** The stored list definitions. */
 export async function readListDefinitions(page: Page): Promise<Array<Record<string, unknown>>> {
   return readStore(page, 'listDefinitions')

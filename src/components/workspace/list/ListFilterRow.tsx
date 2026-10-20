@@ -9,6 +9,7 @@ import { ChevronDownIcon, FunnelIcon } from '../../shared/icons'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListDraftButtons } from './ListDraftButtons'
+import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import chipStyles from '../../shared/filters/ListFilterChips.module.css'
@@ -96,8 +97,9 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, un
           aria-expanded={editorOpen}
           title={`Edit list “${definition.name.trim() || 'List'}”`}
           data-testid="list-summary"
+          {...{ [EDIT_LIST_KEEP_ATTR]: id }}
           onClick={() => {
-            if (editorOpen) useUIStore.getState().closeListEditor()
+            if (editorOpen) useUIStore.getState().requestCloseListEditor()
             else openEditList(tabId, id)
           }}
         >
