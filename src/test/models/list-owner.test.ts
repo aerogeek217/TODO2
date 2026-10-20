@@ -44,3 +44,15 @@ describe('list owners', () => {
     expect(findEisenhowerList([def(1), def(2, { layoutId: 1 })], 1)).toBeUndefined()
   })
 })
+
+describe('an owner that isn’t an object (a database another build wrote)', () => {
+  it('reads as no layout and no Eisenhower — never throws — and the list is not offered', () => {
+    for (const owner of ['x', 3, true]) {
+      const def = { owner: owner as unknown as ListOwner }
+      expect(ownerLayoutId(def)).toBeUndefined()
+      expect(isEisenhowerOwner(def.owner)).toBe(false)
+      expect(isListedList(def)).toBe(false)
+      expect(isListedList(def, 1)).toBe(false)
+    }
+  })
+})

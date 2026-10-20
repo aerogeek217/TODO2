@@ -79,13 +79,14 @@ export const EISENHOWER_LIST_NAME = 'Eisenhower'
 
 /** Whether `owner` is the Eisenhower's. */
 export function isEisenhowerOwner(owner: ListOwner | undefined): owner is { eisenhower: true } {
-  return owner != null && 'eisenhower' in owner && owner.eisenhower === true
+  // `typeof`: a stored row another build wrote may hold anything here.
+  return typeof owner === 'object' && owner !== null && 'eisenhower' in owner && owner.eisenhower === true
 }
 
 /** The layout a layout-only list belongs to, or `undefined` (a saved list, or the Eisenhower's). */
 export function ownerLayoutId(def: Pick<ListDefinition, 'owner'>): number | undefined {
   const owner = def.owner
-  return owner != null && 'layoutId' in owner ? owner.layoutId : undefined
+  return typeof owner === 'object' && owner !== null && 'layoutId' in owner ? owner.layoutId : undefined
 }
 
 /**
