@@ -72,6 +72,17 @@
   cursor: pointer;
 }
 
+/* Clears every pick: the clearable fields' ×, at the field's end (in the row, not over the text). */
+.clearAll {
+  composes: clear from '../../shared/ClearableField.module.css';
+}
+
+.field > .clearAll {
+  position: static;
+  transform: none;
+  flex-shrink: 0;
+}
+
 .chipRemove:hover {
   background: var(--color-tint-12);
   color: var(--color-text-primary);
