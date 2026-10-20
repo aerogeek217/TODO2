@@ -318,13 +318,42 @@ async function applyRemoved({ deleted, released }: OwnedListsRemoved): Promise<v
  * (`layoutRepository.pruneOwnedLists`). A failed delete only leaves them in
  * place (hidden, unshown) until the layout is saved again.
  */
-async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<void> {
+async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<OwnedListsRemoved | null> {
   const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
   try {
-    await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown)))
+    const removed = await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown))
+    await applyRemoved(removed)
+    return removed
   } catch (err) {
     console.warn('[workspace] removing the layout\'s unshown lists failed', err)
+    return null
   }
+}
+
+/**
+ * The undo step (with the snackbar) for the lists a layout Save removed:
+ * Undo brings them back as saved lists, with their manual order; Redo
+ * removes them again unless something shows them by then.
+ */
+function recordRemovedLists(removed: OwnedListsRemoved | null, shownNow: () => ReadonlySet<number>): void {
+  const defs = removed?.rows.defs ?? []
+  const [first] = defs
+  if (!removed || !first) return
+  const description = defs.length === 1
+    ? `Removed the layout-only list “${first.name}”`
+    : `Removed ${defs.length} layout-only lists`
+  const ids = defs.map((d) => d.id)
+  undoable(
+    description,
+    async () => {
+      forgetDeletedLists(await trackWrite(() => layoutRepository.deleteUnnamedLists(ids, shownNow())))
+    },
+    async () => {
+      await trackWrite(() => layoutRepository.restoreLists(removed.rows))
+      await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
+    },
+    true,
+  )
 }
 
 /** Makes the lists of `named` that layout `layoutId` owns and none of `bodies` shows saved lists. */
@@ -620,8 +649,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       // (never lost with a part this build couldn't read).
       if (named) await releaseUnshown(next.id, named, next, kept)
       // Its layout-only lists that no saved tab shows any more go — unless
-      // an edit made meanwhile shows one again.
-      await pruneOwnedLists(next.id, next, kept)
+      // an edit made meanwhile shows one again — as an undo step.
+      recordRemovedLists(await pruneOwnedLists(next.id, next, kept), () => {
+        const current = get().working
+        return current ? layoutListRefs(current) : new Set<number>()
+      })
       return true
     },
 

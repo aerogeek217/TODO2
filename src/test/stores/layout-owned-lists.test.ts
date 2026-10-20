@@ -102,6 +102,36 @@ describe('layout Save', () => {
     expect(await ranksOf(w.theirs)).toEqual([[1, 5]])
   })
 
+  it('says which lists it removed; Undo brings them back as saved lists with their manual order, Redo removes them again', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    await ws().save()
+    expect(await storedListIds()).not.toContain(w.mine1)
+    expect(useUndoStore.getState().snackbar?.description).toBe('Removed the layout-only list “Mine 1”')
+    await useUndoStore.getState().undo()
+    const back = await db.listDefinitions.get(w.mine1)
+    expect(back?.name).toBe('Mine 1')
+    expect(back?.owner).toBeUndefined()
+    expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
+    expect(useListDefinitionStore.getState().listDefinitions.some((d) => d.id === w.mine1)).toBe(true)
+    // The layout stays as saved (without the tab).
+    expect(layoutListRefs(await stored(w.a)).has(w.mine1)).toBe(false)
+    await useUndoStore.getState().redo()
+    expect(await storedListIds()).not.toContain(w.mine1)
+    expect(storeListIds()).not.toContain(w.mine1)
+  })
+
+  it('Redo leaves a restored list alone once something shows it', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    await ws().save()
+    await useUndoStore.getState().undo()
+    // A saved list now: shown again in the layout.
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: w.mine1 })
+    await useUndoStore.getState().redo()
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+
   it('Change list away from one is a layout edit too: deleted on Save', async () => {
     const w = await world()
     ws().patchTabConfig('m2', 'lens', { listDefinitionId: w.saved })

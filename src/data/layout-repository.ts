@@ -8,6 +8,7 @@ import {
   type WorkspaceLayout,
 } from '../models/workspace-layout'
 import { ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
+import type { PersistedListOrder } from '../models/list-order'
 import { repointLayoutLists } from '../utils/workspace-layout-ops'
 import { nextSortOrder } from './create-repository'
 import { parseCheckinTaskScope } from '../utils/checkin-settings'
@@ -94,16 +95,18 @@ export function storedListRefs(row: unknown): Set<number> {
   return ids
 }
 
-/** What removing a layout's own lists did: the lists deleted, and those made saved lists (named elsewhere). */
+/** What removing a layout's own lists did: the lists deleted (as they were, with their manual order), and those made saved lists (named elsewhere). */
 export interface OwnedListsRemoved {
   deleted: number[]
   released: number[]
+  /** The deleted lists' rows and manual order, to bring them back (`restoreLists`). */
+  rows: { defs: PersistedListDefinition[]; ranks: PersistedListOrder[] }
 }
 
 /**
- * The list ids named outside layout `layoutId`: by every other stored
- * layout row (`storedListRefs`) and the check-in scope. Call inside a
- * transaction on `layouts` + `settings`.
+ * The list ids named outside layout `layoutId` (`NaN`: outside none — every
+ * layout counts): by every other stored layout row (`storedListRefs`) and
+ * the check-in scope. Call inside a transaction on `layouts` + `settings`.
  */
 async function listRefsOutside(layoutId: number): Promise<Set<number>> {
   const ids = new Set<number>()
@@ -127,9 +130,18 @@ async function releaseLists(ids: readonly number[]): Promise<void> {
 async function removeOwnedLists(ids: readonly number[], elsewhere: ReadonlySet<number>): Promise<OwnedListsRemoved> {
   const released = ids.filter((id) => elsewhere.has(id))
   const deleted = ids.filter((id) => !elsewhere.has(id))
+  const rows = await listRows(deleted)
   await releaseLists(released)
   await deleteLists(deleted)
-  return { deleted, released }
+  return { deleted, released, rows }
+}
+
+/** The rows and manual order of lists `ids`. Call inside a transaction on `listDefinitions` + `listOrders`. */
+async function listRows(ids: readonly number[]): Promise<OwnedListsRemoved['rows']> {
+  if (ids.length === 0) return { defs: [], ranks: [] }
+  const defs = ((await db.listDefinitions.bulkGet([...ids])) as Array<PersistedListDefinition | undefined>).filter((d) => d != null)
+  const ranks = (await db.listOrders.where('listDefinitionId').anyOf([...ids]).toArray()) as PersistedListOrder[]
+  return { defs, ranks }
 }
 
 /** Deletes lists and their manual order. Call inside a transaction on `listDefinitions` + `listOrders`. */
@@ -246,6 +258,36 @@ export const layoutRepository = {
     return db.transaction('r', db.layouts, db.settings, async () => {
       if (!(await db.layouts.get(layoutId))) return 'gone'
       return (await listRefsOutside(layoutId)).has(listId) ? 'elsewhere' : null
+    })
+  },
+
+  /**
+   * Brings removed lists back (`OwnedListsRemoved.rows`) as saved lists —
+   * their owner cleared —, with their manual order, in one transaction.
+   */
+  async restoreLists({ defs, ranks }: OwnedListsRemoved['rows']): Promise<void> {
+    await db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
+      for (const def of defs) {
+        const { owner: _owner, ...saved } = def
+        void _owner
+        await db.listDefinitions.put(saved)
+      }
+      if (ranks.length > 0) await db.listOrders.bulkPut(ranks)
+    })
+  },
+
+  /**
+   * Deletes the saved lists of `ids` (and their manual order) that nothing
+   * names: no stored layout row, the check-in scope, nor `shown` (what is on
+   * screen). One transaction; returns the ids it deleted.
+   */
+  async deleteUnnamedLists(ids: readonly number[], shown: ReadonlySet<number>): Promise<number[]> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, db.settings, async () => {
+      const named = await listRefsOutside(Number.NaN)
+      const rows = (await db.listDefinitions.bulkGet([...ids])) as Array<PersistedListDefinition | undefined>
+      const gone = rows.filter((d): d is PersistedListDefinition => d != null && d.owner == null && !named.has(d.id) && !shown.has(d.id)).map((d) => d.id)
+      await deleteLists(gone)
+      return gone
     })
   },
 
