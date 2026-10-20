@@ -282,12 +282,16 @@ function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftR
   return { kind: 'saved', layoutId: saved.id, base: layoutBodyOf(saved), body: layoutBodyOf(working) }
 }
 
-/** Whether a kept new layout's lists are still the lists it showed (same ids, same names). */
+/**
+ * Whether a kept new layout's lists are still the lists it showed: same
+ * ids, same names, and still saved lists (a new layout may show no other
+ * layout's own list, nor the Eisenhower's).
+ */
 function listsStillMatch(listNames: Readonly<Record<string, string>>, body: LayoutBody): boolean {
   const defs = useListDefinitionStore.getState().listDefinitions
   return listIdsOf(body).every((id) => {
     const def = defs.find((d) => d.id === id)
-    return def != null && listNames[id] === def.name
+    return def != null && def.owner == null && listNames[id] === def.name
   })
 }
 
@@ -668,6 +672,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       void _order
       // The layout-only lists it shows are copied for the new layout (as
       // edited); the originals stay with the layout they came from.
+      if (from) await useListDefinitionStore.getState().ensureLoaded()
       const copies = from ? ownedListCopies(from.id, source) : []
       const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number

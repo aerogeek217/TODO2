@@ -10,6 +10,7 @@ import { getUnsavedListIds, useListDraftStore } from '../../stores/list-draft-st
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-ops'
+import { writeLayoutDraft } from '../../data/draft-storage'
 import { resetDb } from '../helpers'
 
 /**
@@ -204,6 +205,14 @@ describe('page load', () => {
     expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower, kept])
     expect(storeListIds()).not.toContain(unshown)
+  })
+
+  it('a kept new layout (an older build’s) that shows a list now another layout’s own is not taken back', async () => {
+    const w = await world()
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [lens('n', w.theirs)])), listNames: { [w.theirs]: 'Theirs' } })
+    await reload()
+    expect(ws().saved?.id).toBe(w.a)
+    expect(ws().isDirty).toBe(false)
   })
 
   it('a kept draft of another layout than the one opening is dropped, and so are the lists only it showed', async () => {
