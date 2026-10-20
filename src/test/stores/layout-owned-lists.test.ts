@@ -189,6 +189,47 @@ describe('layout Save', () => {
   })
 })
 
+describe('a layout shows only its own lists', () => {
+  const dashboard = (id: string) => createTab('dashboard', id)
+  const tabsOf = () => ws().working!.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))
+
+  it('a new tab on another layout’s or the Eisenhower’s list is refused; on its own, added', async () => {
+    const w = await world()
+    for (const id of [w.theirs, w.eisenhower]) {
+      expect(ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: id })).toBeNull()
+    }
+    expect(ws().isDirty).toBe(false)
+    expect(layoutListRefs(ws().working!)).toEqual(new Set([w.saved, w.mine1, w.mine2]))
+    const tabId = ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: w.mine1 })
+    expect(tabId).not.toBeNull()
+    expect(ws().isDirty).toBe(true)
+  })
+
+  it('Change list to another layout’s list changes nothing; to its own, it switches', async () => {
+    const w = await world()
+    ws().patchTabConfig('s', 'lens', { listDefinitionId: w.theirs })
+    expect(tabsOf().find((t) => t.id === 's')?.config).toMatchObject({ listDefinitionId: w.saved })
+    expect(ws().isDirty).toBe(false)
+    ws().patchTabConfig('s', 'lens', { listDefinitionId: w.mine2 })
+    expect(tabsOf().find((t) => t.id === 's')?.config).toMatchObject({ listDefinitionId: w.mine2 })
+  })
+
+  it('a dashboard’s list tiles: another layout’s list is refused, its own added', async () => {
+    const w = await world()
+    await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), dashboard('d')]))
+    await ws().init()
+    ws().patchTabConfig('d', 'dashboard', { listTiles: [w.saved, w.theirs] })
+    expect(tabsOf().find((t) => t.id === 'd')?.config).toMatchObject({ listTiles: [] })
+    ws().patchTabConfig('d', 'dashboard', { listTiles: [w.saved] })
+    expect(tabsOf().find((t) => t.id === 'd')?.config).toMatchObject({ listTiles: [w.saved] })
+  })
+
+  it('a list that no longer exists is no one’s: a tab may still name it (it shows as deleted)', async () => {
+    await world()
+    expect(ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: 999 })).not.toBeNull()
+  })
+})
+
 describe('page load', () => {
   /** A reload: the stores start afresh and the workspace opens again (taking back the kept draft). */
   async function reload(): Promise<void> {

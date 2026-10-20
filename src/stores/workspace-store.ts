@@ -162,7 +162,11 @@ export interface WorkspaceState {
   /** Moves one saved layout to position `toIndex` (`reorderLayouts`, undo step `Moved layout “<name>”`). */
   moveLayout: (id: number, toIndex: number) => Promise<boolean>
 
-  /** Adds a new widget tab at `target`. Returns its id, or `null` when the target is unknown. */
+  /**
+   * Adds a new widget tab at `target`. Returns its id, or `null` when the
+   * target is unknown or the tab would show a list another layout (or the
+   * Eisenhower) owns.
+   */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
   moveTab: (tabId: string, target: LayoutDropTarget) => void
   /** Moves a whole panel (a cell or a band, by id) with all its tabs. */
@@ -183,7 +187,11 @@ export interface WorkspaceState {
   setBandHeight: (edge: BandEdge, height: number, opts?: ResizeOptions) => void
   /** Keeps the open layout's edits in the browser now (the end of a live resize). */
   keepLayoutDraft: () => void
-  /** Layout config of a tab (e.g. a lens tab's list, a calendar's date types). */
+  /**
+   * Layout config of a tab (e.g. a lens tab's list, a calendar's date types).
+   * A list tab's list or a dashboard's list tiles must be this layout's own
+   * lists: a patch naming another's changes nothing.
+   */
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>) => void
   /** "Change widget": swaps the tab's kind in place, with the new kind's defaults. */
   changeTabKind: (tabId: string, kind: WidgetKind, seed?: TabSeed) => void
@@ -298,6 +306,23 @@ function showsOnlyOwnLists(body: LayoutBody, layoutId: number): boolean {
   return [...layoutListRefs(body)].every((id) => {
     const def = defs.find((d) => d.id === id)
     return def == null || ownerLayoutId(def) === layoutId
+  })
+}
+
+/**
+ * The lists `next` names that `before` didn't and that belong elsewhere —
+ * another layout, the Eisenhower, or no layout. A layout shows only its own
+ * lists, so an edit that would show one of these is refused. A list that
+ * doesn't exist (any more) isn't anyone's: a tab on it shows it as deleted.
+ */
+function foreignListRefs(before: LayoutBody, next: LayoutBody, layoutId: number): number[] {
+  const had = layoutListRefs(before)
+  const added = [...layoutListRefs(next)].filter((id) => !had.has(id))
+  if (added.length === 0) return []
+  const defs = useListDefinitionStore.getState().listDefinitions
+  return added.filter((id) => {
+    const def = defs.find((d) => d.id === id)
+    return def != null && ownerLayoutId(def) !== layoutId
   })
 }
 
@@ -484,7 +509,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
   /**
    * Applies a structural edit to the working copy. Returns whether it
-   * changed. A `live` edit (a frame of a divider drag) isn't kept in the
+   * changed. An edit that would show a list the layout doesn't own (a tab's
+   * list, a dashboard's list tile — `foreignListRefs`) is refused: nothing
+   * changes. A `live` edit (a frame of a divider drag) isn't kept in the
    * browser yet: the drag's end keeps the result once (`keepLayoutDraft`).
    */
   function edit(fn: (layout: Layout, genId: IdGen) => Layout, { live = false }: ResizeOptions = {}): boolean {
@@ -492,6 +519,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     if (!working) return false
     const next = fn(working, idGenFor(working))
     if (next === working) return false
+    const foreign = live ? [] : foreignListRefs(working, next, working.id)
+    if (foreign.length > 0) {
+      console.warn('[workspace] refused an edit showing lists of another layout:', foreign)
+      return false
+    }
     set({ working: next, isDirty: dirty(next, saved) })
     if (!live) keepDraft()
     return true
@@ -813,13 +845,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     addWidget(kind, target, seed) {
       let tabId: string | null = null
-      edit((layout, genId) => {
+      const changed = edit((layout, genId) => {
         const tab = createTab(kind, genId(), seed)
-        const next = addTab(layout, tab, target, genId)
-        if (next !== layout) tabId = tab.id
-        return next
+        tabId = tab.id
+        return addTab(layout, tab, target, genId)
       })
-      return tabId
+      return changed ? tabId : null
     },
 
     moveTab(tabId, target) {
