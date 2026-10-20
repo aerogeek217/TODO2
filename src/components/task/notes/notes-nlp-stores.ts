@@ -6,7 +6,7 @@ import {
   type AutocompleteItem,
 } from '../../../services/nlp-autocomplete'
 import { usePersonStore } from '../../../stores/person-store'
-import { useSettingsStore } from '../../../stores/settings-store'
+import { newTaskFollowupInterval, useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import type { NotesNlpConfig } from './notes-nlp'
@@ -40,7 +40,7 @@ export function storeNotesNlpConfig(): NotesNlpConfig {
       tags: tags(useTagStore.getState().tags),
       statuses: statuses(useStatusStore.getState().statuses),
       commands: true,
-      followupDefault: useSettingsStore.getState().followupDefaultInterval,
+      followupDefault: newTaskFollowupInterval(useSettingsStore.getState()),
       today: new Date(),
     }),
     resolverData: () => ({

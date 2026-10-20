@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed } from './fixtures/workspace'
+import { expectOpenLayout, openLayoutAction, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed } from './fixtures/workspace'
+import { createTab } from '../src/models/workspace-layout'
 import { readStore } from './fixtures/db'
 
 /**
@@ -49,28 +50,39 @@ test('an unsaved layout change survives a reload, still unsaved; Discard then fo
   const [stored] = await readStore<{ columns: unknown[] }>(page, 'layouts')
   expect(JSON.stringify(stored?.columns)).toContain('eisTab')
 
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitem', { name: 'Discard changes' }).click()
+  await openLayoutAction(page, 'Discard changes')
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   await page.reload()
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
 })
 
-test('a new, unsaved layout survives a reload; saving it clears the kept copy', async ({ page }) => {
+test('an unsaved new layout an older build kept still opens, after the saved tabs; its Save asks a name', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitem', { name: 'New layout', exact: true }).click()
-  await page.getByRole('button', { name: 'Notes' }).first().click()
+  // An older build's New layout wasn't stored until saved: it kept the
+  // unsaved layout in the browser (schema v66).
+  const tab = createTab('notes', 'keptNotes')
+  await page.evaluate((columns) => {
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'Untitled layout', columns, listNames: {}, schemaVersion: 66 }))
+  }, [{ id: 'kc', weight: 1, cells: [{ id: 'kk', weight: 1, activeTabId: tab.id, tabs: [tab] }] }])
   await page.reload()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Untitled layout')
+  await expectOpenLayout(page, 'Untitled layout')
+  await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Untitled layout'])
   await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-  await expect.poll(async () => (await wsShape(page)).length).toBe(1)
+  await expect.poll(() => wsShape(page)).toEqual([[['keptNotes']]])
+
   await saveButton(page).click()
+  const dialog = page.getByRole('dialog', { name: 'Save layout' })
+  await expect(dialog.getByLabel('Name')).toHaveValue('Untitled layout')
+  await dialog.getByLabel('Name').fill('Planning')
+  await dialog.getByRole('button', { name: 'Save layout' }).click()
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectOpenLayout(page, 'Planning')
   await page.reload()
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Untitled layout')
+  await expectOpenLayout(page, 'Planning')
+  await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Planning'])
+  await expect.poll(() => wsShape(page)).toEqual([[['keptNotes']]])
 })
 
 test('an unsaved list filter survives a reload, still unsaved; Save writes it', async ({ page }) => {

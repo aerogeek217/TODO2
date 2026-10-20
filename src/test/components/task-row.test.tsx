@@ -75,9 +75,16 @@ describe('TaskRow', () => {
       expect(due).toHaveTextContent('04/20')
     })
 
-    it('shows ↻ after the date when the task repeats', () => {
+    it('the date follows a clock; a repeating task shows the repeat glyph in its place', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
+      const once = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
+      expect(once.querySelectorAll('svg')).toHaveLength(1)
+      expect(once.querySelector('circle')).not.toBeNull()
+      unmount()
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
-      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('04/20↻')
+      const repeating = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
+      expect(repeating).toHaveTextContent('04/20')
+      expect(repeating.querySelector('circle')).toBeNull()
     })
 
     it('marks an overdue date (text colour + bold, no fill), not a future one', () => {
@@ -107,7 +114,7 @@ describe('TaskRow', () => {
     it('renders one cell per column in order, filled or empty', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
       const cells = Array.from(container.querySelectorAll('[data-row-cell]')).map((el) => el.getAttribute('data-row-cell'))
-      expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'due', 'followup', 'status'])
+      expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'])
       for (const name of ['Add progress or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
@@ -119,11 +126,12 @@ describe('TaskRow', () => {
       expect(container.querySelector('[class*="dragHandle"]')).toBeNull()
     })
 
-    it('a narrow list removes the tags column first, then people; their pickers then open at the row', () => {
+    it('squeezed details remove the tags column first, then people; their pickers then open at the row', () => {
       const tags = [{ id: 1, name: 'alpha', color: '#111' }]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
+      // F = 223 − 148 − 20 = 55: just under the split.
       render(
-        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(300))}>
+        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, 223))}>
           <TaskRow todo={makeTodo({ id: 1 })} />
         </TaskRowColumnsContext.Provider>,
       )
@@ -132,6 +140,62 @@ describe('TaskRow', () => {
       fireEvent.contextMenu(getRow())
       fireEvent.click(screen.getByRole('menuitem', { name: 'Add tag…' }))
       expect(screen.getByPlaceholderText('Search tags...')).toBeInTheDocument()
+    })
+  })
+
+  describe('dates cell', () => {
+    const dated = () => makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), nextFollowupAt: new Date(2026, 3, 24) })
+    const inList = (width: number) => (
+      <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(width))}>
+        <TaskRow todo={dated()} />
+      </TaskRowColumnsContext.Provider>
+    )
+
+    it('shows both dates beside their icons, each part its own button', () => {
+      render(inList(528))
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('04/20')
+      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('04/24')
+      expect(document.querySelector('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
+    })
+
+    it('a narrower list drops the follow-up date first, then the due date (the icons and names stay)', () => {
+      const { unmount } = render(inList(330))
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('04/20')
+      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' }).textContent).toBe('')
+      expect(screen.queryByRole('button', { name: 'Clear follow-up' })).toBeNull()
+      unmount()
+      render(inList(300))
+      const due = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
+      expect(due.textContent).toBe('')
+      expect(due.querySelector('svg')).not.toBeNull()
+      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' }).textContent).toBe('')
+      expect(screen.queryByRole('button', { name: 'Clear due date' })).toBeNull()
+    })
+
+    it('an icons-only part still gives its date in the tooltip', () => {
+      render(inList(300))
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Follow-up: Fri 24' }))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Next follow-up · Fri 24')
+    })
+
+    it('each part has its own clear ×', () => {
+      render(inList(528))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear follow-up' }))
+      expect(mockBulk.setFollowup).toHaveBeenCalledWith(1, null)
+      expect(mockBulk.setDeadline).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Clear due date' }))
+      expect(mockBulk.setDeadline).toHaveBeenCalledWith(1, null)
+    })
+
+    it('a task without dates: the clock and flag placeholders, Set due date / Set follow-up', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      for (const name of ['Set due date', 'Set follow-up']) {
+        const part = screen.getByRole('button', { name })
+        expect(part.querySelector('[class*="ph"] svg')).not.toBeNull()
+        expect(part.textContent).toBe('')
+      }
+      expect(screen.queryByRole('button', { name: /^Clear/ })).toBeNull()
     })
   })
 
@@ -357,7 +421,7 @@ describe('TaskRow', () => {
       expect(mockBulk.setStatus).toHaveBeenCalledWith(1, undefined)
       const followup = screen.getByRole('button', { name: 'Follow-up: Mon 20' })
       expect(followup).toHaveAttribute('data-followup', 'upcoming')
-      expect(followup.textContent).toBe('')
+      expect(followup.textContent).toBe('04/20')
       fireEvent.click(followup)
       expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
     })

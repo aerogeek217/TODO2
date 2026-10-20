@@ -7,7 +7,7 @@ import type { SyncPauseReason } from '../../services/file-storage'
  * Everything the storage pill (desktop) and the phone's status button say
  * about where the data lives and what needs the user: one state, the most
  * urgent first — Permission needed › Sync paused › Sync error › Backup
- * warning › Syncing / Local only.
+ * warning › Synced / Local only.
  */
 export type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'error' | 'backup'
 
@@ -67,12 +67,15 @@ const WARNING_TEXT: Record<SyncWarning['kind'], string> = {
   backup: 'Backup warning',
 }
 
-/** The pill's state: its most urgent warning, else the file it syncs to, else Local only. */
+/**
+ * The pill's state: its most urgent warning, else Synced (syncing to the
+ * file — its name is in the pill's tooltip and popover), else Local only.
+ */
 export function storagePillState(s: StoragePillInput): StoragePillState {
   const warnings = syncWarnings(s)
   const first = warnings.at(0)
   if (first) return { kind: first.kind, text: WARNING_TEXT[first.kind], warningCount: warnings.length }
-  if (s.isConnected) return { kind: 'syncing', text: s.fileName ?? 'Syncing', warningCount: 0 }
+  if (s.isConnected) return { kind: 'syncing', text: 'Synced', warningCount: 0 }
   return { kind: 'local', text: 'Local only', warningCount: 0 }
 }
 

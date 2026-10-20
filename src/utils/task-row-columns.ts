@@ -3,14 +3,54 @@
  * for every row of a list (pure layout math; the row list measures its width
  * and hands the result to its rows).
  *
- *   gutter · checkbox · title │ notes · people · tags · due · follow-up · status
+ *   gutter · checkbox · title │ notes · people · tags · dates · status
  *
  * The **details width** D is the notes … status tracks plus the gaps between them;
  * the title takes the rest. Only people and tags flex: F = P + T is what is
  * left of D after the fixed tracks. Squeezed, tags give way first (removed
  * below `SPLIT_MIN`, people takes their room), then people (removed below
- * `PEOPLE_MIN`). Due, follow-up, status and notes never shrink.
+ * `PEOPLE_MIN`). Notes and status never shrink; the dates track (the due
+ * date, then the follow-up) is set by the list's width alone — never by D,
+ * so dragging the divider never changes it: the widest of `DATES_TIERS`
+ * that still leaves people and tags their split minimum when the details
+ * take all the room the list gives them. A narrower list drops the
+ * follow-up's date first (its flag stays), then the due date's (its clock
+ * stays); a dropped date is in the part's tooltip.
  */
+
+/**
+ * The `MM/DD` text's width in the row's meta font (12px, tabular figures),
+ * px: measured in the app font (34; the system fallbacks are narrower).
+ */
+const DATE_TEXT = 34
+/** A date part's icon (1em of the meta font), px. */
+const DATE_ICON = 12
+/** A date part's padding (each side) and the gap between its icon and its date, px. */
+const DATE_PAD = 3
+/** The gap between the due part and the follow-up part, px. */
+const DATE_PARTS_GAP = 2
+
+/** One date part's width: an icon alone, or the icon and its `MM/DD`. */
+function datePart(withDate: boolean): number {
+  return withDate ? DATE_PAD + DATE_ICON + DATE_PAD + DATE_TEXT + DATE_PAD : 18
+}
+
+/** Which dates the dates track shows beside their icons. */
+export type DatesTier = 'both' | 'due' | 'icons'
+
+/** The dates track per tier, widest first, px. */
+export const DATES_TIERS: Readonly<Record<DatesTier, number>> = {
+  both: datePart(true) + DATE_PARTS_GAP + datePart(true),
+  due: datePart(true) + DATE_PARTS_GAP + datePart(false),
+  icons: datePart(false) + DATE_PARTS_GAP + datePart(false),
+}
+
+const TIER_ORDER: readonly DatesTier[] = ['both', 'due', 'icons']
+
+/** The due part's and the follow-up part's widths in a tier, and the gap between them, px. */
+export function datesParts(tier: DatesTier): { due: number; followup: number; gap: number } {
+  return { due: datePart(tier !== 'icons'), followup: datePart(tier === 'both'), gap: DATE_PARTS_GAP }
+}
 
 /** Track widths and spacing, px. */
 export const TASK_ROW = {
@@ -19,21 +59,14 @@ export const TASK_ROW = {
   /** The title never gets narrower than this while the details can give way. */
   titleMin: 80,
   notes: 16,
-  due: 46,
-  /** The due track in a list narrower than `NARROW_LIST_WIDTH`. */
-  dueNarrow: 40,
-  followup: 18,
   status: 20,
   gap: 5,
   padLeft: 6,
   padRight: 8,
 } as const
 
-/** Below this list width the due track narrows to `TASK_ROW.dueNarrow`. */
-export const NARROW_LIST_WIDTH = 360
-
 /** The details width nothing is stored for. */
-export const DEFAULT_DETAILS_WIDTH = 262
+export const DEFAULT_DETAILS_WIDTH = 300
 
 /** F below this removes the tags track. */
 const SPLIT_MIN = 56
@@ -60,7 +93,10 @@ export interface TaskRowColumns {
   people: number
   /** Tags track, px; 0 = removed. */
   tags: number
-  due: number
+  /** The dates track, px. */
+  dates: number
+  /** Which dates show beside their icons. */
+  datesTier: DatesTier
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -79,18 +115,21 @@ function span(tracks: readonly number[]): number {
  * that widens again gets it back.
  */
 export function taskRowColumns(listWidth: number, stored?: number): TaskRowColumns {
-  const due = listWidth < NARROW_LIST_WIDTH ? TASK_ROW.dueNarrow : TASK_ROW.due
-  const fixed = [TASK_ROW.notes, due, TASK_ROW.followup, TASK_ROW.status]
-  const fixedSum = fixed.reduce((sum, t) => sum + t, 0)
-  const minDetails = span(fixed)
   const inner = listWidth - TASK_ROW.padLeft - TASK_ROW.padRight
-  const maxDetails = Math.max(minDetails, inner - LEAD - TASK_ROW.titleMin)
+  /** The most the details can get in this list: the title keeps its minimum. */
+  const room = inner - LEAD - TASK_ROW.titleMin
+  // The widest dates track that leaves people and tags their split at `room`.
+  const datesTier = TIER_ORDER.find((tier) => room - fixedSum(DATES_TIERS[tier]) - TASK_ROW.gap * 4 >= SPLIT_MIN) ?? 'icons'
+  const dates = DATES_TIERS[datesTier]
+  const fixed = [TASK_ROW.notes, dates, TASK_ROW.status]
+  const minDetails = span(fixed)
+  const maxDetails = Math.max(minDetails, room)
   const details = Math.round(clamp(stored ?? DEFAULT_DETAILS_WIDTH, minDetails, maxDetails))
 
   let people = 0
   let tags = 0
-  // The gaps between the six tracks while people and tags are both there.
-  const f = details - fixedSum - TASK_ROW.gap * 5
+  // The gaps between the five tracks while people and tags are both there.
+  const f = details - fixedSum(dates) - TASK_ROW.gap * 4
   if (f >= SPLIT_MIN) {
     people = clamp(Math.round(f * PEOPLE_SHARE), PEOPLE_MIN, PEOPLE_MAX)
     tags = f - people
@@ -99,9 +138,14 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
     people = f + TASK_ROW.gap
   }
 
-  const detailTracks = [TASK_ROW.notes, ...(people ? [people] : []), ...(tags ? [tags] : []), due, TASK_ROW.followup, TASK_ROW.status]
+  const detailTracks = [TASK_ROW.notes, ...(people ? [people] : []), ...(tags ? [tags] : []), dates, TASK_ROW.status]
   const template = [`${TASK_ROW.gutter}px`, `${TASK_ROW.checkbox}px`, 'minmax(0, 1fr)', ...detailTracks.map((t) => `${t}px`)].join(' ')
-  return { template, details, laidOut: span(detailTracks), minDetails, maxDetails, people, tags, due }
+  return { template, details, laidOut: span(detailTracks), minDetails, maxDetails, people, tags, dates, datesTier }
+}
+
+/** The tracks that never flex (notes, the dates, status), without gaps. */
+function fixedSum(dates: number): number {
+  return TASK_ROW.notes + dates + TASK_ROW.status
 }
 
 /** Avatar size, the step between overlapping avatars and the `+N` text's width, px. */

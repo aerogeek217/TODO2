@@ -36,7 +36,7 @@ describe('EntityActionHost', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('Edit… on a person opens the People editor on that person, the name focused', async () => {
+  it('Edit… on a person opens the People editor on that person, the name focused; Save closes it', async () => {
     const id = await usePersonStore.getState().add('Alice Chen', 'AC')
     await usePersonStore.getState().add('Ben Ortiz', 'BO')
     useUIStore.getState().openEntityAction({ kind: 'person', id, action: 'edit' })
@@ -47,11 +47,11 @@ describe('EntityActionHost', () => {
     fireEvent.change(name, { target: { value: 'Alice Brown' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(usePersonStore.getState().people.map((p) => p.name)).toContain('Alice Brown'))
-    fireEvent.click(screen.getAllByRole('button', { name: '×' })[0]!)
-    expect(useUIStore.getState().entityAction).toBeNull()
+    await waitFor(() => expect(useUIStore.getState().entityAction).toBeNull())
+    expect(screen.queryByPlaceholderText('Name')).toBeNull()
   })
 
-  it('Edit… on a tag opens the Tags editor on that tag', async () => {
+  it('Edit… on a tag opens the Tags editor on that tag; Save closes it', async () => {
     const id = await useTagStore.getState().add('alpha')
     await useTagStore.getState().add('beta')
     useUIStore.getState().openEntityAction({ kind: 'tag', id, action: 'edit' })
@@ -59,6 +59,10 @@ describe('EntityActionHost', () => {
     const name = await screen.findByPlaceholderText('Tag name')
     expect(name).toHaveValue('alpha')
     expect(name).toHaveFocus()
+    fireEvent.change(name, { target: { value: 'alpha2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(useUIStore.getState().entityAction).toBeNull())
+    expect(useTagStore.getState().tags.map((t) => t.name)).toContain('alpha2')
   })
 
   it('Delete… on a person asks with the task count, deletes, and Undo brings them back', async () => {

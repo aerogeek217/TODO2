@@ -41,3 +41,17 @@ describe('list definition equality — sort direction', () => {
     expect(changedListFields(def({ sort: 'manual', sortDirection: 'desc' }), def({ sort: 'manual' })).size).toBe(0)
   })
 })
+
+describe('list definition equality — filter line and Priority grouping', () => {
+  it('a hidden filter line differs from a shown one; absent = shown', () => {
+    expect(defsEqual(def(), def({ showFilterLine: false }))).toBe(false)
+    expect([...changedListFields(def({ showFilterLine: false }), def())]).toEqual(['filterLine'])
+    // A stray `true` (never stored) reads as shown.
+    expect(defsEqual(def(), def({ showFilterLine: true as unknown as false }))).toBe(true)
+  })
+
+  it('grouping by Priority is a group change', () => {
+    expect(defsEqual(def(), def({ grouping: 'priority' }))).toBe(false)
+    expect([...changedListFields(def({ grouping: 'priority' }), def())]).toEqual(['group'])
+  })
+})

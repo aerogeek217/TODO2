@@ -68,7 +68,7 @@ import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { MarkerIcon } from '../shared/MarkerIcons'
 import { NlpPopup } from '../shared/NlpPopup'
-import { DialogLayerContext } from '../shared/dialog-layer'
+import { DialogLayerContext, MODAL_BACKDROP_ATTR } from '../shared/dialog-layer'
 import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -248,10 +248,13 @@ function uniqueNames(names: readonly string[]): string[] {
 function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
   draft: QuickAddDraft
   preset?: QuickAddPreset
-  defaultFollowup: Date
+  /** The default next follow-up; `null` = new tasks get none. */
+  defaultFollowup: Date | null
   today: Date
   onRemove: (chip: ChipRemoval) => void
 }) {
+  // Without a default, a typed follow-up's × just removes it.
+  const followupRemoveLabel = defaultFollowup ? 'Use the default follow-up' : 'Remove follow-up'
   return (
     <div className={styles.chipsRow} role="group" aria-label="What the task gets">
       {MARKER_KEYS.filter((key) => draft[key] || preset?.[key]).map((key) => (
@@ -281,14 +284,14 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
       {draft.followupNone ? (
         <span className={`${styles.chip} ${styles.chipRing}`}>
           <FollowupFlagIcon /> No follow-up
-          <ChipRemove label="Use the default follow-up" onRemove={() => onRemove({ kind: 'command', command: 'followup' })} />
+          <ChipRemove label={followupRemoveLabel} onRemove={() => onRemove({ kind: 'command', command: 'followup' })} />
         </span>
       ) : draft.nextFollowupAt ? (
         <span className={styles.chip} data-tint="followup">
           <FollowupFlagIcon /> {formatFollowupDate(draft.nextFollowupAt, today)}
-          <ChipRemove label="Use the default follow-up" onRemove={() => onRemove({ kind: 'command', command: 'followup' })} />
+          <ChipRemove label={followupRemoveLabel} onRemove={() => onRemove({ kind: 'command', command: 'followup' })} />
         </span>
-      ) : (
+      ) : defaultFollowup && (
         <span className={`${styles.chip} ${styles.chipDefault}`}>
           <FollowupFlagIcon /> {formatFollowupDate(defaultFollowup, today)}
           <span className={styles.chipDefaultNote}> · default</span>
@@ -464,6 +467,7 @@ export function QuickAddBar({
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
+  const newTaskFollowup = useSettingsStore((s) => s.newTaskFollowup)
 
   const internalRun = useMemo(
     () => runParse(raw, people, statuses),
@@ -717,7 +721,7 @@ export function QuickAddBar({
   if (!open) return null
 
   const today = startOfToday()
-  const defaultFollowup = addFollowupInterval(today, followupInterval)
+  const defaultFollowup = newTaskFollowup ? addFollowupInterval(today, followupInterval) : null
 
   return (
     <>
@@ -726,6 +730,7 @@ export function QuickAddBar({
       ref={overlayRef}
       className={styles.overlay}
       data-testid="quickadd-backdrop"
+      {...{ [MODAL_BACKDROP_ATTR]: '' }}
       {...backdropPress}
     >
       <div

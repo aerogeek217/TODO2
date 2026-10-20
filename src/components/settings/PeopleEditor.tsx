@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePersonStore } from '../../stores/person-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { countTodosByEntity } from '../../stores/assignment-helpers'
 import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
 import { ColorInput } from '../shared/ColorInput'
 import { DeletePersonConfirm } from './EntityDeleteConfirm'
@@ -8,6 +10,7 @@ import type { DialogLayer } from '../shared/Dialog'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
 import { EditorModal } from './EditorModal'
+import { TaskCount } from './TaskCount'
 import { byName } from '../../utils/sort-order'
 
 interface PersonEditState {
@@ -61,7 +64,8 @@ interface PeopleEditorProps {
   onClose: () => void
   /**
    * Open straight onto this person's edit row (e.g. "Add email" in the
-   * check-in dialog, a task row's avatar menu › Edit…).
+   * check-in dialog, a task row's avatar menu › Edit…); saving that row
+   * closes the editor.
    */
   editPersonId?: number
   /** The field focused on that row: `email` (default) or `name`. */
@@ -97,7 +101,9 @@ function withColor(person: Omit<Person, 'color'>, color: string | undefined): Pe
 }
 
 export function PeopleEditor({ onClose, editPersonId, focusField = 'email', layer }: PeopleEditorProps) {
-  const { people, load: loadPeople, add: addPerson, update: updatePerson } = usePersonStore()
+  const { people, load: loadPeople, add: addPerson, update: updatePerson, loadAssignments, assignedPeopleMap } = usePersonStore()
+  const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
+  const todos = useTodoStore((s) => s.todos)
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -113,7 +119,12 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
   /** The email field was left (or a save was tried): its shape error may show. */
   const [emailTouched, setEmailTouched] = useState(false)
 
-  useEffect(() => { loadPeople() }, [loadPeople])
+  // Every task and its people, so each row can show its task count.
+  useEffect(() => { loadPeople(); ensureTodosLoaded() }, [loadPeople, ensureTodosLoaded])
+  useEffect(() => {
+    if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
+  }, [todos, loadAssignments])
+  const counts = useMemo(() => countTodosByEntity(assignedPeopleMap), [assignedPeopleMap])
 
   // Opened onto one person: edit that row once the person is there.
   const [openedOnto, setOpenedOnto] = useState<number | null>(null)
@@ -155,6 +166,11 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
         name: editing.name.trim(),
         initials: editing.initials || generateInitials(editing.name),
       }, editing.color), editing.email))
+      // Opened onto this person (Add email, a menu's Edit…): saving it is what the editor was for.
+      if (editing.id === editPersonId) {
+        onClose()
+        return
+      }
       setEditing(null)
       setNameError('')
       setEmailTouched(false)
@@ -236,6 +252,7 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
         <span className={styles.nameEditable} onClick={() => startEditPerson(p)}>{p.name}</span>
         {p.email && <span className={styles.email} title={p.email}>{p.email}</span>}
         <span className={styles.initials}>{p.initials}</span>
+        <TaskCount count={counts.get(p.id!) ?? 0} />
         <div className={styles.actions}>
           <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeletePerson(p.id!)} title="Delete">&times;</button>
         </div>

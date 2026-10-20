@@ -5,8 +5,8 @@ import { eisenhowerPaneFocus, useUIStore } from '../../../stores/ui-store'
 export const CUSTOMIZE_PANES_LABEL = 'Customize panes…'
 
 /**
- * Opens Settings › Tasks › Eisenhower — where the app-wide source and panes
- * are edited — scrolled to it, with pane `pane`'s name field focused when
+ * Opens Settings › Tasks › Eisenhower — where its list's filter and the
+ * app-wide panes are edited — scrolled to it, with pane `pane`'s name field focused when
  * given (a pane header's Edit pane…).
  */
 export function openEisenhowerSettings(pane?: EisenhowerQuadrant): void {

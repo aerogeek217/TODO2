@@ -55,7 +55,7 @@ function col(id: string, cells: LayoutCell[]): LayoutColumn {
 
 function layout(): WorkspaceLayout {
   return {
-    name: 'L',
+    sortOrder: 0, name: 'L',
     columns: [col('a', [cell('a1', ['t1', 't2']), cell('a2', ['t3'])]), col('b', [cell('b1', ['t4'])])],
     createdAt: new Date(0),
     modifiedAt: new Date(0),

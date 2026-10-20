@@ -3,6 +3,7 @@ import { dispatchCrossGroupMutation } from '../../services/cross-group-mutation'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useUndoStore } from '../../stores/undo-store'
 
 function stubStores() {
   const calls: string[] = []
@@ -34,5 +35,21 @@ describe('dispatchCrossGroupMutation', () => {
     await dispatchCrossGroupMutation({ kind: 'tag', todoId: 4, removeId: 1, addId: 2 })
     await dispatchCrossGroupMutation({ kind: 'tag', todoId: 5, removeId: null, addId: 3 })
     expect(calls).toEqual(['unassignTag(4,1)', 'assignTag(4,2)', 'assignTag(5,3)'])
+  })
+})
+
+describe('dispatchCrossGroupMutation — Priority', () => {
+  it('writes the flags as one marker write with its description', async () => {
+    const setMarkerFlags = vi.fn(async () => {})
+    useTodoStore.setState({ setMarkerFlags })
+    await dispatchCrossGroupMutation({ kind: 'priority', todoId: 4, flags: { important: true, urgent: false }, description: 'Marked not urgent, important · A' })
+    expect(setMarkerFlags).toHaveBeenCalledTimes(1)
+    expect(setMarkerFlags).toHaveBeenCalledWith([{ todoId: 4, important: true, urgent: false }], 'Marked not urgent, important · A')
+  })
+
+  it('a failed write says so and doesn’t throw', async () => {
+    useTodoStore.setState({ setMarkerFlags: vi.fn(async () => { throw new Error('disk') }) })
+    await expect(dispatchCrossGroupMutation({ kind: 'priority', todoId: 4, flags: { focus: true }, description: 'Marked focus · A' })).resolves.toBeUndefined()
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t save: Marked focus · A. Nothing changed.')
   })
 })

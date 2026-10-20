@@ -2,6 +2,7 @@ import type { CrossGroupMutation } from '../utils/cross-group-drag'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
+import { useUndoStore } from '../stores/undo-store'
 
 /**
  * Apply the field-mutation implied by a cross-group drag (derived by
@@ -31,6 +32,16 @@ export async function dispatchCrossGroupMutation(mutation: CrossGroupMutation): 
       }
       if (mutation.addId != null) {
         await useTagStore.getState().assignTag(mutation.todoId, mutation.addId)
+      }
+      return
+    }
+    case 'priority': {
+      // The flags in one write: one undo step, with the snackbar. A failed
+      // write took itself back; say so.
+      try {
+        await useTodoStore.getState().setMarkerFlags([{ todoId: mutation.todoId, ...mutation.flags }], mutation.description)
+      } catch {
+        useUndoStore.getState().notify(`Couldn’t save: ${mutation.description}. Nothing changed.`)
       }
       return
     }

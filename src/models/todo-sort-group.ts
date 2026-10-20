@@ -25,6 +25,7 @@ export type TodoGroupBy =
   | 'people'      // many-to-many
   | 'status'
   | 'tag'         // many-to-many
+  | 'priority'    // many-to-many: Hot, Focus, Urgent, Important, No priority
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
   'manual', 'priority', 'name', 'deadline', 'followup', 'created',
@@ -33,7 +34,7 @@ export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
 
 export const TODO_GROUP_BY_VALUES: readonly TodoGroupBy[] = [
   'none', 'deadline', 'followup',
-  'people', 'status', 'tag',
+  'people', 'status', 'tag', 'priority',
 ] as const
 
 export function isTodoSortBy(v: unknown): v is TodoSortBy {

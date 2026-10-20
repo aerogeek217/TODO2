@@ -18,13 +18,14 @@ import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { TaskMenu } from '../task/TaskMenu'
 import { searchMenuHandlers } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
+import { useWorkspaceStore } from '../../stores/workspace-store'
 import { StoragePill } from './StoragePill'
 import { CloseIcon, FunnelIcon, GearIcon, PlusIcon, SearchIcon } from '../shared/icons'
 import { useTooltip } from '../shared/use-tooltip'
-import { useMediaQuery } from '../../hooks/use-media-query'
 import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
+import { FOLD_PART, useTopBarFold } from './use-top-bar-fold'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
@@ -36,8 +37,23 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
 }
 const MAX_GROUP_PREVIEW = 5
 
-/** Below this width the screen-filter buttons fold into one Filters menu. */
-const FOLD_FILTERS_QUERY = '(max-width: 1279px)'
+/**
+ * The most layouts shown as tabs: more than a bar can hold anyway, so past
+ * it the picker shows from the start and no tab per layout is mounted.
+ */
+export const MAX_LAYOUT_TABS = 30
+
+/**
+ * What the layout tabs show, for their width (not their order): the names,
+ * the open one and its unsaved dot, a kept new layout. Past
+ * `MAX_LAYOUT_TABS` the names don't matter (the picker shows).
+ */
+function layoutTabsKey(s: ReturnType<typeof useWorkspaceStore.getState>): string {
+  const open = s.saved === null ? `new:${s.working?.name ?? ''}` : String(s.activeLayoutId)
+  if (s.layouts.length > MAX_LAYOUT_TABS) return `many|${open}`
+  const names = [...s.layouts.map((l) => l.name)].sort().join('/')
+  return `${s.layouts.length}|${names}|${open}|${s.isDirty ? 'dirty' : ''}`
+}
 
 /**
  * The filter tray's funnel, left of search: red while any screen filter is
@@ -342,9 +358,13 @@ export function TopBar() {
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
   const settingsOpen = useUIStore((s) => s.settingsOpen)
-  // The bar never wraps: below 1280px the filter buttons fold into one
-  // Filters menu (search and labels narrow in CSS).
-  const foldFilters = useMediaQuery(FOLD_FILTERS_QUERY)
+  // The bar never wraps or overflows: measured, the filter buttons fold into
+  // one Filters menu first, then the layout tabs into the layout picker
+  // (search narrows in CSS).
+  const barRef = useRef<HTMLElement | null>(null)
+  const tabsKey = useWorkspaceStore(layoutTabsKey)
+  const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
+  const fold = useTopBarFold(barRef, tabsKey, isWorkspace)
 
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -368,7 +388,7 @@ export function TopBar() {
   }, [searchContextMenu, todos])
 
   return (
-    <header className={styles.topBar}>
+    <header ref={barRef} className={styles.topBar} data-fold={fold}>
       <button
         type="button"
         className={styles.newTask}
@@ -377,12 +397,16 @@ export function TopBar() {
         title={`New task (${quickAddKeys})`}
       >
         <PlusIcon size={14} strokeWidth={2} />
-        <span className={styles.newTaskLabel}>New task</span>
       </button>
-      {isWorkspace && <LayoutControls />}
+      {isWorkspace && (
+        <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
+          <LayoutControls mode={fold === 2 || manyLayouts ? 'menu' : 'tabs'} />
+        </div>
+      )}
 
       <div
         className={`${styles.tray} ${isActive ? styles.trayActive : ''}`}
+        data-fold-part={FOLD_PART.tray}
         role="group"
         aria-label="Screen filters — apply to every widget"
         data-filter-row
@@ -423,9 +447,8 @@ export function TopBar() {
             }}
             data-search-input
           />
-          {localSearch ? (
-            // Not `ClearableField`: this slot shows the `/` key hint while the
-            // search is empty. Like that ×, a mouse target only (it acts on
+          {localSearch && (
+            // Like `ClearableField`'s ×, a mouse target only (it acts on
             // mousedown); from the keyboard, Esc in the field clears it.
             <button
               type="button"
@@ -436,8 +459,6 @@ export function TopBar() {
             >
               <CloseIcon size={8} />
             </button>
-          ) : (
-            <kbd className={styles.searchKbd} aria-hidden="true">/</kbd>
           )}
           {showMiniList && miniListGroups && (
             <SearchResultsGroups
@@ -462,12 +483,11 @@ export function TopBar() {
           predicate={filterPredicate}
           onChange={handleFilterChange}
           onClearAll={() => useFilterStore.getState().clearAll()}
-          fold={foldFilters}
-          compact={foldFilters}
+          fold={fold >= 1}
         />
       </div>
 
-      <div className={styles.right}>
+      <div className={styles.right} data-fold-part={FOLD_PART.spring}>
         <StoragePill />
         <button
           type="button"

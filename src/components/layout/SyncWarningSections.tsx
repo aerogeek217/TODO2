@@ -21,7 +21,7 @@ interface SyncWarningSectionsProps {
   variant: 'popover' | 'sheet'
   /** The first section's title id (the surface's `aria-labelledby`). */
   titleId: string
-  /** Grant access, Retry and Open Backups… close the surface. */
+  /** Grant access, Retry, Overwrite file and Open Backups… close the surface. */
   onClose: () => void
   /** Settings on Backups, where the surface can open it (the phone has no Backups part). */
   onOpenBackups?: () => void
@@ -53,7 +53,7 @@ export function SyncWarningSections({ warnings, variant, titleId, onClose, onOpe
           </button>
         )
       case 'paused':
-        return <FileSyncPausedControls buttonClassName={styles.secondary} primaryButtonClassName={styles.warningFill} onRetry={onClose} />
+        return <FileSyncPausedControls buttonClassName={styles.secondary} primaryButtonClassName={styles.warningFill} onDone={onClose} />
       case 'error':
         return <button type="button" className={styles.secondary} onClick={dismiss(dismissError)}>Dismiss</button>
       case 'backup':

@@ -16,6 +16,9 @@ export const MARKER_COLOR: Record<MarkerKey, string> = {
   important: 'var(--color-marker-important)',
 }
 
+/** The colour of Hot (the flame). */
+export const HOT_COLOR = 'var(--color-danger)'
+
 /** The name of the markers as a group (filters, menus, the task row's marker gutter). */
 export const MARKERS_LABEL = 'Priority'
 

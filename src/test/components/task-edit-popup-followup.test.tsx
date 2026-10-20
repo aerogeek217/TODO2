@@ -72,6 +72,17 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(partial.lastFollowupAt).toBeUndefined()
   })
 
+  it('create mode while new tasks get no follow-up: Next starts empty, no default hint', async () => {
+    useSettingsStore.setState({ newTaskFollowup: false })
+    const { onCreate } = renderCreate()
+    expect(nextInput().value).toBe('')
+    expect(screen.queryByText('Default · 1 month')).toBeNull()
+    fireEvent.click(screen.getByText('Create task'))
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    // Left to the store, which gives none while the setting is off.
+    expect('nextFollowupAt' in onCreate.mock.calls[0]![0]).toBe(false)
+  })
+
   it('create mode: clearing Next creates the task with no follow-up (key present)', async () => {
     const { onCreate } = renderCreate()
     fireEvent.click(screen.getByLabelText('Clear next follow-up'))

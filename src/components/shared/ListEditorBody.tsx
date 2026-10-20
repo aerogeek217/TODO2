@@ -8,6 +8,7 @@ import { effectiveSortDirection, sortHasDirection } from '../../models'
 import {
   choicesWith,
   GROUP_LABEL,
+  GROUP_NOTE,
   LIST_GROUP_CHOICES,
   LIST_PROMPT_CHOICES,
   LIST_SORT_CHOICES,
@@ -50,7 +51,11 @@ const ROW_LABEL: Record<ListDefField, string> = {
   group: 'Group by',
   sort: 'Sort by',
   prompt: 'Prompt for',
+  filterLine: 'Filter line',
 }
+
+/** The Show filter line control's words: what the line is, and that an unsaved list still shows it. */
+const FILTER_LINE_HINT = 'The line above the tasks: filters and group · sort. Hidden, it still shows while the list has unsaved changes.'
 
 /** A choice of a select-button / choice list. */
 interface Choice<T extends string> {
@@ -63,7 +68,8 @@ type ChoiceField = 'group' | 'sort' | 'prompt'
 
 /**
  * The list editor's form: name, filters (the list widget's filter chips,
- * then Show completed), group by, sort by and the prompt field. Every
+ * then Show completed), group by, sort by, the prompt field and Show filter
+ * line. Every
  * control calls `onChange` with the edited list at once; the caller decides
  * what that means (the workspace's shared draft, or a dialog's own draft).
  * With `saved`, a row whose value differs from the saved list shows its
@@ -88,10 +94,17 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
   }
   const setShowCompleted = (showCompleted: boolean) =>
     onChange({ ...draft, membership: { kind: 'custom', predicate: { ...predicate, showCompleted } } })
+  // Only `false` is stored: shown is the default.
+  const setShowFilterLine = (show: boolean) => {
+    const next = { ...draft }
+    if (show) delete next.showFilterLine
+    else next.showFilterLine = false
+    onChange(next)
+  }
 
   const promptValue = draft.runtimeFilter?.field ?? 'none'
   const groupChoices: Choice<TodoGroupBy>[] = choicesWith<TodoGroupBy>(LIST_GROUP_CHOICES, draft.grouping)
-    .map((g) => ({ value: g, label: GROUP_LABEL[g] }))
+    .map((g) => ({ value: g, label: GROUP_LABEL[g], description: GROUP_NOTE[g] }))
   const sortChoices: Choice<TodoSortBy>[] = choicesWith<TodoSortBy>(LIST_SORT_CHOICES, draft.sort)
     .map((s) => ({ value: s, label: SORT_LABEL[s], description: SORT_NOTE[s] }))
   const promptChoices: Choice<RuntimeFilterField | 'none'>[] = choicesWith<RuntimeFilterField | 'none'>(LIST_PROMPT_CHOICES, promptValue)
@@ -140,6 +153,38 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
       {variant !== 'sheet' && 'Show completed tasks'}
     </label>
   )
+
+  const filterLineShown = draft.showFilterLine !== false
+  const filterLineSwitch = variant === 'sheet'
+    ? (
+      <label className={styles.switchRow} title={FILTER_LINE_HINT}>
+        <span className={`${styles.switchLabel} ${changed.has('filterLine') ? styles.labelChanged : ''}`} data-changed={changed.has('filterLine') || undefined}>
+          {changed.has('filterLine') && <span className={styles.changedDot} aria-hidden="true" />}
+          Show filter line
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          className={styles.switch}
+          checked={filterLineShown}
+          onChange={(e) => setShowFilterLine(e.target.checked)}
+        />
+      </label>
+    )
+    : (
+      <div className={styles.row}>
+        {label('filterLine')}
+        <label className={styles.check} title={FILTER_LINE_HINT}>
+          <input
+            type="checkbox"
+            aria-label="Show filter line"
+            checked={filterLineShown}
+            onChange={(e) => setShowFilterLine(e.target.checked)}
+          />
+          Show
+        </label>
+      </div>
+    )
 
   const filtersRow = (
     <div className={styles.row}>
@@ -249,6 +294,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
             )
           })}
           {showCompleted}
+          {filterLineSwitch}
         </div>
       </div>
     )
@@ -273,6 +319,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
           {field === 'sort' && directionToggle}
         </div>
       ))}
+      {filterLineSwitch}
     </div>
   )
 }

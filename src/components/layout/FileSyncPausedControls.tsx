@@ -6,8 +6,8 @@ import dialogStyles from '../overlays/FileSyncDialogs.module.css'
 interface FileSyncPausedControlsProps {
   buttonClassName?: string
   primaryButtonClassName?: string
-  /** Called when Retry is pressed (the storage pill closes its popover). */
-  onRetry?: () => void
+  /** Called when Retry or Overwrite file is pressed (the storage pill closes its popover, the phone its sheet). */
+  onDone?: () => void
 }
 
 /**
@@ -17,7 +17,7 @@ interface FileSyncPausedControlsProps {
  * alone keeps sync paused with both sides untouched. Shared by the storage
  * pill's popover, the phone's status sheet and Settings → File storage.
  */
-export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName, onRetry }: FileSyncPausedControlsProps) {
+export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName, onDone }: FileSyncPausedControlsProps) {
   const paused = useFileStorageStore((s) => s.paused)
   const fileName = useFileStorageStore((s) => s.fileName)
   const isLoading = useFileStorageStore((s) => s.isLoading)
@@ -29,7 +29,7 @@ export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName
 
   return (
     <>
-      <button className={buttonClassName} onClick={() => { void retry(); onRetry?.() }} disabled={isLoading}>
+      <button className={buttonClassName} onClick={() => { void retry(); onDone?.() }} disabled={isLoading}>
         Retry
       </button>
       <button
@@ -60,7 +60,7 @@ export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName
             </button>
             <button
               className={dialogStyles.dangerButton}
-              onClick={() => { setConfirming(false); void overwrite() }}
+              onClick={() => { setConfirming(false); void overwrite(); onDone?.() }}
             >
               Overwrite file
             </button>

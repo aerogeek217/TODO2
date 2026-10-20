@@ -281,6 +281,11 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   expect(upgraded.stores.notes!.map((n) => n.content)).toContain(LONG.note)
   for (const t of upgraded.stores.todos!) expect(typeof t.uid, `todo ${String(t.id)} uid`).toBe('string')
   expect(upgraded.stores.layouts).toHaveLength(1)
+  // The layout is numbered; the Eisenhower (on all tasks) has a list of its own, which its setting names.
+  expect(upgraded.stores.layouts![0]!.sortOrder).toBe(0)
+  const eisenhowerLists = (upgraded.stores.listDefinitions ?? []).filter((l) => JSON.stringify(l.owner) === '{"eisenhower":true}')
+  expect(eisenhowerLists.map((l) => l.name)).toEqual(['Eisenhower'])
+  expect((upgraded.stores.settings ?? []).find((r) => r.key === 'eisenhowerSource')?.value).toBe(`list:${String(eisenhowerLists[0]?.id)}`)
   // The app background overrides kept their colours under the new name.
   const colours = Object.fromEntries((upgraded.stores.settings ?? []).filter((r) => String(r.key).startsWith('color.')).map((r) => [r.key, r.value]))
   expect(colours).toEqual({
@@ -315,7 +320,8 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   await expect(purge).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(1)
   await purge.getByRole('button', { name: 'Not now' }).click()
-  await expect(page.getByTestId('storage-pill')).toHaveText(SYNC_FILE)
+  await expect(page.getByTestId('storage-pill')).toHaveText('Synced')
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('title', `Syncing to ${SYNC_FILE}`)
   await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
   // The dark override paints the app (the fixture's theme is dark).
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(32, 48, 64)')

@@ -394,7 +394,7 @@ describe('sanitisable-row audit', () => {
 describe('layouts audit', () => {
   const at = new Date('2026-09-01T09:00:00.000Z')
   const notes = (id: string) => ({ id, kind: 'notes', config: {} })
-  const layout = (name: string, columns: unknown) => ({ name, columns, createdAt: at, modifiedAt: at })
+  const layout = (name: string, columns: unknown) => ({ name, sortOrder: 0, columns, createdAt: at, modifiedAt: at })
   const good = () => [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }]
 
   it('does not flag a valid layout', async () => {
@@ -428,7 +428,7 @@ describe('layouts audit', () => {
     expect(await db.layouts.count()).toBe(1)
     expect(await db.settings.get('activeLayoutId')).toEqual({ key: 'activeLayoutId', value: String(id) })
     expect(await db.layouts.get(id)).toEqual({
-      id, name: 'Layout', createdAt: at, modifiedAt: at,
+      id, name: 'Layout', sortOrder: 0, createdAt: at, modifiedAt: at,
       columns: [{ id: 'c1', weight: 2, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] }],
     })
     expect((await auditData()).issues).toEqual([])

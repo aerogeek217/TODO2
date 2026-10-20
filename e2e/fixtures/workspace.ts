@@ -65,8 +65,9 @@ export interface WorkspaceSeed {
   layouts: WsLayoutSeed[]
   /**
    * The app-wide Eisenhower settings (every Eisenhower tab and the dashboard
-   * section): its source list (index into `listDefinitions`; none = all
-   * tasks) and its custom panes.
+   * section): its own list (index into `listDefinitions` — that list is
+   * made the Eisenhower's, a hidden list; none = the one the app made, with
+   * no filter) and its custom panes.
    */
   eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
   /** Names, or a name with initials / colour / email. */
@@ -84,6 +85,10 @@ export interface WorkspaceSeed {
     /** Names of people for the predicate's `personIds`. */
     people?: string[]
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
+    /** `false` hides the list's filter line. */
+    showFilterLine?: false
+    /** A layout-only list: the layout (index into `layouts`) that owns it. */
+    layoutIdx?: number
   }>
   tasks?: Array<{
     title: string
@@ -131,7 +136,7 @@ export function emptyPredicate(): Record<string, unknown> {
 }
 
 /**
- * Seeds layouts (replacing the app's own), list definitions, people, tags and
+ * Seeds layouts and list definitions (replacing the app's own), people, tags and
  * tasks straight into IndexedDB, then reloads on the workspace. The app must
  * have booted once (Dexie upgraded) — this opens the workspace (`/#/`) first.
  */
@@ -153,6 +158,11 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       r.onerror = () => reject(r.error)
     })
     const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags'], 'readwrite')
+    const get = (store: IDBObjectStore, key: number) => new Promise<Record<string, unknown>>((resolve, reject) => {
+      const r = store.get(key)
+      r.onsuccess = () => resolve(r.result as Record<string, unknown>)
+      r.onerror = () => reject(r.error)
+    })
     const done = new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
@@ -176,6 +186,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     for (const name of seed.statuses ?? []) {
       statusIds.set(name, await add(tx.objectStore('statuses'), { name, color: '#4caf50', icon: 'circle', sortOrder: ++statusOrder }))
     }
+    // The seed's lists replace the app's own (the Eisenhower's list it made
+    // at launch): the app makes that again on the reload unless the seed
+    // names one (`eisenhower.listDefIdx`).
+    tx.objectStore('listDefinitions').clear()
     const defIds: number[] = []
     let defOrder = 0
     for (const def of seed.listDefinitions ?? []) {
@@ -189,6 +203,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(def.sortDirection ? { sortDirection: def.sortDirection } : {}),
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
+        ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
+        ...(seed.eisenhower?.listDefIdx === defIds.length ? { owner: { eisenhower: true } } : {}),
       }))
     }
     let taskOrder = 0
@@ -225,6 +241,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     }
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
+    const layoutIds: number[] = []
     type TabSeed = (typeof seed.layouts)[number]['columns'][number]['cells'][number]['tabs'][number]
     const buildTab = (tab: TabSeed) => {
       const base = structuredClone(seed.newTabs[tab.kind])
@@ -273,8 +290,17 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
           tabs: band.tabs.map(buildTab),
         }
       }
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, columns, ...bands, createdAt: now, modifiedAt: now })
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, createdAt: now, modifiedAt: now })
       firstId ??= id
+      layoutIds.push(id)
+    }
+    // Layout-only lists: owned by their layout, now that it has an id.
+    for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
+      const listId = defIds[i]
+      const layoutId = def.layoutIdx != null ? layoutIds[def.layoutIdx] : undefined
+      if (listId == null || layoutId == null) continue
+      const store = tx.objectStore('listDefinitions')
+      store.put({ ...(await get(store, listId)), owner: { layoutId } })
     }
     if (firstId != null) tx.objectStore('settings').put({ key: 'activeLayoutId', value: String(firstId) })
     const eis = seed.eisenhower
@@ -327,6 +353,71 @@ export function wsCell(page: Page, cellId: string): Locator {
 
 export function wsTab(page: Page, tabId: string): Locator {
   return page.locator(`[data-ws-tab="${tabId}"]`)
+}
+
+/** A layout's tab in the top bar, by its exact name. */
+export function layoutTab(page: Page, name: string): Locator {
+  const exact = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+  return page.getByTestId('layout-tab').filter({ hasText: exact })
+}
+
+/** The open layout's tab in the top bar. */
+export function openLayoutTab(page: Page): Locator {
+  return page.locator('[data-testid="layout-tab"][aria-selected="true"]')
+}
+
+/** The layouts' names as the top bar's tabs show them, in order. */
+export async function layoutTabNames(page: Page): Promise<string[]> {
+  return page.getByTestId('layout-tab').allTextContents()
+}
+
+/** Opens a layout tab's menu (right-click; the open layout's when no name is given). */
+export async function openLayoutTabMenu(page: Page, name?: string): Promise<Locator> {
+  await (name != null ? layoutTab(page, name) : openLayoutTab(page)).click({ button: 'right' })
+  const menu = page.getByRole('menu', { name: /^Layout / })
+  await menu.waitFor({ state: 'visible' })
+  return menu
+}
+
+/**
+ * `seed` with `n` more (empty) layouts with long names after its own: their
+ * tabs take the top bar's room, so a narrow window folds the filters (and
+ * the tabs) whatever else the bar shows.
+ */
+export function withSpareLayouts(seed: WorkspaceSeed, n = 3): WorkspaceSeed {
+  const spare = Array.from({ length: n }, (_, i) => ({ name: `A layout with a long name, number ${i + 1}`, columns: [] }))
+  return { ...seed, layouts: [...seed.layouts, ...spare] }
+}
+
+/** Opens layout `name` from its top-bar tab, or from the picker when the tabs are folded. */
+export async function switchLayout(page: Page, name: string): Promise<void> {
+  if (await page.getByTestId('layout-picker').isVisible()) {
+    await page.getByTestId('layout-picker').click()
+    await page.getByRole('menuitemradio', { name, exact: true }).click()
+  } else {
+    await layoutTab(page, name).click()
+  }
+}
+
+/**
+ * Picks an action for the open layout (Save as new layout…, Rename…,
+ * Delete layout…, Discard changes, …): from its tab's menu, or the picker's
+ * when the tabs are folded.
+ */
+export async function openLayoutAction(page: Page, item: string): Promise<void> {
+  const menu = await page.getByTestId('layout-picker').isVisible()
+    ? (await page.getByTestId('layout-picker').click(), page.getByRole('menu', { name: 'Layouts' }))
+    : await openLayoutTabMenu(page)
+  await menu.getByRole('menuitem', { name: item, exact: true }).click()
+}
+
+/** Expects layout `name` to be the open one (its tab selected, or the picker's name). */
+export async function expectOpenLayout(page: Page, name: string): Promise<void> {
+  if (await page.getByTestId('layout-picker').isVisible()) {
+    await expect(page.getByTestId('layout-picker')).toHaveAccessibleName(`Layout: ${name}`)
+  } else {
+    await expect(openLayoutTab(page)).toHaveText(name)
+  }
 }
 
 /** Tab ids per cell per column, read from the rendered workspace. */

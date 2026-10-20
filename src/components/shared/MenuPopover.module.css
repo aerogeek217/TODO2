@@ -141,6 +141,20 @@
   color: var(--color-danger);
 }
 
+/* An item that drags to reorder (`dragId`): the one being dragged lifts. */
+.draggable {
+  touch-action: none;
+}
+
+.dragging,
+.dragging:hover:not(:disabled) {
+  position: relative;
+  z-index: 1;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  cursor: grabbing;
+}
+
 .separator {
   height: 1px;
   margin: 4px 0;

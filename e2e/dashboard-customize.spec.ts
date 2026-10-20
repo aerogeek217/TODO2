@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, openLayoutAction, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -56,8 +56,11 @@ async function openCustomize(page: Page): Promise<Locator> {
  * dnd-kit's live-region announcement (`Customize`'s `announcements`). A
  * keyboard move only lands once the previous one has rendered: the keyboard
  * sensor computes the next row from the last rendered `over`, so an arrow
- * press that arrives first targets the same row again. Each move waits for
- * its announcement before the next key.
+ * press that arrives first targets the same row again — and an arrow press
+ * right after the lift, before the lifted row and the rows are measured
+ * (`sortableKeyboardCoordinates` has no `collisionRect` yet), does nothing.
+ * So every lift waits for its first "is at position" announcement and every
+ * move for its own before the next key.
  */
 const announced = (page: Page, text: string) => expect(page.locator('[id^="DndLiveRegion"]').filter({ hasText: text })).toHaveCount(1)
 
@@ -102,6 +105,7 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   // Esc during a keyboard move cancels the move, not the dialog.
   await page.keyboard.press('Space')
   await expect(peopleGrip).toHaveAttribute('aria-pressed', 'true')
+  await announced(page, 'People is at position 4 of 10.')
   await page.keyboard.press('ArrowUp')
   await announced(page, 'People is at position 3 of 10.')
   await page.keyboard.press('Escape')
@@ -125,8 +129,7 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   expect(await tileIds(page)).toEqual(['focus', 'open', 'hot', 'urgent', 'followupDue', 'dueToday'])
-  await page.getByRole('button', { name: 'Layout: Dash' }).click()
-  await page.getByRole('menuitem', { name: 'Discard changes' }).click()
+  await openLayoutAction(page, 'Discard changes')
   await expect.poll(() => tileIds(page)).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 })

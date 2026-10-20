@@ -1,5 +1,6 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
+import { listedLists } from '../../models/list-definition'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useFilterSettings } from '../../hooks/use-filter-settings'
@@ -216,9 +217,10 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
       { kind: 'label', text: 'Quick picks' },
       ...CHECKIN_QUICK_SCOPES.map((q) => item(q.scope, q.label, q.hint)),
     ]
-    if (listDefinitions.length > 0) {
+    const lists = listedLists(listDefinitions)
+    if (lists.length > 0) {
       entries.push({ kind: 'label', text: 'Your saved lists' })
-      for (const d of listDefinitions) {
+      for (const d of lists) {
         entries.push(item({ kind: 'list', listDefinitionId: d.id }, d.name, CHECKIN_LIST_SCOPE_HINT))
       }
     }

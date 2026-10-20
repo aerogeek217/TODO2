@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedTaskList, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
+import { openSettings, seedTaskList, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
 
 /**
  * Follow-up pill, empty-slot flag, follow-up popover and the editor's
@@ -163,11 +164,11 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
   })
 
-  test('overdue follow-up: the filled flag only ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
+  test('overdue follow-up: the filled flag and its date ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
     const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
     await expect(cell).toHaveAttribute('data-followup', 'late')
-    await expect(cell).toHaveText('')
+    await expect(cell).toHaveText('10/08')
     const { filter, color, fill } = await cell.evaluate((el) => {
       const svg = el.querySelector('svg')!
       return { filter: getComputedStyle(svg).filter, color: getComputedStyle(el).color, fill: svg.getAttribute('fill') }
@@ -228,5 +229,38 @@ test.describe('Task follow-up', () => {
     await expect(dialog).toBeHidden()
     await expect(taskRowByTitle(page, 'gamma').getByRole('button', { name: 'Follow-up: Tue 10 Nov', exact: true })).toBeVisible()
     await expect.poll(() => followupOf(page, 'gamma')).toEqual({ next: '2026-11-10 00:00', last: null })
+  })
+
+  test('new tasks without a follow-up (Settings › Task defaults): Quick Add shows no default chip and adds none; /followup still sets one', async ({ page }) => {
+    const settings = await openSettings(page, 'Task defaults')
+    const toggle = settings.getByRole('switch', { name: 'New tasks get a follow-up date' })
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await expect.poll(async () => (await readStore<{ key: string; value: string }>(page, 'settings')).find((r) => r.key === 'newTaskFollowup')?.value).toBe('false')
+    await page.keyboard.press('Escape')
+    await expect(settings).toBeHidden()
+
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    await expect(dialog).toBeVisible()
+    const field = dialog.getByPlaceholder('New task…')
+    await expect(field).toBeFocused()
+    await page.keyboard.type('gamma')
+    const chips = dialog.getByRole('group', { name: 'What the task gets' })
+    await expect(chips).toBeVisible()
+    await expect(chips.locator('span')).toHaveCount(0)
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect(taskRowByTitle(page, 'gamma').getByRole('button', { name: 'Set follow-up', exact: true })).toBeAttached()
+    await expect.poll(() => followupOf(page, 'gamma')).toEqual({ next: null, last: null })
+
+    await page.keyboard.press('Control+Space')
+    await expect(field).toBeFocused()
+    await page.keyboard.type('delta /followup 2w ')
+    await expect(chips).toContainText('Sat 24 Oct')
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect.poll(() => followupOf(page, 'delta')).toEqual({ next: '2026-10-24 00:00', last: null })
   })
 })

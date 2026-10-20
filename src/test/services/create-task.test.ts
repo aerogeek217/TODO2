@@ -166,6 +166,22 @@ describe('create a task — next follow-up', () => {
   it('the editor keeps a Last follow-up', async () => {
     expect((await viaEditor({ title: 'A', lastFollowupAt: day(1, 2) })).todo.lastFollowupAt).toEqual(day(1, 2))
   })
+
+  it('new tasks get no follow-up while the setting is off; a typed /followup still sets one', async () => {
+    useSettingsStore.setState({ newTaskFollowup: false })
+    for (const make of [() => viaQuickAdd('Plain'), () => viaDrafts('Plain'), () => viaEditor({ title: 'Plain' })]) {
+      const { todo } = await make()
+      expect(todo.nextFollowupAt).toBeUndefined()
+    }
+    const twoWeeks = addFollowupInterval(new Date(), { count: 2, unit: 'w' })
+    expect((await viaQuickAdd('A /followup 2w')).todo.nextFollowupAt).toEqual(twoWeeks)
+    expect((await viaDrafts('B /followup 2w')).todo.nextFollowupAt).toEqual(twoWeeks)
+    expect((await viaEditor({ title: 'C /followup 2w' })).todo.nextFollowupAt).toEqual(twoWeeks)
+    expect((await viaQuickAdd('D /followup none')).todo.nextFollowupAt).toBeUndefined()
+    // The store's own add (no draft) follows the setting too.
+    const id = await useTodoStore.getState().add('E')
+    expect((await todoRepository.getById(id))!.nextFollowupAt).toBeUndefined()
+  })
 })
 
 describe('create a task — due date and repeat', () => {

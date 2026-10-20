@@ -1,12 +1,16 @@
 import { create } from 'zustand'
-import { layoutRepository, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type ListCopy, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
+import { trackWrite } from './store-helpers'
 import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
+import { ownerLayoutId } from '../models/list-definition'
 import { useUndoStore } from './undo-store'
+import { undoable } from './undoable'
 import { useListDefinitionStore } from './list-definition-store'
+import { useListDraftStore } from './list-draft-store'
+import { useListOrderStore } from './list-order-store'
 import { registerModuleReset } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
-  NEW_LAYOUT_NAME,
   UNSAVED_LAYOUT_ID,
   createTab,
   layoutBodyOf,
@@ -25,9 +29,11 @@ import {
   closeCell,
   closeTab,
   layoutIds,
+  layoutListRefs,
   layoutStructureEqual,
   layoutTabs,
   movePanel,
+  repointLayoutLists,
   moveTab,
   patchTabConfig,
   patchTabViewState,
@@ -65,17 +71,18 @@ export interface ResizeOptions {
  *   (last write wins) — it never makes the layout dirty.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
  *   unsaved changes first.
- * - `newLayout()` opens an empty `Untitled layout` that isn't stored until
- *   it's saved (`saved` is `null`, its id `UNSAVED_LAYOUT_ID`); discarding it
- *   goes back to the layout open before.
+ * - `createLayout(name)` stores a new, empty layout at once and opens it.
+ *   Only an unsaved new layout an older build kept in the browser opens
+ *   without being stored (`saved` is `null`, its id `UNSAVED_LAYOUT_ID`);
+ *   discarding it goes back to the layout open before.
  */
 export interface WorkspaceState {
-  /** Saved layouts, oldest first (the picker's order). */
+  /** Saved layouts in the picker's order (`sortOrder`, then oldest first). */
   layouts: Layout[]
   activeLayoutId: number | null
   /** The open layout as edited (`null` until `init`). */
   working: Layout | null
-  /** The open layout as stored; `null` for a new layout not saved yet. */
+  /** The open layout as stored; `null` for a kept new layout not saved yet. */
   saved: Layout | null
   /** While a new layout is open: the layout open before it, which Discard goes back to. */
   previousLayoutId: number | null
@@ -101,32 +108,58 @@ export interface WorkspaceState {
   init: () => Promise<void>
   /** Opens a layout, dropping the working copy. Unknown id → no-op. */
   load: (id: number) => Promise<void>
-  /** Opens a new, empty, unsaved layout (`Untitled layout`), dropping the working copy. */
-  newLayout: () => void
   /**
-   * Writes the working copy over the saved layout (a new layout: stores it
-   * under its name and opens it). Resolves `false` when the
+   * Stores a new, empty layout named `name` (after the others) and opens
+   * it, dropping the working copy: callers ask about unsaved changes first.
+   * Resolves its id, or `null` for an empty name or a failed write (the
+   * snackbar says so).
+   */
+  createLayout: (name: string) => Promise<number | null>
+  /**
+   * Writes the working copy over the saved layout (a kept new layout: stores
+   * it under its name and opens it). Resolves `false` when the
    * write failed — the layout stays unsaved and the snackbar says so; never
-   * rejects (as `saveAs` → `null`, `rename` → `false`).
+   * rejects (as `saveAs` → `null`, `rename` → `false`). Once saved, the
+   * layout-only lists it owns that no tab of it shows any more are deleted
+   * (with their manual order and unsaved edits); Discard keeps them.
    */
   save: () => Promise<boolean>
   /**
    * Saves the working copy as a new layout and opens it; the layout it came
-   * from stays as last saved. Returns the new id, or `null` for an empty name.
+   * from stays as last saved. The layout-only lists it shows are copied for
+   * the new layout (as edited, with their manual order) and its tabs show
+   * the copies; originals that only its edits showed go. Returns the new
+   * id, or `null` for an empty name.
    */
   saveAs: (name: string) => Promise<number | null>
-  /** Reverts the working copy to the saved layout; a new layout is dropped for the one open before. */
-  discard: () => void
+  /**
+   * Reverts the working copy to the saved layout; a new layout is dropped
+   * for the one open before. Resolves once the layout-only lists only the
+   * dropped edits showed are deleted, as on Save.
+   */
+  discard: () => Promise<void>
   /**
    * Renames a layout (not a layout change: never dirty). Empty name → `false`.
-   * The new, unsaved layout (`UNSAVED_LAYOUT_ID`) is renamed in memory.
+   * A kept new layout not saved yet (`UNSAVED_LAYOUT_ID`) is renamed in memory.
    */
   rename: (id: number, name: string) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
-   * opens the most recently used remaining one.
+   * opens the most recently used remaining one. The lists it owns go with
+   * it (their manual order and unsaved edits too). Not undoable.
    */
   delete: (id: number) => Promise<boolean>
+  /**
+   * Puts the saved layouts in `orderedIds`' order (the tabs' and the
+   * picker's), saved at once — not a layout change: nothing becomes
+   * unsaved — as one undo step (`description`, default `Reordered layouts`).
+   * Layouts it leaves out keep their order after the named ones. Resolves
+   * `false` when the write failed (the order on screen goes back; the
+   * snackbar says so; no undo step).
+   */
+  reorderLayouts: (orderedIds: readonly number[], description?: string) => Promise<boolean>
+  /** Moves one saved layout to position `toIndex` (`reorderLayouts`, undo step `Moved layout “<name>”`). */
+  moveLayout: (id: number, toIndex: number) => Promise<boolean>
 
   /** Adds a new widget tab at `target`. Returns its id, or `null` when the target is unknown. */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
@@ -186,6 +219,13 @@ function replaceLayout(layouts: Layout[], layout: Layout): Layout[] {
   return layouts.map((l) => (l.id === layout.id ? layout : l))
 }
 
+/** The order a layout added after `layouts` takes (as `layoutRepository.insert` picks it). */
+function orderAfter(layouts: readonly Layout[]): number {
+  let next = 0
+  for (const l of layouts) if (Number.isFinite(l.sortOrder)) next = Math.max(next, Math.floor(l.sortOrder) + 1)
+  return next
+}
+
 /** Most recently opened (`lastUsedAt`, else `createdAt`); ties → picker order. */
 function mostRecentlyUsed(layouts: Layout[]): Layout | undefined {
   let best: Layout | undefined
@@ -242,13 +282,114 @@ function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftR
   return { kind: 'saved', layoutId: saved.id, base: layoutBodyOf(saved), body: layoutBodyOf(working) }
 }
 
-/** Whether a kept new layout's lists are still the lists it showed (same ids, same names). */
+/**
+ * Whether a kept new layout's lists are still the lists it showed: same
+ * ids, same names, and still saved lists (a new layout may show no other
+ * layout's own list, nor the Eisenhower's).
+ */
 function listsStillMatch(listNames: Readonly<Record<string, string>>, body: LayoutBody): boolean {
   const defs = useListDefinitionStore.getState().listDefinitions
   return listIdsOf(body).every((id) => {
     const def = defs.find((d) => d.id === id)
-    return def != null && listNames[id] === def.name
+    return def != null && def.owner == null && listNames[id] === def.name
   })
+}
+
+/**
+ * Lists deleted with their layout (or no longer shown by it when it was
+ * saved): out of the list stores, their unsaved edits dropped.
+ */
+function forgetDeletedLists(ids: readonly number[]): void {
+  if (ids.length === 0) return
+  useListDefinitionStore.getState().forgetLists(ids)
+  const drafts = useListDraftStore.getState()
+  for (const id of ids) drafts.discard(id)
+}
+
+/**
+ * Takes a removal of layout-only lists into the stores: the deleted ones
+ * forgotten (`forgetDeletedLists`), and — when some were made saved lists
+ * instead (something else names them) — the lists read again.
+ */
+async function applyRemoved({ deleted, released }: OwnedListsRemoved): Promise<void> {
+  forgetDeletedLists(deleted)
+  if (released.length > 0) await useListDefinitionStore.getState().load()
+}
+
+/**
+ * Deletes the lists layout `layoutId` owns that none of `bodies` (the
+ * layout as now saved, and as edited since) shows, nor its stored row
+ * (`layoutRepository.pruneOwnedLists`). A failed delete only leaves them in
+ * place (hidden, unshown) until the layout is saved again.
+ */
+async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<OwnedListsRemoved | null> {
+  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
+  try {
+    const removed = await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown))
+    await applyRemoved(removed)
+    return removed
+  } catch (err) {
+    console.warn('[workspace] removing the layout\'s unshown lists failed', err)
+    return null
+  }
+}
+
+/**
+ * The undo step (with the snackbar) for the lists a layout Save removed:
+ * Undo brings them back as saved lists, with their manual order; Redo
+ * removes them again unless something shows them by then.
+ */
+function recordRemovedLists(removed: OwnedListsRemoved | null, shownNow: () => ReadonlySet<number>): void {
+  const defs = removed?.rows.defs ?? []
+  const [first] = defs
+  if (!removed || !first) return
+  const description = defs.length === 1
+    ? `Removed the layout-only list “${first.name}”`
+    : `Removed ${defs.length} layout-only lists`
+  const ids = defs.map((d) => d.id)
+  undoable(
+    description,
+    async () => {
+      forgetDeletedLists(await trackWrite(() => layoutRepository.deleteUnnamedLists(ids, shownNow())))
+    },
+    async () => {
+      await trackWrite(() => layoutRepository.restoreLists(removed.rows))
+      await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
+    },
+    true,
+  )
+}
+
+/** Makes the lists of `named` that layout `layoutId` owns and none of `bodies` shows saved lists. */
+async function releaseUnshown(layoutId: number, named: ReadonlySet<number>, ...bodies: LayoutBody[]): Promise<void> {
+  const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
+  const ids = new Set([...named].filter((id) => !shown.has(id)))
+  try {
+    const released = await trackWrite(() => layoutRepository.releaseOwnedLists(layoutId, ids))
+    if (released.length > 0) await useListDefinitionStore.getState().load()
+  } catch (err) {
+    console.warn("[workspace] keeping the repaired layout's lists failed", err)
+  }
+}
+
+/**
+ * The layout-only lists of layout `layoutId` that `body` shows, as copies
+ * for a new layout: each list as edited (its unsaved draft, else as saved;
+ * a blank draft name keeps the saved name).
+ */
+function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
+  const shown = layoutListRefs(body)
+  const drafts = useListDraftStore.getState().drafts
+  const copies: ListCopy[] = []
+  for (const saved of useListDefinitionStore.getState().listDefinitions) {
+    if (!shown.has(saved.id) || ownerLayoutId(saved) !== layoutId) continue
+    const { id: _id, sortOrder: _order, owner: _owner, ...def } = drafts[saved.id] ?? saved
+    void _id
+    void _order
+    void _owner
+    copies.push({ from: saved.id, def: { ...def, name: def.name.trim() || saved.name } })
+  }
+  return copies
 }
 
 /** The ids of the read layouts that were repaired. */
@@ -269,6 +410,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * against; any other kept draft is forgotten.
    */
   async function reopenDraft(draft: LayoutDraftRecord | null): Promise<void> {
+    await takeBackDraft(draft)
+    // The edits a reload dropped (no kept draft, or one not taken back) may
+    // have shown layout-only lists made for them: the ones neither the
+    // stored layout nor the working copy shows go, as on Discard.
+    // A kept draft of another layout than the open one is dropped too.
+    const { working, saved, previousLayoutId, layouts } = get()
+    const openId = saved?.id ?? previousLayoutId
+    if (openId != null) await pruneOwnedLists(openId, ...(working && working.id === openId ? [working] : []))
+    if (draft?.kind === 'saved' && draft.layoutId !== openId && layouts.some((l) => l.id === draft.layoutId)) {
+      await pruneOwnedLists(draft.layoutId)
+    }
+  }
+
+  async function takeBackDraft(draft: LayoutDraftRecord | null): Promise<void> {
     const { working, saved } = get()
     if (!draft || !working || !saved) {
       keepDraft()
@@ -288,7 +443,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     if (listsStillMatch(draft.listNames, draft.body)) {
       const now = new Date()
       set({
-        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, ...draft.body, createdAt: now, modifiedAt: now },
+        working: { id: UNSAVED_LAYOUT_ID, name: draft.name, sortOrder: orderAfter(get().layouts), ...draft.body, createdAt: now, modifiedAt: now },
         saved: null,
         activeLayoutId: null,
         previousLayoutId: saved.id,
@@ -372,6 +527,42 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     keepDraft()
   }
 
+  /**
+   * Shows and saves the saved layouts in `orderedIds`' order (the others
+   * after them). A failed write puts the order on screen back (`report`:
+   * and says so in the snackbar). Resolves whether it was saved.
+   */
+  async function applyOrder(orderedIds: readonly number[], report = true): Promise<boolean> {
+    const before = get().layouts
+    const rank = new Map(orderedIds.map((id, i) => [id, i]))
+    const ordered = [...before].sort((a, b) =>
+      (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity) || byLayoutOrder(a, b))
+    const ids = ordered.map((l) => l.id)
+    const orderOf = new Map(ids.map((id, i) => [id, i]))
+    const show = (orderById: ReadonlyMap<number, number>, layouts: Layout[]) => {
+      const { working, saved } = get()
+      const placed = (l: Layout): Layout => {
+        const order = orderById.get(l.id)
+        return order === undefined || order === l.sortOrder ? l : { ...l, sortOrder: order }
+      }
+      set({
+        layouts,
+        ...(saved ? { saved: placed(saved) } : {}),
+        ...(working ? { working: placed(working) } : {}),
+      })
+    }
+    show(orderOf, ordered.map((l) => ({ ...l, sortOrder: orderOf.get(l.id) ?? l.sortOrder })))
+    try {
+      await layoutRepository.reorder(ids)
+      return true
+    } catch (err) {
+      show(new Map(before.map((l) => [l.id, l.sortOrder])), before)
+      if (report) reportWriteFailure("Couldn't save the layout order.", err)
+      else console.warn("[workspace] couldn't save the layout order", err)
+      return false
+    }
+  }
+
   return {
     layouts: [],
     activeLayoutId: null,
@@ -405,18 +596,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
     },
 
-    newLayout() {
-      const { activeLayoutId, previousLayoutId } = get()
+    async createLayout(name) {
+      const clean = cleanName(name)
+      if (!clean) return null
       const now = new Date()
-      set({
-        working: { id: UNSAVED_LAYOUT_ID, name: NEW_LAYOUT_NAME, columns: [], createdAt: now, modifiedAt: now },
-        saved: null,
-        activeLayoutId: null,
-        // A new layout over a new layout still goes back to the stored one.
-        previousLayoutId: activeLayoutId ?? previousLayoutId,
-        isDirty: true,
+      const record = { name: clean, columns: [], createdAt: now, modifiedAt: now, lastUsedAt: now }
+      let id: number
+      try {
+        id = await layoutRepository.insert(record)
+      } catch (err) {
+        reportWriteFailure(`Couldn't create layout "${clean}".`, err)
+        return null
+      }
+      await layoutRepository.setActiveId(id).catch((err: unknown) => {
+        console.warn('[workspace] remembering the open layout failed', err)
       })
-      keepDraft()
+      // The order the insert gave it (after the others).
+      const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
+      const layout: Layout = { ...record, id, sortOrder }
+      open({ layout, fixes: [] }, [...get().layouts.filter((l) => l.id !== id), layout], get().repairedIds)
+      return id
     },
 
     async save() {
@@ -424,6 +623,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (!working) return false
       if (!stored) return (await get().saveAs(working.name)) !== null
       const next: Layout = { ...working, modifiedAt: new Date() }
+      // A layout the repair changed: the lists its stored row named before
+      // (a part the repair drops may have shown one of its own lists).
+      const named = get().repairedIds.has(next.id)
+        ? await layoutRepository.storedListRefs(next.id).catch(() => new Set<number>())
+        : null
       // Saved only once the write has landed: a failed write leaves the
       // layout unsaved (and says so) rather than lost on the next reload.
       try {
@@ -445,31 +649,53 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         layouts: replaceLayout(get().layouts, next),
       })
       keepDraft()
+      // Its own lists only the repaired-away parts showed become saved lists
+      // (never lost with a part this build couldn't read).
+      if (named) await releaseUnshown(next.id, named, next, kept)
+      // Its layout-only lists that no saved tab shows any more go — unless
+      // an edit made meanwhile shows one again — as an undo step.
+      recordRemovedLists(await pruneOwnedLists(next.id, next, kept), () => {
+        const current = get().working
+        return current ? layoutListRefs(current) : new Set<number>()
+      })
       return true
     },
 
     async saveAs(name) {
       const clean = cleanName(name)
       const source = get().working
+      const from = get().saved
       if (!clean || !source) return null
       const now = new Date()
-      const { id: _from, ...body } = source
+      const { id: _from, sortOrder: _order, ...body } = source
       void _from
-      const record = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
+      void _order
+      // The layout-only lists it shows are copied for the new layout (as
+      // edited); the originals stay with the layout they came from.
+      if (from) await useListDefinitionStore.getState().ensureLoaded()
+      const copies = from ? ownedListCopies(from.id, source) : []
+      const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number
+      let listIds: ReadonlyMap<number, number>
       try {
-        id = await layoutRepository.insert(record)
+        ({ id, listIds } = await layoutRepository.insertWithListCopies(original, copies))
       } catch (err) {
         reportWriteFailure(`Couldn't save layout "${clean}".`, err)
         return null
       }
+      const record = repointLayoutLists(original, listIds)
+      if (listIds.size > 0) {
+        await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
+      }
       await layoutRepository.setActiveId(id).catch((err: unknown) => {
         console.warn('[workspace] remembering the open layout failed', err)
       })
-      const saved: Layout = { ...record, id }
+      // The order the insert gave it (after the others).
+      const sortOrder = (await layoutRepository.get(id).catch(() => undefined))?.layout.sortOrder ?? orderAfter(get().layouts)
+      const saved: Layout = { ...record, id, sortOrder }
       // Keep any edit made while the insert was in flight.
-      const current = get().working ?? source
-      const working: Layout = { ...current, id, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
+      const current = repointLayoutLists(get().working ?? source, listIds)
+      const working: Layout = { ...current, id, sortOrder, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
       set({
         layouts: [...get().layouts, saved],
         activeLayoutId: id,
@@ -480,10 +706,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         previousLayoutId: null,
       })
       keepDraft()
+      // The layout it came from stays as last saved: its layout-only lists
+      // only the edits showed (now copied) go.
+      if (from) await pruneOwnedLists(from.id, from)
       return id
     },
 
-    discard() {
+    async discard() {
       const { saved, working, layouts, previousLayoutId, repairedIds } = get()
       if (!saved) {
         if (!working) return
@@ -499,6 +728,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
       set({ working: saved, isDirty: repairedIds.has(saved.id) })
       keepDraft()
+      // Its layout-only lists only the dropped edits showed (made for them)
+      // go; the ones the stored layout shows stay.
+      await pruneOwnedLists(saved.id, saved)
     },
 
     async rename(id, name) {
@@ -532,20 +764,48 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async delete(id) {
-      const deleted = await layoutRepository.deleteUnlessLast(id)
-      if (!deleted) return false
+      // Its layout-only lists go with it (one something else names is kept as a saved list).
+      const removed = await layoutRepository.deleteUnlessLast(id)
+      if (!removed) return false
       const reads = await layoutRepository.getAll()
       const layouts = reads.map((r) => r.layout)
       const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
       if (get().activeLayoutId !== id) {
         set({ layouts, repairedIds })
+        await applyRemoved(removed)
         return true
       }
       set({ repairedIds })
       const next = mostRecentlyUsed(layouts)
       if (next) await get().load(next.id)
       set({ layouts: get().layouts.filter((l) => l.id !== id) })
+      await applyRemoved(removed)
       return true
+    },
+
+    async reorderLayouts(orderedIds, description = 'Reordered layouts') {
+      const before = get().layouts.map((l) => l.id)
+      if (!(await applyOrder(orderedIds))) return false
+      const after = get().layouts.map((l) => l.id)
+      if (after.length === before.length && after.every((id, i) => id === before[i])) return true
+      // Undo / redo throw on a failed write: the entry stays, to try again.
+      const apply = (ids: readonly number[]) => async () => {
+        if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
+      }
+      undoable(description, apply(after), apply(before), true)
+      return true
+    },
+
+    moveLayout(id, toIndex) {
+      const ids = get().layouts.map((l) => l.id)
+      const from = ids.indexOf(id)
+      const layout = get().layouts[from]
+      if (!layout) return Promise.resolve(false)
+      const to = Math.max(0, Math.min(ids.length - 1, toIndex))
+      if (to === from) return Promise.resolve(true)
+      ids.splice(from, 1)
+      ids.splice(to, 0, id)
+      return get().reorderLayouts(ids, `Moved layout “${layout.name}”`)
     },
 
     addWidget(kind, target, seed) {

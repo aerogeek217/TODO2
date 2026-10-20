@@ -57,9 +57,10 @@ export interface WidgetKindMenuProps {
   /**
    * "Edit list…" for the tab's list: a list tab's menu opens with the list's
    * own items — "Edit list…", then "Change list ›" (showing
-   * `currentListName`) — then the widget actions, then "Change widget"; an
-   * Eisenhower tab on a list has "Edit list…" under its `sourceNote`. The
-   * caller binds the widget's list; the menu forwards the click and closes.
+   * `currentListName`) and, on a layout-only list, "Save to my lists" —
+   * then the widget actions, then "Change widget"; an Eisenhower tab has
+   * "Edit list…" (its own list) first. The caller binds the widget's list;
+   * the menu forwards the click and closes.
    */
   onEditList?: () => void
   onClose: () => void
@@ -75,17 +76,22 @@ export interface WidgetKindMenuProps {
   /** A setting of the widget, listed first (see {@link WidgetSetting}). */
   widgetSetting?: WidgetSetting
   /**
-   * An Eisenhower tab: what every Eisenhower shows (the app-wide source,
-   * set in Settings), as a muted line at the top — `Shows all tasks` —
-   * with Edit list… under it while a list is set (`onEditList`).
-   */
-  sourceNote?: string
-  /**
-   * Items after the source line (e.g. the Eisenhower's Customize panes…),
-   * before the widget setting. Each closes the menu after running.
+   * Items listed first after a non-list tab's Edit list… (an Eisenhower
+   * tab's: its own list), e.g. the Eisenhower's Customize panes…, before
+   * the widget setting. Each closes the menu after running.
    */
   sourceActions?: ReadonlyArray<{ label: string; icon?: ReactNode; onSelect: () => void }>
+  /**
+   * The saved layout the tab is in: Change list also offers the lists only
+   * it shows (`listChoiceEntries`). Omit: saved lists only.
+   */
+  listLayoutId?: number
+  /** A list tab on a layout-only list: "Save to my lists" after Change list (it becomes a saved list). */
+  onSaveToMyLists?: () => void
 }
+
+/** The tab menu item that makes a layout-only list a saved list. */
+export const SAVE_TO_MY_LISTS_LABEL = 'Save to my lists'
 
 const CHANGE_LIST_WIDTH_PX = 240
 const CHANGE_LIST_MAX_HEIGHT_PX = 320
@@ -110,16 +116,17 @@ export function WidgetKindMenu({
   widgetActions,
   currentListName,
   widgetSetting,
-  sourceNote,
   sourceActions,
+  listLayoutId,
+  onSaveToMyLists,
 }: WidgetKindMenuProps) {
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const showChangeList = currentKind === 'lens' && pickListForLens != null
   const listFirst = currentKind === 'lens' && onEditList != null
 
   const listChoices = useMemo<MenuEntry[]>(
-    () => (pickListForLens ? listChoiceEntries(listDefinitions, (id) => { if (id != null) pickListForLens(id) }) : []),
-    [listDefinitions, pickListForLens],
+    () => (pickListForLens ? listChoiceEntries(listDefinitions, pickListForLens, listLayoutId) : []),
+    [listDefinitions, pickListForLens, listLayoutId],
   )
 
   const entries: MenuEntry[] = []
@@ -147,12 +154,12 @@ export function WidgetKindMenu({
   if (listFirst) {
     entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList?.() })
     if (showChangeList) entries.push(changeList)
+    if (onSaveToMyLists) entries.push({ kind: 'item', label: SAVE_TO_MY_LISTS_LABEL, onSelect: () => onSaveToMyLists() })
     entries.push({ kind: 'separator' })
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
     entries.push({ kind: 'label', text: heading }, ...kinds)
   } else {
-    if (sourceNote != null) {
-      entries.push({ kind: 'note', text: sourceNote })
+    if (onEditList || (sourceActions?.length ?? 0) > 0) {
       if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
       for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
       if (!widgetSetting) entries.push({ kind: 'separator' })

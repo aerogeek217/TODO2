@@ -1,6 +1,6 @@
 import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
 import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection } from '../models'
-import type { ListDefinition, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
+import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
@@ -269,6 +269,7 @@ function checkLayout(v: unknown): CheckResult {
   const fields = checkFields(v, [
     ['id', isOptNum(v.id)],
     ['name', isStr(v.name, LAYOUT_NAME_MAX) && (v.name as string).trim().length > 0],
+    ['sortOrder', isFiniteNum(v.sortOrder)],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
@@ -357,6 +358,9 @@ function checkSetting(v: unknown): CheckResult {
     return parseCheckinTaskScope(v.value as string) !== undefined
       ? true
       : 'value (checkinTaskScope must be all, due-soon, hot or list:<id>)'
+  }
+  if (v.key === SETTING_KEYS.newTaskFollowup) {
+    return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
   }
   if (v.key === SETTING_KEYS.eisenhowerSource) {
     return parseEisenhowerSource(v.value as string) !== undefined
@@ -533,18 +537,26 @@ function layoutFixes(v: Raw): string[] {
   const fixes: string[] = []
   const name = layoutName(v.name).fix
   if (name) fixes.push(name)
+  if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
 
+/**
+ * The order a layout without a readable one gets when repaired: after every
+ * other layout (the picker orders such layouts by creation).
+ */
+const LAYOUT_ORDER_RESET = Number.MAX_SAFE_INTEGER
+
 function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
-  // Lenient past `checkLayout` (bad dates → now, a bad last use → none), so
-  // the audit can repair a stored row with it; see `layoutFixes`.
+  // Lenient past `checkLayout` (bad dates → now, a bad last use → none, a bad
+  // order → last), so the audit can repair a stored row with it; see `layoutFixes`.
   const now = new Date()
   const body = pickLayoutBody(v)
   return {
     id: optNum(v.id),
     name: layoutName(v.name).name,
+    sortOrder: isFiniteNum(v.sortOrder) ? v.sortOrder : LAYOUT_ORDER_RESET,
     columns: body.columns,
     top: body.top,
     bottom: body.bottom,
@@ -576,14 +588,30 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
 }
 
 /**
- * What import drops from a valid list row, in words. A sort direction this
- * build doesn't know is dropped (the list sorts in its natural order) rather
- * than failing the file; `null` reads as none.
+ * A list's owner rebuilt from its known keys: one layout (`layoutId`, a
+ * positive whole number) or the Eisenhower (`eisenhower: true`), each its
+ * only key; anything else is none (a saved list).
+ */
+function pickListOwner(v: unknown): ListOwner | undefined {
+  if (!isRecord(v) || Object.keys(v).length !== 1) return undefined
+  if (typeof v.layoutId === 'number' && Number.isSafeInteger(v.layoutId) && v.layoutId > 0) return { layoutId: v.layoutId }
+  if (v.eisenhower === true) return { eisenhower: true }
+  return undefined
+}
+
+/**
+ * What import drops from a valid list row, in words. A sort direction, an
+ * owner or a filter-line switch this build doesn't know is dropped (the list
+ * sorts in its natural order / is a saved list / shows its filter line)
+ * rather than failing the file; `null` reads as none.
  */
 function listDefinitionFixes(row: Raw): string[] {
   const fixes = pickPredicate(isRecord(row.membership) ? row.membership.predicate : undefined).fixes
   const dir = row.sortDirection
   if (dir !== undefined && dir !== null && !isTodoSortDirection(dir)) fixes.push('unknown sort direction dropped')
+  if (row.owner !== undefined && row.owner !== null && pickListOwner(row.owner) === undefined) fixes.push('unknown owner dropped')
+  const line = row.showFilterLine
+  if (line !== undefined && line !== null && typeof line !== 'boolean') fixes.push('unknown filter line setting dropped')
   return fixes
 }
 
@@ -598,6 +626,9 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
     sortDirection: isTodoSortDirection(v.sortDirection) ? v.sortDirection : undefined,
     grouping: v.grouping as ListGrouping,
     runtimeFilter: pickRuntimeFilter(v.runtimeFilter),
+    owner: pickListOwner(v.owner),
+    // Only `false` is stored: shown is the default.
+    showFilterLine: v.showFilterLine === false ? false : undefined,
   } satisfies AllFields<ListDefinition>
 }
 

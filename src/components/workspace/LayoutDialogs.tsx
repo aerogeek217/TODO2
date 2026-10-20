@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { LAYOUT_NAME_MAX } from '../../models/workspace-layout'
+import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
 interface UnsavedChangesDialogProps {
@@ -36,12 +37,14 @@ interface LayoutNameDialogProps {
   title: string
   confirmLabel: string
   initialName: string
+  /** The empty field's hint (New layout, which starts empty). */
+  placeholder?: string
   onConfirm: (name: string) => void
   onCancel: () => void
 }
 
-/** "Save as new layout…" / "Rename…": one name field, prefilled and selected. */
-export function LayoutNameDialog({ title, confirmLabel, initialName, onConfirm, onCancel }: LayoutNameDialogProps) {
+/** "New layout…" / "Save as new layout…" / "Rename…": one name field, prefilled and selected; empty can't be confirmed. */
+export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, onConfirm, onCancel }: LayoutNameDialogProps) {
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmed = name.trim()
@@ -58,6 +61,7 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, onConfirm, 
             ref={inputRef}
             className={styles.input}
             value={name}
+            placeholder={placeholder}
             maxLength={LAYOUT_NAME_MAX}
             onChange={(e) => setName(e.target.value)}
             onFocus={(e) => e.currentTarget.select()}
@@ -74,15 +78,17 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, onConfirm, 
 
 interface DeleteLayoutDialogProps {
   layoutName: string
+  /** How many layout-only lists go with it. */
+  ownedLists?: number
   onConfirm: () => void
   onCancel: () => void
 }
 
-export function DeleteLayoutDialog({ layoutName, onConfirm, onCancel }: DeleteLayoutDialogProps) {
+export function DeleteLayoutDialog({ layoutName, ownedLists = 0, onConfirm, onCancel }: DeleteLayoutDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   return (
     <Dialog open onClose={onCancel} title={`Delete layout “${layoutName}”?`} initialFocusRef={cancelRef} nested>
-      <DialogBody>The layout is removed. Your tasks, lists and notes are not affected.</DialogBody>
+      <DialogBody>{deleteLayoutMessage(ownedLists)}</DialogBody>
       <DialogActions>
         <button ref={cancelRef} type="button" className={styles.ghost} onClick={onCancel}>Cancel</button>
         <button type="button" className={styles.danger} onClick={onConfirm}>Delete layout</button>

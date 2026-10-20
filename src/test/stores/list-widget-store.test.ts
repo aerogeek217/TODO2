@@ -7,7 +7,7 @@ const AT = new Date('2026-10-01T09:00:00.000Z')
 
 function layout(id: number, tabIds: string[]): PersistedWorkspaceLayout {
   return {
-    id, name: `L${id}`, createdAt: AT, modifiedAt: AT,
+    id, sortOrder: 0, name: `L${id}`, createdAt: AT, modifiedAt: AT,
     columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: tabIds.map((t) => createTab('lens', t, { listDefinitionId: 1 })) }] }],
   }
 }

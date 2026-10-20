@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useLatestRef } from './use-latest-ref'
-import { useSettingsStore } from '../stores/settings-store'
+import { newTaskFollowupInterval, useSettingsStore } from '../stores/settings-store'
 import {
   applyAutocompletePick,
   bestMatchCompletion,
@@ -77,7 +77,7 @@ export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEM
   const [state, setState] = useState<AutocompleteState>(initialState)
   /** The text the popup was last computed for (re-read when the candidates change). */
   const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
-  const followupDefault = useSettingsStore((s) => s.followupDefaultInterval)
+  const followupDefault = useSettingsStore(newTaskFollowupInterval)
   const onApplyRef = useLatestRef(onApply)
 
   const dismiss = useCallback(() => setState(initialState), [])

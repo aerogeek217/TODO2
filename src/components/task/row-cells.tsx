@@ -7,8 +7,10 @@ import { dateIntensity, daysUntil, dueTooltip, isDeadlinePast } from '../../util
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
 import { markerSummary } from '../../utils/markers'
 import { progressNotesPreview } from '../../utils/notes-preview'
-import { peopleFit, tagsFit, type PeopleFit } from '../../utils/task-row-columns'
+import { datesParts, peopleFit, tagsFit, type PeopleFit } from '../../utils/task-row-columns'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
+import { RepeatIcon } from '../shared/icons'
+import { ClockIcon } from '../shared/MarkerIcons'
 import { MarkerDots } from '../shared/MarkerDots'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useTooltip } from '../shared/use-tooltip'
@@ -247,11 +249,82 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
   )
 }
 
-// ── Due ─────────────────────────────────────────────────────────────────────
+// ── Dates ───────────────────────────────────────────────────────────────────
 
-export function DueCell({ todo, today, inputRef, onOpen, onClear, onInputChange }: {
+/**
+ * The dates cell: the due date (a clock — the repeat glyph for a repeating
+ * task — then `MM/DD`) and the next follow-up (the flag, then `MM/DD`), two
+ * parts with their own click target, picker, tooltip and colours. The list's
+ * width sets which dates show beside their icons (`TaskRowColumns.datesTier`;
+ * the follow-up's date goes first, then the due date's — the tooltip still
+ * has them); the cell re-renders only when that changes. An absent date is
+ * its icon as the placeholder. A part showing its date gets a clear × over
+ * its right end on hover.
+ */
+export function DatesCell({
+  todo, today, deadlineInputRef, onOpenDue, onClearDue, onDueInputChange,
+  followupAnchorRef, followupOpen, onToggleFollowup, onClearFollowup,
+}: {
   todo: PersistedTodoItem
   today: Date
+  deadlineInputRef: RefObject<HTMLInputElement | null>
+  onOpenDue: () => void
+  onClearDue: () => void
+  onDueInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  followupAnchorRef: RefObject<HTMLButtonElement | null>
+  followupOpen: boolean
+  onToggleFollowup: (e: MouseEvent) => void
+  onClearFollowup: () => void
+}) {
+  const tier = useTaskRowColumn((c) => c.datesTier)
+  const parts = datesParts(tier)
+  return (
+    <div className={styles.datesCell} style={{ gap: parts.gap }} data-row-cell="dates" data-dates-tier={tier}>
+      <DuePart
+        todo={todo}
+        today={today}
+        width={parts.due}
+        showDate={tier !== 'icons'}
+        inputRef={deadlineInputRef}
+        onOpen={onOpenDue}
+        onClear={onClearDue}
+        onInputChange={onDueInputChange}
+      />
+      <FollowupPart
+        todo={todo}
+        today={today}
+        width={parts.followup}
+        showDate={tier === 'both'}
+        anchorRef={followupAnchorRef}
+        open={followupOpen}
+        onToggle={onToggleFollowup}
+        onClear={onClearFollowup}
+      />
+    </div>
+  )
+}
+
+/** A date part's clear ×: over the part's right end on hover — takes no width. */
+function DateClear({ label, cell, onClear }: { label: string; cell: string; onClear: () => void }) {
+  return (
+    <button
+      type="button"
+      className={styles.dateClear}
+      tabIndex={-1}
+      aria-label={label}
+      data-row-cell={cell}
+      onClick={cellClick(onClear)}
+    >
+      &times;
+    </button>
+  )
+}
+
+function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onInputChange }: {
+  todo: PersistedTodoItem
+  today: Date
+  width: number
+  showDate: boolean
   inputRef: RefObject<HTMLInputElement | null>
   onOpen: () => void
   onClear: () => void
@@ -263,11 +336,12 @@ export function DueCell({ todo, today, inputRef, onOpen, onClear, onInputChange 
   const style = due && !past
     ? ({ '--date-intensity': dateIntensity(daysUntil(due, today)) } as CSSProperties)
     : undefined
+  const icon = todo.recurrenceRule ? <RepeatIcon size={12} /> : <ClockIcon />
   return (
-    <div className={styles.dueCell}>
+    <span className={styles.datePart} style={{ width }}>
       <button
         type="button"
-        className={`${styles.cell} ${styles.due} ${past ? styles.duePast : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${showDate ? '' : styles.cellCenter} ${styles.due} ${past ? styles.duePast : ''}`}
         style={style}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
@@ -277,26 +351,15 @@ export function DueCell({ todo, today, inputRef, onOpen, onClear, onInputChange 
       >
         {due ? (
           <>
-            <span>{formatDateNumeric(due)}</span>
-            {todo.recurrenceRule && <span className={styles.repeat} aria-hidden="true">&#x21bb;</span>}
+            {icon}
+            {showDate && <span className={styles.dateText}>{formatDateNumeric(due)}</span>}
           </>
         ) : (
-          <Placeholder><StatusIcon icon="calendar" /></Placeholder>
+          <Placeholder><ClockIcon /></Placeholder>
         )}
         {tooltip}
       </button>
-      {due && (
-        <button
-          type="button"
-          className={styles.dueClear}
-          tabIndex={-1}
-          aria-label="Clear due date"
-          data-row-cell="due-clear"
-          onClick={cellClick(onClear)}
-        >
-          &times;
-        </button>
-      )}
+      {due && showDate && <DateClear label="Clear due date" cell="due-clear" onClear={onClear} />}
       <input
         ref={inputRef}
         type="date"
@@ -306,18 +369,19 @@ export function DueCell({ todo, today, inputRef, onOpen, onClear, onInputChange 
         tabIndex={-1}
         aria-hidden="true"
       />
-    </div>
+    </span>
   )
 }
 
-// ── Follow-up ───────────────────────────────────────────────────────────────
-
-export function FollowupCell({ todo, today, anchorRef, open, onToggle }: {
+function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle, onClear }: {
   todo: PersistedTodoItem
   today: Date
+  width: number
+  showDate: boolean
   anchorRef: RefObject<HTMLButtonElement | null>
   open: boolean
   onToggle: (e: MouseEvent) => void
+  onClear: () => void
 }) {
   const next = todo.nextFollowupAt
   const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
@@ -325,21 +389,31 @@ export function FollowupCell({ todo, today, anchorRef, open, onToggle }: {
   const isToday = !!next && !todo.isCompleted && startOfDay(new Date(next)).getTime() === startOfDay(today).getTime()
   const state = !next ? undefined : late ? 'late' : isToday ? 'today' : 'upcoming'
   return (
-    <button
-      ref={anchorRef}
-      type="button"
-      className={`${styles.cell} ${styles.cellCenter} ${styles.followup} ${open ? styles.cellOpen : ''}`}
-      aria-label={next ? `Follow-up: ${followupPillLabel(todo, today)}${late ? ', late' : ''}` : 'Set follow-up'}
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      data-row-cell="followup"
-      data-followup={state}
-      onClick={cellClick(onToggle)}
-      {...triggerProps}
-    >
-      {next ? <FollowupFlagIcon filled={state !== 'upcoming'} /> : <Placeholder><FollowupFlagIcon /></Placeholder>}
-      {tooltip}
-    </button>
+    <span className={styles.datePart} style={{ width }}>
+      <button
+        ref={anchorRef}
+        type="button"
+        className={`${styles.cell} ${styles.datePartButton} ${showDate && next ? '' : styles.cellCenter} ${styles.followup} ${open ? styles.cellOpen : ''}`}
+        aria-label={next ? `Follow-up: ${followupPillLabel(todo, today)}${late ? ', late' : ''}` : 'Set follow-up'}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-row-cell="followup"
+        data-followup={state}
+        onClick={cellClick(onToggle)}
+        {...triggerProps}
+      >
+        {next ? (
+          <>
+            <FollowupFlagIcon filled={state !== 'upcoming'} />
+            {showDate && <span className={styles.dateText}>{formatDateNumeric(next)}</span>}
+          </>
+        ) : (
+          <Placeholder><FollowupFlagIcon /></Placeholder>
+        )}
+        {tooltip}
+      </button>
+      {next && showDate && <DateClear label="Clear follow-up" cell="followup-clear" onClear={onClear} />}
+    </span>
   )
 }
 

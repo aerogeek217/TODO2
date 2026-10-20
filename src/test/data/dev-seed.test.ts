@@ -102,11 +102,11 @@ describe('dev seed → prepareImport → restore', () => {
       todoPeople: count('todoPeople') + count('todoOrgs'),
       // v52 drops the two horizons rows, v53 the follow-up pointer and the scheduled color;
       // v53 adds an explicit quickStatusId, v56 activeLayoutId; v60 drops the five
-      // canvas / project settings.
-      settings: count('settings') - 4 + 2 - 5,
+      // canvas / project settings; v67 adds eisenhowerSource.
+      settings: count('settings') - 4 + 2 - 5 + 1,
       statuses: count('statuses'),
-      // v59 adds the Focus list.
-      listDefinitions: count('listDefinitions') + 1,
+      // v59 adds the Focus list, v67 the Eisenhower's.
+      listDefinitions: count('listDefinitions') + 2,
       notes: 1,
       // v60: each project becomes a tag; each task in a project is tagged with it.
       tags: count('tags') + count('projects'),

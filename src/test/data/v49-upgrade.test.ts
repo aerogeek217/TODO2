@@ -6,6 +6,8 @@ import { prepareImport } from '../../data/import-pipeline'
 import { upgradeDataSet, type DataSet } from '../../data/schema-upgrades'
 import { restoreFromImportData } from '../../data/restore'
 import { resetDb } from '../helpers'
+import { emptyPredicate } from '../../models/filter-predicate'
+import { listedLists } from '../../models/list-definition'
 
 /**
  * Frozen v49 export (`src/test/fixtures/v49-export.json`) — generated once
@@ -48,9 +50,12 @@ function railsAt(version: number) {
   return JSON.parse(row.value as string)
 }
 
-/** The stored lists that came from the fixture (v59 adds the Focus list). */
+/** Id of the Eisenhower's list v67 creates (the fixture's Eisenhower showed all tasks): after the Focus list. */
+const EISENHOWER_LIST_ID = 6
+
+/** The stored lists that came from the fixture (v59 adds the Focus list, v67 the Eisenhower's). */
 async function fixtureListDefinitions() {
-  return (await db.listDefinitions.orderBy('sortOrder').toArray()).filter((d) => d.id !== FOCUS_LIST_ID)
+  return (await db.listDefinitions.orderBy('sortOrder').toArray()).filter((d) => d.id !== FOCUS_LIST_ID && d.id !== EISENHOWER_LIST_ID)
 }
 
 async function importFixture(): Promise<void> {
@@ -85,14 +90,15 @@ describe('v49 fixture → prepareImport → restore', () => {
     for (const table of ALL_DATA_TABLES) {
       let expected = TABLES_ADDED_AFTER_V49.has(table.name) ? 0 : (fixture[table.name as FixtureTable] as unknown[]).length
       // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer;
-      // v56 adds `activeLayoutId`; v60 removes the five canvas / project settings; v64 `maxTags`.
-      if (table.name === 'settings') expected -= 3 - 1 + 5 + 1
+      // v56 adds `activeLayoutId`; v60 removes the five canvas / project settings; v64 `maxTags`;
+      // v67 adds `eisenhowerSource`.
+      if (table.name === 'settings') expected -= 3 - 1 + 5 + 1 - 1
       // v56 seeds the Default layout.
       if (table.name === 'layouts') expected = 1
       // v55 turns the two orgs into people and their two assignments into person assignments.
       if (table.name === 'people' || table.name === 'todoPeople') expected += 2
-      // v59 adds the Focus list and ranks its two tasks.
-      if (table.name === 'listDefinitions') expected += 1
+      // v59 adds the Focus list and ranks its two tasks; v67 adds the Eisenhower's list.
+      if (table.name === 'listDefinitions') expected += 2
       if (table.name === 'listOrders') expected = 2
       // v60 turns the two projects into tags and tags their five tasks.
       if (table.name === 'tags') expected += 2
@@ -172,7 +178,7 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('preserves every surviving settings row, including theme colors (and rails JSON up to v59)', async () => {
     await importFixture()
     const settings = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
-    expect(settings.size).toBe(fixture.settings.length - 3 + 1 - 5 - 1)
+    expect(settings.size).toBe(fixture.settings.length - 3 + 1 - 5 - 1 + 1)
     expect(settings.get('weekStartsOn')).toBe('1')
     expect(settings.get('color.dark.accent')).toBe('#4f8cff')
     expect(settings.get('color.light.accent')).toBe('#1a5fd0')
@@ -820,7 +826,7 @@ describe('v49 fixture → v64: date filters per date type; the list and tag caps
 
   it('each stored predicate holds its date filters as one clause per date type, nothing else changed', async () => {
     await importFixture()
-    const defs = await db.listDefinitions.orderBy('id').toArray()
+    const defs = (await db.listDefinitions.orderBy('id').toArray()).filter((d) => d.id !== EISENHOWER_LIST_ID)
     expect(defs.map((d) => [d.name, d.membership.predicate.dates])).toEqual([
       ['This week', { deadline: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'end-of-week' } } }],
       // "Has due date: no" with no range.
@@ -888,10 +894,45 @@ describe('v49 fixture → v66: the Eisenhower panes and source become settings',
   })
 })
 
+describe('v49 fixture → v67: layouts get an order; the Eisenhower gets its own list', () => {
+  it('the Default layout is numbered 0; the Eisenhower (on all tasks) gets a new list with no filter, which the source setting names', async () => {
+    const at66 = fixtureAt(66)
+    expect(at66.settings!.some((r) => r.key === 'eisenhowerSource')).toBe(false)
+    expect(at66.layouts!.every((l) => !('sortOrder' in l))).toBe(true)
+    const at67 = upgradeDataSet(at66, 66, 67)
+    expect(at67).toEqual(fixtureAt(67))
+    // Nothing else changes.
+    for (const table of Object.keys(at66)) {
+      if (table !== 'layouts' && table !== 'listDefinitions' && table !== 'settings') expect(at67[table], table).toBe(at66[table])
+    }
+    expect(at67.layouts).toEqual(at66.layouts!.map((l) => ({ ...l, sortOrder: 0 })))
+    expect(at67.listDefinitions!.slice(0, -1)).toEqual(at66.listDefinitions)
+    expect(at67.settings).toEqual([...at66.settings!, { key: 'eisenhowerSource', value: `list:${EISENHOWER_LIST_ID}` }])
+
+    await importFixture()
+    expect((await db.layouts.toArray()).map((l) => l.sortOrder)).toEqual([0])
+    expect(await db.listDefinitions.get(EISENHOWER_LIST_ID)).toEqual({
+      id: EISENHOWER_LIST_ID, name: 'Eisenhower', sortOrder: 5,
+      membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none',
+      owner: { eisenhower: true },
+    })
+    expect((await db.settings.get('eisenhowerSource'))?.value).toBe(`list:${EISENHOWER_LIST_ID}`)
+    // No other list gets an owner, and the hidden one is offered by no list chooser.
+    const lists = await db.listDefinitions.toArray()
+    expect(lists.filter((d) => d.owner !== undefined).map((d) => d.id)).toEqual([EISENHOWER_LIST_ID])
+    expect(listedLists(lists).map((d) => d.id)).not.toContain(EISENHOWER_LIST_ID)
+  })
+
+  it('upgrading the v67 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 66, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
 // ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
 /**
  * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
- * hex digits). The transforms up to v66 are frozen, so these never change:
+ * hex digits). The transforms up to v67 are frozen, so these never change:
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
@@ -917,6 +958,7 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   64: 'd89ed146e9a87d82',
   65: 'd89ed146e9a87d82',
   66: 'd89ed146e9a87d82',
+  67: 'b47768b8d8181f2b',
 }
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 

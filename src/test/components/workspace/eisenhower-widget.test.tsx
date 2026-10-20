@@ -8,7 +8,6 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { useUndoStore } from '../../../stores/undo-store'
 import type { EisenhowerTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
@@ -23,7 +22,7 @@ const day = (n: number) => new Date(2026, 9, 10 + n)
 
 function layoutWith(tab: EisenhowerTab): PersistedWorkspaceLayout {
   const now = new Date(2026, 0, 1)
-  return { id: 1, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }] }
+  return { id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }] }
 }
 
 let lastResult: EisenhowerResult | null = null
@@ -170,7 +169,7 @@ describe('EisenhowerWidget', () => {
   })
 })
 
-describe('EisenhowerWidget on a saved list', () => {
+describe('EisenhowerWidget on its list', () => {
   const waiting = { id: 2, name: 'Waiting', color: '#888', sortOrder: 1 }
   function listDef(over: Partial<PersistedListDefinition> = {}, predicate: Partial<TodoPredicate> = {}): PersistedListDefinition {
     return {
@@ -181,7 +180,7 @@ describe('EisenhowerWidget on a saved list', () => {
     }
   }
   const notWaiting = { statusIds: [2], negate: { statusIds: true as const } }
-  /** The Eisenhower on list 7 (the app-wide source). */
+  /** The Eisenhower on list 7 (its list). */
   const setupOnList = () => {
     useSettingsStore.setState({ eisenhowerListId: 7 })
     setup()
@@ -207,6 +206,16 @@ describe('EisenhowerWidget on a saved list', () => {
     const line = within(document.querySelector<HTMLElement>('[data-list-host="eis"]')!).getByTestId('list-filter-row')
     expect(line).toHaveTextContent('not Waiting')
     expect(within(line).queryByTestId('list-summary')).toBeNull()
+  })
+
+  it('a list set to hide its filter line: none above the panes until the list is unsaved', () => {
+    useListDefinitionStore.setState({ listDefinitions: [listDef({ showFilterLine: false }, notWaiting)] })
+    setupOnList()
+    expect(titles('schedule')).toEqual(['Board update'])
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: 'Renamed' })))
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
   })
 
   it('switching the source back to all tasks shows every task again', () => {
@@ -269,15 +278,26 @@ describe('EisenhowerWidget on a saved list', () => {
     })
   })
 
-  it('a deleted list: says so, and offers all tasks', async () => {
+  it('its list without a filter holds every task: the filter line says so, a "+" seeds the screen defaults from "<pane>"', () => {
+    usePersonStore.setState({ people: [makePerson({ id: 9, name: 'Dana' })] })
+    useListDefinitionStore.setState({ listDefinitions: [listDef({ name: 'Eisenhower', owner: { eisenhower: true } })] })
+    setupOnList()
+    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(within(screen.getByTestId('list-filter-row')).getByText('No filters')).toBeInTheDocument()
+    act(() => useFilterStore.getState().setPersonIds(new Set([9])))
+    fireEvent.click(within(quadrant('do')).getByRole('button', { name: 'Add task to Do' }))
+    expect(useUIStore.getState().quickAddDraft).toMatchObject({
+      defaults: { personIds: [9], markers: { urgent: true, important: true } },
+      source: 'Do',
+    })
+  })
+
+  it('a list that is gone (not loaded yet) shows every task', () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     setupOnList()
-    expect(screen.getByText('This list was deleted')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Show all tasks' }))
     expect(lastResult).toEqual({ countLabel: '7' })
-    // The app-wide source goes back to all tasks (one undo step), not the layout.
-    expect(useSettingsStore.getState().eisenhowerListId).toBeNull()
-    await vi.waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Eisenhower shows all tasks']))
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(screen.queryByText('This list was deleted')).toBeNull()
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
   })
+
 })

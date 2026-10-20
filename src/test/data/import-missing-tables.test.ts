@@ -4,6 +4,7 @@ import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { backupRepository } from '../../data/backup-repository'
 import { prepareImportText } from '../../data/import-pipeline'
 import { DATA_TABLE_NAMES } from '../../data/tables'
+import { isEisenhowerOwner } from '../../models/list-definition'
 import { useFileOpsStore } from '../../stores/file-ops-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { runAppendImport } from '../../services/append-import'
@@ -69,8 +70,11 @@ describe.each(FILES)('%s', (_label, text, taskCount) => {
     for (const name of DATA_TABLE_NAMES) {
       // Restore seeds the Assigned status; the note store seeds the note.
       if (name === 'statuses' || name === 'settings' || name === 'notes') continue
-      expect(await db.table(name).count(), name).toBe(prepared.data[name].length)
+      // The Eisenhower's own list is made when the file has none.
+      const made = name === 'listDefinitions' && !prepared.data.listDefinitions.some((d) => isEisenhowerOwner(d.owner)) ? 1 : 0
+      expect(await db.table(name).count(), name).toBe(prepared.data[name].length + made)
     }
+    expect((await db.listDefinitions.toArray()).filter((d) => isEisenhowerOwner(d.owner))).toHaveLength(1)
   })
 
   it('Settings › Backups restores a backup holding it', async () => {

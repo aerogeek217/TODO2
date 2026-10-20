@@ -214,11 +214,12 @@ describe('a v63 file imports into the current build', () => {
     expect(prepared.sourceVersion).toBe(63)
     expect(prepared.upgraded).toBe(true)
     expect(prepared.warnings).toEqual([])
-    expect(prepared.data.listDefinitions).toEqual([{
+    // (v67 adds the Eisenhower's own list and names it.)
+    expect(prepared.data.listDefinitions.filter((d) => d.owner === undefined)).toEqual([{
       id: 1, name: 'List 1', sortOrder: 1, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', markers: null, tags: null, dates: { deadline: OCT_RANGE, followup: { match: 'set' } } } },
     }])
-    expect(prepared.data.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
+    expect(prepared.data.settings.filter((s) => s.key !== 'eisenhowerSource')).toEqual([{ key: 'themeMode', value: 'dark' }])
   })
 
   it('a malformed range end in a v63 list is dropped with a warning, not a failure', () => {
@@ -272,7 +273,8 @@ describe('v64 Dexie upgrade', () => {
     expect(db.verno).toBe(CURRENT_DB_VERSION)
 
     const lists = await db.listDefinitions.orderBy('id').toArray()
-    expect(lists.map((d) => d.membership.predicate.dates)).toEqual([
+    // (The last list is the Eisenhower's, v67.)
+    expect(lists.filter((d) => d.owner === undefined).map((d) => d.membership.predicate.dates)).toEqual([
       { deadline: { match: 'unset' } },
       { followup: { match: 'set' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } },
     ])
@@ -282,6 +284,7 @@ describe('v64 Dexie upgrade', () => {
     const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 63, todos: [], ...v63Rows() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.data.listDefinitions).toEqual(lists)
-    expect(prepared.data.settings).toEqual(await db.settings.toArray())
+    // (The database lists settings by key.)
+    expect([...prepared.data.settings].sort((a, b) => a.key.localeCompare(b.key))).toEqual(await db.settings.toArray())
   })
 })

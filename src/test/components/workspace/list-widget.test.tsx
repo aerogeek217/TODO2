@@ -184,6 +184,49 @@ describe('ListWidget', () => {
     expect(screen.queryByTestId('save-list')).toBeNull()
   })
 
+  it('a list set to hide its filter line shows none — until it is unsaved, and again none once saved', async () => {
+    setup(def({ showFilterLine: false }))
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.getByTestId('save-list')).toBeInTheDocument()
+    await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ sort: 'name', showFilterLine: false })
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+  })
+
+  it('hiding the filter line from a draft keeps it shown while unsaved', () => {
+    setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, showFilterLine: false })))
+    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
+    expect(screen.getByTestId('revert-list')).toBeInTheDocument()
+  })
+
+  it('grouped by Priority: Hot, Focus, Urgent, Important, No priority; a task in each of its groups', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Focus urgent', sortOrder: 1, focus: true, urgent: true }),
+        makeTodo({ id: 2, title: 'Important', sortOrder: 2, important: true }),
+        makeTodo({ id: 3, title: 'Plain', sortOrder: 3 }),
+      ],
+    })
+    setup(def({ grouping: 'priority' }))
+    const groups = Array.from(document.querySelectorAll('[data-testid="list-group-name"]')).map((g) => g.textContent)
+    expect(groups).toEqual(['Hot', 'Focus', 'Urgent', 'Important', 'No priority'])
+    const rowsIn = (key: string) => Array.from(document.querySelector(`[data-list-group="${key}"]`)!.querySelectorAll('[data-todo-id]')).map((el) => el.getAttribute('data-todo-id'))
+    expect(rowsIn('priority-hot')).toEqual(['1'])
+    expect(rowsIn('priority-focus')).toEqual(['1'])
+    expect(rowsIn('priority-urgent')).toEqual(['1'])
+    expect(rowsIn('priority-important')).toEqual(['2'])
+    expect(rowsIn('no-priority')).toEqual(['3'])
+    expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Priority · Manual$/)
+    // Each group collapses on its own.
+    fireEvent.click(document.querySelector('[data-list-group="priority-hot"] button[aria-expanded]')!)
+    expect(rowsIn('priority-hot')).toEqual([])
+    expect(rowsIn('priority-focus')).toEqual(['1'])
+  })
+
   it('Revert on the filter line drops the draft (Undo brings it back)', async () => {
     setup(def())
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent, type Modifier } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { usePopoverAnchor, type PopoverAnchor, type PopoverPlacement } from '../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { CheckIcon, ChevronRightIcon, DashIcon } from './icons'
@@ -56,6 +60,11 @@ export interface MenuItemEntry {
   kbd?: string
   /** Tooltip — e.g. why a disabled item can't be picked. */
   title?: string
+  /**
+   * The item can be dragged up or down among the menu's other `dragId`
+   * items (e.g. the layout list); a drop calls the menu's `onReorder`.
+   */
+  dragId?: string
 }
 
 /** What a {@link MenuItemEntry.panel} shows. */
@@ -89,6 +98,11 @@ interface MenuPopoverProps {
    * it). Default false.
    */
   restoreFocus?: boolean
+  /**
+   * A drag of a `dragId` item dropped at `toIndex` among the `dragId` items
+   * (in their order). The menu stays open; the caller reorders its entries.
+   */
+  onReorder?: (dragId: string, toIndex: number) => void
   onClose: () => void
 }
 
@@ -114,7 +128,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
  */
 export function MenuPopover({
-  anchorRef, point, placement = 'bottom-start', entries, label, width, closeOnScroll = false, restoreFocus = false, onClose,
+  anchorRef, point, placement = 'bottom-start', entries, label, width, closeOnScroll = false, restoreFocus = false, onReorder, onClose,
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -227,6 +241,7 @@ export function MenuPopover({
           style={{ ...style, ...(width ? { width } : {}) }}
           openIndex={sub}
           onSelect={select}
+          onReorder={onReorder}
           onHoverItem={(index, entry) => {
             if ((entry.children || entry.panel) && !entry.disabled) {
               setOpen((prev) => (prev?.index === index ? prev : { index, pinned: false, focus: false }))
@@ -329,7 +344,7 @@ function handleMenuKeys(
   return true
 }
 
-function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSelect, onHoverItem, onKey }: {
+function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSelect, onReorder, onHoverItem, onKey }: {
   panelRef: (el: HTMLDivElement | null) => void
   entries: readonly MenuEntry[]
   label: string
@@ -337,6 +352,7 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
   style: React.CSSProperties
   openIndex: number | null
   onSelect: (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => void
+  onReorder?: (dragId: string, toIndex: number) => void
   onHoverItem?: (index: number, entry: MenuItemEntry) => void
   onKey: (e: React.KeyboardEvent<HTMLDivElement>, panel: HTMLDivElement | null) => boolean
 }) {
@@ -345,6 +361,24 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
     elRef.current = el
     panelRef(el)
   }, [panelRef])
+  const dragIds = onReorder
+    ? entries.flatMap((e) => (e.kind === 'item' && e.dragId != null ? [e.dragId] : []))
+    : []
+  const items = entries.map((entry, i) => {
+    if (entry.kind === 'separator') return <div key={i} className={styles.separator} role="separator" />
+    if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
+    if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
+    const props: MenuItemButtonProps = {
+      entry,
+      index: i,
+      expanded: (entry.children || entry.panel) ? openIndex === i : undefined,
+      onSelect,
+      onHoverItem,
+    }
+    return dragIds.length > 1 && entry.dragId != null
+      ? <SortableMenuItem key={`drag-${entry.dragId}`} dragId={entry.dragId} {...props} />
+      : <MenuItemButton key={i} {...props} />
+  })
   return (
     <div
       ref={setRef}
@@ -359,63 +393,119 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
       {...KEEP_EVENTS_INSIDE}
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
     >
-      {entries.map((entry, i) => {
-        if (entry.kind === 'separator') return <div key={i} className={styles.separator} role="separator" />
-        if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
-        if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
-        const hasSub = entry.submenu || !!entry.children || !!entry.panel
-        const role = entry.radio ? 'menuitemradio' : entry.checkbox ? 'menuitemcheckbox' : 'menuitem'
-        const ariaChecked = entry.radio
-          ? entry.checked === true
-          : entry.checkbox ? (entry.checked === 'mixed' ? 'mixed' : entry.checked === true) : undefined
-        const radioDot = entry.indicator === 'radio'
-        const expanded = (entry.children || entry.panel) ? openIndex === i : undefined
-        return (
-          <button
-            key={i}
-            type="button"
-            role={role}
-            aria-checked={ariaChecked}
-            aria-haspopup={entry.panel ? 'dialog' : hasSub ? 'menu' : undefined}
-            aria-expanded={expanded}
-            aria-keyshortcuts={entry.shortcut}
-            disabled={entry.disabled}
-            data-menu-index={i}
-            data-menu-label={entry.label}
-            title={entry.title}
-            className={[
-              styles.item,
-              entry.danger ? styles.danger : '',
-              entry.dim ? styles.dim : '',
-              expanded ? styles.itemOpen : '',
-              radioDot && entry.checked === true ? styles.radioChecked : '',
-              entry.description ? styles.itemTall : '',
-            ].join(' ')}
-            onPointerEnter={onHoverItem ? () => onHoverItem(i, entry) : undefined}
-            onClick={(e) => onSelect(entry, i, e.detail === 0)}
-          >
-            {radioDot && <span className={styles.radio} aria-hidden="true" />}
-            {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
-            {entry.description ? (
-              <span className={styles.labelBlock}>
-                <span className={styles.labelLine}>
-                  <span className={styles.label}>{entry.label}</span>
-                </span>
-                {entry.description && <span className={styles.description}>{entry.description}</span>}
-              </span>
-            ) : (
-              <span className={styles.label}>{entry.label}</span>
-            )}
-            {entry.note && <span className={styles.note}>{entry.note}</span>}
-            {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
-            {entry.kbd && <kbd className={styles.kbd} aria-hidden="true">{entry.kbd}</kbd>}
-            {!radioDot && entry.checked === true && <span className={styles.check}><CheckIcon /></span>}
-            {entry.checked === 'mixed' && <span className={styles.check}><DashIcon /></span>}
-            {hasSub && <span className={styles.chevron}><ChevronRightIcon /></span>}
-          </button>
-        )
-      })}
+      {onReorder && dragIds.length > 1
+        ? <MenuReorder ids={dragIds} onReorder={onReorder}>{items}</MenuReorder>
+        : items}
     </div>
+  )
+}
+
+/** Only up and down: a menu's items reorder in their column. */
+const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 })
+
+/** The drag-to-reorder context of a menu's `dragId` items (its own, never an outer `DndContext`'s). */
+function MenuReorder({ ids, onReorder, children }: {
+  ids: string[]
+  onReorder: (dragId: string, toIndex: number) => void
+  children: ReactNode
+}) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }))
+  const onDragEnd = (e: DragEndEvent) => {
+    const to = e.over ? ids.indexOf(String(e.over.id)) : -1
+    if (to >= 0 && e.active.id !== e.over?.id) onReorder(String(e.active.id), to)
+  }
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[verticalOnly]} autoScroll={false} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+    </DndContext>
+  )
+}
+
+interface MenuItemButtonProps {
+  entry: MenuItemEntry
+  index: number
+  expanded: boolean | undefined
+  onSelect: (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => void
+  onHoverItem?: (index: number, entry: MenuItemEntry) => void
+}
+
+function SortableMenuItem({ dragId, ...props }: MenuItemButtonProps & { dragId: string }) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: dragId })
+  return (
+    <MenuItemButton
+      {...props}
+      sortable={{
+        ref: setNodeRef,
+        listeners,
+        style: { transform: CSS.Transform.toString(transform), transition },
+        dragging: isDragging,
+      }}
+    />
+  )
+}
+
+function MenuItemButton({ entry, index: i, expanded, onSelect, onHoverItem, sortable }: MenuItemButtonProps & {
+  sortable?: {
+    ref: (el: HTMLElement | null) => void
+    listeners: ReturnType<typeof useSortable>['listeners']
+    style: React.CSSProperties
+    dragging: boolean
+  }
+}) {
+  const hasSub = entry.submenu || !!entry.children || !!entry.panel
+  const role = entry.radio ? 'menuitemradio' : entry.checkbox ? 'menuitemcheckbox' : 'menuitem'
+  const ariaChecked = entry.radio
+    ? entry.checked === true
+    : entry.checkbox ? (entry.checked === 'mixed' ? 'mixed' : entry.checked === true) : undefined
+  const radioDot = entry.indicator === 'radio'
+  return (
+    <button
+      ref={sortable?.ref}
+      {...sortable?.listeners}
+      style={sortable?.style}
+      type="button"
+      role={role}
+      aria-checked={ariaChecked}
+      aria-haspopup={entry.panel ? 'dialog' : hasSub ? 'menu' : undefined}
+      aria-expanded={expanded}
+      aria-keyshortcuts={entry.shortcut}
+      disabled={entry.disabled}
+      data-menu-index={i}
+      data-menu-label={entry.label}
+      data-menu-drag={entry.dragId}
+      title={entry.title}
+      className={[
+        styles.item,
+        entry.danger ? styles.danger : '',
+        entry.dim ? styles.dim : '',
+        expanded ? styles.itemOpen : '',
+        radioDot && entry.checked === true ? styles.radioChecked : '',
+        entry.description ? styles.itemTall : '',
+        sortable ? styles.draggable : '',
+        sortable?.dragging ? styles.dragging : '',
+      ].join(' ')}
+      onPointerEnter={onHoverItem ? () => onHoverItem(i, entry) : undefined}
+      onClick={(e) => onSelect(entry, i, e.detail === 0)}
+    >
+      {radioDot && <span className={styles.radio} aria-hidden="true" />}
+      {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
+      {entry.description ? (
+        <span className={styles.labelBlock}>
+          <span className={styles.labelLine}>
+            <span className={styles.label}>{entry.label}</span>
+          </span>
+          {entry.description && <span className={styles.description}>{entry.description}</span>}
+        </span>
+      ) : (
+        <span className={styles.label}>{entry.label}</span>
+      )}
+      {entry.note && <span className={styles.note}>{entry.note}</span>}
+      {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
+      {entry.kbd && <kbd className={styles.kbd} aria-hidden="true">{entry.kbd}</kbd>}
+      {!radioDot && entry.checked === true && <span className={styles.check}><CheckIcon /></span>}
+      {entry.checked === 'mixed' && <span className={styles.check}><DashIcon /></span>}
+      {hasSub && <span className={styles.chevron}><ChevronRightIcon /></span>}
+    </button>
   )
 }
 

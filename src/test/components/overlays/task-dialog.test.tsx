@@ -30,7 +30,7 @@ const HOT: TaskDialogPayload = {
 function layout(): PersistedWorkspaceLayout {
   const now = new Date(2026, 0, 1)
   return {
-    id: 1, name: 'Main', createdAt: now, modifiedAt: now,
+    id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now,
     columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [createTab('dashboard', 'dash')] }] }],
   }
 }

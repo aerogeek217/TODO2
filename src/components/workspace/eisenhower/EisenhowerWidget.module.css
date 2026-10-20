@@ -21,16 +21,6 @@
   box-sizing: border-box;
 }
 
-/* The list it showed was deleted. */
-.missing {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 24px 16px;
-  text-align: center;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -421,18 +411,4 @@
 .noPane:focus-visible {
   background: var(--color-tint-8);
   color: var(--color-text-secondary);
-}
-
-/* ── Blocked drop ───────────────────────────────────────────────────────── */
-
-/* Shown at once (no fade), wider than a plain tooltip. */
-.refusal.refusal {
-  max-width: 250px;
-  animation: none;
-  opacity: 1;
-}
-
-:global(html[data-drop-refused]),
-:global(html[data-drop-refused] *) {
-  cursor: not-allowed !important;
 }

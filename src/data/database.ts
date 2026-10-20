@@ -24,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 66
+export const CURRENT_DB_VERSION = 67
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -406,9 +406,19 @@ export class Todo2Database extends Dexie {
     // copies the first customized Eisenhower tab's panes and the first one's
     // list into the `eisenhowerPanes` / `eisenhowerSource` settings and
     // removes both from every Eisenhower tab.
+    this.version(66).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 66))
+
+    // v67: layouts get an order; the Eisenhower gets its own list. No index
+    // change; the transform (`upgrades/v67-layout-order-and-eisenhower-list.ts`)
+    // numbers the layouts in the picker's old order and makes the list the
+    // Eisenhower shows (its source list in place when nothing else uses it,
+    // else a copy; a new list for all tasks) a list owned by the Eisenhower.
+    // v67 data may also hold a list's owner and filter-line switch, the
+    // Priority grouping and the new-task follow-up setting, which an older
+    // build would drop or misread, so older builds refuse it.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `66` first.
+    // docblock above). When bumping, turn this into a literal `67` first.
     this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
 
     // A database a newer build wrote is never read or written: Dexie opens

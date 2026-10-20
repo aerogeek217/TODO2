@@ -24,8 +24,8 @@ import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-ops'
-import { createListThenEdit, openEditList, useTabTitle, useTabTitles } from './widget-hooks'
-import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
+import { createListThenEdit, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
+import { ownerLayoutId } from '../../models/list-definition'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
@@ -165,16 +165,18 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
 /** "Change widget → List": pick (or create) the list first, so a list tab always has one. */
 function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor: { x: number; y: number }; onClose: () => void }) {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
+  const layoutId = useListOwnerLayoutId()
   return (
     <ListDefinitionPickerPopup
       x={anchor.x}
       y={anchor.y}
       header="Show list"
+      layoutId={layoutId}
       onSelect={(id) => changeTabKind(tabId, 'lens', { listDefinitionId: id })}
-      onCreateNew={() => createListThenEdit((id) => {
+      onCreateNew={(layoutOnly) => createListThenEdit((id) => {
         changeTabKind(tabId, 'lens', { listDefinitionId: id })
         return tabId
-      })}
+      }, layoutOnly ? layoutId : undefined)}
       onClose={onClose}
     />
   )
@@ -272,37 +274,30 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   }
 
   const menuTab = tabMenu ? cell.tabs.find((t) => t.id === tabMenu.tabId) : undefined
+  const layoutId = useListOwnerLayoutId()
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
   const menuListId = menuTab ? tabListId(menuTab, eisenhowerListId) : undefined
   const menuListName = useListDefinitionStore((s) =>
     menuListId != null ? s.listDefinitions.find((d) => d.id === menuListId)?.name : undefined,
   )
-
-  /** An Eisenhower tab's first menu line: what every Eisenhower shows (set in Settings). */
-  const eisenhowerSourceNote = menuTab?.kind === 'eisenhower'
-    ? (menuListId == null ? 'Shows all tasks' : `Shows “${menuListName ?? DELETED_LIST_TITLE}”`)
-    : undefined
+  /** A list tab's list when only this layout shows it: the tab menu offers Save to my lists. */
+  const menuListLayoutOnly = useListDefinitionStore((s) => {
+    if (menuTab?.kind !== 'lens' || menuListId == null) return false
+    const def = s.listDefinitions.find((d) => d.id === menuListId)
+    return def != null && ownerLayoutId(def) != null
+  })
 
   /**
    * Changes a tab's kind. A list tab picks its list first — an Eisenhower
-   * tab switched to List keeps the Eisenhower's list (the app-wide source)
-   * while it exists. An Eisenhower tab shows the app-wide source.
+   * tab switched to List too: the Eisenhower's own list is never a list
+   * tab's.
    */
   const changeKind = (tab: LayoutTab, kind: WidgetKind, anchor: { x: number; y: number }) => {
     if (kind === tab.kind) return
-    const listId = tabListId(tab, eisenhowerListId)
-    const listExists = listId != null && useListDefinitionStore.getState().listDefinitions.some((d) => d.id === listId)
-    if (kind === 'lens' && listExists) {
-      changeTabKind(tab.id, kind, { listDefinitionId: listId })
-      return
-    }
     if (WIDGET_KIND_SPECS[kind].showsList) {
-      setChangeToList({ tabId: tab.id, anchor })
-      return
-    }
-    // A list tab becoming an Eisenhower that shows the same list keeps showing it.
-    if (kind === 'eisenhower' && listId != null && listId === eisenhowerListId) {
-      changeTabKind(tab.id, kind)
+      // An Eisenhower tab shows the Eisenhower's list: asked about first,
+      // as any change of the last widget showing an unsaved list.
+      guarded([tab.id], 'You’re changing the last widget that shows it.', () => setChangeToList({ tabId: tab.id, anchor }))
       return
     }
     guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
@@ -483,7 +478,10 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             ? () => openEditList(menuTab.id, menuListId)
             : undefined}
           currentListName={menuListName}
-          sourceNote={eisenhowerSourceNote}
+          listLayoutId={layoutId}
+          onSaveToMyLists={menuListLayoutOnly && menuListId != null
+            ? () => { void useListDefinitionStore.getState().saveToMyLists(menuListId) }
+            : undefined}
           sourceActions={menuTab.kind === 'eisenhower'
             ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
             : undefined}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useTagStore, countTodosByTag } from '../../stores/tag-store'
+import { useTagStore } from '../../stores/tag-store'
+import { countTodosByEntity } from '../../stores/assignment-helpers'
 import { useTodoStore } from '../../stores/todo-store'
 import type { Tag } from '../../models'
 import type { DialogLayer } from '../shared/Dialog'
@@ -8,6 +9,7 @@ import { ColorInput } from '../shared/ColorInput'
 import { DeleteTagConfirm } from './EntityDeleteConfirm'
 import styles from './EntityEditor.module.css'
 import { EditorModal } from './EditorModal'
+import { TaskCount } from './TaskCount'
 import { byName } from '../../utils/sort-order'
 
 interface EditState {
@@ -18,7 +20,7 @@ interface EditState {
 
 interface TagEditorProps {
   onClose: () => void
-  /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…). */
+  /** Open straight onto this tag's edit row, its name focused (a task row's tag menu › Edit…); saving that row closes the editor. */
   editTagId?: number
   /** The modal's tier (`EditorModal`). */
   layer?: DialogLayer
@@ -46,7 +48,7 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
     if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
   }, [todos, loadAssignments])
 
-  const counts = useMemo(() => countTodosByTag(assignedTagsMap), [assignedTagsMap])
+  const counts = useMemo(() => countTodosByEntity(assignedTagsMap), [assignedTagsMap])
 
   // Opened onto one tag: edit that row once the tag is there.
   const [openedOnto, setOpenedOnto] = useState<number | null>(null)
@@ -72,6 +74,11 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
     if (!editing || !editing.name.trim()) return
     try {
       await update({ id: editing.id, name: editing.name.trim(), color: editing.color })
+      // Opened onto this tag (a menu's Edit…): saving it is what the editor was for.
+      if (editing.id === editTagId) {
+        onClose()
+        return
+      }
       setEditing(null)
       setNameError('')
     } catch (e) {
@@ -159,7 +166,7 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
       <div key={tag.id} className={styles.row}>
         <div className={styles.colorSwatch} style={{ background: tag.color }} onClick={() => startEdit(tag)} />
         <span className={styles.nameEditable} onClick={() => startEdit(tag)}>{tag.name}</span>
-        <span className={styles.initials} title={count === 1 ? '1 task' : `${count} tasks`}>{count > 0 ? count : ''}</span>
+        <TaskCount count={count} />
         <div className={styles.actions}>
           <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(tag.id!)} title="Delete">&times;</button>
         </div>

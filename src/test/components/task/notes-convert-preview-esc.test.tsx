@@ -9,13 +9,13 @@ import { draftFromText } from '../../../services/task-draft'
 
 afterEach(() => { cleanup() })
 
-function renderPreview(editing: boolean) {
+function renderPreview(editing: boolean, defaultFollowup: Date | null = new Date()) {
   const ctx = { people: [], statuses: [], tags: [], today: new Date() }
   const onCancel = vi.fn()
   render(
     <NotesConvertPreview
       rows={[{ key: 0, line: { index: 0, from: 0, to: 3, body: 'One', text: '- One' } as never, draft: draftFromText('One', ctx), edited: false }]}
-      lookups={{ people: [], tags: [], statuses: [], defaultFollowup: new Date(), today: new Date() }}
+      lookups={{ people: [], tags: [], statuses: [], defaultFollowup, today: new Date() }}
       noteName={null}
       fromSelection={false}
       leftOut={0}
@@ -44,5 +44,15 @@ describe('NotesConvertPreview Esc while a draft is open in the editor', () => {
     ;(document.activeElement as HTMLElement | null)?.blur()
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('NotesConvertPreview follow-up chip', () => {
+  it('shows the default next follow-up, and none while new tasks get no follow-up', () => {
+    renderPreview(false)
+    expect(document.querySelector('[title="The default next follow-up"]')).not.toBeNull()
+    cleanup()
+    renderPreview(false, null)
+    expect(document.querySelector('[title="The default next follow-up"]')).toBeNull()
   })
 })

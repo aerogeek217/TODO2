@@ -390,7 +390,7 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
 /**
  * The top bar's screen filters: Priority, Tags, People, Dates and Status
  * buttons (folded into one Filters menu — which ends with Clear all filters —
- * when `fold` is set), then Show completed. The top bar's funnel clears them
+ * when `fold` is set), then Show completed (labelled `Completed`). The top bar's funnel clears them
  * all. The pickers are the shared `FilterPanels`.
  */
 export function FilterChipBarDesktop({
@@ -399,7 +399,6 @@ export function FilterChipBarDesktop({
   onClearExtra,
   onClearAll,
   fold = false,
-  compact = false,
 }: FilterChipBarProps) {
   const [previewEmpty, setPreviewEmpty] = useState<EntityKey | null>(null)
   const resetDensityState = useCallback(() => setPreviewEmpty(null), [])
@@ -610,7 +609,7 @@ export function FilterChipBarDesktop({
         aria-label="Show completed"
       >
         <CheckIcon size={12} />
-        {compact ? 'Completed' : 'Show completed'}
+        Completed
       </button>
     </>
   )

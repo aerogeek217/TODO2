@@ -103,6 +103,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
+  // Read once, like the other create-mode seeds: whether a new task gets a default follow-up.
+  const [newTaskFollowup] = useState(() => useSettingsStore.getState().newTaskFollowup)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
 
   // Compute filter defaults once for create mode (views with filter UI only).
@@ -163,7 +165,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     todo?.dueDate ?? seed?.dueDate ?? quickAddSeed?.resolved.dueDate ?? null,
   )
   // Follow-up: edit mode reads/writes the task directly (edits apply as you
-  // make them); create mode keeps a draft seeded with the Settings default.
+  // make them); create mode keeps a draft seeded with the Settings default
+  // (none while new tasks get no follow-up).
   // A Quick Add `/followup` replaces the default (`none` clears it).
   // A draft's `nextFollowupAt`: undefined = the default, null = none.
   const seededFollowup = seed
@@ -172,7 +175,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [draftNextFollowup, setDraftNextFollowup] = useState<Date | undefined>(() => {
     if (mode !== 'create') return undefined
     if (seededFollowup) return seed ? (seed.nextFollowupAt ?? undefined) : quickAddSeed?.resolved.nextFollowupAt
-    return addFollowupInterval(new Date(), followupInterval)
+    return newTaskFollowup ? addFollowupInterval(new Date(), followupInterval) : undefined
   })
   const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
   // Create mode: marker drafts, seeded from a Markers filter and Quick Add's

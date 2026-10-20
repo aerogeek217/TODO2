@@ -175,19 +175,21 @@ describe('v66 Dexie upgrade', () => {
     v65.close()
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
+    // List 7 doesn't exist: v67 then gives the Eisenhower a new list of its own (id 8) and names it.
     expect(await db.settings.toArray()).toEqual(expect.arrayContaining([
       { key: 'themeMode', value: 'dark' },
       { key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) },
-      { key: 'eisenhowerSource', value: 'list:7' },
+      { key: 'eisenhowerSource', value: 'list:8' },
     ]))
     expect(await db.settings.count()).toBe(3)
+    // v67 numbers the layouts in the picker's order (by creation, then id).
     expect(await db.layouts.orderBy('id').toArray()).toEqual([
-      layout(1, cells([notes('n'), eis('b')], [eis('c', {}, { collapsed: ['drop'] })])),
-      layout(2, cells([eis('a')])),
+      layout(1, cells([notes('n'), eis('b')], [eis('c', {}, { collapsed: ['drop'] })]), { sortOrder: 0 }),
+      layout(2, cells([eis('a')]), { sortOrder: 1 }),
     ])
     // The settings store reads them.
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: HAND_OFF, eisenhowerListId: 7 })
+    expect(useSettingsStore.getState()).toMatchObject({ eisenhowerPanes: HAND_OFF, eisenhowerListId: 8 })
   })
 
   it('opens a v65 database whose first customized panes can’t be written as JSON (a cycle IndexedDB kept): no panes setting, tabs stripped', async () => {
@@ -203,6 +205,6 @@ describe('v66 Dexie upgrade', () => {
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
     expect(await db.settings.get('eisenhowerPanes')).toBeUndefined()
-    expect(await db.layouts.toArray()).toEqual([layout(1, cells([eis('a')]))])
+    expect(await db.layouts.toArray()).toEqual([layout(1, cells([eis('a')]), { sortOrder: 0 })])
   })
 })

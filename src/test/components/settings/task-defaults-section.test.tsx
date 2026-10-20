@@ -16,6 +16,26 @@ beforeEach(async () => {
 
 afterEach(cleanup)
 
+describe('TaskDefaultsSection — follow-up', () => {
+  it('the switch above the interval: on by default; off is stored, on removes the row', async () => {
+    render(<TaskDefaultsSection />)
+    const sw = screen.getByRole('switch', { name: 'New tasks get a follow-up date' })
+    expect(sw).toHaveAttribute('aria-checked', 'true')
+    const interval = screen.getByRole('textbox', { name: 'Follow-up interval' })
+    expect(sw.compareDocumentPosition(interval) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText(/“Mark followed up” sets the next follow-up this far ahead, and so does creating a task/)).toBeInTheDocument()
+    fireEvent.click(sw)
+    await waitFor(() => expect(useSettingsStore.getState().newTaskFollowup).toBe(false))
+    expect((await db.settings.get('newTaskFollowup'))!.value).toBe('false')
+    expect(sw).toHaveAttribute('aria-checked', 'false')
+    // The interval still drives Mark followed up.
+    expect(screen.queryByText(/and so does creating a task/)).toBeNull()
+    fireEvent.click(sw)
+    await waitFor(() => expect(useSettingsStore.getState().newTaskFollowup).toBe(true))
+    await waitFor(async () => expect(await db.settings.get('newTaskFollowup')).toBeUndefined())
+  })
+})
+
 describe('TaskDefaultsSection — Due date makes a task urgent', () => {
   it('shows the range (default Within 3 days) with its help line and offers Off · Today · 1 · 2 · 3 days · 1 · 2 weeks', () => {
     render(<TaskDefaultsSection />)

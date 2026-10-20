@@ -223,6 +223,12 @@ export function withLayoutBody<L extends LayoutBody>(layout: L, body: LayoutBody
 export interface WorkspaceLayout {
   id?: number
   name: string
+  /**
+   * Position among the layouts (the picker's order, lowest first; ties by
+   * creation). Written only when a layout is added (after the others) or
+   * the layouts are reordered — never by a layout save.
+   */
+  sortOrder: number
   columns: LayoutColumn[]
   /** The band above the columns; absent = none. */
   top?: LayoutBand
@@ -242,12 +248,10 @@ export const DEFAULT_LAYOUT_NAME = 'Default'
 
 export const LAYOUT_NAME_MAX = 200
 
-/** Name of a new layout (the layout picker's New layout). */
-export const NEW_LAYOUT_NAME = 'Untitled layout'
-
 /**
- * The id of a new layout while it isn't stored yet (stored ids start at 1);
- * saving it gives it a real id.
+ * The id of a new layout while it isn't stored yet (stored ids start at 1):
+ * only an unsaved new layout an older build kept in the browser opens this
+ * way (New layout stores the layout at once); saving it gives it a real id.
  */
 export const UNSAVED_LAYOUT_ID = 0
 
@@ -319,9 +323,9 @@ export function createTab<K extends WidgetKind>(kind: K, id: string, seed: TabSe
 }
 
 /**
- * The saved list a tab shows — a list tab's own list; an Eisenhower tab
- * shows the app-wide Eisenhower source, `eisenhowerListId` (`null` = all
- * tasks) —, else `undefined`. A tab with a list counts as a widget showing
+ * The list a tab shows — a list tab's own list; an Eisenhower tab shows
+ * the Eisenhower's own list, `eisenhowerListId` (`null` until it is
+ * loaded) —, else `undefined`. A tab with a list counts as a widget showing
  * that list (its unsaved edits, the last-widget prompt).
  */
 export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): number | undefined {

@@ -81,9 +81,10 @@ describe('v65 Dexie upgrade', () => {
     v64.close()
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
-    expect(await db.listDefinitions.toArray()).toEqual([negatedList()])
+    // Only the Eisenhower showed the list: v67 makes it the Eisenhower's own, in place, and numbers the layout.
+    expect(await db.listDefinitions.toArray()).toEqual([{ ...negatedList(), owner: { eisenhower: true } }])
     const layout = eisenhowerLayout()
-    expect(await db.layouts.toArray()).toEqual([{ ...layout, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config: {} }] }] }] }])
+    expect(await db.layouts.toArray()).toEqual([{ ...layout, sortOrder: 0, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config: {} }] }] }] }])
     expect(await db.settings.get('eisenhowerSource')).toEqual({ key: 'eisenhowerSource', value: 'list:1' })
   })
 })

@@ -9,6 +9,8 @@ import type { DateBucketKey } from '../utils/bucket-by-date'
 import { manualOrderComparator, type ListRanks } from '../utils/list-order'
 import { priorityRank } from '../utils/markers'
 import type { UrgentDueWithinDays } from '../utils/urgency'
+import type { HotRule } from '../utils/hot'
+import { NO_PRIORITY_KEY, NO_PRIORITY_LABEL } from '../utils/priority-groups'
 
 /**
  * One rendered group of a list. Every list widget builds its sections with
@@ -51,8 +53,10 @@ export interface ListSectionsContext {
    * omitted (a surface without a stored list) → `manual` is `sortOrder`.
    */
   manualRanks?: ListRanks
-  /** The app's "due date makes a task urgent" range, for the Priority sort; absent = flags only. */
+  /** The app's "due date makes a task urgent" range, for the Priority sort and groups; absent = flags only. */
   urgentRange?: UrgentDueWithinDays
+  /** The Hot rule, for the Priority groups' Hot; absent = the default rule. */
+  hotRule?: HotRule
 }
 
 /** What a sort reads besides the tasks. */
@@ -155,6 +159,7 @@ const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; lab
   people: { key: 'unassigned', label: 'Unassigned' },
   status: { key: 'no-status', label: 'No Status' },
   tag: { key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL },
+  priority: { key: NO_PRIORITY_KEY, label: NO_PRIORITY_LABEL },
 }
 
 /** Whether `key` is the trailing "No …" / "Unassigned" section of `groupBy`. */
@@ -180,10 +185,12 @@ function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped:
  *
  * Group order: dates Overdue → Today → This Week → Later; status by its
  * registry `sortOrder`; people and tags alphabetically (or in the
- * restrict order). A task with several people / tags appears in each of
- * their sections. Tasks with no value on the axis trail in one
- * "No …" / "Unassigned" section. Ungrouped lists return one `all` section
- * (none when empty).
+ * restrict order); Priority Hot → Focus → Urgent → Important (Hot by
+ * `ctx.hotRule`, open tasks only; Urgent = effective Urgent). A task with
+ * several people / tags / priority markers appears in each of their
+ * sections. Tasks with no value on the axis trail in one "No …" /
+ * "Unassigned" section. Empty groups aren't shown. Ungrouped lists return
+ * one `all` section (none when empty).
  */
 export function buildListSections(
   members: readonly PersistedTodoItem[],
@@ -209,6 +216,8 @@ export function buildListSections(
     statuses: ctx.statuses,
     today: ctx.today,
     weekStartsOn: ctx.weekStartsOn,
+    urgentRange: ctx.urgentRange,
+    hotRule: ctx.hotRule,
   }
   const restrict = restrictKeys({ ...spec, groupBy })
   // An empty restrict set means "nothing named" (only the unassigned pick):
@@ -230,6 +239,8 @@ export function buildListSections(
         return { key: g.key, label: g.label, accentColor: getGroupColor(g.key, 'status', groupingCtx), todos: g.todos }
       case 'tag':
         return { key: g.key, label: `#${g.label}`, accentColor: getGroupColor(g.key, 'tag', groupingCtx), todos: g.todos }
+      case 'priority':
+        return { key: g.key, label: g.label, accentColor: getGroupColor(g.key, 'priority', groupingCtx), todos: g.todos }
     }
   })
 

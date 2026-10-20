@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readListDefinitions, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -117,7 +117,8 @@ test.describe('narrow window', () => {
   test.use({ viewport: { width: 1100, height: 800 } })
 
   test('the folded Filters menu: Priority › Important Yes', async ({ page }) => {
-    await seedWorkspace(page, SEED)
+    // Other layouts take the bar's room: the filters fold.
+    await seedWorkspace(page, withSpareLayouts(SEED))
     await page.getByRole('button', { name: 'Filters', exact: true }).click()
     await page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'Priority filter' }).click()
     await choice(page, 'Important', 'Yes').click()

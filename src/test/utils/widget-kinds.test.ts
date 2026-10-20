@@ -10,7 +10,7 @@ import {
 } from '../../models/workspace-layout'
 import { defaultDashboardConfig } from '../../models/dashboard-config'
 import { checkLayoutColumns, pickLayoutColumns } from '../../data/layout-shape'
-import { tabTitle, tabTooltip } from '../../components/workspace/widget-hooks'
+import { tabTitle } from '../../components/workspace/widget-hooks'
 
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
@@ -57,19 +57,11 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('lens', 'a', { listDefinitionId: 4 }), undefined)).toBe('(Deleted list)')
     expect(tabTitle(createTab('lens', 'a'), undefined)).toBe('List')
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
-    // The Eisenhower reads Eisenhower whatever its (app-wide) source.
+    // The Eisenhower reads Eisenhower whatever its list.
     expect(tabTitle(createTab('eisenhower', 'b'), 'Team')).toBe('Eisenhower')
   })
 
-  it('a tab’s tooltip: its title; an Eisenhower names its source list', () => {
-    expect(tabTooltip(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team', null)).toBe('Team')
-    expect(tabTooltip(createTab('lens', 'a', { listDefinitionId: 4 }), 'Team', 9)).toBe('Team')
-    expect(tabTooltip(createTab('eisenhower', 'b'), undefined, null)).toBe('Eisenhower')
-    expect(tabTooltip(createTab('eisenhower', 'b'), 'Team', 4)).toBe('Eisenhower · Team')
-    expect(tabTooltip(createTab('eisenhower', 'b'), undefined, 4)).toBe('Eisenhower · (Deleted list)')
-  })
-
-  it('the list a tab shows: a list tab’s own, an Eisenhower tab’s the app-wide source; none for the rest', () => {
+  it('the list a tab shows: a list tab’s own, an Eisenhower tab’s the Eisenhower’s list; none for the rest', () => {
     expect(tabListId(createTab('lens', 'a', { listDefinitionId: 4 }), 5)).toBe(4)
     expect(tabListId(createTab('eisenhower', 'b'), 5)).toBe(5)
     expect(tabListId(createTab('eisenhower', 'b'), null)).toBeUndefined()

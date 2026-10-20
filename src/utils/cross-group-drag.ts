@@ -1,4 +1,5 @@
 import type { TodoGroupBy } from '../models'
+import type { PriorityFlags } from './priority-groups'
 
 /**
  * Sentinel group key for the synthetic ungrouped bucket (tasks with no
@@ -19,11 +20,14 @@ export const UNGROUPED_GROUP_KEY = '__ungrouped'
  *   source assignment if any (`removeId`), add the target assignment if
  *   any (`addId`). Either side may be `null` to cover drags from the
  *   "(no people)" / "(no tag)" synthetic bucket or drags into it.
+ * - `priority` carries the marker flags to write and the undo step's words
+ *   (`utils/priority-groups.resolvePriorityDrop`, which also refuses drops).
  */
 export type CrossGroupMutation =
   | { kind: 'status'; todoId: number; statusId: number | undefined }
   | { kind: 'people'; todoId: number; removeId: number | null; addId: number | null }
   | { kind: 'tag'; todoId: number; removeId: number | null; addId: number | null }
+  | { kind: 'priority'; todoId: number; flags: PriorityFlags; description: string }
 
 const PREFIX_BY_GROUP = {
   status: 'status-',
@@ -49,6 +53,8 @@ function parseId(key: string, prefix: string): number | null {
  *   - `groupBy` is a date dimension (`deadline` / `followup`).
  *     Date buckets are derived, not assigned; the date itself is never
  *     rewritten.
+ *   - `groupBy` is `priority`: its drops read the task and can be refused
+ *     (`utils/priority-groups.resolvePriorityDrop`).
  *   - The bucket key doesn't parse against its expected prefix
  *     (defensive — protects against id-shape mismatches between caller
  *     and `task-grouping`).

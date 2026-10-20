@@ -18,7 +18,7 @@ function EmptyLayout() {
       <div className={styles.tiles}>
         <AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={styles.tile} iconClassName={styles.tileIcon} iconSize={16} />
       </div>
-      <p className={styles.emptyHint}>Or choose a saved layout from the picker above.</p>
+      <p className={styles.emptyHint}>Or open another layout from the top bar.</p>
     </div>
   )
 }

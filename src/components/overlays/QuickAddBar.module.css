@@ -2,7 +2,7 @@
 
 /* ─── Overlay ─────────────────────────────────────────────────── */
 
-/* The command palette's scrim: it dims and blurs the app, and a click on it
+/* The bar's scrim: it dims and blurs the app like a modal's, and a click on it
  * closes the bar without reaching what is underneath. Its own element, not
  * a `DialogFrame`: the bar stays on the dialog tier (above the palette it
  * can be opened from) and isn't `aria-modal` — its `@ # /` popup and the
@@ -83,6 +83,12 @@
   border: none;
   color: transparent;
   caret-color: var(--color-text-primary);
+  outline: none;
+}
+
+/* The surface's rounded accent border is the focus ring; no square ring of
+ * the input's own inside it. */
+.titleInput:focus-visible {
   outline: none;
 }
 

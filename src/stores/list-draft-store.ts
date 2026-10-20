@@ -47,6 +47,17 @@ function savedDef(id: number): PersistedListDefinition | undefined {
   return useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)
 }
 
+/**
+ * The draft as Save writes it: its name trimmed (a blank one keeps the
+ * saved name) and the saved list's owner — an edit never changes who a list
+ * belongs to (a draft kept from before the list had one has none).
+ */
+function toSave(draft: PersistedListDefinition, saved: PersistedListDefinition): PersistedListDefinition {
+  const { owner: _draftOwner, ...rest } = draft
+  void _draftOwner
+  return { ...rest, name: draft.name.trim() || saved.name, ...(saved.owner ? { owner: saved.owner } : {}) }
+}
+
 function without(drafts: Readonly<Record<number, PersistedListDefinition>>, id: number): Record<number, PersistedListDefinition> {
   const next = { ...drafts }
   delete next[id]
@@ -94,7 +105,7 @@ export const useListDraftStore = create<ListDraftState>((set, get) => ({
     }
     // The update applies to the store before it persists, so dropping the
     // draft right after never shows the old definition in between.
-    const pending = useListDefinitionStore.getState().update({ ...draft, name: draft.name.trim() || saved.name })
+    const pending = useListDefinitionStore.getState().update(toSave(draft, saved))
     set({ drafts: without(get().drafts, id) })
     keep(get().drafts)
     try {

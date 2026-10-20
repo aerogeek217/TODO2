@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
@@ -60,6 +60,41 @@ function offlineCsp(): Plugin {
   }
 }
 
+// The single file is opened from disk (often as an app window from a
+// desktop shortcut), where `./favicon.svg` and the other files next to
+// index.html aren't there: its icons go in as data: URLs (the CSP's
+// `img-src` allows data:) — the SVG, the .ico's 16–64 px bitmaps and the
+// 192 px PNG, so the window and the taskbar each find a size to use. The
+// manifest link goes: a file:// manifest can't load.
+const ICON_LINKS = [
+  '<link rel="icon" type="image/svg+xml" href="./favicon.svg" />',
+  '<link rel="icon" type="image/png" sizes="192x192" href="./favicon-192.png" />',
+  '<link rel="manifest" href="./manifest.json" />',
+]
+
+function dataUrl(file: string, type: string): string {
+  return `data:${type};base64,${readFileSync(resolve(__dirname, 'public', file)).toString('base64')}`
+}
+
+function offlineIcons(): Plugin {
+  return {
+    name: 'offline-icons',
+    transformIndexHtml(html) {
+      for (const link of ICON_LINKS) {
+        if (!html.includes(link)) throw new Error(`offline build: index.html no longer contains ${JSON.stringify(link)}`)
+      }
+      const [svg, png, manifest] = ICON_LINKS as [string, string, string]
+      return html
+        .replace(svg, [
+          `<link rel="icon" type="image/svg+xml" href="${dataUrl('favicon.svg', 'image/svg+xml')}" />`,
+          `<link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48 64x64" href="${dataUrl('favicon.ico', 'image/x-icon')}" />`,
+        ].join('\n    '))
+        .replace(png, `<link rel="icon" type="image/png" sizes="192x192" href="${dataUrl('favicon-192.png', 'image/png')}" />`)
+        .replace(manifest, '')
+    },
+  }
+}
+
 // Rename output from index.html to todo2.html
 function renameToTodo2(): Plugin {
   return {
@@ -75,7 +110,7 @@ function renameToTodo2(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), offlineCsp(), fileProtocolCompat(), renameToTodo2()],
+  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2()],
   base: './',
   build: {
     emptyOutDir: false,

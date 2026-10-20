@@ -39,10 +39,12 @@ describe('a v65 build reading v66 data', () => {
     expect(result.error).toContain('up to v65')
   })
 
-  it('refuses a browser database a v66 build opened, before anything reads it', async () => {
+  it('refuses a browser database a v66 (or later) build opened, before anything reads it', async () => {
     await db.open()
     db.close()
-    expect(await checkTooNewDB()).toEqual({ storedVersion: 66, buildVersion: 65 })
+    const found = await checkTooNewDB()
+    expect(found?.buildVersion).toBe(65)
+    expect(found?.storedVersion).toBeGreaterThanOrEqual(66)
     await db.delete()
   })
 

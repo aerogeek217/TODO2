@@ -59,7 +59,40 @@ describe('<ListEditorBody>', () => {
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')
-    expect(choiceLabels()).toEqual(['No grouping', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+    expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+  })
+
+  it('groups by Priority, with a note saying a task shows in each of its groups', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
+    openChoices('Group by')
+    const priority = screen.getByRole('menuitemradio', { name: /^Priority/ })
+    expect(priority).toHaveTextContent('a task shows in each of its groups')
+    fireEvent.click(priority)
+    expect(last(onChange).grouping).toBe('priority')
+  })
+
+  it('Show filter line: unticking stores false, ticking drops the field; a change is marked', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ListEditorBody draft={makeDraft()} saved={makeDraft()} onChange={onChange} />)
+    const box = screen.getByRole('checkbox', { name: 'Show filter line' })
+    expect(box).toBeChecked()
+    fireEvent.click(box)
+    expect(last(onChange).showFilterLine).toBe(false)
+    rerender(<ListEditorBody draft={makeDraft({ showFilterLine: false })} saved={makeDraft()} onChange={onChange} />)
+    expect(screen.getByRole('checkbox', { name: 'Show filter line' })).not.toBeChecked()
+    expect(screen.getByText('Filter line')).toHaveAttribute('data-changed', 'true')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show filter line' }))
+    expect(last(onChange)).not.toHaveProperty('showFilterLine')
+  })
+
+  it('phone sheet: Show filter line is a switch', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft({ showFilterLine: false })} saved={makeDraft()} onChange={onChange} variant="sheet" />)
+    const toggle = screen.getByRole('switch', { name: 'Show filter line' })
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    expect(last(onChange)).not.toHaveProperty('showFilterLine')
   })
 
   it('an unset Group by is a blank field with a muted "Group by…" placeholder — no "None" text', () => {
@@ -188,7 +221,7 @@ describe('<ListEditorBody>', () => {
     expect(last(onChange).sort).toBe('priority')
     // Back on the form.
     expect(screen.getByRole('button', { name: /^Group by:/ })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Show completed tasks' }))
     expect(last(onChange).membership.predicate.showCompleted).toBe(true)
   })
 })

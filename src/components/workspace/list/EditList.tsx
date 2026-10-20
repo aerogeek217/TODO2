@@ -21,8 +21,13 @@ const VIEWPORT_MARGIN_PX = 8
 /** The popover's top sits this far below the panel's top (its arrow then points at the tab strip). */
 const TOP_INSET_PX = 6
 
-/** The list as edited (its shared draft, else the saved list), the saved list, and the draft actions. */
-function useEditListModel(listDefinitionId: number) {
+/**
+ * The list as edited (its shared draft, else the saved list), the saved
+ * list, and the draft actions. Save list and Revert finish the edit, so they
+ * close the surface too (a failed save keeps the edits unsaved; Revert is
+ * undoable).
+ */
+function useEditListModel(listDefinitionId: number, onClose: () => void) {
   const saved = useListDefinitionStore((s) => s.listDefinitions.find((d) => d.id === listDefinitionId))
   const draft = useListDraftStore((s) => s.drafts[listDefinitionId])
   const widgets = useListWidgetCount(listDefinitionId)
@@ -34,8 +39,14 @@ function useEditListModel(listDefinitionId: number) {
     canSave: saved != null && draft != null && draft.name.trim() !== '',
     widgets,
     onChange: (next: PersistedListDefinition) => useListDraftStore.getState().edit(listDefinitionId, () => next),
-    save: () => { void useListDraftStore.getState().save(listDefinitionId) },
-    revert: () => useListDraftStore.getState().revert(listDefinitionId),
+    save: () => {
+      void useListDraftStore.getState().save(listDefinitionId)
+      onClose()
+    },
+    revert: () => {
+      useListDraftStore.getState().revert(listDefinitionId)
+      onClose()
+    },
   }
 }
 
@@ -95,7 +106,7 @@ function useFocusReturn(panelRef: React.RefObject<HTMLElement | null>, tabId: st
  * Edit list: the one surface for a list's name, filters, group, sort,
  * prompt and Show completed. Every control edits the list's shared draft at
  * once (`list-draft-store`), so every widget showing the list updates live
- * and shows it unsaved; Save list / Revert act on that draft. Desktop: a
+ * and shows it unsaved; Save list / Revert act on that draft and close it. Desktop: a
  * non-modal popover beside the list's panel; phone: a half sheet with the
  * list live above it. Opened through `ui-store.openListEditor` (one at a
  * time); closing keeps the draft.
@@ -165,7 +176,7 @@ function readPlacement(tabId: string): string {
  * closes it, and so does the list leaving the screen.
  */
 function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
-  const model = useEditListModel(listDefinitionId)
+  const model = useEditListModel(listDefinitionId, onClose)
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
   const cellRef = useRef<HTMLElement | null>(null)
@@ -315,7 +326,7 @@ const SHEET_DRAG_PX = 40
  * sheet). The handle drags it up to full height, or down to close.
  */
 function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
-  const model = useEditListModel(listDefinitionId)
+  const model = useEditListModel(listDefinitionId, onClose)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const [full, setFull] = useState(false)
   const dragFrom = useRef<number | null>(null)

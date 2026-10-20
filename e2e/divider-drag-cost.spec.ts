@@ -122,7 +122,7 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   const widget = wsListWidget(page, 'tab')
   await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
   const first = widget.locator('[data-todo-id]').first()
-  expect(await laidOutDetails(first)).toBe(262)
+  expect(await laidOutDetails(first)).toBe(300)
   await settled(widget)
   const writesBefore = await storageWrites(page)
   await expectCounterLive(page, 'TaskRow')
@@ -131,7 +131,7 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   const steps = 20
   await dragDivider(page, widget, -80, steps, async () => {
     // Live: every row follows the drag.
-    for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(342)
+    for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(380)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow, 'task rows re-rendered during the drag').toBe(0)
     expect(counts.ListWidget, 'the list widget re-rendered during the drag').toBe(0)
@@ -141,12 +141,12 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
     expect(await storageWrites(page)).toBe(writesBefore)
     expect(await storedViewState(page) ?? {}).toEqual({})
   })
-  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 342 })
+  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 380 })
   // The release writes the view state: the widget re-renders once (which the
   // counter sees — an update, not a mount), its (memoised) rows don't.
   await expect.poll(async () => (await readRenderCounts(page)).ListWidget).toBeGreaterThan(0)
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
-  for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(342)
+  for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(380)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 })
 
@@ -158,14 +158,14 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
   await settled(eis)
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
-  await dragDivider(page, eis.locator('[data-eis-quadrant="do"]'), 40, 10, async () => {
-    // Every quadrant follows (each clamped to its own room; these all have it).
-    await expectDetails(eis, '[data-eis-quadrant]', 222)
+  await dragDivider(page, eis.locator('[data-eis-quadrant="do"]'), 65, 10, async () => {
+    // Every quadrant follows (each clamped to its own room — the default 300 is 295 in Do; these all have 230).
+    await expectDetails(eis, '[data-eis-quadrant]', 230)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
     expect(counts.EisenhowerWidget).toBe(0)
   })
-  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 222 })
+  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 230 })
   // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })
@@ -177,13 +177,13 @@ test('dashboard: both task-row sections follow the drag without the widget or it
   await settled(page.locator('[data-dash-section="followup"]'))
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
-  await dragDivider(page, page.locator('[data-dash-section="hot"]'), 40, 10, async () => {
-    await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="hot"], [data-dash-section="followup"]', 222)
+  await dragDivider(page, page.locator('[data-dash-section="hot"]'), 60, 10, async () => {
+    await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="hot"], [data-dash-section="followup"]', 240)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
     expect(counts.DashboardWidget).toBe(0)
   })
-  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 222 })
+  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 240 })
   // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })

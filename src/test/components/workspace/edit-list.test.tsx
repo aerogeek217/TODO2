@@ -35,7 +35,7 @@ function open() {
 const draft = () => useListDraftStore.getState().drafts[7]
 
 const layout: PersistedWorkspaceLayout = {
-  id: 1, name: 'Default', createdAt: new Date(), modifiedAt: new Date(),
+  id: 1, sortOrder: 0, name: 'Default', createdAt: new Date(), modifiedAt: new Date(),
   columns: [{ id: 'col', weight: 1, cells: [{ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }] }] }],
 }
 
@@ -100,25 +100,25 @@ describe('Edit list', () => {
     expect(dialog.querySelectorAll('[data-changed]')).toHaveLength(0)
   })
 
-  it('Save list writes the draft and stays open, now clean', async () => {
+  it('Save list writes the draft and closes it', async () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save list' })) })
     expect(draft()).toBeUndefined()
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
-    expect(screen.getByRole('dialog', { name: 'Edit list Waiting on' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Save list' })).toBeDisabled()
+    expect(screen.queryByRole('dialog', { name: 'Edit list Waiting on' })).not.toBeInTheDocument()
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('Revert drops the draft, stays open and offers Undo', () => {
+  it('Revert drops the draft, closes it and offers Undo', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
     fireEvent.click(within(dialog).getByRole('button', { name: 'Revert' }))
     expect(draft()).toBeUndefined()
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
-    expect(within(dialog).getByRole('button', { name: /^Sort by/ })).toHaveTextContent('Due date')
+    expect(screen.queryByRole('dialog', { name: 'Edit list Waiting on' })).not.toBeInTheDocument()
   })
 
   it('an empty name can’t be saved', () => {

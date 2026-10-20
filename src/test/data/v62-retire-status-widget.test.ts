@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import Dexie from 'dexie'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV62 } from '../../data/upgrades/v62-retire-status-widget'
-import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
 import { closeTab } from '../../utils/workspace-layout-ops'
@@ -66,8 +66,8 @@ describe('upgradeV62 (pure)', () => {
     expect(out.layouts![0]).toMatchObject({ id: 1, name: 'L1', createdAt: AT, modifiedAt: AT })
   })
 
-  it('the result passes import validation', () => {
-    const out = upgradeV62(v61DataSet())
+  it('the result passes import validation (once at the current schema)', () => {
+    const out = upgradeDataSet({ layouts: upgradeV62(v61DataSet()).layouts! }, 62, CURRENT_DB_VERSION)
     expect(validateImportData({ todos: [], settings: [], layouts: out.layouts }).ok).toBe(true)
   })
 

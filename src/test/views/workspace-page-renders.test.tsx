@@ -37,7 +37,7 @@ describe('WorkspacePage renders', () => {
     })
     const todoId = await db.todos.add({ uid: 'u1', title: 'First title', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 1 })
     await db.layouts.add({
-      name: 'Main', createdAt: now, modifiedAt: now,
+      sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now,
       columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [createTab('lens', 'list', { listDefinitionId })] }] }],
     })
 

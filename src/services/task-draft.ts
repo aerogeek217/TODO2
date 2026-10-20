@@ -23,7 +23,7 @@ export interface TaskDraft {
   urgent: boolean
   important: boolean
   focus: boolean
-  /** `undefined` = the Settings default; `null` = no next follow-up. */
+  /** `undefined` = the Settings default (none while new tasks get no follow-up); `null` = no next follow-up. */
   nextFollowupAt?: Date | null
   /** Only the task editor's create mode sets it. */
   lastFollowupAt?: Date
@@ -200,10 +200,11 @@ export function draftEditorTitle(draft: TaskDraft): string {
 
 /**
  * The stored row for a draft (no `sortOrder` yet — the store places new
- * tasks last). Without a choice the next follow-up is `defaultFollowup`;
- * a repeat is kept only with a due date.
+ * tasks last). Without a choice the next follow-up is `defaultFollowup`
+ * (`undefined` = none: new tasks get no follow-up); a repeat is kept only
+ * with a due date.
  */
-export function draftToTodo(draft: TaskDraft, now: Date, defaultFollowup: Date): Omit<NewTodoItem, 'sortOrder'> {
+export function draftToTodo(draft: TaskDraft, now: Date, defaultFollowup: Date | undefined): Omit<NewTodoItem, 'sortOrder'> {
   const nextFollowupAt = draft.nextFollowupAt === undefined ? defaultFollowup : draft.nextFollowupAt
   return {
     title: draft.title,

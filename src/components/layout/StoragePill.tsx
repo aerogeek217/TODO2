@@ -12,7 +12,7 @@ import styles from './StoragePill.module.css'
 
 /**
  * Where the data lives, in the top bar, and every sync warning: Local only /
- * the sync file's name, or — most urgent first — Permission needed, Sync
+ * Synced (the sync file's name in its tooltip and popover), or — most urgent first — Permission needed, Sync
  * paused, Sync error (red), Backup warning (amber), with a count when
  * several are active. Its popover explains each warning with its ways
  * forward (Grant access, Retry / Keep browser data…, Dismiss, Open
@@ -114,7 +114,7 @@ export function StoragePill() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={storagePillLabel(state)}
-        title={state.kind === 'syncing' ? `Syncing to ${state.text}` : state.text}
+        title={state.kind === 'syncing' ? `Syncing to ${fileName ?? 'file'}` : state.text}
         onClick={() => setOpen((o) => !o)}
         data-testid="storage-pill"
         data-state={state.kind}

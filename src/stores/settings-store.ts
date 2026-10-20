@@ -38,7 +38,6 @@ import {
 } from '../utils/shortcut-bindings'
 import type { EisenhowerPanes } from '../models/eisenhower-settings'
 import {
-  formatEisenhowerSource,
   formatPanesSetting,
   parseEisenhowerSource,
   pickPanes,
@@ -46,7 +45,6 @@ import {
 } from '../data/eisenhower-shape'
 import { readFresh, trackWrite } from './store-helpers'
 import { useUndoStore, type UndoEntry } from './undo-store'
-import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -64,6 +62,8 @@ interface SettingsState {
   weekStartsOn: WeekStart
   /** Next follow-up for new tasks and after "Mark followed up" = today + this. */
   followupDefaultInterval: FollowupInterval
+  /** Whether new tasks get a next follow-up (today + `followupDefaultInterval`). */
+  newTaskFollowup: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
@@ -84,9 +84,12 @@ interface SettingsState {
    */
   eisenhowerPanes: EisenhowerPanes
   /**
-   * The saved list whose tasks the Eisenhower considers (every Eisenhower
-   * tab and the dashboard section); `null` = all tasks. May name a list
-   * that was deleted (the matrix says so).
+   * The Eisenhower's own list (a hidden list, `owner: { eisenhower: true }`)
+   * whose tasks every Eisenhower tab and the dashboard section consider —
+   * the `eisenhowerSource` setting, kept naming it by
+   * `useListDefinitionStore.ensureEisenhowerList` (app startup, a data
+   * replace). Until then it is what the stored setting names — `null`
+   * (none): the Eisenhower reads all tasks, as the new, empty list would.
    */
   eisenhowerListId: number | null
 
@@ -99,6 +102,8 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
+  /** Whether new tasks get a next follow-up; shown at once, put back when the save fails. */
+  setNewTaskFollowup: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
@@ -123,8 +128,6 @@ interface SettingsState {
    * last show again.
    */
   setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
-  /** Saves the Eisenhower source at once (`null` = all tasks) as one undo step, with the undo snackbar; a failed save as `setEisenhowerPanes`. */
-  setEisenhowerListId: (listDefinitionId: number | null, description: string) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -260,6 +263,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
+  newTaskFollowup: true,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
@@ -283,6 +287,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
+      let newTaskFollowup = true
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
@@ -313,6 +318,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidWeekStart(parsed)) weekStartsOn = parsed
         } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
+        } else if (row.key === SETTING_KEYS.newTaskFollowup) {
+          newTaskFollowup = row.value !== 'false'
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
           const parsed = parseUrgentDueWithinDays(row.value)
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
@@ -331,7 +338,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides, eisenhowerPanes, eisenhowerListId })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, newTaskFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides, eisenhowerPanes, eisenhowerListId })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -428,6 +435,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 
+  setNewTaskFollowup(on: boolean) {
+    return trackWrite(async () => {
+      const prev = get().newTaskFollowup
+      set({ newTaskFollowup: on })
+      try {
+        // Stored only when off: absent = on.
+        if (on) await settingsRepository.delete(SETTING_KEYS.newTaskFollowup)
+        else await settingsRepository.put(SETTING_KEYS.newTaskFollowup, 'false')
+      } catch (e) {
+        console.error('Failed to save whether new tasks get a follow-up:', e)
+        set({ newTaskFollowup: prev })
+      }
+    })
+  },
+
   setUrgentDueWithinDays(range: UrgentDueWithinDays) {
     return trackWrite(async () => {
       const value = formatUrgentDueWithinDays(range)
@@ -505,23 +527,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     recordPanesUndo(saved.before, next, description, mergeKey)
   },
 
-  async setEisenhowerListId(listDefinitionId: number | null, description: string) {
-    if (get().eisenhowerListId === listDefinitionId) return
-    const saved = await writeEisenhowerListId(listDefinitionId)
-    if (saved.stale) return
-    if (!saved.ok) {
-      useUndoStore.getState().notify('Couldn’t save what the Eisenhower shows.')
-      return
-    }
-    lastPanesUndo = null
-    const before = saved.before
-    undoable(
-      description,
-      () => mustSave(writeEisenhowerListId(listDefinitionId)),
-      () => mustSave(writeEisenhowerListId(before)),
-      true,
-    )
-  },
 }))
 
 /**
@@ -584,7 +589,7 @@ async function mustSave<T>(write: Promise<SettingSave<T>>): Promise<void> {
  * never leaves the screen and the database apart. `before` is the value
  * saved before the write (the database's, not the one shown).
  */
-function serialSettingWriter<K extends 'eisenhowerPanes' | 'eisenhowerListId'>(
+function serialSettingWriter<K extends 'eisenhowerPanes'>(
   field: K,
   persist: (value: SettingsState[K]) => Promise<void>,
   label: string,
@@ -637,16 +642,6 @@ const writeEisenhowerPanes = serialSettingWriter(
   'the Eisenhower panes',
 )
 
-/** Shows the Eisenhower source at once, then saves it (all tasks = no row). */
-const writeEisenhowerListId = serialSettingWriter(
-  'eisenhowerListId',
-  async (listDefinitionId) => {
-    if (listDefinitionId == null) await settingsRepository.delete(SETTING_KEYS.eisenhowerSource)
-    else await settingsRepository.put(SETTING_KEYS.eisenhowerSource, formatEisenhowerSource(listDefinitionId))
-  },
-  'the Eisenhower source',
-)
-
 /** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */
 function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {
   return trackWrite(async () => {
@@ -675,4 +670,21 @@ export function currentFilterSettings(): FilterSettings {
  */
 export function defaultNextFollowup(now: Date): Date {
   return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
+}
+
+/**
+ * The interval a new task's default follow-up is set by, or `null` while
+ * new tasks get none (a selector: `useSettingsStore(newTaskFollowupInterval)`).
+ */
+export function newTaskFollowupInterval(s: Pick<SettingsState, 'newTaskFollowup' | 'followupDefaultInterval'>): FollowupInterval | null {
+  return s.newTaskFollowup ? s.followupDefaultInterval : null
+}
+
+/**
+ * The next follow-up a new task gets when it says nothing about one: today
+ * + the default interval while "New tasks get a follow-up date" is on, else
+ * none (`undefined`).
+ */
+export function newTaskDefaultFollowup(now: Date): Date | undefined {
+  return useSettingsStore.getState().newTaskFollowup ? defaultNextFollowup(now) : undefined
 }

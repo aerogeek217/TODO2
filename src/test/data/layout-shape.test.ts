@@ -6,7 +6,7 @@ import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
 const DATE = '2026-09-01T09:00:00.000Z'
 
 function layoutRow(columns: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { id: 1, name: 'Daily', columns, createdAt: DATE, modifiedAt: DATE, ...extra }
+  return { id: 1, name: 'Daily', sortOrder: 0, columns, createdAt: DATE, modifiedAt: DATE, ...extra }
 }
 
 function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}): unknown[] {
@@ -79,7 +79,7 @@ describe('layouts row validation', () => {
     // Nothing in the workspace limits the counts, so import must not either.
     let n = 0
     const genId = () => `w-${n++}`
-    let layout: WorkspaceLayout = { id: 1, name: 'Big', columns: [], createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
+    let layout: WorkspaceLayout = { id: 1, sortOrder: 0, name: 'Big', columns: [], createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
     const notes = (): LayoutTab => ({ id: genId(), kind: 'notes', config: {} })
     for (let c = 0; c < 40; c++) layout = addTab(layout, notes(), { kind: 'layout' }, genId)
     const firstCell = layout.columns[0]!.cells[0]!.id
@@ -153,7 +153,7 @@ describe('layouts row validation', () => {
     const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns, { stray: 'x' })] })
     if (!res.ok) throw new Error(res.error)
     expect(res.data.layouts).toEqual([{
-      id: 1, name: 'Daily', createdAt: new Date(DATE), modifiedAt: new Date(DATE),
+      id: 1, name: 'Daily', sortOrder: 0, createdAt: new Date(DATE), modifiedAt: new Date(DATE),
       columns: [{ id: 'c', weight: 2, cells: [{ id: 'k', weight: 1, tabs: [
         { id: 't1', kind: 'notes', config: {} },
         { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },

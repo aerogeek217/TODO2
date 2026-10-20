@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  DATES_TIERS,
+  datesParts,
   DEFAULT_DETAILS_WIDTH,
   peopleFit,
   tagsFit,
@@ -13,33 +15,33 @@ function titleWidth(width: number, laidOut: number): number {
 }
 
 describe('taskRowColumns', () => {
-  it('splits the default details width in a 540px list: people 55, tags 82, title 214 — no task-menu track', () => {
+  it('splits the default details width in a 540px list: people 53, tags 79, the dates 112, title 176', () => {
     const cols = taskRowColumns(528)
     expect(cols.details).toBe(DEFAULT_DETAILS_WIDTH)
     expect(cols.laidOut).toBe(DEFAULT_DETAILS_WIDTH)
-    expect([cols.people, cols.tags, cols.due]).toEqual([55, 82, 46])
+    expect([cols.people, cols.tags, cols.dates, cols.datesTier]).toEqual([53, 79, 112, 'both'])
     // Status is the last track (the task menu is right-click / Shift+F10 only).
-    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 55px 82px 46px 18px 20px')
-    expect(titleWidth(528, cols.laidOut)).toBe(214)
+    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 53px 79px 112px 20px')
+    expect(titleWidth(528, cols.laidOut)).toBe(176)
   })
 
   it('people take 40% of F, within 22 … 64; tags the rest', () => {
-    // F = D − 100 fixed − 25 gaps
-    expect(taskRowColumns(2000, 125 + 56)).toMatchObject({ people: 22, tags: 34 })
-    expect(taskRowColumns(2000, 125 + 100)).toMatchObject({ people: 40, tags: 60 })
-    expect(taskRowColumns(2000, 125 + 300)).toMatchObject({ people: 64, tags: 236 })
+    // F = D − 148 fixed − 20 gaps
+    expect(taskRowColumns(2000, 168 + 56)).toMatchObject({ people: 22, tags: 34 })
+    expect(taskRowColumns(2000, 168 + 100)).toMatchObject({ people: 40, tags: 60 })
+    expect(taskRowColumns(2000, 168 + 300)).toMatchObject({ people: 64, tags: 236 })
   })
 
-  it('tags give way first (people take their gap), then people', () => {
-    const noTags = taskRowColumns(2000, 125 + 55)
-    expect(noTags).toMatchObject({ people: 60, tags: 0 })
-    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 46px 18px 20px')
-    expect(noTags.laidOut).toBe(180)
-    expect(taskRowColumns(2000, 125 + 17)).toMatchObject({ people: 22, tags: 0 })
-    const neither = taskRowColumns(2000, 125 + 16)
-    expect(neither).toMatchObject({ people: 0, tags: 0 })
-    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 46px 18px 20px')
-    expect(neither.laidOut).toBe(115)
+  it('tags give way first (people take their gap), then people; the dates stay', () => {
+    const noTags = taskRowColumns(2000, 168 + 55)
+    expect(noTags).toMatchObject({ people: 60, tags: 0, datesTier: 'both' })
+    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 112px 20px')
+    expect(noTags.laidOut).toBe(223)
+    expect(taskRowColumns(2000, 168 + 17)).toMatchObject({ people: 22, tags: 0 })
+    const neither = taskRowColumns(2000, 168 + 16)
+    expect(neither).toMatchObject({ people: 0, tags: 0, datesTier: 'both' })
+    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 112px 20px')
+    expect(neither.laidOut).toBe(158)
   })
 
   it('clamps a stored width to min (fixed tracks only) … max (title keeps 80px); the bounds follow the width', () => {
@@ -48,28 +50,47 @@ describe('taskRowColumns', () => {
     expect(wide.details).toBe(wide.maxDetails)
     expect(titleWidth(528, wide.laidOut)).toBe(80)
     const tight = taskRowColumns(528, 0)
-    expect(tight.details).toBe(115)
-    expect(tight.minDetails).toBe(115)
+    expect(tight.details).toBe(158)
+    expect(tight.minDetails).toBe(158)
     // The same stored value in a wider list: no longer clamped.
     expect(taskRowColumns(1200, 600).details).toBe(600)
     expect(taskRowColumns(700, 600).details).toBe(700 - 14 - 38 - 80)
   })
 
-  it('narrow lists (< 360px) get a 40px due track; a 320px list clamps to the title minimum, people and tags just fit', () => {
+  it('the list width alone sets the dates: the follow-up date goes first, then the due date', () => {
+    // Both dates while people and tags keep their split at the widest details.
+    expect(taskRowColumns(356)).toMatchObject({ datesTier: 'both', dates: 112 })
+    expect(taskRowColumns(355)).toMatchObject({ datesTier: 'due', dates: 75 })
+    expect(taskRowColumns(319)).toMatchObject({ datesTier: 'due', dates: 75 })
+    expect(taskRowColumns(318)).toMatchObject({ datesTier: 'icons', dates: 38 })
+    // The details width never changes it (a divider drag re-lays rows out, nothing else).
+    for (const stored of [0, 120, 200, 4000]) expect(taskRowColumns(528, stored).datesTier).toBe('both')
+    for (const stored of [0, 120, 4000]) expect(taskRowColumns(308, stored).datesTier).toBe('icons')
+  })
+
+  it('a 320px list shows the dates as icons and keeps people and tags', () => {
     const cols = taskRowColumns(308)
-    expect(cols.due).toBe(40)
-    expect(cols.minDetails).toBe(109)
+    expect(cols.minDetails).toBe(84)
     expect(cols.details).toBe(308 - 14 - 38 - 80)
-    // F = 176 − 94 − 25 = 57: just over the split minimum.
-    expect([cols.people, cols.tags]).toEqual([23, 34])
-    expect(taskRowColumns(300)).toMatchObject({ tags: 0 })
-    expect(taskRowColumns(360).due).toBe(46)
+    // F = 176 − 74 − 20 = 82.
+    expect([cols.people, cols.tags]).toEqual([33, 49])
   })
 
   it('a list too narrow even for the fixed tracks keeps them (the title shrinks below 80)', () => {
     const cols = taskRowColumns(200)
     expect(cols.details).toBe(cols.minDetails)
+    expect(cols.datesTier).toBe('icons')
     expect([cols.people, cols.tags]).toEqual([0, 0])
+  })
+})
+
+describe('datesParts', () => {
+  it('splits each tier into the due part and the follow-up part', () => {
+    for (const tier of ['both', 'due', 'icons'] as const) {
+      const p = datesParts(tier)
+      expect(p.due + p.gap + p.followup).toBe(DATES_TIERS[tier])
+    }
+    expect(datesParts('due')).toMatchObject({ due: 55, followup: 18 })
   })
 })
 

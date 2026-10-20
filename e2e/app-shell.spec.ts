@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * The app shell in a real browser: one top bar (New task, layout picker,
+ * The app shell in a real browser: one top bar (New task, the layout tabs,
  * the screen-filter tray, the storage pill, the Settings gear), the Settings
  * modal, and the narrow-window Filters menu. The unsaved-layout case (Settings
- * never prompts) lives in `workspace-layout.spec.ts`; the storage pill's
+ * never prompts) lives in `workspace-layout.spec.ts`, the layout tabs and
+ * the measured fold in `layout-tabs.spec.ts`; the storage pill's
  * warning states in `storage-pill.spec.ts`.
  */
 
@@ -115,9 +116,9 @@ test('the red funnel, left of search, clears every screen filter at once; there 
   await expect(funnel).toBeDisabled()
 })
 
-test('at 1180px the filters fold into a Filters menu that sets and clears a filter', async ({ page }) => {
+test('with other layouts taking the room, the filters fold into a Filters menu that sets and clears a filter', async ({ page }) => {
   await page.setViewportSize({ width: 1180, height: 800 })
-  await seedWorkspace(page, team)
+  await seedWorkspace(page, withSpareLayouts(team))
   await expect(page.getByRole('button', { name: 'People filter' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Show completed' })).toHaveText('Completed')
   const box = await page.locator('header').boundingBox()
@@ -183,6 +184,30 @@ test('without file sync, the pill’s Import / Export… opens Database scrolled
   })
   expect(scroll.top).toBeGreaterThan(0)
   expect(scroll.top >= scroll.max - 1 || scroll.offset < 40).toBe(true)
+})
+
+test('at 1280px every filter button shows and the bar still fits: New task is the + alone, Show completed reads Completed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await seedWorkspace(page, { ...team, statuses: ['Waiting'] })
+  for (const name of ['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeVisible()
+  }
+  const newTask = page.getByRole('button', { name: 'New task' })
+  await expect(newTask).toHaveText('')
+  await expect(newTask).toHaveAttribute('title', 'New task (Ctrl+Space)')
+  await expect(page.getByRole('button', { name: 'Show completed' })).toHaveText('Completed')
+  await expect(page.getByPlaceholder('Search…')).toBeVisible()
+  await expect(page.locator('header kbd')).toHaveCount(0)
+  const fit = await page.locator('header').evaluate((bar) => {
+    const box = bar.getBoundingClientRect()
+    const parts = [...bar.querySelectorAll('button, input')].map((el) => el.getBoundingClientRect()).filter((r) => r.width > 0)
+    return {
+      height: box.height,
+      overflow: bar.scrollWidth - bar.clientWidth,
+      outside: parts.filter((r) => r.right > box.right + 0.5 || r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5).length,
+    }
+  })
+  expect(fit).toEqual({ height: 40, overflow: 0, outside: 0 })
 })
 
 test('New task opens quick add', async ({ page }) => {

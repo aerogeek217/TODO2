@@ -65,7 +65,7 @@ describe('FilterChipBar — primitive', () => {
     it('folded: one Filters menu with a count; a row opens its picker, × clears, Clear all filters', () => {
       const updates: TodoPredicate[] = []
       const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10] }
-      render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} onClearAll={() => updates.push(emptyPredicate())} fold compact />)
+      render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} onClearAll={() => updates.push(emptyPredicate())} fold />)
       expect(screen.queryByRole('button', { name: /^People/ })).toBeNull()
       expect(screen.getByRole('button', { name: 'Show completed' })).toHaveTextContent('Completed')
       fireEvent.click(screen.getByRole('button', { name: 'Filters, 2 active' }))

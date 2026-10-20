@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { extname, join, normalize, resolve } from 'node:path'
@@ -75,7 +75,11 @@ async function watchCsp(page: Page): Promise<() => Promise<string[]>> {
   ]
 }
 
-/** Starts the app, adds a task through Quick Add and opens Settings. */
+/**
+ * Starts the app, adds a task through Quick Add and opens Settings — whose
+ * backdrop blurs the page in the built CSS too (the minifier once kept only
+ * a `-webkit-` prefixed blur, which Chromium ignores).
+ */
 async function exercise(page: Page) {
   await expect(page.locator('[data-ws-area]')).toBeVisible()
   await page.keyboard.press('Control+Space')
@@ -84,6 +88,7 @@ async function exercise(page: Page) {
   await page.keyboard.press('Enter')
   await expect(quickAdd).toBeHidden()
   await openSettings(page, 'Backups')
+  await expect.poll(() => page.locator('[data-modal-backdrop]').evaluate((el) => getComputedStyle(el).backdropFilter)).toMatch(/^blur\(\d+px\)$/)
 }
 
 function cspOf(html: string): string {
@@ -116,5 +121,32 @@ test('the offline single file runs from disk under its CSP', async ({ page }) =>
   const violations = await watchCsp(page)
   await page.goto(pathToFileURL(file).href)
   await exercise(page)
+  expect(await violations()).toEqual([])
+})
+
+test('the offline single file carries its own icons: data: URLs that load from a folder holding only the file', async ({ page }) => {
+  const alone = join(outDir, 'alone')
+  mkdirSync(alone)
+  const file = join(alone, 'todo2.html')
+  copyFileSync(join(outDir, 'offline', 'todo2.html'), file)
+  const html = readFileSync(file, 'utf8')
+  expect(html).not.toContain('rel="manifest"')
+
+  const violations = await watchCsp(page)
+  await page.goto(pathToFileURL(file).href)
+  await expect(page.locator('[data-ws-area]')).toBeVisible()
+  const icons = await page.evaluate(async () => Promise.all(
+    [...document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]')].map(async (link) => {
+      const img = new Image()
+      img.src = link.href
+      const loaded = await img.decode().then(() => true, () => false)
+      return { type: link.type, sizes: link.getAttribute('sizes'), data: link.href.startsWith('data:'), loaded, width: img.naturalWidth }
+    }),
+  ))
+  expect(icons).toEqual([
+    { type: 'image/svg+xml', sizes: null, data: true, loaded: true, width: expect.any(Number) },
+    { type: 'image/x-icon', sizes: '16x16 32x32 48x48 64x64', data: true, loaded: true, width: expect.any(Number) },
+    { type: 'image/png', sizes: '192x192', data: true, loaded: true, width: 192 },
+  ])
   expect(await violations()).toEqual([])
 })

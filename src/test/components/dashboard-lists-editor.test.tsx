@@ -313,3 +313,25 @@ describe('DashboardListsEditor — a list with unsaved workspace changes', () =>
     expect(screen.queryByText(NOTICE)).toBeNull()
   })
 })
+
+describe('DashboardListsEditor — hidden lists', () => {
+  afterEach(() => { cleanup() })
+
+  it('lists only saved lists: none a layout or the Eisenhower owns', () => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 1, name: 'Saved' }),
+        makeDef({ id: 2, name: 'Layout only', owner: { layoutId: 1 } }),
+        makeDef({ id: 3, name: 'Eisenhower list', owner: { eisenhower: true } }),
+      ],
+    })
+    render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.queryByText('Layout only')).toBeNull()
+    expect(screen.queryByText('Eisenhower list')).toBeNull()
+  })
+})

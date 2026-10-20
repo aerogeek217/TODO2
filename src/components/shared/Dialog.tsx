@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
-import { DialogLayerContext } from './dialog-layer'
+import { DialogLayerContext, MODAL_BACKDROP_ATTR } from './dialog-layer'
 import { useBackdropPress } from './use-backdrop-press'
 
 /**
@@ -103,7 +103,9 @@ const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
  *   the panel (Tab with nothing focused comes back in), and focus returns to
  *   where it was when the dialog closes.
  * - **Backdrop:** a press that starts and ends on it closes the dialog, so a
- *   text drag that ends outside the panel doesn't.
+ *   text drag that ends outside the panel doesn't. It dims and blurs the
+ *   page (`--backdrop-blur`) — unless the dialog opened over another modal
+ *   or on the `raised` / `nested` tiers, whose backdrop adds no second blur.
  * - **Keys stay in:** the panel is `data-shortcut-scope="modal"`, so no app
  *   shortcut fires from inside it.
  * - **Tier:** what it renders (portaled layers too) reads its `layer` with
@@ -138,6 +140,20 @@ export function DialogFrame({
   // What had the focus when the dialog opened — read before its content
   // mounts, since an `autoFocus` control inside takes the focus first.
   const [opener] = useState(() => document.activeElement as HTMLElement | null)
+  // Opened over another modal: that one's backdrop already blurs the page.
+  // Decided once mounted (before paint), from the backdrops before this one
+  // in the page: a modal this one replaces in the same render is gone then.
+  const backdropRef = useRef<HTMLDivElement | null>(null)
+  const tierStacked = layer === 'nested' || layer === 'raised'
+  const [overAnother, setOverAnother] = useState(false)
+  useLayoutEffect(() => {
+    const own = backdropRef.current
+    if (!own || tierStacked) return
+    const below = [...document.querySelectorAll(`[${MODAL_BACKDROP_ATTR}]`)]
+      .some((el) => el !== own && (el.compareDocumentPosition(own) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0)
+    setOverAnother(below)
+  }, [tierStacked])
+  const stacked = tierStacked || overAnother
 
   // Focus moves in on open (unless a control inside already took it) and
   // goes back to the opener once the dialog is gone.
@@ -221,8 +237,10 @@ export function DialogFrame({
   const frame = (
     <>
       <div
-        className={`${styles.backdrop} ${layerClass} ${backdropClassName ?? ''}`}
+        ref={backdropRef}
+        className={`${styles.backdrop} ${layerClass} ${stacked ? '' : styles.backdropBlur} ${backdropClassName ?? ''}`}
         data-dialog-backdrop=""
+        {...{ [MODAL_BACKDROP_ATTR]: '' }}
         {...backdropPress}
       />
       <div

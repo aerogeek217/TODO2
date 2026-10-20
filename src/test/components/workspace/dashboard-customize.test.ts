@@ -162,7 +162,7 @@ describe('Copy summary', () => {
       stale: { shown: { ids: [1], oldestDays: 20 }, total: { ids: [1, 2], oldestDays: 30 } },
       recent: { shown: { ids: [4, 5, 6] }, total: { ids: [4, 5, 6] } },
       eisenhower: { shown: quadrants(1, 2, 0, 3), total: quadrants(1, 2, 1, 4) },
-      eisenhowerSetup: { panes: resolvePanes({}), listName: null, deleted: false },
+      eisenhowerSetup: { panes: resolvePanes({}), listName: null },
     }
     const lines = sectionSummaryLines(
       [{ id: 'hot' }, { id: 'eisenhower' }, { id: 'recent' }, { id: 'tags' }, { id: 'stale' }],
@@ -183,12 +183,11 @@ describe('Copy summary', () => {
     ])
     const none = { ...data, tags: { shown: { rows: [], untagged: empty, taggedIds: [] }, total: { rows: [], untagged: empty, taggedIds: [] } } }
     expect(sectionSummaryLines([{ id: 'tags' }], none)).toEqual([])
-    // The Eisenhower line names the panes (the app-wide setting); nothing while its list is deleted.
+    // The Eisenhower line names the panes (the app-wide setting).
     const renamed = { ...data, eisenhowerSetup: { ...data.eisenhowerSetup, panes: resolvePanes({ delegate: { name: 'Hand off' } }) } }
     expect(sectionSummaryLines([{ id: 'eisenhower' }], renamed)).toEqual([[
       { label: 'Do', count: '1' }, { label: 'Schedule', count: '2' }, { label: 'Hand off', count: '0 of 1' }, { label: 'Drop', count: '3 of 4' },
     ]])
-    expect(sectionSummaryLines([{ id: 'eisenhower' }], { ...data, eisenhowerSetup: { ...data.eisenhowerSetup, deleted: true } })).toEqual([])
     // Only sections: no Open stand-in.
     expect(buildDashboardSummary([], { shown: stats({ open: 6 }), total: stats({ open: 6 }) }, [], [[{ label: 'Stale tasks', count: '1' }]]).plain).toBe('Stale tasks 1')
   })

@@ -290,7 +290,7 @@ describe('CheckinDialog — sending', () => {
 })
 
 describe('CheckinDialog — layers and closing', () => {
-  it('Add email opens the people editor on that person with the Email field focused, and ticks them', async () => {
+  it('Add email opens the people editor on that person with the Email field focused; Save closes it and ticks them', async () => {
     open()
     await act(async () => { fireEvent.click(within(row(3)).getByRole('button', { name: 'Add email for Cy Young' })) })
     const email = await screen.findByRole('textbox', { name: 'Email' })
@@ -300,8 +300,8 @@ describe('CheckinDialog — layers and closing', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     await waitFor(() => expect(within(row(3)).getByRole('checkbox')).toHaveProperty('checked', true))
     expect(within(row(3)).getByRole('button', { name: 'Copy & open for Cy Young' })).toBeTruthy()
-    // Esc belongs to the editor while it's open.
-    fireEvent.keyDown(dialog(), { key: 'Escape' })
+    // The editor closed; the check-in dialog stays.
+    await waitFor(() => expect(screen.queryByPlaceholderText('Name')).toBeNull())
     expect(useUIStore.getState().checkinDialog).not.toBeNull()
   })
 

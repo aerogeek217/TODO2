@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
@@ -190,25 +190,22 @@ test('switching layouts with an unsaved list asks first; Discard drops the edit'
   await pickChoice(page, 'Sort by', 'Name')
   await page.keyboard.press('Escape')
 
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name: 'Second' }).click()
+  await switchLayout(page, 'Second')
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
   await expect(dialog).toContainText('Your changes will be lost if you don’t save.')
   await dialog.getByRole('button', { name: /Cancel/ }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Main')
+  await expectOpenLayout(page, 'Main')
 
   // Also make the layout unsaved: one combined prompt with a row each.
   await wsTab(page, 't2').getByRole('button', { name: 'Close Other' }).click()
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name: 'Second' }).click()
+  await switchLayout(page, 'Second')
   const combined = page.getByRole('dialog', { name: 'Save your changes?' })
   await expect(combined).toContainText('You’re switching to layout “Second”.')
   await expect(combined.getByRole('checkbox')).toHaveCount(2)
   await combined.getByRole('button', { name: 'Discard all' }).click()
-  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
+  await expectOpenLayout(page, 'Second')
 
-  await page.getByTestId('layout-picker').click()
-  await page.getByRole('menuitemradio', { name: 'Main' }).click()
+  await switchLayout(page, 'Main')
   await expect(wsTab(page, 't2')).toBeVisible()
   await openEditList(page, 't1')
   await expect(page.getByTestId('edit-list').getByRole('button', { name: /^Sort by/ })).toHaveText('Manual')
@@ -258,7 +255,7 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   await expect(wsListWidget(page, 't1')).toContainText('Pick a person to show this list')
 })
 
-test('narrow widgets: a narrower due column, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
+test('narrow widgets: the dates show as icons, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 800 })
   await seedWorkspace(page, {
     tags: ['home', 'work'],
@@ -277,10 +274,14 @@ test('narrow widgets: a narrower due column, the tags column gives way, the summ
   expect((await narrow.boundingBox())!.width).toBeLessThan(360)
   expect((await wide.boundingBox())!.width).toBeGreaterThan(360)
 
-  // Every row keeps its follow-up and due cells; the narrow one's due column is 40px, not 46.
+  // Every row keeps its due and follow-up parts; the narrow one shows them as icons (the dates in the tooltips).
   for (const w of [wide, narrow]) await expect(w.locator('[data-row-cell="followup"]')).toHaveAttribute('data-followup', 'upcoming')
-  expect(Math.round((await wide.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(46)
-  expect(Math.round((await narrow.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(40)
+  await expect(wide.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
+  await expect(narrow.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'icons')
+  expect(Math.round((await wide.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(55)
+  expect(Math.round((await narrow.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(18)
+  await expect(narrow.locator('[data-row-cell="due"]')).toHaveText('')
+  await expect(narrow.locator('[data-row-cell="followup"]')).toHaveText('')
   await expect(wide.getByTestId('list-summary')).toBeVisible()
   await expect(narrow.getByTestId('list-summary')).toBeHidden()
   // The tags column gives way in the narrow widget; the title keeps 80px.

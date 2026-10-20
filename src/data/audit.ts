@@ -1,6 +1,7 @@
 import { db } from './database'
 import { readDataTables } from './export-data'
 import { DATA_TABLE_NAMES, type DataTableName } from './tables'
+import { ownerLayoutId } from '../models/list-definition'
 import {
   KNOWN_DB_TABLES,
   validateRow,
@@ -167,7 +168,7 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   const tables = await readDataTables()
-  const { todos, people, statuses, tags, todoPeople, todoTags, todoEvents, listDefinitions, listOrders } = tables
+  const { todos, people, statuses, tags, todoPeople, todoTags, todoEvents, listDefinitions, listOrders, layouts } = tables
   const settingsRows = tables.settings
 
   // --- Unknown rows in known tables ---
@@ -426,6 +427,31 @@ export async function auditData(): Promise<AuditReport> {
       fix: 'clear-field',
       field: 'statusId',
       samples: fkSample(todosWithBadStatus, 'statusId'),
+    })
+  }
+
+  // --- Layout-only lists whose layout is gone ---
+  // No chooser offers such a list and no layout shows it, so nothing could
+  // reach it: cleanup makes it a saved list again (never deletes it).
+  const layoutIds = new Set(layouts.map((l) => l.id))
+  const orphanedOwned = listDefinitions.filter((d) => {
+    const layoutId = ownerLayoutId(d)
+    return layoutId !== undefined && !layoutIds.has(layoutId)
+  })
+  if (orphanedOwned.length > 0) {
+    issues.push({
+      table: 'listDefinitions',
+      description: 'Layout-only lists whose layout was deleted (cleanup makes them saved lists)',
+      count: orphanedOwned.length,
+      ids: orphanedOwned.map((d) => d.id!),
+      fix: 'clear-field',
+      field: 'owner',
+      samples: orphanedOwned.slice(0, MAX_SAMPLES_PER_ISSUE).map((d) => ({
+        row: toSampleRow(d as unknown as Record<string, unknown>),
+        id: d.id,
+        badFields: ['owner'],
+        note: `owner layout ${String(ownerLayoutId(d))} not in layouts`,
+      })),
     })
   }
 

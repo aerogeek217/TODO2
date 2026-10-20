@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -6,13 +6,16 @@ import { createTab, UNSAVED_LAYOUT_ID, type PersistedWorkspaceLayout, type Works
 import { resetDb } from '../helpers'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { writeLayoutDraft } from '../../data/draft-storage'
+import { useUndoStore } from '../../stores/undo-store'
+import type { LayoutBody } from '../../models/workspace-layout'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
 /** [A: (a1 a2)] [B: (b1)] */
 function twoColumns(name = 'Daily', extra: Partial<WorkspaceLayout> = {}): Omit<WorkspaceLayout, 'id'> {
   return {
-    name,
+    sortOrder: 0, name,
     createdAt: T0,
     modifiedAt: T0,
     columns: [
@@ -38,6 +41,16 @@ async function stored(id: number): Promise<PersistedWorkspaceLayout> {
 }
 
 const ws = () => useWorkspaceStore.getState()
+
+/**
+ * Opens an unsaved new layout as an older build kept it in the browser
+ * (its New layout wasn't stored until saved): kept, then a page load.
+ */
+async function openKeptNewLayout(body: LayoutBody = { columns: [] }, name = 'Untitled layout', listNames: Record<string, string> = {}) {
+  writeLayoutDraft({ kind: 'new', name, body, listNames })
+  useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+  await ws().init()
+}
 
 beforeEach(async () => {
   await resetDb()
@@ -269,22 +282,46 @@ describe('saved layouts', () => {
     expect(await ws().rename(id!, '')).toBe(false)
   })
 
-  it('newLayout opens an empty, unsaved Untitled layout that nothing stores yet', async () => {
+  it('createLayout stores an empty layout under its name, after the others, and opens it', async () => {
+    const [a] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    ws().closeTab('b1')
+    const id = await ws().createLayout('  Planning ')
+    expect(id).not.toBeNull()
+    expect(ws()).toMatchObject({ activeLayoutId: id, isDirty: false, previousLayoutId: null })
+    expect(ws().working).toMatchObject({ id, name: 'Planning', columns: [] })
+    expect(ws().saved).toEqual(ws().working)
+    expect(await stored(id!)).toMatchObject({ name: 'Planning', columns: [], sortOrder: 2 })
+    expect(await layoutRepository.getActiveId()).toBe(id)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['A', 'B', 'Planning'])
+    // The edit made before it was dropped (callers ask first); nothing kept.
+    expect((await stored(a!)).columns).toHaveLength(2)
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+  })
+
+  it('createLayout refuses an empty name; a failed write stores nothing and says so', async () => {
     const [a] = await seedAndInit(twoColumns('A'))
-    ws().newLayout()
+    expect(await ws().createLayout('   ')).toBeNull()
+    vi.spyOn(layoutRepository, 'insert').mockRejectedValueOnce(new Error('quota'))
+    expect(await ws().createLayout('Planning')).toBeNull()
+    expect(ws().activeLayoutId).toBe(a)
+    expect(await db.layouts.count()).toBe(1)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: `Couldn't create layout "Planning".`, notice: true })
+  })
+
+  it('a new layout an older build kept unsaved opens unsaved; edits stay in memory', async () => {
+    const [a] = await seedAndInit(twoColumns('A'))
+    await openKeptNewLayout()
     expect(ws()).toMatchObject({ activeLayoutId: null, saved: null, isDirty: true, previousLayoutId: a })
     expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID, name: 'Untitled layout', columns: [] })
     expect(await db.layouts.count()).toBe(1)
-    expect(await layoutRepository.getActiveId()).toBe(a)
-    // Edits stay in memory.
     ws().addWidget('notes', { kind: 'layout' })
     expect(ws().working!.columns).toHaveLength(1)
     expect(await db.layouts.count()).toBe(1)
   })
 
-  it('saving a new layout stores it under its name and opens it', async () => {
+  it('saving a kept new layout stores it under its name and opens it', async () => {
     await seedAndInit(twoColumns('A'))
-    ws().newLayout()
+    await openKeptNewLayout()
     expect(await ws().rename(UNSAVED_LAYOUT_ID, 'Planning')).toBe(true)
     expect(await db.layouts.count()).toBe(1)
     ws().addWidget('notes', { kind: 'layout' })
@@ -298,11 +335,10 @@ describe('saved layouts', () => {
     expect(ws().layouts.map((l) => l.name)).toEqual(['A', 'Planning'])
   })
 
-  it('discarding a new layout goes back to the layout open before', async () => {
+  it('discarding a kept new layout goes back to the layout open before', async () => {
     const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
     await ws().load(b!)
-    ws().newLayout()
-    ws().newLayout()
+    await openKeptNewLayout()
     expect(ws().previousLayoutId).toBe(b)
     ws().discard()
     expect(ws()).toMatchObject({ activeLayoutId: b, isDirty: false, previousLayoutId: null })
@@ -403,9 +439,9 @@ describe('unsaved changes kept for a reload', () => {
     expect(ws().working!.top?.height).toBe(180)
   })
 
-  it('a new layout with a band comes back with it', async () => {
+  it('a kept new layout with a band comes back with it', async () => {
     await seedAndInit(twoColumns())
-    ws().newLayout()
+    await openKeptNewLayout()
     ws().addWidget('notes', { kind: 'new-band', edge: 'top' })
     await reload()
     expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID, columns: [] })
@@ -422,14 +458,14 @@ describe('unsaved changes kept for a reload', () => {
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
 
-  it('a new layout comes back new and unsaved; its lists must still be the same lists', async () => {
+  it('a kept new layout comes back new and unsaved; its lists must still be the same lists', async () => {
     const listId = await db.listDefinitions.add({
       name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
     } as never) as number
     const [a] = await seedAndInit(twoColumns('A'))
     await useListDefinitionStore.getState().load()
-    ws().newLayout()
+    await openKeptNewLayout()
     ws().addWidget('lens', { kind: 'layout' }, { listDefinitionId: listId })
     await reload()
     expect(ws()).toMatchObject({ saved: null, isDirty: true, activeLayoutId: null, previousLayoutId: a })
@@ -452,7 +488,7 @@ describe('unsaved changes kept for a reload', () => {
     await seedAndInit(twoColumns('A'))
     await useListDefinitionStore.getState().load()
     useSettingsStore.setState({ eisenhowerListId: listId })
-    ws().newLayout()
+    await openKeptNewLayout()
     ws().addWidget('eisenhower', { kind: 'layout' }, { listDefinitionId: listId })
     await reload()
     expect(ws().working!.columns[0]!.cells[0]!.tabs[0]).toMatchObject({ kind: 'eisenhower', config: {} })

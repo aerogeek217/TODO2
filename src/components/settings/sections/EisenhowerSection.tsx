@@ -1,18 +1,15 @@
-import { useId, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useId, useMemo, useState, type CSSProperties } from 'react'
 import type { TodoPredicate } from '../../../models'
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
 import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
-import { listsLosingLastWidgetToSource } from '../../../hooks/use-list-widget-count'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { eisenhowerPaneFocus } from '../../../stores/ui-store'
 import { countActiveFilters } from '../../../utils/filter-criteria'
 import { classifyPanes } from '../../../utils/eisenhower'
 import {
-  eisenhowerSourceDescription,
   paneSubtitle,
   QUADRANT_COLOR,
   QUADRANT_NAME,
@@ -24,17 +21,12 @@ import {
 import { filterChips, type FilterChipNames } from '../../../utils/filter-chips'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
-import { ChevronDownIcon } from '../../shared/icons'
 import { ConfirmDialog } from '../../shared/Dialog'
-import { MenuPopover } from '../../shared/MenuPopover'
-import { ALL_TASKS_LABEL, DELETED_LIST_TITLE, listChoiceEntries } from '../../shared/list-choice-entries'
-import { UnsavedPrompt } from '../../workspace/UnsavedPrompt'
+import { ListFilterRow } from '../../workspace/list/ListFilterRow'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import sectionStyles from './sections.module.css'
 import styles from './EisenhowerSection.module.css'
-
-const SOURCE_MENU_WIDTH_PX = 240
 
 /** Saves pane `q`'s settings patched (`null` = reset), from the panes as they are now (two quick edits mustn't drop one another). */
 function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfig>[2], description: string, mergeKey?: string): void {
@@ -44,7 +36,9 @@ function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfi
 
 /**
  * Settings › Tasks › Eisenhower: what every Eisenhower (and the dashboard's
- * Eisenhower section) shows — all tasks or one saved list — and its four
+ * Eisenhower section) considers — the Eisenhower's own list, its filter as
+ * the filter line every Eisenhower shows (`ListFilterRow`: the same list and
+ * unsaved edits, Revert · Save while unsaved) — and its four
  * panes as a 2×2 of cards: each with its name, its filter as the list filter
  * chips (+ Filter adds a clause), how many open tasks it holds now (the
  * screen filter applied, as in the widget) and Reset pane; then how many
@@ -60,7 +54,7 @@ export function EisenhowerSection() {
   const names = useChipNames()
   const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
   const panes = useMemo(() => resolvePanes(storedPanes), [storedPanes])
-  const shown = source.kind === 'tasks' ? source.shown : NO_TASKS
+  const shown = source.shown
   // Classified again only when a filter changes (not on each keystroke of a rename).
   const sortingPanes = useEqualValue(panes, samePaneFilters)
   const { byPane, none } = useMemo(() => classifyPanes(shown, sortingPanes, paneCtx), [shown, sortingPanes, paneCtx])
@@ -73,8 +67,16 @@ export function EisenhowerSection() {
 
   return (
     <div className={sectionStyles.section}>
-      <SettingRow label="Show" help="The tasks every Eisenhower and the dashboard sort into the panes.">
-        <SourceSelect />
+      <SettingRow
+        label="Tasks"
+        help="What every Eisenhower and the dashboard sort into the panes: the Eisenhower’s own list. No filter = every task."
+        column
+      >
+        {source.list && (
+          <div className={styles.listLine} data-testid="eisenhower-list-line">
+            <ListFilterRow definition={source.list.definition} summary={false} inDialog />
+          </div>
+        )}
       </SettingRow>
       <p className={styles.intro}>
         A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left,
@@ -126,86 +128,6 @@ export function EisenhowerSection() {
         onCancel={() => setConfirmReset(false)}
       />
     </div>
-  )
-}
-
-const NO_TASKS: never[] = []
-
-/**
- * The Show select-button: the source now (All tasks, a list's name, or
- * `(Deleted list)`); opens All tasks + the saved lists as radios (the
- * choices of a list tab's Change list). A pick is saved at once as one undo
- * step — after Save / Discard when it would leave the source list's unsaved
- * edits with no widget showing them.
- */
-function SourceSelect() {
-  const listId = useSettingsStore((s) => s.eisenhowerListId)
-  const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
-  const ref = useRef<HTMLButtonElement | null>(null)
-  const labelId = useId()
-  const valueId = useId()
-  const [open, setOpen] = useState(false)
-  const [guard, setGuard] = useState<{ listIds: number[]; run: () => void } | null>(null)
-  // A click on the button while its menu is open closes it (the menu's
-  // outside-click handler already did) instead of reopening it.
-  const wasOpen = useRef(false)
-  useStackedLayer(guard != null)
-
-  const nameOf = (id: number) => listDefinitions.find((d) => d.id === id)?.name
-  const value = listId == null ? ALL_TASKS_LABEL : (nameOf(listId) ?? DELETED_LIST_TITLE)
-  const pick = (id: number | undefined) => {
-    const next = id ?? null
-    if (next === listId) return
-    const name = next == null ? null : (nameOf(next) ?? DELETED_LIST_TITLE)
-    const run = () => { void useSettingsStore.getState().setEisenhowerListId(next, eisenhowerSourceDescription(name)) }
-    const listIds = listsLosingLastWidgetToSource(next)
-    if (listIds.length === 0) run()
-    else setGuard({ listIds, run })
-  }
-
-  return (
-    <>
-      <span id={labelId} hidden>Eisenhower shows</span>
-      <button
-        ref={ref}
-        type="button"
-        className={`${styles.select} ${open ? styles.selectOpen : ''}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-labelledby={`${labelId} ${valueId}`}
-        data-testid="eisenhower-source"
-        onMouseDown={() => { wasOpen.current = open }}
-        onClick={() => {
-          if (wasOpen.current) {
-            wasOpen.current = false
-            return
-          }
-          setOpen(true)
-        }}
-      >
-        <span id={valueId} className={styles.selectValue}>{value}</span>
-        <ChevronDownIcon />
-      </button>
-      {open && (
-        <MenuPopover
-          anchorRef={ref}
-          placement="bottom-start"
-          width={SOURCE_MENU_WIDTH_PX}
-          label="Eisenhower shows"
-          entries={listChoiceEntries(listDefinitions, pick, { current: listId ?? undefined })}
-          onClose={() => setOpen(false)}
-        />
-      )}
-      {guard && (
-        <UnsavedPrompt
-          lead="You’re changing what the Eisenhower shows."
-          layout={false}
-          listIds={guard.listIds}
-          onDone={() => { guard.run(); setGuard(null) }}
-          onCancel={() => setGuard(null)}
-        />
-      )}
-    </>
   )
 }
 

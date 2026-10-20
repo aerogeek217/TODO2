@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDndMonitor, useDroppable, type DragStartEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
 import {
@@ -14,7 +13,7 @@ import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
 import { countActiveFilters } from '../../../utils/filter-criteria'
-import { hasNarrowingFilters, type FilterChipNames } from '../../../utils/filter-chips'
+import type { FilterChipNames } from '../../../utils/filter-chips'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -30,7 +29,6 @@ import {
   type PaneDropResult,
 } from '../../../utils/eisenhower'
 import {
-  eisenhowerSourceDescription,
   paneSubtitle,
   paneWrites,
   resolvePanes,
@@ -55,7 +53,8 @@ import { useElementSize } from '../../../hooks/use-element-size'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../list/ListWidgetRow'
 import { dragTasks } from './eisenhower-drag'
-import tooltipStyles from '../../shared/Tooltip.module.css'
+import { RefusalTooltip } from '../../shared/RefusalTooltip'
+import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
@@ -65,9 +64,6 @@ import { openEisenhowerSettings } from './eisenhower-settings-link'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
-
-/** Refusal tooltip offset from the pointer (below the lifted row). */
-const REFUSAL_OFFSET = { x: 4, y: 26 }
 
 /** What the widget reports to its cell: the tab count. */
 export interface EisenhowerResult {
@@ -156,47 +152,6 @@ function useQuadrantDrag(tabId: string, panes: readonly EisenhowerPane[], ctx: P
     onDragCancel() { setDrag(null) },
   })
   return drag
-}
-
-/**
- * The refusal tooltip for a blocked drop: follows the pointer (below the
- * lifted row), shown at once, kept inside the widget.
- */
-function RefusalTooltip({ lines, pointer, boundsRef }: {
-  lines: readonly string[]
-  pointer: { x: number; y: number }
-  boundsRef: React.RefObject<HTMLElement | null>
-}) {
-  const ref = useRef<HTMLDivElement | null>(null)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const b = el.getBoundingClientRect()
-    const box = boundsRef.current?.getBoundingClientRect()
-    const right = box ? box.right : window.innerWidth
-    const bottom = box ? box.bottom : window.innerHeight
-    let left = pointer.x + REFUSAL_OFFSET.x
-    let top = pointer.y + REFUSAL_OFFSET.y
-    if (left + b.width > right) left = Math.max(box?.left ?? 0, pointer.x - REFUSAL_OFFSET.x - b.width)
-    if (top + b.height > bottom) top = Math.max(box?.top ?? 0, pointer.y - REFUSAL_OFFSET.y - b.height)
-    setPos((prev) => (prev && prev.left === left && prev.top === top ? prev : { left, top }))
-  }, [pointer, boundsRef, lines])
-  const [first, ...rest] = lines
-  return createPortal(
-    <div
-      ref={ref}
-      role="tooltip"
-      className={`${tooltipStyles.tooltip} ${tooltipStyles.multiLine} ${styles.refusal}`}
-      style={pos ?? { left: -9999, top: -9999 }}
-      data-placed={pos ? 'true' : undefined}
-      data-testid="eisenhower-refusal"
-    >
-      <span>{first}</span>
-      {rest.map((line, i) => <span key={i} className={tooltipStyles.line}>{line}</span>)}
-    </div>,
-    document.body,
-  )
 }
 
 /** The marker glyphs of a pane's header: the markers its filter wants (Yes), or the flame for Hot. */
@@ -413,11 +368,12 @@ interface WidgetProps {
 
 /**
  * The Eisenhower widget: four panes, as a 2×2 grid or — in narrow cells and
- * on phones — four collapsible sections. Its panes and its source are
- * app-wide settings, the same in every Eisenhower tab: it considers all
- * tasks, or one saved list's (`settings-store.eisenhowerListId`: its unsaved
- * draft included, its prompt, group and sort ignored, its filter line above
- * the panes); the screen filter narrows either. Each task shows in the first
+ * on phones — four collapsible sections. Its panes and its list are
+ * app-wide, the same in every Eisenhower tab: it considers the tasks of the
+ * Eisenhower's own list (`settings-store.eisenhowerListId`, a hidden list —
+ * no filter = every task; its unsaved draft included, its prompt, group and
+ * sort ignored, its filter line above the panes), the screen filter
+ * narrowing them. Each task shows in the first
  * pane whose filter it matches (`settings-store.eisenhowerPanes`; by default
  * the quadrants of effective Urgent × Important, `utils/urgency`); tasks in
  * no pane are counted under the grid. Rows drag
@@ -428,20 +384,6 @@ interface WidgetProps {
  */
 export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
   const source = useEisenhowerSource()
-  if (source.kind === 'deleted') {
-    return (
-      <div className={styles.missing}>
-        <span className={styles.noteTitle}>This list was deleted</span>
-        <button
-          type="button"
-          className={styles.noteAction}
-          onClick={() => { void useSettingsStore.getState().setEisenhowerListId(null, eisenhowerSourceDescription(null)) }}
-        >
-          Show all tasks
-        </button>
-      </div>
-    )
-  }
   return (
     <EisenhowerBody
       tab={tab}
@@ -467,9 +409,9 @@ function tasksAre(n: number, where = ''): string {
 interface BodyProps extends WidgetProps {
   /** The tasks considered: the source's members passing the screen filter. */
   shown: PersistedTodoItem[]
-  /** Open tasks of the source before the screen filter (all, or the list's). */
+  /** Open tasks of the list before the screen filter. */
   openTotal: number
-  /** Set when the widget shows a saved list. */
+  /** The Eisenhower's list (absent only until it is loaded). */
   list?: ListSourceContext
 }
 
@@ -519,12 +461,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   const pointer = drag?.pointer ?? null
 
   // A refused target shows the not-allowed cursor wherever the pointer is.
-  useEffect(() => {
-    if (refusedQ == null) return
-    const root = document.documentElement
-    root.setAttribute('data-drop-refused', '')
-    return () => root.removeAttribute('data-drop-refused')
-  }, [refusedQ])
+  useDropRefusedCursor(refusedQ != null)
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
@@ -540,18 +477,19 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   }
 
   const add = (pane: EisenhowerPane) => {
-    // On a list: what the list's own Add task seeds; on all tasks: the screen filter's.
-    const seed = list
-      ? predicateToFilterDefaults(list.definition.membership.predicate)
+    // A list that narrows: what the list's own Add task seeds; else (every
+    // task) the screen filter's.
+    const narrowing = list?.narrows ? list : undefined
+    const seed = narrowing
+      ? predicateToFilterDefaults(narrowing.definition.membership.predicate)
       : getFilterDefaults(useFilterStore.getState().filters)
     const defaults = withPaneSeed(seed, paneWrites(pane.filter, names))
-    useUIStore.getState().openQuickAdd({ defaults, source: list ? `${pane.name} · ${list.title}` : pane.name })
+    useUIStore.getState().openQuickAdd({ defaults, source: narrowing ? `${pane.name} · ${narrowing.title}` : pane.name })
   }
 
   // What hides every task, if anything: the list's own filter (no open task
   // is in the list), else the screen filter.
-  const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0
-    && hasNarrowingFilters(list.definition.membership.predicate)
+  const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0 && list.narrows
   const screenHidesAll = shown.length === 0 && openTotal > 0
   const filterCount = countActiveFilters(screen)
   const ctx: RowContext = {
@@ -622,7 +560,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
             <span className={styles.noteHint}>
-              All {openTotal} open {tasksAre(openTotal, list ? ` in “${list.title}”` : '')} hidden by the screen filter.
+              All {openTotal} open {tasksAre(openTotal, list?.narrows ? ` in “${list.title}”` : '')} hidden by the screen filter.
             </span>
             <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
               {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
@@ -634,6 +572,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
             lines={blockedPaneLines(refused.pane, refused.blocked, drag.tasks.length, panes, paneCtx, names)}
             pointer={pointer}
             boundsRef={rootRef}
+            testId="eisenhower-refusal"
           />
         )}
         {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}

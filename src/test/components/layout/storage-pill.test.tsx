@@ -38,8 +38,8 @@ describe('storagePillState', () => {
     expect(storagePillState(base)).toEqual({ kind: 'local', text: 'Local only', warningCount: 0 })
   })
 
-  it('syncing: the file name', () => {
-    expect(storagePillState({ ...base, isConnected: true, fileName: 'todo2.json' })).toEqual({ kind: 'syncing', text: 'todo2.json', warningCount: 0 })
+  it('syncing: Synced, without the file name', () => {
+    expect(storagePillState({ ...base, isConnected: true, fileName: 'todo2.json' })).toEqual({ kind: 'syncing', text: 'Synced', warningCount: 0 })
   })
 
   it('each warning on its own: its text, one warning', () => {
@@ -146,10 +146,13 @@ describe('StoragePill', () => {
     expect(useUIStore.getState()).toMatchObject({ settingsSection: 'database', settingsPart: 'import-export' })
   })
 
-  it('syncing: the file name, and when it last saved', () => {
+  it('syncing: Synced; the file name in the tooltip and the popover, with when it last saved', () => {
     useFileStorageStore.setState({ isConnected: true, fileName: 'todo2.json', lastSavedAt: new Date(Date.now() - 120_000) })
     render(<StoragePill />)
-    fireEvent.click(screen.getByRole('button', { name: 'Storage: todo2.json' }))
+    const pill = screen.getByRole('button', { name: 'Storage: Synced' })
+    expect(pill).toHaveTextContent(/^Synced$/)
+    expect(pill).toHaveAttribute('title', 'Syncing to todo2.json')
+    fireEvent.click(pill)
     const popover = screen.getByRole('dialog', { name: 'Syncing to todo2.json' })
     expect(popover).toHaveTextContent('Last saved 2m ago.')
     expect(screen.getByRole('button', { name: 'File storage settings…' })).toBeInTheDocument()
@@ -171,7 +174,7 @@ describe('StoragePill', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('paused: Retry (closes) and a confirmed Keep browser data… in place', () => {
+  it('paused: Retry and a confirmed Keep browser data… (in place) each close the popover', () => {
     const retry = vi.fn().mockResolvedValue(undefined)
     const overwrite = vi.fn().mockResolvedValue(undefined)
     useFileStorageStore.setState({ fileName: 'todo2.json', paused: { reason: 'too-new', message: 'File sync paused — todo2.json was saved by a newer version of TODO2.' }, retry, overwriteFileWithBrowser: overwrite })
@@ -190,7 +193,9 @@ describe('StoragePill', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Keep browser data…' }))
     fireEvent.click(screen.getByRole('button', { name: 'Overwrite file' }))
     expect(overwrite).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
 
+    fireEvent.click(pill)
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(retry).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('dialog')).toBeNull()

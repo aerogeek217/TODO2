@@ -172,7 +172,7 @@ describe('v56 Dexie upgrade', () => {
     expect([...prepared.data.settings].sort((a, b) => a.key.localeCompare(b.key))).toEqual(settings)
 
     // New layouts continue after the seeded id.
-    expect(await db.layouts.add({ name: 'Next', columns: [], createdAt: CREATED, modifiedAt: CREATED })).toBe(2)
+    expect(await db.layouts.add({ sortOrder: 0, name: 'Next', columns: [], createdAt: CREATED, modifiedAt: CREATED })).toBe(2)
   })
 
   it('a fresh database has no layout until one is ensured', async () => {

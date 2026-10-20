@@ -114,7 +114,8 @@ describe('v61 Dexie upgrade', () => {
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
     const defs = await db.listDefinitions.orderBy('id').toArray()
-    expect(defs.map((d) => d.membership.predicate.markers ?? null)).toEqual([{ focus: true }, null, null, null])
+    // The last list is the Eisenhower's (v67).
+    expect(defs.map((d) => d.membership.predicate.markers ?? null)).toEqual([{ focus: true }, null, null, null, null])
     expect(defs.every((d) => !('focus' in d.membership.predicate))).toBe(true)
     expect((await db.todos.get(1))!.focus).toBe(true)
 
