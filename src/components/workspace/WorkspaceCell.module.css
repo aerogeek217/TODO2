@@ -227,7 +227,8 @@
 /* The header's empty space: drags the whole panel. */
 .fill {
   flex: 1 1 0;
-  min-width: 0;
+  /* Kept beside a full tab strip, so the panel can still be dragged whole (the strip measures the rest as its room). */
+  min-width: 16px;
   align-self: stretch;
   display: flex;
   align-items: center;

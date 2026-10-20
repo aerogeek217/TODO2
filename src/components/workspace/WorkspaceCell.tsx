@@ -156,7 +156,7 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   }
   const { setNodeRef, listeners } = useDraggable({ id: workspacePanelDragId(panelId), data })
   return (
-    <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} aria-hidden="true">
+    <div ref={setNodeRef} {...listeners} className={styles.fill} data-ws-panel-handle={panelId} data-strip-room="" aria-hidden="true">
       <span className={styles.grip}><GripIcon /></span>
     </div>
   )
