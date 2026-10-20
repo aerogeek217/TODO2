@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { byLayoutOrder, layoutRepository, type ListCopy, type ReadLayout } from '../data/layout-repository'
+import { byLayoutOrder, layoutRepository, type ListCopy, type OwnedListsRemoved, type ReadLayout } from '../data/layout-repository'
+import { trackWrite } from './store-helpers'
 import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
 import { ownerLayoutId } from '../models/list-definition'
 import { useUndoStore } from './undo-store'
@@ -131,8 +132,12 @@ export interface WorkspaceState {
    * id, or `null` for an empty name.
    */
   saveAs: (name: string) => Promise<number | null>
-  /** Reverts the working copy to the saved layout; a new layout is dropped for the one open before. */
-  discard: () => void
+  /**
+   * Reverts the working copy to the saved layout; a new layout is dropped
+   * for the one open before. Resolves once the layout-only lists only the
+   * dropped edits showed are deleted, as on Save.
+   */
+  discard: () => Promise<void>
   /**
    * Renames a layout (not a layout change: never dirty). Empty name → `false`.
    * A kept new layout not saved yet (`UNSAVED_LAYOUT_ID`) is renamed in memory.
@@ -298,14 +303,25 @@ function forgetDeletedLists(ids: readonly number[]): void {
 }
 
 /**
+ * Takes a removal of layout-only lists into the stores: the deleted ones
+ * forgotten (`forgetDeletedLists`), and — when some were made saved lists
+ * instead (something else names them) — the lists read again.
+ */
+async function applyRemoved({ deleted, released }: OwnedListsRemoved): Promise<void> {
+  forgetDeletedLists(deleted)
+  if (released.length > 0) await useListDefinitionStore.getState().load()
+}
+
+/**
  * Deletes the lists layout `layoutId` owns that none of `bodies` (the
- * layout as now saved, and as edited since) shows. A failed delete only
- * leaves them in place (hidden, unshown) until the layout is saved again.
+ * layout as now saved, and as edited since) shows, nor its stored row
+ * (`layoutRepository.pruneOwnedLists`). A failed delete only leaves them in
+ * place (hidden, unshown) until the layout is saved again.
  */
 async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promise<void> {
   const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
   try {
-    forgetDeletedLists(await layoutRepository.pruneOwnedLists(layoutId, shown))
+    await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown)))
   } catch (err) {
     console.warn('[workspace] removing the layout\'s unshown lists failed', err)
   }
@@ -349,6 +365,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * against; any other kept draft is forgotten.
    */
   async function reopenDraft(draft: LayoutDraftRecord | null): Promise<void> {
+    await takeBackDraft(draft)
+    // The edits a reload dropped (no kept draft, or one not taken back) may
+    // have shown layout-only lists made for them: the ones neither the
+    // stored layout nor the working copy shows go, as on Discard.
+    // A kept draft of another layout than the open one is dropped too.
+    const { working, saved, previousLayoutId, layouts } = get()
+    const openId = saved?.id ?? previousLayoutId
+    if (openId != null) await pruneOwnedLists(openId, ...(working && working.id === openId ? [working] : []))
+    if (draft?.kind === 'saved' && draft.layoutId !== openId && layouts.some((l) => l.id === draft.layoutId)) {
+      await pruneOwnedLists(draft.layoutId)
+    }
+  }
+
+  async function takeBackDraft(draft: LayoutDraftRecord | null): Promise<void> {
     const { working, saved } = get()
     if (!draft || !working || !saved) {
       keepDraft()
@@ -625,7 +655,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return id
     },
 
-    discard() {
+    async discard() {
       const { saved, working, layouts, previousLayoutId, repairedIds } = get()
       if (!saved) {
         if (!working) return
@@ -641,6 +671,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       }
       set({ working: saved, isDirty: repairedIds.has(saved.id) })
       keepDraft()
+      // Its layout-only lists only the dropped edits showed (made for them)
+      // go; the ones the stored layout shows stay.
+      await pruneOwnedLists(saved.id, saved)
     },
 
     async rename(id, name) {
@@ -674,22 +707,22 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async delete(id) {
-      // Its layout-only lists go with it (no other layout shows them).
-      const deletedLists = await layoutRepository.deleteUnlessLast(id)
-      if (!deletedLists) return false
+      // Its layout-only lists go with it (one something else names is kept as a saved list).
+      const removed = await layoutRepository.deleteUnlessLast(id)
+      if (!removed) return false
       const reads = await layoutRepository.getAll()
       const layouts = reads.map((r) => r.layout)
       const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
       if (get().activeLayoutId !== id) {
         set({ layouts, repairedIds })
-        forgetDeletedLists(deletedLists)
+        await applyRemoved(removed)
         return true
       }
       set({ repairedIds })
       const next = mostRecentlyUsed(layouts)
       if (next) await get().load(next.id)
       set({ layouts: get().layouts.filter((l) => l.id !== id) })
-      forgetDeletedLists(deletedLists)
+      await applyRemoved(removed)
       return true
     },
 

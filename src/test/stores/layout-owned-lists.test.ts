@@ -6,7 +6,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import type { ListDefinition, ListOwner, PersistedListDefinition } from '../../models/list-definition'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useListDraftStore } from '../../stores/list-draft-store'
+import { getUnsavedListIds, useListDraftStore } from '../../stores/list-draft-store'
 import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-ops'
@@ -122,11 +122,124 @@ describe('layout Save', () => {
     expect(await storedListIds()).toContain(w.mine1)
   })
 
+  it('Discard deletes an own list only the dropped edits showed — with its manual order and unsaved edits', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'New here', owner: { layoutId: w.a } })
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })
+    editName(fresh, 'New here edited')
+    await db.listOrders.add({ listDefinitionId: fresh, todoId: 1, rank: 1 })
+    await useListOrderStore.getState().load()
+    ws().closeTab('m1')
+    await ws().discard()
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(storeListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(await ranksOf(fresh)).toEqual([])
+    expect(useListOrderStore.getState().ranks.has(fresh)).toBe(false)
+    expect(useListDraftStore.getState().drafts[fresh]).toBeUndefined()
+    // Nothing asks about it any more.
+    expect(getUnsavedListIds()).toEqual([])
+  })
+
+  it('Discard keeps a list saved to my lists meanwhile (no longer the layout’s)', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'New here', owner: { layoutId: w.a } })
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })
+    await useListDefinitionStore.getState().saveToMyLists(fresh)
+    await ws().discard()
+    expect(await storedListIds()).toContain(fresh)
+  })
+
   it('never touches the Eisenhower’s list or another layout’s, though no tab of this layout shows them', async () => {
     const w = await world()
     ws().closeTab('e')
     await ws().save()
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+  })
+})
+
+describe('page load', () => {
+  /** A reload: the stores start afresh and the workspace opens again (taking back the kept draft). */
+  async function reload(): Promise<void> {
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await useListDefinitionStore.getState().load()
+    await ws().init()
+  }
+
+  it('deletes the open layout’s own lists neither the stored layout nor the kept draft shows', async () => {
+    const w = await world()
+    const unshown = await useListDefinitionStore.getState().add({ name: 'Unshown', owner: { layoutId: w.a } })
+    const kept = await useListDefinitionStore.getState().add({ name: 'Kept', owner: { layoutId: w.a } })
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: kept })
+    await reload()
+    expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower, kept])
+    expect(storeListIds()).not.toContain(unshown)
+  })
+
+  it('a kept draft of another layout than the one opening is dropped, and so are the lists only it showed', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'Fresh', owner: { layoutId: w.a } })
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })
+    // Layout B was opened elsewhere since.
+    await layoutRepository.setActiveId(w.b)
+    await reload()
+    expect(ws().activeLayoutId).toBe(w.b)
+    expect(await storedListIds()).not.toContain(fresh)
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+
+  it('a kept draft that no longer matches the stored layout is forgotten, and so are the lists only it showed', async () => {
+    const w = await world()
+    const fresh = await useListDefinitionStore.getState().add({ name: 'Fresh', owner: { layoutId: w.a } })
+    ws().addWidget('lens', { kind: 'cell', cellId: 'k-A' }, { listDefinitionId: fresh })
+    // The stored layout changed meanwhile (e.g. saved from another tab).
+    await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), lens('m1', w.mine1)]))
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(await storedListIds()).toEqual([w.saved, w.mine1, w.theirs, w.eisenhower])
+  })
+})
+
+describe('a list something else names', () => {
+  it('Save keeps a list another layout shows (re-owned by an undone Save to my lists) — as a saved list', async () => {
+    const w = await world()
+    await useListDefinitionStore.getState().saveToMyLists(w.mine1)
+    // Layout B now shows it too (a saved list may be shown anywhere).
+    await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
+    await useUndoStore.getState().undo()
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.a })
+    ws().closeTab('m1')
+    await ws().save()
+    const row = await db.listDefinitions.get(w.mine1)
+    expect(row).toBeDefined()
+    expect(row?.owner).toBeUndefined()
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === w.mine1)?.owner).toBeUndefined()
+    expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
+  })
+
+  it('Delete layout keeps a list another layout or the check-in scope names — as a saved list', async () => {
+    const w = await world()
+    await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
+    await db.settings.put({ key: 'checkinTaskScope', value: `list:${w.mine2}` })
+    expect(await ws().delete(w.a)).toBe(true)
+    const rows = (await db.listDefinitions.toArray()) as PersistedListDefinition[]
+    expect(rows.map((d) => d.id).sort((x, y) => x - y)).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower])
+    expect(rows.find((d) => d.id === w.mine1)?.owner).toBeUndefined()
+    expect(rows.find((d) => d.id === w.mine2)?.owner).toBeUndefined()
+  })
+
+  it('Save as from a layout the repair changed keeps the lists its stored row still names', async () => {
+    const w = await world()
+    // A tab this build can't read (a number id) that shows Mine 2: the layout opens repaired, without it.
+    const row = await stored(w.a)
+    const cell = row.columns[0]!.cells[0]!
+    await db.layouts.put({ ...row, columns: [{ ...row.columns[0]!, cells: [{ ...cell, tabs: [...cell.tabs.filter((t) => t.id !== 'm2'), { ...lens('x', w.mine2), id: 7 as unknown as string }] }] }] })
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await ws().init()
+    expect(ws().repairedIds.has(w.a)).toBe(true)
+    expect(layoutListRefs(ws().working!).has(w.mine2)).toBe(false)
+    await ws().saveAs('A copy')
+    expect(await storedListIds()).toContain(w.mine2)
   })
 })
 

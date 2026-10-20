@@ -10,6 +10,7 @@ import {
 import { ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
 import { repointLayoutLists } from '../utils/workspace-layout-ops'
 import { nextSortOrder } from './create-repository'
+import { parseCheckinTaskScope } from '../utils/checkin-settings'
 
 /** A stored layout as the app opens it, and what was repaired on the way. */
 export interface ReadLayout {
@@ -64,6 +65,71 @@ export interface ListCopy {
 async function ownedListIds(layoutId: number): Promise<number[]> {
   const rows = (await db.listDefinitions.toArray()) as PersistedListDefinition[]
   return rows.filter((d) => ownerLayoutId(d) === layoutId).map((d) => d.id)
+}
+
+/**
+ * The list ids a stored layout row names, read from the row as stored (not
+ * through the layout repair, which may drop a tab it can't use): every
+ * whole-number `listDefinitionId` and `listTiles` entry anywhere in it.
+ */
+export function storedListRefs(row: unknown): Set<number> {
+  const ids = new Set<number>()
+  const isId = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0
+  const seen = new Set<object>()
+  const stack: unknown[] = [row]
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (node === null || typeof node !== 'object' || seen.has(node)) continue
+    seen.add(node)
+    if (Array.isArray(node)) {
+      stack.push(...node)
+      continue
+    }
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'listDefinitionId' && isId(value)) ids.add(value)
+      else if (key === 'listTiles' && Array.isArray(value)) for (const v of value) if (isId(v)) ids.add(v)
+      stack.push(value)
+    }
+  }
+  return ids
+}
+
+/** What removing a layout's own lists did: the lists deleted, and those made saved lists (named elsewhere). */
+export interface OwnedListsRemoved {
+  deleted: number[]
+  released: number[]
+}
+
+/**
+ * The list ids named outside layout `layoutId`: by every other stored
+ * layout row (`storedListRefs`) and the check-in scope. Call inside a
+ * transaction on `layouts` + `settings`.
+ */
+async function listRefsOutside(layoutId: number): Promise<Set<number>> {
+  const ids = new Set<number>()
+  await db.layouts.each((row) => {
+    if ((row as { id?: unknown }).id !== layoutId) for (const ref of storedListRefs(row)) ids.add(ref)
+  })
+  const scope = (await db.settings.get(SETTING_KEYS.checkinTaskScope))?.value
+  const parsed = typeof scope === 'string' ? parseCheckinTaskScope(scope) : undefined
+  if (parsed?.kind === 'list') ids.add(parsed.listDefinitionId)
+  return ids
+}
+
+/** Clears the owner of lists (they become saved lists). Call inside a transaction on `listDefinitions`. */
+async function releaseLists(ids: readonly number[]): Promise<void> {
+  for (const id of ids) {
+    await db.listDefinitions.where('id').equals(id).modify((d) => { delete (d as Partial<ListDefinition>).owner })
+  }
+}
+
+/** Deletes the lists of `ids` (and their manual order), but makes those `elsewhere` names saved lists. Inside a transaction. */
+async function removeOwnedLists(ids: readonly number[], elsewhere: ReadonlySet<number>): Promise<OwnedListsRemoved> {
+  const released = ids.filter((id) => elsewhere.has(id))
+  const deleted = ids.filter((id) => !elsewhere.has(id))
+  await releaseLists(released)
+  await deleteLists(deleted)
+  return { deleted, released }
 }
 
 /** Deletes lists and their manual order. Call inside a transaction on `listDefinitions` + `listOrders`. */
@@ -142,16 +208,37 @@ export const layoutRepository = {
   },
 
   /**
-   * Deletes the lists `layoutId` owns that are not in `shown` (the lists the
-   * layout as saved now shows — `layoutListRefs`), and their manual order.
-   * Returns their ids.
+   * Deletes the lists `layoutId` owns that are neither in `shown` (the lists
+   * the layout shows on screen — `layoutListRefs`) nor named by its stored
+   * row as it is at the delete (`storedListRefs`: a part the layout repair
+   * drops, or a save landed meanwhile, still counts), and their manual
+   * order. Such a list something outside the layout names (another layout,
+   * the check-in scope) is made a saved list instead. One transaction.
    */
-  async pruneOwnedLists(layoutId: number, shown: ReadonlySet<number>): Promise<number[]> {
-    return db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
-      const ids = (await ownedListIds(layoutId)).filter((id) => !shown.has(id))
-      await deleteLists(ids)
-      return ids
+  async pruneOwnedLists(layoutId: number, shown: ReadonlySet<number>): Promise<OwnedListsRemoved> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, db.settings, async () => {
+      const stored = storedListRefs(await db.layouts.get(layoutId))
+      const ids = (await ownedListIds(layoutId)).filter((id) => !shown.has(id) && !stored.has(id))
+      return removeOwnedLists(ids, await listRefsOutside(layoutId))
     })
+  },
+
+  /**
+   * Makes the lists of `ids` that layout `layoutId` owns saved lists (their
+   * owner cleared), in one transaction. Returns the ids it changed.
+   */
+  async releaseOwnedLists(layoutId: number, ids: ReadonlySet<number>): Promise<number[]> {
+    if (ids.size === 0) return []
+    return db.transaction('rw', db.listDefinitions, async () => {
+      const released = (await ownedListIds(layoutId)).filter((id) => ids.has(id))
+      await releaseLists(released)
+      return released
+    })
+  },
+
+  /** The list ids layout `id`'s stored row names (`storedListRefs`), unrepaired. */
+  async storedListRefs(id: number): Promise<Set<number>> {
+    return storedListRefs(await db.layouts.get(id))
   },
 
   /** Gives each layout of `orderedIds` its position as `sortOrder`, in one transaction (a missing id is skipped). */
@@ -173,17 +260,16 @@ export const layoutRepository = {
 
   /**
    * Deletes a layout unless it is the last one, with the lists it owns and
-   * their manual order, in one transaction. Returns the deleted lists' ids,
-   * or `null` when nothing was deleted.
+   * their manual order, in one transaction — a list it owns that something
+   * else names (another layout, the check-in scope) is made a saved list
+   * instead. `null` when nothing was deleted.
    */
-  async deleteUnlessLast(id: number): Promise<number[] | null> {
-    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
+  async deleteUnlessLast(id: number): Promise<OwnedListsRemoved | null> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, db.settings, async () => {
       if ((await db.layouts.count()) <= 1) return null
       if (!(await db.layouts.get(id))) return null
       await db.layouts.delete(id)
-      const listIds = await ownedListIds(id)
-      await deleteLists(listIds)
-      return listIds
+      return removeOwnedLists(await ownedListIds(id), await listRefsOutside(id))
     })
   },
 
