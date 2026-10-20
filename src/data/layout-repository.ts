@@ -236,6 +236,19 @@ export const layoutRepository = {
     })
   },
 
+  /**
+   * Whether list `listId` may become layout `layoutId`'s own list again
+   * (an undone "Save to my lists"): `'gone'` when there is no such layout,
+   * `'elsewhere'` when another layout or the check-in scope names the list,
+   * else `null`.
+   */
+  async ownerBlocker(layoutId: number, listId: number): Promise<'gone' | 'elsewhere' | null> {
+    return db.transaction('r', db.layouts, db.settings, async () => {
+      if (!(await db.layouts.get(layoutId))) return 'gone'
+      return (await listRefsOutside(layoutId)).has(listId) ? 'elsewhere' : null
+    })
+  },
+
   /** The list ids layout `id`'s stored row names (`storedListRefs`), unrepaired. */
   async storedListRefs(id: number): Promise<Set<number>> {
     return storedListRefs(await db.layouts.get(id))

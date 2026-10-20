@@ -201,13 +201,9 @@ describe('page load', () => {
 })
 
 describe('a list something else names', () => {
-  it('Save keeps a list another layout shows (re-owned by an undone Save to my lists) — as a saved list', async () => {
+  it('Save keeps a list another layout shows (e.g. data an older build wrote) — as a saved list', async () => {
     const w = await world()
-    await useListDefinitionStore.getState().saveToMyLists(w.mine1)
-    // Layout B now shows it too (a saved list may be shown anywhere).
     await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
-    await useUndoStore.getState().undo()
-    expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.a })
     ws().closeTab('m1')
     await ws().save()
     const row = await db.listDefinitions.get(w.mine1)
@@ -348,6 +344,21 @@ describe('Save to my lists', () => {
     ws().closeTab('m1')
     await ws().save()
     expect(await storedListIds()).toContain(w.mine1)
+  })
+
+  it('Undo leaves it a saved list, and says why, once another layout shows it or its layout is gone', async () => {
+    const w = await world()
+    await useListDefinitionStore.getState().saveToMyLists(w.mine1)
+    await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
+    await useUndoStore.getState().undo()
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toBeUndefined()
+    expect(useUndoStore.getState().snackbar?.description).toBe('“Mine 1” stays in your lists: something else shows it now.')
+
+    await useListDefinitionStore.getState().saveToMyLists(w.mine2)
+    await ws().delete(w.a)
+    await useUndoStore.getState().undo()
+    expect((await db.listDefinitions.get(w.mine2))?.owner).toBeUndefined()
+    expect(useUndoStore.getState().snackbar?.description).toBe('“Mine 2” stays in your lists: its layout is gone.')
   })
 
   it('a saved list or the Eisenhower’s: nothing happens', async () => {

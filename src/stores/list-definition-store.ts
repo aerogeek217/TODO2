@@ -15,6 +15,8 @@ import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './s
 import { undoable } from './undoable'
 import { bySortOrder } from '../utils/sort-order'
 import { listOrderRepository } from '../data/list-order-repository'
+import { layoutRepository } from '../data/layout-repository'
+import { useUndoStore } from './undo-store'
 import { useListOrderStore } from './list-order-store'
 import { useSettingsStore } from './settings-store'
 
@@ -192,12 +194,20 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       // The store logged it and showed the list as it was.
       return
     }
-    undoable(
-      `Saved “${def.name}” to my lists`,
-      () => setOwner(undefined),
-      () => setOwner(owner),
-      true,
-    )
+    // Undo makes it the layout's own list again — unless that would hide a
+    // list something else shows now, or its layout is gone.
+    const undo = async () => {
+      const layoutId = ownerLayoutId(def)
+      const blocker = layoutId == null ? 'gone' : await layoutRepository.ownerBlocker(layoutId, id)
+      if (blocker) {
+        useUndoStore.getState().notify(blocker === 'gone'
+          ? `“${def.name}” stays in your lists: its layout is gone.`
+          : `“${def.name}” stays in your lists: something else shows it now.`)
+        return
+      }
+      await setOwner(owner)
+    }
+    undoable(`Saved “${def.name}” to my lists`, () => setOwner(undefined), undo, true)
   },
 
   forgetLists(ids) {
