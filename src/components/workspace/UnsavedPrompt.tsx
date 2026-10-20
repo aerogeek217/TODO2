@@ -5,6 +5,8 @@ import { useListDraftStore } from '../../stores/list-draft-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { UnsavedChangesDialog } from './LayoutDialogs'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
+import { ownerLayoutId } from '../../models/list-definition'
+import { layoutListRefs } from '../../utils/workspace-layout-ops'
 import styles from './LayoutDialogs.module.css'
 
 interface UnsavedPromptProps {
@@ -93,18 +95,44 @@ function UnsavedListDialog({ listId, onDone, onCancel }: { listId: number; onDon
 }
 
 /** "Save your changes?" with one checked row per unsaved layout / list. */
+/**
+ * The open layout's own lists among `listIds` that only its unsaved edits
+ * show: discarding the layout deletes them, so their rows follow its row.
+ */
+function listsMadeForEdits(listIds: readonly number[]): Set<number> {
+  const { saved } = useWorkspaceStore.getState()
+  if (!saved) return new Set()
+  const shownSaved = layoutListRefs(saved)
+  const defs = useListDefinitionStore.getState().listDefinitions
+  return new Set(listIds.filter((id) => {
+    const def = defs.find((d) => d.id === id)
+    return def != null && ownerLayoutId(def) === saved.id && !shownSaved.has(id)
+  }))
+}
+
 function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<UnsavedPromptProps, 'layoutLead'>) {
   const saveRef = useRef<HTMLButtonElement>(null)
   const layoutName = useWorkspaceStore((s) => s.working?.name ?? '')
+  const [followers] = useState(() => (layout ? listsMadeForEdits(listIds) : new Set<number>()))
   const items = [
-    ...(layout ? [{ key: 'layout', label: `Layout “${layoutName}”`, note: '' }] : []),
+    ...(layout ? [{ key: 'layout', label: `Layout “${layoutName}”`, note: '', follows: false }] : []),
     ...listIds.map((id) => {
+      const follows = followers.has(id)
       const n = widgetCount(id)
-      return { key: `list-${id}`, label: `List “${listName(id)}”`, note: n === 1 ? '1 widget' : `${n} widgets` }
+      return {
+        key: `list-${id}`,
+        label: `List “${listName(id)}”`,
+        note: follows ? 'goes with the layout changes' : n === 1 ? '1 widget' : `${n} widgets`,
+        follows,
+      }
     }),
   ]
-  const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set(items.map((i) => i.key)))
-  const toggle = (key: string) => setChecked((prev) => {
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set(items.map((i) => i.key)))
+  // A list made for the layout's edits is saved with them or goes with them.
+  const checked: ReadonlySet<string> = new Set(items
+    .filter((i) => (i.follows ? ticked.has('layout') : ticked.has(i.key)))
+    .map((i) => i.key))
+  const toggle = (key: string) => setTicked((prev) => {
     const next = new Set(prev)
     if (next.has(key)) next.delete(key)
     else next.add(key)
@@ -118,11 +146,12 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
       if (save.has('layout')) {
         // A failed save keeps the prompt open: leaving would drop the layout.
         if (!(await workspace.save())) return
-      } else workspace.discard()
+      } else await workspace.discard()
     }
     for (const id of listIds) {
       if (save.has(`list-${id}`)) await drafts.save(id)
-      else drafts.discard(id)
+      // A list made for discarded layout edits is gone with its draft.
+      else if (!(layout && followers.has(id) && !save.has('layout'))) drafts.discard(id)
     }
     onDone()
   }
@@ -134,7 +163,7 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
         <div className={styles.unsavedItems}>
           {items.map((item) => (
             <label key={item.key} className={styles.unsavedItem}>
-              <input type="checkbox" checked={checked.has(item.key)} onChange={() => toggle(item.key)} />
+              <input type="checkbox" checked={checked.has(item.key)} disabled={item.follows} onChange={() => toggle(item.key)} />
               <span className={styles.unsavedName}>{item.label}</span>
               {item.note && <span className={styles.unsavedNote}>{item.note}</span>}
             </label>
