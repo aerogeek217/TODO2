@@ -32,7 +32,6 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
   const title = confirmation.title ?? titles[confirmation.action](confirmation.ids.length)
   const message = confirmation.message ?? messages[confirmation.action](confirmation.ids.length)
   const confirmLabel = confirmation.confirmLabel ?? confirmLabels[confirmation.action]
-  const cancelLabel = confirmation.cancelLabel ?? 'Cancel'
 
   return (
     <ConfirmDialog
@@ -40,7 +39,6 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
       title={title}
       message={message}
       confirmLabel={confirmLabel}
-      cancelLabel={cancelLabel}
       danger={confirmation.action === 'delete'}
       onConfirm={onConfirm}
       onCancel={onCancel}

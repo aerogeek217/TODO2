@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, screen, fireEvent, act, waitFor, within } from '@testing-library/react'
+import { render, cleanup, screen, fireEvent, act, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
 import { EditListHost } from '../../../components/workspace/list/EditList'
@@ -449,7 +449,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([undefined, undefined])
   })
 
-  it('⋯ More › Urgent / Important are tri-state; Urgent counts due dates and asks before removing them', async () => {
+  it('⋯ More › Urgent / Important are tri-state by flag; a due date is Urgent’s hint, never a prompt', async () => {
     useSettingsStore.setState({ urgentDueWithinDays: 3 })
     const tomorrow = new Date()
     tomorrow.setHours(0, 0, 0, 0)
@@ -473,18 +473,20 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     await act(async () => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /Important/ })) })
     expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([undefined, undefined])
 
-    // Bob's task is urgent by its due date: mixed until both are flagged.
+    // Bob's task is urgent by its due date, not flagged: unchecked, by due date — a click flags both.
     openMore()
     const urgent = screen.getByRole('menuitemcheckbox', { name: /Urgent/ })
-    expect(urgent).toHaveAttribute('aria-checked', 'mixed')
+    expect(urgent).toHaveAttribute('aria-checked', 'false')
+    expect(urgent).toHaveTextContent('By due date')
+    expect(urgent).toHaveAttribute('title', '1 of 2 tasks is urgent by its due date, flagged or not.')
     await act(async () => { fireEvent.click(urgent) })
     expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([true, true])
     openMore()
     await act(async () => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /Urgent/ })) })
+    // Clearing clears the flags only: Bob's due date stays, nothing is asked.
     expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([undefined, undefined])
-    await waitFor(() => expect(useUIStore.getState().bulkConfirmation).toMatchObject({
-      ids: [2], message: '1 of 2 tasks stays urgent because of its due date.',
-    }))
+    expect(useTodoStore.getState().todos[1]!.dueDate).toEqual(tomorrow)
+    expect(useUIStore.getState().bulkConfirmation).toBeNull()
   })
 
   it('⋯ More › Mark followed up stamps every selected task, and is dimmed once they all were today', async () => {

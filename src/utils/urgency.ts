@@ -119,11 +119,37 @@ export function urgentByDateSentence(
 /** What a refused drop suggests for a task kept urgent by its due date. */
 export const URGENT_BY_DATE_HINT = 'Change its due date or the due-soon range first.'
 
-/** `today` / `Tue 13` / `overdue (Thu 8)` — the due date as the clearing prompt words it. */
+/** `today` / `Tue 13` / `overdue (Thu 8)` — the due date in a sentence. */
 export function dueDatePhrase(dueDate: Date, today: Date): string {
   const days = daysUntil(dueDate, today) ?? 0
   const day = formatFollowupDay(dueDate, today)
   if (days < 0) return `overdue (${day})`
   if (days === 0) return 'today'
   return day
+}
+
+/**
+ * The Urgent toggles' hint (the editor's, and the task menu's / bulk bar's /
+ * marker gutter's Urgent item). The toggles show and flip the flag only; a
+ * due date that makes a task urgent is said here, not shown as pressed. One
+ * task: `Urgent by due date — due Tue 13. Click to flag it urgent too.`
+ * (unflagged) / `Its due date keeps it urgent even unflagged — due Tue 13.`
+ * (flagged). Several: `2 of 3 tasks are urgent by their due dates, flagged or
+ * not.` Empty when no task is urgent by its due date.
+ */
+export function urgentToggleHint(targets: readonly UrgencyFields[], today: Date, range: UrgentDueWithinDays): string {
+  const byDate = targets.filter((t) => isUrgentByDate(t, today, range))
+  const only = targets.length === 1 ? byDate[0] : undefined
+  if (only?.dueDate) {
+    const days = daysUntil(only.dueDate, today) ?? 0
+    const phrase = days < 0 ? dueDatePhrase(only.dueDate, today) : `due ${dueDatePhrase(only.dueDate, today)}`
+    return only.urgent === true
+      ? `Its due date keeps it urgent even unflagged — ${phrase}.`
+      : `Urgent by due date — ${phrase}. Click to flag it urgent too.`
+  }
+  const k = byDate.length
+  if (k === 0 || targets.length < 2) return ''
+  return k === 1
+    ? `1 of ${targets.length} tasks is urgent by its due date, flagged or not.`
+    : `${k} of ${targets.length} tasks are urgent by their due dates, flagged or not.`
 }

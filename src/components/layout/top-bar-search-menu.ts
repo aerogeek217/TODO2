@@ -1,7 +1,6 @@
 import type { PersistedTodoItem } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { setUrgent } from '../../services/clear-urgent'
 import type { TaskMenuHandlers } from '../task/task-menu-entries'
 
 /**
@@ -23,7 +22,7 @@ export function searchMenuHandlers(params: {
     onSetFollowup: (date) => { void store().bulkSetFollowup(ids, date) },
     onFollowedUp: () => { void store().markFollowedUp(ids) },
     onSetMarker: (marker, on) => {
-      if (marker === 'urgent') void setUrgent(ids, on)
+      if (marker === 'urgent') void store().bulkSetUrgent(ids, on)
       else if (marker === 'important') void store().bulkSetImportant(ids, on)
       else void store().bulkSetFocus(ids, on)
     },

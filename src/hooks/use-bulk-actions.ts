@@ -3,7 +3,6 @@ import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
-import { setUrgent as setUrgentOn } from '../services/clear-urgent'
 
 /**
  * Returns the set of IDs to act on: all selected IDs if the target is
@@ -59,12 +58,9 @@ export function useBulkActions() {
     void useTodoStore.getState().bulkSetFocus(getTargetIds(todoId), on)
   }, [])
 
-  /**
-   * Flags the task (or the selection it's part of) urgent, or turns Urgent
-   * off — which asks about tasks still urgent by their due date.
-   */
+  /** Flags the task (or the selection it's part of) urgent, or clears the flag (a due date may still make it urgent). */
   const setUrgent = useCallback((todoId: number, on: boolean) => {
-    void setUrgentOn(getTargetIds(todoId), on)
+    void useTodoStore.getState().bulkSetUrgent(getTargetIds(todoId), on)
   }, [])
 
   /** Flags the task (or the selection it's part of) important, or clears the flag. */

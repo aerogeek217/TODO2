@@ -1,5 +1,5 @@
 import { MARKER_KEYS, type MarkerKey, type PersistedTodoItem } from '../../models'
-import { isEffectivelyUrgent, type UrgentDueWithinDays } from '../../utils/urgency'
+import { isUrgentByDate, urgentToggleHint, type UrgentDueWithinDays } from '../../utils/urgency'
 import { MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL } from '../../utils/markers'
 import {
   addFollowupInterval,
@@ -59,19 +59,14 @@ const MARKER_ICON: Record<MarkerKey, React.ReactNode> = {
 /** The menu's marker items, in display order. */
 const MARKERS = MARKER_KEYS.map((key) => ({ key, label: MARKER_LABELS[key], icon: MARKER_ICON[key], color: MARKER_COLOR[key] }))
 
-function markerCount(key: MarkerKey, targets: readonly PersistedTodoItem[], today: Date, range: UrgentDueWithinDays): number {
-  return targets.filter((t) => {
-    if (key === 'urgent') return isEffectivelyUrgent(t, today, range)
-    return t[key] === true
-  }).length
-}
-
 /**
- * Markers group shared by the task menu and the list bulk bar's ⋯ More:
- * checkbox items per marker. Some of several tasks = mixed (`1 of 3` + a
- * dash); a click on an unchecked or mixed item turns the marker on for all,
- * on a checked one off for all. Urgent counts tasks urgent by due date
- * (turning it off asks about those dates).
+ * Markers group shared by the task menu, the list bulk bar's ⋯ More and the
+ * row's marker gutter: checkbox items per marker, checked by the flag. Some
+ * of several tasks = mixed (`1 of 3` + a dash); a click on an unchecked or
+ * mixed item sets the flag on all, on a checked one clears it on all. Urgent
+ * too is the flag alone: a task its due date makes urgent reads `By due
+ * date` (unflagged) and says so in the item's tooltip — clearing the flag
+ * leaves the date.
  */
 export function markerMenuEntries(
   targets: readonly PersistedTodoItem[],
@@ -83,15 +78,19 @@ export function markerMenuEntries(
   return [
     { kind: 'label', text: MARKERS_LABEL },
     ...MARKERS.map(({ key, label, icon, color }): MenuEntry => {
-      const count = markerCount(key, targets, today, range)
+      const count = targets.filter((t) => t[key] === true).length
       const checked = n > 0 && count === n ? true : count > 0 ? 'mixed' : false
+      const urgent = key === 'urgent'
+      const byDateNote = urgent && checked === false && targets.some((t) => isUrgentByDate(t, today, range))
+      const hint = urgent ? urgentToggleHint(targets, today, range) : ''
       return {
         kind: 'item',
         label,
         icon: <span style={{ display: 'inline-flex', color }}>{icon}</span>,
         checkbox: true,
         checked,
-        note: checked === 'mixed' ? `${count} of ${n}` : undefined,
+        note: checked === 'mixed' ? `${count} of ${n}` : byDateNote ? 'By due date' : undefined,
+        title: hint || undefined,
         onSelect: () => onSetMarker(key, checked !== true),
       }
     }),
