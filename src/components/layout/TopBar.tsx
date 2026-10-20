@@ -38,13 +38,22 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
 const MAX_GROUP_PREVIEW = 5
 
 /**
+ * The most layouts shown as tabs: more than a bar can hold anyway, so past
+ * it the picker shows from the start and no tab per layout is mounted.
+ */
+export const MAX_LAYOUT_TABS = 30
+
+/**
  * What the layout tabs show, for their width (not their order): the names,
- * the open one and its unsaved dot, a kept new layout.
+ * the open one, a kept new layout. Not the unsaved dot: its few pixels are
+ * measured as the tabs resize, rather than trying the bar unfolded again.
+ * Past `MAX_LAYOUT_TABS` the names don't matter (the picker shows).
  */
 function layoutTabsKey(s: ReturnType<typeof useWorkspaceStore.getState>): string {
-  const names = [...s.layouts.map((l) => l.name)].sort().join('/')
   const open = s.saved === null ? `new:${s.working?.name ?? ''}` : String(s.activeLayoutId)
-  return `${s.layouts.length}|${names}|${open}|${s.isDirty ? 'dirty' : ''}`
+  if (s.layouts.length > MAX_LAYOUT_TABS) return `many|${open}`
+  const names = [...s.layouts.map((l) => l.name)].sort().join('/')
+  return `${s.layouts.length}|${names}|${open}`
 }
 
 /**
@@ -355,6 +364,7 @@ export function TopBar() {
   // (search narrows in CSS).
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
+  const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
   const fold = useTopBarFold(barRef, tabsKey, isWorkspace)
 
   const handleOpenTodo = useCallback((todoId: number) => {
@@ -391,7 +401,7 @@ export function TopBar() {
       </button>
       {isWorkspace && (
         <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
-          <LayoutControls mode={fold === 2 ? 'menu' : 'tabs'} />
+          <LayoutControls mode={fold === 2 || manyLayouts ? 'menu' : 'tabs'} />
         </div>
       )}
 
