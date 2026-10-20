@@ -43,11 +43,12 @@ export interface RuntimeFilterSpec {
 }
 
 /**
- * Who a hidden list belongs to: one layout (a list kept with that layout
- * only), or the Eisenhower (the list of tasks it sorts into its panes).
- * A list with an owner is a list like any other — its own draft, Save,
- * manual order, export and sync — that no list chooser offers
- * (`isListedList`). Absent = a saved list, offered everywhere.
+ * Who a list belongs to: one layout (whose tabs and dashboard tiles show
+ * it, and whose list choosers offer it — `isListedList`), or the Eisenhower
+ * (the list of tasks it sorts into its panes, offered by no chooser). Every
+ * list has one; a list without (older data, or a file edited by hand) is
+ * offered nowhere until Settings › Data integrity's cleanup gives it a
+ * layout.
  */
 export type ListOwner = { layoutId: number } | { eisenhower: true }
 
@@ -66,7 +67,7 @@ export interface ListDefinition {
   grouping: ListGrouping
   /** When set, the list exposes a picker at render time; see `RuntimeFilterSpec`. */
   runtimeFilter?: RuntimeFilterSpec
-  /** Set for a hidden list (see `ListOwner`); absent = a saved list. */
+  /** The layout the list belongs to, or the Eisenhower (see `ListOwner`). */
   owner?: ListOwner
   /** `false` hides the list's filter line; absent = shown (only `false` is stored). */
   showFilterLine?: false
@@ -83,25 +84,24 @@ export function isEisenhowerOwner(owner: ListOwner | undefined): owner is { eise
   return typeof owner === 'object' && owner !== null && 'eisenhower' in owner && owner.eisenhower === true
 }
 
-/** The layout a layout-only list belongs to, or `undefined` (a saved list, or the Eisenhower's). */
+/** The layout a list belongs to, or `undefined` (the Eisenhower's, or a list with no owner). */
 export function ownerLayoutId(def: Pick<ListDefinition, 'owner'>): number | undefined {
   const owner = def.owner
   return typeof owner === 'object' && owner !== null && 'layoutId' in owner ? owner.layoutId : undefined
 }
 
 /**
- * Whether a list chooser offers `def`: a saved list (no owner) — or, when
- * `layoutId` is given, a list that layout owns. The Eisenhower's list and
- * another layout's lists are never offered. The one rule every chooser
+ * Whether a list chooser in layout `layoutId` offers `def`: only a list that
+ * layout owns — never the Eisenhower's, another layout's, or a list without
+ * an owner; no layout (`undefined`) offers none. The one rule every chooser
  * goes through (`listedLists`).
  */
-export function isListedList(def: Pick<ListDefinition, 'owner'>, layoutId?: number): boolean {
-  if (def.owner == null) return true
+export function isListedList(def: Pick<ListDefinition, 'owner'>, layoutId: number | undefined): boolean {
   return layoutId != null && ownerLayoutId(def) === layoutId
 }
 
 /** The lists a chooser offers (`isListedList`), in their given order. */
-export function listedLists<T extends Pick<ListDefinition, 'owner'>>(defs: readonly T[], layoutId?: number): T[] {
+export function listedLists<T extends Pick<ListDefinition, 'owner'>>(defs: readonly T[], layoutId: number | undefined): T[] {
   return defs.filter((d) => isListedList(d, layoutId))
 }
 

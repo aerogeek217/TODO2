@@ -25,7 +25,6 @@ import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-ops'
 import { createListThenEdit, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
-import { ownerLayoutId } from '../../models/list-definition'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
@@ -173,10 +172,10 @@ function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor:
       header="Show list"
       layoutId={layoutId}
       onSelect={(id) => changeTabKind(tabId, 'lens', { listDefinitionId: id })}
-      onCreateNew={(layoutOnly) => createListThenEdit((id) => {
+      onCreateNew={layoutId != null ? () => createListThenEdit((id) => {
         changeTabKind(tabId, 'lens', { listDefinitionId: id })
         return tabId
-      }, layoutOnly ? layoutId : undefined)}
+      }, layoutId) : undefined}
       onClose={onClose}
     />
   )
@@ -280,12 +279,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const menuListName = useListDefinitionStore((s) =>
     menuListId != null ? s.listDefinitions.find((d) => d.id === menuListId)?.name : undefined,
   )
-  /** A list tab's list when only this layout shows it: the tab menu offers Save to my lists. */
-  const menuListLayoutOnly = useListDefinitionStore((s) => {
-    if (menuTab?.kind !== 'lens' || menuListId == null) return false
-    const def = s.listDefinitions.find((d) => d.id === menuListId)
-    return def != null && ownerLayoutId(def) != null
-  })
 
   /**
    * Changes a tab's kind. A list tab picks its list first — an Eisenhower
@@ -479,9 +472,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             : undefined}
           currentListName={menuListName}
           listLayoutId={layoutId}
-          onSaveToMyLists={menuListLayoutOnly && menuListId != null
-            ? () => { void useListDefinitionStore.getState().saveToMyLists(menuListId) }
-            : undefined}
           sourceActions={menuTab.kind === 'eisenhower'
             ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
             : undefined}

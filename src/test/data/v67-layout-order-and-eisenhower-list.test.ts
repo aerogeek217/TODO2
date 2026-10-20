@@ -7,7 +7,6 @@ import { prepareImport } from '../../data/import-pipeline'
 import { readListDrafts } from '../../data/draft-storage'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { emptyPredicate } from '../../models/filter-predicate'
-import { listedLists, type PersistedListDefinition } from '../../models/list-definition'
 import { useSettingsStore } from '../../stores/settings-store'
 import { resetDb, v66StoreSpecs } from '../helpers'
 
@@ -105,8 +104,8 @@ describe('upgradeV67 (pure): the Eisenhower’s own list', () => {
       { id: 5, listDefinitionId: 3, todoId: 5, rank: 1 },
       { id: 6, listDefinitionId: 3, todoId: 6, rank: 2 },
     ])
-    // The original stays a saved list, offered by the list choosers.
-    expect(listedLists(out.listDefinitions as unknown as PersistedListDefinition[]).map((d) => d.id)).toEqual([1, 2])
+    // The original stays a list without an owner (a saved list, at v67).
+    expect(out.listDefinitions!.filter((d) => d.owner === undefined).map((d) => d.id)).toEqual([1, 2])
   })
 
   it.each([
@@ -226,8 +225,9 @@ describe('v67 files', () => {
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared).toMatchObject({ sourceVersion: 66, upgraded: true, warnings: [] })
     expect(prepared.data.layouts.map((l) => [l.id, l.sortOrder])).toEqual([[2, 0], [1, 1]])
+    // (v68 then gives each other list the layout that shows it.)
     expect(prepared.data.listDefinitions.map((d) => [d.id, d.name, d.owner])).toEqual([
-      [1, 'List 1', undefined], [2, 'List 2', undefined], [3, 'Eisenhower', OWNER],
+      [1, 'List 1', { layoutId: 1 }], [2, 'List 2', { layoutId: 2 }], [3, 'Eisenhower', OWNER],
     ])
     expect(prepared.data.listDefinitions[2]).toMatchObject({ sort: 'deadline', grouping: 'people', membership: list(2).membership })
     expect(prepared.data.settings).toEqual([{ key: 'themeMode', value: 'dark' }, source(3)])
@@ -270,7 +270,8 @@ describe('v67 Dexie upgrade', () => {
       settings: [source(2)],
       layouts: [layout(1, cells([lens('a', 1), eis('e')]))],
     })
-    expect(await db.listDefinitions.orderBy('id').toArray()).toEqual([list(1), { ...list(2), owner: OWNER }])
+    // (v68 then gives list 1 the layout that shows it.)
+    expect(await db.listDefinitions.orderBy('id').toArray()).toEqual([{ ...list(1), owner: { layoutId: 1 } }, { ...list(2), owner: OWNER }])
     expect(await db.layouts.toArray()).toEqual([layout(1, cells([lens('a', 1), eis('e')]), { sortOrder: 0 })])
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().eisenhowerListId).toBe(2)
@@ -285,7 +286,8 @@ describe('v67 Dexie upgrade', () => {
     })
     await openV66(rows())
     const lists = await db.listDefinitions.orderBy('id').toArray()
-    expect(lists.map((d) => [d.id, d.owner])).toEqual([[1, undefined], [2, undefined], [3, OWNER]])
+    // (v68 then gives list 2 the layout that shows it, and list 1 a layout "Lists from upgrade".)
+    expect(lists.map((d) => [d.id, d.owner])).toEqual([[1, { layoutId: 2 }], [2, { layoutId: 1 }], [3, OWNER]])
     expect(await db.listOrders.where('listDefinitionId').equals(3).toArray()).toEqual([{ id: 2, listDefinitionId: 3, todoId: 5, rank: 1 }])
     expect(await db.settings.get('eisenhowerSource')).toEqual(source(3))
     const prepared = prepareImport(JSON.parse(JSON.stringify({ [SCHEMA_VERSION_KEY]: 66, todos: [], ...rows() })) as unknown)

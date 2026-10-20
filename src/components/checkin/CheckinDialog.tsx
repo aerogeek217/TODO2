@@ -1,6 +1,5 @@
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
-import { listedLists } from '../../models/list-definition'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useFilterSettings } from '../../hooks/use-filter-settings'
@@ -16,7 +15,6 @@ import {
   prepareCheckin,
   sendPreparedCheckin,
 } from '../../services/checkin-email/person-checkin'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -25,13 +23,12 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { isValidEmail } from '../../utils/person'
 import {
-  CHECKIN_LIST_SCOPE_HINT,
   CHECKIN_OPEN_METHOD_OPTIONS,
-  CHECKIN_QUICK_SCOPES,
-  checkinScopeLabel,
-  checkinTaskScopeEqual,
-  resolveCheckinTaskScope,
-  type CheckinTaskScope,
+  CHECKIN_QUICK_FILTERS,
+  CUSTOM_CHECKIN_FILTER_LABEL,
+  checkinFilterLabel,
+  checkinFiltersEqual,
+  type CheckinTaskFilter,
 } from '../../utils/checkin-settings'
 import { PeopleEditor } from '../settings/PeopleEditor'
 import { Dialog, DialogFrame } from '../shared/Dialog'
@@ -72,7 +69,7 @@ const addressLine = (p: PersistedPerson) => {
  * when it can't send.
  *
  * Mounted by the workspace page, which loads every task, their people and
- * tags, the statuses and the saved lists this reads.
+ * tags and the statuses this reads.
  */
 export function CheckinDialog() {
   const state = useUIStore((s) => s.checkinDialog)
@@ -107,8 +104,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const todos = useTodoStore((s) => s.todos)
   const statuses = useStatusStore((s) => s.statuses)
-  const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
-  const scopeSetting = useSettingsStore((s) => s.checkinTaskScope)
+  const filter = useSettingsStore((s) => s.checkinTaskFilter)
   const method = useSettingsStore((s) => s.checkinOpenMethod)
   const filterSettings = useFilterSettings()
   const today = useToday()
@@ -122,15 +118,11 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
     [people, todos, assignedPeopleMap, opened],
   )
   const buildCtx = useMemo(() => buildCheckinContext({
-    todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, filterSettings,
-  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, listDefinitions, filterSettings])
-  const scope = useMemo(
-    () => resolveCheckinTaskScope(scopeSetting, listDefinitions.map((d) => d.id)),
-    [scopeSetting, listDefinitions],
-  )
+    todos, today, assignedPeopleMap, assignedTagsMap, statuses, filterSettings,
+  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, filterSettings])
 
   const countFor = useCallback(
-    (p: PersistedPerson, s: CheckinTaskScope) => checkinTaskCount(selectCheckinTasks(p, s, buildCtx)),
+    (p: PersistedPerson, f: CheckinTaskFilter) => checkinTaskCount(selectCheckinTasks(p, f, buildCtx)),
     [buildCtx],
   )
   const isChecked = (p: PersistedPerson) => ticked.has(p.id)
@@ -139,8 +131,8 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   const menuPeople = checkedPeople.length > 0 ? checkedPeople : recipients
 
   const buildEmail = useCallback(
-    (p: PersistedPerson, sentAt: Date) => prepareCheckin(p, scope, buildCtx, { includeNotes, includeOthers }, sentAt),
-    [scope, buildCtx, includeNotes, includeOthers],
+    (p: PersistedPerson, sentAt: Date) => prepareCheckin(p, filter, buildCtx, { includeNotes, includeOthers }, sentAt),
+    [filter, buildCtx, includeNotes, includeOthers],
   )
   const buildPreview = useCallback((p: PersistedPerson) => buildEmail(p, new Date()).email, [buildEmail])
 
@@ -203,31 +195,28 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   }
 
   const scopeEntries = useMemo<MenuEntry[]>(() => {
-    const setScope = useSettingsStore.getState().setCheckinTaskScope
-    const item = (s: CheckinTaskScope, label: string, hint: string): MenuEntry => ({
+    const setFilter = useSettingsStore.getState().setCheckinTaskFilter
+    const item = (f: CheckinTaskFilter, label: string, hint: string): MenuEntry => ({
       kind: 'item',
       label,
       title: hint,
       radio: true,
-      checked: checkinTaskScopeEqual(s, scope),
-      note: tasksLabel(menuPeople.reduce((sum, p) => sum + countFor(p, s), 0)),
-      onSelect: () => { void setScope(s) },
+      checked: checkinFiltersEqual(f, filter),
+      note: tasksLabel(menuPeople.reduce((sum, p) => sum + countFor(p, f), 0)),
+      onSelect: () => { void setFilter(f) },
     })
     const entries: MenuEntry[] = [
       { kind: 'label', text: 'Quick picks' },
-      ...CHECKIN_QUICK_SCOPES.map((q) => item(q.scope, q.label, q.hint)),
+      ...CHECKIN_QUICK_FILTERS.map((q) => item(q.filter, q.label, q.hint)),
     ]
-    const lists = listedLists(listDefinitions)
-    if (lists.length > 0) {
-      entries.push({ kind: 'label', text: 'Your saved lists' })
-      for (const d of lists) {
-        entries.push(item({ kind: 'list', listDefinitionId: d.id }, d.name, CHECKIN_LIST_SCOPE_HINT))
-      }
+    // A filter no quick pick names (older data: a saved list's filter) stays a choice while it is the one kept.
+    if (checkinFilterLabel(filter) === CUSTOM_CHECKIN_FILTER_LABEL) {
+      entries.push(item(filter, CUSTOM_CHECKIN_FILTER_LABEL, 'The filter kept from your earlier choice'))
     }
     return entries
-  }, [scope, menuPeople, countFor, listDefinitions])
+  }, [filter, menuPeople, countFor])
 
-  const scopeLabel = checkinScopeLabel(scope, listDefinitions)
+  const scopeLabel = checkinFilterLabel(filter)
 
   const sendLabel = method === 'eml' ? 'Download .eml' : 'Copy & open'
 
@@ -259,7 +248,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
           {recipients.map((p) => {
             const email = hasEmail(p)
             const checked = isChecked(p)
-            const count = countFor(p, scope)
+            const count = countFor(p, filter)
             const sentAs = sent.get(p.id)
             const inputId = `${titleId}-person-${p.id}`
             return (

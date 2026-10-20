@@ -114,35 +114,3 @@
 .primaryCreateBtn:hover {
   opacity: 0.9;
 }
-
-.itemNote {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-/* Saved list / This layout only, above "Create new list…". */
-.scope {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  padding: 2px 4px 6px;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
-}
-
-.scopeOption {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.scopeOption input {
-  margin: 0;
-  accent-color: var(--color-accent);
-}
-
-.emptyCta .scope {
-  padding: 0 0 10px;
-}

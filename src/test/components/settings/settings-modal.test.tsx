@@ -106,14 +106,6 @@ describe('SettingsModal', () => {
     expect(useUIStore.getState().settingsOpen).toBe(true)
   })
 
-  it('Esc is left to the lists editor while it is open over the modal', () => {
-    render(<SettingsModal />)
-    open('entities')
-    act(() => useUIStore.getState().openListsEditor())
-    fireEvent.keyDown(document.body, { key: 'Escape' })
-    expect(useUIStore.getState().settingsOpen).toBe(true)
-  })
-
   it('the theme control sets the theme mode', async () => {
     render(<SettingsModal />)
     open()

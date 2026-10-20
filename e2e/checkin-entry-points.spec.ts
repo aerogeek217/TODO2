@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test'
 import { readStore, writeStores } from './fixtures/db'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * The ways into an email check-in, in a real browser. Every entry that names
@@ -122,7 +122,7 @@ async function setup(page: Page, context: BrowserContext) {
 }
 
 /** Saves check-in settings straight to the database and reloads, so the app starts with them. */
-async function withCheckinSettings(page: Page, settings: { checkinOpenMethod?: string; checkinTaskScope?: string }) {
+async function withCheckinSettings(page: Page, settings: { checkinOpenMethod?: string; checkinTaskFilter?: string }) {
   await writeStores(page, { put: { settings: Object.entries(settings).map(([key, value]) => ({ key, value })) } })
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
@@ -311,15 +311,15 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0)
 })
 
-test('fallback: no open tasks in the saved scope opens the dialog for the person, saying why', async ({ page, context }) => {
+test('fallback: no open tasks match the saved check-in filter: opens the dialog for the person, saying why', async ({ page, context }) => {
   await setup(page, context)
-  await withCheckinSettings(page, { checkinTaskScope: 'hot' })
+  await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: 'hot' }) })
   await page.keyboard.press('Control+k')
   await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
   await page.keyboard.press('Enter')
   await expectTicked(page, ['Ada Lovelace'])
   await expect(checkinDialog(page).getByRole('status'))
-    .toHaveText('Ada Lovelace has no open tasks in “Hot”, so nothing was sent. Choose other tasks under Which tasks.')
+    .toHaveText('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Choose other tasks under Which tasks.')
   expect(await mailtoLinks(page)).toEqual([])
   expect(await followedUp(page)).toEqual([])
 })

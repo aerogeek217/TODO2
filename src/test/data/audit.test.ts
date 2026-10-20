@@ -21,9 +21,11 @@ describe('auditData', () => {
     const { todoId } = await seedBase()
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
     await db.todoPeople.add({ todoId, personId })
+    const layoutId = await db.layouts.add({ name: 'Main', sortOrder: 0, columns: [], createdAt: new Date(), modifiedAt: new Date() })
     const listDefinitionId = await db.listDefinitions.add({
       name: 'Focus', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { focus: true } } },
+      owner: { layoutId },
     })
     await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
 

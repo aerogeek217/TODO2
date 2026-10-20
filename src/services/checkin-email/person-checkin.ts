@@ -1,27 +1,21 @@
 /**
  * The one way a check-in is sent, shared by the check-in dialog and the
- * one-click send for a single person: build the person's email for a task
- * scope, hand it to the mail app (`sendCheckinEmail`), then record a
+ * one-click send for a single person: build the person's email for the
+ * check-in filter, hand it to the mail app (`sendCheckinEmail`), then record a
  * follow-up on the email's tasks as one undo entry named for the send
  * (`Check-in for Ann opened · 5 tasks followed up`).
  *
- * `sendPersonCheckin` is the one-click send: the saved Which tasks and How
- * to open it settings, the dialog's include defaults. When it can't send —
- * no open tasks in that scope, the clipboard refused, the tasks' people or
- * tags not loaded yet — it opens the dialog for that person instead, with
+ * `sendPersonCheckin` is the one-click send: the saved check-in filter and
+ * How to open it settings, the dialog's include defaults. When it can't send
+ * — no open tasks match the filter, the clipboard refused, the tasks' people
+ * or tags not loaded yet — it opens the dialog for that person instead, with
  * the reason in its status line.
  */
-import type { PersistedListDefinition, PersistedPerson, PersistedTodoItem, Person, Status, Tag } from '../../models'
+import type { PersistedPerson, PersistedTodoItem, Person, Status, Tag } from '../../models'
 import { startOfToday } from '../../utils/date'
-import {
-  checkinScopeLabel,
-  resolveCheckinTaskScope,
-  type CheckinOpenMethod,
-  type CheckinTaskScope,
-} from '../../utils/checkin-settings'
+import { isNoCheckinFilter, type CheckinOpenMethod, type CheckinTaskFilter } from '../../utils/checkin-settings'
 import type { FilterSettings } from '../../utils/filter-match'
 import { registerModuleReset } from '../../utils/module-reset'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
 import { currentFilterSettings, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -58,15 +52,15 @@ export interface PreparedCheckin {
   taskIds: number[]
 }
 
-/** Builds `person`'s check-in over the tasks `scope` picks. */
+/** Builds `person`'s check-in over the tasks `filter` picks. */
 export function prepareCheckin(
   person: PersistedPerson,
-  scope: CheckinTaskScope,
+  filter: CheckinTaskFilter,
   ctx: CheckinBuildContext,
   include: CheckinIncludeOptions,
   sentAt: Date,
 ): PreparedCheckin {
-  const sections = selectCheckinTasks(person, scope, ctx)
+  const sections = selectCheckinTasks(person, filter, ctx)
   const email = buildCheckinEmail(
     person,
     sections,
@@ -83,7 +77,6 @@ export interface CheckinContextSources {
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
   assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
   statuses: readonly Status[]
-  listDefinitions: readonly PersistedListDefinition[]
   filterSettings: FilterSettings
 }
 
@@ -99,7 +92,7 @@ export function buildCheckinContext({ todos, filterSettings, ...data }: CheckinC
   }
 }
 
-/** The build context as the stores hold it now (the workspace loads every task, person, tag, status and list). */
+/** The build context as the stores hold it now (the workspace loads every task, person, tag and status). */
 export function currentCheckinContext(): CheckinBuildContext {
   return buildCheckinContext({
     todos: useTodoStore.getState().todos,
@@ -107,7 +100,6 @@ export function currentCheckinContext(): CheckinBuildContext {
     assignedPeopleMap: usePersonStore.getState().assignedPeopleMap,
     assignedTagsMap: useTagStore.getState().assignedTagsMap,
     statuses: useStatusStore.getState().statuses,
-    listDefinitions: useListDefinitionStore.getState().listDefinitions,
     filterSettings: currentFilterSettings(),
   })
 }
@@ -158,24 +150,26 @@ export async function sendPreparedCheckin(
   return result
 }
 
-/** Why the check-in dialog opened instead: the person has no open tasks in the saved scope. */
-export function noTasksNotice(personName: string, scopeLabel: string): string {
-  return `${personName} has no open tasks in “${scopeLabel}”, so nothing was sent. Choose other tasks under Which tasks.`
+/** Why the check-in dialog opened instead: the person has no open tasks (`filtered`: none that match the saved check-in filter). */
+export function noTasksNotice(personName: string, filtered: boolean): string {
+  return filtered
+    ? `${personName} has no open tasks that match the check-in filter, so nothing was sent. Choose other tasks under Which tasks.`
+    : `${personName} has no open tasks, so nothing was sent.`
 }
 
 /** The clipboard refused the body (the dialog's own wording for the same failure). */
 export const COPY_FAILED_NOTICE = 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.'
 
-/** The open tasks' people (or, for a saved list, their tags) aren't all loaded, so the email could pick the wrong tasks. */
+/** The open tasks' people (or, for a filter on tags, their tags) aren't all loaded, so the email could pick the wrong tasks. */
 export const ASSIGNMENTS_LOADING_NOTICE = 'Not every task’s people and tags have loaded yet, so nothing was sent. Check the tasks here, then send.'
 
 /**
- * Whether every open task's people — and, for a saved-list scope, its tags
+ * Whether every open task's people — and, for a filter on tags, its tags
  * (an "is not" tag clause lets a task with no entry through) — are loaded,
  * so selecting the person's tasks reads complete data.
  */
-function assignmentsLoaded(ctx: CheckinBuildContext, scope: CheckinTaskScope): boolean {
-  const tagsNeeded = scope.kind === 'list'
+function assignmentsLoaded(ctx: CheckinBuildContext, filter: CheckinTaskFilter): boolean {
+  const tagsNeeded = filter.tags != null
   return ctx.todos.every((t) => t.isCompleted
     || (ctx.assignedPeopleMap.has(t.id) && (!tagsNeeded || ctx.assignedTagsMap?.has(t.id) === true)))
 }
@@ -188,12 +182,12 @@ const sending = new Set<number>()
 registerModuleReset(() => sending.clear())
 
 /**
- * Emails `personId` their check-in at once: the saved Which tasks and How to
+ * Emails `personId` their check-in at once: the saved check-in filter and How to
  * open it, the Include defaults, the follow-up recorded (one undo entry; the
  * snackbar says it, with where it went and how to finish —
  * `checkinSentStatus`). Opens the check-in dialog for the person instead —
- * with the reason in its status line — when they have no open tasks in that
- * scope, the clipboard refuses, or the tasks' people / tags aren't loaded
+ * with the reason in its status line — when none of their open tasks match
+ * the filter, the clipboard refuses, or the tasks' people / tags aren't loaded
  * yet. Call it straight from the click (or key) handler: the clipboard
  * write starts before the first `await`.
  */
@@ -208,11 +202,11 @@ export async function sendPersonCheckin(personId: number): Promise<PersonCheckin
   const person: PersistedPerson = { ...stored, id: stored.id }
   const settings = useSettingsStore.getState()
   const ctx = currentCheckinContext()
-  const scope = resolveCheckinTaskScope(settings.checkinTaskScope, ctx.listDefinitions.map((d) => d.id))
-  if (!assignmentsLoaded(ctx, scope)) return openDialog(ASSIGNMENTS_LOADING_NOTICE)
+  const filter = settings.checkinTaskFilter
+  if (!assignmentsLoaded(ctx, filter)) return openDialog(ASSIGNMENTS_LOADING_NOTICE)
   const sentAt = new Date()
-  const prepared = prepareCheckin(person, scope, ctx, CHECKIN_INCLUDE_DEFAULTS, sentAt)
-  if (prepared.taskIds.length === 0) return openDialog(noTasksNotice(person.name, checkinScopeLabel(scope, ctx.listDefinitions)))
+  const prepared = prepareCheckin(person, filter, ctx, CHECKIN_INCLUDE_DEFAULTS, sentAt)
+  if (prepared.taskIds.length === 0) return openDialog(noTasksNotice(person.name, !isNoCheckinFilter(filter)))
   sending.add(personId)
   try {
     const result = await sendPreparedCheckin(person, prepared, settings.checkinOpenMethod, sentAt, { statusInSnackbar: true })

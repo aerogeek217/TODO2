@@ -458,23 +458,21 @@ describe('unsaved changes kept for a reload', () => {
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
 
-  it('a kept new layout comes back new and unsaved; its lists must still be the same lists', async () => {
+  it('a kept new layout comes back new and unsaved while it shows no list; one that shows a list is dropped (every list is a stored layout’s)', async () => {
     const listId = await db.listDefinitions.add({
-      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
+      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },
       membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
     } as never) as number
     const [a] = await seedAndInit(twoColumns('A'))
     await useListDefinitionStore.getState().load()
     await openKeptNewLayout()
-    ws().addWidget('lens', { kind: 'layout' }, { listDefinitionId: listId })
+    ws().addWidget('notes', { kind: 'layout' })
     await reload()
     expect(ws()).toMatchObject({ saved: null, isDirty: true, activeLayoutId: null, previousLayoutId: a })
     expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID, name: 'Untitled layout' })
     expect(ws().working!.columns).toHaveLength(1)
 
-    // The list it shows is another list now: dropped.
-    await db.listDefinitions.update(listId, { name: 'Someone else’s' })
-    useListDefinitionStore.setState({ listDefinitions: [], loaded: false })
+    ws().addWidget('lens', { kind: 'layout' }, { listDefinitionId: listId })
     await reload()
     expect(ws()).toMatchObject({ activeLayoutId: a, isDirty: false })
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()

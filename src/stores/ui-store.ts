@@ -128,19 +128,9 @@ interface UIState {
   /** The filter sheet was opened from a search button: focus its search box. */
   filterSheetFocusSearch: boolean
   /**
-   * Lists editor (`DashboardListsEditor`) open state. Owned here so any
-   * component (a list tab's menu, Settings, etc.) can dispatch "open editor
-   * for def N" without prop-drilling. WorkspacePage subscribes and renders
-   * the modal when `listsEditorOpen` is true.
-   */
-  listsEditorOpen: boolean
-  /** Optional def id to preselect + auto-expand the ConfigPanel for. */
-  listsEditorInitialId: number | null
-  /**
    * The open Edit list surface (the workspace's side popover, the phone's
    * half sheet): the list it edits and the list tab it was opened for (it
-   * sits beside that tab's panel). One at a time. Separate from the Lists
-   * manager (`listsEditorOpen`), which keeps its own modal editor.
+   * sits beside that tab's panel). One at a time.
    */
   listEditor: { listDefinitionId: number; tabId: string } | null
   /**
@@ -237,8 +227,6 @@ interface UIState {
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
   openFilterSheetSearch: () => void
-  openListsEditor: (initialId?: number | null) => void
-  closeListsEditor: () => void
   openListEditor: (listDefinitionId: number, tabId: string) => void
   /** Closes Edit list at once, whatever its list's state (the draft is kept). */
   closeListEditor: () => void
@@ -291,8 +279,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   taskDialog: null,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
-  listsEditorOpen: false,
-  listsEditorInitialId: null,
   listEditor: null,
   listEditorCloseRequest: null,
   quickAddOpen: false,
@@ -412,14 +398,6 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openFilterSheetSearch() {
     set({ isFilterSheetOpen: true, filterSheetFocusSearch: true })
-  },
-
-  openListsEditor(initialId) {
-    set({ listsEditorOpen: true, listsEditorInitialId: initialId ?? null })
-  },
-
-  closeListsEditor() {
-    set({ listsEditorOpen: false, listsEditorInitialId: null })
   },
 
   openListEditor(listDefinitionId, tabId) {

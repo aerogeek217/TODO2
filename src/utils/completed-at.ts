@@ -58,3 +58,21 @@ export function selectExpiredCompleted<T extends Pick<TodoItem, 'isCompleted' | 
   const cutoff = retentionCutoff(retentionDays, now)
   return todos.filter((t) => isExpiredCompleted(t, cutoff))
 }
+
+/** The fewest days between two launch prompts about deleting old completed tasks, by default. */
+export const DEFAULT_PURGE_PROMPT_INTERVAL_DAYS = 7
+
+/** The longest wait between two launch prompts the setting takes, in days. */
+export const PURGE_PROMPT_INTERVAL_MAX_DAYS = 365
+
+/** Whether `n` is a prompt interval the setting takes: a whole number of days, 1–365. */
+export function isPurgePromptIntervalDays(n: unknown): n is number {
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= PURGE_PROMPT_INTERVAL_MAX_DAYS
+}
+
+/** The stored prompt interval (a whole number 1–365, as text); `undefined` when it isn't one. */
+export function parsePurgePromptIntervalDays(value: string): number | undefined {
+  if (!/^[1-9]\d{0,2}$/.test(value)) return undefined
+  const n = Number(value)
+  return isPurgePromptIntervalDays(n) ? n : undefined
+}

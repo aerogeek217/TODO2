@@ -211,6 +211,34 @@ export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: Readonl
   return { ...layout, columns, ...(top ? { top } : {}), ...(bottom ? { bottom } : {}) }
 }
 
+/**
+ * The lists `after` shows where `before` showed other ones at the same tab
+ * (matched by tab id; a dashboard's list tiles by position, when the tab
+ * has as many): old id → new id, e.g. a layout given its own copies of the
+ * lists it shared with another one. `null` when an old id would become two
+ * different ones.
+ */
+export function listIdChanges(before: LayoutBody, after: LayoutBody): Map<number, number> | null {
+  const afterTabs = new Map(layoutTabs(after).map((t) => [t.id, t]))
+  const changes = new Map<number, number>()
+  const note = (from: number | undefined, to: number | undefined): boolean => {
+    if (from == null || to == null || from === to) return true
+    const known = changes.get(from)
+    if (known != null && known !== to) return false
+    changes.set(from, to)
+    return true
+  }
+  for (const tab of layoutTabs(before)) {
+    const other = afterTabs.get(tab.id)
+    if (tab.kind === 'lens' && other?.kind === 'lens') {
+      if (!note(tab.config.listDefinitionId, other.config.listDefinitionId)) return null
+    } else if (tab.kind === 'dashboard' && other?.kind === 'dashboard' && tab.config.listTiles.length === other.config.listTiles.length) {
+      for (const [i, id] of tab.config.listTiles.entries()) if (!note(id, other.config.listTiles[i])) return null
+    }
+  }
+  return changes
+}
+
 /** Every column / cell / band / tab id in the layout (new ids must not repeat one). */
 export function layoutIds(layout: LayoutBody): Set<string> {
   const ids = new Set<string>()

@@ -10,7 +10,8 @@ import {
   noTasksNotice,
   sendPersonCheckin,
 } from '../../../services/checkin-email/person-checkin'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { emptyPredicate } from '../../../models/filter-predicate'
+import { dueSoonCheckinFilter } from '../../../utils/checkin-settings'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -56,9 +57,8 @@ beforeEach(async () => {
   usePersonStore.setState({ people: [ada, bob, cy], assignedPeopleMap: ASSIGNED })
   useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useStatusStore.setState({ statuses: [] })
-  useListDefinitionStore.setState({ listDefinitions: [] })
   useSettingsStore.setState({
-    checkinOpenMethod: 'mailto', checkinTaskScope: { kind: 'all' }, weekStartsOn: 1,
+    checkinOpenMethod: 'mailto', checkinTaskFilter: emptyPredicate(), weekStartsOn: 1,
     urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE, followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   })
   useUIStore.setState({ checkinDialog: null })
@@ -132,8 +132,8 @@ describe('sendPersonCheckin', () => {
     expect(html).toContain('Also assigned')
   })
 
-  it('uses the saved Which tasks choice', async () => {
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'due-soon' } })
+  it('uses the saved check-in filter', async () => {
+    useSettingsStore.setState({ checkinTaskFilter: dueSoonCheckinFilter() })
     expect(await sendPersonCheckin(1)).toBe('opened')
     expect(clicked[0]!.getAttribute('href')).toContain('subject=Task%20check-in%3A%202%20open%20tasks')
     await vi.waitFor(() => expect(followedUp()).toEqual([1, 2]))
@@ -163,13 +163,14 @@ describe('sendPersonCheckin', () => {
     expect(eml).toMatch(/^X-Unsent: 1\r\n/)
   })
 
-  it('no open tasks in the scope: opens the dialog for the person with the reason; nothing copied or recorded', async () => {
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'hot' } })
+  it('no open tasks match the filter: opens the dialog for the person with the reason; nothing copied or recorded', async () => {
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: 'hot' } })
     expect(await sendPersonCheckin(1)).toBe('dialog')
     expect(events).toEqual([])
-    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: noTasksNotice('Ada Lovelace', 'Hot') })
-    expect(noTasksNotice('Ada Lovelace', 'Hot'))
-      .toBe('Ada Lovelace has no open tasks in “Hot”, so nothing was sent. Choose other tasks under Which tasks.')
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: noTasksNotice('Ada Lovelace', true) })
+    expect(noTasksNotice('Ada Lovelace', true))
+      .toBe('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Choose other tasks under Which tasks.')
+    expect(noTasksNotice('Ada Lovelace', false)).toBe('Ada Lovelace has no open tasks, so nothing was sent.')
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 
@@ -206,22 +207,17 @@ describe('sendPersonCheckin', () => {
 describe('sendPersonCheckin before the tasks’ people and tags are loaded', () => {
   const home = { id: 7, name: 'home', color: '#888888' }
   // "Tags is not #home": Ada's report (no tags) is in, the shared review (#home) is not.
-  const notHome = {
-    id: 5, name: 'Not home', sortOrder: 0, sort: 'manual' as const, grouping: 'none' as const,
-    membership: { kind: 'custom' as const, predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: [7], negate: { tags: true as const } } },
-  }
   beforeEach(() => {
-    useListDefinitionStore.setState({ listDefinitions: [notHome] })
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'list', listDefinitionId: 5 } })
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), tags: [7], negate: { tags: true } } })
   })
 
-  it('a saved-list scope sends once every open task’s tags are loaded', async () => {
+  it('a filter on tags sends once every open task’s tags are loaded', async () => {
     useTagStore.setState({ tags: [home], assignedTagsMap: new Map([[1, []], [2, [home]], [3, []], [4, []]]) })
     expect(await sendPersonCheckin(1)).toBe('opened')
     expect(clicked[0]!.getAttribute('href')).toContain('subject=Task%20check-in%3A%201%20open%20task')
   })
 
-  it('a saved-list scope with tags not loaded opens the dialog instead: an "is not" tag clause would let #home tasks in', async () => {
+  it('a filter on tags with tags not loaded opens the dialog instead: an "is not" tag clause would let #home tasks in', async () => {
     useTagStore.setState({ tags: [home], assignedTagsMap: new Map([[1, []]]) })
     expect(await sendPersonCheckin(1)).toBe('dialog')
     expect(events).toEqual([])
@@ -229,8 +225,8 @@ describe('sendPersonCheckin before the tasks’ people and tags are loaded', () 
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 
-  it('any scope with an open task’s people not loaded opens the dialog instead', async () => {
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
+  it('any filter with an open task’s people not loaded opens the dialog instead', async () => {
+    useSettingsStore.setState({ checkinTaskFilter: emptyPredicate() })
     usePersonStore.setState({ assignedPeopleMap: new Map([[1, [ada]], [2, [ada, bob]]]) })
     expect(await sendPersonCheckin(1)).toBe('dialog')
     expect(events).toEqual([])

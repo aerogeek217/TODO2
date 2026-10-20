@@ -1,5 +1,5 @@
 import { db } from './database'
-import { createRepository, insertLast, nextSortOrder, reorderBySortOrder } from './create-repository'
+import { createRepository, insertLast, nextSortOrder } from './create-repository'
 import {
   EISENHOWER_LIST_NAME,
   findEisenhowerList,
@@ -35,18 +35,6 @@ export const listDefinitionRepository = {
     return insertLast(db.listDefinitions, def, -1)
   },
 
-  async reorder(orderedIds: number[]): Promise<void> {
-    await reorderBySortOrder(db.listDefinitions, orderedIds)
-  },
-
-  /** Deletes the list and its manual order. */
-  async remove(id: number): Promise<void> {
-    await db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
-      await db.listOrders.where('listDefinitionId').equals(id).delete()
-      await db.listDefinitions.delete(id)
-    })
-  },
-
   /**
    * The Eisenhower's own list (`owner: { eisenhower: true }`), made when
    * there is none: the one `eisenhowerSource` names when it is the
@@ -75,13 +63,5 @@ export const listDefinitionRepository = {
       if (sourceId !== id) await db.settings.put({ key: SETTING_KEYS.eisenhowerSource, value: formatEisenhowerSource(id) })
       return id
     })
-  },
-
-  /**
-   * Undo-restore for `remove`: re-insert the row preserving its original id so
-   * any saved references (workspace list tabs, list orders) keep pointing at it.
-   */
-  async restore(def: PersistedListDefinition): Promise<void> {
-    await db.listDefinitions.add(def)
   },
 }

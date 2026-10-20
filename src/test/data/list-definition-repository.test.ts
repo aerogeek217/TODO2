@@ -57,16 +57,4 @@ describe('listDefinitionRepository', () => {
     const defs = await listDefinitionRepository.getAll()
     expect(defs).toHaveLength(0)
   })
-
-  it('reorder assigns monotonically increasing sortOrder to given id sequence', async () => {
-    const id1 = await listDefinitionRepository.insert(makeDef({ name: 'A', sortOrder: 10 }))
-    const id2 = await listDefinitionRepository.insert(makeDef({ name: 'B', sortOrder: 20 }))
-    const id3 = await listDefinitionRepository.insert(makeDef({ name: 'C', sortOrder: 30 }))
-
-    await listDefinitionRepository.reorder([id3, id1, id2])
-
-    const defs = await listDefinitionRepository.getAll()
-    expect(defs.map(d => d.name)).toEqual(['C', 'A', 'B'])
-    expect(defs.map(d => d.sortOrder)).toEqual([0, 1, 2])
-  })
 })

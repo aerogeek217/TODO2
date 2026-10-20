@@ -1,6 +1,6 @@
 /**
  * What a Dashboard tab shows — its layout `config` (saved with the layout):
- * which built-in tiles, which saved lists as list tiles, and which sections,
+ * which built-in tiles, which of the layout's lists as list tiles, and which sections,
  * each in display order. Absent from an array = hidden.
  */
 

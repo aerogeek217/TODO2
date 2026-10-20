@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../../models'
 import {
-  CHECKIN_DUE_SOON_DAYS,
   checkinTaskCount,
   compareCheckinTasks,
   selectCheckinTasks,
   type CheckinSelectContext,
 } from '../../../services/checkin-email/select'
-import type { CheckinTaskScope } from '../../../utils/checkin-settings'
+import { CHECKIN_DUE_SOON_DAYS, dueSoonCheckinFilter } from '../../../utils/checkin-settings'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
 
@@ -19,17 +18,7 @@ const day = (offset: number) => new Date(2026, 9, 12 + offset)
 const ada = makePerson({ id: 1, name: 'Ada Lovelace' })
 const bob = makePerson({ id: 2, name: 'Bob Stone' })
 
-const basePredicate: TodoPredicate = {
-  showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null,
-}
-
-function list(id: number, predicate: Partial<TodoPredicate>, extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
-  return {
-    id, name: `List ${id}`, sortOrder: id, sort: 'name', grouping: 'status', 
-    membership: { kind: 'custom', predicate: { ...basePredicate, ...predicate } },
-    ...extra,
-  }
-}
+const filter = (extra: Partial<TodoPredicate> = {}): TodoPredicate => ({ ...emptyPredicate(), ...extra })
 
 function context(
   todos: PersistedTodoItem[],
@@ -40,7 +29,6 @@ function context(
     todos,
     today,
     assignedPeopleMap: new Map(Object.entries(assignments).map(([id, people]) => [Number(id), people])),
-    listDefinitions: [],
     markerSettings: { urgentRange: 3, hotRule: DEFAULT_HOT_RULE },
     weekStartsOn: 1,
     ...extra,
@@ -48,7 +36,7 @@ function context(
 }
 
 const ids = (todos: PersistedTodoItem[]) => todos.map((t) => t.id)
-const ALL: CheckinTaskScope = { kind: 'all' }
+const ALL = filter()
 
 describe('selectCheckinTasks', () => {
   it('takes only open tasks assigned to the person', () => {
@@ -91,24 +79,22 @@ describe('selectCheckinTasks', () => {
     expect(compareCheckinTasks(todos[0]!, todos[0]!)).toBe(0)
   })
 
-  it('due-soon: overdue, or due / following up on or before today + 14 days', () => {
+  it('“Overdue + next 2 weeks”: due before today or on or before today + 14 days (by the due date only)', () => {
     const todos = [
       makeTodo({ id: 1, dueDate: day(-3) }),
       makeTodo({ id: 2, dueDate: day(CHECKIN_DUE_SOON_DAYS) }),
       makeTodo({ id: 3, dueDate: day(CHECKIN_DUE_SOON_DAYS + 1) }),
       makeTodo({ id: 4, nextFollowupAt: day(CHECKIN_DUE_SOON_DAYS) }),
-      makeTodo({ id: 5, nextFollowupAt: day(CHECKIN_DUE_SOON_DAYS + 1) }),
-      makeTodo({ id: 6, nextFollowupAt: day(-4) }),
       makeTodo({ id: 7 }),
-      makeTodo({ id: 8, dueDate: day(40), nextFollowupAt: day(1) }),
+      makeTodo({ id: 8, dueDate: day(1), nextFollowupAt: day(40) }),
     ]
     const people = Object.fromEntries(todos.map((t) => [t.id, [ada]]))
-    const out = selectCheckinTasks(ada, { kind: 'due-soon' }, context(todos, people))
+    const out = selectCheckinTasks(ada, dueSoonCheckinFilter(), context(todos, people))
     expect(ids(out.overdue)).toEqual([1])
-    expect(ids(out.comingUp)).toEqual([6, 8, 2, 4])
+    expect(ids(out.comingUp)).toEqual([8, 2])
   })
 
-  it('hot: the Settings Hot rule, with Urgent from the flag or the due-date range', () => {
+  it('Priority Hot: the Settings Hot rule, with Urgent from the flag or the due-date range', () => {
     const todos = [
       makeTodo({ id: 1, urgent: true, important: true }),
       makeTodo({ id: 2, focus: true }),
@@ -117,15 +103,16 @@ describe('selectCheckinTasks', () => {
       makeTodo({ id: 5, urgent: true }),
     ]
     const people = Object.fromEntries(todos.map((t) => [t.id, [ada]]))
-    const out = selectCheckinTasks(ada, { kind: 'hot' }, context(todos, people))
+    const hot = filter({ markers: 'hot' })
+    const out = selectCheckinTasks(ada, hot, context(todos, people))
     expect([...ids(out.overdue), ...ids(out.comingUp)].sort()).toEqual([1, 2, 4])
     const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1, hotRule: DEFAULT_HOT_RULE } })
-    expect([...ids(selectCheckinTasks(ada, { kind: 'hot' }, narrowRange).comingUp)].sort()).toEqual([1, 2])
-    const focusOnly = context(todos, people, { markerSettings: { urgentRange: 3, hotRule: [{ urgent: true }] } })
-    expect([...ids(selectCheckinTasks(ada, { kind: 'hot' }, focusOnly).comingUp)].sort()).toEqual([1, 4, 5])
+    expect([...ids(selectCheckinTasks(ada, hot, narrowRange).comingUp)].sort()).toEqual([1, 2])
+    const urgentOnly = context(todos, people, { markerSettings: { urgentRange: 3, hotRule: [{ urgent: true }] } })
+    expect([...ids(selectCheckinTasks(ada, hot, urgentOnly).comingUp)].sort()).toEqual([1, 4, 5])
   })
 
-  it('list: the list filter on top of open + assigned; the list sort and grouping are ignored', () => {
+  it('a filter on top of open + assigned; it never shows completed tasks', () => {
     const tag: Tag = { id: 7, name: 'docs', color: '#fff' }
     const todos = [
       makeTodo({ id: 1, title: 'b', dueDate: day(5) }),
@@ -136,63 +123,31 @@ describe('selectCheckinTasks', () => {
     ]
     const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada], 4: [ada], 5: [bob] }, {
       assignedTagsMap: new Map([[1, [tag]], [2, [tag]], [4, [tag]], [5, [tag]]]),
-      listDefinitions: [list(9, { tags: [7], showCompleted: true })],
     })
-    const out = selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 9 }, ctx)
+    const out = selectCheckinTasks(ada, filter({ tags: [7], showCompleted: true }), ctx)
     expect(ids(out.comingUp)).toEqual([2, 1])
   })
 
-  it('list: a status clause reads the statuses; a person clause narrows on top of the person', () => {
+  it('a status clause reads the statuses; a people clause is ignored (the check-in is the person’s)', () => {
     const waiting: Status = { id: 3, name: 'Waiting', color: '#fff', sortOrder: 0 }
     const todos = [makeTodo({ id: 1, statusId: 3 }), makeTodo({ id: 2 }), makeTodo({ id: 3, statusId: 3 })]
-    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada, bob] }, {
-      statuses: [waiting],
-      listDefinitions: [list(1, { statusIds: [3] }), list(2, { personIds: [2] })],
-    })
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([1, 3])
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 2 }, ctx).comingUp)).toEqual([3])
+    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada, bob] }, { statuses: [waiting] })
+    expect(ids(selectCheckinTasks(ada, filter({ statusIds: [3] }), ctx).comingUp)).toEqual([1, 3])
+    expect(ids(selectCheckinTasks(ada, filter({ personIds: [2] }), ctx).comingUp)).toEqual([1, 2, 3])
+    expect(ids(selectCheckinTasks(ada, filter({ personIds: [2], negate: { personIds: true } }), ctx).comingUp)).toEqual([1, 2, 3])
   })
 
-  it('list: "is not" clauses leave out the ticked status / people', () => {
+  it('“is not” clauses leave out the ticked status', () => {
     const waiting: Status = { id: 3, name: 'Waiting', color: '#fff', sortOrder: 0 }
     const todos = [makeTodo({ id: 1, statusId: 3 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
-    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada, bob] }, {
-      statuses: [waiting],
-      listDefinitions: [
-        list(1, { statusIds: [3], negate: { statusIds: true } }),
-        list(2, { personIds: [2], negate: { personIds: true } }),
-      ],
-    })
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([2, 3])
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 2 }, ctx).comingUp)).toEqual([1, 2])
+    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada, bob] }, { statuses: [waiting] })
+    expect(ids(selectCheckinTasks(ada, filter({ statusIds: [3], negate: { statusIds: true } }), ctx).comingUp)).toEqual([2, 3])
   })
 
-  it('list: a Priority No leaves out the tasks with that marker', () => {
+  it('a Priority No leaves out the tasks with that marker', () => {
     const todos = [makeTodo({ id: 1, important: true }), makeTodo({ id: 2, urgent: true }), makeTodo({ id: 3, urgent: true, important: true })]
-    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada] }, {
-      listDefinitions: [list(1, { markers: { urgent: true, important: false } })],
-    })
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([2])
-  })
-
-  it('list with a prompt: a person prompt gets this person; other prompts narrow nothing', () => {
-    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
-    const ctx = context(todos, { 1: [ada], 2: [ada, bob], 3: [bob] }, {
-      listDefinitions: [
-        list(1, { personIds: [2] }, { runtimeFilter: { field: 'person' } }),
-        list(2, {}, { runtimeFilter: { field: 'status' } }),
-      ],
-    })
-    // The prompt pick replaces the list's own person clause, as a List widget does.
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([1, 2])
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 2 }, ctx).comingUp)).toEqual([1, 2])
-  })
-
-  it('a list that no longer exists falls back to all open tasks', () => {
-    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2, important: true })]
-    const ctx = context(todos, { 1: [ada], 2: [ada] }, { listDefinitions: [list(1, { markers: { important: true } })] })
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 1 }, ctx).comingUp)).toEqual([2])
-    expect(ids(selectCheckinTasks(ada, { kind: 'list', listDefinitionId: 99 }, ctx).comingUp)).toEqual([1, 2])
+    const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada] })
+    expect(ids(selectCheckinTasks(ada, filter({ markers: { urgent: true, important: false } }), ctx).comingUp)).toEqual([2])
   })
 
   it('a person with no tasks gets empty sections', () => {

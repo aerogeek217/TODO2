@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ownerLayoutId } from '../../models/list-definition'
 import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
@@ -78,33 +79,33 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
   else open()
 }
 
-/** A list name not used by any saved list: "New list", "New list 2", … */
-function freshListName(): string {
-  const taken = new Set(useListDefinitionStore.getState().listDefinitions.map((d) => d.name.toLowerCase()))
+/** A list name layout `layoutId` doesn't use yet: "New list", "New list 2", … */
+function freshListName(layoutId: number): string {
+  const taken = new Set(useListDefinitionStore.getState().listDefinitions
+    .filter((d) => ownerLayoutId(d) === layoutId)
+    .map((d) => d.name.toLowerCase()))
   let name = 'New list'
   for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New list ${n}`
   return name
 }
 
 /**
- * "Create new list…" in a list picker: saves a blank list — a saved list,
- * or one only layout `layoutOnlyFor` shows (This layout only) —, hands its
- * id to `show` (which puts it in a tab and returns that tab's id), then
- * opens Edit list beside that tab.
+ * "Create new list…" in a list picker: saves a blank list of layout
+ * `layoutId`, hands its id to `show` (which puts it in a tab and returns
+ * that tab's id), then opens Edit list beside that tab.
  */
-export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutOnlyFor?: number): void {
-  const owner = layoutOnlyFor != null ? { layoutId: layoutOnlyFor } : undefined
-  void useListDefinitionStore.getState().add({ name: freshListName(), owner }).then((id) => {
+export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): void {
+  void useListDefinitionStore.getState().add({ name: freshListName(layoutId), owner: { layoutId } }).then((id) => {
     const tabId = show(id)
     if (tabId != null) openEditList(tabId, id)
   })
 }
 
 /**
- * The open layout as a list chooser's owner: its id once it is saved (its
- * own layout-only lists are offered, and a new list may be made for it
- * alone), `undefined` while it is a new layout an older build kept unsaved
- * (New layout stores the layout at once).
+ * The open layout as a list chooser's owner: its id once it is stored (the
+ * lists it owns are offered, and a new list is made for it), `undefined`
+ * while it is a new layout an older build kept unsaved (New layout stores
+ * the layout at once) — no list is offered or made for that one.
  */
 export function useListOwnerLayoutId(): number | undefined {
   return useWorkspaceStore((s) => s.saved?.id)

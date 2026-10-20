@@ -1,7 +1,8 @@
 import { db } from './database'
 import { readDataTables } from './export-data'
 import { DATA_TABLE_NAMES, type DataTableName } from './tables'
-import { ownerLayoutId } from '../models/list-definition'
+import { isEisenhowerOwner, ownerLayoutId } from '../models/list-definition'
+import { RECOVERED_LISTS_LAYOUT_NAME, layoutRepository } from './layout-repository'
 import {
   KNOWN_DB_TABLES,
   validateRow,
@@ -48,9 +49,10 @@ export interface AuditIssue {
    * not expose deleteObjectStore at runtime; the closest safe primitive is
    * `clear()`). The empty store remains until a future schema bump.
    * `'sanitize'` rewrites each row the way import stores it (`sanitizeRow`),
-   * dropping the malformed parts `rowFixes` names.
+   * dropping the malformed parts `rowFixes` names. `'adopt-lists'` gives
+   * lists that belong to no layout one (`layoutRepository.adoptUnownedLists`).
    */
-  fix: 'delete' | 'clear-field' | 'drop-store' | 'sanitize'
+  fix: 'delete' | 'clear-field' | 'drop-store' | 'sanitize' | 'adopt-lists'
   field?: string
   /**
    * Up to `MAX_SAMPLES_PER_ISSUE` of the offending rows for the detail popup.
@@ -430,28 +432,30 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  // --- Layout-only lists whose layout is gone ---
-  // No chooser offers such a list and no layout shows it, so nothing could
-  // reach it: cleanup makes it a saved list again (never deletes it).
+  // --- Lists that belong to no layout ---
+  // Every list belongs to a layout (or is the Eisenhower's); one without an
+  // owner, or whose layout is gone, is shown and offered nowhere. Cleanup
+  // gives each the first layout that shows it, the rest a new layout of
+  // their own — it never deletes one.
   const layoutIds = new Set(layouts.map((l) => l.id))
-  const orphanedOwned = listDefinitions.filter((d) => {
-    const layoutId = ownerLayoutId(d)
-    return layoutId !== undefined && !layoutIds.has(layoutId)
-  })
-  if (orphanedOwned.length > 0) {
+  const unowned = listDefinitions.filter((d) => !isEisenhowerOwner(d.owner) && !layoutIds.has(ownerLayoutId(d) ?? NaN))
+  if (unowned.length > 0) {
     issues.push({
       table: 'listDefinitions',
-      description: 'Layout-only lists whose layout was deleted (cleanup makes them saved lists)',
-      count: orphanedOwned.length,
-      ids: orphanedOwned.map((d) => d.id!),
-      fix: 'clear-field',
+      description: `Lists that belong to no layout (cleanup gives each the first layout that shows it, the rest a new layout “${RECOVERED_LISTS_LAYOUT_NAME}”)`,
+      count: unowned.length,
+      ids: unowned.map((d) => d.id!),
+      fix: 'adopt-lists',
       field: 'owner',
-      samples: orphanedOwned.slice(0, MAX_SAMPLES_PER_ISSUE).map((d) => ({
-        row: toSampleRow(d as unknown as Record<string, unknown>),
-        id: d.id,
-        badFields: ['owner'],
-        note: `owner layout ${String(ownerLayoutId(d))} not in layouts`,
-      })),
+      samples: unowned.slice(0, MAX_SAMPLES_PER_ISSUE).map((d) => {
+        const layoutId = ownerLayoutId(d)
+        return {
+          row: toSampleRow(d as unknown as Record<string, unknown>),
+          id: d.id,
+          badFields: ['owner'],
+          note: layoutId == null ? 'no owner' : `owner layout ${String(layoutId)} not in layouts`,
+        }
+      }),
     })
   }
 
@@ -521,6 +525,8 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
           if (row !== undefined) await table.put(sanitizeRow(key, row))
         }
         cleaned += issue.count
+      } else if (issue.fix === 'adopt-lists') {
+        cleaned += await layoutRepository.adoptUnownedLists(issue.ids)
       } else if (issue.fix === 'clear-field' && issue.field) {
         const table = db.table(issue.table)
         for (const id of issue.ids) {

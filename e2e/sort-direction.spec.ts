@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { rowTitles } from './fixtures/seed'
 
@@ -140,21 +140,6 @@ test.describe('desktop', () => {
     await expect.poll(() => rowTitles(dialog)).toEqual(DESCENDING)
   })
 
-  test('Settings › Lists: the same toggle beside Sort by; Save list writes the direction', async ({ page }) => {
-    await seedWorkspace(page, seed({ name: 'Team', sort: 'name' }))
-    const settings = await openSettings(page, 'People, statuses & tags')
-    await settings.getByRole('button', { name: 'Manage lists…' }).click()
-    await page.getByRole('dialog', { name: 'Lists', exact: true }).getByTitle('Edit list').first().click()
-    const editor = page.getByRole('dialog', { name: /Edit list:/ })
-    const arrow = editor.getByRole('button', { name: 'Sort descending' })
-    await expect(arrow).toHaveAttribute('aria-pressed', 'false')
-    await arrow.click()
-    await expect(arrow).toHaveAttribute('aria-pressed', 'true')
-    await expect(editor.locator('[data-changed]')).toHaveText(['Sort by'])
-    await editor.getByRole('button', { name: 'Save list' }).click()
-    await expect(editor).toHaveCount(0)
-    await expect.poll(async () => (await readListDefinitions(page))[0]).toMatchObject({ sort: 'name', sortDirection: 'desc' })
-  })
 })
 
 test.describe('phone', () => {

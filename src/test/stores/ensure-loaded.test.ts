@@ -104,11 +104,11 @@ describe('a store whose first load fails', () => {
       count: () => useStatusStore.getState().statuses.length,
     },
     {
-      name: 'saved lists',
+      name: 'lists',
       repo: listDefinitionRepository as object, key: 'getAll',
       ensure: () => useListDefinitionStore.getState().ensureLoaded(),
       seed: async () => {
-        await useListDefinitionStore.getState().add({ name: 'L' })
+        await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'L' })
         useListDefinitionStore.setState(useListDefinitionStore.getInitialState(), true)
       },
       count: () => useListDefinitionStore.getState().listDefinitions.length,

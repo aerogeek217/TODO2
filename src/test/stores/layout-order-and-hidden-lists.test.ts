@@ -137,18 +137,6 @@ describe('workspace store: the layout order', () => {
 })
 
 describe('list store: hidden lists', () => {
-  it('reorder moves among the lists Settings › Lists shows; hidden lists keep their order after them', async () => {
-    await db.listDefinitions.bulkAdd([
-      list('A', { sortOrder: 0 }), list('Hidden', { sortOrder: 1, owner: { layoutId: 1 } }),
-      list('B', { sortOrder: 2 }), list('Eis', { sortOrder: 3, owner: { eisenhower: true } }), list('C', { sortOrder: 4 }),
-    ])
-    await useListDefinitionStore.getState().load()
-    // Settings › Lists shows A, B, C: move C (index 2) to the top.
-    await useListDefinitionStore.getState().reorder(2, 0)
-    const byOrder = (await db.listDefinitions.orderBy('sortOrder').toArray()).map((d) => d.name)
-    expect(byOrder).toEqual(['C', 'A', 'B', 'Hidden', 'Eis'])
-  })
-
   it('ensureEisenhowerList makes the list, loads it and points the setting at it', async () => {
     useSettingsStore.setState({ eisenhowerListId: null })
     const id = await useListDefinitionStore.getState().ensureEisenhowerList()

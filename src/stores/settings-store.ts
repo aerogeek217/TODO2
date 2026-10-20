@@ -22,13 +22,27 @@ import {
 import { DEFAULT_HOT_RULE, formatHotRule, normalizeHotRule, parseHotRule, type HotRule } from '../utils/hot'
 import {
   DEFAULT_CHECKIN_OPEN_METHOD,
-  DEFAULT_CHECKIN_TASK_SCOPE,
-  formatCheckinTaskScope,
+  checkinFilterOf,
   isCheckinOpenMethod,
-  parseCheckinTaskScope,
+  isNoCheckinFilter,
   type CheckinOpenMethod,
-  type CheckinTaskScope,
+  type CheckinTaskFilter,
 } from '../utils/checkin-settings'
+import { emptyPredicate } from '../models/filter-predicate'
+import {
+  isTodoGroupBy,
+  isTodoSortBy,
+  sortHasDirection,
+  type TodoGroupBy,
+  type TodoSortBy,
+  type TodoSortDirection,
+} from '../models/todo-sort-group'
+import {
+  DEFAULT_PURGE_PROMPT_INTERVAL_DAYS,
+  isPurgePromptIntervalDays,
+  parsePurgePromptIntervalDays,
+} from '../utils/completed-at'
+import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -71,10 +85,20 @@ interface SettingsState {
   /** How a check-in email opens in the mail app. */
   checkinOpenMethod: CheckinOpenMethod
   /**
-   * Which open tasks a check-in covers, as stored. A `list` scope may name a
-   * list that no longer exists: read it through `resolveCheckinTaskScope`.
+   * Which of a person's open tasks a check-in covers: a list filter without
+   * people (`checkinFilterOf`); `emptyPredicate()` = all of them.
    */
-  checkinTaskScope: CheckinTaskScope
+  checkinTaskFilter: CheckinTaskFilter
+  /** What a new blank list sorts by. */
+  newListSort: TodoSortBy
+  /** Which way a new blank list sorts (`asc` for a sort without a direction). */
+  newListSortDirection: TodoSortDirection
+  /** What a new blank list groups by. */
+  newListGroup: TodoGroupBy
+  /** The fewest days between two launch prompts about deleting old completed tasks. */
+  purgePromptIntervalDays: number
+  /** When that launch prompt last showed; `null` = never. */
+  purgePromptLastAt: Date | null
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
   /**
@@ -108,7 +132,19 @@ interface SettingsState {
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
   setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
-  setCheckinTaskScope: (scope: CheckinTaskScope) => Promise<void>
+  /** Remembers the check-in filter (kept without people; no filter = the row removed); shown at once, put back when the save fails. */
+  setCheckinTaskFilter: (filter: CheckinTaskFilter) => Promise<void>
+  /**
+   * What new blank lists sort by, and which way (`desc` is kept only for a
+   * sort with a direction); stored only when not the default (Manual, `asc`).
+   */
+  setNewListSort: (sort: TodoSortBy, direction?: TodoSortDirection) => Promise<void>
+  /** What new blank lists group by; stored only when not the default (none). */
+  setNewListGroup: (group: TodoGroupBy) => Promise<void>
+  /** The fewest days between two purge prompts (1–365; anything else is ignored); stored only when not 7. */
+  setPurgePromptIntervalDays: (days: number) => Promise<void>
+  /** Records that the purge prompt showed at `at` (an internal stamp: no undo step, no notice). */
+  setPurgePromptLastAt: (at: Date) => Promise<void>
   /**
    * Gives `id` new keys. Resolves the reason when they are refused (a
    * reserved key, or another binding's — nothing is written), else null.
@@ -267,7 +303,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
-  checkinTaskScope: DEFAULT_CHECKIN_TASK_SCOPE,
+  checkinTaskFilter: emptyPredicate(),
+  newListSort: 'manual' as TodoSortBy,
+  newListSortDirection: 'asc' as TodoSortDirection,
+  newListGroup: 'none' as TodoGroupBy,
+  purgePromptIntervalDays: DEFAULT_PURGE_PROMPT_INTERVAL_DAYS,
+  purgePromptLastAt: null,
   shortcutOverrides: {},
   eisenhowerPanes: NO_PANES,
   eisenhowerListId: null,
@@ -291,7 +332,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
-      let checkinTaskScope: CheckinTaskScope = DEFAULT_CHECKIN_TASK_SCOPE
+      let checkinTaskFilter: CheckinTaskFilter = emptyPredicate()
+      let newListSort: TodoSortBy = 'manual'
+      let newListSortDirection: TodoSortDirection = 'asc'
+      let newListGroup: TodoGroupBy = 'none'
+      let purgePromptIntervalDays = DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
+      let purgePromptLastAt: Date | null = null
       let shortcutOverrides: ShortcutOverrides = {}
       let eisenhowerPanes: EisenhowerPanes = NO_PANES
       let eisenhowerListId: number | null = null
@@ -327,8 +373,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           hotRule = parseHotRule(row.value) ?? DEFAULT_HOT_RULE
         } else if (row.key === SETTING_KEYS.checkinOpenMethod) {
           if (isCheckinOpenMethod(row.value)) checkinOpenMethod = row.value
-        } else if (row.key === SETTING_KEYS.checkinTaskScope) {
-          checkinTaskScope = parseCheckinTaskScope(row.value) ?? DEFAULT_CHECKIN_TASK_SCOPE
+        } else if (row.key === SETTING_KEYS.checkinTaskFilter) {
+          checkinTaskFilter = readCheckinFilterSetting(row.value).filter
+        } else if (row.key === SETTING_KEYS.newListSort) {
+          if (isTodoSortBy(row.value)) newListSort = row.value
+        } else if (row.key === SETTING_KEYS.newListSortDirection) {
+          if (row.value === 'desc') newListSortDirection = 'desc'
+        } else if (row.key === SETTING_KEYS.newListGroup) {
+          if (isTodoGroupBy(row.value)) newListGroup = row.value
+        } else if (row.key === SETTING_KEYS.purgePromptIntervalDays) {
+          purgePromptIntervalDays = parsePurgePromptIntervalDays(row.value) ?? DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
+        } else if (row.key === SETTING_KEYS.purgePromptLastAt) {
+          const at = new Date(row.value)
+          purgePromptLastAt = Number.isNaN(at.getTime()) ? null : at
         } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
           shortcutOverrides = readShortcutOverrides(row.value).overrides
         } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
@@ -338,7 +395,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, followupDefaultInterval, newTaskFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskScope, shortcutOverrides, eisenhowerPanes, eisenhowerListId })
+      // A direction only for a sort that has one.
+      if (!sortHasDirection(newListSort)) newListSortDirection = 'asc'
+      set({
+        colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
+        followupDefaultInterval, newTaskFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
+        newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt,
+        shortcutOverrides, eisenhowerPanes, eisenhowerListId,
+      })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -484,18 +548,79 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 
-  setCheckinTaskScope(scope: CheckinTaskScope) {
+  setCheckinTaskFilter(filter: CheckinTaskFilter) {
     return trackWrite(async () => {
-      const value = formatCheckinTaskScope(scope)
-      const parsed = parseCheckinTaskScope(value)
-      if (!parsed) return
-      const prev = get().checkinTaskScope
-      set({ checkinTaskScope: parsed })
+      const next = checkinFilterOf(filter)
+      const prev = get().checkinTaskFilter
+      set({ checkinTaskFilter: next })
       try {
-        await settingsRepository.put(SETTING_KEYS.checkinTaskScope, value)
+        // Stored only when it narrows: absent = all open tasks.
+        if (isNoCheckinFilter(next)) await settingsRepository.delete(SETTING_KEYS.checkinTaskFilter)
+        else await settingsRepository.put(SETTING_KEYS.checkinTaskFilter, formatCheckinFilterSetting(next))
       } catch (e) {
-        console.error('Failed to save the check-in task scope:', e)
-        set({ checkinTaskScope: prev })
+        console.error('Failed to save the check-in filter:', e)
+        set({ checkinTaskFilter: prev })
+      }
+    })
+  },
+
+  setNewListSort(sort: TodoSortBy, direction: TodoSortDirection = 'asc') {
+    return trackWrite(async () => {
+      if (!isTodoSortBy(sort)) return
+      const dir: TodoSortDirection = direction === 'desc' && sortHasDirection(sort) ? 'desc' : 'asc'
+      const prev = { newListSort: get().newListSort, newListSortDirection: get().newListSortDirection }
+      set({ newListSort: sort, newListSortDirection: dir })
+      try {
+        if (sort === 'manual') await settingsRepository.delete(SETTING_KEYS.newListSort)
+        else await settingsRepository.put(SETTING_KEYS.newListSort, sort)
+        if (dir === 'asc') await settingsRepository.delete(SETTING_KEYS.newListSortDirection)
+        else await settingsRepository.put(SETTING_KEYS.newListSortDirection, dir)
+      } catch (e) {
+        console.error('Failed to save the new-list sort:', e)
+        set(prev)
+      }
+    })
+  },
+
+  setNewListGroup(group: TodoGroupBy) {
+    return trackWrite(async () => {
+      if (!isTodoGroupBy(group)) return
+      const prev = get().newListGroup
+      set({ newListGroup: group })
+      try {
+        if (group === 'none') await settingsRepository.delete(SETTING_KEYS.newListGroup)
+        else await settingsRepository.put(SETTING_KEYS.newListGroup, group)
+      } catch (e) {
+        console.error('Failed to save the new-list grouping:', e)
+        set({ newListGroup: prev })
+      }
+    })
+  },
+
+  setPurgePromptIntervalDays(days: number) {
+    return trackWrite(async () => {
+      if (!isPurgePromptIntervalDays(days)) return
+      const prev = get().purgePromptIntervalDays
+      set({ purgePromptIntervalDays: days })
+      try {
+        if (days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS) await settingsRepository.delete(SETTING_KEYS.purgePromptIntervalDays)
+        else await settingsRepository.put(SETTING_KEYS.purgePromptIntervalDays, String(days))
+      } catch (e) {
+        console.error('Failed to save the purge prompt interval:', e)
+        set({ purgePromptIntervalDays: prev })
+      }
+    })
+  },
+
+  setPurgePromptLastAt(at: Date) {
+    return trackWrite(async () => {
+      if (Number.isNaN(at.getTime())) return
+      set({ purgePromptLastAt: new Date(at.getTime()) })
+      try {
+        await settingsRepository.put(SETTING_KEYS.purgePromptLastAt, at.toISOString())
+      } catch (e) {
+        // Only the stamp: the next launch may ask again sooner.
+        console.error('Failed to record when the purge prompt showed:', e)
       }
     })
   },

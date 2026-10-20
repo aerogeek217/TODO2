@@ -280,12 +280,22 @@ test('the first load over a v49 install upgrades the browser, asks before upgrad
   expect(upgraded.stores.todos!.find((t) => t.title === LONG.title)?.notes).toBe(LONG.notes)
   expect(upgraded.stores.notes!.map((n) => n.content)).toContain(LONG.note)
   for (const t of upgraded.stores.todos!) expect(typeof t.uid, `todo ${String(t.id)} uid`).toBe('string')
-  expect(upgraded.stores.layouts).toHaveLength(1)
-  // The layout is numbered; the Eisenhower (on all tasks) has a list of its own, which its setting names.
-  expect(upgraded.stores.layouts![0]!.sortOrder).toBe(0)
+  // The layouts are numbered: the Default layout, then "Lists from upgrade" for the lists the Default layout doesn't show.
+  expect(upgraded.stores.layouts!.map((l) => [l.name, l.sortOrder])).toEqual([['Default', 0], ['Lists from upgrade', 1]])
+  // The Eisenhower (on all tasks) has a list of its own, which its setting names.
   const eisenhowerLists = (upgraded.stores.listDefinitions ?? []).filter((l) => JSON.stringify(l.owner) === '{"eisenhower":true}')
   expect(eisenhowerLists.map((l) => l.name)).toEqual(['Eisenhower'])
   expect((upgraded.stores.settings ?? []).find((r) => r.key === 'eisenhowerSource')?.value).toBe(`list:${String(eisenhowerLists[0]?.id)}`)
+  // Every other list belongs to a layout: the Default layout's to it, the rest to "Lists from upgrade", which shows them.
+  const layoutIds = new Map(upgraded.stores.layouts!.map((l) => [l.name, l.id]))
+  const ownerOf = (l: Row) => (l.owner as { layoutId?: unknown } | undefined)?.layoutId
+  const others = (upgraded.stores.listDefinitions ?? []).filter((l) => !eisenhowerLists.includes(l))
+  for (const l of others) expect([...layoutIds.values()], `${String(l.name)} owner`).toContain(ownerOf(l))
+  const fromUpgrade = others.filter((l) => ownerOf(l) === layoutIds.get('Lists from upgrade')).map((l) => l.name)
+  expect(fromUpgrade).toEqual([LONG.list, 'Acme next 30 days'])
+  const upgradeTabs = JSON.stringify(upgraded.stores.layouts!.find((l) => l.name === 'Lists from upgrade')?.columns)
+  for (const l of others.filter((o) => fromUpgrade.includes(o.name as string))) expect(upgradeTabs).toContain(`"listDefinitionId":${String(l.id)}`)
+  expect((upgraded.stores.settings ?? []).some((r) => r.key === 'checkinTaskScope')).toBe(false)
   // The app background overrides kept their colours under the new name.
   const colours = Object.fromEntries((upgraded.stores.settings ?? []).filter((r) => String(r.key).startsWith('color.')).map((r) => [r.key, r.value]))
   expect(colours).toEqual({

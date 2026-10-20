@@ -67,14 +67,14 @@ function dashboardTabOf(layout: WorkspaceLayout | null, tabId: string): Dashboar
 
 export interface CustomizeDashboardDialogProps {
   tabId: string
-  /** Opened from "+ Add list tile": the list tiles in view, "Add a saved list" focused. */
+  /** Opened from "+ Add list tile": the list tiles in view, "Add a list" focused. */
   focusListTiles?: boolean
   onClose: () => void
 }
 
 /**
  * Customize dashboard (a standard dialog, 800 wide): tiles (show + reorder), list
- * tiles (add a saved list, remove, reorder) and sections (show, reorder,
+ * tiles (add a list of the layout, remove, reorder) and sections (show, reorder,
  * their options). Every change is written to the tab's config at once — it
  * shows behind the dialog and makes the layout unsaved (Save / Discard is
  * the undo). Reorder by dragging a row's grip, or from the keyboard: focus
@@ -96,6 +96,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
   const today = useToday()
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const savedDefs = useListDefinitionStore((s) => s.listDefinitions)
+  const layoutId = useWorkspaceStore((s) => s.saved?.id)
   const drafts = useListDraftStore((s) => s.drafts)
   const hints = useListTileHints()
   const titleId = useId()
@@ -126,7 +127,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
     update(next, { sections: sectionsFor(next, shownSections) })
   }
 
-  // Opened from "+ Add list tile": "Add a saved list" takes the focus, in view.
+  // Opened from "+ Add list tile": "Add a list" takes the focus, in view.
   const initialFocus = focusListTiles ? addListRef : 'panel'
   useEffect(() => {
     if (focusListTiles) addListRef.current?.scrollIntoView?.({ block: 'nearest' })
@@ -135,9 +136,9 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
   const draggingRef = useLatestRef(dragging)
   const escapeBelongsElsewhere = useCallback(() => draggingRef.current, [draggingRef])
 
-  const offered = listedLists(defs)
+  const offered = listedLists(defs, layoutId)
   const addListEntries: MenuEntry[] = offered.length === 0
-    ? [{ kind: 'item', label: 'No saved lists yet', disabled: true }]
+    ? [{ kind: 'item', label: 'No lists in this layout yet', disabled: true }]
     : offered.map((d) => {
       const added = listTiles.includes(d.id)
       const eligible = isListTileEligible(d)
@@ -198,7 +199,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
             )}
           />
 
-          <GroupHead label="List tiles" hint="Saved list count · its filters + screen filter" />
+          <GroupHead label="List tiles" hint="List count · its filters + screen filter" />
           {listTiles.length === 0 && <p className={styles.empty}>No list tiles yet.</p>}
           <SortableGroup
             group="list"
@@ -241,7 +242,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
             onClick={() => setAddListOpen((o) => !o)}
           >
             <DashGlyph name="plus" size={12} strokeWidth={2} />
-            Add a saved list
+            Add a list
             <DashGlyph name="chevron" size={12} />
           </button>
           {addListOpen && (
@@ -249,7 +250,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
               anchorRef={addListRef}
               placement="right-start"
               width={260}
-              label="Saved lists"
+              label="Lists"
               entries={addListEntries}
               onClose={() => setAddListOpen(false)}
             />

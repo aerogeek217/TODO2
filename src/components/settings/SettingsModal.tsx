@@ -23,8 +23,7 @@ export function SettingsModal() {
 /** Overlays that sit above the modal and own Esc while open. */
 function anotherLayerIsOpen(): boolean {
   const ui = useUIStore.getState()
-  return ui.listsEditorOpen
-    || ui.bulkConfirmation != null
+  return ui.bulkConfirmation != null
     || ui.confirmPrompts.length > 0
     || ui.quickAddOpen
     || ui.editPopupMode != null

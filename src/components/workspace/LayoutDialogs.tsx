@@ -78,7 +78,7 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
 
 interface DeleteLayoutDialogProps {
   layoutName: string
-  /** How many layout-only lists go with it. */
+  /** How many of its lists go with it. */
   ownedLists?: number
   onConfirm: () => void
   onCancel: () => void

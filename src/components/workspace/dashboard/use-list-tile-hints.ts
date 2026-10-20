@@ -6,7 +6,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { filterChips } from '../../../utils/filter-chips'
 import { listTileHint } from './dashboard-copy'
 
-/** Each saved list's filters in a few words (`Status: Waiting`, `@Priya`), by list id. */
+/** Each list's filters in a few words (`Status: Waiting`, `@Priya`), by list id. */
 export function useListTileHints(): ReadonlyMap<number, string> {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
   const people = usePersonStore((s) => s.people)

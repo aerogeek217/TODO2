@@ -148,10 +148,10 @@ describe('CustomizeDashboardDialog', () => {
     ])
   })
 
-  it('Add a saved list: lists that ask for a value are disabled with why; a pick adds a list tile', () => {
+  it('Add a list: lists that ask for a value are disabled with why; a pick adds a list tile', () => {
     setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Add a saved list' }))
-    const menu = screen.getByRole('menu', { name: 'Saved lists' })
+    fireEvent.click(screen.getByRole('button', { name: 'Add a list' }))
+    const menu = screen.getByRole('menu', { name: 'Lists' })
     const prompted = within(menu).getByRole('menuitem', { name: /Tasks for…/ })
     expect((prompted as HTMLButtonElement).disabled).toBe(true)
     expect(prompted.getAttribute('title')).toBe(PROMPTED_LIST_TILE_NOTE)
@@ -161,8 +161,8 @@ describe('CustomizeDashboardDialog', () => {
     expect(group('List tiles').textContent).toContain('Status: Waiting')
 
     // An added list shows as added.
-    fireEvent.click(screen.getByRole('button', { name: 'Add a saved list' }))
-    const again = within(screen.getByRole('menu', { name: 'Saved lists' })).getByRole('menuitem', { name: /Waiting on/ })
+    fireEvent.click(screen.getByRole('button', { name: 'Add a list' }))
+    const again = within(screen.getByRole('menu', { name: 'Lists' })).getByRole('menuitem', { name: /Waiting on/ })
     expect((again as HTMLButtonElement).disabled).toBe(true)
     expect(again.textContent).toContain('Added')
   })
@@ -178,8 +178,8 @@ describe('CustomizeDashboardDialog', () => {
     seed({ ...defaultDashboardConfig(), listTiles: [99, 2] })
     setup()
     expect(rowIds('List tiles')).toEqual(['list:2'])
-    fireEvent.click(screen.getByRole('button', { name: 'Add a saved list' }))
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Saved lists' })).getByRole('menuitem', { name: /Errands/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add a list' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Lists' })).getByRole('menuitem', { name: /Errands/ }))
     expect(tabConfig().listTiles).toEqual([2, 4])
   })
 
@@ -206,9 +206,9 @@ describe('CustomizeDashboardDialog', () => {
     expect(tabConfig().tiles).toContain('dueToday')
   })
 
-  it('opened from “+ Add list tile”, Add a saved list has the focus', () => {
+  it('opened from “+ Add list tile”, Add a list has the focus', () => {
     setup({ focusListTiles: true })
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add a saved list' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add a list' }))
   })
 
   it('closes itself when its tab is gone', () => {

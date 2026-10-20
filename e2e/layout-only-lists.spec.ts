@@ -3,17 +3,16 @@ import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, 
 import { readStore } from './fixtures/db'
 
 /**
- * Layout-only lists in a real browser: the list picker's This layout only
- * makes a list only that layout shows — not in Settings › Lists, not in
- * another layout's Change list, in its own layout's (marked This layout);
- * Save as gives the new layout a copy that edits on its own; Delete layout
- * takes its lists with it (the confirm says so); a closed tab's list goes
- * when the layout is saved, Discard keeps it; the tab menu's Save to my
- * lists makes it a saved list.
+ * A layout's lists in a real browser: the list picker's Create new list…
+ * makes a list of the open layout — offered by its Change list, not by
+ * another layout's; Settings has no Lists; Save as gives the new layout
+ * copies that edit on their own; Delete layout takes its lists with it (the
+ * confirm says so); a closed tab's list goes when the layout is saved,
+ * Discard keeps it; the tab menu has no Save to my lists.
  */
 
 const SEED: WorkspaceSeed = {
-  listDefinitions: [{ name: 'Shared' }, { name: 'Mine', layoutIdx: 0 }],
+  listDefinitions: [{ name: 'Shared', layoutIdx: 0 }, { name: 'Mine', layoutIdx: 0 }, { name: 'Theirs', layoutIdx: 1 }],
   tasks: [{ title: 'Call the plumber' }, { title: 'Book flights' }],
   layouts: [
     {
@@ -23,7 +22,7 @@ const SEED: WorkspaceSeed = {
         { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }] }] },
       ],
     },
-    { name: 'Second', columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 0 }] }] }] },
+    { name: 'Second', columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 2 }] }] }] },
   ],
 }
 
@@ -53,32 +52,18 @@ async function changeListChoices(page: Page, tabId: string): Promise<string[]> {
   return names
 }
 
-/** Settings › Lists lists (or doesn't list) each of `names`. */
-async function expectInSettingsLists(page: Page, names: Record<string, boolean>): Promise<void> {
-  const settings = await openSettings(page, 'People, statuses & tags')
-  await settings.getByRole('button', { name: 'Manage lists…' }).click()
-  const manager = page.getByRole('dialog', { name: 'Lists', exact: true })
-  await expect(manager).toBeVisible()
-  for (const [name, listed] of Object.entries(names)) {
-    await expect(manager.getByText(name, { exact: true })).toHaveCount(listed ? 1 : 0)
-  }
-  await page.keyboard.press('Escape')
-  await expect(manager).toHaveCount(0)
-  await settings.getByRole('button', { name: 'Close settings' }).click()
-}
-
 const filterLine = (scope: Locator) => scope.getByTestId('list-filter-row')
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('This layout only: the new list only its layout offers; not in Settings › Lists', async ({ page }) => {
+test('Create new list: the new list is the open layout’s, offered only there; Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsCell(page, 'b1').getByRole('button', { name: 'Add widget as tab' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
-  // Saved list first; the layout's own list is offered, marked.
-  await expect(page.getByRole('radio', { name: 'Saved list' })).toBeChecked()
-  await expect(page.getByRole('button', { name: /^Mine\s*This layout/ })).toBeVisible()
-  await page.getByRole('radio', { name: 'This layout only' }).check()
+  // Only the layout's own lists, no Saved list / This layout only choice.
+  await expect(page.getByRole('button', { name: /^Mine/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Theirs/ })).toHaveCount(0)
+  await expect(page.getByRole('radio')).toHaveCount(0)
   await page.getByRole('button', { name: /Create new list/ }).click()
   const editor = page.getByRole('dialog', { name: 'Edit list New list' })
   await expect(editor).toBeVisible()
@@ -89,13 +74,16 @@ test('This layout only: the new list only its layout offers; not in Settings ›
   await page.getByTestId('layout-save').click()
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
-  await expectInSettingsLists(page, { Shared: true, Errands: false, Mine: false })
   expect(await changeListChoices(page, 'sharedTab')).toEqual(['Shared', 'Mine', 'Errands'])
   await switchLayout(page, 'Second')
-  expect(await changeListChoices(page, 'otherTab')).toEqual(['Shared'])
+  expect(await changeListChoices(page, 'otherTab')).toEqual(['Theirs'])
+
+  const settings = await openSettings(page, 'People, statuses & tags')
+  await expect(settings.getByRole('button', { name: 'Manage people…' })).toBeVisible()
+  await expect(settings.getByRole('button', { name: 'Manage lists…' })).toHaveCount(0)
 })
 
-test('Save as: the new layout shows a copy of its own list that edits on its own', async ({ page }) => {
+test('Save as: the new layout shows copies of its lists that edit on their own', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const mine = (await lists(page)).find((d) => d.name === 'Mine')!
   await layoutMenu(page, 'Save as new layout…')
@@ -128,17 +116,18 @@ test('Save as: the new layout shows a copy of its own list that edits on its own
   await expect(wsCell(page, 'a1').locator('[data-row-key]').filter({ hasText: 'Book flights' })).toBeVisible()
 })
 
-test('Delete layout takes its own lists with it; the confirm says so', async ({ page }) => {
+test('Delete layout takes its lists with it; the confirm says so', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const mine = (await lists(page)).find((d) => d.name === 'Mine')!
   await layoutMenu(page, 'Delete layout…')
   const confirm = page.getByRole('dialog', { name: 'Delete layout “Main”?' })
-  await expect(confirm).toContainText('The layout and its layout-only list are removed. This can’t be undone.')
+  await expect(confirm).toContainText('The layout and its 2 lists are removed. This can’t be undone.')
   await confirm.getByRole('button', { name: 'Delete layout' }).click()
   await expectOpenLayout(page, 'Second')
   await expect.poll(async () => (await lists(page)).some((d) => d.id === mine.id)).toBe(false)
-  // A saved list stays.
-  expect((await lists(page)).some((d) => d.name === 'Shared')).toBe(true)
+  expect((await lists(page)).some((d) => d.name === 'Shared')).toBe(false)
+  // Another layout's list stays.
+  expect((await lists(page)).some((d) => d.name === 'Theirs')).toBe(true)
 })
 
 test('a closed tab’s list goes when the layout is saved; Discard keeps it', async ({ page }) => {
@@ -157,19 +146,10 @@ test('a closed tab’s list goes when the layout is saved; Discard keeps it', as
   await expect.poll(async () => (await lists(page)).some((d) => d.id === mine.id)).toBe(false)
 })
 
-test('Save to my lists: listed in Settings › Lists and every layout’s Change list; Undo puts it back', async ({ page }) => {
+test('the tab menu has no Save to my lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  const mine = (await lists(page)).find((d) => d.name === 'Mine')!
   await wsTab(page, 'mineTab').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Save to my lists' }).click()
-  await expect.poll(async () => (await lists(page)).find((d) => d.id === mine.id)?.owner).toBeUndefined()
-  const snackbar = page.locator('[data-keeps-selection]').filter({ hasText: 'Undo' })
-  await expect(snackbar).toContainText('Saved “Mine” to my lists')
-  // A saved list now: no Save to my lists.
-  await wsTab(page, 'mineTab').click({ button: 'right' })
-  await expect(page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Save to my lists' })).toHaveCount(0)
-  await page.keyboard.press('Escape')
-  await expectInSettingsLists(page, { Shared: true, Mine: true })
-  await switchLayout(page, 'Second')
-  expect(await changeListChoices(page, 'otherTab')).toEqual(['Shared', 'Mine'])
+  const menu = page.getByRole('menu', { name: 'Change widget' })
+  await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'Save to my lists' })).toHaveCount(0)
 })

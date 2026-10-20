@@ -16,6 +16,7 @@ import { upgradeV64 } from './upgrades/v64-date-filters-and-caps'
 import { upgradeV65 } from './upgrades/v65-is-not-and-eisenhower-list'
 import { upgradeV66 } from './upgrades/v66-eisenhower-settings'
 import { upgradeV67 } from './upgrades/v67-layout-order-and-eisenhower-list'
+import { upgradeV68 } from './upgrades/v68-lists-in-layouts-and-checkin-filter'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -89,6 +90,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [65, upgradeV65],
   [66, upgradeV66],
   [67, upgradeV67],
+  [68, upgradeV68],
 ])
 
 /**

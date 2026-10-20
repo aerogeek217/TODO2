@@ -13,18 +13,14 @@ const labels = (entries: ReturnType<typeof listChoiceEntries>) =>
 
 describe('listChoiceEntries (Change list)', () => {
   const defs = [
-    def(2, 'B'), def(1, 'A'), def(3, 'Layout only', { layoutId: 1 }),
+    def(2, 'B', { layoutId: 1 }), def(1, 'A', { layoutId: 1 }), def(6, 'No owner'),
     def(5, 'Other layout', { layoutId: 2 }), def(4, 'Eisenhower', { eisenhower: true }),
   ]
 
-  it('offers the saved lists in their order, never a hidden one', () => {
-    expect(labels(listChoiceEntries(defs, vi.fn()))).toEqual(['A', 'B'])
-  })
-
-  it('in a saved layout: its own lists too, marked, never another layout’s or the Eisenhower’s', () => {
+  it('offers the lists of the tab’s layout in their order, never another layout’s, the Eisenhower’s or one without an owner', () => {
     const entries = listChoiceEntries(defs, vi.fn(), 1)
-    expect(labels(entries)).toEqual(['A', 'B', 'Layout only'])
-    expect(entries.map((e) => ('note' in e ? e.note : undefined))).toEqual([undefined, undefined, 'This layout'])
+    expect(labels(entries)).toEqual(['A', 'B'])
+    expect(entries.map((e) => ('note' in e ? e.note : undefined))).toEqual([undefined, undefined])
   })
 
   it('a pick names its list', () => {
@@ -34,7 +30,8 @@ describe('listChoiceEntries (Change list)', () => {
     expect(onPick).toHaveBeenCalledWith(1)
   })
 
-  it('only hidden lists: no choice', () => {
-    expect(labels(listChoiceEntries([defs[2]!, defs[4]!], vi.fn()))).toEqual(['No lists yet.'])
+  it('no list of the layout (or no stored layout): no choice', () => {
+    expect(labels(listChoiceEntries(defs, vi.fn(), 3))).toEqual(['No lists yet.'])
+    expect(labels(listChoiceEntries(defs, vi.fn(), undefined))).toEqual(['No lists yet.'])
   })
 })

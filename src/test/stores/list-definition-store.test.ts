@@ -4,7 +4,6 @@ import { listDefinitionRepository } from '../../data/list-definition-repository'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { buildList } from '../../services/build-list'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
@@ -15,7 +14,6 @@ beforeEach(async () => {
   await db.open()
   useListDefinitionStore.setState({ listDefinitions: [] })
   useUndoStore.setState({ undoStack: [], redoStack: [] } as never)
-  useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
 })
 
 describe('useListDefinitionStore load', () => {
@@ -47,7 +45,7 @@ describe('useListDefinitionStore load', () => {
 
 describe('useListDefinitionStore mutations', () => {
   it('add inserts a custom list with sort-order appended and persists', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'My list' })
+    const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'My list' })
     expect(id).toBeGreaterThan(0)
     const defs = useListDefinitionStore.getState().listDefinitions
     expect(defs).toHaveLength(1)
@@ -67,75 +65,12 @@ describe('useListDefinitionStore mutations', () => {
   })
 
   it('add assigns incrementing sortOrder', async () => {
-    await useListDefinitionStore.getState().add({ name: 'A' })
-    await useListDefinitionStore.getState().add({ name: 'B' })
-    await useListDefinitionStore.getState().add({ name: 'C' })
+    await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'A' })
+    await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'B' })
+    await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'C' })
     const sorted = [...useListDefinitionStore.getState().listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
     expect(sorted.map(d => d.name)).toEqual(['A', 'B', 'C'])
     expect(sorted.map(d => d.sortOrder)).toEqual([0, 1, 2])
-  })
-
-  it('remove deletes and supports undo', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Going away' })
-    await useListDefinitionStore.getState().remove(id)
-    expect(useListDefinitionStore.getState().listDefinitions).toHaveLength(0)
-    expect(await listDefinitionRepository.getById(id)).toBeUndefined()
-
-    // Undo
-    await useUndoStore.getState().undo()
-    const after = useListDefinitionStore.getState().listDefinitions
-    expect(after).toHaveLength(1)
-    expect(after[0]!.name).toBe('Going away')
-  })
-
-  it('remove clears a check-in scope on that list; undo brings it back, redo clears it again', async () => {
-    const id = await useListDefinitionStore.getState().add({ name: 'Check-in list' })
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
-
-    await useListDefinitionStore.getState().remove(id)
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
-    expect((await db.settings.get('checkinTaskScope'))?.value).toBe('all')
-
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: id })
-    expect((await db.settings.get('checkinTaskScope'))?.value).toBe(`list:${id}`)
-
-    await useUndoStore.getState().redo()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
-  })
-
-  it('remove leaves a check-in scope on another list alone; undo keeps a scope changed since', async () => {
-    const keep = await useListDefinitionStore.getState().add({ name: 'Keep' })
-    const gone = await useListDefinitionStore.getState().add({ name: 'Gone' })
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: keep })
-    await useListDefinitionStore.getState().remove(gone)
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: keep })
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: keep })
-
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: gone })
-    await useListDefinitionStore.getState().remove(gone)
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'hot' })
-    await useUndoStore.getState().undo()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'hot' })
-  })
-
-  it('reorder swaps sortOrder and persists', async () => {
-    const a = await useListDefinitionStore.getState().add({ name: 'A' })
-    const b = await useListDefinitionStore.getState().add({ name: 'B' })
-    const c = await useListDefinitionStore.getState().add({ name: 'C' })
-    await useListDefinitionStore.getState().reorder(0, 2) // A → end
-    const order = useListDefinitionStore.getState().listDefinitions
-      .slice()
-      .sort((x, y) => x.sortOrder - y.sortOrder)
-      .map(d => d.id)
-    expect(order).toEqual([b, c, a])
-
-    // Persisted
-    useListDefinitionStore.setState({ listDefinitions: [] })
-    await useListDefinitionStore.getState().load()
-    const reloaded = useListDefinitionStore.getState().listDefinitions.map(d => d.id)
-    expect(reloaded).toEqual([b, c, a])
   })
 })
 
@@ -147,7 +82,7 @@ describe('Save-as-preset round-trip', () => {
     }
     const predicate: TodoPredicate = criteriaToPredicate(original)
 
-    const id = await useListDefinitionStore.getState().add({
+    const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 },
       name: "Alice's tasks",
       membership: { kind: 'custom', predicate },
       sort: 'deadline',
@@ -194,7 +129,7 @@ describe('Save-as-preset round-trip', () => {
       ...predicateToCriteria(emptyPredicate()),
       personIds: new Set([1]),
     })
-    const id = await useListDefinitionStore.getState().add({
+    const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 },
       name: 'My preset',
       membership: { kind: 'custom', predicate: initialPredicate },
       sort: 'deadline',

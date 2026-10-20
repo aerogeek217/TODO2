@@ -153,15 +153,15 @@ test('switching tabs with unsaved changes asks Save / Discard / Cancel', async (
   await expect.poll(() => wsShape(page)).toEqual([[['m', 'm-cal']]])
 })
 
-test('Delete from a tab’s menu names the layout-only lists that go with it', async ({ page }) => {
+test('Delete from a tab’s menu names the lists that go with it', async ({ page }) => {
   await seedWorkspace(page, {
     ...three,
-    listDefinitions: [{ name: 'Saved' }, { name: 'Second’s own', layoutIdx: 1 }, { name: 'Second’s other', layoutIdx: 1 }],
+    listDefinitions: [{ name: 'Main’s', layoutIdx: 0 }, { name: 'Second’s own', layoutIdx: 1 }, { name: 'Second’s other', layoutIdx: 1 }],
   })
   const menu = await openLayoutTabMenu(page, 'Second')
   await menu.getByRole('menuitem', { name: 'Delete layout…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete layout “Second”?' })
-  await expect(dialog).toContainText('The layout and its 2 layout-only lists are removed.')
+  await expect(dialog).toContainText('The layout and its 2 lists are removed.')
   await dialog.getByRole('button', { name: 'Delete layout' }).click()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Third'])
   // Not the open one: Main stays open.

@@ -3,9 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { CheckinDialog } from '../../../components/checkin/CheckinDialog'
 import { db } from '../../../data/database'
 import type { Person, PersistedTodoItem, TodoPredicate } from '../../../models'
-import type { PersistedListDefinition } from '../../../models/list-definition'
+import { dueSoonCheckinFilter } from '../../../utils/checkin-settings'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -35,13 +34,11 @@ const TODOS: PersistedTodoItem[] = [
 ]
 const ASSIGNED = new Map<number, Person[]>([[1, [ada]], [2, [ada, bob]], [3, [ada]], [4, [bob]], [5, [cy]], [6, [ada]]])
 
-const predicate: TodoPredicate = {
+/** A filter kept from older data (a saved list's): text "review". */
+const REVIEWS: TodoPredicate = {
   showCompleted: false, personIds: null, statusIds: null, searchText: 'review', dates: {}, markers: null, tags: null,
 }
-const REVIEWS: PersistedListDefinition = {
-  id: 7, name: 'Reviews', sortOrder: 1, sort: 'name', grouping: 'none', 
-  membership: { kind: 'custom', predicate },
-}
+const HOT: TodoPredicate = { ...REVIEWS, searchText: '', markers: 'hot' }
 
 let events: string[]
 let clicked: HTMLAnchorElement[]
@@ -59,9 +56,8 @@ beforeEach(async () => {
   usePersonStore.setState({ people: [ada, bob, cy], assignedPeopleMap: ASSIGNED })
   useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useStatusStore.setState({ statuses: [] })
-  useListDefinitionStore.setState({ listDefinitions: [REVIEWS] })
   useSettingsStore.setState({
-    checkinOpenMethod: 'mailto', checkinTaskScope: { kind: 'all' }, weekStartsOn: 1,
+    checkinOpenMethod: 'mailto', checkinTaskFilter: { ...REVIEWS, searchText: '' }, weekStartsOn: 1,
     urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE, followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   })
   useUIStore.setState({ checkinDialog: null })
@@ -167,39 +163,43 @@ describe('CheckinDialog — rows', () => {
   it('counts open tasks per person for the Which tasks choice (completed ones never count)', async () => {
     open([1])
     expect([count(1), count(2), count(3)]).toEqual(['3 tasks', '2 tasks', '1 task'])
-    await act(() => useSettingsStore.getState().setCheckinTaskScope({ kind: 'due-soon' }))
+    await act(() => useSettingsStore.getState().setCheckinTaskFilter(dueSoonCheckinFilter()))
     expect([count(1), count(2), count(3)]).toEqual(['2 tasks', '2 tasks', '0 tasks'])
-    await act(() => useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 7 }))
+    await act(() => useSettingsStore.getState().setCheckinTaskFilter(REVIEWS))
     expect([count(1), count(2), count(3)]).toEqual(['1 task', '1 task', '0 tasks'])
   })
 
   it('a ticked person with nothing to send for the choice cannot be sent', async () => {
     open([1])
-    await act(() => useSettingsStore.getState().setCheckinTaskScope({ kind: 'hot' }))
+    await act(() => useSettingsStore.getState().setCheckinTaskFilter(HOT))
     expect(within(row(1)).getByRole('button', { name: 'Copy & open for Ada Lovelace' })).toHaveProperty('disabled', true)
   })
 })
 
 describe('CheckinDialog — Which tasks', () => {
-  it('menu: quick picks and saved lists with counts for the ticked people; picking one saves it', async () => {
+  it('menu: the quick picks with counts for the ticked people; picking one saves it as the check-in filter', async () => {
     open([1, 2])
     fireEvent.click(screen.getByRole('button', { name: /Which tasks/ }))
     const menu = screen.getByRole('menu', { name: 'Which tasks' })
     const items = within(menu).getAllByRole('menuitemradio').map((i) => i.textContent)
-    // Ada + Bob: all = 3 + 2, due soon = 2 + 2, hot = 0, Reviews = 1 + 1.
-    expect(items).toEqual(['All open tasks5 tasks', 'Overdue + next 2 weeks4 tasks', 'Hot0 tasks', 'Reviews2 tasks'])
+    // Ada + Bob: all = 3 + 2, due soon = 2 + 2, hot = 0.
+    expect(items).toEqual(['All open tasks5 tasks', 'Overdue + next 2 weeks4 tasks', 'Hot0 tasks'])
     expect(within(menu).getByRole('menuitemradio', { name: /All open tasks/ }).getAttribute('aria-checked')).toBe('true')
     await act(async () => { fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Overdue/ })) })
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'due-soon' })
+    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(dueSoonCheckinFilter())
     expect(screen.queryByRole('menu', { name: 'Which tasks' })).toBeNull()
     expect(screen.getByRole('button', { name: /Which tasks/ }).textContent).toContain('Overdue + next 2 weeks')
   })
 
-  it('a saved list that was deleted shows as All open tasks', () => {
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'list', listDefinitionId: 99 } })
+  it('a filter no quick pick names (older data: a saved list’s) is “Custom filter”, checked, with its count', () => {
+    useSettingsStore.setState({ checkinTaskFilter: REVIEWS })
     open([1])
-    expect(screen.getByRole('button', { name: /Which tasks/ }).textContent).toContain('All open tasks')
-    expect(count(1)).toBe('3 tasks')
+    expect(screen.getByRole('button', { name: /Which tasks/ }).textContent).toContain('Custom filter')
+    expect(count(1)).toBe('1 task')
+    fireEvent.click(screen.getByRole('button', { name: /Which tasks/ }))
+    const custom = within(screen.getByRole('menu', { name: 'Which tasks' })).getByRole('menuitemradio', { name: /Custom filter/ })
+    expect(custom.getAttribute('aria-checked')).toBe('true')
+    expect(custom.textContent).toBe('Custom filter1 task')
   })
 
   it('How to open it writes the setting and relabels the send buttons', async () => {
@@ -233,10 +233,10 @@ describe('CheckinDialog — sending', () => {
     expect((await db.todos.get(3))?.lastFollowupAt).toBeUndefined()
   })
 
-  it('the email holds the scope’s tasks and the ticked options', async () => {
+  it('the email holds the filter’s tasks and the ticked options', async () => {
     const write = navigator.clipboard.write as unknown as ReturnType<typeof vi.fn>
     open([1])
-    await act(() => useSettingsStore.getState().setCheckinTaskScope({ kind: 'due-soon' }))
+    await act(() => useSettingsStore.getState().setCheckinTaskFilter(dueSoonCheckinFilter()))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Task notes' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Other people on the task' }))
     await act(async () => { fireEvent.click(within(row(1)).getByRole('button', { name: /Copy & open/ })) })

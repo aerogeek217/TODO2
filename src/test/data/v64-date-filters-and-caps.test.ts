@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import Dexie from 'dexie'
+import { isEisenhowerOwner } from '../../models/list-definition'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV64 } from '../../data/upgrades/v64-date-filters-and-caps'
 import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
@@ -214,9 +215,9 @@ describe('a v63 file imports into the current build', () => {
     expect(prepared.sourceVersion).toBe(63)
     expect(prepared.upgraded).toBe(true)
     expect(prepared.warnings).toEqual([])
-    // (v67 adds the Eisenhower's own list and names it.)
-    expect(prepared.data.listDefinitions.filter((d) => d.owner === undefined)).toEqual([{
-      id: 1, name: 'List 1', sortOrder: 1, sort: 'manual', grouping: 'none',
+    // (v67 adds the Eisenhower's own list and names it; v68 puts the list no layout shows into a layout of its own.)
+    expect(prepared.data.listDefinitions.filter((d) => !isEisenhowerOwner(d.owner))).toEqual([{
+      id: 1, name: 'List 1', sortOrder: 1, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },
       membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', markers: null, tags: null, dates: { deadline: OCT_RANGE, followup: { match: 'set' } } } },
     }])
     expect(prepared.data.settings.filter((s) => s.key !== 'eisenhowerSource')).toEqual([{ key: 'themeMode', value: 'dark' }])
@@ -274,7 +275,7 @@ describe('v64 Dexie upgrade', () => {
 
     const lists = await db.listDefinitions.orderBy('id').toArray()
     // (The last list is the Eisenhower's, v67.)
-    expect(lists.filter((d) => d.owner === undefined).map((d) => d.membership.predicate.dates)).toEqual([
+    expect(lists.filter((d) => !isEisenhowerOwner(d.owner)).map((d) => d.membership.predicate.dates)).toEqual([
       { deadline: { match: 'unset' } },
       { followup: { match: 'set' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } },
     ])

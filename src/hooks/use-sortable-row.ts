@@ -14,7 +14,7 @@ export interface SortableRowProps {
 /**
  * Bundles dnd-kit's `useSortable` with the `transform` + `transition` style
  * computation every sortable row in this app needs. Used by
- * `DashboardListsEditor` and `StatusEditor` — reorderable editors that each
+ * `StatusEditor` and Customize dashboard — reorderable editors that each
  * previously inlined the same five-line glue.
  */
 export function useSortableRow(id: number | string): SortableRowProps {

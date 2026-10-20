@@ -1,4 +1,5 @@
 import type { AuditIssue, AuditSample } from '../../data/audit'
+import { RECOVERED_LISTS_LAYOUT_NAME } from '../../data/layout-repository'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import dialogStyles from '../shared/Dialog.module.css'
 import styles from './AuditIssueDetailDialog.module.css'
@@ -71,6 +72,9 @@ function describeFix(issue: AuditIssue): string {
   }
   if (issue.fix === 'sanitize') {
     return 'Cleanup will drop the malformed parts of these rows, as an import would.'
+  }
+  if (issue.fix === 'adopt-lists') {
+    return `Cleanup will give each list the first layout that shows it, and put the rest into a new layout “${RECOVERED_LISTS_LAYOUT_NAME}”.`
   }
   if (issue.fix === 'clear-field') {
     if (issue.field) {

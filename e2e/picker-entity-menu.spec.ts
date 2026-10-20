@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { openSettings, seedTaskList } from './fixtures/workspace'
+import { seedTaskList } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
 
 /**
@@ -177,32 +177,6 @@ test('the top bar’s People filter: the menu and the editor stack above its pic
   await expect(filter).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(filter).toHaveCount(0)
-})
-
-test('in Settings › Lists’ Edit list (a dialog over a dialog): no Show tasks; Edit… opens the editor on top', async ({ page }) => {
-  await seedTaskList(page, SEED)
-  const settings = await openSettings(page, 'People, statuses & tags')
-  await settings.getByRole('button', { name: 'Manage lists…' }).click()
-  await page.getByRole('dialog', { name: 'Lists', exact: true }).getByTitle('Edit list').first().click()
-  const listEditor = page.getByRole('dialog', { name: /Edit list:/ })
-  await listEditor.getByRole('button', { name: 'Filter', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'People' }).click()
-  const filter = page.getByTestId('list-filter-picker')
-  await filter.getByText('@Alice Chen').click({ button: 'right' })
-  const menu = page.getByRole('menu', { name: '@Alice Chen' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Edit…', 'Delete…'])
-
-  await menu.getByRole('menuitem', { name: 'Edit…' }).click()
-  const name = page.getByRole('dialog', { name: 'People', exact: true }).getByPlaceholder('Name')
-  await expect(name).toHaveValue('Alice Chen')
-  expect(await isOnTop(name)).toBe(true)
-  // The edit row's Esc, then the editor's.
-  await page.keyboard.press('Escape')
-  await expect(name).toHaveCount(0)
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'People', exact: true })).toHaveCount(0)
-  await expect(filter).toBeVisible()
-  await expect(listEditor).toBeVisible()
 })
 
 test('the task editor’s people picker: Delete… asks on top and the picker stays open', async ({ page }) => {

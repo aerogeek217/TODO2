@@ -87,7 +87,7 @@ export interface WorkspaceSeed {
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
-    /** A layout-only list: the layout (index into `layouts`) that owns it. */
+    /** The layout (index into `layouts`) that owns the list; default: the first that shows it, else the first. */
     layoutIdx?: number
   }>
   tasks?: Array<{
@@ -294,10 +294,16 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       firstId ??= id
       layoutIds.push(id)
     }
-    // Layout-only lists: owned by their layout, now that it has an id.
+    // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
+    // else the first layout whose tabs or tiles show it, else the first one.
+    const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
+      const panels = [...layout.columns.flatMap((col) => col.cells), ...(layout.top ? [layout.top] : []), ...(layout.bottom ? [layout.bottom] : [])]
+      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i || (t.dashboard?.listTileIdxs ?? []).includes(i)))
+    })
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
-      const layoutId = def.layoutIdx != null ? layoutIds[def.layoutIdx] : undefined
+      if (seed.eisenhower?.listDefIdx === i) continue
+      const layoutId = layoutIds[def.layoutIdx ?? Math.max(0, shownBy(i))]
       if (listId == null || layoutId == null) continue
       const store = tx.objectStore('listDefinitions')
       store.put({ ...(await get(store, listId)), owner: { layoutId } })

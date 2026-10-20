@@ -9,11 +9,13 @@ import { parseFollowupInterval } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatHotRule, parseHotRule } from '../utils/hot'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
-import { isCheckinOpenMethod, parseCheckinTaskScope } from '../utils/checkin-settings'
+import { isCheckinOpenMethod } from '../utils/checkin-settings'
+import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
+import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { isValidEmail, normalizeEmail } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -315,6 +317,10 @@ function checkSetting(v: unknown): CheckResult {
   // the defaults); `settingFixes` names what it drops. Names and filters
   // have no length limit (the whole value has one: `PANES_SETTING_MAX_LEN`).
   if (v.key === SETTING_KEYS.eisenhowerPanes) return true
+  // The check-in filter: any text, read leniently as a list's filter is
+  // (`readCheckinFilterSetting`; `settingFixes` names what it drops). Its id
+  // lists have no limit of their own (the whole value has one).
+  if (v.key === SETTING_KEYS.checkinTaskFilter) return true
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
@@ -354,10 +360,22 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === SETTING_KEYS.checkinOpenMethod) {
     return isCheckinOpenMethod(v.value) ? true : 'value (checkinOpenMethod must be mailto or eml)'
   }
-  if (v.key === SETTING_KEYS.checkinTaskScope) {
-    return parseCheckinTaskScope(v.value as string) !== undefined
+  if (v.key === SETTING_KEYS.newListSort) {
+    return isTodoSortBy(v.value) ? true : 'value (newListSort must be a list sort)'
+  }
+  if (v.key === SETTING_KEYS.newListSortDirection) {
+    return isTodoSortDirection(v.value) ? true : 'value (newListSortDirection must be asc or desc)'
+  }
+  if (v.key === SETTING_KEYS.newListGroup) {
+    return isTodoGroupBy(v.value) ? true : 'value (newListGroup must be a list grouping)'
+  }
+  if (v.key === SETTING_KEYS.purgePromptIntervalDays) {
+    return parsePurgePromptIntervalDays(v.value as string) !== undefined
       ? true
-      : 'value (checkinTaskScope must be all, due-soon, hot or list:<id>)'
+      : 'value (purgePromptIntervalDays must be a day count 1–365)'
+  }
+  if (v.key === SETTING_KEYS.purgePromptLastAt) {
+    return isDateLike(v.value) ? true : 'value (purgePromptLastAt must be a date)'
   }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
@@ -489,6 +507,10 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Stored normalised: known panes and keys only, what equals the default left out.
     return { key, value: formatPanesSetting(readPanesSetting(value).panes) } satisfies AllFields<SettingRow>
   }
+  if (key === SETTING_KEYS.checkinTaskFilter) {
+    // Stored rebuilt: known filter parts only, no people, completed tasks off.
+    return { key, value: formatCheckinFilterSetting(readCheckinFilterSetting(value).filter) } satisfies AllFields<SettingRow>
+  }
   // The Hot rule is stored normalized (duplicate lines collapsed).
   const hotRule = key === SETTING_KEYS.hotRule ? parseHotRule(value) : undefined
   return { key, value: hotRule ? formatHotRule(hotRule) : value } satisfies AllFields<SettingRow>
@@ -499,12 +521,15 @@ function settingFixes(row: Raw): string[] {
   if (typeof row.value !== 'string') return []
   if (row.key === SETTING_KEYS.keyboardShortcuts) return readShortcutOverrides(row.value).dropped
   if (row.key === SETTING_KEYS.eisenhowerPanes) return readPanesSetting(row.value).fixes
+  if (row.key === SETTING_KEYS.checkinTaskFilter) return readCheckinFilterSetting(row.value).fixes
   return []
 }
 
 /** How an import warning names a settings row `pickSetting` fixed. */
 function settingLabel(row: Raw): string {
-  return row.key === SETTING_KEYS.eisenhowerPanes ? 'Eisenhower panes' : 'keyboard shortcuts'
+  if (row.key === SETTING_KEYS.eisenhowerPanes) return 'Eisenhower panes'
+  if (row.key === SETTING_KEYS.checkinTaskFilter) return 'check-in filter'
+  return 'keyboard shortcuts'
 }
 
 function pickNote(v: Raw): AllFields<Note> {
@@ -590,7 +615,8 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
 /**
  * A list's owner rebuilt from its known keys: one layout (`layoutId`, a
  * positive whole number) or the Eisenhower (`eisenhower: true`), each its
- * only key; anything else is none (a saved list).
+ * only key; anything else is none (a list that belongs to no layout, which
+ * the audit reports).
  */
 function pickListOwner(v: unknown): ListOwner | undefined {
   if (!isRecord(v) || Object.keys(v).length !== 1) return undefined
@@ -602,7 +628,7 @@ function pickListOwner(v: unknown): ListOwner | undefined {
 /**
  * What import drops from a valid list row, in words. A sort direction, an
  * owner or a filter-line switch this build doesn't know is dropped (the list
- * sorts in its natural order / is a saved list / shows its filter line)
+ * sorts in its natural order / belongs to no layout / shows its filter line)
  * rather than failing the file; `null` reads as none.
  */
 function listDefinitionFixes(row: Raw): string[] {

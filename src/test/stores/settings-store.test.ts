@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
+import { emptyPredicate } from '../../models/filter-predicate'
 import { settingsRepository } from '../../data'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import type { HotRule } from '../../utils/hot'
@@ -201,29 +202,87 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().checkinOpenMethod).toBe('mailto')
   })
 
-  it('check-in task scope defaults to all, saves each kind, and ignores junk on load', async () => {
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'hot' } })
+  it('the check-in filter defaults to none, is kept without people (none = the row removed), and reads leniently', async () => {
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: 'hot' } })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(emptyPredicate())
 
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 12 })
-    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('list:12')
-    useSettingsStore.setState({ checkinTaskScope: { kind: 'all' } })
+    await useSettingsStore.getState().setCheckinTaskFilter({ ...emptyPredicate(), showCompleted: true, personIds: [3], negate: { personIds: true, tags: true }, tags: [4] })
+    const kept = { ...emptyPredicate(), tags: [4], negate: { tags: true } }
+    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(kept)
+    expect(JSON.parse((await db.settings.get('checkinTaskFilter'))!.value)).toEqual(kept)
+    useSettingsStore.setState({ checkinTaskFilter: emptyPredicate() })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'list', listDefinitionId: 12 })
+    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(kept)
 
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'due-soon' })
-    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('due-soon')
+    await useSettingsStore.getState().setCheckinTaskFilter(emptyPredicate())
+    expect(await db.settings.get('checkinTaskFilter')).toBeUndefined()
 
-    // Not a scope: not written.
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'list', listDefinitionId: 0 })
-    await useSettingsStore.getState().setCheckinTaskScope({ kind: 'later' } as never)
-    expect((await db.settings.get('checkinTaskScope'))!.value).toBe('due-soon')
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'due-soon' })
-
-    await db.settings.put({ key: 'checkinTaskScope', value: 'list:abc' })
+    await db.settings.put({ key: 'checkinTaskFilter', value: 'not json' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().checkinTaskScope).toEqual({ kind: 'all' })
+    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(emptyPredicate())
+  })
+
+  it('new-list sort / direction / grouping: Manual / ascending / none by default, stored only when not, junk ignored on load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'manual', newListSortDirection: 'asc', newListGroup: 'none' })
+
+    await useSettingsStore.getState().setNewListSort('deadline', 'desc')
+    await useSettingsStore.getState().setNewListGroup('tag')
+    expect(await db.settings.get('newListSort')).toEqual({ key: 'newListSort', value: 'deadline' })
+    expect(await db.settings.get('newListSortDirection')).toEqual({ key: 'newListSortDirection', value: 'desc' })
+    expect(await db.settings.get('newListGroup')).toEqual({ key: 'newListGroup', value: 'tag' })
+    useSettingsStore.setState({ newListSort: 'manual', newListSortDirection: 'asc', newListGroup: 'none' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'deadline', newListSortDirection: 'desc', newListGroup: 'tag' })
+
+    // A sort without a direction keeps none; the defaults remove the rows.
+    await useSettingsStore.getState().setNewListSort('people', 'desc')
+    expect(useSettingsStore.getState().newListSortDirection).toBe('asc')
+    expect(await db.settings.get('newListSortDirection')).toBeUndefined()
+    await useSettingsStore.getState().setNewListSort('manual')
+    await useSettingsStore.getState().setNewListGroup('none')
+    expect(await db.settings.get('newListSort')).toBeUndefined()
+    expect(await db.settings.get('newListGroup')).toBeUndefined()
+
+    // Not a sort / grouping: not written.
+    await useSettingsStore.getState().setNewListSort('random' as never)
+    await useSettingsStore.getState().setNewListGroup('project' as never)
+    expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'manual', newListGroup: 'none' })
+
+    await db.settings.bulkPut([
+      { key: 'newListSort', value: 'nope' }, { key: 'newListSortDirection', value: 'desc' }, { key: 'newListGroup', value: '?' },
+    ])
+    await useSettingsStore.getState().load()
+    // A stored direction for Manual reads as none.
+    expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'manual', newListSortDirection: 'asc', newListGroup: 'none' })
+  })
+
+  it('the purge prompt interval: 7 days by default (no row), 1–365 kept, anything else ignored; the last showing is stamped', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(7)
+    expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
+
+    await useSettingsStore.getState().setPurgePromptIntervalDays(30)
+    expect(await db.settings.get('purgePromptIntervalDays')).toEqual({ key: 'purgePromptIntervalDays', value: '30' })
+    for (const bad of [0, 366, 2.5, Number.NaN]) await useSettingsStore.getState().setPurgePromptIntervalDays(bad)
+    expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(30)
+    await useSettingsStore.getState().setPurgePromptIntervalDays(7)
+    expect(await db.settings.get('purgePromptIntervalDays')).toBeUndefined()
+
+    const at = new Date('2026-10-20T08:15:00.000Z')
+    await useSettingsStore.getState().setPurgePromptLastAt(at)
+    expect(await db.settings.get('purgePromptLastAt')).toEqual({ key: 'purgePromptLastAt', value: at.toISOString() })
+    // An internal stamp: no undo step.
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    useSettingsStore.setState({ purgePromptLastAt: null })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().purgePromptLastAt).toEqual(at)
+
+    await db.settings.bulkPut([{ key: 'purgePromptIntervalDays', value: '0' }, { key: 'purgePromptLastAt', value: 'soon' }])
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(7)
+    expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
   })
 
   it('keyboard shortcuts: start at the defaults, save only changes, refuse clashes, reset one or all', async () => {

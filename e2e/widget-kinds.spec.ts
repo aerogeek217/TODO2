@@ -9,7 +9,8 @@ import { seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
  * menu too.
  */
 
-const LIST = 'Team'
+/** The list the list tabs show: the name Create new list… gives a layout's first list. */
+const LIST = 'New list'
 
 /** What a kind's body shows, to know it rendered. */
 function body(cell: Locator, kind: WidgetKind): Locator {
@@ -32,8 +33,8 @@ test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('every kind can be added as a tab, switched to and closed', async ({ page }) => {
+    // (A layout's lists are the ones it shows: the list tab makes its own.)
     await seedWorkspace(page, {
-      listDefinitions: [{ name: LIST }],
       tasks: [{ title: 'A task' }],
       layouts: [{ name: 'Blank', columns: [] }],
     })
@@ -44,13 +45,13 @@ test.describe('desktop', () => {
     const cell = page.locator('[data-ws-cell]').first()
     await expect(body(cell, 'notes')).toBeVisible()
 
-    // Add: every kind but Notes, from the add-tab menu (a list picks its list first).
+    // Add: every kind but Notes, from the add-tab menu (a list picks its list first: a new one here).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
       await page.getByRole('button', { name: 'Add widget as tab' }).click()
       const menu = page.getByRole('menu', { name: 'Add widget' })
       await expect(menu.getByRole('menuitem')).toHaveText(WIDGET_KINDS.map(widgetKindLabel))
       await menu.getByRole('menuitem', { name: widgetKindLabel(kind) }).click()
-      if (kind === 'lens') await listOption(page).click()
+      if (kind === 'lens') await page.getByRole('button', { name: '+ Create new list…' }).click()
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await expect(body(cell, kind)).toBeVisible()
     }
@@ -89,13 +90,18 @@ test.describe('desktop', () => {
         ],
       }],
     })
+    // The list goes (as with its layout's Save elsewhere): from the database and the store.
     await page.evaluate(async () => {
       const mod = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
-        useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }>; remove: (id: number) => Promise<void> } }
+        useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }>; forgetLists: (ids: number[]) => void } }
       }
+      const data = (await import(/* @vite-ignore */ '/src/data/database.ts' as string)) as { db: { listDefinitions: { delete: (id: number) => Promise<void> } } }
       const s = mod.useListDefinitionStore.getState()
       const old = s.listDefinitions.find((d) => d.name === 'Old list')
-      if (old) await s.remove(old.id)
+      if (old) {
+        await data.db.listDefinitions.delete(old.id)
+        s.forgetLists([old.id])
+      }
     })
     const more = wsCell(page, 'k1').getByRole('button', { name: /more tabs$/ })
     await more.click()

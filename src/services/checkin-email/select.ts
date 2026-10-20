@@ -3,18 +3,12 @@
  * two sections and ordered as the email lists them.
  */
 import type { Person, PersistedTodoItem, Status, Tag } from '../../models'
-import type { PersistedListDefinition } from '../../models/list-definition'
 import { createPredicateEvaluator } from '../../utils/filter-match'
-import { resolveCheckinTaskScope, type CheckinTaskScope } from '../../utils/checkin-settings'
-import { addDays, startOfDay } from '../../utils/date'
+import { checkinFilterOf, isNoCheckinFilter, type CheckinTaskFilter } from '../../utils/checkin-settings'
+import { startOfDay } from '../../utils/date'
 import { isDeadlinePast, type WeekStart } from '../../utils/effective-date'
-import { isHot } from '../../utils/hot'
 import type { MarkerSettings } from '../../utils/markers'
 import { bySortOrder } from '../../utils/sort-order'
-import { applyRuntimeFilter, matchesMembership } from '../build-list'
-
-/** How far ahead "Overdue + next 2 weeks" looks, in days from today. */
-export const CHECKIN_DUE_SOON_DAYS = 14
 
 export interface CheckinSelectContext {
   /** Every loaded task (completed ones are skipped here). */
@@ -23,13 +17,11 @@ export interface CheckinSelectContext {
   today: Date
   /** People per task id — who a task is assigned to. */
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
-  /** Tags per task id (a saved list's tag clauses read it). */
+  /** Tags per task id (the filter's tag clauses read it). */
   assignedTagsMap?: ReadonlyMap<number, readonly Tag[]>
-  /** Statuses (a saved list's status clauses and search read them). */
+  /** Statuses (the filter's status clauses and text search read them). */
   statuses?: readonly Status[]
-  /** The saved lists; a list scope whose list is missing falls back to all open tasks. */
-  listDefinitions: readonly PersistedListDefinition[]
-  /** Urgent range + Hot rule (the Hot scope and a list's Markers clauses). */
+  /** Urgent range + Hot rule (the filter's Priority clause). */
   markerSettings: MarkerSettings
   weekStartsOn: WeekStart
 }
@@ -71,75 +63,37 @@ export function compareCheckinTasks(a: PersistedTodoItem, b: PersistedTodoItem):
 }
 
 /**
- * "Overdue + next 2 weeks": overdue, or due / following up on or before
- * today + 14 days. A follow-up that is already late counts (it is due for a
- * follow-up now); a late follow-up never makes a task overdue, though.
+ * The check-in filter as a test over a task assigned to the person, through
+ * the same evaluator a List widget uses (without people: the check-in is
+ * the person's). Its sort and grouping don't apply — the email has its own
+ * order.
  */
-function isDueSoon(t: PersistedTodoItem, today: Date): boolean {
-  const horizon = addDays(today, CHECKIN_DUE_SOON_DAYS).getTime()
-  const due = dayOf(t.dueDate)
-  const next = dayOf(t.nextFollowupAt)
-  return (due != null && due <= horizon) || (next != null && next <= horizon)
+function filterTest(filter: CheckinTaskFilter, ctx: CheckinSelectContext): (t: PersistedTodoItem) => boolean {
+  if (isNoCheckinFilter(filter)) return () => true
+  const predicate = checkinFilterOf(filter)
+  const evalPredicate = createPredicateEvaluator(
+    {
+      assignedPeopleMap: ctx.assignedPeopleMap,
+      assignedTagsMap: ctx.assignedTagsMap,
+      statusesById: new Map((ctx.statuses ?? []).flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
+    },
+    startOfDay(ctx.today),
+    { ...ctx.markerSettings, weekStartsOn: ctx.weekStartsOn },
+  )
+  return (t) => evalPredicate(predicate, t)
 }
 
 /**
- * The scope as a test over a task assigned to the person. A saved list runs
- * its own filter through the same evaluator a List widget uses; a list that
- * prompts for a person gets this person, other prompts narrow nothing. The
- * list's sort and grouping are ignored — the email has its own order.
- */
-function scopeTest(
-  person: Person & { id: number },
-  scope: CheckinTaskScope,
-  ctx: CheckinSelectContext,
-): (t: PersistedTodoItem) => boolean {
-  const today = startOfDay(ctx.today)
-  const resolved = resolveCheckinTaskScope(scope, ctx.listDefinitions.map((d) => d.id))
-  switch (resolved.kind) {
-    case 'all': return () => true
-    case 'due-soon': return (t) => isDueSoon(t, today)
-    case 'hot': {
-      const { hotRule, urgentRange } = ctx.markerSettings
-      return (t) => isHot(t, hotRule, today, urgentRange)
-    }
-    case 'list': {
-      const def = ctx.listDefinitions.find((d) => d.id === resolved.listDefinitionId)
-      if (!def) return () => true
-      const membership = def.runtimeFilter
-        ? {
-            kind: 'custom' as const,
-            predicate: applyRuntimeFilter(
-              def.membership.predicate,
-              def.runtimeFilter,
-              def.runtimeFilter.field === 'person' ? [person.id] : [],
-            ),
-          }
-        : def.membership
-      const evalPredicate = createPredicateEvaluator(
-        {
-          assignedPeopleMap: ctx.assignedPeopleMap,
-          assignedTagsMap: ctx.assignedTagsMap,
-          statusesById: new Map((ctx.statuses ?? []).flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
-        },
-        today,
-        { ...ctx.markerSettings, weekStartsOn: ctx.weekStartsOn },
-      )
-      return (t) => matchesMembership(membership, t, evalPredicate)
-    }
-  }
-}
-
-/**
- * The open tasks assigned to `person` that `scope` covers, as the email's
+ * The open tasks assigned to `person` that `filter` picks, as the email's
  * sections: Overdue (due date before today) and Coming up (the rest), each
  * ordered by `compareCheckinTasks`.
  */
 export function selectCheckinTasks(
   person: Person & { id: number },
-  scope: CheckinTaskScope,
+  filter: CheckinTaskFilter,
   ctx: CheckinSelectContext,
 ): CheckinSections {
-  const inScope = scopeTest(person, scope, ctx)
+  const inScope = filterTest(filter, ctx)
   const overdue: PersistedTodoItem[] = []
   const comingUp: PersistedTodoItem[] = []
   for (const t of ctx.todos) {
