@@ -269,6 +269,19 @@ describe('createCommands — email check-ins', () => {
     ])
   })
 
+  it('createCommands_people_withCheckinFilter_hintCountsWhatItPicks_ofTheirOpenTasks', () => {
+    const ctx = makeContext({
+      sendPersonCheckin: vi.fn(), getPeople: () => people, getOpenTaskCounts: () => counts,
+      getCheckinTaskCounts: () => new Map([[2, 1], [3, 2]]),
+    })
+    expect(emailCommands(ctx).map((c) => [c.name, c.hint])).toEqual([
+      ['Email check-in: Ada Lovelace', '1 of 4 open tasks'],
+      ['Email check-in: Blank Email', '0 of 3 open tasks'],
+      ['Email check-in: No Email', '2 of 2 open tasks'],
+      ['Email check-in: Zoe Park', '0 of 1 open task'],
+    ])
+  })
+
   it('createCommands_personCommand_sendsThatPersonsCheckin_noDialog', () => {
     const openCheckinDialog = vi.fn()
     const sendPersonCheckin = vi.fn()

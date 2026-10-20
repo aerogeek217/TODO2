@@ -21,9 +21,6 @@ export function isCheckinOpenMethod(value: unknown): value is CheckinOpenMethod 
   return (CHECKIN_OPEN_METHODS as readonly unknown[]).includes(value)
 }
 
-/** How far ahead the "Overdue + next 2 weeks" filter looks, in days from today. */
-export const CHECKIN_DUE_SOON_DAYS = 14
-
 /**
  * Which of a person's open tasks a check-in covers: a list predicate,
  * evaluated as a List widget evaluates its filter, over the person's open
@@ -52,29 +49,6 @@ export function isNoCheckinFilter(filter: CheckinTaskFilter): boolean {
 /** Whether two check-in filters pick the same tasks. */
 export function checkinFiltersEqual(a: CheckinTaskFilter, b: CheckinTaskFilter): boolean {
   return predicatesEqual(checkinFilterOf(a), checkinFilterOf(b))
-}
-
-/** Due date overdue or within the next two weeks (a range open at the start, ending today + 14 days). */
-export function dueSoonCheckinFilter(): CheckinTaskFilter {
-  return {
-    ...emptyPredicate(),
-    dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: CHECKIN_DUE_SOON_DAYS } } },
-  }
-}
-
-/** The quick picks of "Which tasks", in menu order. */
-export const CHECKIN_QUICK_FILTERS: ReadonlyArray<{ filter: CheckinTaskFilter; label: string; hint: string }> = [
-  { filter: emptyPredicate(), label: 'All open tasks', hint: 'Everything assigned to them that isn’t complete' },
-  { filter: dueSoonCheckinFilter(), label: 'Overdue + next 2 weeks', hint: 'Due before today or in the next 14 days' },
-  { filter: { ...emptyPredicate(), markers: 'hot' }, label: 'Hot', hint: 'Your Hot rule from Settings' },
-]
-
-/** The name of a filter that is no quick pick. */
-export const CUSTOM_CHECKIN_FILTER_LABEL = 'Custom filter'
-
-/** A filter's name as "Which tasks" shows it: a quick pick's label, else `Custom filter`. */
-export function checkinFilterLabel(filter: CheckinTaskFilter): string {
-  return CHECKIN_QUICK_FILTERS.find((q) => checkinFiltersEqual(q.filter, filter))?.label ?? CUSTOM_CHECKIN_FILTER_LABEL
 }
 
 /** The "How to open it" choices, as the check-in dialog and Settings show them. */

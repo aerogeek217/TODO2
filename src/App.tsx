@@ -23,7 +23,7 @@ import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { openTaskCounts } from './services/checkin-email/recipients'
-import { sendPersonCheckin } from './services/checkin-email/person-checkin'
+import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
 import { CURRENT_DB_VERSION, findDatabaseTooNew } from './data/database'
 import { runAppStartup } from './services/app-startup'
@@ -278,6 +278,7 @@ function AppShell() {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
   const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
   const quickAddKeys = useShortcutLabel('quick-add')
 
   const commandCtx = useMemo(
@@ -305,8 +306,9 @@ function AppShell() {
       openCheckinImport: () => useUIStore.getState().openCheckinImport(),
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
+      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
     }),
-    [todos, people, assignedPeopleMap, selectionCount]
+    [todos, people, assignedPeopleMap, selectionCount, checkinTaskFilter]
   )
 
   // The palette's key hints follow the user's shortcut changes.

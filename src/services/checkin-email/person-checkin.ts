@@ -26,7 +26,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { buildCheckinEmail, type CheckinEmail } from './build'
 import { checkinEmlFileName } from './handoff'
 import { createTaskRefLookup } from './ref'
-import { selectCheckinTasks, type CheckinSelectContext } from './select'
+import { checkinTaskCounts, selectCheckinTasks, type CheckinSelectContext } from './select'
 import { sendCheckinEmail, type CheckinSendResult } from './send'
 
 /** What the email includes besides the tasks (the dialog's Include boxes). */
@@ -92,16 +92,34 @@ export function buildCheckinContext({ todos, filterSettings, ...data }: CheckinC
   }
 }
 
-/** The build context as the stores hold it now (the workspace loads every task, person, tag and status). */
-export function currentCheckinContext(): CheckinBuildContext {
-  return buildCheckinContext({
+/** A check-in's data as the stores hold it now (the workspace loads every task, person, tag and status). */
+function currentCheckinSources(): CheckinContextSources {
+  return {
     todos: useTodoStore.getState().todos,
     today: startOfToday(),
     assignedPeopleMap: usePersonStore.getState().assignedPeopleMap,
     assignedTagsMap: useTagStore.getState().assignedTagsMap,
     statuses: useStatusStore.getState().statuses,
     filterSettings: currentFilterSettings(),
-  })
+  }
+}
+
+/** The build context as the stores hold it now. */
+export function currentCheckinContext(): CheckinBuildContext {
+  return buildCheckinContext(currentCheckinSources())
+}
+
+/**
+ * Per person id, how many open tasks the check-in filter (default: the saved
+ * one) picks over the stores' tasks — what a one-click send would email;
+ * `null` while there is no filter (every open task).
+ */
+export function currentCheckinTaskCounts(
+  filter: CheckinTaskFilter = useSettingsStore.getState().checkinTaskFilter,
+): Map<number, number> | null {
+  if (isNoCheckinFilter(filter)) return null
+  const { filterSettings: { urgentRange, hotRule, weekStartsOn }, ...data } = currentCheckinSources()
+  return checkinTaskCounts(filter, { ...data, markerSettings: { urgentRange, hotRule }, weekStartsOn })
 }
 
 /** `Check-in for Ann opened · 5 tasks followed up` (`downloaded` for an `.eml`). */
@@ -153,7 +171,7 @@ export async function sendPreparedCheckin(
 /** Why the check-in dialog opened instead: the person has no open tasks (`filtered`: none that match the saved check-in filter). */
 export function noTasksNotice(personName: string, filtered: boolean): string {
   return filtered
-    ? `${personName} has no open tasks that match the check-in filter, so nothing was sent. Choose other tasks under Which tasks.`
+    ? `${personName} has no open tasks that match the check-in filter, so nothing was sent. Change the filter under Which tasks.`
     : `${personName} has no open tasks, so nothing was sent.`
 }
 

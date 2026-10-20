@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../../data/database'
-import type { Person, PersistedTodoItem } from '../../../models'
+import type { Person, PersistedTodoItem, TodoPredicate } from '../../../models'
 import {
   ASSIGNMENTS_LOADING_NOTICE,
   CHECKIN_INCLUDE_DEFAULTS,
@@ -11,7 +11,6 @@ import {
   sendPersonCheckin,
 } from '../../../services/checkin-email/person-checkin'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { dueSoonCheckinFilter } from '../../../utils/checkin-settings'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -22,6 +21,14 @@ import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
+
+const CHECKIN_DUE_SOON_DAYS = 14
+/** Due before today or within the next 14 days (a due range open at the start). */
+const dueSoonCheckinFilter = (): TodoPredicate => ({
+  ...emptyPredicate(),
+  dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: CHECKIN_DUE_SOON_DAYS } } },
+})
+
 
 // Monday 12 Oct 2026, 10:00.
 const NOW = new Date(2026, 9, 12, 10)
@@ -169,7 +176,7 @@ describe('sendPersonCheckin', () => {
     expect(events).toEqual([])
     expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: noTasksNotice('Ada Lovelace', true) })
     expect(noTasksNotice('Ada Lovelace', true))
-      .toBe('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Choose other tasks under Which tasks.')
+      .toBe('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Change the filter under Which tasks.')
     expect(noTasksNotice('Ada Lovelace', false)).toBe('Ada Lovelace has no open tasks, so nothing was sent.')
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })

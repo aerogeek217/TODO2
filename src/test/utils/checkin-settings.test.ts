@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate } from '../../models/filter-predicate'
 import {
-  CHECKIN_QUICK_FILTERS,
   DEFAULT_CHECKIN_OPEN_METHOD,
-  checkinFilterLabel,
   checkinFilterOf,
   checkinFiltersEqual,
-  dueSoonCheckinFilter,
   isCheckinOpenMethod,
   isNoCheckinFilter,
 } from '../../utils/checkin-settings'
@@ -39,15 +36,5 @@ describe('the check-in filter', () => {
   it('two filters are equal when they pick the same tasks (id lists as sets)', () => {
     expect(checkinFiltersEqual({ ...emptyPredicate(), tags: [1, 2] }, { ...emptyPredicate(), tags: [2, 1], personIds: [5] })).toBe(true)
     expect(checkinFiltersEqual({ ...emptyPredicate(), tags: [1] }, emptyPredicate())).toBe(false)
-  })
-
-  it('“Overdue + next 2 weeks” is a due range open at the start, ending 14 days from today', () => {
-    expect(dueSoonCheckinFilter().dates).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 14 } } })
-  })
-
-  it('a quick pick is named by its label; any other filter is “Custom filter”', () => {
-    expect(CHECKIN_QUICK_FILTERS.map((q) => checkinFilterLabel(q.filter))).toEqual(['All open tasks', 'Overdue + next 2 weeks', 'Hot'])
-    expect(checkinFilterLabel({ ...emptyPredicate(), personIds: [2] })).toBe('All open tasks')
-    expect(checkinFilterLabel({ ...emptyPredicate(), statusIds: [2] })).toBe('Custom filter')
   })
 })

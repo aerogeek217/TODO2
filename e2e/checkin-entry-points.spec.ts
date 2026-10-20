@@ -319,7 +319,7 @@ test('fallback: no open tasks match the saved check-in filter: opens the dialog 
   await page.keyboard.press('Enter')
   await expectTicked(page, ['Ada Lovelace'])
   await expect(checkinDialog(page).getByRole('status'))
-    .toHaveText('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Choose other tasks under Which tasks.')
+    .toHaveText('Ada Lovelace has no open tasks that match the check-in filter, so nothing was sent. Change the filter under Which tasks.')
   expect(await mailtoLinks(page)).toEqual([])
   expect(await followedUp(page)).toEqual([])
 })

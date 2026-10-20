@@ -9,8 +9,14 @@ import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { listedLists, type PersistedListDefinition } from '../../models/list-definition'
 import { useSettingsStore } from '../../stores/settings-store'
-import { checkinFiltersEqual, dueSoonCheckinFilter } from '../../utils/checkin-settings'
+import { checkinFiltersEqual } from '../../utils/checkin-settings'
 import { resetDb, v67StoreSpecs } from '../helpers'
+
+/** What `due-soon` becomes: due before today or within the next 14 days. */
+const dueSoonCheckinFilter = () => ({
+  ...emptyPredicate(),
+  dates: { deadline: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 14 } } },
+})
 
 const AT = new Date('2026-10-01T09:00:00.000Z')
 const LATER = new Date('2026-10-05T09:00:00.000Z')

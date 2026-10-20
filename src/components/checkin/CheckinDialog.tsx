@@ -22,18 +22,11 @@ import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { isValidEmail } from '../../utils/person'
-import {
-  CHECKIN_OPEN_METHOD_OPTIONS,
-  CHECKIN_QUICK_FILTERS,
-  CUSTOM_CHECKIN_FILTER_LABEL,
-  checkinFilterLabel,
-  checkinFiltersEqual,
-  type CheckinTaskFilter,
-} from '../../utils/checkin-settings'
+import { CHECKIN_OPEN_METHOD_OPTIONS, isNoCheckinFilter } from '../../utils/checkin-settings'
+import type { ListFilterField } from '../../stores/list-widget-store'
 import { PeopleEditor } from '../settings/PeopleEditor'
 import { Dialog, DialogFrame } from '../shared/Dialog'
-import { ChevronDownIcon } from '../shared/icons'
-import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
+import { PredicateChips } from '../shared/filters/PredicateChips'
 import styles from './CheckinDialog.module.css'
 
 type SentAs = 'opened' | 'downloaded'
@@ -46,6 +39,8 @@ interface Toast {
 }
 
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
+/** The check-in is per person: its filter has no People field. */
+const CHECKIN_OMIT_FIELDS: readonly ListFilterField[] = ['people']
 /** Whether the person has an email a check-in can go to (one valid address). */
 const hasEmail = (p: PersistedPerson) => isValidEmail(p.email ?? '')
 /** A row's address line: the address, or what happens without one. */
@@ -60,7 +55,10 @@ const addressLine = (p: PersistedPerson) => {
  * The email check-in dialog (`ui-store.checkinDialog`): one row per person
  * with open tasks (plus the people it was opened for), each sent on its own
  * with the row's button — one message per click, since the clipboard holds
- * one body at a time. Anyone can be ticked: without a valid address the
+ * one body at a time. Which tasks is the check-in filter as a filter line
+ * (the list filter line's chips and + Filter, without People): each edit is
+ * saved at once (`settings-store.checkinTaskFilter`), so the row counts
+ * follow it, and the next dialog and every one-click send use it. Anyone can be ticked: without a valid address the
  * email goes without a recipient, added in the mail app. Sending puts the
  * body on the clipboard and opens a `mailto:` link, or downloads an `.eml`
  * draft (Settings' choice, also set here), then records a follow-up on the
@@ -93,7 +91,6 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   }
   const [includeNotes, setIncludeNotes] = useState(CHECKIN_INCLUDE_DEFAULTS.includeNotes)
   const [includeOthers, setIncludeOthers] = useState(CHECKIN_INCLUDE_DEFAULTS.includeOthers)
-  const [scopeMenuOpen, setScopeMenuOpen] = useState(false)
   const [emailEditorFor, setEmailEditorFor] = useState<number | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
 
@@ -111,7 +108,6 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
 
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
-  const scopeButtonRef = useRef<HTMLButtonElement>(null)
 
   const recipients = useMemo(
     () => checkinRecipients(people, todos, assignedPeopleMap, opened),
@@ -122,13 +118,12 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, filterSettings])
 
   const countFor = useCallback(
-    (p: PersistedPerson, f: CheckinTaskFilter) => checkinTaskCount(selectCheckinTasks(p, f, buildCtx)),
-    [buildCtx],
+    (p: PersistedPerson) => checkinTaskCount(selectCheckinTasks(p, filter, buildCtx)),
+    [filter, buildCtx],
   )
+  const filtered = !isNoCheckinFilter(filter)
   const isChecked = (p: PersistedPerson) => ticked.has(p.id)
   const checkedPeople = recipients.filter(isChecked)
-  // The menu counts the people ticked; with nobody ticked, everyone listed.
-  const menuPeople = checkedPeople.length > 0 ? checkedPeople : recipients
 
   const buildEmail = useCallback(
     (p: PersistedPerson, sentAt: Date) => prepareCheckin(p, filter, buildCtx, { includeNotes, includeOthers }, sentAt),
@@ -136,8 +131,9 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   )
   const buildPreview = useCallback((p: PersistedPerson) => buildEmail(p, new Date()).email, [buildEmail])
 
-  // The people editor, the preview and the Which tasks menu own Esc while open.
-  const layerOpenRef = useLatestRef(emailEditorFor !== null || previewOpen || scopeMenuOpen)
+  // The people editor and the preview own Esc while open (the filter's
+  // menus and pickers are portaled layers: their keys never reach the frame).
+  const layerOpenRef = useLatestRef(emailEditorFor !== null || previewOpen)
   const escapeBelongsElsewhere = useCallback(() => layerOpenRef.current, [layerOpenRef])
 
 
@@ -194,29 +190,6 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
     requestAnimationFrame(() => panelRef.current?.focus())
   }
 
-  const scopeEntries = useMemo<MenuEntry[]>(() => {
-    const setFilter = useSettingsStore.getState().setCheckinTaskFilter
-    const item = (f: CheckinTaskFilter, label: string, hint: string): MenuEntry => ({
-      kind: 'item',
-      label,
-      title: hint,
-      radio: true,
-      checked: checkinFiltersEqual(f, filter),
-      note: tasksLabel(menuPeople.reduce((sum, p) => sum + countFor(p, f), 0)),
-      onSelect: () => { void setFilter(f) },
-    })
-    const entries: MenuEntry[] = [
-      { kind: 'label', text: 'Quick picks' },
-      ...CHECKIN_QUICK_FILTERS.map((q) => item(q.filter, q.label, q.hint)),
-    ]
-    // A filter no quick pick names (older data: a saved list's filter) stays a choice while it is the one kept.
-    if (checkinFilterLabel(filter) === CUSTOM_CHECKIN_FILTER_LABEL) {
-      entries.push(item(filter, CUSTOM_CHECKIN_FILTER_LABEL, 'The filter kept from your earlier choice'))
-    }
-    return entries
-  }, [filter, menuPeople, countFor])
-
-  const scopeLabel = checkinFilterLabel(filter)
 
   const sendLabel = method === 'eml' ? 'Download .eml' : 'Copy & open'
 
@@ -243,12 +216,14 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
 
         <div className={styles.body}>
         <section className={styles.group} aria-labelledby={`${titleId}-recipients`}>
-          <div id={`${titleId}-recipients`} className={styles.groupLabel}>Recipients · open tasks assigned to each</div>
+          <div id={`${titleId}-recipients`} className={styles.groupLabel}>
+            {filtered ? 'Recipients · their open tasks that match Which tasks' : 'Recipients · open tasks assigned to each'}
+          </div>
           {recipients.length === 0 && <div className={styles.empty}>Nobody has open tasks assigned.</div>}
           {recipients.map((p) => {
             const email = hasEmail(p)
             const checked = isChecked(p)
-            const count = countFor(p, filter)
+            const count = countFor(p)
             const sentAs = sent.get(p.id)
             const inputId = `${titleId}-person-${p.id}`
             return (
@@ -282,7 +257,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
                       aria-label={`${sendLabel} for ${p.name}`}
                       data-checkin-send={p.id}
                       disabled={count === 0}
-                      title={count === 0 ? 'No open tasks for this choice' : undefined}
+                      title={count === 0 ? 'No open tasks match Which tasks' : undefined}
                       onClick={() => { void send(p) }}
                     >
                       {sendLabel}
@@ -291,6 +266,20 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
               </div>
             )
           })}
+        </section>
+
+        <section className={styles.group} aria-labelledby={`${titleId}-filter`}>
+          <div id={`${titleId}-filter`} className={styles.groupLabel}>Which tasks · remembered for every check-in</div>
+          <div className={styles.filterLine} data-testid="checkin-filter">
+            <PredicateChips
+              predicate={filter}
+              onChange={(next) => { void useSettingsStore.getState().setCheckinTaskFilter(next) }}
+              addLabel="Add a filter to the check-in"
+              omitFields={CHECKIN_OMIT_FIELDS}
+              inDialog
+              before={filtered ? undefined : <span className={styles.noFilter}>All open tasks</span>}
+            />
+          </div>
         </section>
 
         <div className={styles.options}>
@@ -304,21 +293,6 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
               <input type="checkbox" checked={includeOthers} onChange={(e) => setIncludeOthers(e.target.checked)} />
               Other people on the task
             </label>
-            <div className={styles.scopeField}>
-              <span id={`${titleId}-scope`} className={styles.scopeLabel}>Which tasks</span>
-              <button
-                ref={scopeButtonRef}
-                type="button"
-                className={styles.scopeBtn}
-                aria-haspopup="menu"
-                aria-expanded={scopeMenuOpen}
-                aria-labelledby={`${titleId}-scope ${titleId}-scope-value`}
-                onClick={() => setScopeMenuOpen((o) => !o)}
-              >
-                <span id={`${titleId}-scope-value`} className={styles.scopeValue}>{scopeLabel}</span>
-                <ChevronDownIcon />
-              </button>
-            </div>
           </div>
           <div className={styles.group} role="radiogroup" aria-label="How to open it">
             <div className={styles.groupLabel}>How to open it · saved in Settings</div>
@@ -360,16 +334,6 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
         </div>
       </DialogFrame>
 
-      {scopeMenuOpen && (
-        <MenuPopover
-          anchorRef={scopeButtonRef}
-          placement="bottom-start"
-          width={340}
-          label="Which tasks"
-          entries={scopeEntries}
-          onClose={() => setScopeMenuOpen(false)}
-        />
-      )}
       {emailEditorFor !== null && <PeopleEditor editPersonId={emailEditorFor} onClose={closeEmailEditor} />}
       {previewOpen && checkedPeople.length > 0 && (
         <CheckinPreview

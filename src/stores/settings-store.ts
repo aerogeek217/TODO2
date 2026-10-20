@@ -23,6 +23,7 @@ import { DEFAULT_HOT_RULE, formatHotRule, normalizeHotRule, parseHotRule, type H
 import {
   DEFAULT_CHECKIN_OPEN_METHOD,
   checkinFilterOf,
+  checkinFiltersEqual,
   isCheckinOpenMethod,
   isNoCheckinFilter,
   type CheckinOpenMethod,
@@ -135,7 +136,11 @@ interface SettingsState {
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
   setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
-  /** Remembers the check-in filter (kept without people; no filter = the row removed); shown at once, put back when the save fails. */
+  /**
+   * Remembers the check-in filter (kept without people; no filter = the row
+   * removed); shown at once, put back when the save fails (the snackbar says
+   * so). The same filter again writes nothing.
+   */
   setCheckinTaskFilter: (filter: CheckinTaskFilter) => Promise<void>
   /**
    * What new blank lists sort by, and which way (`desc` is kept only for a
@@ -557,6 +562,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return trackWrite(async () => {
       const next = checkinFilterOf(filter)
       const prev = get().checkinTaskFilter
+      if (checkinFiltersEqual(next, prev)) return
       set({ checkinTaskFilter: next })
       try {
         // Stored only when it narrows: absent = all open tasks.
@@ -565,6 +571,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       } catch (e) {
         console.error('Failed to save the check-in filter:', e)
         set({ checkinTaskFilter: prev })
+        useUndoStore.getState().notify('Couldn’t save the check-in filter.')
       }
     })
   },

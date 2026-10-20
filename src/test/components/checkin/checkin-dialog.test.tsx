@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { CheckinDialog } from '../../../components/checkin/CheckinDialog'
 import { db } from '../../../data/database'
 import type { Person, PersistedTodoItem, TodoPredicate } from '../../../models'
-import { dueSoonCheckinFilter } from '../../../utils/checkin-settings'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -15,6 +15,14 @@ import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
+
+const CHECKIN_DUE_SOON_DAYS = 14
+/** Due before today or within the next 14 days (a due range open at the start). */
+const dueSoonCheckinFilter = (): TodoPredicate => ({
+  ...emptyPredicate(),
+  dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: CHECKIN_DUE_SOON_DAYS } } },
+})
+
 
 // Monday 12 Oct 2026, 10:00.
 const NOW = new Date(2026, 9, 12, 10)
@@ -34,7 +42,7 @@ const TODOS: PersistedTodoItem[] = [
 ]
 const ASSIGNED = new Map<number, Person[]>([[1, [ada]], [2, [ada, bob]], [3, [ada]], [4, [bob]], [5, [cy]], [6, [ada]]])
 
-/** A filter kept from older data (a saved list's): text "review". */
+/** A check-in filter: text "review". */
 const REVIEWS: TodoPredicate = {
   showCompleted: false, personIds: null, statusIds: null, searchText: 'review', dates: {}, markers: null, tags: null,
 }
@@ -177,29 +185,52 @@ describe('CheckinDialog — rows', () => {
 })
 
 describe('CheckinDialog — Which tasks', () => {
-  it('menu: the quick picks with counts for the ticked people; picking one saves it as the check-in filter', async () => {
-    open([1, 2])
-    fireEvent.click(screen.getByRole('button', { name: /Which tasks/ }))
-    const menu = screen.getByRole('menu', { name: 'Which tasks' })
-    const items = within(menu).getAllByRole('menuitemradio').map((i) => i.textContent)
-    // Ada + Bob: all = 3 + 2, due soon = 2 + 2, hot = 0.
-    expect(items).toEqual(['All open tasks5 tasks', 'Overdue + next 2 weeks4 tasks', 'Hot0 tasks'])
-    expect(within(menu).getByRole('menuitemradio', { name: /All open tasks/ }).getAttribute('aria-checked')).toBe('true')
-    await act(async () => { fireEvent.click(within(menu).getByRole('menuitemradio', { name: /Overdue/ })) })
-    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(dueSoonCheckinFilter())
-    expect(screen.queryByRole('menu', { name: 'Which tasks' })).toBeNull()
-    expect(screen.getByRole('button', { name: /Which tasks/ }).textContent).toContain('Overdue + next 2 weeks')
+  const filterLine = () => within(dialog()).getByTestId('checkin-filter')
+
+  it('is a filter line: no filter reads “All open tasks”; + Filter offers every field but People', () => {
+    open([1])
+    expect(filterLine().textContent).toContain('All open tasks')
+    expect(within(filterLine()).queryAllByTestId('list-filter-chip')).toHaveLength(0)
+    fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
+    const menu = screen.getByRole('menu', { name: 'Add a filter' })
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent))
+      .toEqual(['Priority', 'Tags', 'Dates', 'Status', 'Text contains…'])
   })
 
-  it('a filter no quick pick names (older data: a saved list’s) is “Custom filter”, checked, with its count', () => {
-    useSettingsStore.setState({ checkinTaskFilter: REVIEWS })
+  it('a filter added from + Filter is saved at once; the counts follow it', async () => {
+    open([1, 2])
+    expect([count(1), count(2)]).toEqual(['3 tasks', '2 tasks'])
+    fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Priority' }))
+    await act(async () => { fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' })) })
+    expect(useSettingsStore.getState().checkinTaskFilter.markers).toBe('hot')
+    expect(await db.settings.get('checkinTaskFilter')).toBeTruthy()
+    expect([count(1), count(2)]).toEqual(['0 tasks', '0 tasks'])
+    expect(within(filterLine()).getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['PriorityHot'])
+    expect(within(row(1)).getByRole('button', { name: 'Copy & open for Ada Lovelace' })).toHaveProperty('disabled', true)
+  })
+
+  it('a chip shows the kept filter; its × clears it (all open tasks, nothing stored)', async () => {
+    await useSettingsStore.getState().setCheckinTaskFilter(REVIEWS)
     open([1])
-    expect(screen.getByRole('button', { name: /Which tasks/ }).textContent).toContain('Custom filter')
     expect(count(1)).toBe('1 task')
-    fireEvent.click(screen.getByRole('button', { name: /Which tasks/ }))
-    const custom = within(screen.getByRole('menu', { name: 'Which tasks' })).getByRole('menuitemradio', { name: /Custom filter/ })
-    expect(custom.getAttribute('aria-checked')).toBe('true')
-    expect(custom.textContent).toBe('Custom filter1 task')
+    const chip = within(filterLine()).getByTestId('list-filter-chip')
+    expect(chip.textContent).toContain('review')
+    await act(async () => { fireEvent.click(within(chip).getByRole('button', { name: 'Remove filter' })) })
+    expect(useSettingsStore.getState().checkinTaskFilter).toEqual(emptyPredicate())
+    expect(await db.settings.get('checkinTaskFilter')).toBeUndefined()
+    expect(count(1)).toBe('3 tasks')
+    expect(filterLine().textContent).toContain('All open tasks')
+  })
+
+  it('Esc in a filter picker closes the picker only, not the dialog', () => {
+    open([1])
+    fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Priority' }))
+    const hot = screen.getByRole('checkbox', { name: 'Hot' })
+    fireEvent.keyDown(hot, { key: 'Escape' })
+    expect(screen.queryByRole('checkbox', { name: 'Hot' })).toBeNull()
+    expect(dialog()).toBeTruthy()
   })
 
   it('How to open it writes the setting and relabels the send buttons', async () => {

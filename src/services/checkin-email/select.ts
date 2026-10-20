@@ -112,3 +112,19 @@ export function selectCheckinTasks(
 export function checkinTaskCount(sections: CheckinSections): number {
   return sections.overdue.length + sections.comingUp.length
 }
+
+/**
+ * Per person id, how many of their open tasks `filter` picks — one pass over
+ * the tasks (people with none are absent).
+ */
+export function checkinTaskCounts(filter: CheckinTaskFilter, ctx: CheckinSelectContext): Map<number, number> {
+  const inScope = filterTest(filter, ctx)
+  const counts = new Map<number, number>()
+  for (const t of ctx.todos) {
+    if (t.isCompleted) continue
+    const people = ctx.assignedPeopleMap.get(t.id)
+    if (!people || people.length === 0 || !inScope(t)) continue
+    for (const p of people) if (p.id != null) counts.set(p.id, (counts.get(p.id) ?? 0) + 1)
+  }
+  return counts
+}
