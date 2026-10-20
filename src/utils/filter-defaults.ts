@@ -63,7 +63,7 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
 /**
  * Same shape as `getFilterDefaults` but reads from a serializable
  * `TodoPredicate` — the form a `ListDefinition` stores on disk. Used to seed
- * a "+ Add task" affordance from the predicate of a list widget / saved list,
+ * a "+ Add task" affordance from the predicate of a list widget,
  * post any runtime-filter merge.
  */
 export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {

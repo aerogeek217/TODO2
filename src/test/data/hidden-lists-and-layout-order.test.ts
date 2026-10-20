@@ -39,7 +39,7 @@ describe('import: a list’s owner, its filter-line switch, the Priority groupin
   it.each([
     [{ layoutId: 0 }], [{ layoutId: 1.5 }], [{ layoutId: '3' }], [{ eisenhower: false }],
     [{ layoutId: 3, eisenhower: true }], [{ layoutId: 3, extra: 1 }], ['eisenhower'], [7],
-  ])('an owner it can’t read (%j) is dropped with a warning: a saved list', (owner) => {
+  ])('an owner it can’t read (%j) is dropped with a warning: a list with no owner (the audit gives it a layout)', (owner) => {
     const row = list(1, { owner })
     expect(validateRow('listDefinitions', row)).toBe(true)
     expect(rowFixes('listDefinitions', row)).toEqual(['unknown owner dropped'])
@@ -130,7 +130,7 @@ describe('listDefinitionRepository.ensureEisenhowerList', () => {
     expect(await db.listDefinitions.count()).toBe(2)
   })
 
-  it('a setting naming a saved list (or nothing) is pointed at the Eisenhower’s list that exists', async () => {
+  it('a setting naming another list (or nothing) is pointed at the Eisenhower’s list that exists', async () => {
     await db.listDefinitions.bulkAdd([list(1), list(2, { owner: { eisenhower: true } })] as unknown as ListDefinition[])
     await db.settings.put({ key: 'eisenhowerSource', value: 'list:1' })
     expect(await listDefinitionRepository.ensureEisenhowerList()).toBe(2)

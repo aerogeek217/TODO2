@@ -16,8 +16,8 @@ import { resetDb, resetEntityStores } from '../../helpers'
 
 /**
  * A layout's lists in the workspace: Create new list makes one owned by the
- * open layout; Change list offers only the layout's own lists; the tab menu
- * has no Save to my lists; the delete confirm says they go with the layout.
+ * open layout; Change list offers only the layout's own lists; the delete
+ * confirm says they go with the layout.
  */
 
 const AT = new Date(2026, 0, 1)
@@ -78,11 +78,6 @@ describe('a layout’s lists in the workspace', () => {
     }, 1)
     await waitFor(() => expect(shown).not.toBeNull())
     expect((await db.listDefinitions.get(shown!))?.name).toBe('New list 2')
-  })
-
-  it('the tab menu has no Save to my lists', () => {
-    const menu = openTabMenu()
-    expect(within(menu).queryByRole('menuitem', { name: 'Save to my lists' })).toBeNull()
   })
 
   it('Change list offers only this layout’s own lists', () => {

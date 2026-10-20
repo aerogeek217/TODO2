@@ -176,7 +176,7 @@ describe('ListDefinitionPickerPopup — the layout’s lists', () => {
     expect(queryByText('Theirs')).toBeNull()
     expect(queryByText('Eisenhower')).toBeNull()
     expect(queryByText('No owner')).toBeNull()
-    // No Saved list / This layout only choice, no note on the rows.
+    // Only the layout's lists: no choice of where a new list goes, no note on the rows.
     expect(queryByRole('radio')).toBeNull()
     expect(queryByText('This layout')).toBeNull()
   })

@@ -130,7 +130,7 @@ const LIST_ID = /^[1-9]\d{0,15}$/
 
 /**
  * The stored `eisenhowerSource` text: the id of the Eisenhower's own list
- * (older data: of a saved list, which the app replaces with an own list),
+ * (older data: of another list, which the app replaces with its own list),
  * `null` for all tasks (`all`, older data), `undefined` when unreadable.
  */
 export function parseEisenhowerSource(value: string): number | null | undefined {

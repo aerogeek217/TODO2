@@ -129,7 +129,7 @@ describe('Edit list', () => {
     expect(within(dialog).getByRole('button', { name: 'Revert' })).toBeEnabled()
   })
 
-  it('Esc closes a saved list at once; an Esc that closes a menu inside only closes the menu', () => {
+  it('Esc closes a list with no unsaved changes at once; an Esc that closes a menu inside only closes the menu', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
@@ -178,14 +178,14 @@ describe('Edit list', () => {
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
   })
 
-  it('× on a saved list closes it at once', () => {
+  it('× on a list with no unsaved changes closes it at once', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
     expect(useUIStore.getState().listEditor).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('a press in the previewed list closes a saved list, and the press reaches the list', () => {
+  it('a press in the previewed list closes a list with no unsaved changes, and the press reaches the list', () => {
     open()
     const row = screen.getByRole('button', { name: 'A row' })
     expect(fireEvent.pointerDown(row)).toBe(true)

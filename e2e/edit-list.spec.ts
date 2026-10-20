@@ -142,7 +142,7 @@ test('edits show live in every widget showing the list; the popover stays open; 
 /** The unsaved-list question Edit list asks before it closes. */
 const unsavedPrompt = (page: Page) => page.getByRole('dialog', { name: /^Save changes to list/ })
 
-test('a saved list: a press in its own panel closes Edit list, and the press goes through', async ({ page }) => {
+test('no unsaved changes: a press in its own panel closes Edit list, and the press goes through', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   const popover = await openFromTabMenu(page, 't1')
@@ -230,7 +230,7 @@ test('an unsaved list: the question’s Save list writes the edits and closes Ed
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')).toMatchObject({ sort: 'name' })
 })
 
-test('Esc and × ask the same while the list is unsaved (also for edits made before it opened); a saved list just closes', async ({ page }) => {
+test('Esc and × ask the same while the list is unsaved (also for edits made before it opened); with none it just closes', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   // An edit from outside Edit list: unsaved when it opens.
