@@ -271,10 +271,12 @@ describe('useSettingsStore', () => {
     expect(await db.settings.get('purgePromptIntervalDays')).toBeUndefined()
 
     const at = new Date('2026-10-20T08:15:00.000Z')
+    useUndoStore.getState().clear()
     await useSettingsStore.getState().setPurgePromptLastAt(at)
     expect(await db.settings.get('purgePromptLastAt')).toEqual({ key: 'purgePromptLastAt', value: at.toISOString() })
-    // An internal stamp: no undo step.
+    // An internal stamp: no undo step, no notice.
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(useUndoStore.getState().snackbar).toBeNull()
     useSettingsStore.setState({ purgePromptLastAt: null })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().purgePromptLastAt).toEqual(at)
@@ -283,6 +285,60 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(7)
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
+  })
+
+  it('new-list sort / grouping and the purge interval: each change is one undo step with the snackbar; undo / redo save', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+
+    await useSettingsStore.getState().setNewListSort('deadline', 'desc')
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['New lists sort by Due date ↓'])
+    expect(useUndoStore.getState().snackbar?.description).toBe('New lists sort by Due date ↓')
+    await useSettingsStore.getState().setNewListGroup('people')
+    await useSettingsStore.getState().setPurgePromptIntervalDays(14)
+    // The same value again: nothing to undo.
+    await useSettingsStore.getState().setNewListGroup('people')
+    await useSettingsStore.getState().setPurgePromptIntervalDays(14)
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([
+      'New lists sort by Due date ↓', 'New lists group by People', 'Ask about old completed tasks at most every 14 days',
+    ])
+
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(7)
+    expect(await db.settings.get('purgePromptIntervalDays')).toBeUndefined()
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().newListGroup).toBe('none')
+    expect(await db.settings.get('newListGroup')).toBeUndefined()
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'manual', newListSortDirection: 'asc' })
+    expect(await db.settings.get('newListSort')).toBeUndefined()
+    expect(await db.settings.get('newListSortDirection')).toBeUndefined()
+    // Undoing pushed nothing new.
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+
+    await useUndoStore.getState().redo()
+    expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'deadline', newListSortDirection: 'desc' })
+    expect(await db.settings.get('newListSortDirection')).toEqual({ key: 'newListSortDirection', value: 'desc' })
+    expect(useUndoStore.getState().undoStack).toHaveLength(1)
+  })
+
+  it('a failed save of a new-list default or the purge interval puts the value back, adds no undo step and says so', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const put = vi.spyOn(settingsRepository, 'put').mockRejectedValue(new Error('disk full'))
+
+    await useSettingsStore.getState().setNewListSort('name')
+    expect(useSettingsStore.getState().newListSort).toBe('manual')
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save how new lists sort.', notice: true })
+    await useSettingsStore.getState().setNewListGroup('tag')
+    expect(useSettingsStore.getState().newListGroup).toBe('none')
+    await useSettingsStore.getState().setPurgePromptIntervalDays(30)
+    expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(7)
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t save how often to ask about old completed tasks.')
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    put.mockRestore()
+    vi.restoreAllMocks()
   })
 
   it('keyboard shortcuts: start at the defaults, save only changes, refuse clashes, reset one or all', async () => {

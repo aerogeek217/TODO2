@@ -29,7 +29,9 @@ import {
   type CheckinTaskFilter,
 } from '../utils/checkin-settings'
 import { emptyPredicate } from '../models/filter-predicate'
+import { GROUP_LABEL, sortSummary } from '../utils/list-options'
 import {
+  effectiveSortDirection,
   isTodoGroupBy,
   isTodoSortBy,
   sortHasDirection,
@@ -59,6 +61,7 @@ import {
 } from '../data/eisenhower-shape'
 import { readFresh, trackWrite } from './store-helpers'
 import { useUndoStore, type UndoEntry } from './undo-store'
+import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -137,6 +140,8 @@ interface SettingsState {
   /**
    * What new blank lists sort by, and which way (`desc` is kept only for a
    * sort with a direction); stored only when not the default (Manual, `asc`).
+   * Shown at once; one undo step with the snackbar (a failed save adds none,
+   * puts the value back and says so) — as the two setters below.
    */
   setNewListSort: (sort: TodoSortBy, direction?: TodoSortDirection) => Promise<void>
   /** What new blank lists group by; stored only when not the default (none). */
@@ -564,52 +569,41 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 
-  setNewListSort(sort: TodoSortBy, direction: TodoSortDirection = 'asc') {
-    return trackWrite(async () => {
-      if (!isTodoSortBy(sort)) return
-      const dir: TodoSortDirection = direction === 'desc' && sortHasDirection(sort) ? 'desc' : 'asc'
-      const prev = { newListSort: get().newListSort, newListSortDirection: get().newListSortDirection }
-      set({ newListSort: sort, newListSortDirection: dir })
-      try {
-        if (sort === 'manual') await settingsRepository.delete(SETTING_KEYS.newListSort)
-        else await settingsRepository.put(SETTING_KEYS.newListSort, sort)
-        if (dir === 'asc') await settingsRepository.delete(SETTING_KEYS.newListSortDirection)
-        else await settingsRepository.put(SETTING_KEYS.newListSortDirection, dir)
-      } catch (e) {
-        console.error('Failed to save the new-list sort:', e)
-        set(prev)
-      }
-    })
+  async setNewListSort(sort: TodoSortBy, direction: TodoSortDirection = 'asc') {
+    if (!isTodoSortBy(sort)) return
+    const dir = effectiveSortDirection(sort, direction)
+    const before = { sort: get().newListSort, dir: get().newListSortDirection }
+    if (before.sort === sort && before.dir === dir) return
+    await recordSettingWrite(
+      `New lists sort by ${sortSummary(sort, dir)}`,
+      () => writeNewListSort(sort, dir),
+      () => writeNewListSort(before.sort, before.dir),
+      'Couldn’t save how new lists sort.',
+    )
   },
 
-  setNewListGroup(group: TodoGroupBy) {
-    return trackWrite(async () => {
-      if (!isTodoGroupBy(group)) return
-      const prev = get().newListGroup
-      set({ newListGroup: group })
-      try {
-        if (group === 'none') await settingsRepository.delete(SETTING_KEYS.newListGroup)
-        else await settingsRepository.put(SETTING_KEYS.newListGroup, group)
-      } catch (e) {
-        console.error('Failed to save the new-list grouping:', e)
-        set({ newListGroup: prev })
-      }
-    })
+  async setNewListGroup(group: TodoGroupBy) {
+    if (!isTodoGroupBy(group)) return
+    const before = get().newListGroup
+    if (before === group) return
+    await recordSettingWrite(
+      group === 'none' ? 'New lists aren’t grouped' : `New lists group by ${GROUP_LABEL[group]}`,
+      () => writeNewListGroup(group),
+      () => writeNewListGroup(before),
+      'Couldn’t save how new lists group.',
+    )
   },
 
-  setPurgePromptIntervalDays(days: number) {
-    return trackWrite(async () => {
-      if (!isPurgePromptIntervalDays(days)) return
-      const prev = get().purgePromptIntervalDays
-      set({ purgePromptIntervalDays: days })
-      try {
-        if (days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS) await settingsRepository.delete(SETTING_KEYS.purgePromptIntervalDays)
-        else await settingsRepository.put(SETTING_KEYS.purgePromptIntervalDays, String(days))
-      } catch (e) {
-        console.error('Failed to save the purge prompt interval:', e)
-        set({ purgePromptIntervalDays: prev })
-      }
-    })
+  async setPurgePromptIntervalDays(days: number) {
+    if (!isPurgePromptIntervalDays(days)) return
+    const before = get().purgePromptIntervalDays
+    if (before === days) return
+    await recordSettingWrite(
+      `Ask about old completed tasks at most every ${days === 1 ? 'day' : `${days} days`}`,
+      () => writePurgePromptInterval(days),
+      () => writePurgePromptInterval(before),
+      'Couldn’t save how often to ask about old completed tasks.',
+    )
   },
 
   setPurgePromptLastAt(at: Date) {
@@ -777,6 +771,79 @@ function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {
     }
     useSettingsStore.setState({ shortcutOverrides: overrides })
   })
+}
+
+/**
+ * A settings change as one undo step with the undo snackbar (Settings, where
+ * these are changed, takes no Ctrl+Z): `write` shows and saves it, `revert`
+ * puts the value before it back. A failed save adds no step and says so
+ * (the snackbar's notice); its undo / redo rejects when its write fails, so
+ * the undo store keeps the entry and says so.
+ */
+async function recordSettingWrite(
+  description: string,
+  write: () => Promise<boolean>,
+  revert: () => Promise<boolean>,
+  failure: string,
+): Promise<void> {
+  if (!(await write())) {
+    useUndoStore.getState().notify(failure)
+    return
+  }
+  const must = async (run: () => Promise<boolean>) => {
+    if (!(await run())) throw new Error('The setting could not be saved')
+  }
+  undoable(description, () => must(write), () => must(revert), true)
+}
+
+/**
+ * Shows one setting's new value at once, then saves it with `persist`; a
+ * failed save puts the value before it back and resolves false.
+ */
+function writeSetting<K extends keyof SettingsState>(
+  patch: Pick<SettingsState, K>,
+  persist: () => Promise<void>,
+  label: string,
+): Promise<boolean> {
+  return trackWrite(async () => {
+    const state = useSettingsStore.getState()
+    const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, state[k as K]])) as Pick<SettingsState, K>
+    useSettingsStore.setState(patch)
+    try {
+      await persist()
+      return true
+    } catch (e) {
+      console.error(`Failed to save ${label}:`, e)
+      useSettingsStore.setState(prev)
+      return false
+    }
+  })
+}
+
+/** What new blank lists sort by and which way; the rows go at the defaults (Manual, `asc`). */
+function writeNewListSort(sort: TodoSortBy, dir: TodoSortDirection): Promise<boolean> {
+  return writeSetting({ newListSort: sort, newListSortDirection: dir }, async () => {
+    if (sort === 'manual') await settingsRepository.delete(SETTING_KEYS.newListSort)
+    else await settingsRepository.put(SETTING_KEYS.newListSort, sort)
+    if (dir === 'asc') await settingsRepository.delete(SETTING_KEYS.newListSortDirection)
+    else await settingsRepository.put(SETTING_KEYS.newListSortDirection, dir)
+  }, 'the new-list sort')
+}
+
+/** What new blank lists group by; the row goes at the default (none). */
+function writeNewListGroup(group: TodoGroupBy): Promise<boolean> {
+  return writeSetting({ newListGroup: group }, async () => {
+    if (group === 'none') await settingsRepository.delete(SETTING_KEYS.newListGroup)
+    else await settingsRepository.put(SETTING_KEYS.newListGroup, group)
+  }, 'the new-list grouping')
+}
+
+/** The purge prompt's interval; the row goes at the default (7 days). */
+function writePurgePromptInterval(days: number): Promise<boolean> {
+  return writeSetting({ purgePromptIntervalDays: days }, async () => {
+    if (days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS) await settingsRepository.delete(SETTING_KEYS.purgePromptIntervalDays)
+    else await settingsRepository.put(SETTING_KEYS.purgePromptIntervalDays, String(days))
+  }, 'the purge prompt interval')
 }
 
 /**
