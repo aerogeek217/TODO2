@@ -180,9 +180,9 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await expect.poll(() => dividerValue(widget)).toBe(352)
   await page.keyboard.press('Home')
   await expect.poll(() => dividerValue(widget)).toBe(Number(await divider(widget).getAttribute('aria-valuemin')))
-  // The narrowest details: notes, both dates, status — the divider never drops a date.
-  expect(await laidOutDetails(first)).toBe(158)
-  await expect(first.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
+  // The narrowest details: notes, the dates as icons, status.
+  expect(await laidOutDetails(first)).toBe(84)
+  await expect(first.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'icons')
   await page.keyboard.press('End')
   const max = Number(await divider(widget).getAttribute('aria-valuemax'))
   await expect.poll(() => dividerValue(widget)).toBe(max)

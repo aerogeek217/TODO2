@@ -126,12 +126,12 @@ describe('TaskRow', () => {
       expect(container.querySelector('[class*="dragHandle"]')).toBeNull()
     })
 
-    it('squeezed details remove the tags column first, then people; their pickers then open at the row', () => {
+    it('squeezed details remove the tags column once the dates are icons, then people; their pickers then open at the row', () => {
       const tags = [{ id: 1, name: 'alpha', color: '#111' }]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
-      // F = 223 − 148 − 20 = 55: just under the split.
+      // The dates as icons: F = 149 − 74 − 20 = 55, just under the split.
       render(
-        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, 223))}>
+        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, 149))}>
           <TaskRow todo={makeTodo({ id: 1 })} />
         </TaskRowColumnsContext.Provider>,
       )

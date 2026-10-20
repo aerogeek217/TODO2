@@ -8,7 +8,8 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from 
  * What a divider drag costs, held where it is observable without timing.
  * The task-row divider re-lays the rows out without re-rendering them: the
  * rows take their tracks straight from their list's columns, and only an
- * avatars / tags cell whose fit changes re-renders. Nothing is written (view
+ * avatars / tags cell whose fit changes re-renders — or a dates cell, as the
+ * drag crosses a dates tier (none within one). Nothing is written (view
  * state, kept drafts) until the release, and the release re-renders the
  * widget once but no row. The workspace's column / band dividers re-render
  * no task row either, and keep the unsaved layout in the browser once, at
@@ -35,7 +36,7 @@ const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: ROWS }, 
   focus: i % 7 === 0,
 }))
 
-const WATCHED = ['TaskRow', 'PeopleCell', 'TagsCell', 'ListWidget', 'EisenhowerWidget', 'DashboardWidget']
+const WATCHED = ['TaskRow', 'PeopleCell', 'TagsCell', 'DatesCell', 'ListWidget', 'EisenhowerWidget', 'DashboardWidget']
 
 function seed(tab: Omit<WsTabSeed, 'id'>): WorkspaceSeed {
   return {
@@ -137,6 +138,8 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
     expect(counts.ListWidget, 'the list widget re-rendered during the drag').toBe(0)
     // Only cells whose avatars / tags fit changed: a few times each over 80px, never once per move.
     expect(counts.PeopleCell! + counts.TagsCell!).toBeLessThan(ROWS * steps / 4)
+    // 300 → 380 stays in one dates tier: no dates cell renders.
+    expect(counts.DatesCell ?? 0, 'dates cells re-rendered within one tier').toBe(0)
     // Nothing written yet.
     expect(await storageWrites(page)).toBe(writesBefore)
     expect(await storedViewState(page) ?? {}).toEqual({})
@@ -148,6 +151,24 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
   for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(380)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+})
+
+test('a drag across a dates tier renders each dates cell once, still no row', async ({ page }) => {
+  await installRenderCounter(page, WATCHED)
+  await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }))
+  const widget = wsListWidget(page, 'tab')
+  await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
+  await settled(widget)
+  await expectCounterLive(page, 'DatesCell')
+  await resetRenderCounts(page)
+  // 300 → 200: both dates → the due date's only.
+  await dragDivider(page, widget, 100, 20, async () => {
+    await expect(widget.locator('[data-row-cell="dates"]').first()).toHaveAttribute('data-dates-tier', 'due')
+    const counts = await readRenderCounts(page)
+    expect(counts.TaskRow).toBe(0)
+    expect(counts.ListWidget).toBe(0)
+    expect(counts.DatesCell).toBe(ROWS)
+  })
 })
 
 test('Eisenhower: every quadrant follows the drag without the widget or its rows re-rendering', async ({ page }) => {

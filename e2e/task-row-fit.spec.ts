@@ -109,3 +109,39 @@ test.describe('task rows fit their container', () => {
     expect(problems).toEqual([])
   })
 })
+
+test('narrowing the details by the divider: people and tags shrink, the dates go to icons, then tags, then people go', async ({ page }) => {
+  await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760))
+  await expect(page.locator('[data-todo-id]')).toHaveCount(TASKS.length)
+  const busiest = page.locator('[data-todo-id]').first()
+  await expect(busiest.locator('[data-person-avatar]').first()).toBeVisible()
+  const divider = page.locator('[data-task-row-divider]').first()
+  await expect(divider).toHaveAttribute('aria-valuenow', '300')
+  const handle = await divider.boundingBox()
+  if (!handle) throw new Error('no divider')
+  const from = { x: handle.x + handle.width / 2, y: handle.y + 14 }
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  // Dragging right narrows the details: [details, dates tier, people column, tags column].
+  const steps: Array<[number, string, boolean, boolean]> = [
+    [240, 'both', true, true],
+    [200, 'due', true, true],
+    [160, 'icons', true, true],
+    [130, 'icons', true, false],
+    [90, 'icons', false, false],
+  ]
+  for (const [details, tier, people, tags] of steps) {
+    await page.mouse.move(from.x + (300 - details), from.y, { steps: 4 })
+    await expect(divider).toHaveAttribute('aria-valuenow', String(details))
+    await expect(busiest.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', tier)
+    await expect(busiest.locator('[data-row-cell="people"]')).toHaveCount(people ? 1 : 0)
+    await expect(busiest.locator('[data-row-cell="tags"]')).toHaveCount(tags ? 1 : 0)
+    for (const part of ['due', 'followup']) await expect(busiest.locator(`[data-row-cell="${part}"] svg`).first()).toBeInViewport()
+    expect((await rowOverflow(page)).problems).toEqual([])
+  }
+  await page.mouse.up()
+  // Back to the default: both dates again.
+  await divider.dblclick()
+  await expect(divider).toHaveAttribute('aria-valuenow', '300')
+  await expect(busiest.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
+})

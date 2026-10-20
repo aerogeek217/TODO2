@@ -254,10 +254,11 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
 /**
  * The dates cell: the due date (a clock — the repeat glyph for a repeating
  * task — then `MM/DD`) and the next follow-up (the flag, then `MM/DD`), two
- * parts with their own click target, picker, tooltip and colours. The list's
- * width sets which dates show beside their icons (`TaskRowColumns.datesTier`;
- * the follow-up's date goes first, then the due date's — the tooltip still
- * has them); the cell re-renders only when that changes. An absent date is
+ * parts with their own click target, picker, tooltip and colours. The
+ * details width (capped by the list's) sets which dates show beside their
+ * icons (`TaskRowColumns.datesTier`; the follow-up's date goes first, then
+ * the due date's — the tooltip still has them); the cell re-renders only when
+ * that changes, so a divider drag renders it only as it crosses a tier. An absent date is
  * its icon as the placeholder. A part showing its date gets a clear × over
  * its right end on hover.
  */

@@ -6,16 +6,15 @@
  *   gutter · checkbox · title │ notes · people · tags · dates · status
  *
  * The **details width** D is the notes … status tracks plus the gaps between them;
- * the title takes the rest. Only people and tags flex: F = P + T is what is
- * left of D after the fixed tracks. Squeezed, tags give way first (removed
- * below `SPLIT_MIN`, people takes their room), then people (removed below
- * `PEOPLE_MIN`). Notes and status never shrink; the dates track (the due
- * date, then the follow-up) is set by the list's width alone — never by D,
- * so dragging the divider never changes it: the widest of `DATES_TIERS`
- * that still leaves people and tags their split minimum when the details
- * take all the room the list gives them. A narrower list drops the
- * follow-up's date first (its flag stays), then the due date's (its clock
- * stays); a dropped date is in the part's tooltip.
+ * the title takes the rest (D is capped by the list's width: the title keeps
+ * its minimum). Notes and status never shrink; people and tags flex: F = P + T
+ * is what is left of D after the fixed tracks. As D shrinks, people and tags
+ * shrink to their split minimum (`SPLIT_MIN`), then the dates give way — the
+ * widest of `DATES_TIERS` that still leaves people and tags that minimum: the
+ * follow-up's date goes first (its flag stays), then the due date's (its
+ * clock stays); a dropped date is in the part's tooltip — and only then do
+ * the tags go (people takes their room), then people (below `PEOPLE_MIN`).
+ * So a divider drag can change the dates as well as the people / tags.
  */
 
 /**
@@ -118,18 +117,17 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
   const inner = listWidth - TASK_ROW.padLeft - TASK_ROW.padRight
   /** The most the details can get in this list: the title keeps its minimum. */
   const room = inner - LEAD - TASK_ROW.titleMin
-  // The widest dates track that leaves people and tags their split at `room`.
-  const datesTier = TIER_ORDER.find((tier) => room - fixedSum(DATES_TIERS[tier]) - TASK_ROW.gap * 4 >= SPLIT_MIN) ?? 'icons'
-  const dates = DATES_TIERS[datesTier]
-  const fixed = [TASK_ROW.notes, dates, TASK_ROW.status]
-  const minDetails = span(fixed)
+  // The narrowest details: the dates as icons, people and tags removed.
+  const minDetails = span([TASK_ROW.notes, DATES_TIERS.icons, TASK_ROW.status])
   const maxDetails = Math.max(minDetails, room)
   const details = Math.round(clamp(stored ?? DEFAULT_DETAILS_WIDTH, minDetails, maxDetails))
 
+  // The widest dates track that leaves people and tags their split at D.
+  const datesTier = TIER_ORDER.find((tier) => flex(details, DATES_TIERS[tier]) >= SPLIT_MIN) ?? 'icons'
+  const dates = DATES_TIERS[datesTier]
   let people = 0
   let tags = 0
-  // The gaps between the five tracks while people and tags are both there.
-  const f = details - fixedSum(dates) - TASK_ROW.gap * 4
+  const f = flex(details, dates)
   if (f >= SPLIT_MIN) {
     people = clamp(Math.round(f * PEOPLE_SHARE), PEOPLE_MIN, PEOPLE_MAX)
     tags = f - people
@@ -141,6 +139,11 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
   const detailTracks = [TASK_ROW.notes, ...(people ? [people] : []), ...(tags ? [tags] : []), dates, TASK_ROW.status]
   const template = [`${TASK_ROW.gutter}px`, `${TASK_ROW.checkbox}px`, 'minmax(0, 1fr)', ...detailTracks.map((t) => `${t}px`)].join(' ')
   return { template, details, laidOut: span(detailTracks), minDetails, maxDetails, people, tags, dates, datesTier }
+}
+
+/** F: what people and tags share of details `d` beside a dates track `dates` wide (the gaps between the five tracks taken). */
+function flex(d: number, dates: number): number {
+  return d - fixedSum(dates) - TASK_ROW.gap * 4
 }
 
 /** The tracks that never flex (notes, the dates, status), without gaps. */
