@@ -4,6 +4,7 @@ import { listDefinitionRepository } from '../../data/list-definition-repository'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { buildList } from '../../services/build-list'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
@@ -71,6 +72,28 @@ describe('useListDefinitionStore mutations', () => {
     const sorted = [...useListDefinitionStore.getState().listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
     expect(sorted.map(d => d.name)).toEqual(['A', 'B', 'C'])
     expect(sorted.map(d => d.sortOrder)).toEqual([0, 1, 2])
+  })
+
+  it('a blank list starts with Settings’ new-list sort, direction and grouping; a given sort / grouping and the Eisenhower’s list don’t', async () => {
+    useSettingsStore.setState({ newListSort: 'deadline', newListSortDirection: 'desc', newListGroup: 'people' })
+    const blank = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Blank' })
+    // A copy passes its source's definition.
+    const copy = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Copy', sort: 'name', grouping: 'none' })
+    const copyDesc = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Copy ↓', sort: 'created', sortDirection: 'desc', grouping: 'tag' })
+    const eisenhower = await useListDefinitionStore.getState().add({ owner: { eisenhower: true }, name: 'Eisenhower' })
+    const stored = new Map((await db.listDefinitions.toArray()).map((d) => [d.id, d]))
+    expect(stored.get(blank)).toMatchObject({ sort: 'deadline', sortDirection: 'desc', grouping: 'people' })
+    expect(stored.get(copy)).toMatchObject({ sort: 'name', grouping: 'none' })
+    expect(stored.get(copy)).not.toHaveProperty('sortDirection')
+    expect(stored.get(copyDesc)).toMatchObject({ sort: 'created', sortDirection: 'desc', grouping: 'tag' })
+    expect(stored.get(eisenhower)).toMatchObject({ sort: 'manual', grouping: 'none' })
+    expect(stored.get(eisenhower)).not.toHaveProperty('sortDirection')
+
+    // A default sort without a direction stores none.
+    useSettingsStore.setState({ newListSort: 'people', newListSortDirection: 'asc', newListGroup: 'none' })
+    const byPeople = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'People' })
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === byPeople)).toMatchObject({ sort: 'people', grouping: 'none' })
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === byPeople)).not.toHaveProperty('sortDirection')
   })
 })
 

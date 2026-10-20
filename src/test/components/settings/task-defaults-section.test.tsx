@@ -155,3 +155,45 @@ describe('TaskDefaultsSection — Hot tasks', () => {
     expect(screen.queryByRole('group', { name: 'Hot rule line 2' })).toBeNull()
   })
 })
+
+describe('TaskDefaultsSection — new lists', () => {
+  it('New lists sort by: Manual by default with no order choice; a sort with a direction offers its order in words', async () => {
+    render(<TaskDefaultsSection />)
+    const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
+    expect(sort).toHaveValue('manual')
+    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created'])
+    expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
+
+    fireEvent.change(sort, { target: { value: 'deadline' } })
+    await waitFor(() => expect(useSettingsStore.getState().newListSort).toBe('deadline'))
+    const order = screen.getByRole('combobox', { name: 'New lists sort order' })
+    expect(within(order).getAllByRole('option').map((o) => o.textContent)).toEqual(['Soonest first', 'Latest first'])
+    fireEvent.change(order, { target: { value: 'desc' } })
+    await waitFor(() => expect(useSettingsStore.getState().newListSortDirection).toBe('desc'))
+    await waitFor(async () => expect((await db.settings.get('newListSortDirection'))?.value).toBe('desc'))
+    // The direction carries over to another sort with one, and goes with Manual.
+    fireEvent.change(sort, { target: { value: 'created' } })
+    await waitFor(() => expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'created', newListSortDirection: 'desc' }))
+    expect(screen.getByRole('combobox', { name: 'New lists sort order' })).toHaveValue('desc')
+    expect(screen.getByRole('option', { name: 'Newest first' })).toBeInTheDocument()
+    fireEvent.change(sort, { target: { value: 'manual' } })
+    await waitFor(() => expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'manual', newListSortDirection: 'asc' }))
+    expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
+  })
+
+  it('New lists group by: No grouping by default; a pick is saved', async () => {
+    render(<TaskDefaultsSection />)
+    const group = screen.getByRole('combobox', { name: 'New lists group by' })
+    expect(group).toHaveValue('none')
+    expect(within(group).getAllByRole('option').map((o) => o.textContent)).toEqual(['No grouping', 'Priority', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+    fireEvent.change(group, { target: { value: 'tag' } })
+    await waitFor(() => expect(useSettingsStore.getState().newListGroup).toBe('tag'))
+    await waitFor(async () => expect((await db.settings.get('newListGroup'))?.value).toBe('tag'))
+  })
+
+  it('a stored sort the menu no longer offers still shows', () => {
+    useSettingsStore.setState({ newListSort: 'people' })
+    render(<TaskDefaultsSection />)
+    expect(screen.getByRole('combobox', { name: 'New lists sort by' })).toHaveValue('people')
+  })
+})

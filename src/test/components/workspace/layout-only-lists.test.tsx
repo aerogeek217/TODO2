@@ -7,6 +7,7 @@ import { deleteLayoutMessage } from '../../../components/workspace/delete-layout
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import type { LayoutCell, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate } from '../../../models'
@@ -55,6 +56,17 @@ describe('a layout’s lists in the workspace', () => {
     await waitFor(() => expect(shown).not.toBeNull())
     expect((await db.listDefinitions.get(shown!))?.owner).toEqual({ layoutId: 1 })
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: shown, tabId: 'mine' })
+  })
+
+  it('Create new list: the new list sorts and groups as Settings’ new-list defaults say', async () => {
+    useSettingsStore.setState({ newListSort: 'followup', newListSortDirection: 'desc', newListGroup: 'priority' })
+    let shown: number | null = null
+    createListThenEdit((id) => {
+      shown = id
+      return null
+    }, 1)
+    await waitFor(() => expect(shown).not.toBeNull())
+    expect(await db.listDefinitions.get(shown!)).toMatchObject({ sort: 'followup', sortDirection: 'desc', grouping: 'priority' })
   })
 
   it('the new list’s name is free in its layout (another layout’s names don’t count)', async () => {

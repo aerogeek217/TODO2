@@ -91,7 +91,8 @@ function freshListName(layoutId: number): string {
 
 /**
  * "Create new list…" in a list picker: saves a blank list of layout
- * `layoutId`, hands its id to `show` (which puts it in a tab and returns
+ * `layoutId` (no filter; Settings' new-list sort and grouping), hands its
+ * id to `show` (which puts it in a tab and returns
  * that tab's id), then opens Edit list beside that tab.
  */
 export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): void {

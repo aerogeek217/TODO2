@@ -7,16 +7,24 @@ import {
   type ListMembership,
   type ListSort,
   type PersistedListDefinition,
+  isEisenhowerOwner,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
+import { effectiveSortDirection, type TodoSortDirection } from '../models/todo-sort-group'
 import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
 import { useListOrderStore } from './list-order-store'
 import { useSettingsStore } from './settings-store'
 
+/**
+ * A new list. A sort or grouping not given is Settings' new-list default
+ * (`newListSort` + `newListSortDirection` / `newListGroup`) — a blank list;
+ * a copy passes its source's. `sortDirection` goes with a given `sort`.
+ */
 interface AddInput {
   name: string
   membership?: ListMembership
   sort?: ListSort
+  sortDirection?: TodoSortDirection
   grouping?: ListGrouping
   /** Who the list belongs to: the layout whose tab shows it (or the Eisenhower). */
   owner: ListOwner
@@ -53,14 +61,22 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
   ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, grouping, owner }) {
+  async add({ name, membership, sort, sortDirection, grouping, owner }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
+    // What isn't given starts as Settings' new-list defaults (the
+    // Eisenhower's own list, whose sort and grouping nothing reads, as none).
+    const defaults = isEisenhowerOwner(owner)
+      ? { newListSort: 'manual' as const, newListSortDirection: 'asc' as const, newListGroup: 'none' as const }
+      : useSettingsStore.getState()
+    const listSort = sort ?? defaults.newListSort
+    const direction = effectiveSortDirection(listSort, sort != null ? sortDirection : defaults.newListSortDirection)
     const entry: Omit<ListDefinition, 'sortOrder'> = {
       name: trimmed,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
-      sort: sort ?? 'manual',
-      grouping: grouping ?? 'none',
+      sort: listSort,
+      ...(direction === 'desc' ? { sortDirection: direction } : {}),
+      grouping: grouping ?? defaults.newListGroup,
       owner,
     }
     return mutate(
