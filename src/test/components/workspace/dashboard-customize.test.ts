@@ -5,6 +5,7 @@ import {
   moveItem,
   sectionOptionValues,
   sectionsFor,
+  syncCustomizeState,
   tilesFor,
   toggled,
   withSectionOption,
@@ -99,6 +100,20 @@ describe('Customize dashboard — the dialog state', () => {
     expect(state.sectionOrder).toEqual([...DASHBOARD_SECTION_IDS])
     expect(defaultDashboardConfig().sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people'])
     expect(sectionsFor(state, new Set(defaultDashboardConfig().sections.map((s) => s.id)))).toEqual(defaultDashboardConfig().sections)
+  })
+
+  it('syncCustomizeState keeps the state while the config is its own edit (a hidden row keeps its place), else follows the config', () => {
+    const start = customizeStateFrom(config({ tiles: ['open', 'hot'] }))
+    const moved = { ...start, tileOrder: moveItem(start.tileOrder, start.tileOrder.indexOf('dueToday'), 0) }
+    // Its own edit: Hot hidden, the hidden Due today still first.
+    const own = config({ tiles: tilesFor(moved, new Set(['open'] as const)) })
+    expect(syncCustomizeState(moved, own)).toBe(moved)
+    // Made elsewhere: the config's order, a hidden section's option kept.
+    const withOption = withSectionOption(moved, 'stale', 'staleDays', 30)
+    const elsewhere = config({ tiles: ['hot', 'open'] })
+    const synced = syncCustomizeState(withOption, elsewhere)
+    expect(synced.tileOrder.slice(0, 2)).toEqual(['hot', 'open'])
+    expect(synced.options.stale).toEqual({ staleDays: 30 })
   })
 
   it('a deleted list’s tile is left out of what the dialog shows and writes', () => {
