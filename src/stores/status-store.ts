@@ -74,19 +74,21 @@ export const useStatusStore = create<StatusState>((set, get) => {
     return trackWrite(async () => {
       const status = get().statuses.find(s => s.id === id)
       // Capture affected todos and default setting before deletion
-      const affectedTodoIds = await statusRepository.getTodoIdsForStatus(id)
       const settingsState = useSettingsStore.getState()
       const wasDefault = settingsState.defaultStatusId === id
       const wasSeededAssigned = settingsState.seededAssignedStatusId === id
 
-      await statusRepository.delete(id)
+      // One timestamp for the tasks it is cleared from, in the store and the DB.
+      const now = new Date()
+      const affectedTodoIds = await statusRepository.delete(id, now)
       set({ statuses: get().statuses.filter(s => s.id !== id) })
 
       // Update in-memory todo store
       if (affectedTodoIds.length > 0) {
+        const affected = new Set(affectedTodoIds)
         useTodoStore.setState({
           todos: useTodoStore.getState().todos.map(t =>
-            affectedTodoIds.includes(t.id) ? { ...t, statusId: undefined } : t
+            affected.has(t.id) ? { ...t, statusId: undefined, modifiedAt: now } : t
           ),
         })
       }
