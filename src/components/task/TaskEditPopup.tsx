@@ -155,7 +155,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // following changes made elsewhere while nothing typed waits. Every other
   // write to the task writes the notes typed so far first (`flushNotes`), so
   // each stays its own undo step, in order. A create reads the text.
-  const notesSession = useTaskNotesSource({ todoId: todo?.id, initial: seed?.notes ?? '' })
+  const notesSession = useTaskNotesSource({ todoId: todo?.id, initial: todo?.notes ?? seed?.notes ?? '' })
   const flushNotes = notesSession.flush
   const [progress, setProgress] = useState(todo?.progress ?? seed?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(

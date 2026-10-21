@@ -765,6 +765,12 @@ describe('TaskEditPopup — notes are written as one edit session at a time', ()
     expect(useTodoStore.getState().todos[0]).toMatchObject({ title: 'Task', notes: 'notes' })
   })
 
+  it('shows the notes of the task it is given, before the store has it', async () => {
+    renderEditMode(makeTodo({ id: 5, title: 'Not loaded', notes: 'from the prop' }))
+    await act(async () => { await Promise.resolve() })
+    expect(view().state.doc.toString()).toBe('from the prop')
+  })
+
   it('create mode: the notes typed go into the new task, nothing is written before', async () => {
     const writes = vi.spyOn(todoRepository, 'update')
     const { onCreate } = renderCreateMode()
