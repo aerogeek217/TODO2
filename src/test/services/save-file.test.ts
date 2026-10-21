@@ -53,6 +53,21 @@ describe('saveTextFile', () => {
     expect(clicked).toEqual(['a.json'])
   })
 
+  it('a write that fails part-way is aborted (the file keeps what it had) before the download', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const order: string[] = []
+    const abort = vi.fn(async () => { order.push('abort') })
+    picker(async () => ({
+      createWritable: async () => ({ write: async () => { throw domError('QuotaExceededError') }, close: vi.fn(), abort }),
+    }))
+    vi.mocked(HTMLAnchorElement.prototype.click).mockImplementation(function (this: HTMLAnchorElement) {
+      order.push(`download ${this.download}`)
+    })
+    expect(await saveTextFile(opts)).toBe('downloaded')
+    expect(abort).toHaveBeenCalledOnce()
+    expect(order).toEqual(['abort', 'download a.json'])
+  })
+
   it('downloaded: without the File System Access API', async () => {
     vi.stubGlobal('showSaveFilePicker', undefined)
     expect(await saveTextFile(opts)).toBe('downloaded')

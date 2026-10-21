@@ -92,6 +92,15 @@ describe('Settings → Import / Export — what an export says', () => {
       expect(URL.createObjectURL).not.toHaveBeenCalled()
     })
 
+    it(`${button}: an export that fails says so`, async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(URL.createObjectURL).mockImplementation(() => { throw new Error('Out of memory') })
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: button }))
+      expect(await screen.findByText('Export failed — Out of memory')).toBeTruthy()
+      expect(screen.queryByText(savedText)).toBeNull()
+    })
+
     it(`${button}: cancelling the save dialog says nothing`, async () => {
       const cancel = pickerCancelled()
       render(<ImportExportSection />)

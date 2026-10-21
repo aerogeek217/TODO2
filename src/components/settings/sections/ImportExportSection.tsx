@@ -45,7 +45,17 @@ export function ImportExportSection() {
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
   useStackedLayer(pendingAppend !== null || pendingMigration !== null)
 
-  const handleExport = async () => {
+  /** Runs an export; a failure says so in the result line (an export never fails silently). */
+  const exporting = (run: () => Promise<void>) => async () => {
+    try {
+      await run()
+    } catch (err) {
+      console.error('[export] failed', err)
+      showMessage(`Export failed — ${err instanceof Error ? err.message : String(err)}`, DOWNLOADED_MESSAGE_MS)
+    }
+  }
+
+  const handleExport = exporting(async () => {
     const now = new Date()
     const json = await buildJsonExport(now)
     const timestamp = exportFileTimestamp(now)
@@ -67,7 +77,7 @@ export function ImportExportSection() {
     if (saved === 'cancelled') return
     if (saved === 'downloaded') showMessage(downloadedMessage(fileName), DOWNLOADED_MESSAGE_MS)
     else showMessage('Exported!', 2000)
-  }
+  })
 
   /** Open a JSON file via the picker, or the hidden `<input>` fallback. */
   const pickJsonFile = async (fallbackInput: HTMLInputElement | null, onFile: (file: File) => Promise<void>) => {
@@ -183,7 +193,7 @@ export function ImportExportSection() {
     }
   }
 
-  const handleExportMarkdown = async () => {
+  const handleExportMarkdown = exporting(async () => {
     const md = await buildMarkdownExport()
     const fileName = `todos-${new Date().toISOString().split('T')[0]}.md`
     const saved = await saveTextFile({
@@ -196,7 +206,7 @@ export function ImportExportSection() {
     if (saved === 'cancelled') return
     if (saved === 'downloaded') showMessage(downloadedMessage(fileName), DOWNLOADED_MESSAGE_MS)
     else showMessage('Markdown exported!', 2000)
-  }
+  })
 
   const secondary = `${styles.button} ${styles.buttonSecondary}`
 

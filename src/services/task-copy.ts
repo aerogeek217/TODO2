@@ -12,6 +12,7 @@ import { startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
 import { escapeHtml } from '../utils/html'
 import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
+import { useUndoStore } from '../stores/undo-store'
 
 export interface CopyTaskSection {
   label?: string
@@ -110,10 +111,18 @@ export function buildTasksHtml(sections: CopyTaskSection[], ctx: CopyTaskContext
   return parts.join('\n')
 }
 
-/** Copy the rendered task list to the clipboard as rich HTML + plain text. Returns true on success. */
+/** What the snackbar says when the browser refuses a copy to the clipboard. */
+export const COPY_REFUSED_NOTICE = 'Couldn’t copy: the browser didn’t allow access to the clipboard.'
+
+/**
+ * Copy the rendered task list to the clipboard as rich HTML + plain text.
+ * Returns true on success; a refused copy says so in the snackbar.
+ */
 export async function copyTasksRich(
   sections: CopyTaskSection[],
   ctx: CopyTaskContext,
 ): Promise<boolean> {
-  return writeRichClipboard(wrapClipboardHtml(buildTasksHtml(sections, ctx)), buildTasksPlain(sections, ctx))
+  const ok = await writeRichClipboard(wrapClipboardHtml(buildTasksHtml(sections, ctx)), buildTasksPlain(sections, ctx))
+  if (!ok) useUndoStore.getState().notify(COPY_REFUSED_NOTICE)
+  return ok
 }

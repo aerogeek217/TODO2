@@ -12,6 +12,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
@@ -146,6 +147,18 @@ describe('TaskDialog', () => {
       '[ ] Chase venue deposit invoice',
     ])
     expect(within(dialog()!).getByRole('button', { name: /Copied/ })).toBeTruthy()
+  })
+
+  it('Copy tasks refused by the browser says so in the snackbar, and nothing reads Copied', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError'))
+    vi.stubGlobal('ClipboardItem', undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    open({ ...HOT, source: { kind: 'todos', todoIds: [1, 9] } })
+    await act(async () => {
+      fireEvent.click(within(dialog()!).getByRole('button', { name: /Copy tasks/ }))
+    })
+    expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Couldn’t copy: the browser didn’t allow access to the clipboard.' })
+    expect(within(dialog()!).queryByRole('button', { name: /Copied/ })).toBeNull()
   })
 
   it('a list’s dialog: the list’s rows, and Open as tab adds its List tab beside the dashboard (layout unsaved)', () => {
