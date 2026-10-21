@@ -280,6 +280,16 @@ describe('page load', () => {
     expect(storeListIds()).not.toContain(unshown)
   })
 
+  it('a kept new layout whose dashboard tile names a list is not taken back either', async () => {
+    const w = await world()
+    const dash = createTab('dashboard', 'd')
+    const withTile = { ...dash, config: { ...dash.config, listTiles: [w.theirs] } } as LayoutTab
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [withTile])), listNames: {} })
+    await reload()
+    expect(ws().saved?.id).toBe(w.a)
+    expect(useUndoStore.getState().snackbar?.description).toBe('The unsaved new layout “Untitled layout” was dropped: a layout shows only its own lists, and it wasn’t stored yet.')
+  })
+
   it('a kept new layout (an older build’s) that shows a list is not taken back (every list is a stored layout’s), and says so', async () => {
     const w = await world()
     writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [lens('n', w.theirs)])), listNames: { [w.theirs]: 'Theirs' } })

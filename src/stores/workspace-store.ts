@@ -292,12 +292,13 @@ function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftR
 }
 
 /**
- * Whether a kept new layout can open again: it shows no list — every list
+ * Whether a kept new layout can open again: it shows no list (no list tab,
+ * no dashboard list tile) — every list
  * belongs to a stored layout (or the Eisenhower), so a layout not stored
  * yet can't show one.
  */
 function showsNoList(body: LayoutBody): boolean {
-  return listIdsOf(body).length === 0
+  return layoutListRefs(body).size === 0
 }
 
 /** Whether every list `body` names that still exists belongs to layout `layoutId` (a deleted one shows as such). */
