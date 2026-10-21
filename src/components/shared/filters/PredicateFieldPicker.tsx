@@ -158,6 +158,7 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
         <EntityDropdownItems
           searchText={searchText}
           entities={entities}
+          label={PICKER_TITLE[field]}
           isChecked={sel.isChecked}
           onToggle={toggle}
           namePrefix={field === 'people' ? '@' : field === 'tags' ? '#' : undefined}

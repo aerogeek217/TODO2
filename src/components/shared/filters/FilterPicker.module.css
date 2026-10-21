@@ -126,6 +126,11 @@
   background: var(--color-surface-high);
 }
 
+.dropdownItem:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 /* ═══ Custom checkbox ═══ */
 
 .check {

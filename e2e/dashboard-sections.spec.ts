@@ -80,7 +80,7 @@ test('the four sections render their counts and rows; the top-bar filter makes t
   await expect(sectionCount(page, 'eisenhower')).toHaveText('4 open')
 
   await page.getByRole('button', { name: 'Tags filter' }).click()
-  await page.locator('label', { hasText: '#q4' }).click()
+  await page.getByRole('option', { name: '#q4' }).click()
   await page.keyboard.press('Escape')
 
   await expect(sectionCount(page, 'tags')).toHaveText('2 of 3 tagged')

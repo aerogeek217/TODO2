@@ -73,7 +73,7 @@ test.describe('desktop', () => {
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()
-    await picker.locator('label', { hasText: 'Delegated' }).click()
+    await picker.getByRole('option', { name: 'Delegated' }).click()
     // Esc closes the picker only; Settings stays.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
@@ -124,7 +124,7 @@ test.describe('desktop', () => {
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()
-    await picker.locator('label', { hasText: 'Delegated' }).click()
+    await picker.getByRole('option', { name: 'Delegated' }).click()
     // Esc closes the picker only.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
@@ -171,7 +171,7 @@ test.describe('desktop', () => {
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()
-    await picker.locator('label', { hasText: 'Delegated' }).click()
+    await picker.getByRole('option', { name: 'Delegated' }).click()
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
     await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('1 now')
@@ -209,7 +209,7 @@ test.describe('desktop', () => {
     const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
     await widgetLine.getByRole('button', { name: 'Filter', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Status' }).click()
-    await page.getByTestId('list-filter-picker').locator('label', { hasText: 'Delegated' }).click()
+    await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Delegated' }).click()
     await page.keyboard.press('Escape')
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
 

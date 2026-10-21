@@ -75,7 +75,7 @@ async function filterWaiting(page: Page, isNot: boolean): Promise<void> {
   await page.getByRole('menuitem', { name: 'Status' }).click()
   const picker = page.getByTestId('list-filter-picker')
   if (isNot) await picker.getByRole('radio', { name: 'Is not' }).click()
-  await picker.locator('label', { hasText: 'Waiting' }).click()
+  await picker.getByRole('option', { name: 'Waiting' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 }
@@ -145,7 +145,7 @@ test.describe('desktop', () => {
     // Its filter, in Edit list's form: Status is Waiting.
     await editList.getByRole('button', { name: 'Filter', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Status' }).click()
-    await page.getByTestId('list-filter-picker').locator('label', { hasText: 'Waiting' }).click()
+    await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Waiting' }).click()
     // A click in Edit list closes the picker (it stays open).
     await editList.getByRole('textbox', { name: 'Name' }).click()
     await expect(page.getByTestId('list-filter-picker')).toHaveCount(0)

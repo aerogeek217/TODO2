@@ -71,7 +71,7 @@ test('a cold-loaded dashboard-only layout renders its counts and the rows’ chi
 test('the top-bar filter turns counts into shown of total', async ({ page }) => {
   await seedWorkspace(page, seedWith())
   await page.getByRole('button', { name: 'Tags filter' }).click()
-  await page.locator('label', { hasText: '#q4' }).click()
+  await page.getByRole('option', { name: '#q4' }).click()
   await page.keyboard.press('Escape')
 
   await expect(tileCount(page, 'open')).toHaveText('2of 4')

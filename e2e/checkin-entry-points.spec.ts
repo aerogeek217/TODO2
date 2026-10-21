@@ -291,7 +291,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
   // Not narrowed: a hint.
   await expect(page.getByText('Narrow to some people to email them.')).toBeVisible()
   // One person (the first pick replaces "everyone"): sends at once and closes the picker.
-  await page.locator('label').filter({ hasText: '@Ada Lovelace' }).click()
+  await page.getByRole('option', { name: '@Ada Lovelace' }).click()
   // (The group header's envelope has the same name, but no text.)
   await page.getByRole('button', { name: 'Email check-in to Ada Lovelace', exact: true }).filter({ hasText: 'Email check-in' }).click()
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0)
@@ -303,7 +303,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
 
   // Two people: the dialog with both ticked.
   await peopleButton.click()
-  await page.locator('label').filter({ hasText: '@Bob Stone' }).click()
+  await page.getByRole('option', { name: '@Bob Stone' }).click()
   const action = page.getByRole('button', { name: 'Email check-in to 2 people…' })
   await expect(action).toBeVisible()
   await action.click()
