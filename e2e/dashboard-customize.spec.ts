@@ -7,7 +7,7 @@ import { box, pointIn } from './fixtures/geometry'
  * (grip drag and the keyboard lift) and hiding apply behind the dialog and
  * make the layout unsaved; the Hot flyout edits the app-wide rule (the Hot
  * tile follows, the layout stays saved); Copy summary writes the clipboard;
- * "+ Add list tile" → Add a saved list adds a tile whose dialog opens the
+ * "+ Add list tile" → Add a list adds a tile whose dialog opens the
  * list as a tab.
  */
 
@@ -264,16 +264,26 @@ test('Copy summary writes the dashboard’s counts to the clipboard', async ({ p
   expect(html).toContain('<b>Hot</b> 2')
 })
 
-test('“+ Add list tile” → Add a saved list adds a tile; its dialog opens the list as a tab', async ({ page }) => {
-  await seedWorkspace(page, SEED)
+test('“+ Add list tile” → Add a list adds a tile; its dialog opens the list as a tab', async ({ page }) => {
+  // The layout's lists are the ones its tabs show: Alice's list in a second column.
+  await seedWorkspace(page, {
+    ...SEED,
+    layouts: [{
+      name: 'Dash',
+      columns: [
+        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] }] },
+        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'alice', kind: 'lens', listDefIdx: 0 }] }] },
+      ],
+    }],
+  })
   await expect(dash(page).locator('[data-dash-list-tile]')).toHaveCount(0)
 
   await dash(page).getByRole('button', { name: 'Add list tile' }).click()
   const dialog = customize(page)
-  const add = dialog.getByRole('button', { name: 'Add a saved list' })
+  const add = dialog.getByRole('button', { name: 'Add a list' })
   await expect(add).toBeFocused()
   await add.click()
-  const lists = page.getByRole('menu', { name: 'Saved lists' })
+  const lists = page.getByRole('menu', { name: 'Lists' })
   await lists.getByRole('menuitem', { name: /Alice’s list/ }).click()
   await expect(dialog.getByRole('list', { name: 'List tiles' })).toContainText('Alice’s list')
   // Behind the dialog, at once.

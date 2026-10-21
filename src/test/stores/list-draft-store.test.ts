@@ -8,7 +8,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 
 async function addList(name: string): Promise<PersistedListDefinition> {
-  const id = await useListDefinitionStore.getState().add({ name })
+  const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name })
   return useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)!
 }
 
@@ -159,7 +159,7 @@ describe('list drafts kept for a reload', () => {
 
   it('a draft an older build kept comes back through the schema upgrade (date filters per type), never in the old shape', async () => {
     // The stored list as the v64 upgrade left it: "has due date: no" became a No date clause.
-    const id = await useListDefinitionStore.getState().add({
+    const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 },
       name: 'Someday', membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { deadline: { match: 'unset' } } } },
     })
     const old = {

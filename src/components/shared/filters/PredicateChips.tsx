@@ -29,6 +29,8 @@ interface PredicateChipsProps {
   addLabel?: string
   /** Inside a dialog: Esc closes an open field picker only, not the dialog. */
   inDialog?: boolean
+  /** Fields + Filter doesn't offer (e.g. People in the check-in filter, which is per person). */
+  omitFields?: readonly ListFilterField[]
 }
 
 /**
@@ -38,7 +40,9 @@ interface PredicateChipsProps {
  * only its type) — and a "+ Filter" menu that adds one (priority, tags,
  * people, dates, status, text).
  */
-export function PredicateChips({ predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false }: PredicateChipsProps) {
+export function PredicateChips({
+  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields,
+}: PredicateChipsProps) {
   const names = useChipNames()
   const chips = useMemo(() => filterChips(predicate, names), [predicate, names])
   const [picker, setPicker] = useState<OpenPicker | null>(null)
@@ -53,7 +57,7 @@ export function PredicateChips({ predicate, onChange, before, addLabel = 'Add a 
 
   const menuEntries: MenuEntry[] = [
     { kind: 'label', text: addLabel },
-    ...ADD_FILTER_ITEMS.map((item): MenuEntry => ({
+    ...ADD_FILTER_ITEMS.filter((item) => !omitFields?.includes(item.field)).map((item): MenuEntry => ({
       kind: 'item',
       label: item.label,
       icon: item.icon,

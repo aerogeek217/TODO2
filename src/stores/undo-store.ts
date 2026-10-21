@@ -11,6 +11,18 @@ export interface UndoEntry {
 
 const MAX_STACK_SIZE = 50
 
+/**
+ * Thrown by an undo / redo that can't run yet for a reason the user can fix
+ * (e.g. a layout that must be open first): the entry stays on its stack, and
+ * the snackbar shows the error's message instead of "Couldn't undo: …".
+ */
+export class UndoRefused extends Error {}
+
+/** What the snackbar says when an undo / redo throws `e`. */
+function failureMessage(e: unknown, fallback: string): string {
+  return e instanceof UndoRefused ? e.message : fallback
+}
+
 /** One entry made of `grouped`: undo runs theirs newest first, redo oldest first. */
 function compoundOf(description: string, grouped: readonly UndoEntry[]): UndoEntry {
   return {
@@ -140,17 +152,17 @@ export const useUndoStore = create<UndoState>((set, get) => {
         isPerformingUndoRedo: true,
       })
 
-      let failed = false
+      let failed: string | null = null
       try {
         await entry.undo()
       } catch (e) {
-        failed = true
-        console.error(`Undo failed: ${entry.description}`, e)
+        failed = failureMessage(e, `Couldn't undo: ${entry.description}`)
+        if (!(e instanceof UndoRefused)) console.error(`Undo failed: ${entry.description}`, e)
       }
-      if (failed) {
+      if (failed != null) {
         // It didn't happen: back where it was, to try again.
         set({ undoStack: insertAt(get().undoStack, index, entry), isPerformingUndoRedo: false })
-        get().notify(`Couldn't undo: ${entry.description}`)
+        get().notify(failed)
       } else {
         set({ redoStack: [...get().redoStack, entry], isPerformingUndoRedo: false })
       }
@@ -168,16 +180,16 @@ export const useUndoStore = create<UndoState>((set, get) => {
         isPerformingUndoRedo: true,
       })
 
-      let failed = false
+      let failed: string | null = null
       try {
         await entry.redo()
       } catch (e) {
-        failed = true
-        console.error(`Redo failed: ${entry.description}`, e)
+        failed = failureMessage(e, `Couldn't redo: ${entry.description}`)
+        if (!(e instanceof UndoRefused)) console.error(`Redo failed: ${entry.description}`, e)
       }
-      if (failed) {
+      if (failed != null) {
         set({ redoStack: insertAt(get().redoStack, index, entry), isPerformingUndoRedo: false })
-        get().notify(`Couldn't redo: ${entry.description}`)
+        get().notify(failed)
       } else {
         set({ undoStack: [...get().undoStack, entry], isPerformingUndoRedo: false })
       }

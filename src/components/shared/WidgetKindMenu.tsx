@@ -51,14 +51,13 @@ export interface WidgetKindMenuProps {
   onChangeKind: (kind: WidgetKind) => void
   /**
    * Lens-only: fires when the user picks a list from the "Change list"
-   * submenu (the saved lists in their order); a pick closes the menu.
+   * submenu (the layout's lists in their order); a pick closes the menu.
    */
   pickListForLens?: (listDefinitionId: number) => void
   /**
    * "Edit list…" for the tab's list: a list tab's menu opens with the list's
    * own items — "Edit list…", then "Change list ›" (showing
-   * `currentListName`) and, on a layout-only list, "Save to my lists" —
-   * then the widget actions, then "Change widget"; an Eisenhower tab has
+   * `currentListName`) — then the widget actions, then "Change widget"; an Eisenhower tab has
    * "Edit list…" (its own list) first. The caller binds the widget's list;
    * the menu forwards the click and closes.
    */
@@ -82,16 +81,11 @@ export interface WidgetKindMenuProps {
    */
   sourceActions?: ReadonlyArray<{ label: string; icon?: ReactNode; onSelect: () => void }>
   /**
-   * The saved layout the tab is in: Change list also offers the lists only
-   * it shows (`listChoiceEntries`). Omit: saved lists only.
+   * The stored layout the tab is in: Change list offers the lists it owns
+   * (`listChoiceEntries`). Omit: none.
    */
   listLayoutId?: number
-  /** A list tab on a layout-only list: "Save to my lists" after Change list (it becomes a saved list). */
-  onSaveToMyLists?: () => void
 }
-
-/** The tab menu item that makes a layout-only list a saved list. */
-export const SAVE_TO_MY_LISTS_LABEL = 'Save to my lists'
 
 const CHANGE_LIST_WIDTH_PX = 240
 const CHANGE_LIST_MAX_HEIGHT_PX = 320
@@ -118,7 +112,6 @@ export function WidgetKindMenu({
   widgetSetting,
   sourceActions,
   listLayoutId,
-  onSaveToMyLists,
 }: WidgetKindMenuProps) {
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const showChangeList = currentKind === 'lens' && pickListForLens != null
@@ -154,7 +147,6 @@ export function WidgetKindMenu({
   if (listFirst) {
     entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList?.() })
     if (showChangeList) entries.push(changeList)
-    if (onSaveToMyLists) entries.push({ kind: 'item', label: SAVE_TO_MY_LISTS_LABEL, onSelect: () => onSaveToMyLists() })
     entries.push({ kind: 'separator' })
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
     entries.push({ kind: 'label', text: heading }, ...kinds)

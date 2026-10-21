@@ -235,6 +235,14 @@
   color: var(--color-marker-urgent);
 }
 
+/* Urgent by due date while unflagged: a faint clock after the label. */
+.markerToggleHint {
+  display: inline-flex;
+  margin-left: -2px;
+  color: var(--color-marker-urgent);
+  opacity: 0.6;
+}
+
 .markerToggleImportantOn,
 .markerToggleImportantOn:hover {
   background: var(--color-followup-bg);

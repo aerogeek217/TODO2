@@ -23,7 +23,7 @@ import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { openTaskCounts } from './services/checkin-email/recipients'
-import { sendPersonCheckin } from './services/checkin-email/person-checkin'
+import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
 import { CURRENT_DB_VERSION, findDatabaseTooNew } from './data/database'
 import { runAppStartup } from './services/app-startup'
@@ -34,10 +34,9 @@ import type { TooNewDBInfo, UnsupportedDBInfo } from './services/migration-check
 import { DatabaseTooNewDialog, MigrationDialog } from './components/overlays/MigrationDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
-import { PurgeCompletedDialog } from './components/overlays/PurgeCompletedDialog'
+import { StartupPurgePrompt } from './components/overlays/StartupPurgePrompt'
 import { LaunchPermissionDialog } from './components/overlays/LaunchPermissionDialog'
-import { expiredCompletedUids, listExpiredCompleted } from './services/purge-completed'
-import type { PersistedTodoItem } from './models'
+import { expiredCompletedUids } from './services/purge-completed'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
@@ -77,14 +76,7 @@ function AppBulkConfirmDialog() {
         }
         clearBulkConfirmation()
       }}
-      onCancel={() => {
-        const { action, skipIds } = bulkConfirmation
-        if (skipIds && skipIds.length > 0) {
-          // "Cancel" acts on a subset (e.g. just the parent, not children)
-          useTodoStore.getState().bulkSetCompleted(skipIds, action === 'complete')
-        }
-        clearBulkConfirmation()
-      }}
+      onCancel={clearBulkConfirmation}
     />
   )
 }
@@ -159,35 +151,6 @@ function AppQuickAddBar() {
       onOpenFullEditor={handleOpenFullEditor}
     />
   )
-}
-
-/**
- * Prompt for completed tasks past the retention setting, at launch and
- * again after a later sync-file load (Grant access, Attach / Open file).
- * Lists the tasks that were expired when it was checked (`launchUids` —
- * uids survive a sync-file restore, ids don't) and are still expired now.
- * Read from the database, not `useTodoStore.todos` (which may not be loaded
- * yet), and re-read whenever the store reloads. Waits while a sync-file
- * prompt is open. Closing it in any way ("Not now" included) skips those
- * tasks until the next launch.
- */
-function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<string>; onClose: () => void }) {
-  const todosVersion = useTodoStore((s) => s.todosVersion)
-  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
-  const fileSyncPrompt = useFileStorageStore(
-    (s) => s.pendingLegacyImport != null || s.pendingConflict != null || s.pendingFileUpgrade != null,
-  )
-  const [tasks, setTasks] = useState<PersistedTodoItem[]>([])
-  useEffect(() => {
-    if (fileSyncPrompt || retentionDays == null) return
-    let cancelled = false
-    listExpiredCompleted(retentionDays, launchUids)
-      .then((rows) => { if (!cancelled) setTasks(rows) })
-      .catch((err) => console.warn('[purge] could not read expired tasks', err))
-    return () => { cancelled = true }
-  }, [launchUids, retentionDays, fileSyncPrompt, todosVersion])
-  if (fileSyncPrompt || retentionDays == null || tasks.length === 0) return null
-  return <PurgeCompletedDialog tasks={tasks} retentionDays={retentionDays} onDone={onClose} onDismiss={onClose} />
 }
 
 /** Both sets of uids (the prompt lists every task either asks about). */
@@ -274,8 +237,10 @@ function AppShell() {
   // A sync file loaded once launch's check began (Grant access, Attach /
   // Open file, a retry or a resolved conflict) replaced the data: ask about
   // its expired tasks too — those the prompt hasn't already asked about this
-  // launch. A load before that is covered by launch's own check. Runs after
-  // the stores reloaded (an earlier subscriber).
+  // launch — unless the loaded data says the prompt showed within its
+  // interval (`expiredCompletedUids`). A load before that is covered by
+  // launch's own check. Runs after the stores reloaded (an earlier
+  // subscriber), so the interval is the loaded data's.
   useEffect(() => {
     return fileStorageService.onAfterImport(async () => {
       if (!purgeCheckStartedRef.current) return
@@ -306,6 +271,7 @@ function AppShell() {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
   const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
   const quickAddKeys = useShortcutLabel('quick-add')
 
   const commandCtx = useMemo(
@@ -333,8 +299,9 @@ function AppShell() {
       openCheckinImport: () => useUIStore.getState().openCheckinImport(),
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
+      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
     }),
-    [todos, people, assignedPeopleMap, selectionCount]
+    [todos, people, assignedPeopleMap, selectionCount, checkinTaskFilter]
   )
 
   // The palette's key hints follow the user's shortcut changes.

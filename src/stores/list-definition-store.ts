@@ -1,32 +1,38 @@
 import { create } from 'zustand'
 import { listDefinitionRepository } from '../data/list-definition-repository'
 import {
-  isListedList,
-  ownerLayoutId,
   type ListDefinition,
   type ListOwner,
   type ListGrouping,
   type ListMembership,
   type ListSort,
   type PersistedListDefinition,
+  type RuntimeFilterSpec,
+  isEisenhowerOwner,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
+import { effectiveSortDirection, type TodoSortDirection } from '../models/todo-sort-group'
 import { loadFresh, mutate, optimistic, makeEnsureLoaded, trackWrite } from './store-helpers'
-import { undoable } from './undoable'
-import { bySortOrder } from '../utils/sort-order'
-import { listOrderRepository } from '../data/list-order-repository'
-import { layoutRepository } from '../data/layout-repository'
-import { useUndoStore } from './undo-store'
 import { useListOrderStore } from './list-order-store'
 import { useSettingsStore } from './settings-store'
 
+/**
+ * A new list. A sort or grouping not given is Settings' new-list default
+ * (`newListSort` + `newListSortDirection` / `newListGroup`) — a blank list;
+ * a copy passes its source's. `sortDirection` goes with a given `sort`.
+ */
 interface AddInput {
   name: string
   membership?: ListMembership
   sort?: ListSort
+  sortDirection?: TodoSortDirection
   grouping?: ListGrouping
-  /** A hidden list's owner (e.g. the layout a layout-only list belongs to); absent = a saved list. */
-  owner?: ListOwner
+  runtimeFilter?: RuntimeFilterSpec
+  showFilterLine?: false
+  /** Who the list belongs to: the layout whose tab shows it (or the Eisenhower). */
+  owner: ListOwner
+  /** A copy of this list: its manual order is copied with it, in the same transaction. */
+  ranksFrom?: number
 }
 
 interface ListDefinitionState {
@@ -38,38 +44,14 @@ interface ListDefinitionState {
   ensureLoaded: () => Promise<void>
   add: (input: AddInput) => Promise<number>
   update: (def: PersistedListDefinition) => Promise<void>
-  remove: (id: number) => Promise<void>
-  /**
-   * Moves a list among the lists Settings › Lists shows (`isListedList`:
-   * indexes into those, in order); hidden lists keep their order after them.
-   */
-  reorder: (fromIndex: number, toIndex: number) => Promise<void>
   /**
    * The Eisenhower's own list (made when there is none —
    * `listDefinitionRepository.ensureEisenhowerList`), with the lists and
    * `settings-store.eisenhowerListId` reloaded to name it. Returns its id.
    */
   ensureEisenhowerList: () => Promise<number>
-  /**
-   * "Save to my lists": a layout-only list becomes a saved list (its owner
-   * cleared), as one undo step with the undo snackbar. Its unsaved edits
-   * stay unsaved. A list no layout owns → no-op.
-   */
-  saveToMyLists: (id: number) => Promise<void>
   /** Drops lists the database no longer has (deleted with their layout) from the store. */
   forgetLists: (ids: readonly number[]) => void
-}
-
-/**
- * A check-in scope on the deleted list goes back to all open tasks. Returns
- * whether it pointed at the list (so undo can restore it).
- */
-async function clearCheckinScopeFor(listDefinitionId: number): Promise<boolean> {
-  const settings = useSettingsStore.getState()
-  const scope = settings.checkinTaskScope
-  if (scope.kind !== 'list' || scope.listDefinitionId !== listDefinitionId) return false
-  await settings.setCheckinTaskScope({ kind: 'all' })
-  return true
 }
 
 export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
@@ -79,24 +61,40 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   loaded: false,
 
   async load() {
-    const rows = await loadFresh(() => listDefinitionRepository.getAll(), 'saved lists')
+    const rows = await loadFresh(() => listDefinitionRepository.getAll(), 'lists')
     if (rows) set({ listDefinitions: rows, loaded: true })
   },
   ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, grouping, owner }) {
+  async add({ name, membership, sort, sortDirection, grouping, runtimeFilter, showFilterLine, owner, ranksFrom }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
+    // What isn't given starts as Settings' new-list defaults (the
+    // Eisenhower's own list, whose sort and grouping nothing reads, as none).
+    const defaults = isEisenhowerOwner(owner)
+      ? { newListSort: 'manual' as const, newListSortDirection: 'asc' as const, newListGroup: 'none' as const }
+      : useSettingsStore.getState()
+    const listSort = sort ?? defaults.newListSort
+    const direction = effectiveSortDirection(listSort, sort != null ? sortDirection : defaults.newListSortDirection)
     const entry: Omit<ListDefinition, 'sortOrder'> = {
       name: trimmed,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
-      sort: sort ?? 'manual',
-      grouping: grouping ?? 'none',
-      ...(owner ? { owner } : {}),
+      sort: listSort,
+      ...(direction === 'desc' ? { sortDirection: direction } : {}),
+      grouping: grouping ?? defaults.newListGroup,
+      ...(runtimeFilter ? { runtimeFilter } : {}),
+      ...(showFilterLine === false ? { showFilterLine } : {}),
+      owner,
     }
     return mutate(
       async () => {
         // Goes last (the repository picks the sort order in its transaction).
+        if (ranksFrom != null) {
+          const { id, sortOrder, ranks } = await listDefinitionRepository.insertCopy(entry, ranksFrom)
+          set({ listDefinitions: [...get().listDefinitions, { ...entry, sortOrder, id }] })
+          useListOrderStore.getState().rememberList(id, ranks)
+          return id
+        }
         const { id, sortOrder } = await listDefinitionRepository.insertLast(entry)
         set({ listDefinitions: [...get().listDefinitions, { ...entry, sortOrder, id }] })
         return id
@@ -119,95 +117,12 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     )
   },
 
-  remove(id) {
-    return trackWrite(async () => {
-      const def = get().listDefinitions.find(d => d.id === id)
-      if (!def) return
-
-      const ranks = await listOrderRepository.getByList(id)
-      await listDefinitionRepository.remove(id)
-      useListOrderStore.getState().forgetList(id)
-      // The lists as they are now: another write may have landed meanwhile.
-      set({ listDefinitions: get().listDefinitions.filter(d => d.id !== id) })
-      const scopeCleared = await clearCheckinScopeFor(id)
-
-      undoable(
-        `Delete list "${def.name}"`,
-        () => get().remove(id),
-        async () => {
-          await listDefinitionRepository.restore(def)
-          await useListOrderStore.getState().restoreRows(ranks)
-          await get().load()
-          // Undo brings back the check-in choice too, unless it was changed since.
-          const settings = useSettingsStore.getState()
-          if (scopeCleared && settings.checkinTaskScope.kind === 'all') {
-            await settings.setCheckinTaskScope({ kind: 'list', listDefinitionId: id })
-          }
-        },
-        true,
-      )
-    })
-  },
-
-  reorder(fromIndex, toIndex) {
-    return trackWrite(async () => {
-      const prev = get().listDefinitions
-      const all = [...prev].sort(bySortOrder)
-      const sorted = all.filter((d) => isListedList(d))
-      if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
-      const [moved] = sorted.splice(fromIndex, 1)
-      if (!moved) return
-      sorted.splice(toIndex, 0, moved)
-      const updated = [...sorted, ...all.filter((d) => !isListedList(d))].map((d, i) => ({ ...d, sortOrder: i }))
-      set({ listDefinitions: updated })
-      try {
-        await listDefinitionRepository.reorder(updated.map(d => d.id))
-      } catch (e) {
-        console.error('Failed to reorder list definitions:', e)
-        set({ listDefinitions: prev })
-      }
-    })
-  },
-
   async ensureEisenhowerList() {
     const id = await trackWrite(() => listDefinitionRepository.ensureEisenhowerList())
     useSettingsStore.setState({ eisenhowerListId: id })
     // After the tracked write (a load waits for writes in flight).
     if (!get().listDefinitions.some((d) => d.id === id)) await get().load()
     return id
-  },
-
-  async saveToMyLists(id) {
-    const def = get().listDefinitions.find((d) => d.id === id)
-    if (!def || ownerLayoutId(def) == null) return
-    const owner = def.owner
-    const setOwner = async (next: ListOwner | undefined) => {
-      const current = get().listDefinitions.find((d) => d.id === id)
-      if (!current) return
-      const { owner: _owner, ...rest } = current
-      void _owner
-      await get().update(next ? { ...rest, owner: next } : rest)
-    }
-    try {
-      await setOwner(undefined)
-    } catch {
-      // The store logged it and showed the list as it was.
-      return
-    }
-    // Undo makes it the layout's own list again — unless that would hide a
-    // list something else shows now, or its layout is gone.
-    const undo = async () => {
-      const layoutId = ownerLayoutId(def)
-      const blocker = layoutId == null ? 'gone' : await layoutRepository.ownerBlocker(layoutId, id)
-      if (blocker) {
-        useUndoStore.getState().notify(blocker === 'gone'
-          ? `“${def.name}” stays in your lists: its layout is gone.`
-          : `“${def.name}” stays in your lists: something else shows it now.`)
-        return
-      }
-      await setOwner(owner)
-    }
-    undoable(`Saved “${def.name}” to my lists`, () => setOwner(undefined), undo, true)
   },
 
   forgetLists(ids) {

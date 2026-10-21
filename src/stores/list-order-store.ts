@@ -28,6 +28,8 @@ interface ListOrderState {
   forgetList: (listDefinitionId: number) => void
   /** Puts deleted rows back (undo). */
   restoreRows: (rows: readonly PersistedListOrder[]) => Promise<void>
+  /** A new list's ranks the repository already wrote (a copied list's), into memory. */
+  rememberList: (listDefinitionId: number, ranks: readonly RankWrite[]) => void
 }
 
 function group(rows: readonly PersistedListOrder[]): Map<number, Map<number, number>> {
@@ -141,6 +143,13 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
       const next = new Map(get().ranks)
       next.delete(listDefinitionId)
       set({ ranks: next })
+    },
+
+    rememberList(listDefinitionId, ranks) {
+      if (ranks.length === 0) return
+      withList(listDefinitionId, (list) => {
+        for (const r of ranks) list.set(r.todoId, r.rank)
+      })
     },
 
     async restoreRows(rows) {

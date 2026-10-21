@@ -11,9 +11,8 @@ import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
 import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from '../shared/MarkerIcons'
 import { useTooltip } from '../shared/use-tooltip'
-import { askClearUrgent, clearUrgent, planClearUrgent } from '../../services/clear-urgent'
 import { startOfToday } from '../../utils/date'
-import { urgentByDateReason, urgentMark } from '../../utils/urgency'
+import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../utils/recurrence'
@@ -385,31 +384,24 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setNextFollowupIsDefault(false)
   }
 
-  // Urgent is effective urgent: the flag, or the due date within the
-  // Settings range (then the toggle shows the clock). Turning it off on a
-  // task urgent by date asks about the due date (`services/clear-urgent`).
+  // The Urgent toggle shows and flips the flag only. A due date within the
+  // Settings range that makes the task urgent anyway is a hint: the faint
+  // clock after the label (unflagged) and the tooltip.
   const markerToday = startOfToday()
+  const urgentOn = isEdit ? todo?.urgent === true : draftUrgent
   const urgentSubject = {
-    title: (isEdit ? todo?.title : title.trim()) || 'This task',
-    urgent: isEdit ? todo?.urgent === true : draftUrgent,
+    urgent: urgentOn,
     dueDate: deadline ?? undefined,
     isCompleted: isEdit ? todo?.isCompleted === true : false,
   }
   const urgentState = urgentMark(urgentSubject, markerToday, urgentRange)
-  const urgentReason = urgentState === 'date' ? urgentByDateReason(urgentSubject, markerToday, urgentRange) : ''
+  const urgentHint = urgentToggleHint([urgentSubject], markerToday, urgentRange)
   const handleToggleUrgent = () => {
     if (isEdit && todo) {
-      if (urgentState === null) void useTodoStore.getState().bulkSetUrgent([todo.id], true)
-      else void clearUrgent([todo.id])
-      return
+      void useTodoStore.getState().bulkSetUrgent([todo.id], !urgentOn)
+    } else {
+      setDraftUrgent((v) => !v)
     }
-    if (urgentState === null) {
-      setDraftUrgent(true)
-      return
-    }
-    const plan = planClearUrgent([urgentSubject], markerToday, urgentRange)
-    if (plan.clearFlag.length > 0) setDraftUrgent(false)
-    if (plan.prompt) askClearUrgent(plan.prompt, [], () => handleDeadlineChange(null))
   }
 
   const importantOn = isEdit ? todo?.important === true : draftImportant
@@ -635,15 +627,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             <FocusIcon /> Focus
           </MarkerToggle>
           <MarkerToggle
-            className={`${styles.markerToggle} ${urgentState ? styles.markerToggleUrgentOn : ''}`}
-            pressed={urgentState !== null}
+            className={`${styles.markerToggle} ${urgentOn ? styles.markerToggleUrgentOn : ''}`}
+            pressed={urgentOn}
             onClick={handleToggleUrgent}
-            tooltip={urgentState === 'date'
-              ? `Urgent: due soon\n${urgentReason} Click to make it not urgent.`
-              : urgentState === 'flag' ? 'Remove urgent' : 'Mark urgent'}
+            tooltip={`${urgentOn ? 'Remove urgent' : 'Mark urgent'}${urgentHint ? `\n${urgentHint}` : ''}`}
             data-urgent={urgentState ?? undefined}
           >
-            {urgentState === 'date' ? <UrgentClockIcon /> : <UrgentIcon />} Urgent
+            <UrgentIcon /> Urgent
+            {urgentState === 'date' && (
+              <span className={styles.markerToggleHint} data-urgent-hint=""><UrgentClockIcon /></span>
+            )}
           </MarkerToggle>
           <MarkerToggle
             className={`${styles.markerToggle} ${importantOn ? styles.markerToggleImportantOn : ''}`}

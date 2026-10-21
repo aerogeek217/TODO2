@@ -193,6 +193,8 @@ function list(id: number, name: string, predicate: Partial<TodoPredicate>, extra
     membership: { kind: 'custom', predicate: { ...EMPTY_PREDICATE, ...predicate } },
     sort: 'deadline',
     grouping: 'none',
+    // The lists of the sample's layout (id 1).
+    owner: { layoutId: 1 },
     ...extra,
   }
 }

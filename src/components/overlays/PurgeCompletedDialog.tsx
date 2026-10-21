@@ -14,7 +14,7 @@ interface PurgeCompletedDialogProps {
   retentionDays: number
   /** Tasks were deleted (with or without an archive). */
   onDone: () => void
-  /** "Not now" / Escape — skip for this launch only. */
+  /** "Not now" / Escape — nothing deleted; asked again at a launch once the prompt interval has passed. */
   onDismiss: () => void
 }
 
@@ -32,7 +32,7 @@ function completedLabel(t: PersistedTodoItem): string {
  * Launch prompt for the completed-task retention setting — completed tasks
  * past retention are never deleted silently. Nothing is deleted until the user picks
  * **Export & delete** (archive file first; cancelling the file picker
- * deletes nothing) or **Delete**; **Not now** skips this launch only.
+ * deletes nothing) or **Delete**; **Not now** deletes nothing (asked again once the prompt interval has passed).
  */
 export function PurgeCompletedDialog({ tasks, retentionDays, onDone, onDismiss }: PurgeCompletedDialogProps) {
   const [busy, setBusy] = useState(false)

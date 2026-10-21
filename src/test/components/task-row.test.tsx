@@ -126,12 +126,12 @@ describe('TaskRow', () => {
       expect(container.querySelector('[class*="dragHandle"]')).toBeNull()
     })
 
-    it('squeezed details remove the tags column first, then people; their pickers then open at the row', () => {
+    it('squeezed details remove the tags column once the dates are icons, then people; their pickers then open at the row', () => {
       const tags = [{ id: 1, name: 'alpha', color: '#111' }]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
-      // F = 223 − 148 − 20 = 55: just under the split.
+      // The dates as icons: F = 149 − 74 − 20 = 55, just under the split.
       render(
-        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, 223))}>
+        <TaskRowColumnsContext.Provider value={createValueStore(taskRowColumns(528, 149))}>
           <TaskRow todo={makeTodo({ id: 1 })} />
         </TaskRowColumnsContext.Provider>,
       )
@@ -248,13 +248,14 @@ describe('TaskRow', () => {
       expect(mockBulk.setImportant).toHaveBeenCalledWith(3, true)
     })
 
-    it('a task urgent only by its due date shows Urgent checked; clicking turns it off (which may ask)', () => {
+    it('a task urgent only by its due date shows Urgent unchecked, by due date; clicking flags it', () => {
       render(<TaskRow todo={makeTodo({ id: 4, dueDate: new Date(2026, 3, 18) })} />)
       fireEvent.contextMenu(getRow())
-      const urgent = screen.getByRole('menuitemcheckbox', { name: 'Urgent' })
-      expect(urgent).toHaveAttribute('aria-checked', 'true')
+      const urgent = screen.getByRole('menuitemcheckbox', { name: /^Urgent/ })
+      expect(urgent).toHaveAttribute('aria-checked', 'false')
+      expect(urgent).toHaveTextContent('By due date')
       fireEvent.click(urgent)
-      expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, false)
+      expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, true)
     })
 
     it('with several rows selected: a count label, Delete N tasks, mixed markers', () => {
@@ -364,14 +365,15 @@ describe('TaskRow', () => {
       expect(screen.getByRole('button', { name: 'No priority' })).toBeInTheDocument()
     })
 
-    it('a click opens the markers menu; its items set the marker; urgent by date turns off through the clear-Urgent path', () => {
+    it('a click opens the markers menu; its items flip the flags (urgent by date: unchecked, a click flags it)', () => {
       render(<TaskRow todo={makeTodo({ id: 4, focus: true, dueDate: new Date(2026, 3, 18) })} onOpenDetail={vi.fn()} />)
       fireEvent.click(screen.getByRole('button', { name: 'Priority: Focus, Urgent (due soon)' }))
       const menu = screen.getByRole('menu', { name: 'Priority' })
       expect(within(menu).getByRole('menuitemcheckbox', { name: 'Focus' })).toHaveAttribute('aria-checked', 'true')
       expect(within(menu).getByRole('menuitemcheckbox', { name: 'Important' })).toHaveAttribute('aria-checked', 'false')
-      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Urgent' }))
-      expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, false)
+      expect(within(menu).getByRole('menuitemcheckbox', { name: /^Urgent/ })).toHaveAttribute('aria-checked', 'false')
+      fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /^Urgent/ }))
+      expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, true)
       fireEvent.click(screen.getByRole('button', { name: /^Priority:/ }))
       fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Important' }))
       expect(mockBulk.setImportant).toHaveBeenCalledWith(4, true)

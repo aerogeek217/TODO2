@@ -20,6 +20,9 @@ import {
   withSortDirection,
 } from '../../utils/list-options'
 import { changedListFields, type ListDefField } from '../../utils/list-def-equal'
+import type { CopySourceGroup } from '../../utils/list-copy'
+import type { CopySource } from '../../hooks/use-copy-sources'
+import { CopyFromMenu } from './CopyFromMenu'
 import { PredicateChips } from './filters/PredicateChips'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SortDirectionIcon } from './icons'
@@ -41,6 +44,15 @@ export interface ListEditorBodyProps {
   variant?: ListEditorVariant
   /** The Name input, for a caller that focuses it on open. */
   nameRef?: RefObject<HTMLInputElement | null>
+  /**
+   * A `Copy from…` control at the top: its chooser offers `groups`
+   * (`useCopySources`); a pick calls `onPick` — the caller copies the
+   * list's parts into the draft. Omit for none.
+   */
+  copyFrom?: {
+    groups: readonly CopySourceGroup<CopySource>[]
+    onPick: (source: CopySource) => void
+  }
 }
 
 const PROMPT_EDITOR_LABEL: Record<RuntimeFilterField | 'none', string> = { ...PROMPT_LABEL, none: 'Nothing' }
@@ -66,6 +78,9 @@ interface Choice<T extends string> {
 
 type ChoiceField = 'group' | 'sort' | 'prompt'
 
+/** Copy from's control and the chooser's name. */
+const COPY_FROM_LABEL = 'Copy from…'
+
 /**
  * The list editor's form: name, filters (the list widget's filter chips,
  * then Show completed), group by, sort by, the prompt field and Show filter
@@ -75,9 +90,18 @@ type ChoiceField = 'group' | 'sort' | 'prompt'
  * With `saved`, a row whose value differs from the saved list shows its
  * label in the accent colour with a dot.
  */
-export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nameRef }: ListEditorBodyProps) {
+export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nameRef, copyFrom }: ListEditorBodyProps) {
   const idBase = useId()
-  const [choiceList, setChoiceList] = useState<ChoiceField | null>(null)
+  const [choiceList, setChoiceList] = useState<ChoiceField | 'copyFrom' | null>(null)
+  // The list last copied from, named under the control.
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null)
+  const pickCopy = (source: CopySource) => {
+    copyFrom?.onPick(source)
+    setCopiedFrom(source.name)
+  }
+  const copiedNote = copiedFrom != null && (
+    <span className={styles.copiedNote} role="status">Copied from “{copiedFrom}” · unsaved</span>
+  )
   const predicate = draft.membership.predicate
   const changed = useMemo(() => (saved ? changedListFields(draft, saved) : new Set<ListDefField>()), [draft, saved])
 
@@ -225,7 +249,20 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
     : null
 
   if (variant === 'sheet') {
-    if (choiceList) {
+    if (choiceList === 'copyFrom' && copyFrom) {
+      return (
+        <div className={`${styles.form} ${styles.sheet}`}>
+          <div className={styles.choiceHeader}>
+            <button type="button" className={styles.back} aria-label="Back" onClick={() => setChoiceList(null)}>
+              <ChevronLeftIcon size={16} />
+            </button>
+            <span className={styles.choiceTitle}>Copy from</span>
+          </div>
+          <CopyFromSheetList groups={copyFrom.groups} onPick={(source) => { pickCopy(source); setChoiceList(null) }} />
+        </div>
+      )
+    }
+    if (choiceList && choiceList !== 'copyFrom') {
       const spec = choiceSpec[choiceList]
       return (
         <div className={`${styles.form} ${styles.sheet}`}>
@@ -260,6 +297,15 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
     }
     return (
       <div className={`${styles.form} ${styles.sheet}`}>
+        {copyFrom && (
+          <div className={styles.copyRow}>
+            <button type="button" className={styles.sheetRow} onClick={() => setChoiceList('copyFrom')}>
+              <span className={styles.sheetRowLabel}>{COPY_FROM_LABEL}</span>
+              <ChevronRightIcon size={14} />
+            </button>
+            {copiedNote}
+          </div>
+        )}
         {nameRow}
         {filtersRow}
         <div className={styles.sheetRows}>
@@ -302,6 +348,12 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
 
   return (
     <div className={`${styles.form} ${variant === 'popover' ? styles.compact : ''}`}>
+      {copyFrom && (
+        <div className={styles.copyRow}>
+          <CopyFromButton groups={copyFrom.groups} onPick={pickCopy} />
+          {copiedNote}
+        </div>
+      )}
       {nameRow}
       {filtersRow}
       {variant === 'popover' && <div className={styles.rule} role="separator" />}
@@ -325,6 +377,78 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
 }
 
 const CHOICE_MENU_WIDTH_PX = 242
+
+/**
+ * `Copy from…`: opens Copy from's chooser under it; a pick hands the list
+ * over (the focus comes back to the button).
+ */
+function CopyFromButton({ groups, onPick }: {
+  groups: readonly CopySourceGroup<CopySource>[]
+  onPick: (source: CopySource) => void
+}) {
+  const ref = useRef<HTMLButtonElement | null>(null)
+  const [open, setOpen] = useState(false)
+  // A click on the button while its menu is open closes it (the menu's
+  // outside-click handler already did) instead of reopening it.
+  const wasOpen = useRef(false)
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={`${styles.copyFrom} ${open ? styles.selectOpen : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Take the filters, group, sort, prompt and filter line of another list"
+        onMouseDown={() => { wasOpen.current = open }}
+        onClick={() => {
+          if (wasOpen.current) {
+            wasOpen.current = false
+            return
+          }
+          setOpen(true)
+        }}
+      >
+        {COPY_FROM_LABEL}
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <CopyFromMenu
+          anchorRef={ref}
+          label="Copy from"
+          groups={groups}
+          onPick={onPick}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+/** The phone sheet's Copy from list: a heading per layout (then the Eisenhower), a row per list. */
+function CopyFromSheetList({ groups, onPick }: {
+  groups: readonly CopySourceGroup<CopySource>[]
+  onPick: (source: CopySource) => void
+}) {
+  if (groups.length === 0) return <p className={styles.choiceNote}>No lists to copy from.</p>
+  return (
+    <div className={styles.choiceList}>
+      {groups.map((group) => (
+        <div key={group.key} role="group" aria-label={group.heading} className={styles.choiceList}>
+          <span className={styles.copyHeading}>{group.heading}</span>
+          {group.lists.map((source) => (
+            <button key={source.id} type="button" className={styles.choiceRow} onClick={() => onPick(source)}>
+              <span className={styles.choiceText}>
+                <span className={styles.choiceLabel}>{source.name}</span>
+                <span className={styles.choiceNote}>{source.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /**
  * Sort by's direction: a toggle button showing ↑ (the sort's natural order)

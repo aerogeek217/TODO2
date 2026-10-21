@@ -4,6 +4,7 @@ import { CheckinDialog } from '../../../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../../../components/checkin/CheckinImportDialog'
 import { db } from '../../../data/database'
 import type { PersistedTodoItem } from '../../../models'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import { CHECKIN_REPLY_MAX_CHARS } from '../../../services/checkin-reply/parse'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -257,7 +258,7 @@ describe('entry points', () => {
     useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
     useStatusStore.setState({ statuses: [] })
     useListDefinitionStore.setState({ listDefinitions: [] })
-    useSettingsStore.setState({ checkinOpenMethod: 'mailto', checkinTaskScope: { kind: 'all' }, weekStartsOn: 1, urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE })
+    useSettingsStore.setState({ checkinOpenMethod: 'mailto', checkinTaskFilter: emptyPredicate(), weekStartsOn: 1, urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE })
     render(<><CheckinDialog /><CheckinImportDialog /></>)
     act(() => useUIStore.getState().openCheckinDialog())
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Email task check-ins' })).getByRole('button', { name: 'Paste a reply…' }))

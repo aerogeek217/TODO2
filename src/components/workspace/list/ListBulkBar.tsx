@@ -10,7 +10,6 @@ import { AnchoredPicker } from '../../shared/AnchoredPicker'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { FollowupFlagIcon } from '../../shared/FollowupIcons'
 import { FollowupPopover } from '../../shared/followup/FollowupPopover'
-import { setUrgent } from '../../../services/clear-urgent'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useToday } from '../../../hooks/use-today'
 import { isFollowedUpToday } from '../../../utils/followup'
@@ -38,11 +37,10 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
  * The floating bar over a list widget with 2+ rows selected: set due date,
  * set follow-up, assign people, add tag, complete, ⋯ More, delete, clear.
  * ⋯ More holds Mark followed up and the Markers (Focus / Urgent / Important) as
- * tri-state checkbox items: when only some tasks have one, a click gives it
- * to all of them; when all have it, a click takes it off all (Urgent counts
- * tasks urgent by due date too, and turning it off asks about those dates —
- * `services/clear-urgent.ts`). Each goes through the existing bulk paths
- * (`bulkSet*`, `bulkAssign*`, `markFollowedUp`, `showBulkConfirmation`).
+ * tri-state checkbox items by flag: when only some tasks have one, a click
+ * gives it to all of them; when all have it, a click takes it off all (Urgent
+ * too: a due date that keeps a task urgent is left alone). Each goes through the existing bulk paths
+ * (`bulkSet*`, `bulkAssign*`, `markFollowedUp`; Delete asks through `showBulkConfirmation`).
  */
 export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: number }) {
   const [open, setOpen] = useState<OpenPicker>(null)
@@ -205,7 +203,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
             { kind: 'separator' },
             ...markerMenuEntries(selectedTodos, today, urgentRange, (marker, on) => {
               const store = useTodoStore.getState()
-              if (marker === 'urgent') void setUrgent(list, on)
+              if (marker === 'urgent') void store.bulkSetUrgent(list, on)
               else if (marker === 'important') void store.bulkSetImportant(list, on)
               else void store.bulkSetFocus(list, on)
             }),

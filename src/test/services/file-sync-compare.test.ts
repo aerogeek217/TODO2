@@ -36,6 +36,18 @@ describe('browserMatchesFile', () => {
     expect(await browserMatchesFile(file)).toBe(false)
   })
 
+  it('ignores the purge prompt’s last showing (a sync-neutral setting) on either side; other settings count', async () => {
+    await seed()
+    const file = await currentFileData()
+    await db.settings.put({ key: 'purgePromptLastAt', value: '2026-10-20T08:00:00.000Z' })
+    expect(await browserMatchesFile(file)).toBe(true)
+    const fileWithStamp = await currentFileData()
+    await db.settings.delete('purgePromptLastAt')
+    expect(await browserMatchesFile(fileWithStamp)).toBe(true)
+    await db.settings.put({ key: 'purgePromptIntervalDays', value: '14' })
+    expect(await browserMatchesFile(file)).toBe(false)
+  })
+
   it('is false when a row was added on one side', async () => {
     await seed()
     const file = await currentFileData()

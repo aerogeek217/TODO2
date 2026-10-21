@@ -5,9 +5,9 @@ import { rowTitles } from './fixtures/seed'
 /**
  * Urgent / Important markers and app-wide Urgent: a task due within the
  * "Due date makes a task urgent" range (default 3 days, overdue included)
- * counts as urgent and shows a clock instead of the urgent mark. Turning
- * Urgent off in the task editor asks about the due date (a dialog stacked
- * over the editor). The Markers filter (top bar and a list's own filter)
+ * counts as urgent and shows a ring instead of the urgent mark. The Urgent
+ * toggles show and flip the flag only — the due date is a hint beside them,
+ * never a prompt. The Markers filter (top bar and a list's own filter)
  * keeps tasks with every ticked marker.
  */
 
@@ -53,47 +53,50 @@ test('the marker gutter: Focus · Urgent · Important dots; urgent by due date i
   await expect(gutter('Flagged')).toHaveAccessibleName('Priority: Focus, Urgent, Important')
 })
 
-test('turning Urgent off in the editor on a task urgent by its due date asks to remove the date', async ({ page }) => {
+test('the editor’s Urgent toggle is the flag: on a task urgent by its due date it flags and unflags without a prompt', async ({ page }) => {
   const widget = await seedTaskList(page, { tasks: [{ title: 'Pick up prescriptions', dueInDays: 2 }] })
+  const gutter = row(widget, 'Pick up prescriptions').locator('[data-row-cell="markers"]')
+  await expect(gutter).toHaveAccessibleName('Priority: Urgent (due soon)')
   await openEditor(page, widget, 'Pick up prescriptions')
   const urgent = page.getByRole('button', { name: 'Urgent', exact: true })
-  await expect(urgent).toHaveAttribute('aria-pressed', 'true')
-  await expect(urgent).toHaveAttribute('data-urgent', 'date')
-
-  // Esc closes only the prompt: the editor stays, nothing changed.
-  await urgent.click()
-  const prompt = page.getByRole('dialog', { name: 'Remove the due date?' })
-  await expect(prompt).toContainText('Pick up prescriptions is due')
-  await expect(prompt).toContainText('within 3 days, so it counts as urgent. Removing the due date makes it not urgent.')
-  await expect(prompt.getByRole('button', { name: 'Remove due date' })).toBeFocused()
-  await page.keyboard.press('Escape')
-  await expect(prompt).toBeHidden()
-  await expect(urgent).toBeVisible()
-  await expect(urgent).toHaveAttribute('aria-pressed', 'true')
-
-  // Remove due date: the date goes, Urgent turns off, the undo snackbar offers it back.
-  await urgent.click()
-  await page.getByRole('dialog', { name: 'Remove the due date?' }).getByRole('button', { name: 'Remove due date' }).click()
+  // Unflagged: not pressed, the faint clock says the due date makes it urgent.
   await expect(urgent).toHaveAttribute('aria-pressed', 'false')
-  await expect(page.getByTitle('Set due date').first()).toBeVisible()
-  await expect(page.getByText('Removed the due date')).toBeVisible()
+  await expect(urgent).toHaveAttribute('data-urgent', 'date')
+  await expect(urgent.locator('[data-urgent-hint]')).toBeVisible()
+  await urgent.hover()
+  await expect(page.getByRole('tooltip')).toContainText('Urgent by due date — due')
+  await expect(page.getByRole('tooltip')).toContainText('Click to flag it urgent too.')
+
+  // A click flags it: pressed, no dialog, the editor stays.
+  await urgent.click()
+  await expect(urgent).toHaveAttribute('aria-pressed', 'true')
+  await expect(urgent).toHaveAttribute('data-urgent', 'flag')
+  await expect(urgent.locator('[data-urgent-hint]')).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: /due date/i })).toHaveCount(0)
+  await expect(gutter).toHaveAccessibleName('Priority: Urgent')
+
+  // Another unflags it: the due date stays (still urgent by it), nothing asked.
+  await urgent.click()
+  await expect(urgent).toHaveAttribute('aria-pressed', 'false')
+  await expect(urgent).toHaveAttribute('data-urgent', 'date')
+  await expect(page.getByRole('dialog', { name: /due date/i })).toHaveCount(0)
   await page.getByRole('button', { name: 'Done' }).click()
-  await expect(row(widget, 'Pick up prescriptions').getByRole('button', { name: 'No priority' })).toBeVisible()
+  await expect(gutter).toHaveAccessibleName('Priority: Urgent (due soon)')
+  await expect(row(widget, 'Pick up prescriptions').locator('[data-row-cell="due"]')).not.toHaveText('')
 })
 
-test('turning Urgent off on a flagged task due today clears the flag, then offers Keep / Remove due date', async ({ page }) => {
+test('a flagged task due today: Urgent pressed, its tooltip says the date keeps it urgent; a click clears only the flag', async ({ page }) => {
   const widget = await seedTaskList(page, { tasks: [{ title: 'Headcount request', urgent: true, dueInDays: 0 }] })
   await expect(row(widget, 'Headcount request').getByRole('button', { name: 'Priority: Urgent' })).toBeVisible()
   await openEditor(page, widget, 'Headcount request')
   const urgent = page.getByRole('button', { name: 'Urgent', exact: true })
-  await expect(urgent).toHaveAttribute('data-urgent', 'flag')
+  await expect(urgent).toHaveAttribute('aria-pressed', 'true')
+  await urgent.hover()
+  await expect(page.getByRole('tooltip')).toContainText('Its due date keeps it urgent even unflagged — due today.')
   await urgent.click()
-  const prompt = page.getByRole('dialog', { name: 'Still urgent: due today' })
-  await expect(prompt).toContainText('Headcount request is no longer flagged urgent, but it’s due today, so it still counts as urgent.')
-  await prompt.getByRole('button', { name: 'Keep due date' }).click()
-  await expect(prompt).toBeHidden()
-  // Still urgent, now by its date: the toggle shows the clock.
+  await expect(urgent).toHaveAttribute('aria-pressed', 'false')
   await expect(urgent).toHaveAttribute('data-urgent', 'date')
+  await expect(page.getByRole('dialog', { name: /Still urgent/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(row(widget, 'Headcount request').getByRole('button', { name: 'Priority: Urgent (due soon)' })).toBeVisible()
 })

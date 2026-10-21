@@ -39,7 +39,7 @@ describe('import: a list’s owner, its filter-line switch, the Priority groupin
   it.each([
     [{ layoutId: 0 }], [{ layoutId: 1.5 }], [{ layoutId: '3' }], [{ eisenhower: false }],
     [{ layoutId: 3, eisenhower: true }], [{ layoutId: 3, extra: 1 }], ['eisenhower'], [7],
-  ])('an owner it can’t read (%j) is dropped with a warning: a saved list', (owner) => {
+  ])('an owner it can’t read (%j) is dropped with a warning: a list with no owner (the audit gives it a layout)', (owner) => {
     const row = list(1, { owner })
     expect(validateRow('listDefinitions', row)).toBe(true)
     expect(rowFixes('listDefinitions', row)).toEqual(['unknown owner dropped'])
@@ -130,7 +130,7 @@ describe('listDefinitionRepository.ensureEisenhowerList', () => {
     expect(await db.listDefinitions.count()).toBe(2)
   })
 
-  it('a setting naming a saved list (or nothing) is pointed at the Eisenhower’s list that exists', async () => {
+  it('a setting naming another list (or nothing) is pointed at the Eisenhower’s list that exists', async () => {
     await db.listDefinitions.bulkAdd([list(1), list(2, { owner: { eisenhower: true } })] as unknown as ListDefinition[])
     await db.settings.put({ key: 'eisenhowerSource', value: 'list:1' })
     expect(await listDefinitionRepository.ensureEisenhowerList()).toBe(2)
@@ -145,21 +145,29 @@ describe('listDefinitionRepository.ensureEisenhowerList', () => {
   })
 })
 
-describe('audit: layout-only lists whose layout is gone', () => {
-  it('reports them; cleanup makes them saved lists (never deletes them); a live layout’s and the Eisenhower’s are fine', async () => {
-    await db.layouts.add(layoutRow(1) as unknown as WorkspaceLayout)
+describe('audit: lists that belong to no layout', () => {
+  it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s and the Eisenhower’s are fine', async () => {
+    const shows4 = [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] }] }]
+    await db.layouts.bulkAdd([layoutRow(1), layoutRow(2, { sortOrder: 1, columns: shows4 }), layoutRow(3, { sortOrder: 2, columns: shows4 })] as unknown as WorkspaceLayout[])
     await db.listDefinitions.bulkAdd([
-      list(1, { owner: { layoutId: 1 } }), list(2, { owner: { layoutId: 9 } }), list(3, { owner: { eisenhower: true } }),
+      list(1, { owner: { layoutId: 1 } }), list(2, { owner: { layoutId: 9 }, sortOrder: 3 }), list(3, { owner: { eisenhower: true } }),
+      list(4), list(5, { sortOrder: 1 }),
     ] as unknown as ListDefinition[])
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({
-      table: 'listDefinitions', fix: 'clear-field', field: 'owner', count: 1, ids: [2],
+      table: 'listDefinitions', fix: 'adopt-lists', field: 'owner', count: 3, ids: [2, 4, 5],
     })])
-    expect(report.issues[0]!.samples![0]!.note).toBe('owner layout 9 not in layouts')
-    await cleanupIssues(report.issues)
+    expect(report.issues[0]!.samples!.map((x) => x.note)).toEqual(['owner layout 9 not in layouts', 'no owner', 'no owner'])
+    expect(await cleanupIssues(report.issues)).toBe(3)
     const lists = await db.listDefinitions.orderBy('id').toArray()
-    expect(lists.map((d) => d.owner)).toEqual([{ layoutId: 1 }, undefined, { eisenhower: true }])
-    expect('owner' in lists[1]!).toBe(false)
+    expect(lists.map((d) => d.owner)).toEqual([{ layoutId: 1 }, { layoutId: 4 }, { eisenhower: true }, { layoutId: 2 }, { layoutId: 4 }])
+    const recovered = await db.layouts.get(4)
+    expect(recovered).toMatchObject({ name: 'Recovered lists', sortOrder: 3 })
+    // One cell of list tabs, in the list order.
+    expect(recovered!.columns[0]!.cells[0]!.tabs).toEqual([
+      { id: 'tab-1', kind: 'lens', config: { listDefinitionId: 5 } },
+      { id: 'tab-2', kind: 'lens', config: { listDefinitionId: 2 } },
+    ])
     expect((await auditData()).issues).toEqual([])
   })
 

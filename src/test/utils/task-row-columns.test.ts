@@ -32,40 +32,52 @@ describe('taskRowColumns', () => {
     expect(taskRowColumns(2000, 168 + 300)).toMatchObject({ people: 64, tags: 236 })
   })
 
-  it('tags give way first (people take their gap), then people; the dates stay', () => {
-    const noTags = taskRowColumns(2000, 168 + 55)
-    expect(noTags).toMatchObject({ people: 60, tags: 0, datesTier: 'both' })
-    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 112px 20px')
-    expect(noTags.laidOut).toBe(223)
-    expect(taskRowColumns(2000, 168 + 17)).toMatchObject({ people: 22, tags: 0 })
-    const neither = taskRowColumns(2000, 168 + 16)
-    expect(neither).toMatchObject({ people: 0, tags: 0, datesTier: 'both' })
-    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 112px 20px')
-    expect(neither.laidOut).toBe(158)
+  it('below the split minimum the dates give way first — the follow-up date, then the due date — then tags, then people', () => {
+    // F = D − fixed (16 + dates + 20) − 20 gaps; each tier holds while F ≥ 56.
+    expect(taskRowColumns(2000, 224)).toMatchObject({ datesTier: 'both', dates: 112, people: 22, tags: 34 })
+    const due = taskRowColumns(2000, 223)
+    expect(due).toMatchObject({ datesTier: 'due', dates: 75, people: 37, tags: 55 })
+    expect(taskRowColumns(2000, 187)).toMatchObject({ datesTier: 'due', people: 22, tags: 34 })
+    expect(taskRowColumns(2000, 186)).toMatchObject({ datesTier: 'icons', dates: 38, people: 37, tags: 55 })
+    expect(taskRowColumns(2000, 150)).toMatchObject({ datesTier: 'icons', people: 22, tags: 34 })
+    // Then tags go (people take their gap), then people.
+    const noTags = taskRowColumns(2000, 149)
+    expect(noTags).toMatchObject({ datesTier: 'icons', people: 60, tags: 0 })
+    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 38px 20px')
+    expect(noTags.laidOut).toBe(149)
+    expect(taskRowColumns(2000, 111)).toMatchObject({ people: 22, tags: 0 })
+    const neither = taskRowColumns(2000, 110)
+    expect(neither).toMatchObject({ people: 0, tags: 0, datesTier: 'icons' })
+    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 38px 20px')
+    expect(neither.laidOut).toBe(84)
   })
 
-  it('clamps a stored width to min (fixed tracks only) … max (title keeps 80px); the bounds follow the width', () => {
+  it('clamps a stored width to min (notes, the dates as icons, status) … max (title keeps 80px); the bounds follow the width', () => {
     const wide = taskRowColumns(528, 4000)
     expect(wide.maxDetails).toBe(528 - 14 - 38 - 80)
     expect(wide.details).toBe(wide.maxDetails)
     expect(titleWidth(528, wide.laidOut)).toBe(80)
     const tight = taskRowColumns(528, 0)
-    expect(tight.details).toBe(158)
-    expect(tight.minDetails).toBe(158)
+    expect(tight.details).toBe(84)
+    expect(tight.minDetails).toBe(84)
+    expect(tight.datesTier).toBe('icons')
     // The same stored value in a wider list: no longer clamped.
     expect(taskRowColumns(1200, 600).details).toBe(600)
     expect(taskRowColumns(700, 600).details).toBe(700 - 14 - 38 - 80)
   })
 
-  it('the list width alone sets the dates: the follow-up date goes first, then the due date', () => {
+  it('the list width caps the details, and so the dates: the follow-up date goes first, then the due date', () => {
     // Both dates while people and tags keep their split at the widest details.
     expect(taskRowColumns(356)).toMatchObject({ datesTier: 'both', dates: 112 })
     expect(taskRowColumns(355)).toMatchObject({ datesTier: 'due', dates: 75 })
     expect(taskRowColumns(319)).toMatchObject({ datesTier: 'due', dates: 75 })
     expect(taskRowColumns(318)).toMatchObject({ datesTier: 'icons', dates: 38 })
-    // The details width never changes it (a divider drag re-lays rows out, nothing else).
-    for (const stored of [0, 120, 200, 4000]) expect(taskRowColumns(528, stored).datesTier).toBe('both')
-    for (const stored of [0, 120, 4000]) expect(taskRowColumns(308, stored).datesTier).toBe('icons')
+    // A wider stored width can't widen them past what the list gives.
+    expect(taskRowColumns(308, 4000).datesTier).toBe('icons')
+    // In a wide list the details width sets them.
+    expect(taskRowColumns(1200, 300).datesTier).toBe('both')
+    expect(taskRowColumns(1200, 200).datesTier).toBe('due')
+    expect(taskRowColumns(1200, 160).datesTier).toBe('icons')
   })
 
   it('a 320px list shows the dates as icons and keeps people and tags', () => {

@@ -88,18 +88,17 @@ test.describe('desktop', () => {
     await expect.poll(() => sorted(page)).toEqual(['Due tomorrow', 'Flagged urgent'])
     await expect(editList.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Urgent, not Important/)
     await expect(editList.locator('[data-changed]')).toHaveText(['Filters'])
-    // Esc closes the picker, then Edit list (the draft is kept).
+    // Esc closes the picker, then Edit list — which asks about the unsaved list: Save list.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
     await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Save list' }).click()
     await expect(editList).toHaveCount(0)
+    await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 
     const chip = wsListWidget(page, 't1').getByTestId('list-filter-chip')
     await chip.hover()
     await expect(page.getByRole('tooltip')).toHaveText(/Priority: Urgent, not Important\s*Hides tasks that are Important/)
-    const save = wsListWidget(page, 't1').getByTestId('save-list')
-    await save.click()
-    await expect(save).toHaveCount(0)
     await expect.poll(async () => ((await readListDefinitions(page))[0]?.membership as { predicate: unknown }).predicate)
       .toMatchObject({ markers: { urgent: true, important: false } })
 

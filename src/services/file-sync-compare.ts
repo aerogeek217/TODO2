@@ -3,6 +3,7 @@ import { DATA_TABLE_NAMES } from '../data/tables'
 import { prepareImport } from '../data/import-pipeline'
 import type { ImportData } from '../data/import-validation'
 import { buildExportData } from '../data/export-data'
+import { SYNC_NEUTRAL_SETTING_KEYS } from '../data/setting-keys'
 
 /** JSON with object keys sorted recursively — key order never matters. */
 function canonical(value: unknown): string {
@@ -47,7 +48,12 @@ export async function browserMatchesFile(fileData: ImportData): Promise<boolean>
   const exported = await buildExportData()
   const browser = prepareImport(JSON.parse(JSON.stringify(exported)))
   if (!browser.ok) return false
-  return importDataEqual(browser.data, fileData)
+  return importDataEqual(withoutSyncNeutralSettings(browser.data), withoutSyncNeutralSettings(fileData))
+}
+
+/** `data` without the settings the two sides aren't compared on (`SYNC_NEUTRAL_SETTING_KEYS`). */
+function withoutSyncNeutralSettings(data: ImportData): ImportData {
+  return { ...data, settings: data.settings.filter((row) => !SYNC_NEUTRAL_SETTING_KEYS.has(row.key)) }
 }
 
 /** Number of tasks in the browser database (conflict-dialog summary). */

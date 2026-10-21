@@ -24,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 67
+export const CURRENT_DB_VERSION = 68
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -416,9 +416,20 @@ export class Todo2Database extends Dexie {
     // v67 data may also hold a list's owner and filter-line switch, the
     // Priority grouping and the new-task follow-up setting, which an older
     // build would drop or misread, so older builds refuse it.
+    this.version(67).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 67))
+
+    // v68: every list belongs to a layout; the check-in's Which tasks is a
+    // filter. No index change; the transform
+    // (`upgrades/v68-lists-in-layouts-and-checkin-filter.ts`) gives each list
+    // without a layout the first layout that shows it (a copy for every other
+    // layout that does), puts the lists no layout shows into a new layout
+    // "Lists from upgrade", and turns the check-in scope into the check-in
+    // filter. v68 data may also hold the new-list defaults and the purge
+    // prompt's interval, which an older build would misread, so older
+    // builds refuse it.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `67` first.
+    // docblock above). When bumping, turn this into a literal `68` first.
     this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
 
     // A database a newer build wrote is never read or written: Dexie opens

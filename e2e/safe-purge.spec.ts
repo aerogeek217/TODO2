@@ -61,7 +61,7 @@ async function boot(page: Page, path = '/') {
   if (path === '/') await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 }
 
-test('launch prompt: Not now skips one launch; Export & delete archives, deletes, and the archive appends back with the duplicate picker', async ({ page }) => {
+test('launch prompt: Not now waits the prompt interval; Export & delete archives, deletes, and the archive appends back with the duplicate picker', async ({ page }) => {
   await stubPickers(page)
   await boot(page)
   await seed(page, [
@@ -81,10 +81,20 @@ test('launch prompt: Not now skips one launch; Export & delete archives, deletes
   // Focus lands inside the dialog, on the safe choice.
   await expect(prompt.getByRole('button', { name: 'Not now' })).toBeFocused()
 
-  // Not now → nothing deleted; asked again on the next launch.
+  // Showing it stamped the setting the interval counts from.
+  await expect.poll(async () => (await readStore<{ key: string; value: string }>(page, 'settings')).find((r) => r.key === 'purgePromptLastAt')?.value)
+    .toBeTruthy()
+
+  // Not now → nothing deleted; not asked again within the interval (7 days by default).
   await prompt.getByRole('button', { name: 'Not now' }).click()
   await expect(prompt).toBeHidden()
   expect((await dbTodos(page)).map((t) => t.title).sort()).toEqual(['Active', 'Old A', 'Old B', 'Old B', 'Recent done'])
+  await page.reload()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  // Once the interval has passed: asked again.
+  await writeStores(page, { put: { settings: [{ key: 'purgePromptLastAt', value: new Date(Date.now() - 7 * 86_400_000).toISOString() }] } })
   await page.reload()
   await expect(prompt).toBeVisible()
 
@@ -155,11 +165,11 @@ test('launch prompt: Delete removes the expired tasks without a file; a cancelle
 })
 
 /**
- * The launch prompt's check runs again after a sync file is loaded later
- * (here: attached from Settings into a browser with no expired tasks), so
- * the file's own expired tasks are asked about too.
+ * A browser with no expired tasks and, in OPFS, a sync file holding one
+ * long-completed task, a 30-day retention and the given extra settings,
+ * then Settings › File storage › Attach to File picks it.
  */
-test('attaching a sync file with expired tasks brings up the prompt for them', async ({ page }) => {
+async function attachFileWithExpiredTask(page: Page, settings: Array<{ key: string; value: string }> = []) {
   const SYNC_FILE = 'e2e-purge-sync.json'
   await page.addInitScript((name) => {
     const pick = async () => {
@@ -179,7 +189,7 @@ test('attaching a sync file with expired tasks brings up the prompt for them', a
     createdAt: new Date(now - 100 * 86_400_000).toISOString(), modifiedAt: new Date(now).toISOString(),
     completedAt: new Date(now - 60 * 86_400_000).toISOString(),
   }]
-  data.settings = [...(data.settings ?? []), { key: 'completedRetentionDays', value: '30' }]
+  data.settings = [...(data.settings ?? []), { key: 'completedRetentionDays', value: '30' }, ...settings]
   const schemaVersion = await page.evaluate(async (url) => {
     const mod = (await import(/* @vite-ignore */ url)) as { CURRENT_DB_VERSION: number }
     return mod.CURRENT_DB_VERSION
@@ -197,7 +207,29 @@ test('attaching a sync file with expired tasks brings up the prompt for them', a
 
   await gotoSettingsDeepLink(page)
   await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
+}
+
+/**
+ * The launch prompt's check runs again after a sync file is loaded later
+ * (here: attached from Settings into a browser with no expired tasks), so
+ * the file's own expired tasks are asked about too — unless the file's data
+ * says the prompt showed within its interval.
+ */
+test('attaching a sync file with expired tasks brings up the prompt for them', async ({ page }) => {
+  await attachFileWithExpiredTask(page)
   const prompt = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
   await expect(prompt).toBeVisible()
   await expect(prompt.getByTestId('purge-task-list')).toContainText('Old file task')
+})
+
+test('attaching a sync file whose prompt showed within its interval asks nothing', async ({ page }) => {
+  await attachFileWithExpiredTask(page, [
+    { key: 'purgePromptIntervalDays', value: '14' },
+    { key: 'purgePromptLastAt', value: new Date(Date.now() - 10 * 86_400_000).toISOString() },
+  ])
+  // The file loaded (its task is here) …
+  await expect.poll(async () => (await dbTodos(page)).map((t) => t.title)).toEqual(['Old file task'])
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
+  // … and nothing asked about it.
+  await expect(page.getByRole('dialog', { name: /old completed task/ })).toHaveCount(0)
 })

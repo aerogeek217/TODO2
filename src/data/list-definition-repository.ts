@@ -1,5 +1,5 @@
 import { db } from './database'
-import { createRepository, insertLast, nextSortOrder, reorderBySortOrder } from './create-repository'
+import { createRepository, insertLast, nextSortOrder } from './create-repository'
 import {
   EISENHOWER_LIST_NAME,
   findEisenhowerList,
@@ -7,6 +7,7 @@ import {
   type PersistedListDefinition,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models/filter-predicate'
+import type { RankWrite } from '../utils/list-order'
 import { pickPredicate } from './predicate-shape'
 import { SETTING_KEYS } from './setting-keys'
 import { formatEisenhowerSource, parseEisenhowerSource } from './eisenhower-shape'
@@ -35,15 +36,23 @@ export const listDefinitionRepository = {
     return insertLast(db.listDefinitions, def, -1)
   },
 
-  async reorder(orderedIds: number[]): Promise<void> {
-    await reorderBySortOrder(db.listDefinitions, orderedIds)
-  },
-
-  /** Deletes the list and its manual order. */
-  async remove(id: number): Promise<void> {
-    await db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
-      await db.listOrders.where('listDefinitionId').equals(id).delete()
-      await db.listDefinitions.delete(id)
+  /**
+   * Adds a copy of list `fromId` after the others (`def` — its parts as
+   * copied, a name and an owner) with `fromId`'s manual order: the list and
+   * its ranks in one transaction. Returns the new id, its sort order and
+   * the ranks written.
+   */
+  async insertCopy(
+    def: Omit<ListDefinition, 'id' | 'sortOrder'>,
+    fromId: number,
+  ): Promise<{ id: number; sortOrder: number; ranks: RankWrite[] }> {
+    return db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
+      const sortOrder = await nextSortOrder(db.listDefinitions, -1)
+      const id = await db.listDefinitions.add({ ...def, sortOrder })
+      const from = await db.listOrders.where('listDefinitionId').equals(fromId).toArray()
+      const ranks = from.map((r): RankWrite => ({ todoId: r.todoId, rank: r.rank }))
+      if (ranks.length > 0) await db.listOrders.bulkAdd(ranks.map((r) => ({ listDefinitionId: id, ...r })))
+      return { id, sortOrder, ranks }
     })
   },
 
@@ -75,13 +84,5 @@ export const listDefinitionRepository = {
       if (sourceId !== id) await db.settings.put({ key: SETTING_KEYS.eisenhowerSource, value: formatEisenhowerSource(id) })
       return id
     })
-  },
-
-  /**
-   * Undo-restore for `remove`: re-insert the row preserving its original id so
-   * any saved references (workspace list tabs, list orders) keep pointing at it.
-   */
-  async restore(def: PersistedListDefinition): Promise<void> {
-    await db.listDefinitions.add(def)
   },
 }

@@ -24,7 +24,7 @@ export function useTaskRowActions({ todo }: UseTaskRowActionsOpts) {
     bulk.toggleComplete(todo.id)
   }, [bulk, todo.id])
 
-  /** Sets a marker on the task (or its selection); turning Urgent off may ask about due dates. */
+  /** Sets or clears a marker's flag on the task (or its selection). */
   const handleSetMarker = useCallback((marker: MarkerKey, on: boolean) => {
     if (marker === 'urgent') bulk.setUrgent(todo.id, on)
     else if (marker === 'important') bulk.setImportant(todo.id, on)

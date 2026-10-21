@@ -173,7 +173,7 @@ describe('eisenhowerSourceTasks', () => {
     expect(out.total.map((t) => t.id)).toEqual([1, 2, 3])
   })
 
-  it('a saved list: its members in the total; shown passes the screen filter too', () => {
+  it('a list: its members in the total; shown passes the screen filter too', () => {
     const out = eisenhowerSourceTasks(tasks, tasks, list, opts({ ...emptyFilterCriteria, statusIds: new Set([7]) }))
     expect(out.total.map((t) => t.id)).toEqual([1, 2])
     expect(out.shown.map((t) => t.id)).toEqual([2])

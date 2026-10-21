@@ -12,6 +12,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
     grouping: 'none',
+    owner: { layoutId: 4 },
     ...overrides,
   }
 }
@@ -31,7 +32,7 @@ describe('ListDefinitionPickerPopup', () => {
       ],
     })
     const { getByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
     expect(getByText('First list')).toBeInTheDocument()
     expect(getByText('Second list')).toBeInTheDocument()
@@ -40,7 +41,7 @@ describe('ListDefinitionPickerPopup', () => {
   it('shows the "Add list" header and "Add" action label', () => {
     useListDefinitionStore.setState({ listDefinitions: [makeDef({ id: 1 })] })
     const { getByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
     expect(getByText(/^add list$/i)).toBeInTheDocument()
     expect(getByText('Add')).toBeInTheDocument()
@@ -53,7 +54,7 @@ describe('ListDefinitionPickerPopup', () => {
     const onSelect = vi.fn()
     const onClose = vi.fn()
     const { getByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={onSelect} onCreateNew={vi.fn()} onClose={onClose} />,
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={onSelect} onCreateNew={vi.fn()} onClose={onClose} />,
     )
 
     fireEvent.click(getByText('Target'))
@@ -64,7 +65,7 @@ describe('ListDefinitionPickerPopup', () => {
 
   it('renders empty state when there are no defs', () => {
     const { getAllByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
     const ctas = getAllByText(/create new list/i)
     expect(ctas.length).toBeGreaterThan(0)
@@ -79,7 +80,7 @@ describe('ListDefinitionPickerPopup', () => {
       ],
     })
     render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
     const names = Array.from(document.body.querySelectorAll('button'))
       .map(b => b.textContent ?? '')
@@ -100,6 +101,7 @@ describe('ListDefinitionPickerPopup', () => {
       <ListDefinitionPickerPopup
         x={10}
         y={10}
+        layoutId={4}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
         onClose={vi.fn()}
@@ -116,7 +118,7 @@ describe('ListDefinitionPickerPopup', () => {
       const onCreateNew = vi.fn()
       const onClose = vi.fn()
       const { getByText } = render(
-        <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={onClose} />,
+        <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={onClose} />,
       )
       fireEvent.click(getByText(/create new list/i))
       expect(onCreateNew).toHaveBeenCalled()
@@ -126,7 +128,7 @@ describe('ListDefinitionPickerPopup', () => {
     it('Escape closes the popup', () => {
       const onClose = vi.fn()
       render(
-        <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />,
+        <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />,
       )
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(onClose).toHaveBeenCalled()
@@ -136,7 +138,7 @@ describe('ListDefinitionPickerPopup', () => {
       const onClose = vi.fn()
       render(
         <>
-          <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />
+          <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />
           <div data-testid="outside">outside</div>
         </>,
       )
@@ -148,7 +150,7 @@ describe('ListDefinitionPickerPopup', () => {
       useListDefinitionStore.setState({ listDefinitions: [] })
       const onClose = vi.fn()
       const { getByText } = render(
-        <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />,
+        <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />,
       )
       // Header is part of the popup; clicking it should not trigger outside-click.
       fireEvent.mouseDown(getByText(/^add list$/i))
@@ -157,61 +159,34 @@ describe('ListDefinitionPickerPopup', () => {
   })
 })
 
-describe('ListDefinitionPickerPopup — hidden lists', () => {
-  it('offers no list a layout or the Eisenhower owns', () => {
+describe('ListDefinitionPickerPopup — the layout’s lists', () => {
+  it('offers only the lists the layout owns: never another layout’s, the Eisenhower’s or one without an owner', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Saved' }),
-        makeDef({ id: 2, name: 'Layout only', owner: { layoutId: 1 } }),
+        makeDef({ id: 1, name: 'Mine' }),
+        makeDef({ id: 2, name: 'Theirs', owner: { layoutId: 5 } }),
         makeDef({ id: 3, name: 'Eisenhower', owner: { eisenhower: true } }),
+        makeDef({ id: 4, name: 'No owner', owner: undefined }),
       ],
     })
-    const { getByText, queryByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
-    )
-    expect(getByText('Saved')).toBeInTheDocument()
-    expect(queryByText('Layout only')).toBeNull()
-    expect(queryByText('Eisenhower')).toBeNull()
-  })
-
-  it('in a saved layout: its own lists too (marked), never another layout’s; Saved list / This layout only before Create, Saved first', () => {
-    useListDefinitionStore.setState({
-      listDefinitions: [
-        makeDef({ id: 1, name: 'Saved' }),
-        makeDef({ id: 2, name: 'Mine', owner: { layoutId: 4 } }),
-        makeDef({ id: 3, name: 'Theirs', owner: { layoutId: 5 } }),
-      ],
-    })
-    const onCreateNew = vi.fn()
-    const { getByText, queryByText, getByRole } = render(
-      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,
+    const { getByText, queryByText, queryByRole } = render(
+      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
     expect(getByText('Mine')).toBeInTheDocument()
-    expect(getByText('This layout')).toBeInTheDocument()
     expect(queryByText('Theirs')).toBeNull()
-    expect(getByRole('radio', { name: 'Saved list' })).toBeChecked()
-    fireEvent.click(getByText('+ Create new list…'))
-    expect(onCreateNew).toHaveBeenLastCalledWith(false)
-  })
-
-  it('This layout only: Create says so', () => {
-    const onCreateNew = vi.fn()
-    const { getByRole, getByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} layoutId={4} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,
-    )
-    // No list yet: the choice sits above the primary Create.
-    fireEvent.click(getByRole('radio', { name: 'This layout only' }))
-    fireEvent.click(getByText('+ Create new list…'))
-    expect(onCreateNew).toHaveBeenLastCalledWith(true)
-  })
-
-  it('no layout to keep it in (a new layout an older build kept, not saved yet): no choice, a saved list', () => {
-    const onCreateNew = vi.fn()
-    const { queryByRole, getByText } = render(
-      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={onCreateNew} onClose={vi.fn()} />,
-    )
+    expect(queryByText('Eisenhower')).toBeNull()
+    expect(queryByText('No owner')).toBeNull()
+    // Only the layout's lists: no choice of where a new list goes, no note on the rows.
     expect(queryByRole('radio')).toBeNull()
-    fireEvent.click(getByText('+ Create new list…'))
-    expect(onCreateNew).toHaveBeenLastCalledWith(false)
+    expect(queryByText('This layout')).toBeNull()
+  })
+
+  it('no stored layout (a new layout an older build kept): no list, and no Create unless given', () => {
+    useListDefinitionStore.setState({ listDefinitions: [makeDef({ id: 1, name: 'Mine' })] })
+    const { queryByText } = render(
+      <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onClose={vi.fn()} />,
+    )
+    expect(queryByText('Mine')).toBeNull()
+    expect(queryByText(/create new list/i)).toBeNull()
   })
 })

@@ -19,7 +19,6 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useUIStore } from '../stores/ui-store'
 import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignments-for-todos'
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
@@ -63,7 +62,6 @@ import { EntityActionHost } from '../components/settings/EntityActionHost'
 import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
-import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import overlayStyles from '../components/workspace/DragOverlayTask.module.css'
 import styles from './WorkspacePage.module.css'
 
@@ -104,7 +102,7 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, overlayNode
 
 /**
  * Loads everything the workspace's widgets read, whatever route the app was
- * opened on: all tasks, people, tags, statuses, saved lists — and the people / tag assignments of the
+ * opened on: all tasks, people, tags, statuses, lists — and the people / tag assignments of the
  * loaded tasks, so chips and person / tag groups render on a cold load. It
  * doesn't subscribe to the tasks themselves, so a task edit doesn't re-render
  * the page.
@@ -348,9 +346,6 @@ function useCalendarDropChoice() {
 export function WorkspacePage() {
   const working = useWorkspaceStore((s) => s.working)
   const hydrated = useWorkspaceStore((s) => s.hydrated)
-  const showListsEditor = useUIStore((s) => s.listsEditorOpen)
-  const listsEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
-  const closeListsEditor = useUIStore((s) => s.closeListsEditor)
   const [activeDrag, setActiveDrag] = useState<ActiveTaskDrag | null>(null)
   const calendarChoice = useCalendarDropChoice()
   const autoScroll = useAutoScrollUnderPointer()
@@ -478,9 +473,6 @@ export function WorkspacePage() {
       <CheckinDialog />
       <CheckinImportDialog />
       <TaskEditPopupHost />
-      {showListsEditor && (
-        <DashboardListsEditor onClose={closeListsEditor} initialSelectedId={listsEditorInitialId ?? undefined} />
-      )}
       <EntityActionHost />
       <EditListHost />
       <UnsavedNavigationGuard />

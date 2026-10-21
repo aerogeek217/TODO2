@@ -52,7 +52,8 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
  * Selection semantics: each picked id appears as a chip with a `×`; the
  * underlying value is the chips' id list, OR-combined when the helper
  * applies it (`applyRuntimeFilter`). Empty selection is a no-op (helper
- * passes the predicate through unchanged).
+ * passes the predicate through unchanged). While anything is picked, a × at
+ * the field's end clears every pick at once (the focus stays in the field).
  */
 const NO_IDS: readonly number[] = []
 
@@ -192,6 +193,24 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
           placeholder={placeholder}
           aria-label={`Filter tasks by ${lowerLabel}`}
         />
+        {selected.length > 0 && (
+          <button
+            type="button"
+            className={styles.clearAll}
+            tabIndex={-1}
+            aria-label={`Clear ${label}`}
+            title={`Clear ${label}`}
+            // The press keeps the focus (and the caret) in the field.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onChange([])
+              inputRef.current?.focus()
+            }}
+          >
+            &times;
+          </button>
+        )}
       </div>
       {open && createPortal(
         <div

@@ -7,7 +7,7 @@ import { upgradeDataSet, type DataSet } from '../../data/schema-upgrades'
 import { restoreFromImportData } from '../../data/restore'
 import { resetDb } from '../helpers'
 import { emptyPredicate } from '../../models/filter-predicate'
-import { listedLists } from '../../models/list-definition'
+import { isEisenhowerOwner, listedLists } from '../../models/list-definition'
 
 /**
  * Frozen v49 export (`src/test/fixtures/v49-export.json`) — generated once
@@ -93,8 +93,8 @@ describe('v49 fixture → prepareImport → restore', () => {
       // v56 adds `activeLayoutId`; v60 removes the five canvas / project settings; v64 `maxTags`;
       // v67 adds `eisenhowerSource`.
       if (table.name === 'settings') expected -= 3 - 1 + 5 + 1 - 1
-      // v56 seeds the Default layout.
-      if (table.name === 'layouts') expected = 1
+      // v56 seeds the Default layout; v68 adds "Lists from upgrade" for the lists it doesn't show.
+      if (table.name === 'layouts') expected = 2
       // v55 turns the two orgs into people and their two assignments into person assignments.
       if (table.name === 'people' || table.name === 'todoPeople') expected += 2
       // v59 adds the Focus list and ranks its two tasks; v67 adds the Eisenhower's list.
@@ -560,7 +560,8 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
 
   it('seeds one active Default layout: left rail, bottom rail, right rail, then every float', async () => {
     await importFixture()
-    const layouts = await db.layouts.toArray()
+    // (v68 adds a second layout, "Lists from upgrade".)
+    const layouts = (await db.layouts.toArray()).filter((l) => l.name === 'Default')
     expect(layouts).toHaveLength(1)
     expect((await db.settings.get('activeLayoutId'))?.value).toBe('1')
     expect(layouts[0]).toMatchObject({ id: 1, name: 'Default', createdAt: canvasCreatedAt, modifiedAt: canvasCreatedAt })
@@ -910,17 +911,18 @@ describe('v49 fixture → v67: layouts get an order; the Eisenhower gets its own
     expect(at67.settings).toEqual([...at66.settings!, { key: 'eisenhowerSource', value: `list:${EISENHOWER_LIST_ID}` }])
 
     await importFixture()
-    expect((await db.layouts.toArray()).map((l) => l.sortOrder)).toEqual([0])
+    // (v68 adds "Lists from upgrade" after it.)
+    expect((await db.layouts.toArray()).map((l) => l.sortOrder)).toEqual([0, 1])
     expect(await db.listDefinitions.get(EISENHOWER_LIST_ID)).toEqual({
       id: EISENHOWER_LIST_ID, name: 'Eisenhower', sortOrder: 5,
       membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none',
       owner: { eisenhower: true },
     })
     expect((await db.settings.get('eisenhowerSource'))?.value).toBe(`list:${EISENHOWER_LIST_ID}`)
-    // No other list gets an owner, and the hidden one is offered by no list chooser.
+    // Only it is the Eisenhower's, and no layout's list chooser offers it.
     const lists = await db.listDefinitions.toArray()
-    expect(lists.filter((d) => d.owner !== undefined).map((d) => d.id)).toEqual([EISENHOWER_LIST_ID])
-    expect(listedLists(lists).map((d) => d.id)).not.toContain(EISENHOWER_LIST_ID)
+    expect(lists.filter((d) => isEisenhowerOwner(d.owner)).map((d) => d.id)).toEqual([EISENHOWER_LIST_ID])
+    for (const layout of await db.layouts.toArray()) expect(listedLists(lists, layout.id).map((d) => d.id)).not.toContain(EISENHOWER_LIST_ID)
   })
 
   it('upgrading the v67 data again changes nothing', () => {
@@ -929,10 +931,66 @@ describe('v49 fixture → v67: layouts get an order; the Eisenhower gets its own
   })
 })
 
+/** Id of the layout v68 makes for the fixture's lists the Default layout doesn't show: after the Default layout. */
+const LISTS_FROM_UPGRADE_LAYOUT_ID = 2
+
+describe('v49 fixture → v68: every list belongs to a layout', () => {
+  it('the Default layout keeps the lists it shows; the others go into a new layout "Lists from upgrade"; nothing else changes', async () => {
+    const at67 = fixtureAt(67)
+    expect(at67.listDefinitions!.filter((d) => !isEisenhowerOwner(d.owner as never)).every((d) => d.owner === undefined)).toBe(true)
+    const at68 = upgradeDataSet(at67, 67, 68)
+    expect(at68).toEqual(fixtureAt(68))
+    for (const table of Object.keys(at67)) {
+      if (table !== 'layouts' && table !== 'listDefinitions') expect(at68[table], table).toBe(at67[table])
+    }
+    // The Default layout shows "Someday" (2), "By person" (3) and the Focus list (5): they become its lists, unchanged otherwise.
+    const owners = Object.fromEntries(at68.listDefinitions!.map((d) => [d.name, d.owner]))
+    expect(owners).toEqual({
+      'This week': { layoutId: LISTS_FROM_UPGRADE_LAYOUT_ID },
+      Someday: { layoutId: 1 },
+      'By person': { layoutId: 1 },
+      'Acme next 30 days': { layoutId: LISTS_FROM_UPGRADE_LAYOUT_ID },
+      Focus: { layoutId: 1 },
+      Eisenhower: { eisenhower: true },
+    })
+    const withoutOwner = (rows: DataSet[string]) => rows.map((d) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== 'owner')))
+    expect(withoutOwner(at68.listDefinitions!)).toEqual(withoutOwner(at67.listDefinitions!))
+    // The Default layout is the same; the new one is after it: one cell of list tabs in the list order.
+    expect(at68.layouts![0]).toBe(at67.layouts![0])
+    expect(at68.layouts![1]).toEqual({
+      id: LISTS_FROM_UPGRADE_LAYOUT_ID,
+      name: 'Lists from upgrade',
+      sortOrder: 1,
+      columns: [{ id: 'col-1', weight: 1, cells: [{ id: 'cell-1', weight: 1, activeTabId: 'tab-1', tabs: [
+        { id: 'tab-1', kind: 'lens', config: { listDefinitionId: 1 } },
+        { id: 'tab-2', kind: 'lens', config: { listDefinitionId: 4 } },
+      ] }] }],
+      // The latest layout date there is (the Default layout's).
+      createdAt: at67.layouts![0]!.createdAt,
+      modifiedAt: at67.layouts![0]!.createdAt,
+    })
+
+    await importFixture()
+    const stored = await db.layouts.get(LISTS_FROM_UPGRADE_LAYOUT_ID)
+    expect(stored?.name).toBe('Lists from upgrade')
+    const lists = await db.listDefinitions.toArray()
+    expect(lists.every((d) => d.owner !== undefined)).toBe(true)
+    expect(listedLists(lists, 1).map((d) => d.name)).toEqual(['Someday', 'By person', 'Focus'])
+    expect(listedLists(lists, LISTS_FROM_UPGRADE_LAYOUT_ID).map((d) => d.name)).toEqual(['This week', 'Acme next 30 days'])
+    // The fixture has no check-in scope: no check-in filter.
+    expect(await db.settings.get('checkinTaskFilter')).toBeUndefined()
+  })
+
+  it('upgrading the v68 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 67, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
 // ── Frozen transforms: the output never changes ─────────────────────────────────────────────────────
 /**
  * The fixture upgraded to each version, as JSON, hashed (SHA-256, first 16
- * hex digits). The transforms up to v67 are frozen, so these never change:
+ * hex digits). The transforms up to v68 are frozen, so these never change:
  * a shared helper or a refactor that changes any transform's output fails
  * here. (A later version adds its own entry; never edit an existing one.)
  *
@@ -959,6 +1017,7 @@ const FROZEN_OUTPUT_DIGESTS: Readonly<Record<number, string>> = {
   65: 'd89ed146e9a87d82',
   66: 'd89ed146e9a87d82',
   67: 'b47768b8d8181f2b',
+  68: '7fedd87dbe1f7ff9',
 }
 const DIGESTS_TIME_ZONE = 'America/Chicago'
 

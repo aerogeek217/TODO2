@@ -180,9 +180,9 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await expect.poll(() => dividerValue(widget)).toBe(352)
   await page.keyboard.press('Home')
   await expect.poll(() => dividerValue(widget)).toBe(Number(await divider(widget).getAttribute('aria-valuemin')))
-  // The narrowest details: notes, both dates, status — the divider never drops a date.
-  expect(await laidOutDetails(first)).toBe(158)
-  await expect(first.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
+  // The narrowest details: notes, the dates as icons, status.
+  expect(await laidOutDetails(first)).toBe(84)
+  await expect(first.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'icons')
   await page.keyboard.press('End')
   const max = Number(await divider(widget).getAttribute('aria-valuemax'))
   await expect.poll(() => dividerValue(widget)).toBe(max)
@@ -355,22 +355,29 @@ test('the dates cell: the due part opens the date picker, the follow-up part the
   await expect(popover).toBeVisible()
 })
 
-test('the marker gutter opens the markers menu; Urgent off on a task urgent by its due date asks to remove the date', async ({ page }) => {
+test('the marker gutter opens the markers menu; on a task urgent by its due date Urgent is unchecked and flags it', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760, [{ title: 'Pick up prescriptions', dueInDays: 1 }]))
   const r = row(wsListWidget(page, 'tab'), 'Pick up prescriptions')
   const gutter = r.getByRole('button', { name: 'Priority: Urgent (due soon)' })
   await gutter.click()
   const menu = page.getByRole('menu', { name: 'Priority' })
-  await expect(menu.getByRole('menuitemcheckbox', { name: 'Urgent' })).toHaveAttribute('aria-checked', 'true')
-  await menu.getByRole('menuitemcheckbox', { name: 'Urgent' }).click()
-  const prompt = page.getByRole('dialog', { name: 'Remove the due date?' })
-  await prompt.getByRole('button', { name: 'Remove due date' }).click()
-  await expect(r.getByRole('button', { name: 'No priority' })).toBeVisible()
-  await expect(r.getByRole('button', { name: 'Set due date' })).toBeVisible()
+  const urgent = menu.getByRole('menuitemcheckbox', { name: /^Urgent/ })
+  await expect(urgent).toHaveAttribute('aria-checked', 'false')
+  await expect(urgent).toContainText('By due date')
+  await urgent.click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(r.getByRole('button', { name: 'Priority: Urgent', exact: true })).toBeVisible()
 
-  await r.getByRole('button', { name: 'No priority' }).click()
+  // Checked now; unchecking clears the flag and leaves the date.
+  await r.getByRole('button', { name: 'Priority: Urgent', exact: true }).click()
+  await expect(page.getByRole('menuitemcheckbox', { name: /^Urgent/ })).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('menuitemcheckbox', { name: /^Urgent/ }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(r.getByRole('button', { name: 'Priority: Urgent (due soon)' })).toBeVisible()
+
+  await r.getByRole('button', { name: 'Priority: Urgent (due soon)' }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Focus' }).click()
-  await expect(r.getByRole('button', { name: 'Priority: Focus' })).toBeVisible()
+  await expect(r.getByRole('button', { name: 'Priority: Focus, Urgent (due soon)' })).toBeVisible()
 })
 
 test('a drag can start on a cell; a click there without moving opens its picker; a double-click opens it once', async ({ page }) => {

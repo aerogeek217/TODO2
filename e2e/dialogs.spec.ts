@@ -9,9 +9,8 @@ import { readStore } from './fixtures/db'
  * press that starts inside the panel and ends on the backdrop keeps it open,
  * a press on the backdrop closes it. And the stacks: the editor over the
  * task dialog, the check-in dialog over the task dialog, the email editor
- * over the check-in dialog, the people editor over Settings, the list editor
- * over the lists editor in Settings, "Continue without a backup?" over the
- * append-import dialog.
+ * over the check-in dialog, the people editor over Settings, "Continue without
+ * a backup?" over the append-import dialog.
  */
 
 const VIEWPORT = { width: 1440, height: 900 }
@@ -291,7 +290,7 @@ test('Customize dashboard: contract; Esc during a keyboard reorder cancels the m
     },
     trigger,
     inside: dialog.getByRole('heading', { name: 'Customize dashboard' }),
-    initialFocus: dialog.getByRole('button', { name: /Add a saved list/ }),
+    initialFocus: dialog.getByRole('button', { name: /Add a list/ }),
   })
 
   await trigger.click()
@@ -339,28 +338,6 @@ test('Settings: contract; Esc over it closes the people editor only, focused or 
   await page.keyboard.press('Escape')
   await expect(name).toHaveCount(0)
   await expect(people).toBeVisible()
-})
-
-test('list editor over the lists editor in Settings: contract; Esc closes only it', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  const settings = await openSettings(page, 'People, statuses & tags')
-  await settings.getByRole('button', { name: 'Manage lists…' }).click()
-  const gear = page.getByTitle('Edit list', { exact: true }).first()
-  await expect(gear).toBeVisible()
-  const dialog = page.getByRole('dialog', { name: 'Edit list: Team' })
-  await checkContract(page, {
-    dialog,
-    open: async () => {
-      await gear.click()
-      await expect(dialog).toBeVisible()
-    },
-    trigger: gear,
-    inside: dialog.getByText('Edit list', { exact: true }),
-    initialFocus: dialog,
-  })
-  // The lists editor and Settings stayed open through every close.
-  await expect(gear).toBeVisible()
-  await expect(settings).toBeVisible()
 })
 
 test('“Continue without a backup?” over the append-import dialog: Esc, focused or not, closes only the prompt', async ({ page }) => {
@@ -425,7 +402,6 @@ test.describe('editor modals', () => {
     { button: 'Manage people…', title: 'People' },
     { button: 'Manage statuses…', title: 'Statuses' },
     { button: 'Manage tags…', title: 'Tags' },
-    { button: 'Manage lists…', title: 'Lists' },
   ]
   for (const { button, title } of editors) {
     test(`${title}: Esc, focus trap and return, backdrop press; Settings stays`, async ({ page }) => {
@@ -485,24 +461,6 @@ test.describe('editor modals', () => {
       inside: dialog.getByText('Keyboard Shortcuts', { exact: true }),
       initialFocus: dialog.getByRole('button', { name: '×' }),
     })
-  })
-
-  test('Lists: a dirty list editor asks first; Esc on that confirm keeps the editor', async ({ page }) => {
-    await seedWorkspace(page, SEED)
-    const settings = await openSettings(page, 'People, statuses & tags')
-    await settings.getByRole('button', { name: 'Manage lists…' }).click()
-    const lists = page.getByRole('dialog', { name: 'Lists', exact: true })
-    await lists.getByTitle('Edit list').first().click()
-    const editor = page.getByRole('dialog', { name: 'Edit list: Team' })
-    await editor.getByRole('textbox').first().fill('Team (renamed)')
-    await page.keyboard.press('Escape')
-    const confirm = page.getByRole('dialog', { name: /Discard/ })
-    await expect(confirm).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(confirm).toBeHidden()
-    await expect(editor).toBeVisible()
-    await expect(lists).toBeVisible()
-    await expect(settings).toBeVisible()
   })
 
   test('notes → tasks preview: Esc, focus trap and return, backdrop press; its draft editor owns Esc', async ({ page }) => {

@@ -200,8 +200,8 @@ describe('entity updates', () => {
   })
 
   it('a failed list update keeps another list edited meanwhile', async () => {
-    const a = await useListDefinitionStore.getState().add({ name: 'A' })
-    const b = await useListDefinitionStore.getState().add({ name: 'B' })
+    const a = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'A' })
+    const b = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'B' })
     const defOf = (id: number) => useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)!
 
     const held = holdNextWriteToFail(listDefinitionRepository, 'update')

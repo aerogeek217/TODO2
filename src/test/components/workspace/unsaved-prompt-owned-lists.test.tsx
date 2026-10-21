@@ -10,7 +10,7 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { resetDb } from '../../helpers'
 
 /**
- * The combined Save / Discard prompt with a layout-only list made for the
+ * The combined Save / Discard prompt with a layout's list made for the
  * unsaved layout edits: the list goes with them on Discard, so its row
  * follows the layout's row instead of offering a Save that would do nothing.
  */

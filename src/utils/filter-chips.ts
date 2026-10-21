@@ -240,6 +240,20 @@ export function describeFilters(chips: readonly FilterChip[]): string {
 }
 
 /**
+ * A list's filters in a few words, for a hint under its name (a dashboard
+ * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`; `All
+ * tasks` with none.
+ */
+export function listFilterHint(chips: readonly FilterChip[]): string {
+  if (chips.length === 0) return 'All tasks'
+  return chips.map((c) => {
+    if (c.field === 'people') return `@${c.value}`
+    if (c.field === 'tags') return c.value
+    return `${c.label}: ${c.value}`
+  }).join(' · ')
+}
+
+/**
  * The predicate without the clauses of one chip field — for `dates`, only
  * `dateField`'s clause when given (a date chip's ×), else every date type.
  * Clearing People / Status / Tags drops its "is not" switch too.

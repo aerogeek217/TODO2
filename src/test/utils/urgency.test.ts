@@ -9,6 +9,7 @@ import {
   urgentByDateReason,
   urgentMark,
   urgentRangeLabel,
+  urgentToggleHint,
 } from '../../utils/urgency'
 
 // Sat 10 Oct 2026, mid-morning: "today" is the day, not the moment.
@@ -79,10 +80,34 @@ describe('urgentByDateReason / dueDatePhrase', () => {
     expect(urgentByDateReason(task({ urgent: true }), today, 3)).toBe('')
   })
 
-  it('phrases a due date for the clearing prompt', () => {
+  it('phrases a due date in a sentence', () => {
     expect(dueDatePhrase(day(0), today)).toBe('today')
     expect(dueDatePhrase(day(3), today)).toBe('Tue 13')
     expect(dueDatePhrase(day(-2), today)).toBe('overdue (Thu 8)')
+  })
+})
+
+describe('urgentToggleHint', () => {
+  it('one task: unflagged and urgent by date → the hint to flag it; flagged → the date keeps it urgent', () => {
+    expect(urgentToggleHint([task({ dueDate: day(3) })], today, 3)).toBe('Urgent by due date — due Tue 13. Click to flag it urgent too.')
+    expect(urgentToggleHint([task({ dueDate: day(0) })], today, 3)).toBe('Urgent by due date — due today. Click to flag it urgent too.')
+    expect(urgentToggleHint([task({ dueDate: day(-2) })], today, 3)).toBe('Urgent by due date — overdue (Thu 8). Click to flag it urgent too.')
+    expect(urgentToggleHint([task({ urgent: true, dueDate: day(1) })], today, 3)).toBe('Its due date keeps it urgent even unflagged — due Sun 11.')
+  })
+
+  it('nothing to say when no due date makes it urgent (none, too far, range off, completed)', () => {
+    expect(urgentToggleHint([task()], today, 3)).toBe('')
+    expect(urgentToggleHint([task({ urgent: true })], today, 3)).toBe('')
+    expect(urgentToggleHint([task({ dueDate: day(9) })], today, 3)).toBe('')
+    expect(urgentToggleHint([task({ dueDate: day(1) })], today, null)).toBe('')
+    expect(urgentToggleHint([task({ dueDate: day(1), isCompleted: true })], today, 3)).toBe('')
+  })
+
+  it('several tasks: how many are urgent by their due dates', () => {
+    expect(urgentToggleHint([task({ dueDate: day(1) }), task()], today, 3)).toBe('1 of 2 tasks is urgent by its due date, flagged or not.')
+    expect(urgentToggleHint([task({ dueDate: day(1) }), task({ urgent: true, dueDate: day(0) }), task()], today, 3))
+      .toBe('2 of 3 tasks are urgent by their due dates, flagged or not.')
+    expect(urgentToggleHint([task(), task({ urgent: true })], today, 3)).toBe('')
   })
 })
 

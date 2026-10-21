@@ -112,7 +112,8 @@ describe('dev seed → prepareImport → restore', () => {
       tags: count('tags') + count('projects'),
       todoTags: count('todoTags') + rows(seed, 'todos').filter((t) => t.projectId !== undefined).length,
       todoEvents: count('todoEvents'),
-      layouts: 1,
+      // v56 seeds the Default layout; v68 adds "Lists from upgrade" for the lists it doesn't show.
+      layouts: 2,
       // v59: the Focus list is ordered like the taskboard was.
       listOrders: rows(seed, 'taskboards').flatMap((b) => b.entries as unknown[]).length,
     }
@@ -215,7 +216,8 @@ describe('dev seed → prepareImport → restore', () => {
   it('produces the Default workspace layout from the rails and floating widgets', async () => {
     const seed = seedFor()
     await importSeed(seed)
-    const layouts = await db.layouts.toArray()
+    // (v68 adds "Lists from upgrade" for the lists the Default layout doesn't show.)
+    const layouts = (await db.layouts.toArray()).filter((l) => l.name !== 'Lists from upgrade')
     expect(layouts).toHaveLength(1)
     expect(layouts[0]!.name).toBe('Default')
     expect((await db.settings.get('activeLayoutId'))?.value).toBe(String(layouts[0]!.id))

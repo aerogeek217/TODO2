@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { emptyPredicate } from '../../models/filter-predicate'
 import { validateImportData, isKnownSettingKey } from '../../data/import-validation'
 import { isValidCssColor } from '../../utils/css'
 
@@ -376,10 +377,11 @@ describe('validateImportData', () => {
   })
 
   describe('check-in settings', () => {
-    it('accepts both open methods and every task scope', () => {
+    const FILTER = JSON.stringify({ ...emptyPredicate(), markers: 'hot', tags: [2] })
+
+    it('accepts both open methods and a check-in filter', () => {
       for (const [key, value] of [
-        ['checkinOpenMethod', 'mailto'], ['checkinOpenMethod', 'eml'],
-        ['checkinTaskScope', 'all'], ['checkinTaskScope', 'due-soon'], ['checkinTaskScope', 'hot'], ['checkinTaskScope', 'list:3'],
+        ['checkinOpenMethod', 'mailto'], ['checkinOpenMethod', 'eml'], ['checkinTaskFilter', FILTER],
       ]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result.ok, `${key}=${value}`).toBe(true)
@@ -387,19 +389,59 @@ describe('validateImportData', () => {
       }
     })
 
-    it('keeps a list scope even when the file has no such list (read falls back to all)', () => {
-      const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'list:99' }], listDefinitions: [] }))
-      expect(result.ok).toBe(true)
+    it('a check-in filter is read leniently: people, completed tasks and malformed clauses go, with a warning; one that doesn’t read is no filter', () => {
+      const withPeople = JSON.stringify({ ...emptyPredicate(), showCompleted: true, personIds: [1], negate: { personIds: true }, statusIds: 'x' })
+      const result = validateImportData(validData({ settings: [{ key: 'checkinTaskFilter', value: withPeople }] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(JSON.parse(result.data.settings[0]!.value)).toEqual(emptyPredicate())
+      expect(result.warnings).toEqual([expect.stringContaining('check-in filter (status filter dropped, people filter dropped, show completed dropped)')])
+      for (const value of ['nope', '[]', JSON.stringify({ dates: {} }), 'x'.repeat(1_000_001)]) {
+        const bad = validateImportData(validData({ settings: [{ key: 'checkinTaskFilter', value }] }))
+        if (!bad.ok) throw new Error(bad.error)
+        expect(JSON.parse(bad.data.settings[0]!.value)).toEqual(emptyPredicate())
+        expect(bad.warnings).toHaveLength(1)
+      }
+    })
+
+    it('the check-in scope of older builds is an unknown setting (the v68 upgrade turns it into the filter)', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'hot' }] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.settings).toEqual([])
+      expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: checkinTaskScope'])
+    })
+
+    it('rejects other open methods', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'checkinOpenMethod', value: 'outlook' }] }))
+      expect(result).toEqual({ ok: false, error: expect.stringContaining('checkinOpenMethod must be mailto or eml') })
+    })
+  })
+
+  describe('new-list defaults and the purge prompt interval', () => {
+    it('accepts a known sort, direction and grouping, a day count 1–365 and a date', () => {
+      for (const [key, value] of [
+        ['newListSort', 'priority'], ['newListSort', 'manual'], ['newListSortDirection', 'desc'], ['newListSortDirection', 'asc'],
+        ['newListGroup', 'tag'], ['purgePromptIntervalDays', '1'], ['purgePromptIntervalDays', '365'],
+        ['purgePromptLastAt', '2026-10-20T08:00:00.000Z'],
+      ]) {
+        const result = validateImportData(validData({ settings: [{ key, value }] }))
+        expect(result.ok, `${key}=${value}`).toBe(true)
+        if (result.ok) expect(result.data.settings).toEqual([{ key, value }])
+      }
     })
 
     it('rejects other values', () => {
       for (const [key, value, message] of [
-        ['checkinOpenMethod', 'outlook', 'checkinOpenMethod must be mailto or eml'],
-        ['checkinTaskScope', 'overdue', 'checkinTaskScope must be all, due-soon, hot or list:<id>'],
-        ['checkinTaskScope', 'list:x', 'checkinTaskScope must be all, due-soon, hot or list:<id>'],
+        ['newListSort', 'random', 'newListSort must be a list sort'],
+        ['newListSortDirection', 'up', 'newListSortDirection must be asc or desc'],
+        ['newListGroup', 'project', 'newListGroup must be a list grouping'],
+        ['purgePromptIntervalDays', '0', 'purgePromptIntervalDays must be a day count 1–365'],
+        ['purgePromptIntervalDays', '366', 'purgePromptIntervalDays must be a day count 1–365'],
+        ['purgePromptIntervalDays', '7.5', 'purgePromptIntervalDays must be a day count 1–365'],
+        ['purgePromptIntervalDays', '07', 'purgePromptIntervalDays must be a day count 1–365'],
+        ['purgePromptLastAt', 'yesterday', 'purgePromptLastAt must be a date'],
       ] as const) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
-        expect(result).toEqual({ ok: false, error: expect.stringContaining(message) })
+        expect(result, `${key}=${value}`).toEqual({ ok: false, error: expect.stringContaining(message) })
       }
     })
   })

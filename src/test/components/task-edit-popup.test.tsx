@@ -501,49 +501,56 @@ describe('TaskEditPopup', () => {
       expect(useUIStore.getState().bulkConfirmation).toBeNull()
     })
 
-    it('edit mode: a task urgent only by its due date shows the clock; clearing asks to remove the date', async () => {
+    it('edit mode: a task urgent only by its due date is unpressed with the clock hint; a click flags it, another unflags it, no prompt', async () => {
       const todo = makeTodo({ id: 7, title: 'Pick up prescriptions', dueDate: day(3) })
       useTodoStore.setState({ todos: [todo] })
-      renderEditMode(todo)
-      const urgent = screen.getByRole('button', { name: 'Urgent' })
-      expect(urgent).toHaveAttribute('aria-pressed', 'true')
-      expect(urgent).toHaveAttribute('data-urgent', 'date')
-      fireEvent.pointerEnter(urgent)
+      const { rerender, props } = renderEditMode(todo)
+      const urgent = () => screen.getByRole('button', { name: 'Urgent' })
+      expect(urgent()).toHaveAttribute('aria-pressed', 'false')
+      expect(urgent()).toHaveAttribute('data-urgent', 'date')
+      expect(urgent().querySelector('[data-urgent-hint]')).not.toBeNull()
+      fireEvent.pointerEnter(urgent())
       const tip = await screen.findByRole('tooltip', undefined, { timeout: 1500 })
-      expect(tip.textContent).toBe('Urgent: due soonDue Tue 13, within 3 days. Click to make it not urgent.')
-      fireEvent.pointerLeave(urgent)
+      expect(tip.textContent).toBe('Mark urgentUrgent by due date — due Tue 13. Click to flag it urgent too.')
+      fireEvent.pointerLeave(urgent())
 
-      await act(async () => { fireEvent.click(urgent) })
-      const prompt = useUIStore.getState().bulkConfirmation!
-      expect(prompt).toMatchObject({
-        action: 'custom',
-        title: 'Remove the due date?',
-        message: 'Pick up prescriptions is due Tue 13, within 3 days, so it counts as urgent. Removing the due date makes it not urgent.',
-        confirmLabel: 'Remove due date',
-        cancelLabel: 'Cancel',
-      })
-      // Nothing changed yet.
+      await act(async () => { fireEvent.click(urgent()) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.urgent).toBe(true))
+      expect(useUIStore.getState().bulkConfirmation).toBeNull()
+      rerender(<TaskEditPopup {...props} todo={useTodoStore.getState().todos[0]!} />)
+      expect(urgent()).toHaveAttribute('aria-pressed', 'true')
+      expect(urgent()).toHaveAttribute('data-urgent', 'flag')
+      expect(urgent().querySelector('[data-urgent-hint]')).toBeNull()
+      fireEvent.pointerEnter(urgent())
+      await waitFor(() => expect(screen.getByRole('tooltip').textContent)
+        .toBe('Remove urgentIts due date keeps it urgent even unflagged — due Tue 13.'))
+      fireEvent.pointerLeave(urgent())
+
+      // Unflag: the flag clears, the due date stays, nothing asked.
+      await act(async () => { fireEvent.click(urgent()) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.urgent).toBeUndefined())
       expect(useTodoStore.getState().todos[0]!.dueDate).toEqual(day(3))
+      expect(useUIStore.getState().bulkConfirmation).toBeNull()
     })
 
-    it('create mode: the draft due date lights Urgent with the clock; clearing removes the draft date', async () => {
+    it('create mode: a draft due date shows the clock hint, not a pressed Urgent; the toggle flips the draft flag', async () => {
       const { onCreate } = renderCreateMode()
       typeTitle('Call plumber')
       fireEvent.change(screen.getByTitle('Set due date').querySelector('input')!, { target: { value: '2026-10-11' } })
       const urgent = () => screen.getByRole('button', { name: 'Urgent' })
       expect(urgent()).toHaveAttribute('data-urgent', 'date')
-
-      fireEvent.click(urgent())
-      const prompt = useUIStore.getState().bulkConfirmation!
-      expect(prompt.title).toBe('Remove the due date?')
-      act(() => { prompt.onConfirm!() })
       expect(urgent()).toHaveAttribute('aria-pressed', 'false')
 
+      fireEvent.click(urgent())
+      expect(useUIStore.getState().bulkConfirmation).toBeNull()
+      expect(urgent()).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(urgent())
+      expect(urgent()).toHaveAttribute('aria-pressed', 'false')
       fireEvent.click(urgent())
       fireEvent.click(screen.getByRole('button', { name: 'Important' }))
       await act(async () => { clickCreate() })
       expect(onCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Call plumber', urgent: true, important: true, dueDate: undefined }),
+        expect.objectContaining({ title: 'Call plumber', urgent: true, important: true, dueDate: new Date(2026, 9, 11) }),
         expect.anything(),
       )
     })

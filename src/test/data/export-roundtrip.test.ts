@@ -9,6 +9,7 @@ import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
 import { NEGATABLE_FIELDS, type TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
+import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
 
@@ -82,7 +83,12 @@ function buildSeed(): Seed {
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'checkinOpenMethod', value: 'eml' },
-      { key: 'checkinTaskScope', value: 'list:2' },
+      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: 'hot', negate: { tags: true } }) },
+      { key: 'newListSort', value: 'deadline' },
+      { key: 'newListSortDirection', value: 'desc' },
+      { key: 'newListGroup', value: 'tag' },
+      { key: 'purgePromptIntervalDays', value: '14' },
+      { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },
@@ -115,6 +121,7 @@ function buildSeed(): Seed {
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'deadline', sortDirection: 'desc', grouping: 'people',
       runtimeFilter: { field: 'person', label: 'Who' },
+      owner: { layoutId: 2 },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
     todoEvents: [

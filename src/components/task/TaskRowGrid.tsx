@@ -36,7 +36,8 @@ interface TaskRowGridProps {
  * each row writes the tracks to its own style and reads only the parts it
  * shows (`useTaskRowTracks` / `useTaskRowColumn`). So a divider drag
  * re-renders the grid, and a row only when a column appears or goes or its
- * avatars / tags no longer fit the same way; the rest is layout. With
+ * avatars / tags no longer fit the same way (a dates tier change re-renders
+ * only the dates cells); the rest is layout. With
  * `onDetailsWidthChange` it draws the draggable divider between the titles
  * and the details, spanning the rows; the width is written on release only.
  */

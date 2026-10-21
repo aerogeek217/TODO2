@@ -430,8 +430,11 @@ describe('first load after deploying over a v66 build whose Eisenhower list a li
     const written = prepareImportText(write.mock.calls[0]![0])
     if (!written.ok) throw new Error(written.error)
     expect(await browserMatchesFile(written.data)).toBe(true)
-    expect(written.data.listDefinitions.map((d) => [d.id, d.name, d.owner])).toEqual([[4, 'Team', undefined], [5, 'Eisenhower', { eisenhower: true }]])
-    expect(written.data.listOrders.map((r) => [r.listDefinitionId, r.todoId])).toEqual([[4, 9], [5, 9]])
+    // v67 copies the shared list for the Eisenhower; v68 gives it the first layout and the other layout a copy of its own.
+    expect(written.data.listDefinitions.map((d) => [d.id, d.name, d.owner])).toEqual([
+      [4, 'Team', { layoutId: 1 }], [5, 'Eisenhower', { eisenhower: true }], [6, 'Team', { layoutId: 2 }],
+    ])
+    expect(written.data.listOrders.map((r) => [r.listDefinitionId, r.todoId])).toEqual([[4, 9], [5, 9], [6, 9]])
     expect(written.data.settings).toEqual(expect.arrayContaining([{ key: 'eisenhowerSource', value: 'list:5' }]))
     expect(written.data.layouts.map((l) => [l.id, l.sortOrder])).toEqual([[1, 0], [2, 1]])
   })

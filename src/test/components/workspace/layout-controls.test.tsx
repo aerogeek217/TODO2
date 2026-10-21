@@ -12,8 +12,8 @@ import { resetDb } from '../../helpers'
 
 /**
  * The top bar's layout controls: the layouts as tabs (click opens one, the
- * tab menu — Move left / right, Rename…, Delete… naming the layout-only
- * lists that go — and `+` asking a name), or folded into the picker.
+ * tab menu — Move left / right, Rename…, Delete… naming the lists that
+ * go — and `+` asking a name), or folded into the picker.
  */
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
@@ -102,7 +102,7 @@ describe('LayoutControls — tabs', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Save as new layout…' })).toBeInTheDocument()
   })
 
-  it('Delete layout… from a tab names the layout-only lists that go with it', async () => {
+  it('Delete layout… from a tab names the lists that go with it', async () => {
     const [, b] = await seed('Main', 'Second')
     await db.listDefinitions.bulkAdd([
       { name: 'Own', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { layoutId: b! } },
@@ -113,7 +113,7 @@ describe('LayoutControls — tabs', () => {
     fireEvent.contextMenu(tab('Second'))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete layout…' }))
     const dialog = screen.getByRole('dialog', { name: 'Delete layout “Second”?' })
-    expect(dialog).toHaveTextContent('The layout and its layout-only list are removed.')
+    expect(dialog).toHaveTextContent('The layout and its list are removed.')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete layout' }))
     await waitFor(() => expect(tabNames()).toEqual(['Main']))
     expect(ws().working?.name).toBe('Main')

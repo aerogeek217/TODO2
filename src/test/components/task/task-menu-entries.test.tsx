@@ -89,20 +89,47 @@ describe('buildTaskMenuEntries — the one task menu', () => {
     expect(h.onSetFollowup).toHaveBeenLastCalledWith(null)
   })
 
-  it('markers are checkbox items: Urgent follows effective urgency (due within the range)', () => {
+  it('markers are checkbox items by flag: a due date that makes the task urgent is a note + tooltip, not a check', () => {
     const h = handlers()
     const entries = build(makeTodo({ id: 1, dueDate: new Date(2026, 9, 12), focus: true }), { h })
-    expect(item(entries, 'Urgent')).toMatchObject({ checkbox: true, checked: true })
+    expect(item(entries, 'Urgent')).toMatchObject({
+      checkbox: true,
+      checked: false,
+      note: 'By due date',
+      title: 'Urgent by due date — due Mon 12. Click to flag it urgent too.',
+    })
     expect(item(entries, 'Important')).toMatchObject({ checkbox: true, checked: false })
     expect(item(entries, 'Focus')).toMatchObject({ checkbox: true, checked: true })
     item(entries, 'Urgent').onSelect!()
     item(entries, 'Important').onSelect!()
     item(entries, 'Focus').onSelect!()
-    expect(h.onSetMarker).toHaveBeenNthCalledWith(1, 'urgent', false)
+    expect(h.onSetMarker).toHaveBeenNthCalledWith(1, 'urgent', true)
     expect(h.onSetMarker).toHaveBeenNthCalledWith(2, 'important', true)
     expect(h.onSetMarker).toHaveBeenNthCalledWith(3, 'focus', false)
+    // Flagged and due soon: checked; clearing clears the flag only — the tooltip says the date keeps it urgent.
+    const flagged = build(makeTodo({ id: 1, urgent: true, dueDate: new Date(2026, 9, 12) }), { h })
+    expect(item(flagged, 'Urgent')).toMatchObject({
+      checked: true,
+      note: undefined,
+      title: 'Its due date keeps it urgent even unflagged — due Mon 12.',
+    })
+    item(flagged, 'Urgent').onSelect!()
+    expect(h.onSetMarker).toHaveBeenLastCalledWith('urgent', false)
     // With the range off the due date doesn't make it urgent.
-    expect(item(build(makeTodo({ id: 1, dueDate: new Date(2026, 9, 12) }), { range: null }), 'Urgent').checked).toBe(false)
+    expect(item(build(makeTodo({ id: 1, dueDate: new Date(2026, 9, 12) }), { range: null }), 'Urgent'))
+      .toMatchObject({ checked: false, note: undefined, title: undefined })
+  })
+
+  it('several tasks: Urgent is mixed by flag; tasks urgent by their due dates are counted in the tooltip', () => {
+    const a = makeTodo({ id: 1, urgent: true })
+    const b = makeTodo({ id: 2, dueDate: new Date(2026, 9, 12) })
+    const c = makeTodo({ id: 3 })
+    expect(item(build(a, { targets: [a, b, c] }), 'Urgent')).toMatchObject({
+      checked: 'mixed',
+      note: '1 of 3',
+      title: '1 of 3 tasks is urgent by its due date, flagged or not.',
+    })
+    expect(item(build(b, { targets: [b, c] }), 'Urgent')).toMatchObject({ checked: false, note: 'By due date' })
   })
 
   it('several tasks: a count label replaces Open, Delete names the count, mixed markers', () => {

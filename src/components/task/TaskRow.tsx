@@ -42,8 +42,8 @@ const NO_PEOPLE: Person[] = []
  * Every column is always there; a click on a cell opens its picker anchored
  * to it (the dates cell: its due part the date input, its follow-up part the
  * follow-up popover), and an empty cell shows its placeholder only on hover /
- * focus — by opacity, so nothing moves. Only people and tags give way when
- * the details are squeezed; a narrow list shows the dates as icons
+ * focus — by opacity, so nothing moves. Squeezed details narrow people and
+ * tags, then show the dates as icons, then drop tags and people
  * (`utils/task-row-columns`). Click selects, a click on a
  * selected row's title edits it inline, a double-click on the title or empty
  * space opens the editor, right-click opens the task menu at the pointer and

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
@@ -173,22 +173,19 @@ test('Edit list from the tab menu groups the list; the edit is shared by every w
   await openEditList(page, 't1')
   await pickChoice(page, 'Group by', 'People')
   await expect(page.getByTestId('edit-list')).toContainText('Shared · 2 widgets')
-  await page.keyboard.press('Escape')
-  await expect(page.getByTestId('edit-list')).toHaveCount(0)
 
   for (const tabId of ['t1', 't2']) {
     await expect(wsListWidget(page, tabId).getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
     await expect(wsTab(page, tabId).getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   }
-  await wsCell(page, 'k2').getByTestId('save-list').hover()
+  // Hovering isn't a press: Edit list stays open.
+  await wsCell(page, 'k1').getByTestId('save-list').hover()
   await expect(page.getByRole('tooltip')).toHaveText(/Save list “Team”\s*Shared · shown in 2 widgets/)
 })
 
 test('switching layouts with an unsaved list asks first; Discard drops the edit', async ({ page }) => {
   await seedWorkspace(page, team)
-  await openEditList(page, 't1')
-  await pickChoice(page, 'Sort by', 'Name')
-  await page.keyboard.press('Escape')
+  await editListDraft(page, 'Team', { sort: 'name' })
 
   await switchLayout(page, 'Second')
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
@@ -213,11 +210,9 @@ test('switching layouts with an unsaved list asks first; Discard drops the edit'
 
 test('closing the last widget of an unsaved list asks first; leaving the workspace too', async ({ page }) => {
   await seedWorkspace(page, team)
-  await openEditList(page, 't1')
-  await pickChoice(page, 'Group by', 'People')
-  await page.keyboard.press('Escape')
+  await editListDraft(page, 'Team', { grouping: 'people' })
 
-  // Opening Settings never asks; leaving the workspace (the phone's Settings tab) does.
+  // Opening Settings (Edit list closed) never asks; leaving the workspace (the phone's Settings tab) does.
   await openSettings(page)
   await page.keyboard.press('Escape')
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })

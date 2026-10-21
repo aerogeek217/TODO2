@@ -1,9 +1,8 @@
 // Writes that start together must not act on a snapshot taken before the
-// other's await: concurrent adds each get their own sort order, a status name
-// is added once, and a list delete keeps a list edited while it ran.
+// other's await: concurrent adds each get their own sort order, and a status name
+// is added once.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
-import { listOrderRepository } from '../../data/list-order-repository'
 import { useTodoStore } from '../../stores/todo-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
@@ -57,8 +56,8 @@ describe('concurrent adds get distinct sort orders', () => {
 
   it('two list adds', async () => {
     await Promise.all([
-      useListDefinitionStore.getState().add({ name: 'A' }),
-      useListDefinitionStore.getState().add({ name: 'B' }),
+      useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'A' }),
+      useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'B' }),
     ])
     const stored = (await db.listDefinitions.toArray()).map((d) => d.sortOrder).sort()
     expect(stored).toEqual([0, 1])
@@ -93,49 +92,6 @@ describe('concurrent adds of one status name', () => {
     await db.statuses.add({ name: 'Blocked', color: '#888888', sortOrder: 1 })
     await expect(useStatusStore.getState().add('BLOCKED')).rejects.toThrow(/already exists/)
     expect(await db.statuses.count()).toBe(1)
-  })
-})
-
-describe('list delete', () => {
-  it('keeps a list edited while the delete ran', async () => {
-    const a = await useListDefinitionStore.getState().add({ name: 'A' })
-    const b = await useListDefinitionStore.getState().add({ name: 'B' })
-    let release!: () => void
-    const gate = new Promise<void>((r) => { release = r })
-    const getByList = listOrderRepository.getByList.bind(listOrderRepository)
-    vi.spyOn(listOrderRepository, 'getByList').mockImplementationOnce(async (id) => {
-      const rows = await getByList(id)
-      await gate
-      return rows
-    })
-
-    const removing = useListDefinitionStore.getState().remove(a)
-    const defB = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === b)!
-    const editing = useListDefinitionStore.getState().update({ ...defB, name: 'B 2' })
-    release()
-    await Promise.all([removing, editing])
-
-    expect(useListDefinitionStore.getState().listDefinitions.map((d) => d.name)).toEqual(['B 2'])
-  })
-
-  it('keeps a list added while the delete ran', async () => {
-    const a = await useListDefinitionStore.getState().add({ name: 'A' })
-    let release!: () => void
-    const gate = new Promise<void>((r) => { release = r })
-    const getByList = listOrderRepository.getByList.bind(listOrderRepository)
-    vi.spyOn(listOrderRepository, 'getByList').mockImplementationOnce(async (id) => {
-      const rows = await getByList(id)
-      await gate
-      return rows
-    })
-
-    const removing = useListDefinitionStore.getState().remove(a)
-    const adding = useListDefinitionStore.getState().add({ name: 'C' })
-    await adding
-    release()
-    await removing
-
-    expect(useListDefinitionStore.getState().listDefinitions.map((d) => d.name)).toEqual(['C'])
   })
 })
 

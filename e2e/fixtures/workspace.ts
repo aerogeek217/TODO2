@@ -87,7 +87,7 @@ export interface WorkspaceSeed {
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
-    /** A layout-only list: the layout (index into `layouts`) that owns it. */
+    /** The layout (index into `layouts`) that owns the list; default: the first that shows it, else the first. */
     layoutIdx?: number
   }>
   tasks?: Array<{
@@ -294,10 +294,16 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       firstId ??= id
       layoutIds.push(id)
     }
-    // Layout-only lists: owned by their layout, now that it has an id.
+    // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
+    // else the first layout whose tabs or tiles show it, else the first one.
+    const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
+      const panels = [...layout.columns.flatMap((col) => col.cells), ...(layout.top ? [layout.top] : []), ...(layout.bottom ? [layout.bottom] : [])]
+      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i || (t.dashboard?.listTileIdxs ?? []).includes(i)))
+    })
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
-      const layoutId = def.layoutIdx != null ? layoutIds[def.layoutIdx] : undefined
+      if (seed.eisenhower?.listDefIdx === i) continue
+      const layoutId = layoutIds[def.layoutIdx ?? Math.max(0, shownBy(i))]
       if (listId == null || layoutId == null) continue
       const store = tx.objectStore('listDefinitions')
       store.put({ ...(await get(store, listId)), owner: { layoutId } })
@@ -509,6 +515,25 @@ export async function dragTab(page: Page, tab: Locator, to: Point, during?: () =
 
 export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
+}
+
+/**
+ * An unsaved edit to the list named `listName` made outside Edit list (as the
+ * filter line's chips make them): its shared draft, with Edit list closed —
+ * Edit list itself asks before it closes on an unsaved list.
+ */
+export async function editListDraft(page: Page, listName: string, changes: Record<string, unknown>): Promise<void> {
+  await page.evaluate(async ({ name, patch }) => {
+    const defs = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
+      useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }> } }
+    }
+    const drafts = (await import(/* @vite-ignore */ '/src/stores/list-draft-store.ts' as string)) as {
+      useListDraftStore: { getState: () => { edit: (id: number, fn: (d: Record<string, unknown>) => Record<string, unknown>) => void } }
+    }
+    const def = defs.useListDefinitionStore.getState().listDefinitions.find((d) => d.name === name)
+    if (!def) throw new Error(`no list “${name}”`)
+    drafts.useListDraftStore.getState().edit(def.id, (d) => ({ ...d, ...patch }))
+  }, { name: listName, patch: changes })
 }
 
 /** The stored list definitions. */

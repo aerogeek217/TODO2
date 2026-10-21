@@ -149,7 +149,7 @@ describe('TaskDialog', () => {
   })
 
   it('a list’s dialog: the list’s rows, and Open as tab adds its List tab beside the dashboard (layout unsaved)', () => {
-    open({ title: '#q4 planning', glyph: 'list', description: 'Saved list · #q4', source: { kind: 'list', listDefinitionId: 3 }, fromTabId: 'dash' })
+    open({ title: '#q4 planning', glyph: 'list', description: 'List · #q4', source: { kind: 'list', listDefinitionId: 3 }, fromTabId: 'dash' })
     expect(rowTitles()).toEqual(['Budget review with finance', 'Q4 roadmap deck', 'Q4 forecast', 'Book venue for offsite', 'Offsite agenda'])
     fireEvent.click(within(dialog()!).getByRole('button', { name: 'Open as tab' }))
     const cell = useWorkspaceStore.getState().working!.columns[0]!.cells[0]!

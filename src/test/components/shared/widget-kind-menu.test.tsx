@@ -387,13 +387,13 @@ describe('WidgetKindMenu — Change list submenu', () => {
   beforeEach(() => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        { id: 2, name: 'Second', sortOrder: 1 } as PersistedListDefinition,
-        { id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition,
+        { id: 2, name: 'Second', sortOrder: 1, owner: { layoutId: 7 } } as PersistedListDefinition,
+        { id: 1, name: 'First', sortOrder: 0, owner: { layoutId: 7 } } as PersistedListDefinition,
       ],
     })
   })
 
-  it('→ opens the saved lists in their order with the focus on the first; a pick runs and closes the menu', () => {
+  it('→ opens the layout’s lists in their order with the focus on the first; a pick runs and closes the menu', () => {
     const pick = vi.fn()
     const onClose = vi.fn()
     render(
@@ -404,6 +404,7 @@ describe('WidgetKindMenu — Change list submenu', () => {
         pickListForLens={pick}
         onEditList={() => {}}
         currentListName="First"
+        listLayoutId={7}
         onClose={onClose}
       />,
     )
@@ -420,7 +421,7 @@ describe('WidgetKindMenu — Change list submenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('in a saved layout: its own lists follow the saved ones, marked This layout; never another layout’s', () => {
+  it('only the layout’s own lists: never another layout’s, the Eisenhower’s or one without an owner', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
         { id: 1, name: 'First', sortOrder: 0 } as PersistedListDefinition,
@@ -436,21 +437,7 @@ describe('WidgetKindMenu — Change list submenu', () => {
     row.focus()
     fireEvent.keyDown(row, { key: 'ArrowRight' })
     const sub = screen.getByRole('menu', { name: 'Change list' })
-    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.getAttribute('data-menu-label'))).toEqual(['First', 'Mine'])
-    expect(screen.getByRole('menuitem', { name: /Mine/ })).toHaveTextContent('This layout')
-  })
-
-  it('a layout-only list: Save to my lists after Change list', () => {
-    const save = vi.fn()
-    const onClose = vi.fn()
-    render(
-      <WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onEditList={() => {}} onSaveToMyLists={save} onClose={onClose} />,
-    )
-    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
-      .toEqual(['Edit list…', 'Change list', 'Save to my lists'])
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Save to my lists' }))
-    expect(save).toHaveBeenCalledTimes(1)
-    expect(onClose).toHaveBeenCalled()
+    expect(Array.from(sub.querySelectorAll('[role="menuitem"]')).map((el) => el.getAttribute('data-menu-label'))).toEqual(['Mine'])
   })
 
   it('says so when there are no lists', () => {

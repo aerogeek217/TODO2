@@ -11,20 +11,19 @@ import {
 const def = (id: number, owner?: ListOwner) => ({ id, ...(owner ? { owner } : {}) })
 
 describe('list owners', () => {
-  it('a saved list is offered everywhere; a layout’s list only for that layout; the Eisenhower’s never', () => {
-    expect(isListedList(def(1))).toBe(true)
-    expect(isListedList(def(1), 3)).toBe(true)
-    expect(isListedList(def(2, { layoutId: 3 }))).toBe(false)
+  it('a list is offered only in the layout that owns it: never another layout’s, the Eisenhower’s or one without an owner', () => {
     expect(isListedList(def(2, { layoutId: 3 }), 3)).toBe(true)
     expect(isListedList(def(2, { layoutId: 3 }), 4)).toBe(false)
-    expect(isListedList(def(3, { eisenhower: true }))).toBe(false)
+    expect(isListedList(def(2, { layoutId: 3 }), undefined)).toBe(false)
+    expect(isListedList(def(1), 3)).toBe(false)
+    expect(isListedList(def(1), undefined)).toBe(false)
     expect(isListedList(def(3, { eisenhower: true }), 3)).toBe(false)
   })
 
   it('listedLists keeps the offered lists in their order', () => {
-    const defs = [def(1), def(2, { layoutId: 9 }), def(3, { eisenhower: true }), def(4), def(5, { layoutId: 8 })]
-    expect(listedLists(defs).map((d) => d.id)).toEqual([1, 4])
-    expect(listedLists(defs, 9).map((d) => d.id)).toEqual([1, 2, 4])
+    const defs = [def(1), def(6, { layoutId: 9 }), def(2, { layoutId: 9 }), def(3, { eisenhower: true }), def(5, { layoutId: 8 })]
+    expect(listedLists(defs, 9).map((d) => d.id)).toEqual([6, 2])
+    expect(listedLists(defs, undefined)).toEqual([])
   })
 
   it('reads an owner', () => {
@@ -51,7 +50,7 @@ describe('an owner that isn’t an object (a database another build wrote)', () 
       const def = { owner: owner as unknown as ListOwner }
       expect(ownerLayoutId(def)).toBeUndefined()
       expect(isEisenhowerOwner(def.owner)).toBe(false)
-      expect(isListedList(def)).toBe(false)
+      expect(isListedList(def, undefined)).toBe(false)
       expect(isListedList(def, 1)).toBe(false)
     }
   })

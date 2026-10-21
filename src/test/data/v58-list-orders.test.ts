@@ -4,7 +4,7 @@ import { CURRENT_DB_VERSION, db } from '../../data/database'
 import { prepareImport } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
 import { listOrderRepository } from '../../data/list-order-repository'
-import { listDefinitionRepository } from '../../data/list-definition-repository'
+import { layoutRepository } from '../../data/layout-repository'
 import { todoRepository } from '../../data'
 import { auditData, cleanupIssues } from '../../data/audit'
 import { resetDb, v57StoreSpecs } from '../helpers'
@@ -110,9 +110,12 @@ describe('listOrders cascades and audit', () => {
     expect(await db.listOrders.count()).toBe(0)
   })
 
-  it('deleting a list deletes its ranks only', async () => {
+  it('deleting a list (one its layout no longer shows, at a Save) deletes its ranks only', async () => {
     const { list, other } = await seed()
-    await listDefinitionRepository.remove(list)
+    const now = new Date()
+    const layoutId = await layoutRepository.insert({ name: 'X', columns: [], createdAt: now, modifiedAt: now })
+    await db.listDefinitions.update(list, { owner: { layoutId } })
+    await layoutRepository.pruneOwnedLists(layoutId, new Set())
     const rows = await db.listOrders.toArray()
     expect(rows.map((r) => r.listDefinitionId)).toEqual([other])
   })

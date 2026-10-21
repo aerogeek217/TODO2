@@ -282,7 +282,7 @@ describe('DashboardWidget — drill hook', () => {
     setup(tabWith({ listTiles: [3] }), onDrill)
     fireEvent.click(document.querySelector('[data-dash-list-tile="3"]')!)
     expect(onDrill).toHaveBeenLastCalledWith({
-      title: '#q4 planning', glyph: 'list', description: 'Saved list · #q4', source: { kind: 'list', listDefinitionId: 3 },
+      title: '#q4 planning', glyph: 'list', description: 'List · #q4', source: { kind: 'list', listDefinitionId: 3 },
     })
   })
 

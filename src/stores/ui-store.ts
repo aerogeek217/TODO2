@@ -74,8 +74,6 @@ export interface BulkConfirmation {
   message?: string        // custom dialog message
   title?: string          // custom dialog title
   confirmLabel?: string   // custom confirm button text
-  cancelLabel?: string    // custom cancel button text
-  skipIds?: number[]      // if provided, cancel completes/acts on these IDs instead of doing nothing
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
@@ -129,21 +127,18 @@ interface UIState {
   /** The filter sheet was opened from a search button: focus its search box. */
   filterSheetFocusSearch: boolean
   /**
-   * Lists editor (`DashboardListsEditor`) open state. Owned here so any
-   * component (a list tab's menu, Settings, etc.) can dispatch "open editor
-   * for def N" without prop-drilling. WorkspacePage subscribes and renders
-   * the modal when `listsEditorOpen` is true.
-   */
-  listsEditorOpen: boolean
-  /** Optional def id to preselect + auto-expand the ConfigPanel for. */
-  listsEditorInitialId: number | null
-  /**
    * The open Edit list surface (the workspace's side popover, the phone's
    * half sheet): the list it edits and the list tab it was opened for (it
-   * sits beside that tab's panel). One at a time. Separate from the Lists
-   * manager (`listsEditorOpen`), which keeps its own modal editor.
+   * sits beside that tab's panel). One at a time.
    */
   listEditor: { listDefinitionId: number; tabId: string } | null
+  /**
+   * A close of Edit list waiting on its host (`EditListHost`): it closes at
+   * once when the list is saved, else after the Save / Discard / Cancel
+   * prompt. `then` runs once it has closed (what the close was for, e.g.
+   * Settings opening); Cancel drops it.
+   */
+  listEditorCloseRequest: { then: (() => void) | null } | null
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
@@ -212,7 +207,7 @@ interface UIState {
   /** Sets a list widget's selection (computed by `nextScopedSelection`). */
   setScopedSelection: (scope: string, selection: ScopedSelection) => void
   clearSelection: () => void
-  showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'cancelLabel' | 'skipIds' | 'onConfirm'>>) => void
+  showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'onConfirm'>>) => void
   clearBulkConfirmation: () => void
   /** Asks `prompt`; resolves true on confirm, false on cancel / Esc / backdrop. */
   askConfirmation: (prompt: ConfirmPrompt) => Promise<boolean>
@@ -231,10 +226,19 @@ interface UIState {
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
   openFilterSheetSearch: () => void
-  openListsEditor: (initialId?: number | null) => void
-  closeListsEditor: () => void
   openListEditor: (listDefinitionId: number, tabId: string) => void
+  /** Closes Edit list at once, whatever its list's state (the draft is kept). */
   closeListEditor: () => void
+  /**
+   * The one way the user closes Edit list (a press elsewhere, Esc, ×,
+   * Settings opening): asks first while its list is unsaved (`EditListHost`).
+   * `then` runs once it has closed — at once when none is open.
+   */
+  requestCloseListEditor: (then?: () => void) => void
+  /** The host's answer to a close request: closes Edit list, then runs the request's `then` (nothing once answered). */
+  finishListEditorClose: () => void
+  /** The prompt's Cancel: Edit list stays open. */
+  cancelListEditorClose: () => void
   openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
@@ -274,9 +278,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   taskDialog: null,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
-  listsEditorOpen: false,
-  listsEditorInitialId: null,
   listEditor: null,
+  listEditorCloseRequest: null,
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
@@ -396,21 +399,36 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ isFilterSheetOpen: true, filterSheetFocusSearch: true })
   },
 
-  openListsEditor(initialId) {
-    set({ listsEditorOpen: true, listsEditorInitialId: initialId ?? null })
-  },
-
-  closeListsEditor() {
-    set({ listsEditorOpen: false, listsEditorInitialId: null })
-  },
-
   openListEditor(listDefinitionId, tabId) {
     set({ listEditor: { listDefinitionId, tabId } })
   },
 
   closeListEditor() {
-    if (get().listEditor === null) return
-    set({ listEditor: null })
+    if (get().listEditor === null && get().listEditorCloseRequest === null) return
+    set({ listEditor: null, listEditorCloseRequest: null })
+  },
+
+  requestCloseListEditor(then) {
+    if (get().listEditor === null) {
+      then?.()
+      return
+    }
+    set({ listEditorCloseRequest: { then: then ?? null } })
+  },
+
+  finishListEditorClose() {
+    // Answered already (the prompt's Save resolving after its draft went):
+    // the follow-up may have opened another Edit list since.
+    const request = get().listEditorCloseRequest
+    if (request === null) return
+    const then = request.then
+    set({ listEditor: null, listEditorCloseRequest: null })
+    then?.()
+  },
+
+  cancelListEditorClose() {
+    if (get().listEditorCloseRequest === null) return
+    set({ listEditorCloseRequest: null })
   },
 
   openQuickAdd(seed) {
@@ -445,14 +463,19 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSettings(target, focus) {
-    // Edit list belongs to the workspace under the modal.
+    // Edit list belongs to the workspace under the modal: it closes first
+    // (asking while its list is unsaved).
+    if (get().listEditor !== null) {
+      get().requestCloseListEditor(() => get().openSettings(target, focus))
+      return
+    }
     if (!target) {
-      set({ settingsOpen: true, listEditor: null })
+      set({ settingsOpen: true })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
     // A control is focused only on the way to a part (the modal clears both once there).
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null, listEditor: null })
+    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
   },
 
   closeSettings() {

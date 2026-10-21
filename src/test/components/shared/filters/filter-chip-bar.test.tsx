@@ -325,7 +325,7 @@ describe('FilterChipBar — primitive', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob' }))
         expect(useUIStore.getState().checkinDialog).toEqual({
           personIds: [2],
-          notice: 'Bob has no open tasks in “All open tasks”, so nothing was sent. Choose other tasks under Which tasks.',
+          notice: 'Bob has no open tasks, so nothing was sent.',
         })
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })

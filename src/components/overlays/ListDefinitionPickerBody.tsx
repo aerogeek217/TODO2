@@ -1,9 +1,11 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { useCopySources, type CopySource } from '../../hooks/use-copy-sources'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import type { ListDefinition } from '../../models'
-import { listedLists, ownerLayoutId } from '../../models/list-definition'
+import { listedLists } from '../../models/list-definition'
 import { bySortOrder } from '../../utils/sort-order'
-import { LAYOUT_ONLY_NOTE } from '../shared/list-choice-entries'
+import { CopyFromMenu } from '../shared/CopyFromMenu'
+import { ChevronRightIcon } from '../shared/icons'
 import styles from './ListDefinitionPickerPopup.module.css'
 
 export interface ListDefinitionPickerBodyProps {
@@ -15,17 +17,21 @@ export interface ListDefinitionPickerBodyProps {
   emptyLabel?: string
   onPick: (listDefinitionId: number) => void
   /**
-   * Optional "+ Create new list…" footer button; `layoutOnly` = the user
-   * chose This layout only (see `layoutId`). When the items list is empty,
-   * swaps to a primary CTA button (autoFocused) instead of the muted footer
-   * link — see `ListDefinitionPickerPopup`'s empty shape.
+   * Optional "+ Create new list…" footer button (a new list of the layout).
+   * When the items list is empty, swaps to a primary CTA button
+   * (autoFocused) instead of the muted footer link — see
+   * `ListDefinitionPickerPopup`'s empty shape.
    */
-  onCreateNew?: (layoutOnly: boolean) => void
+  onCreateNew?: () => void
   /**
-   * The layout whose tab picks the list (a saved layout): its own
-   * layout-only lists are offered too (`listedLists`), and a new list may
-   * be made for it alone — Saved list / This layout only above "Create new
-   * list…", Saved list first. Omit: saved lists only.
+   * Optional "Copy of ›" beside Create new list…: opens Copy from's chooser
+   * (every layout's lists, then the Eisenhower's) and hands the picked list
+   * over, to make a copy of it for the layout.
+   */
+  onCopyOf?: (source: CopySource) => void
+  /**
+   * The layout whose tab picks the list (a stored layout): the lists it
+   * owns are offered (`listedLists`). Omit: none.
    */
   layoutId?: number
   /** Rendered above the list; omit for an un-chromed body. */
@@ -39,13 +45,12 @@ export function ListDefinitionPickerBody({
   emptyLabel,
   onPick,
   onCreateNew,
+  onCopyOf,
   layoutId,
   header,
   filterDefinitions,
 }: ListDefinitionPickerBodyProps) {
   const { listDefinitions } = useListDefinitionStore()
-  const [layoutOnly, setLayoutOnly] = useState(false)
-  const scopeName = useId()
 
   const items = useMemo(() => {
     const all = listedLists([...listDefinitions].sort(bySortOrder), layoutId)
@@ -61,20 +66,9 @@ export function ListDefinitionPickerBody({
 
   const isEmpty = items.length === 0
   const showEmptyCta = isEmpty && onCreateNew != null
-  const create = onCreateNew ? () => onCreateNew(layoutId != null && layoutOnly) : undefined
+  const create = onCreateNew ? () => onCreateNew() : undefined
 
-  const scope = layoutId != null && onCreateNew && (
-    <div className={styles.scope} role="radiogroup" aria-label="Keep the new list">
-      <label className={styles.scopeOption} title="In your lists, for any layout (Settings › Lists)">
-        <input type="radio" name={scopeName} checked={!layoutOnly} onChange={() => setLayoutOnly(false)} />
-        Saved list
-      </label>
-      <label className={styles.scopeOption} title="Kept with this layout: no other layout or list chooser shows it">
-        <input type="radio" name={scopeName} checked={layoutOnly} onChange={() => setLayoutOnly(true)} />
-        This layout only
-      </label>
-    </div>
-  )
+  const copyOf = onCopyOf ? <CopyOfButton onPick={onCopyOf} /> : null
 
   return (
     <>
@@ -82,7 +76,6 @@ export function ListDefinitionPickerBody({
       {isEmpty ? (
         showEmptyCta ? (
           <div className={styles.emptyCta}>
-            {scope}
             <button
               type="button"
               className={styles.primaryCreateBtn}
@@ -91,6 +84,7 @@ export function ListDefinitionPickerBody({
             >
               + Create new list…
             </button>
+            {copyOf && <div className={styles.emptyCopy}>{copyOf}</div>}
           </div>
         ) : emptyLabel ? <div className={styles.empty}>{emptyLabel}</div> : null
       ) : (
@@ -102,19 +96,52 @@ export function ListDefinitionPickerBody({
               onClick={() => onPick(d.id as number)}
             >
               <span className={styles.itemName}>{d.name}</span>
-              {ownerLayoutId(d) != null && <span className={styles.itemNote}>{LAYOUT_ONLY_NOTE}</span>}
               {actionLabel && <span className={styles.itemAction}>{actionLabel}</span>}
             </button>
           ))}
         </div>
       )}
-      {!showEmptyCta && onCreateNew && (
+      {!showEmptyCta && (onCreateNew || copyOf) && (
         <div className={styles.footer}>
-          {scope}
-          <button className={styles.createBtn} onClick={create}>
-            + Create new list…
-          </button>
+          {onCreateNew && (
+            <button type="button" className={styles.createBtn} onClick={create}>
+              + Create new list…
+            </button>
+          )}
+          {copyOf}
         </div>
+      )}
+    </>
+  )
+}
+
+/** "Copy of ›": opens Copy from's chooser beside it; a pick hands the list over. */
+function CopyOfButton({ onPick }: { onPick: (source: CopySource) => void }) {
+  const ref = useRef<HTMLButtonElement | null>(null)
+  const [open, setOpen] = useState(false)
+  const groups = useCopySources()
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={styles.copyBtn}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>Copy of</span>
+        <ChevronRightIcon size={12} />
+      </button>
+      {open && (
+        <CopyFromMenu
+          anchorRef={ref}
+          placement="right-start"
+          label="Copy of"
+          groups={groups}
+          onPick={onPick}
+          onClose={() => setOpen(false)}
+        />
       )}
     </>
   )

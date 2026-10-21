@@ -3,6 +3,7 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
 import { useTooltip } from '../../shared/use-tooltip'
 import { RevertIcon, SaveIcon } from '../../shared/icons'
+import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
 import styles from './ListFilterRow.module.css'
 
 /**
@@ -26,6 +27,7 @@ export function ListDraftButtons({ listDefinitionId }: { listDefinitionId: numbe
         className={`${styles.draftButton} ${styles.revertButton}`}
         aria-label="Revert list changes"
         data-testid="revert-list"
+        {...{ [EDIT_LIST_KEEP_ATTR]: listDefinitionId }}
         onClick={() => useListDraftStore.getState().revert(listDefinitionId)}
         {...revertTip.triggerProps}
       >
@@ -38,6 +40,7 @@ export function ListDraftButtons({ listDefinitionId }: { listDefinitionId: numbe
         className={`${styles.draftButton} ${styles.saveButton}`}
         aria-label={`Save list ${name}`}
         data-testid="save-list"
+        {...{ [EDIT_LIST_KEEP_ATTR]: listDefinitionId }}
         disabled={nameEmpty}
         onClick={() => { void useListDraftStore.getState().save(listDefinitionId) }}
         {...saveTip.triggerProps}

@@ -7,7 +7,7 @@
 /* Position (`position: fixed`, `left`, `top`) is written inline by
  * `usePopoverAnchor` after the panel is portaled to `document.body`. The
  * z-index sits at --z-dialog-nested so the menu lands above any dialog the
- * chip bar is mounted inside (e.g. ListEditorBody → ListEditorDialog at
+ * chip bar is mounted inside (e.g. a filter line in a dialog at
  * --z-dialog-overlay). Routing through `usePopoverAnchor + createPortal`
  * also gets us the Y-axis flip the prior `useRightEdgeFlip` lacked, so
  * panels near the dialog's bottom flip up instead of clipping inside the

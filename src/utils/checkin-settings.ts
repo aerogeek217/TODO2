@@ -1,7 +1,10 @@
+import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
+import { predicatesEqual } from './list-def-equal'
+
 /**
  * Email check-in settings: how a check-in email is handed to the mail app,
  * and which of a person's open tasks it covers. Both are remembered in the
- * `settings` table (`checkinOpenMethod`, `checkinTaskScope`).
+ * `settings` table (`checkinOpenMethod`, `checkinTaskFilter`).
  */
 
 /**
@@ -19,50 +22,33 @@ export function isCheckinOpenMethod(value: unknown): value is CheckinOpenMethod 
 }
 
 /**
- * Which open tasks of a person a check-in covers: all of them, overdue plus
- * the next two weeks, the hot ones, or the ones a saved list shows.
+ * Which of a person's open tasks a check-in covers: a list predicate,
+ * evaluated as a List widget evaluates its filter, over the person's open
+ * tasks. It has no people filter (a check-in is per person) and never
+ * shows completed tasks; `emptyPredicate()` = all their open tasks.
  */
-export type CheckinTaskScope =
-  | { kind: 'all' }
-  | { kind: 'due-soon' }
-  | { kind: 'hot' }
-  | { kind: 'list'; listDefinitionId: number }
+export type CheckinTaskFilter = TodoPredicate
 
-export const DEFAULT_CHECKIN_TASK_SCOPE: CheckinTaskScope = { kind: 'all' }
-
-const LIST_PREFIX = 'list:'
-
-/** Stored form: `all`, `due-soon`, `hot` or `list:<id>`. */
-export function formatCheckinTaskScope(scope: CheckinTaskScope): string {
-  return scope.kind === 'list' ? `${LIST_PREFIX}${scope.listDefinitionId}` : scope.kind
-}
-
-/** Reads the stored form; `undefined` when it isn't one. */
-export function parseCheckinTaskScope(value: string): CheckinTaskScope | undefined {
-  if (value === 'all' || value === 'due-soon' || value === 'hot') return { kind: value }
-  if (!value.startsWith(LIST_PREFIX)) return undefined
-  const digits = value.slice(LIST_PREFIX.length)
-  if (!/^[1-9]\d{0,14}$/.test(digits)) return undefined
-  return { kind: 'list', listDefinitionId: Number(digits) }
-}
-
-export function checkinTaskScopeEqual(a: CheckinTaskScope, b: CheckinTaskScope): boolean {
-  return formatCheckinTaskScope(a) === formatCheckinTaskScope(b)
-}
-
-/**
- * The scope to use: a saved list that no longer exists falls back to all open
- * tasks. `listDefinitionIds` = the ids of the lists that exist now.
- */
-export function resolveCheckinTaskScope(
-  scope: CheckinTaskScope,
-  listDefinitionIds: Iterable<number>,
-): CheckinTaskScope {
-  if (scope.kind !== 'list') return scope
-  for (const id of listDefinitionIds) {
-    if (id === scope.listDefinitionId) return scope
+/** The check-in filter as it is kept: no people filter (nor its "is not" switch), completed tasks off. */
+export function checkinFilterOf(predicate: TodoPredicate): CheckinTaskFilter {
+  const { negate, ...rest } = predicate
+  const out: TodoPredicate = { ...rest, showCompleted: false, personIds: null }
+  if (negate) {
+    const { personIds: _personIds, ...others } = negate
+    void _personIds
+    if (Object.keys(others).length > 0) out.negate = others
   }
-  return DEFAULT_CHECKIN_TASK_SCOPE
+  return out
+}
+
+/** Whether the check-in filter narrows nothing (all open tasks). */
+export function isNoCheckinFilter(filter: CheckinTaskFilter): boolean {
+  return predicatesEqual(checkinFilterOf(filter), emptyPredicate())
+}
+
+/** Whether two check-in filters pick the same tasks. */
+export function checkinFiltersEqual(a: CheckinTaskFilter, b: CheckinTaskFilter): boolean {
+  return predicatesEqual(checkinFilterOf(a), checkinFilterOf(b))
 }
 
 /** The "How to open it" choices, as the check-in dialog and Settings show them. */
@@ -70,23 +56,3 @@ export const CHECKIN_OPEN_METHOD_OPTIONS: ReadonlyArray<{ method: CheckinOpenMet
   { method: 'mailto', label: 'Open in mail app, then paste', help: 'To + Subject filled in; body copied. New and classic Outlook.' },
   { method: 'eml', label: 'Download draft (.eml)', help: 'Opens ready to send in classic Outlook. No paste.' },
 ]
-
-/** The quick picks of "Which tasks", in menu order (saved lists follow). */
-export const CHECKIN_QUICK_SCOPES: ReadonlyArray<{ scope: CheckinTaskScope; label: string; hint: string }> = [
-  { scope: { kind: 'all' }, label: 'All open tasks', hint: 'Everything assigned to them that isn’t complete' },
-  { scope: { kind: 'due-soon' }, label: 'Overdue + next 2 weeks', hint: 'Overdue first, then anything due or following up in the next 14 days' },
-  { scope: { kind: 'hot' }, label: 'Hot', hint: 'Your Hot rule from Settings' },
-]
-
-/** A scope's name as "Which tasks" shows it: a quick pick's label or the saved list's name (a missing list reads as all). */
-export function checkinScopeLabel(
-  scope: CheckinTaskScope,
-  listDefinitions: ReadonlyArray<{ id: number; name: string }>,
-): string {
-  const all = CHECKIN_QUICK_SCOPES[0]?.label ?? 'All open tasks'
-  if (scope.kind === 'list') return listDefinitions.find((d) => d.id === scope.listDefinitionId)?.name ?? all
-  return CHECKIN_QUICK_SCOPES.find((q) => checkinTaskScopeEqual(q.scope, scope))?.label ?? all
-}
-
-/** The hint under a saved list in "Which tasks". */
-export const CHECKIN_LIST_SCOPE_HINT = 'Its filters, narrowed to each recipient'

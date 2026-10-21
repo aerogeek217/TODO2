@@ -11,8 +11,7 @@ import { markerMenuEntries } from './task-menu-entries'
 /**
  * The row's markers menu, opened from its marker gutter: the task menu's
  * marker checkboxes on their own, acting on the selection the task belongs
- * to. Turning Urgent off on a task urgent by its due date asks about the
- * date (the row actions' clear-Urgent flow).
+ * to (each flips its flag; a due date that makes the task urgent is a hint).
  */
 export function PriorityMenu({ todo, anchorRef, onSetMarker, onClose }: {
   todo: PersistedTodoItem

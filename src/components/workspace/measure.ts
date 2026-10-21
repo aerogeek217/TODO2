@@ -16,7 +16,7 @@ function measurePanel(cellEl: HTMLElement): CellGeometry {
   const listEl = headerEl?.querySelector('[role="tablist"]')
   const visibleRight = listEl ? rectOf(listEl).right : header?.right ?? 0
   const tabs = header
-    ? Array.from(cellEl.querySelectorAll<HTMLElement>('[data-ws-tab]'))
+    ? Array.from(cellEl.querySelectorAll<HTMLElement>('[data-ws-tab]:not([data-ws-tab-folded])'))
         .map((t) => ({ id: t.dataset.wsTab ?? '', rect: rectOf(t) }))
         .filter((t) => t.rect.right <= visibleRight + 0.5 && t.rect.right > t.rect.left)
     : []

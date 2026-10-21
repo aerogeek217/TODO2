@@ -271,7 +271,7 @@ export interface TabSeed {
 export interface WidgetKindSpec<K extends WidgetKind> {
   /** Its name in menus, the add-widget tiles and tab titles. */
   label: string
-  /** A new tab of this kind shows a saved list, picked before the tab is added. */
+  /** A new tab of this kind shows a list (one of the layout's), picked before the tab is added. */
   showsList: boolean
   /** A new tab of this kind, with its default config. */
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>

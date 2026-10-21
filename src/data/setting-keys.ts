@@ -37,10 +37,11 @@ export const SETTING_KEYS = {
   /** How a check-in email opens: `mailto` (open, then paste) or `eml` (download a draft). Absent = `mailto`. */
   checkinOpenMethod: 'checkinOpenMethod',
   /**
-   * Which open tasks a check-in email covers: `all`, `due-soon`, `hot` or
-   * `list:<listDefinitionId>`. Absent = `all`; a deleted list reads as `all`.
+   * Which of a person's open tasks a check-in email covers: JSON of a list
+   * predicate without a people filter (`data/checkin-filter-shape`).
+   * Absent = no filter (all their open tasks).
    */
-  checkinTaskScope: 'checkinTaskScope',
+  checkinTaskFilter: 'checkinTaskFilter',
   /** Id of the workspace layout that is open (a `layouts` row). */
   activeLayoutId: 'activeLayoutId',
   /**
@@ -64,9 +65,34 @@ export const SETTING_KEYS = {
    * reads as no list yet.
    */
   eisenhowerSource: 'eisenhowerSource',
+  /** What a new blank list sorts by (a `TodoSortBy`). Absent = `manual`. */
+  newListSort: 'newListSort',
+  /**
+   * Which way a new blank list sorts: `desc` (only stored for a sort with a
+   * direction). Absent = `asc`.
+   */
+  newListSortDirection: 'newListSortDirection',
+  /** What a new blank list groups by (a `TodoGroupBy`). Absent = `none`. */
+  newListGroup: 'newListGroup',
+  /**
+   * The fewest days between two launch prompts about deleting old completed
+   * tasks: a whole number 1–365. Absent = 7.
+   */
+  purgePromptIntervalDays: 'purgePromptIntervalDays',
+  /** When the launch prompt about deleting old completed tasks last showed (an ISO date-time). Absent = never. */
+  purgePromptLastAt: 'purgePromptLastAt',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
+
+/**
+ * Settings the app writes for itself while nobody changed anything — the
+ * purge prompt's last showing. With file sync, writing one is no unsynced
+ * browser change (it reaches the file with the next save, if sync is on),
+ * and the browser and the file aren't compared on them: a prompt shown
+ * while sync waits never makes the two sides conflict.
+ */
+export const SYNC_NEUTRAL_SETTING_KEYS: ReadonlySet<string> = new Set<string>([SETTING_KEYS.purgePromptLastAt])
 
 /** Allowlist used by import validation; mirrors `Object.values(SETTING_KEYS)`. */
 export const ALL_SETTING_KEYS: readonly SettingKey[] = Object.values(SETTING_KEYS)

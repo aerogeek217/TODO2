@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, openSettings, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -7,7 +7,7 @@ import { readStore } from './fixtures/db'
  * The Eisenhower's own list, in a real browser: every Eisenhower shows its
  * filter line (`No filters` = every task); editing it makes the list
  * unsaved — the tab's dot, Revert · Save — and Save writes it, still the
- * Eisenhower's (hidden from Settings › Lists); Edit list… from the tab menu
+ * Eisenhower's; Edit list… from the tab menu
  * opens beside the panel and its Save is what the dashboard's Eisenhower
  * section counts; drags between quadrants still set the flags and "+" adds
  * with the list's defaults; an Eisenhower switched to List picks a list —
@@ -115,16 +115,6 @@ test.describe('desktop', () => {
       .toMatchObject({ statusIds: [waiting], negate: { statusIds: true } })
     expect((await eisenhowerList(page))?.owner).toEqual({ eisenhower: true })
 
-    // Hidden from Settings › Lists.
-    const settings = await openSettings(page, 'People, statuses & tags')
-    await settings.getByRole('button', { name: 'Manage lists…' }).click()
-    const lists = page.getByRole('dialog', { name: 'Lists', exact: true })
-    await expect(lists.getByText('Team', { exact: true })).toBeVisible()
-    await expect(lists.getByText('Eisenhower', { exact: true })).toHaveCount(0)
-    await page.keyboard.press('Escape')
-    await expect(lists).toHaveCount(0)
-    await settings.getByRole('button', { name: 'Close settings' }).click()
-
     // Kept across a reload.
     await page.reload()
     await expect(row(quadrant(page, 'do'), 'Fix checkout outage')).toBeVisible()
@@ -197,7 +187,17 @@ test.describe('desktop', () => {
   })
 
   test('an Eisenhower switched to List picks a list — never the Eisenhower’s; a list tab switched to Eisenhower shows its list', async ({ page }) => {
-    await seedWorkspace(page, ON_TEAM)
+    // "Other" is the layout's list: a tab of it shows it.
+    await seedWorkspace(page, {
+      ...ON_TEAM,
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
+          { id: 'colC', cells: [{ id: 'c1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 1 }] }] },
+        ],
+      }],
+    })
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'List' }).click()
     const picker = page.getByText('Show list', { exact: true }).locator('..')
     await expect(picker).toBeVisible()

@@ -8,7 +8,9 @@ import { readStore } from './fixtures/db'
  * (rich HTML with each task's Ref) on the clipboard and opens a mailto: link
  * without the page unloading or the unsaved-layout prompt appearing; the
  * .eml method downloads an unsent draft; both record a follow-up that Undo
- * takes back.
+ * takes back. Which tasks is a filter line (no People) that narrows the row
+ * counts at once and is remembered for the next dialog and the one-click
+ * send.
  */
 
 const seed: WorkspaceSeed = {
@@ -174,22 +176,35 @@ test('Download .eml: an unsent draft with both bodies; one click per person', as
     .toEqual(['Overdue report', 'Review plan'])
 })
 
-test('Which tasks menu shows counts and saves the choice; Add email opens the person editor', async ({ page }) => {
+test('Which tasks is a filter line: it narrows the counts, is remembered, and a one-click send uses it; Add email opens the person editor', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await recordAnchorClicks(page)
   await seedWorkspace(page, seed)
   const dialog = await openFromPalette(page)
-  const cy = dialog.locator('[data-checkin-row]').filter({ hasText: 'Cy Young' })
+  const row = (name: string) => dialog.locator('[data-checkin-row]').filter({ hasText: name })
+  const count = (name: string) => row(name).locator('[data-checkin-count]')
+  const cy = row('Cy Young')
   // No address: still tickable (the recipient is added in the mail app).
   await expect(cy.getByRole('checkbox')).toBeEnabled()
   await expect(cy).toContainText('No email address — add the recipient in your mail app')
 
-  await dialog.getByRole('button', { name: /Which tasks/ }).click()
-  const menu = page.getByRole('menu', { name: 'Which tasks' })
-  // Nobody ticked: the counts cover everyone listed (Ada 2, Bob 2, Cy 1).
-  await expect(menu.getByRole('menuitemradio', { name: /All open tasks/ })).toContainText('5 tasks')
-  await expect(menu.getByRole('menuitemradio', { name: /Overdue \+ next 2 weeks/ })).toContainText('3 tasks')
-  await menu.getByRole('menuitemradio', { name: /Overdue \+ next 2 weeks/ }).click()
-  await expect(menu).toBeHidden()
-  await expect(cy).toContainText('0 tasks')
+  const line = dialog.getByTestId('checkin-filter')
+  await expect(line).toContainText('All open tasks')
+  await expect(count('Ada Lovelace')).toHaveText('2 tasks')
+  await line.getByRole('button', { name: 'Filter', exact: true }).click()
+  const add = page.getByRole('menu', { name: 'Add a filter' })
+  await expect(add.getByRole('menuitem', { name: 'Priority' })).toBeVisible()
+  // The check-in is per person: no People filter.
+  await expect(add.getByRole('menuitem', { name: 'People' })).toHaveCount(0)
+  await add.getByRole('menuitem', { name: /Text contains/ }).click()
+  await page.keyboard.type('review')
+  await page.keyboard.press('Enter')
+  await expect(line.getByTestId('list-filter-chip')).toContainText('review')
+  await expect(count('Ada Lovelace')).toHaveText('1 task')
+  await expect(count('Bob Stone')).toHaveText('1 task')
+  await expect(count('Cy Young')).toHaveText('0 tasks')
+  await expect.poll(async () => (await readStore<{ key: string; value: string }>(page, 'settings'))
+    .find((r) => r.key === 'checkinTaskFilter')?.value ?? '').toContain('"searchText":"review"')
 
   await cy.getByRole('button', { name: 'Add email for Cy Young' }).click()
   const email = page.getByRole('textbox', { name: 'Email' })
@@ -199,8 +214,26 @@ test('Which tasks menu shows counts and saves the choice; Add email opens the pe
   await expect(cy).toContainText('cy@example.com')
   await expect(cy.getByRole('checkbox')).toBeChecked()
 
+  // Remembered: the next dialog, after a reload, has it.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   const again = await openFromPalette(page)
-  await expect(again.getByRole('button', { name: /Which tasks/ })).toContainText('Overdue + next 2 weeks')
+  await expect(again.getByTestId('checkin-filter').getByTestId('list-filter-chip')).toContainText('review')
+  await expect(again.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' }).locator('[data-checkin-count]')).toHaveText('1 task')
+  await again.getByRole('button', { name: 'Done' }).click()
+  await expect(again).toHaveCount(0)
+
+  // A one-click send uses it: the palette counts what it picks, the email holds that one task.
+  await page.keyboard.press('Control+k')
+  await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
+  await expect(page.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toContainText('1 of 2 open tasks')
+  await page.keyboard.press('Enter')
+  await expect.poll(async () => (await anchors(page)).map((a) => a.href).filter((h) => h.startsWith('mailto:')))
+    .toEqual(['mailto:ada@example.com?subject=Task%20check-in%3A%201%20open%20task'])
+  const html = await page.evaluate(async () => {
+    const items = await navigator.clipboard.read()
+    return (await items[0]!.getType('text/html')).text()
+  })
+  expect(html).toContain('Review plan')
+  expect(html).not.toContain('Overdue report')
 })

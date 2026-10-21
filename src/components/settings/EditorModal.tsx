@@ -14,7 +14,7 @@ export interface EditorModalProps {
 }
 
 /**
- * The Settings editors' modal (People, Statuses, Tags, Lists, Theme colors,
+ * The Settings editors' modal (People, Statuses, Tags, Theme colors,
  * Keyboard shortcuts, Quick-Add syntax): title + × over the editor, on the
  * shared dialog frame — Esc (an Esc an inline edit row handled stays its),
  * focus in / Tab wrap / focus back to the opener, a backdrop press, no app

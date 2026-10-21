@@ -122,7 +122,7 @@ function ListTiles({ data, onDrill, onAddListTile, style }: {
             onClick={() => onDrill({
               title: t.name,
               glyph: 'list',
-              description: `Saved list · ${hints.get(t.id) ?? 'All tasks'}`,
+              description: `List · ${hints.get(t.id) ?? 'All tasks'}`,
               source: { kind: 'list', listDefinitionId: t.id },
             })}
           >

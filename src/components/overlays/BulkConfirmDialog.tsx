@@ -32,7 +32,6 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
   const title = confirmation.title ?? titles[confirmation.action](confirmation.ids.length)
   const message = confirmation.message ?? messages[confirmation.action](confirmation.ids.length)
   const confirmLabel = confirmation.confirmLabel ?? confirmLabels[confirmation.action]
-  const cancelLabel = confirmation.cancelLabel ?? 'Cancel'
 
   return (
     <ConfirmDialog
@@ -40,12 +39,11 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
       title={title}
       message={message}
       confirmLabel={confirmLabel}
-      cancelLabel={cancelLabel}
       danger={confirmation.action === 'delete'}
       onConfirm={onConfirm}
       onCancel={onCancel}
       // Singleton confirm — render at --z-dialog-nested so it always lands
-      // above any other open dialog (list editor, dashboard-lists modal, etc.).
+      // above any other open dialog (Settings, the task dialog, etc.).
       nested
     />
   )

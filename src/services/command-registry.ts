@@ -59,6 +59,8 @@ export interface CommandContext {
   getPeople?: () => readonly Person[]
   /** Open tasks assigned per person id (people with none may be absent). */
   getOpenTaskCounts?: () => ReadonlyMap<number, number>
+  /** Per person id, the open tasks the check-in filter picks; `null` (or absent) while there is no filter. */
+  getCheckinTaskCounts?: () => ReadonlyMap<number, number> | null
 }
 
 const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
@@ -66,11 +68,13 @@ const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
 /**
  * `Email check-in: <person>` for each person with at least one open task, by
  * name (an email address isn't needed: the recipient can be added in the mail
- * app); the hint counts their open tasks. Running one sends that person's
- * check-in at once.
+ * app); the hint counts their open tasks — `2 of 5 open tasks` while the
+ * check-in filter narrows them (what the email would hold). Running one sends
+ * that person's check-in at once.
  */
 function personCheckinCommands(ctx: CommandContext, send: (personId: number) => void): Command[] {
   const counts = ctx.getOpenTaskCounts?.() ?? new Map<number, number>()
+  const matching = ctx.getCheckinTaskCounts?.() ?? null
   return (ctx.getPeople?.() ?? [])
     .flatMap((p) => {
       const id = p.id
@@ -82,7 +86,7 @@ function personCheckinCommands(ctx: CommandContext, send: (personId: number) => 
     .map(({ id, name, n }): Command => ({
       id: `email-checkin-${id}`,
       name: `Email check-in: ${name}`,
-      hint: openTasksLabel(n),
+      hint: matching ? `${matching.get(id) ?? 0} of ${openTasksLabel(n)}` : openTasksLabel(n),
       category: 'email',
       action: () => send(id),
     }))

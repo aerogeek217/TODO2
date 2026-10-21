@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
+import { ownerLayoutId, type PersistedListDefinition } from '../../models/list-definition'
 import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { copiedListParts, uniqueListName } from '../../utils/list-copy'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
@@ -59,46 +61,77 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 /**
  * Opens Edit list for a list tab: the tab is made its panel's active one and
  * the panel expanded (so the list it previews is on screen), then the
- * surface opens beside it.
+ * surface opens beside it. Another list's open Edit list closes first (asking
+ * while that list is unsaved — Cancel keeps it, and nothing else changes).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
-  const ws = useWorkspaceStore.getState()
-  const working = ws.working
-  const cell = working ? panelOfTab(working, tabId) : undefined
-  if (cell) {
-    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-    if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
+  const open = () => {
+    const ws = useWorkspaceStore.getState()
+    const working = ws.working
+    const cell = working ? panelOfTab(working, tabId) : undefined
+    if (cell) {
+      if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
+      if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
+    }
+    useUIStore.getState().openListEditor(listDefinitionId, tabId)
   }
-  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+  const ui = useUIStore.getState()
+  if (ui.listEditor != null && ui.listEditor.listDefinitionId !== listDefinitionId) ui.requestCloseListEditor(open)
+  else open()
 }
 
-/** A list name not used by any saved list: "New list", "New list 2", … */
-function freshListName(): string {
-  const taken = new Set(useListDefinitionStore.getState().listDefinitions.map((d) => d.name.toLowerCase()))
-  let name = 'New list'
-  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New list ${n}`
-  return name
+/** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
+function freshListName(base: string, layoutId: number): string {
+  const taken = useListDefinitionStore.getState().listDefinitions
+    .filter((d) => ownerLayoutId(d) === layoutId)
+    .map((d) => d.name)
+  return uniqueListName(base, taken)
 }
 
 /**
- * "Create new list…" in a list picker: saves a blank list — a saved list,
- * or one only layout `layoutOnlyFor` shows (This layout only) —, hands its
- * id to `show` (which puts it in a tab and returns that tab's id), then
- * opens Edit list beside that tab.
+ * "Create new list…" in a list picker: saves a blank list of layout
+ * `layoutId` (`New list`, `New list 2`, …; no filter; Settings' new-list
+ * sort and grouping), hands its id to `show` (which puts it in a tab and
+ * returns that tab's id), then opens Edit list beside that tab.
  */
-export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutOnlyFor?: number): void {
-  const owner = layoutOnlyFor != null ? { layoutId: layoutOnlyFor } : undefined
-  void useListDefinitionStore.getState().add({ name: freshListName(), owner }).then((id) => {
+export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): void {
+  void useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
     const tabId = show(id)
     if (tabId != null) openEditList(tabId, id)
   })
 }
 
 /**
- * The open layout as a list chooser's owner: its id once it is saved (its
- * own layout-only lists are offered, and a new list may be made for it
- * alone), `undefined` while it is a new layout an older build kept unsaved
- * (New layout stores the layout at once).
+ * "Copy of ›" in a list picker: saves a copy of `source` (any layout's
+ * list, or the Eisenhower's, as it shows — its unsaved edits included) for
+ * layout `layoutId` — named as the source, unique within the layout
+ * (`Someday 2`), with its filters, group, sort, prompt, Show filter line
+ * and manual order (`copiedListParts`; Settings' new-list defaults don't
+ * apply) —, hands its id to `show`, then opens Edit list beside that tab.
+ */
+export function copyListThenEdit(
+  source: PersistedListDefinition,
+  show: (listDefinitionId: number) => string | null,
+  layoutId: number,
+): void {
+  const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === source.id)
+  const base = source.name.trim() || saved?.name || 'New list'
+  void useListDefinitionStore.getState().add({
+    ...copiedListParts(source),
+    name: freshListName(base, layoutId),
+    owner: { layoutId },
+    ranksFrom: source.id,
+  }).then((id) => {
+    const tabId = show(id)
+    if (tabId != null) openEditList(tabId, id)
+  })
+}
+
+/**
+ * The open layout as a list chooser's owner: its id once it is stored (the
+ * lists it owns are offered, and a new list is made for it), `undefined`
+ * while it is a new layout an older build kept unsaved (New layout stores
+ * the layout at once) — no list is offered or made for that one.
  */
 export function useListOwnerLayoutId(): number | undefined {
   return useWorkspaceStore((s) => s.saved?.id)

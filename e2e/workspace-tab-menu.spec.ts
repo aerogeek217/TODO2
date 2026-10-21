@@ -16,9 +16,16 @@ import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/wor
  * real-browser behaviour.
  */
 
+/** Two lists of the layout (each shown by a tab: a layout's lists are the ones it shows). */
 const twoLists: WorkspaceSeed = {
   listDefinitions: [{ name: 'Source list' }, { name: 'Target list' }],
-  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{
+    name: 'Main',
+    columns: [
+      { id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'col2', cells: [{ id: 'cell2', tabs: [{ id: 'targetTab', kind: 'lens', listDefIdx: 1 }] }] },
+    ],
+  }],
 }
 
 const tabMenu = (page: Page) => page.getByRole('menu', { name: 'Change widget' })
@@ -76,6 +83,10 @@ test('the add-tab list picker opened from a cell near the bottom stays inside th
           { id: 'top', weight: 5, tabs: [{ id: 'notesTab', kind: 'notes' }] },
           { id: 'bottom', weight: 1, tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
         ],
+      }, {
+        // The layout's lists, each shown by a tab.
+        id: 'lists',
+        cells: [{ id: 'listsCell', tabs: [0, 1, 2, 3, 4].map((i) => ({ id: `l${i}`, kind: 'lens' as const, listDefIdx: i })) }],
       }],
     }],
   })

@@ -24,6 +24,7 @@
   gap: 6px;
   flex-shrink: 0;
   height: var(--cell-tab-height);
+  /* TAB_MAX_PX in CellTabStrip.tsx */
   max-width: 160px;
   padding: 0 10px;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
@@ -159,13 +160,12 @@
   color: var(--color-accent);
 }
 
-.fade {
+/* A tab folded into `+N`: out of the row and out of sight, still measured. */
+.offstage {
   position: absolute;
   top: 0;
-  right: 0;
-  bottom: 0;
-  width: 24px;
-  background: linear-gradient(to right, transparent, var(--color-header-bg));
+  left: 0;
+  visibility: hidden;
   pointer-events: none;
 }
 

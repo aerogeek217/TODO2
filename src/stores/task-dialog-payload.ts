@@ -24,7 +24,7 @@ export type TaskDialogSource =
   /** The tasks matching a predicate, in `sortOrder` (a person's open tasks). */
   | { kind: 'predicate'; predicate: TodoPredicate }
   /**
-   * A saved list's members under the screen filter (narrowing clauses AND,
+   * A list's members under the screen filter (narrowing clauses AND,
    * as in a List widget), with the list's own sort and grouping.
    */
   | { kind: 'list'; listDefinitionId: number }

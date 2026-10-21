@@ -10,8 +10,6 @@ beforeEach(() => {
     editPopupMode: null,
     bulkConfirmation: null,
     taskDialog: null,
-    listsEditorOpen: false,
-    listsEditorInitialId: null,
     listEditor: null,
   })
 })
@@ -102,33 +100,11 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().bulkConfirmation).toBeNull()
   })
 
-  it('openListsEditor stores initialId; closeListsEditor resets both', () => {
-    expect(useUIStore.getState().listsEditorOpen).toBe(false)
-    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
-
-    useUIStore.getState().openListsEditor(42)
-    expect(useUIStore.getState().listsEditorOpen).toBe(true)
-    expect(useUIStore.getState().listsEditorInitialId).toBe(42)
-
-    useUIStore.getState().closeListsEditor()
-    expect(useUIStore.getState().listsEditorOpen).toBe(false)
-    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
-  })
-
-  it('openListsEditor without an id leaves initialId null', () => {
-    useUIStore.getState().openListsEditor()
-    expect(useUIStore.getState().listsEditorOpen).toBe(true)
-    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
-  })
-
   it('openListEditor opens Edit list for a list tab; closeListEditor closes it', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
 
     useUIStore.getState().openListEditor(7, 'tab-1')
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 'tab-1' })
-    // Edit list never opens the Lists manager modal.
-    expect(useUIStore.getState().listsEditorOpen).toBe(false)
-
     // Another list's Edit list replaces it: one open at a time.
     useUIStore.getState().openListEditor(8, 'tab-2')
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
@@ -137,10 +113,41 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('opening Settings closes Edit list (it belongs to the workspace)', () => {
+  it('opening Settings closes Edit list first (it belongs to the workspace), through its close request', () => {
     useUIStore.getState().openListEditor(7, 'tab-1')
-    useUIStore.getState().openSettings()
-    expect(useUIStore.getState().listEditor).toBeNull()
+    useUIStore.getState().openSettings('tasks')
+    // Waiting on Edit list's host (it asks while the list is unsaved).
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    expect(useUIStore.getState().listEditorCloseRequest).not.toBeNull()
+    useUIStore.getState().finishListEditorClose()
+    expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null, settingsOpen: true, settingsSection: 'tasks' })
+  })
+
+  it('finishing a close twice (the prompt’s Save landing after the draft went) leaves the Edit list its follow-up opened', () => {
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    useUIStore.getState().requestCloseListEditor(() => useUIStore.getState().openListEditor(8, 'tab-2'))
+    useUIStore.getState().finishListEditorClose()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
+    useUIStore.getState().finishListEditorClose()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
+  })
+
+  it('a close request runs its follow-up at once when no Edit list is open; Cancel drops it', () => {
+    let ran = 0
+    useUIStore.getState().requestCloseListEditor(() => { ran++ })
+    expect(ran).toBe(1)
+    expect(useUIStore.getState().listEditorCloseRequest).toBeNull()
+
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    useUIStore.getState().requestCloseListEditor(() => { ran++ })
+    useUIStore.getState().cancelListEditorClose()
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    expect(ran).toBe(1)
+    // closeListEditor (the list left the screen) drops a waiting request too.
+    useUIStore.getState().requestCloseListEditor(() => { ran++ })
+    useUIStore.getState().closeListEditor()
+    expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null })
+    expect(ran).toBe(1)
   })
 
   it('a control to focus is kept only on the way to a part, and forgotten when Settings closes', () => {
@@ -150,11 +157,5 @@ describe('useUIStore', () => {
     expect(useUIStore.getState()).toMatchObject({ settingsPart: 'eisenhower', settingsFocus: 'eisenhower-pane-do' })
     useUIStore.getState().closeSettings()
     expect(useUIStore.getState()).toMatchObject({ settingsOpen: false, settingsPart: null, settingsFocus: null })
-  })
-
-  it('openListsEditor does NOT open the direct list-editor dialog', () => {
-    useUIStore.getState().openListsEditor(7)
-    expect(useUIStore.getState().listsEditorOpen).toBe(true)
-    expect(useUIStore.getState().listEditor).toBeNull()
   })
 })

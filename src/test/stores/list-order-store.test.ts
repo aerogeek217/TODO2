@@ -60,18 +60,6 @@ describe('list-order-store', () => {
     expect(useListOrderStore.getState().ranks.get(list)?.get(a)).toBe(7)
     expect(await db.listOrders.count()).toBe(1)
   })
-
-  it('deleting a list drops its ranks; undo puts them back', async () => {
-    const a = await addTodo('a')
-    const list = await addList('L')
-    await useListDefinitionStore.getState().load()
-    await useListOrderStore.getState().setRanks(list, [{ todoId: a, rank: 2 }])
-    await useListDefinitionStore.getState().remove(list)
-    expect(useListOrderStore.getState().ranks.has(list)).toBe(false)
-    expect(await db.listOrders.count()).toBe(0)
-    await useUndoStore.getState().undo()
-    expect(useListOrderStore.getState().ranks.get(list)?.get(a)).toBe(2)
-  })
 })
 
 describe('list-order-store reads that fail', () => {

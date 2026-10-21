@@ -282,7 +282,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   )
 }
 
-/** Delete layout…'s confirm, naming the layout-only lists that go with it. */
+/** Delete layout…'s confirm, naming the lists that go with it. */
 function DeleteLayoutConfirm({ layoutId, layoutName, onConfirm, onCancel }: {
   layoutId: LayoutRef
   layoutName: string

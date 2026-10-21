@@ -224,4 +224,29 @@ describe('<ListEditorBody>', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show completed tasks' }))
     expect(last(onChange).membership.predicate.showCompleted).toBe(true)
   })
+
+  describe('Copy from…', () => {
+    const calls = makeDraft({ id: 8, name: 'Calls', owner: { layoutId: 2 }, grouping: 'status' })
+    const groups = [
+      { key: 'layout:1', heading: 'Main · this layout', lists: [{ id: 9, owner: { layoutId: 1 }, sortOrder: 0, def: makeDraft({ id: 9, name: 'Mine' }), name: 'Mine', hint: 'All tasks' }] },
+      { key: 'layout:2', heading: 'Second', lists: [{ id: 8, owner: { layoutId: 2 }, sortOrder: 1, def: calls, name: 'Calls', hint: 'Text: “call”' }] },
+    ]
+
+    it('no control without `copyFrom`', () => {
+      render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} variant="popover" />)
+      expect(screen.queryByRole('button', { name: 'Copy from…' })).not.toBeInTheDocument()
+    })
+
+    it('the phone sheet: a row that opens the chooser as a list by layout; a tap picks and goes back, naming the copy', () => {
+      const onPick = vi.fn()
+      render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} variant="sheet" copyFrom={{ groups, onPick }} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Copy from…' }))
+      expect(screen.getByText('Copy from')).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Second' })).toHaveTextContent('SecondCallsText: “call”')
+      fireEvent.click(screen.getByRole('button', { name: /^Calls/ }))
+      expect(onPick).toHaveBeenCalledWith(groups[1]!.lists[0])
+      expect(screen.getByRole('textbox')).toHaveValue('Test list')
+      expect(screen.getByRole('status')).toHaveTextContent('Copied from “Calls” · unsaved')
+    })
+  })
 })

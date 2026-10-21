@@ -84,6 +84,8 @@ test('Move left / right from a tab’s menu, by keyboard; each is one undo step'
   await expect(again.getByRole('menuitem', { name: 'Move right' })).toBeDisabled()
   await again.getByRole('menuitem', { name: 'Move left' }).click()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Second', 'Third'])
+  // The move's undo step is pushed once its write lands: wait for it, or Ctrl+Z takes back the move before.
+  await expect.poll(() => storedOrder(page)).toEqual(['Main', 'Second', 'Third'])
   // Undo (Ctrl+Z) takes the last move back.
   await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
   await page.keyboard.press('Control+z')
@@ -153,15 +155,15 @@ test('switching tabs with unsaved changes asks Save / Discard / Cancel', async (
   await expect.poll(() => wsShape(page)).toEqual([[['m', 'm-cal']]])
 })
 
-test('Delete from a tab’s menu names the layout-only lists that go with it', async ({ page }) => {
+test('Delete from a tab’s menu names the lists that go with it', async ({ page }) => {
   await seedWorkspace(page, {
     ...three,
-    listDefinitions: [{ name: 'Saved' }, { name: 'Second’s own', layoutIdx: 1 }, { name: 'Second’s other', layoutIdx: 1 }],
+    listDefinitions: [{ name: 'Main’s', layoutIdx: 0 }, { name: 'Second’s own', layoutIdx: 1 }, { name: 'Second’s other', layoutIdx: 1 }],
   })
   const menu = await openLayoutTabMenu(page, 'Second')
   await menu.getByRole('menuitem', { name: 'Delete layout…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Delete layout “Second”?' })
-  await expect(dialog).toContainText('The layout and its 2 layout-only lists are removed.')
+  await expect(dialog).toContainText('The layout and its 2 lists are removed.')
   await dialog.getByRole('button', { name: 'Delete layout' }).click()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Third'])
   // Not the open one: Main stays open.
