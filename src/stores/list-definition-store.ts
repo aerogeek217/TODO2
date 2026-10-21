@@ -7,6 +7,7 @@ import {
   type ListMembership,
   type ListSort,
   type PersistedListDefinition,
+  type RuntimeFilterSpec,
   isEisenhowerOwner,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models'
@@ -26,8 +27,12 @@ interface AddInput {
   sort?: ListSort
   sortDirection?: TodoSortDirection
   grouping?: ListGrouping
+  runtimeFilter?: RuntimeFilterSpec
+  showFilterLine?: false
   /** Who the list belongs to: the layout whose tab shows it (or the Eisenhower). */
   owner: ListOwner
+  /** A copy of this list: its manual order is copied with it, in the same transaction. */
+  ranksFrom?: number
 }
 
 interface ListDefinitionState {
@@ -61,7 +66,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
   ensureLoaded: defEnsure,
 
-  async add({ name, membership, sort, sortDirection, grouping, owner }) {
+  async add({ name, membership, sort, sortDirection, grouping, runtimeFilter, showFilterLine, owner, ranksFrom }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
     // What isn't given starts as Settings' new-list defaults (the
@@ -77,11 +82,19 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       sort: listSort,
       ...(direction === 'desc' ? { sortDirection: direction } : {}),
       grouping: grouping ?? defaults.newListGroup,
+      ...(runtimeFilter ? { runtimeFilter } : {}),
+      ...(showFilterLine === false ? { showFilterLine } : {}),
       owner,
     }
     return mutate(
       async () => {
         // Goes last (the repository picks the sort order in its transaction).
+        if (ranksFrom != null) {
+          const { id, sortOrder, ranks } = await listDefinitionRepository.insertCopy(entry, ranksFrom)
+          set({ listDefinitions: [...get().listDefinitions, { ...entry, sortOrder, id }] })
+          useListOrderStore.getState().rememberList(id, ranks)
+          return id
+        }
         const { id, sortOrder } = await listDefinitionRepository.insertLast(entry)
         set({ listDefinitions: [...get().listDefinitions, { ...entry, sortOrder, id }] })
         return id

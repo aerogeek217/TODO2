@@ -5,6 +5,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { emptyPredicate } from '../../models'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useListOrderStore } from '../../stores/list-order-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { buildList } from '../../services/build-list'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
@@ -94,6 +95,40 @@ describe('useListDefinitionStore mutations', () => {
     const byPeople = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'People' })
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === byPeople)).toMatchObject({ sort: 'people', grouping: 'none' })
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === byPeople)).not.toHaveProperty('sortDirection')
+  })
+})
+
+describe('a copy (`ranksFrom`)', () => {
+  it('stores the parts it is given — prompt and hidden filter line too — and the source’s manual order, in memory and on disk', async () => {
+    useSettingsStore.setState({ newListSort: 'deadline', newListSortDirection: 'desc', newListGroup: 'people' })
+    const source = await useListDefinitionStore.getState().add({ owner: { layoutId: 2 }, name: 'Calls', sort: 'manual', grouping: 'none' })
+    await db.listOrders.bulkAdd([
+      { listDefinitionId: source, todoId: 5, rank: 2000 },
+      { listDefinitionId: source, todoId: 6, rank: 1000 },
+      { listDefinitionId: 99, todoId: 5, rank: 7 },
+    ])
+    const id = await useListDefinitionStore.getState().add({
+      owner: { layoutId: 1 }, name: 'Calls', ranksFrom: source,
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText: 'call' } },
+      sort: 'manual', grouping: 'none', runtimeFilter: { field: 'tag' }, showFilterLine: false,
+    })
+    expect(await db.listDefinitions.get(id)).toMatchObject({
+      name: 'Calls', owner: { layoutId: 1 }, sort: 'manual', grouping: 'none',
+      runtimeFilter: { field: 'tag' }, showFilterLine: false,
+      membership: { predicate: { searchText: 'call' } },
+    })
+    const ranks = (await db.listOrders.where('listDefinitionId').equals(id).toArray()).map((r) => [r.todoId, r.rank])
+    expect(ranks.sort()).toEqual([[5, 2000], [6, 1000]])
+    expect([...(useListOrderStore.getState().ranks.get(id) ?? [])].sort()).toEqual([[5, 2000], [6, 1000]])
+    // The source keeps its own.
+    expect(await db.listOrders.where('listDefinitionId').equals(source).count()).toBe(2)
+  })
+
+  it('a source with no manual order: the copy has none', async () => {
+    const source = await useListDefinitionStore.getState().add({ owner: { layoutId: 2 }, name: 'Plain' })
+    const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 }, name: 'Plain', ranksFrom: source, sort: 'name', grouping: 'none' })
+    expect(await db.listOrders.where('listDefinitionId').equals(id).count()).toBe(0)
+    expect(useListOrderStore.getState().ranks.has(id)).toBe(false)
   })
 })
 
