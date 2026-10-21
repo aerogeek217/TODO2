@@ -12,6 +12,18 @@ import {
 const VIEWPORT_MARGIN_PX = 8
 const DEFAULT_GAP_PX = 4
 
+/**
+ * Marks a text field (a picker's search) that takes Escape while it holds
+ * text — to empty itself — so the popover it sits in stays open; with the
+ * field empty, Escape closes the popover as usual.
+ */
+export const ESCAPE_CLEARS_ATTR = 'data-escape-clears'
+
+/** Whether an Escape on `target` belongs to a field that empties itself first (`ESCAPE_CLEARS_ATTR`). */
+function escapeClearsField(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement && target.hasAttribute(ESCAPE_CLEARS_ATTR) && target.value !== ''
+}
+
 export type PopoverAnchor =
   | { kind: 'ref'; ref: RefObject<HTMLElement | null> }
   | { kind: 'point'; x: number; y: number }
@@ -70,7 +82,9 @@ export interface UsePopoverAnchorOptions {
   closeOnResize?: boolean
   /**
    * When `true` (default), `Escape` fires `onClose` (document-level) — not
-   * one pressed in a layer stacked above the panel (a dialog opened from it).
+   * one pressed in a layer stacked above the panel (a dialog opened from it),
+   * nor one pressed in a field that empties itself on Esc while it has text
+   * (`ESCAPE_CLEARS_ATTR`: a picker's search — the next Esc closes).
    */
   closeOnEscape?: boolean
   /**
@@ -470,7 +484,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   useEffect(() => {
     if (!open || !closeOnEscape) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || escapeClearsField(e.target)) return
       // Pressed in a layer stacked above, or with nothing focused while a
       // dialog is open above: that layer's key.
       const panel = panelElRef.current

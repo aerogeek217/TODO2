@@ -306,6 +306,33 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.queryByText('Clear all')).toBeNull()
     })
 
+    describe('Esc in a picker’s search', () => {
+      it('a bar button’s picker: the first Esc empties the search, the next closes the picker', () => {
+        render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
+        fireEvent.click(screen.getByRole('button', { name: 'People filter' }))
+        const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+        fireEvent.change(search, { target: { value: 'bo' } })
+        fireEvent.keyDown(search, { key: 'Escape' })
+        expect(search.value).toBe('')
+        expect(screen.getByPlaceholderText('Search...')).toBe(search)
+        fireEvent.keyDown(search, { key: 'Escape' })
+        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+      })
+
+      it('folded: the first Esc empties the search, the next closes the picker', () => {
+        render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} fold />)
+        fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Tags filter' }))
+        const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+        fireEvent.change(search, { target: { value: 'ur' } })
+        fireEvent.keyDown(search, { key: 'Escape' })
+        expect(search.value).toBe('')
+        expect(screen.getByPlaceholderText('Search...')).toBe(search)
+        fireEvent.keyDown(search, { key: 'Escape' })
+        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+      })
+    })
+
     describe('People picker: Email check-in', () => {
       beforeEach(() => {
         useUIStore.setState({ checkinDialog: null })

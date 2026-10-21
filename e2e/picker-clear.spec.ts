@@ -74,6 +74,21 @@ test('the top bar’s People filter: × empties Search..., the picker stays open
   await expect(page.locator('label', { hasText: '@Ben Ortiz' })).toBeVisible()
 })
 
+test('the top bar’s People filter: Esc empties Search... first, the next Esc closes the picker', async ({ page }) => {
+  await seedTaskList(page, SEED)
+  await page.getByRole('button', { name: 'People filter' }).click()
+  const search = page.getByPlaceholder('Search...')
+  await expect(search).toBeFocused()
+  await page.keyboard.type('ali')
+  await expect(page.locator('label', { hasText: '@Ben Ortiz' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(search).toHaveValue('')
+  await expect(search).toBeFocused()
+  await expect(page.locator('label', { hasText: '@Ben Ortiz' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(search).toHaveCount(0)
+})
+
 test('a list’s Text contains: Clear text filter empties the filter, the field keeps the focus', async ({ page }) => {
   const widget = await seedTaskList(page, SEED)
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()

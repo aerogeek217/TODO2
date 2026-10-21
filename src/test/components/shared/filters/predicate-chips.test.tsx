@@ -62,3 +62,20 @@ describe('PredicateChips — date chips', () => {
       .toHaveAttribute('aria-selected', 'true')
   })
 })
+
+describe('PredicateChips — a field picker’s search', () => {
+  afterEach(cleanup)
+
+  it('the first Esc empties the search, the next closes the picker', () => {
+    render(<Harness initial={emptyPredicate()} log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Tags' }))
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    fireEvent.change(search, { target: { value: 'q4' } })
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(search.value).toBe('')
+    expect(screen.getByPlaceholderText('Search...')).toBe(search)
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+  })
+})

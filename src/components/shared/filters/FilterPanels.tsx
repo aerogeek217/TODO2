@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, 
 import { MARKER_KEYS, type MarkerKey, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
+import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import { PickerEntityMenu } from '../EntityMenu'
 import picker from './FilterPicker.module.css'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
@@ -209,10 +210,17 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
               placeholder="Search..."
               value={search.text}
               onChange={(e) => search.setText(e.target.value)}
+              {...{ [ESCAPE_CLEARS_ATTR]: '' }}
               onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  if (search.text) search.setText('')
-                  else search.onEscape()
+                if (e.key !== 'Escape') return
+                // Esc empties the search first (the popover leaves it to the
+                // field while it has text); the next one closes the picker.
+                if (search.text) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  search.setText('')
+                } else {
+                  search.onEscape()
                 }
               }}
             />
