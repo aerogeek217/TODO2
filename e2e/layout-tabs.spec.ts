@@ -84,6 +84,8 @@ test('Move left / right from a tab’s menu, by keyboard; each is one undo step'
   await expect(again.getByRole('menuitem', { name: 'Move right' })).toBeDisabled()
   await again.getByRole('menuitem', { name: 'Move left' }).click()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Second', 'Third'])
+  // The move's undo step is pushed once its write lands: wait for it, or Ctrl+Z takes back the move before.
+  await expect.poll(() => storedOrder(page)).toEqual(['Main', 'Second', 'Third'])
   // Undo (Ctrl+Z) takes the last move back.
   await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
   await page.keyboard.press('Control+z')
