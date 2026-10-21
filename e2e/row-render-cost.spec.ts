@@ -123,3 +123,20 @@ test('a row hover renders the rows it leaves and enters, not the editor host whi
   expect(counts.ListWidgetBody).toBe(0)
   expect(counts.TopBar).toBe(0)
 })
+
+test('a task write renders that task’s rows, not the shell or the editor host', async ({ page }) => {
+  await installRenderCounter(page, WATCHED)
+  await seedWorkspace(page, SEED)
+  await settled(page)
+  const plain = wsListWidget(page, 'plain')
+  const checkbox = rowWith(page, plain, 'data-todo-id', 'Task 2').getByRole('checkbox')
+  await checkbox.hover()
+  await expect(rowWith(page, plain, 'data-hovered-synced', 'Task 2')).toHaveCount(1)
+  await resetRenderCounts(page)
+  await checkbox.click()
+  await expect(rowWith(page, plain, 'data-todo-id', 'Task 2')).toHaveCount(0)
+  const counts = await readRenderCounts(page)
+  for (const shell of ['AppShell', 'TopBar', 'WorkspacePage', 'TaskEditPopupHost']) {
+    expect(counts[shell], `${shell} rendered by a task write`).toBe(0)
+  }
+})
