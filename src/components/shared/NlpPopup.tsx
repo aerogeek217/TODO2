@@ -26,6 +26,8 @@ interface NlpPopupProps {
   view: AutocompleteView
   selectedIndex: number
   onPick: (row: AutocompleteRow) => void
+  /** The pointer moved over row `index`: the host makes it the highlighted (active) row. */
+  onHighlight?: (index: number) => void
   /** Positioning: the host anchors the popup (portal + fixed, or absolute). */
   className?: string
   style?: CSSProperties
@@ -59,12 +61,14 @@ function rowKey(row: AutocompleteRow, i: number): string {
  * The task-text autocomplete popup (`@` people, `#` tags, `/` commands and
  * their arguments) for an `AutocompleteView` from `services/nlp-autocomplete`.
  * Presentational: rows are picked on a left-button mousedown (so the input
- * keeps focus); keys are the host's (`hooks/use-nlp-autocomplete`). With
+ * keeps focus); moving the pointer over a row highlights it (`onHighlight` —
+ * a move, not a popup opening under a resting pointer); keys are the host's
+ * (`hooks/use-nlp-autocomplete`). With
  * `entityMenu`, a right-click on a person / tag row — or Shift+F10 / the
  * context-menu key in the host's field on the active one — opens its menu
  * (`PickerEntityMenu`) without picking it; the host keeps its text and caret.
  */
-export function NlpPopup({ view, selectedIndex, onPick, className, style, popupRef, entityMenu }: NlpPopupProps) {
+export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, style, popupRef, entityMenu }: NlpPopupProps) {
   const popupId = useId()
   /** The person / tag whose menu is open, and where. */
   const [menu, setMenu] = useState<{ kind: 'person' | 'tag'; id: number; x: number; y: number } | null>(null)
@@ -111,9 +115,12 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
     openMenu(row, e.clientX, e.clientY)
   }
 
+  const hover = (i: number) => () => { if (i !== selectedIndex) onHighlight?.(i) }
+
   const renderRow = (row: AutocompleteRow, i: number) => {
     const active = i === selectedIndex
     const cls = `${styles.item} ${active ? styles.active : ''}`
+    const common = { 'data-row-index': i, onMouseMove: hover(i) }
     switch (row.kind) {
       case 'entity':
         return (
@@ -123,8 +130,7 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
             role="option"
             aria-selected={active}
             className={cls}
-            data-row-index={i}
-            onMouseDown={pick(row)}
+            {...common} onMouseDown={pick(row)}
             onContextMenu={entityMenu ? rowMenu(row) : undefined}
           >
             {row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
@@ -140,7 +146,7 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
             role="option"
             aria-selected={active}
             className={`${cls} ${person ? styles.createPerson : styles.createTag}`}
-            onMouseDown={pick(row)}
+            {...common} onMouseDown={pick(row)}
           >
             {person && <span className={styles.newAvatar} aria-hidden="true">{row.name.charAt(0).toUpperCase()}</span>}
             <span className={styles.name}>
@@ -151,7 +157,7 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
       }
       case 'command':
         return (
-          <button key={rowKey(row, i)} type="button" role="option" aria-selected={active} className={cls} onMouseDown={pick(row)}>
+          <button key={rowKey(row, i)} type="button" role="option" aria-selected={active} className={cls} {...common} onMouseDown={pick(row)}>
             <span className={styles.icon} data-command={row.command.name}><CommandIcon command={row.command.name} /></span>
             <span className={styles.name}><Marked text={`/${row.command.name}`} length={row.matchLength ? row.matchLength + 1 : 0} /></span>
             <span className={styles.detail}>{row.command.description}</span>
@@ -165,7 +171,7 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
             role="option"
             aria-selected={active}
             className={`${cls} ${row.separator ? styles.separated : ''}`}
-            onMouseDown={pick(row)}
+            {...common} onMouseDown={pick(row)}
           >
             {row.status && (
               <span className={styles.icon} style={{ color: row.status.color }}>
@@ -185,7 +191,7 @@ export function NlpPopup({ view, selectedIndex, onPick, className, style, popupR
             role="option"
             aria-selected={active}
             className={`${cls} ${styles.parsed}`}
-            onMouseDown={pick(row)}
+            {...common} onMouseDown={pick(row)}
           >
             <span className={styles.icon} data-command={view.command}>
               {view.command === 'followup' ? <FollowupFlagIcon /> : <CalendarIcon />}

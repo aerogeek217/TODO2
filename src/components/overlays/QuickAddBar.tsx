@@ -855,6 +855,7 @@ export function QuickAddBar({
               view={ac.state.view}
               selectedIndex={ac.state.selectedIndex}
               onPick={(row) => ac.select(row, inputRef.current)}
+              onHighlight={ac.highlight}
               popupRef={setPopupEl}
               className={styles.popup}
               style={{ top: popupStyle.top, left: popupStyle.left, width: POPUP_WIDTH_PX }}

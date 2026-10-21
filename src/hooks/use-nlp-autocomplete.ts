@@ -7,6 +7,7 @@ import {
   bestMatchCompletion,
   carrySelection,
   computeAutocomplete,
+  implicitAccept,
   isSelectable,
   isVisible,
   type AutocompleteItem,
@@ -19,9 +20,9 @@ export { NLP_TRIGGERS, type NlpTrigger, type AutocompleteItem, type Autocomplete
 export interface AutocompleteState {
   visible: boolean
   view: AutocompleteView | null
-  /** The active row (↑/↓ move it, no wrap). */
+  /** The highlighted row (↑/↓ and the pointer move it, no wrap). */
   selectedIndex: number
-  /** ↑/↓ moved the active row in this list (with `enterSubmits`, ⏎ then picks it). */
+  /** ↑/↓ moved the highlighted row in this list (with `enterSubmits`, ⏎ then picks it). */
   navigated: boolean
   /** Left offset of the trigger character within the input, for anchoring. */
   caretLeft: number
@@ -76,11 +77,13 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * `services/nlp-autocomplete` with popup state, caret anchoring and keys.
  * Hosts call `handleInputChange` on every change, route keydown through
  * `handleKeyDown` (true = consumed: prevent default, stop propagation), and
- * render `NlpPopup` with `state`. While the popup is open Tab picks the
- * active row; ⏎ picks it too — or, with `enterSubmits`, only after ↑/↓
- * moved it, and otherwise goes to the host, which submits
- * `completeForSubmit(value)` (the half-typed token completed to its best
- * match).
+ * render `NlpPopup` with `state` (its `onHighlight` → `highlight`). While
+ * the popup is open Tab picks the highlighted row; ⏎ picks it too — or, with
+ * `enterSubmits`, only after ↑/↓ moved it, and otherwise goes to the host,
+ * which submits `completeForSubmit(value)` (the half-typed token completed to
+ * the highlighted row). Typing on past an `@` / `#` token without picking (a
+ * space, punctuation, the caret moved off it) completes it to the
+ * highlighted person / tag (`implicitAccept`).
  */
 export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
@@ -88,14 +91,28 @@ export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEM
   const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
   const followupDefault = useSettingsStore(newTaskFollowupInterval)
   const onApplyRef = useLatestRef(onApply)
+  const stateRef = useLatestRef(state)
 
   const dismiss = useCallback(() => setState(initialState), [])
 
-  const handleInputChange = useCallback((value: string, cursor: number, input: TextInput | null) => {
+  const handleInputChange = useCallback((typedValue: string, typedCursor: number, input: TextInput | null) => {
+    const sources = { people, tags, statuses, commands, followupDefault, today: new Date() }
+    const prev = lastInputRef.current
+    const open = stateRef.current
+    let value = typedValue
+    let cursor = typedCursor
+    let view = computeAutocomplete(value, cursor, sources)
+    // Typed on past an `@` / `#` token without picking: the highlighted person / tag.
+    if (prev && open.visible && open.view) {
+      const done = implicitAccept({ value: prev.value, view: open.view, index: open.selectedIndex }, value, cursor, view)
+      if (done) {
+        value = done.value
+        cursor = done.cursor
+        onApplyRef.current(value, cursor)
+        view = computeAutocomplete(value, cursor, sources)
+      }
+    }
     lastInputRef.current = { value, cursor, input }
-    const view = computeAutocomplete(value, cursor, {
-      people, tags, statuses, commands, followupDefault, today: new Date(),
-    })
     if (!isVisible(view)) {
       setState((s) => (s.visible ? initialState : s))
       return
@@ -111,7 +128,7 @@ export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEM
         caretLeft: measureCaretLeft(input, value, view.anchor),
       }
     })
-  }, [people, tags, statuses, commands, followupDefault])
+  }, [people, tags, statuses, commands, followupDefault, stateRef, onApplyRef])
 
   // The candidates changed (a person renamed or deleted from a row's menu):
   // an open popup shows the new rows at once.
@@ -156,10 +173,15 @@ export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEM
     return false
   }, [state.visible, state.view, state.selectedIndex, state.navigated, enterSubmits, select, dismiss])
 
-  /** `value` with the token the popup is open on completed to its best match (unchanged when it's closed). */
+  /** `value` with the token the popup is open on completed to the highlighted row (unchanged when it's closed). */
   const completeForSubmit = useCallback((value: string): string => (
-    state.visible && state.view ? bestMatchCompletion(value, state.view) : value
-  ), [state.visible, state.view])
+    state.visible && state.view ? bestMatchCompletion(value, state.view, state.selectedIndex) : value
+  ), [state.visible, state.view, state.selectedIndex])
 
-  return { state, handleInputChange, handleKeyDown, select, dismiss, completeForSubmit }
+  /** The pointer moved over row `index`: it becomes the highlighted row. */
+  const highlight = useCallback((index: number) => {
+    setState((s) => (s.view && isSelectable(s.view.rows[index]) ? { ...s, selectedIndex: index } : s))
+  }, [])
+
+  return { state, handleInputChange, handleKeyDown, select, dismiss, completeForSubmit, highlight }
 }

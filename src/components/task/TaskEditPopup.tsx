@@ -577,6 +577,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onClose={onClose}
           acState={ac.state}
           onAcPick={(row) => ac.select(row, titleRef.current)}
+          onAcHighlight={ac.highlight}
           isDraft={isDraft}
         />
 

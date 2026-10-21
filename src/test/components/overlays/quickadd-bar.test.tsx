@@ -312,6 +312,49 @@ describe('QuickAddBar', () => {
     expect(popupTexts.some((t) => t.includes('@Bob'))).toBe(false)
   })
 
+  describe('the highlighted row is what you get', () => {
+    /** Types `value` with the caret at its end (jsdom doesn't move the caret on a change). */
+    function typeTo(value: string) {
+      const input = getInput()
+      input.setSelectionRange(value.length, value.length)
+      fireEvent.change(input, { target: { value } })
+      return input
+    }
+    const option = (name: RegExp) => screen.getByRole('option', { name })
+
+    it('a space typed after the token completes it to the highlighted person', () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeTo('Call @an')
+      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
+      typeTo('Call @an ')
+      expect(getInput().value).toBe('Call @Anna ')
+    })
+
+    it('moving the pointer over a row highlights it; Enter then submits with that one', () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Hannah', initials: 'HA' }] })
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @an')
+      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
+      fireEvent.mouseMove(option(/@Hannah/))
+      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'false')
+      fireEvent.keyDown(getInput(), { key: 'Enter' })
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+      expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([3])
+    })
+
+    it('narrowing keeps the highlighted person, not the index', () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Hannah', initials: 'HA' }] })
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeTo('@an') // Anna, Hannah
+      fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
+      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      typeTo('@ann') // Anna, Hannah — Hannah stays highlighted
+      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+    })
+  })
+
   it('/status renders the status chip; :status is plain text', () => {
     const onSubmit = vi.fn()
     render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)

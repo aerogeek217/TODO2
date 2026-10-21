@@ -100,3 +100,30 @@ test.describe('QuickAddBar @ mention picker', () => {
     expect(rows[0]?.personId).toBe(targetId)
   })
 })
+
+test.describe('QuickAddBar @ popup: the highlighted row is what you get', () => {
+  test('the pointer moves the highlight; a space typed after @Fr completes to the highlighted person', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }, { name: 'Frida', initials: 'FA' }] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Call @Fr')
+    const popup = page.getByRole('listbox', { name: 'People' })
+    const fred = popup.getByRole('option', { name: /@Fred$/ })
+    const frida = popup.getByRole('option', { name: /@Frida$/ })
+    await expect(fred).toHaveAttribute('aria-selected', 'true')
+
+    // One highlighted row: the pointer moves it.
+    await frida.hover()
+    await expect(frida).toHaveAttribute('aria-selected', 'true')
+    await expect(fred).toHaveAttribute('aria-selected', 'false')
+    await fred.hover()
+    await expect(fred).toHaveAttribute('aria-selected', 'true')
+
+    // Typing on without picking uses the highlighted row.
+    await input.press('Space')
+    await expect(input).toHaveValue('Call @Fred ')
+    await expect(popup).toHaveCount(0)
+  })
+})

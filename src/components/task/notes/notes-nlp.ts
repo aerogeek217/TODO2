@@ -1,10 +1,11 @@
-import { Facet, StateEffect, StateField, RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state'
+import { EditorState, Facet, StateEffect, StateField, RangeSetBuilder, type Extension, type TransactionSpec } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import type { Person, Status } from '../../../models'
 import {
   applyAutocompletePick,
   carrySelection,
   computeAutocomplete,
+  implicitAccept,
   isSelectable,
   isVisible,
   type AutocompleteRow,
@@ -31,6 +32,10 @@ import { tokenTints } from '../../../services/nlp-token-tints'
  *   host's Escape / outside handlers see them.
  * - Picking a create row inserts the token and calls `onCreate` at once, so
  *   the person or tag exists before the line is converted.
+ * - Typing on past an `@` / `#` token without picking (a space or punctuation
+ *   right after it, the caret moved off it) completes it to the highlighted
+ *   person / tag (`implicitAccept`, in a transaction filter); a highlighted
+ *   create row leaves the text as typed — a typed space never creates.
  *
  * The popup itself is React (`NotesNlpPopup`), reading `notesPopupField`.
  */
@@ -147,6 +152,41 @@ export function pickNotesPopupRow(view: EditorView, row: AutocompleteRow): boole
   if (row.kind === 'create') void config.onCreate(row.trigger, row.name)
   return true
 }
+
+/** Makes row `index` the highlighted one (the pointer moved over it). */
+export function highlightNotesPopupRow(view: EditorView, index: number): void {
+  const popup = view.state.field(notesPopupField, false)
+  if (!popup || popup.selectedIndex === index || !isSelectable(popup.view.rows[index])) return
+  view.dispatch({ effects: setNotesPopupIndex.of(index) })
+}
+
+/**
+ * Typing on past an open `@` / `#` popup (a typed character, or a caret
+ * move): the token is completed to the highlighted person / tag in the same
+ * step (`implicitAccept`).
+ */
+const implicitAcceptFilter = EditorState.transactionFilter.of((tr) => {
+  const popup = tr.startState.field(notesPopupField, false)
+  const config = tr.startState.facet(notesNlpConfig)
+  if (!popup || !config || popup.view.mode !== 'entity') return tr
+  if (tr.docChanged ? !tr.isUserEvent('input.type') : !tr.selection) return tr
+  const before = tr.startState.doc.lineAt(popup.lineFrom).text
+  const line = tr.newDoc.lineAt(tr.changes.mapPos(popup.lineFrom))
+  const head = tr.newSelection.main.head
+  const onLine = head >= line.from && head <= line.to
+  const cursor = onLine ? head - line.from : -1
+  const next = onLine ? computeAutocomplete(line.text, cursor, config.sources()) : null
+  const done = implicitAccept({ value: before, view: popup.view, index: popup.selectedIndex }, line.text, cursor, next)
+  if (!done) return tr
+  const { from, to } = popup.view
+  const insert = done.value.slice(from, to + done.value.length - line.text.length)
+  const complete: TransactionSpec = {
+    changes: { from: line.from + from, to: line.from + to, insert },
+    sequential: true,
+    userEvent: 'input.complete',
+  }
+  return [tr, complete]
+})
 
 /** Popup keys, ahead of every other handler while the popup is open. */
 const popupKeys = ViewPlugin.fromClass(class {
@@ -276,6 +316,7 @@ export function notesNlp(config: NotesNlpConfig): Extension {
     notesPopupField,
     notesPopupHeld,
     popupKeys,
+    implicitAcceptFilter,
     tints,
     EditorView.focusChangeEffect.of(notesPopupFocusEffect),
   ]

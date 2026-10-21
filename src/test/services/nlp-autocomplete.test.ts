@@ -3,6 +3,7 @@ import {
   applyAutocompletePick,
   bestMatchCompletion,
   carrySelection,
+  implicitAccept,
   computeAutocomplete,
   isPartialDateArgument,
   isVisible,
@@ -377,12 +378,30 @@ describe('tokenTints', () => {
 })
 
 describe('carrySelection', () => {
-  it('keeps the active row (clamped) while the same list narrows', () => {
+  it('keeps the highlighted command while the same list narrows — by what it is, not its index', () => {
     const a = at('x /')
     const b = at('x /f')
     if (!a || !b) throw new Error('no popup')
-    expect(carrySelection(a, 5, b)).toBe(b.rows.length - 1)
-    expect(carrySelection(a, 0, b)).toBe(0)
+    // /followup: 5th in the full list, 2nd under /f.
+    const followupAt = a.rows.findIndex((r) => r.kind === 'command' && r.command.name === 'followup')
+    expect(followupAt).toBe(4)
+    expect(carrySelection(a, followupAt, b)).toBe(1)
+    const kept = b.rows[1]
+    expect(kept?.kind === 'command' && kept.command.name).toBe('followup')
+    // Highlighted a command the narrower list drops: the best match.
+    const dueAt = a.rows.findIndex((r) => r.kind === 'command' && r.command.name === 'due')
+    expect(carrySelection(a, dueAt, b)).toBe(0)
+  })
+
+  it('keeps the highlighted person while narrowing moves them to another index', () => {
+    const src = { ...sources, people: [...people, { id: 3, name: 'Danny', initials: 'DY', kind: 'person' as const }] }
+    const a = at('x @an', src) // Anna, Dana Kim, Danny (substring)
+    const b = at('x @ann', src) // Anna, Danny
+    if (!a || !b) throw new Error('no popup')
+    const dannyAt = a.rows.findIndex((r) => r.kind === 'entity' && r.item.name === 'Danny')
+    expect(dannyAt).toBe(2)
+    const kept = b.rows[carrySelection(a, dannyAt, b)]
+    expect(kept?.kind === 'entity' && kept.item.name).toBe('Danny')
   })
 
   it('resets to the first row for another list or trigger', () => {
@@ -407,5 +426,60 @@ describe('candidate builders', () => {
       .toEqual(['alpha', 'zeta'])
     expect(statusItems([{ id: 3, name: 'Done', color: '#0f0', icon: 'check', sortOrder: 0 }]))
       .toEqual([{ id: 3, name: 'Done', color: '#0f0', icon: 'check', kind: 'status' }])
+  })
+})
+
+describe('bestMatchCompletion — the highlighted row', () => {
+  it('completes to the row at `index` (default: the first)', () => {
+    const view = at('Call @an')
+    if (!view) throw new Error('no popup')
+    expect(bestMatchCompletion('Call @an', view)).toBe('Call @Anna ')
+    expect(bestMatchCompletion('Call @an', view, 1)).toBe('Call @"Dana Kim" ')
+  })
+})
+
+describe('implicitAccept — typing on uses the highlighted row', () => {
+  const open = (text: string) => {
+    const view = at(text)
+    if (!view) throw new Error('no popup')
+    return view
+  }
+  const typed = (prev: string, index: number, value: string, cursor = value.length) =>
+    implicitAccept({ value: prev, view: open(prev), index }, value, cursor, computeAutocomplete(value, cursor, sources))
+
+  it('a space after the token completes it to the highlighted person, the space kept', () => {
+    expect(typed('Call @an', 0, 'Call @an ')).toEqual({ value: 'Call @Anna ', cursor: 11 })
+    expect(typed('Call @an', 1, 'Call @an ')).toEqual({ value: 'Call @"Dana Kim" ', cursor: 17 })
+  })
+
+  it('punctuation does too; a tag completes the same way', () => {
+    expect(typed('Call @an', 0, 'Call @an,')).toEqual({ value: 'Call @Anna,', cursor: 11 })
+    expect(typed('Plan #ba', 0, 'Plan #ba ')).toEqual({ value: 'Plan #Backend ', cursor: 14 })
+  })
+
+  it('moving the caret off the token completes it; the caret stays where it went', () => {
+    const text = 'Call @an now'
+    const view = computeAutocomplete(text, 8, sources)
+    if (!view) throw new Error('no popup')
+    // Back to the start: nothing moves before the caret.
+    expect(implicitAccept({ value: text, view, index: 0 }, text, 0, computeAutocomplete(text, 0, sources)))
+      .toEqual({ value: 'Call @Anna now', cursor: 0 })
+    // To the end: the caret moves with the text after the token.
+    expect(implicitAccept({ value: text, view, index: 0 }, text, text.length, computeAutocomplete(text, text.length, sources)))
+      .toEqual({ value: 'Call @Anna now', cursor: 14 })
+    // Within the token: still open, nothing yet.
+    expect(implicitAccept({ value: text, view, index: 0 }, text, 7, computeAutocomplete(text, 7, sources))).toBeNull()
+  })
+
+  it('nothing when the popup goes on (a letter typed), a create row is highlighted, or nothing was typed after the trigger', () => {
+    expect(typed('Call @an', 0, 'Call @ann')).toBeNull()
+    const create = open('Call @zed')
+    expect(create.rows.map((r) => r.kind)).toEqual(['create'])
+    expect(implicitAccept({ value: 'Call @zed', view: create, index: 0 }, 'Call @zed ', 10, null)).toBeNull()
+    expect(typed('Call @', 0, 'Call @ ')).toBeNull()
+  })
+
+  it('nothing for an edit that is neither (a deletion)', () => {
+    expect(typed('Call @an', 0, 'Call @a')).toBeNull()
   })
 })

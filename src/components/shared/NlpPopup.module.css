@@ -53,7 +53,7 @@
   cursor: pointer;
 }
 
-.item:hover,
+/* One highlighted row: the pointer moves the highlight (`onHighlight`), so hover itself draws nothing. */
 .item.active {
   background: var(--color-tint-8);
 }

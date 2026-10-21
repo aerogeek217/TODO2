@@ -137,17 +137,37 @@ export function statusItems(statuses: readonly Status[]): AutocompleteItem[] {
 }
 
 /**
- * The active row after the popup re-evaluates: kept (clamped) while the same
- * list narrows — same mode and trigger position — otherwise the first row.
+ * What a row stands for across re-evaluations: the same person / tag /
+ * status, command or value — or the create row, whatever name it offers.
+ */
+function rowIdentity(row: AutocompleteRow): string {
+  switch (row.kind) {
+    case 'entity': return `${row.item.kind}:${row.item.id}`
+    case 'create': return 'create'
+    case 'command': return `command:${row.command.name}`
+    case 'value': return `value:${row.insert}`
+    case 'parsed': return 'parsed'
+    case 'error': return 'error'
+  }
+}
+
+/**
+ * The active row after the popup re-evaluates: while the same list narrows
+ * (same mode and trigger position), the row standing for what was
+ * highlighted (the same person, tag, command…) if it is still listed;
+ * otherwise the first row — the best match.
  */
 export function carrySelection(
   prev: AutocompleteView | null | undefined,
   prevIndex: number,
   next: AutocompleteView,
 ): number {
-  return prev?.mode === next.mode && prev.anchor === next.anchor
-    ? Math.min(prevIndex, Math.max(0, next.rows.length - 1))
-    : 0
+  if (prev?.mode !== next.mode || prev.anchor !== next.anchor) return 0
+  const was = prev.rows[prevIndex]
+  if (!was) return 0
+  const id = rowIdentity(was)
+  const at = next.rows.findIndex((r) => rowIdentity(r) === id)
+  return at === -1 ? 0 : at
 }
 
 /** Rows that a key or click can pick (an error row can't). */
@@ -465,8 +485,7 @@ export function applyAutocompletePick(
     case 'entity': {
       // Tags stay bare (single-word); people quote a name that isn't bare
       // (a space, a hyphen …), so the token reads back as the whole name.
-      const name = row.item.name
-      insert = view.trigger === '#' ? `#${name}` : mentionToken(name)
+      insert = entityToken(view, row.item)
       break
     }
     case 'create':
@@ -490,20 +509,61 @@ export function applyAutocompletePick(
 }
 
 /**
- * `value` with the half-typed token `view` is open on completed to its best
- * match — the first row — for a submit that doesn't wait for a pick: a
- * person or tag, a flag command (`/ur` → `/urgent`), or an argument
- * suggestion (`/due tom` → `tomorrow`). Unchanged when nothing was typed
- * after the trigger (or the command), when the first row adds nothing (a new
- * name to create, a date that already reads), for an argument command
- * without its argument, and for an unreadable or still partial argument —
- * those stay in the title as typed.
+ * `value` with the half-typed token `view` is open on completed to the
+ * highlighted row (`index`; the best match — the first row — unless ↑ / ↓ or
+ * the pointer moved it), for a submit that doesn't wait for a pick: a person
+ * or tag, a flag command (`/ur` → `/urgent`), or an argument suggestion
+ * (`/due tom` → `tomorrow`). Unchanged when nothing was typed after the
+ * trigger (or the command), when the row adds nothing (a new name to create,
+ * a date that already reads), for an argument command without its argument,
+ * and for an unreadable or still partial argument — those stay in the title
+ * as typed.
  */
-export function bestMatchCompletion(value: string, view: AutocompleteView): string {
+export function bestMatchCompletion(value: string, view: AutocompleteView, index = 0): string {
   if (view.query.trim() === '') return value
-  const row = view.rows[0]
+  const row = view.rows[index]
   if (!row) return value
   if (row.kind === 'create' || row.kind === 'parsed' || row.kind === 'error') return value
   if (row.kind === 'command' && takesArgument(row.command.name)) return value
   return applyAutocompletePick(value, view, row)?.value ?? value
+}
+
+/** The token text picking an existing person / tag writes (`@Ann`, `@"Ann Lee"`, `#q4`). */
+function entityToken(view: AutocompleteView, item: AutocompleteItem): string {
+  return view.trigger === '#' ? `#${item.name}` : mentionToken(item.name)
+}
+
+/**
+ * Typing on past an open `@` / `#` popup without picking — a space or
+ * punctuation typed right after the token, or the caret moved off it — uses
+ * the highlighted row: an existing person / tag completes the token to its
+ * name, as Tab would, the typed key kept after it. `prev` is the text the
+ * popup was open on with its view and highlighted row; `value` / `cursor`
+ * the input now. Null when nothing is to be completed: another popup or the
+ * same token still open (`next` visible at the same trigger), a highlighted
+ * create row (the text stays as typed), nothing typed after the trigger, or
+ * an edit that isn't one of those two (a deletion, a paste elsewhere).
+ */
+export function implicitAccept(
+  prev: { value: string; view: AutocompleteView; index: number },
+  value: string,
+  cursor: number,
+  next: AutocompleteView | null,
+): { value: string; cursor: number } | null {
+  const { view } = prev
+  if (view.mode !== 'entity' || view.query.trim() === '') return null
+  if (isVisible(next) && next.mode === view.mode && next.anchor === view.anchor) return null
+  const row = view.rows[prev.index]
+  if (row?.kind !== 'entity') return null
+  const head = prev.value.slice(0, view.to)
+  const tail = prev.value.slice(view.to)
+  if (!value.startsWith(head) || !value.endsWith(tail)) return null
+  const typed = value.slice(view.to, value.length - tail.length)
+  // Caret moved off the token (nothing typed), or a space / punctuation typed right after it.
+  if (typed !== '' && !/^[^\p{L}\p{M}\p{N}_]+$/u.test(typed)) return null
+  if (typed === '' && cursor >= view.from && cursor <= view.to) return null
+  const insert = entityToken(view, row.item)
+  const completed = `${value.slice(0, view.from)}${insert}${value.slice(view.to)}`
+  const delta = insert.length - (view.to - view.from)
+  return { value: completed, cursor: cursor >= view.to ? cursor + delta : cursor }
 }
