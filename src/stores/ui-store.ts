@@ -74,7 +74,6 @@ export interface BulkConfirmation {
   message?: string        // custom dialog message
   title?: string          // custom dialog title
   confirmLabel?: string   // custom confirm button text
-  skipIds?: number[]      // if provided, cancel completes/acts on these IDs instead of doing nothing
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
@@ -208,7 +207,7 @@ interface UIState {
   /** Sets a list widget's selection (computed by `nextScopedSelection`). */
   setScopedSelection: (scope: string, selection: ScopedSelection) => void
   clearSelection: () => void
-  showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'skipIds' | 'onConfirm'>>) => void
+  showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'onConfirm'>>) => void
   clearBulkConfirmation: () => void
   /** Asks `prompt`; resolves true on confirm, false on cancel / Esc / backdrop. */
   askConfirmation: (prompt: ConfirmPrompt) => Promise<boolean>

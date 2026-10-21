@@ -76,14 +76,7 @@ function AppBulkConfirmDialog() {
         }
         clearBulkConfirmation()
       }}
-      onCancel={() => {
-        const { action, skipIds } = bulkConfirmation
-        if (skipIds && skipIds.length > 0) {
-          // "Cancel" acts on a subset (e.g. just the parent, not children)
-          useTodoStore.getState().bulkSetCompleted(skipIds, action === 'complete')
-        }
-        clearBulkConfirmation()
-      }}
+      onCancel={clearBulkConfirmation}
     />
   )
 }
