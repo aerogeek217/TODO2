@@ -84,7 +84,7 @@
   width: 2px;
   height: var(--cell-tab-height);
   border-radius: 1px;
-  background: var(--color-drop-line, var(--color-accent));
+  background: var(--color-accent);
   pointer-events: none;
   transform: translateX(-1px);
 }

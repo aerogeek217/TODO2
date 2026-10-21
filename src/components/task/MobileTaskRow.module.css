@@ -104,7 +104,7 @@
   padding: 4px;
   cursor: pointer;
   flex-shrink: 0;
-  min-width: var(--status-slot-w-mobile, var(--touch-target-min));
+  min-width: var(--touch-target-min);
   min-height: var(--touch-target-min);
   display: flex;
   align-items: center;

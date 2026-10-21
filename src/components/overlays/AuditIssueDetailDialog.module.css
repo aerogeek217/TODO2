@@ -21,7 +21,7 @@
 }
 
 .tablePill {
-  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--font-size-meta);
   background: var(--color-surface-high);
   border: 1px solid var(--color-border);
@@ -77,7 +77,7 @@
 }
 
 .sampleId {
-  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--color-text-secondary);
 }
 
@@ -87,7 +87,7 @@
 
 .json {
   margin: 0;
-  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--font-size-meta);
   color: var(--color-text-primary);
   background: var(--color-surface);
