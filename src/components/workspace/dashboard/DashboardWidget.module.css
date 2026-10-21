@@ -456,6 +456,13 @@ button.day:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* A count with its type's glyph (the legend's), in the type's colour. */
+.dayCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .dayBars {
   display: flex;
   flex-direction: column-reverse;

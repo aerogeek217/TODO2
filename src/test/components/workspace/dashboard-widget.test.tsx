@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { DASH_GLYPH } from '../../../utils/dash-glyphs'
 import { render, cleanup, act, within, fireEvent, screen } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { DashboardWidget, type DashboardResult } from '../../../components/workspace/dashboard/DashboardWidget'
@@ -153,6 +154,23 @@ describe('DashboardWidget — the design sample', () => {
       .toEqual(['Late', 'Today', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
     expect(days[0]!.dataset.late).toBe('true')
     expect(days[1]!.dataset.today).toBe('true')
+  })
+
+  it('Next 7 days: due and follow-up read apart without colour — a glyph on each count and in the key', () => {
+    setup()
+    const panel = section('next7')!
+    const glyphOf = (el: Element | null) => el?.querySelector('svg path')?.getAttribute('d')
+    const today = within(panel).getAllByTestId('dash-day')[1]!
+    const due = today.querySelector('[data-count="due"]')
+    const followup = today.querySelector('[data-count="followup"]')
+    expect(due?.textContent).toBe('3')
+    expect(followup?.textContent).toBe('1')
+    expect(glyphOf(due)).toBe(DASH_GLYPH.calendar)
+    expect(glyphOf(followup)).toBe(DASH_GLYPH.followup)
+    // The key shows the same glyphs beside its words.
+    const key = (label: string) => within(panel).getByText(label)
+    expect(glyphOf(key('Due'))).toBe(DASH_GLYPH.calendar)
+    expect(glyphOf(key('Follow-up'))).toBe(DASH_GLYPH.followup)
   })
 
   it('Created vs completed: the window totals', () => {
