@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedListDefinition } from '../../../models/list-definition'
+import { tabListId } from '../../../models/workspace-layout'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
@@ -10,8 +11,9 @@ import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { withCopiedParts } from '../../../utils/list-copy'
-import { findTab } from '../../../utils/workspace-layout-ops'
+import { findTab, layoutTabs } from '../../../utils/workspace-layout-ops'
 import { ListEditorBody } from '../../shared/ListEditorBody'
 import { CloseIcon, LinkIcon } from '../../shared/icons'
 import { UnsavedListDialog } from '../UnsavedPrompt'
@@ -197,6 +199,8 @@ function usePressElsewhereCloses(
       unswallow = null
     }
     const swallowRestOfPress = () => {
+      // Never two sets of blockers (two lone mousedowns in a row): the first would stay.
+      stopSwallowing()
       const block = (e: Event) => {
         e.preventDefault()
         e.stopPropagation()
@@ -310,7 +314,11 @@ function EditListPopover({ listDefinitionId, tabId, onClose, onRequestClose }: S
       ro?.disconnect()
     }
   }, [tabId, working])
-  const snapshot = useSyncExternalStore(subscribe, () => readPlacement(tabId))
+  // The tab shows another list now (Change list by keyboard, an Eisenhower tab switched): this list left the screen.
+  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
+  const tab = working ? layoutTabs(working).find((t) => t.id === tabId) : undefined
+  const tabShowsList = !working || (tab != null && tabListId(tab, eisenhowerListId) === listDefinitionId)
+  const snapshot = useSyncExternalStore(subscribe, () => (tabShowsList ? readPlacement(tabId) : MISSING))
   const placement = useMemo<Placement | null>(() => (snapshot === MISSING ? null : JSON.parse(snapshot) as Placement), [snapshot])
 
   // The list left the screen (tab closed, switched, collapsed): nothing to preview.

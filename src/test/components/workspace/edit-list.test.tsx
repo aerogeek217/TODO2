@@ -234,6 +234,16 @@ describe('Edit list', () => {
     expect(useUIStore.getState().settingsOpen).toBe(true)
   })
 
+  it('closes when its tab shows another list now (Change list by keyboard): the list left the screen', () => {
+    open()
+    const switched: PersistedWorkspaceLayout = {
+      ...layout,
+      columns: [{ id: 'col', weight: 1, cells: [{ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 9 } }] }] }],
+    }
+    act(() => useWorkspaceStore.setState({ working: switched }))
+    expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
   it('closes when its list is deleted', () => {
     open()
     act(() => useListDefinitionStore.setState({ listDefinitions: [] }))

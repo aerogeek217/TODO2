@@ -236,7 +236,7 @@ interface UIState {
    * `then` runs once it has closed — at once when none is open.
    */
   requestCloseListEditor: (then?: () => void) => void
-  /** The host's answer to a close request: closes Edit list, then runs the request's `then`. */
+  /** The host's answer to a close request: closes Edit list, then runs the request's `then` (nothing once answered). */
   finishListEditorClose: () => void
   /** The prompt's Cancel: Edit list stays open. */
   cancelListEditorClose: () => void
@@ -418,7 +418,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   finishListEditorClose() {
-    const then = get().listEditorCloseRequest?.then
+    // Answered already (the prompt's Save resolving after its draft went):
+    // the follow-up may have opened another Edit list since.
+    const request = get().listEditorCloseRequest
+    if (request === null) return
+    const then = request.then
     set({ listEditor: null, listEditorCloseRequest: null })
     then?.()
   },

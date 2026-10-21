@@ -123,6 +123,15 @@ describe('useUIStore', () => {
     expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null, settingsOpen: true, settingsSection: 'tasks' })
   })
 
+  it('finishing a close twice (the prompt’s Save landing after the draft went) leaves the Edit list its follow-up opened', () => {
+    useUIStore.getState().openListEditor(7, 'tab-1')
+    useUIStore.getState().requestCloseListEditor(() => useUIStore.getState().openListEditor(8, 'tab-2'))
+    useUIStore.getState().finishListEditorClose()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
+    useUIStore.getState().finishListEditorClose()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
+  })
+
   it('a close request runs its follow-up at once when no Edit list is open; Cancel drops it', () => {
     let ran = 0
     useUIStore.getState().requestCloseListEditor(() => { ran++ })
