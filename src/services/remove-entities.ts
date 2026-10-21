@@ -16,39 +16,40 @@ async function reloadPeopleAndTags(): Promise<void> {
   ])
 }
 
+/** Deletes them with their assignments as a tracked write and drops them from the stores; returns the rows as they were. */
+function deleteAndForget(personIds: readonly number[], tagIds: readonly number[]): Promise<RemovedEntities> {
+  return trackWrite(async () => {
+    const r = await deletePeopleAndTags(personIds, tagIds)
+    usePersonStore.getState().forgetPeople(r.people.map((p) => p.id!))
+    useTagStore.getState().forgetTags(r.tags.map((t) => t.id!))
+    return r
+  })
+}
+
 /**
  * Removes the people and tags (Settings › Unused people & tags) with their
  * task assignments, in one transaction, behind the backup gate
- * (`takeSafetySnapshot` — a redo skips it, the first run backed this data
- * up), as one undo step with the snackbar (`Remove 3 people and 2 tags`):
- * Undo puts every row back with its id and assignments. Filters naming
- * them keep the ids (they stop matching), as a single delete leaves them.
- * A failed write changes nothing and says so in the snackbar. Resolves
- * whether they were removed; never rejects, except a redo's failure, which
- * the undo store reports.
+ * (`takeSafetySnapshot`), as one undo step with the snackbar (`Remove 3
+ * people and 2 tags`): Undo puts every row back with its id and the
+ * assignments it had when last removed — a Redo removes them again (no
+ * second backup: the first run backed this data up) and captures afresh,
+ * so assignments made between Undo and Redo come back with the next Undo.
+ * Filters naming them keep the ids (they stop matching), as a single
+ * delete leaves them. A failed write changes nothing and says so in the
+ * snackbar. Resolves whether they were removed; never rejects (a failed
+ * redo throws to the undo store, which reports it).
  */
 export async function removePeopleAndTags(personIds: readonly number[], tagIds: readonly number[]): Promise<boolean> {
   if (personIds.length === 0 && tagIds.length === 0) return false
   const what = peopleAndTags(personIds.length, tagIds.length)
-  const replaying = useUndoStore.getState().isPerformingUndoRedo
-  let noBackup = false
-  if (!replaying) {
-    const snapshot = await takeSafetySnapshot(`removing ${what}`)
-    if (snapshot === 'cancelled') return false
-    noBackup = snapshot === 'without-backup'
-  }
+  const snapshot = await takeSafetySnapshot(`removing ${what}`)
+  if (snapshot === 'cancelled') return false
 
   let removed: RemovedEntities
   try {
-    removed = await trackWrite(async () => {
-      const r = await deletePeopleAndTags(personIds, tagIds)
-      usePersonStore.getState().forgetPeople(r.people.map((p) => p.id!))
-      useTagStore.getState().forgetTags(r.tags.map((t) => t.id!))
-      return r
-    })
+    removed = await deleteAndForget(personIds, tagIds)
   } catch (e) {
     console.error(`Failed to remove ${what}:`, e)
-    if (replaying) throw e
     useUndoStore.getState().notify(`Couldn’t remove ${what}. Nothing was changed.`)
     return false
   }
@@ -57,8 +58,8 @@ export async function removePeopleAndTags(personIds: readonly number[], tagIds: 
   if (removed.people.length === 0 && removed.tags.length === 0) return false
   const description = removeEntitiesDescription(removed.people.length, removed.tags.length)
   undoable(
-    noBackup ? `${description} — no backup was taken` : description,
-    async () => { await removePeopleAndTags(personIds, tagIds) },
+    snapshot === 'without-backup' ? `${description} — no backup was taken` : description,
+    async () => { removed = await deleteAndForget(personIds, tagIds) },
     async () => {
       await trackWrite(() => restorePeopleAndTags(removed))
       await reloadPeopleAndTags()

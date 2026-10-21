@@ -67,6 +67,20 @@ describe('removePeopleAndTags', () => {
     expect(useUndoStore.getState().undoStack).toHaveLength(1)
   })
 
+  it('Undo after a Redo restores what the Redo removed: an assignment made between Undo and Redo comes back', async () => {
+    await removePeopleAndTags([1], [10])
+    await useUndoStore.getState().undo()
+    const newTodo = await db.todos.add(makeTodo({ id: 3, title: 'New' }))
+    await db.todoPeople.add({ todoId: newTodo, personId: 1 })
+
+    await useUndoStore.getState().redo()
+    expect(await db.todoPeople.where('personId').equals(1).count()).toBe(0)
+    expect(backupScheduler.snapshotBeforeDestructive).toHaveBeenCalledTimes(1) // the redo takes no second backup
+
+    await useUndoStore.getState().undo()
+    expect((await db.todoPeople.where('personId').equals(1).toArray()).map((j) => j.todoId).sort()).toEqual([2, 3])
+  })
+
   it('a failed write changes nothing and says so, with no undo step', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(db.tags, 'bulkDelete').mockRejectedValue(new Error('disk'))
