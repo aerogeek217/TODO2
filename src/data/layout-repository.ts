@@ -98,18 +98,55 @@ export function storedListRefs(row: unknown): Set<number> {
   return ids
 }
 
-/** What removing a layout's own lists did: the lists deleted, as they were (with their manual order). */
+/** What removing a layout's own lists did: the lists deleted, as they were (with their manual order), and the ones handed to another layout. */
 export interface OwnedListsRemoved {
   deleted: number[]
   /** The deleted lists' rows and manual order, to bring them back (`restoreLists`). */
   rows: { defs: PersistedListDefinition[]; ranks: PersistedListOrder[] }
+  /**
+   * The lists another stored layout names (data a file or another build
+   * wrote — the app never shows another layout's list): handed to the first
+   * such layout, in the picker's order, instead of deleted under its tab.
+   */
+  handedOver: number[]
 }
 
-/** Deletes the lists of `ids` and their manual order, as `OwnedListsRemoved`. Inside a transaction on `listDefinitions` + `listOrders`. */
-async function removeLists(ids: readonly number[]): Promise<OwnedListsRemoved> {
-  const rows = await listRows(ids)
-  await deleteLists(ids)
-  return { deleted: [...ids], rows }
+/**
+ * The stored layout rows in the picker's order, read as stored (a row
+ * another build wrote may lack a valid `sortOrder`: it goes last). Call
+ * inside a transaction on `layouts`.
+ */
+async function storedLayoutsInOrder(): Promise<Array<Partial<WorkspaceLayout> & { id: number }>> {
+  const layouts = (await db.layouts.toArray()) as Array<Partial<WorkspaceLayout> & { id: number }>
+  const order = (l: Partial<WorkspaceLayout> & { id: number }) =>
+    (typeof l.sortOrder === 'number' && Number.isFinite(l.sortOrder) ? l.sortOrder : Infinity)
+  return layouts.sort((a, b) => order(a) - order(b) || a.id - b.id)
+}
+
+/**
+ * Removes the lists of `ids`, which layout `from` owns: each one another
+ * stored layout names is handed to that layout (`OwnedListsRemoved.handedOver`),
+ * the others are deleted with their manual order. Inside a transaction on
+ * `layouts` + `listDefinitions` + `listOrders`.
+ */
+async function removeLists(from: number, ids: readonly number[]): Promise<OwnedListsRemoved> {
+  const handedOver: number[] = []
+  const deleted: number[] = []
+  const others = ids.length === 0
+    ? []
+    : (await storedLayoutsInOrder()).filter((l) => l.id !== from).map((l) => ({ id: l.id, names: storedListRefs(l) }))
+  for (const id of ids) {
+    const to = others.find((l) => l.names.has(id))?.id
+    if (to == null) {
+      deleted.push(id)
+      continue
+    }
+    await db.listDefinitions.update(id, { owner: { layoutId: to } })
+    handedOver.push(id)
+  }
+  const rows = await listRows(deleted)
+  await deleteLists(deleted)
+  return { deleted, rows, handedOver }
 }
 
 /** The rows and manual order of lists `ids`. Call inside a transaction on `listDefinitions` + `listOrders`. */
@@ -206,7 +243,7 @@ export const layoutRepository = {
     return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
       const stored = storedListRefs(await db.layouts.get(layoutId))
       const ids = (await ownedListIds(layoutId)).filter((id) => !shown.has(id) && !stored.has(id) && (!only || only.has(id)))
-      return removeLists(ids)
+      return removeLists(layoutId, ids)
     })
   },
 
@@ -238,10 +275,7 @@ export const layoutRepository = {
    */
   async adoptUnownedLists(ids: readonly number[]): Promise<number> {
     return db.transaction('rw', db.layouts, db.listDefinitions, async () => {
-      const layouts = (await db.layouts.toArray()) as Array<Partial<WorkspaceLayout> & { id: number }>
-      const order = (l: Partial<WorkspaceLayout> & { id: number }) =>
-        (typeof l.sortOrder === 'number' && Number.isFinite(l.sortOrder) ? l.sortOrder : Infinity)
-      layouts.sort((a, b) => order(a) - order(b) || a.id - b.id)
+      const layouts = await storedLayoutsInOrder()
       const layoutIds = new Set(layouts.map((l) => l.id))
       const refs = layouts.map((l) => ({ id: l.id, names: storedListRefs(l) }))
       const rows = ((await db.listDefinitions.bulkGet([...ids])) as Array<PersistedListDefinition | undefined>)
@@ -294,7 +328,7 @@ export const layoutRepository = {
       if ((await db.layouts.count()) <= 1) return null
       if (!(await db.layouts.get(id))) return null
       await db.layouts.delete(id)
-      return removeLists(await ownedListIds(id))
+      return removeLists(id, await ownedListIds(id))
     })
   },
 

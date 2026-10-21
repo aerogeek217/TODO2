@@ -337,9 +337,14 @@ function forgetDeletedLists(ids: readonly number[]): void {
   for (const id of ids) drafts.discard(id)
 }
 
-/** Takes a removal of a layout's lists into the stores: the deleted ones forgotten (`forgetDeletedLists`). */
-function applyRemoved({ deleted }: OwnedListsRemoved): void {
+/**
+ * Takes a removal of a layout's lists into the stores: the deleted ones
+ * forgotten (`forgetDeletedLists`), the ones handed to another layout read
+ * again (their owner changed).
+ */
+async function applyRemoved({ deleted, handedOver }: OwnedListsRemoved): Promise<void> {
   forgetDeletedLists(deleted)
+  if (handedOver.length > 0) await useListDefinitionStore.getState().load()
 }
 
 /**
@@ -352,7 +357,7 @@ async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promi
   const shown = new Set(bodies.flatMap((b) => [...layoutListRefs(b)]))
   try {
     const removed = await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shown))
-    applyRemoved(removed)
+    await applyRemoved(removed)
     return removed
   } catch (err) {
     console.warn('[workspace] removing the layout\'s unshown lists failed', err)
@@ -377,7 +382,7 @@ function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null,
   undoable(
     description,
     async () => {
-      applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shownNow(), ids)))
+      await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shownNow(), ids)))
     },
     async () => {
       const back = await trackWrite(() => layoutRepository.restoreLists(removed.rows))
@@ -807,14 +812,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
       if (get().activeLayoutId !== id) {
         set({ layouts, repairedIds })
-        applyRemoved(removed)
+        await applyRemoved(removed)
         return true
       }
       set({ repairedIds })
       const next = mostRecentlyUsed(layouts)
       if (next) await get().load(next.id)
       set({ layouts: get().layouts.filter((l) => l.id !== id) })
-      applyRemoved(removed)
+      await applyRemoved(removed)
       return true
     },
 

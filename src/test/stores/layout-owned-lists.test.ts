@@ -319,11 +319,23 @@ describe('page load', () => {
 })
 
 describe('a list of the layout another layout names (data edited by hand)', () => {
-  it('goes with its layout all the same: Delete layout deletes it (a layout shows only its own lists)', async () => {
+  it('Delete layout hands it to the other layout instead of deleting it under that layout’s tab', async () => {
     const w = await world()
     await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
     expect(await ws().delete(w.a)).toBe(true)
-    expect(await storedListIds()).toEqual([w.theirs, w.eisenhower])
+    expect(await storedListIds()).toEqual([w.mine1, w.theirs, w.eisenhower])
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.b })
+    expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === w.mine1)?.owner).toEqual({ layoutId: w.b })
+  })
+
+  it('a Save that no longer shows it hands it to the other layout instead of deleting it', async () => {
+    const w = await world()
+    await db.layouts.update(w.b, layoutWith('B', [lens('t', w.theirs), lens('m1b', w.mine1)]))
+    ws().closeTab('m1')
+    expect(await ws().save()).toBe(true)
+    expect((await db.listDefinitions.get(w.mine1))?.owner).toEqual({ layoutId: w.b })
+    expect(useUndoStore.getState().snackbar?.description).not.toBe('Removed the list “Mine 1”')
   })
 
   /** Layout A stored with a tab this build can't read (a number id) that shows Mine 2: it opens repaired, without it. */
