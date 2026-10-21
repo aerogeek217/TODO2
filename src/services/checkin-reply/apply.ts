@@ -27,6 +27,19 @@ export function defaultCheckinSelection(diff: CheckinReplyDiff): Set<string> {
   return keys
 }
 
+/**
+ * `selection` without the changes of the tasks in `todoIds` — tasks whose
+ * changes start unticked (e.g. not assigned to the person who replied).
+ */
+export function withoutTaskChanges(selection: ReadonlySet<string>, diff: CheckinReplyDiff, todoIds: ReadonlySet<number>): Set<string> {
+  const next = new Set(selection)
+  for (const task of diff.tasks) {
+    if (!todoIds.has(task.todo.id)) continue
+    for (const change of task.changes) next.delete(checkinChangeKey(task.todo.id, change.field))
+  }
+  return next
+}
+
 /** One task's ticked changes. */
 export interface CheckinTaskUpdate {
   todoId: number
