@@ -159,18 +159,28 @@ function stripHit(cell: CellGeometry, header: Rect, p: Point): WorkspaceDropHit 
 /**
  * A strip hit's insertion point among the panel's tabs in the layout. The
  * hit counts the tabs the strip shows; with some folded into `+N` (and the
- * active one shown out of turn), the layout's index is the shown tab's it
- * lands before — or just after the last shown tab.
+ * active one shown out of turn), a gap maps to just before the shown tab
+ * right of it, where the strip draws the drop line (the last gap: just after
+ * the last shown tab). A gap next to the dragged tab itself is no move, as on
+ * an unfolded strip — the dragged tab's own place — even when folded tabs lie
+ * between it and its shown neighbour.
  */
-function layoutTabIndex(layout: WorkspaceLayout, geo: WorkspaceGeometry, hit: { cellId: string; index: number }): number {
+function layoutTabIndex(
+  layout: WorkspaceLayout,
+  geo: WorkspaceGeometry,
+  hit: { cellId: string; index: number },
+  draggedTabId: string | null,
+): number {
   const loc = findPanel(layout, hit.cellId)
   const ids = (loc ? panelAt(layout, loc)?.tabs ?? [] : []).map((t) => t.id)
   const shown = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)].find((c) => c.id === hit.cellId)?.tabs ?? []
-  const before = shown[hit.index]
-  const beforeIdx = before ? ids.indexOf(before.id) : -1
-  if (beforeIdx !== -1) return beforeIdx
-  const last = shown.at(-1)
-  const lastIdx = last ? ids.indexOf(last.id) : -1
+  const prev = shown[hit.index - 1]
+  const next = shown[hit.index]
+  const ownIdx = draggedTabId != null ? ids.indexOf(draggedTabId) : -1
+  if (ownIdx !== -1 && (prev?.id === draggedTabId || next?.id === draggedTabId)) return ownIdx
+  const nextIdx = next ? ids.indexOf(next.id) : -1
+  if (nextIdx !== -1) return nextIdx
+  const lastIdx = prev ? ids.indexOf(prev.id) : -1
   return lastIdx !== -1 ? lastIdx + 1 : Math.min(hit.index, ids.length)
 }
 
@@ -260,8 +270,9 @@ export function dropTargetForHit(
       return last ? { kind: 'column-edge', columnId: last.id, edge: 'right' } : null
     }
     case 'tab-strip': {
-      const at = layoutTabIndex(layout, geo, hit)
-      const loc = source.type === 'tab' ? findTab(layout, source.tabId) : null
+      const dragged = source.type === 'tab' ? source.tabId : null
+      const at = layoutTabIndex(layout, geo, hit, dragged)
+      const loc = dragged != null ? findTab(layout, dragged) : null
       const index = loc?.panelId === hit.cellId && loc.tabIdx < at ? at - 1 : at
       return { kind: 'cell', cellId: hit.cellId, index }
     }

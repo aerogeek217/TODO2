@@ -175,7 +175,34 @@ test('the +N menu lists the folded tabs, and picking one shows it', async ({ pag
   expectFits(await stripState(page, 'k1'), 'after picking')
 })
 
-test('with tabs folded into +N, a tab dropped before the active tab pulled forward lands right before it', async ({ page }) => {
+/** Cell k1's tabs in the layout on screen (the working copy while edited, else the saved one). */
+const k1Tabs = (page: Page) => page.evaluate(async () => {
+  type L = { columns: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> } | null
+  const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
+    useWorkspaceStore: { getState: () => { working: L; saved: L } }
+  }
+  const s = ws.useWorkspaceStore.getState()
+  return (s.working ?? s.saved)?.columns[0]?.cells[0]?.tabs.map((t) => t.id)
+})
+
+/**
+ * Lifts `tabId`, waits for `onto` to show, checks the strip shows `shownWhileLifted`
+ * (when given), and drops on `onto`'s part at `fraction` of its width.
+ */
+async function dropOn(page: Page, tabId: string, onto: string, fraction: number, shownWhileLifted?: string[]) {
+  const from = await pointIn(wsTab(page, tabId))
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x, from.y + 8, { steps: 2 })
+  await expect(page.locator(`[data-ws-tab="${onto}"]:not([data-ws-tab-folded])`)).toBeVisible()
+  if (shownWhileLifted) expect((await stripState(page, 'k1')).shown.map((t) => t.id)).toEqual(shownWhileLifted)
+  const to = await pointIn(wsTab(page, onto), fraction)
+  await page.mouse.move(to.x, to.y, { steps: 12 })
+  await releaseDrag(page)
+}
+
+/** k1 holds TABS (n1 c1 d1 e1 c2) with the last active, beside a cell holding n2. */
+async function seedFolded(page: Page) {
   await page.setViewportSize({ width: 900, height: 800 })
   await seedWorkspace(page, {
     layouts: [{
@@ -187,25 +214,24 @@ test('with tabs folded into +N, a tab dropped before the active tab pulled forwa
     }],
   })
   const state = await stripState(page, 'k1')
-  const shown = state.shown.map((t) => t.id)
-  // The active last tab is shown, pulled forward past folded ones.
+  // n1 first, then the active last tab pulled forward past folded ones.
   expect(state.folded.length).toBeGreaterThan(0)
-  expect(shown.at(-1)).toBe('c2')
-  expect(shown).toContain('n1')
-  // Drop n1 on the left part of c2: just before it (where c2 is once the drag has lifted).
-  const from = await pointIn(wsTab(page, 'n1'))
-  await page.mouse.move(from.x, from.y)
-  await page.mouse.down()
-  await page.mouse.move(from.x, from.y + 8, { steps: 2 })
-  await expect(page.locator('[data-ws-tab="c2"]:not([data-ws-tab-folded])')).toBeVisible()
-  const to = await pointIn(wsTab(page, 'c2'), 0.2)
-  await page.mouse.move(to.x, to.y, { steps: 12 })
-  await releaseDrag(page)
-  // A layout edit, unsaved: the working copy's order.
-  await expect.poll(() => page.evaluate(async () => {
-    const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
-      useWorkspaceStore: { getState: () => { working: { columns: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> } | null } }
-    }
-    return ws.useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs.map((t) => t.id)
-  })).toEqual(['c1', 'd1', 'e1', 'n1', 'c2'])
+  expect(state.shown[0]?.id).toBe('n1')
+  expect(state.shown.at(-1)?.id).toBe('c2')
+}
+
+test('with tabs folded into +N, a tab dropped before the active tab pulled forward lands right before it', async ({ page }) => {
+  await seedFolded(page)
+  // From the other cell: just before c2 (layout index 4), past the folded ones.
+  await dropOn(page, 'n2', 'c2', 0.2)
+  await expect.poll(() => k1Tabs(page)).toEqual(['n1', 'c1', 'd1', 'e1', 'n2', 'c2'])
+})
+
+test('with tabs folded into +N, a tab dropped on the gap right after itself stays where it is', async ({ page }) => {
+  await seedFolded(page)
+  // Lifted, n1 sits right before c2 (the folded c1 d1 e1 between them in the
+  // layout): its gap before c2 is the one right after itself — no move.
+  await dropOn(page, 'n1', 'c2', 0.2, ['n1', 'c2'])
+  await expect(wsTab(page, 'n1')).toHaveAttribute('aria-selected', 'true')
+  expect(await k1Tabs(page)).toEqual(['n1', 'c1', 'd1', 'e1', 'c2'])
 })
