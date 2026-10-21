@@ -13,7 +13,7 @@ import { usePersonStore } from './person-store'
 import { useTagStore } from './tag-store'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { formatFollowupDate } from '../utils/followup'
-import { fieldsOf, revertChanges, todoChanges } from '../utils/todo-changes'
+import { fieldsOf, revertChanges, todoChanges, withOrphanedRuleDropped } from '../utils/todo-changes'
 
 /** A task to create with the people and tags it starts with (`addMany`). */
 export interface NewTaskWithAssignments {
@@ -154,8 +154,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
   function patchTodo(id: number, changes: Partial<PersistedTodoItem>, description: string): Promise<void> {
     const prev = get().todos.find((t) => t.id === id)
     if (!prev) return Promise.resolve()
-    const effective = todoChanges(prev, { ...prev, ...changes })
-    if (Object.keys(effective).length === 0) return Promise.resolve()
+    const edit = todoChanges(prev, { ...prev, ...changes })
+    if (Object.keys(edit).length === 0) return Promise.resolve()
+    // As the repository writes it: a rule left without a due date goes (undo puts it back).
+    const effective = withOrphanedRuleDropped({ ...prev, ...edit }, edit)
     const before = fieldsOf(prev, effective)
     const now = new Date()
     return optimistic(
@@ -469,8 +471,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const recurringMutations = recurringAdvances.map((r) => ({ todoId: r.id, changes: r.nextChanges }))
     const prevStates = get().todos
       .filter((t) => normalIds.includes(t.id))
-      .map((t) => ({ id: t.id, wasCompleted: t.isCompleted, prevCompletedAt: t.completedAt }))
+      .map((t) => ({ id: t.id, wasCompleted: t.isCompleted, prevCompletedAt: t.completedAt, prevRule: t.recurrenceRule }))
     const normalIdSet = new Set(normalIds)
+    // A rule without a due date to advance from: the write drops it
+    // (`withOrphanedRuleDropped`, as the repository does), the undo puts it back.
+    const ruleDropped = new Set(prevStates
+      .filter((s) => s.prevRule != null && 'recurrenceRule' in withOrphanedRuleDropped(get().todos.find((t) => t.id === s.id) ?? {}, {}))
+      .map((s) => s.id))
     const recurringNextMap = new Map(recurringAdvances.map((r) => [r.id, r.nextChanges]))
     const recurringPrevMap = new Map(recurringAdvances.map((r) => [r.id, r]))
 
@@ -490,7 +497,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
             const next = recurringNextMap.get(t.id)
             if (next) return { ...t, ...next, modifiedAt: now }
             if (normalIdSet.has(t.id)) {
-              return { ...t, isCompleted: completed, completedAt: completedAtById.get(t.id), modifiedAt: now }
+              return {
+                ...t,
+                isCompleted: completed,
+                completedAt: completedAtById.get(t.id),
+                ...(ruleDropped.has(t.id) ? { recurrenceRule: undefined } : {}),
+                modifiedAt: now,
+              }
             }
             return t
           }),
@@ -512,7 +525,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
             if (r) return { ...t, dueDate: r.prev, ...keepStamp(t) }
             const prevState = prevCompletedMap.get(t.id)
             if (prevState) {
-              return { ...t, isCompleted: prevState.wasCompleted, completedAt: prevState.prevCompletedAt, ...keepStamp(t) }
+              const rule = ruleDropped.has(t.id) && t.recurrenceRule == null ? { recurrenceRule: prevState.prevRule } : {}
+              return { ...t, isCompleted: prevState.wasCompleted, completedAt: prevState.prevCompletedAt, ...rule, ...keepStamp(t) }
             }
             return t
           }),
@@ -529,24 +543,30 @@ export const useTodoStore = create<TodoState>((set, get) => {
           // completion time, resolved once per task).
           const undoNow = new Date()
           const reverts = prevStates
-            .filter(s => s.wasCompleted !== completed)
+            .filter(s => s.wasCompleted !== completed || ruleDropped.has(s.id))
             .map(s => {
               const current = get().todos.find(t => t.id === s.id)
-              const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
-              return { id: s.id, isCompleted: s.wasCompleted, completedAt: resolveCompletedAt(current, next, undoNow) }
+              const changes: Partial<PersistedTodoItem> = {}
+              if (s.wasCompleted !== completed) {
+                const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
+                changes.isCompleted = s.wasCompleted
+                changes.completedAt = resolveCompletedAt(current, next, undoNow)
+              }
+              if (ruleDropped.has(s.id)) changes.recurrenceRule = s.prevRule
+              return { id: s.id, changes }
             })
           if (recurringAdvances.length === 0 && reverts.length === 0) return
           await todoRepository.bulkUpdate([
             ...recurringAdvances.map(r => ({ todoId: r.id, changes: { dueDate: r.prev } })),
-            ...reverts.map(r => ({ todoId: r.id, changes: { isCompleted: r.isCompleted, completedAt: r.completedAt } })),
+            ...reverts.map(r => ({ todoId: r.id, changes: r.changes })),
           ], undoNow)
-          const revertMap = new Map(reverts.map(r => [r.id, r]))
+          const revertMap = new Map(reverts.map(r => [r.id, r.changes]))
           set({
             todos: get().todos.map((t) => {
               const r = recurringPrevMap.get(t.id)
               if (r) return { ...t, dueDate: r.prev, modifiedAt: undoNow }
               const c = revertMap.get(t.id)
-              return c ? { ...t, isCompleted: c.isCompleted, completedAt: c.completedAt, modifiedAt: undoNow } : t
+              return c ? { ...t, ...c, modifiedAt: undoNow } : t
             }),
           })
         },

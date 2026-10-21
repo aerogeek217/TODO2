@@ -23,6 +23,7 @@ import type { PersistedTodoItem } from '../models'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
 import { registerModuleReset } from '../utils/module-reset'
+import { withOrphanedRuleDropped } from '../utils/todo-changes'
 
 export type SetFn = (partial: Record<string, unknown>) => void
 
@@ -263,9 +264,19 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   const idSet = new Set(ids)
   const prevValues = get().todos
     .filter((t) => idSet.has(t.id) && !sameFieldValue(t[field], value))
-    .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
+    .map((t) => ({
+      id: t.id,
+      prev: t[field],
+      modifiedAt: t.modifiedAt,
+      // A rule this write leaves without a due date: the repository drops it
+      // (`withOrphanedRuleDropped`); the store does the same, undo puts it back.
+      droppedRule: field !== 'recurrenceRule' && 'recurrenceRule' in withOrphanedRuleDropped({ ...t, [field]: value }, { [field]: value })
+        ? t.recurrenceRule
+        : undefined,
+    }))
   if (prevValues.length === 0) return
   const changedIds = new Set(prevValues.map((s) => s.id))
+  const dropsRule = new Set(prevValues.filter((s) => s.droppedRule != null).map((s) => s.id))
   // One timestamp for the store and the database write.
   const now = new Date()
   /**
@@ -282,7 +293,8 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
         if (!saved) return t
         if (onlyOwn && !sameFieldValue(t[field], value)) return t
         const stamp = !onlyOwn || t.modifiedAt === now ? { modifiedAt: saved.modifiedAt } : {}
-        return { ...t, [field]: saved.prev, ...stamp }
+        const rule = saved.droppedRule != null && t.recurrenceRule == null ? { recurrenceRule: saved.droppedRule } : {}
+        return { ...t, [field]: saved.prev, ...rule, ...stamp }
       }),
     })
   }
@@ -291,7 +303,9 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
     () => {
       set({
         todos: get().todos.map((t) =>
-          changedIds.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
+          changedIds.has(t.id)
+            ? { ...t, [field]: value, ...(dropsRule.has(t.id) ? { recurrenceRule: undefined } : {}), modifiedAt: now }
+            : t,
         ),
       })
     },
@@ -304,7 +318,10 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
       undo: async () => {
         // The rows the edit changed get their value and modifiedAt back, in
         // the database and the store alike; the others are left as they are.
-        await todoRepository.bulkUpdate(prevValues.map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } })))
+        await todoRepository.bulkUpdate(prevValues.map((s) => ({
+          todoId: s.id,
+          changes: { [field]: s.prev, ...(s.droppedRule != null ? { recurrenceRule: s.droppedRule } : {}), modifiedAt: s.modifiedAt },
+        })))
         revert(false)
       },
       showSnackbar: opts.showSnackbar,
