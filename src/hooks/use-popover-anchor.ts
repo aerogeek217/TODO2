@@ -459,6 +459,13 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       // be `window` / `document` for page scrolls, hence the Node check.
       const panel = panelElRef.current
       if (panel && e.target instanceof Node && panel.contains(e.target)) return
+      // Nor scrolls in its own flyouts (`extraInsideRefs`) or in a layer
+      // stacked above it — a submenu's or a picker's list opened from it.
+      if (e.target instanceof Node) {
+        const target = e.target
+        if (extraInsideRefsRef.current?.some((ref) => ref.current?.contains(target))) return
+        if (panel && isInLayerAbove(panel, target)) return
+      }
       if (closeOnScrollRef.current) {
         onCloseRef.current()
         return
@@ -478,7 +485,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleResize)
     }
-  }, [open, compute, anchorRef, onCloseRef, closeOnScrollRef, closeOnResizeRef])
+  }, [open, compute, anchorRef, onCloseRef, closeOnScrollRef, closeOnResizeRef, extraInsideRefsRef])
 
   // Escape close (document-level so it works even if focus has left the panel).
   useEffect(() => {

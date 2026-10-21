@@ -228,6 +228,29 @@ describe('usePopoverAnchor — dismissal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('does NOT close on a scroll in its own flyout or in a layer stacked above it (a submenu’s list); a page scroll still closes it', () => {
+    const onClose = vi.fn()
+    const { getByTestId } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 10, y: 10 }}
+        open={true}
+        onClose={onClose}
+        insideTestId="flyout"
+        panelRect={{ width: 100, height: 100 }}
+      />,
+    )
+    fireEvent.scroll(getByTestId('flyout'))
+    const layer = document.createElement('div')
+    const list = document.createElement('div')
+    layer.appendChild(list)
+    document.body.appendChild(layer)
+    fireEvent.scroll(list)
+    expect(onClose).not.toHaveBeenCalled()
+    layer.remove()
+    fireEvent.scroll(window)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('does NOT close on scroll when closeOnScroll is false', () => {
     const onClose = vi.fn()
     render(
