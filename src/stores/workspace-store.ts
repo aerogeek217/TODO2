@@ -432,6 +432,14 @@ function repairedOf(reads: readonly ReadLayout[]): Set<number> {
   return new Set(reads.filter((r) => r.fixes.length > 0).map((r) => r.layout.id))
 }
 
+/**
+ * The view-state changes made while a Save's write runs, one list per Save
+ * in flight: the Save puts them on the layout it saved, which the view
+ * changes made before it already are.
+ */
+const viewEditsDuringSave = new Set<Array<(layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout>>()
+registerModuleReset(() => { viewEditsDuringSave.clear() })
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /** Keeps (or forgets) the open layout's edits in the browser, once the workspace is open. */
   function keepDraft(): void {
@@ -561,9 +569,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       ...(nextSaved && nextSaved !== saved ? { layouts: replaceLayout(layouts, nextSaved) } : {}),
     })
     keepDraft()
+    if (nextSaved && nextSaved !== saved) for (const edits of viewEditsDuringSave) edits.push(fn)
     if (nextSaved && nextSaved !== saved && !repairedIds.has(nextSaved.id)) {
-      // View state is a convenience: a failed write keeps it for this session.
-      await layoutRepository.put(nextSaved).catch((err: unknown) => {
+      // On the layout as stored, not the whole row in memory: a Save whose
+      // write runs meanwhile keeps its structure. View state is a
+      // convenience: a failed write keeps it for this session.
+      await layoutRepository.updateView(nextSaved.id, fn).catch((err: unknown) => {
         console.warn('[workspace] saving the view state failed', err)
       })
     }
@@ -678,17 +689,24 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { working, saved: stored } = get()
       if (!working) return false
       if (!stored) return (await get().saveAs(working.name)) !== null
-      const next: Layout = { ...working, modifiedAt: new Date() }
+      const written: Layout = { ...working, modifiedAt: new Date() }
       // Saved only once the write has landed: a failed write leaves the
       // layout unsaved (and says so) rather than lost on the next reload.
+      const viewEdits: Array<(layout: Layout) => Layout> = []
+      viewEditsDuringSave.add(viewEdits)
       try {
-        await layoutRepository.put(next)
+        await layoutRepository.put(written)
       } catch (err) {
-        reportWriteFailure(`Couldn't save layout "${next.name}".`, err)
+        reportWriteFailure(`Couldn't save layout "${written.name}".`, err)
         return false
+      } finally {
+        viewEditsDuringSave.delete(viewEdits)
       }
+      // A view change made while the write ran is written on top of it as
+      // stored (`editView`); the saved layout in memory takes it too.
+      const next = viewEdits.reduce((layout, fn) => fn(layout), written)
       const repaired = new Set(get().repairedIds)
-      repaired.delete(next.id)
+      const wasRepaired = repaired.delete(next.id)
       // An edit made while the write ran stays in the working copy, unsaved.
       const current = get().working
       const kept = current && current !== working ? current : next
@@ -700,6 +718,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         layouts: replaceLayout(get().layouts, next),
       })
       keepDraft()
+      // `editView` left a repaired layout's row alone: this Save's write
+      // holds the repair now, so its view changes go on top of it here.
+      if (wasRepaired && viewEdits.length > 0) {
+        await layoutRepository.updateView(next.id, (layout) => viewEdits.reduce((l, fn) => fn(l), layout)).catch((err: unknown) => {
+          console.warn('[workspace] saving the view state failed', err)
+        })
+      }
       // Its lists that no saved tab shows any more go (a part the repair
       // dropped no longer counts once saved) — unless an edit made meanwhile
       // shows one again — as an undo step.

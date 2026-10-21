@@ -202,6 +202,22 @@ export const layoutRepository = {
   },
 
   /**
+   * A view-state change (`apply`: active tab, collapse, a tab's view state)
+   * to the layout as stored, read and written in one transaction — so a
+   * Save that wrote a new structure just before keeps it, and the change
+   * lands on top. A row that needs the layout repair is left alone (only a
+   * Save, or the audit's cleanup, writes the repair).
+   */
+  async updateView(id: number, apply: (layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout): Promise<void> {
+    await db.transaction('rw', db.layouts, async () => {
+      const row = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
+      if (!row || rowFixes('layouts', row).length > 0) return
+      const next = apply(row)
+      if (next !== row) await db.layouts.put(next)
+    })
+  },
+
+  /**
    * Adds a layout after the others (as `insert`) together with copies of
    * the lists it shows: each copy is a new list owned by the
    * new layout, with the manual order of the list it copies, and the new
