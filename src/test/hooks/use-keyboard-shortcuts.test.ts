@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useKeyboardShortcuts } from '../../hooks/use-keyboard-shortcuts'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useUndoStore } from '../../stores/undo-store'
 
 function dispatchKey(target: EventTarget, key: string, init: KeyboardEventInit = {}) {
   target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
@@ -116,6 +117,38 @@ describe('useKeyboardShortcuts — sequence chords (G then …)', () => {
     dispatchKey(window, 'g')
     dispatchKey(window, 'w')
     expect(openSettings).not.toHaveBeenCalled()
+  })
+
+  it('G on a select, a link or a button keeps its own use (type-ahead): not prevented; G then S still opens Settings', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings }))
+    for (const html of ['<select><option>General</option></select>', '<a href="#x">Link</a>', '<button type="button">Go</button>']) {
+      document.body.innerHTML = html
+      const el = document.body.firstElementChild as HTMLElement
+      el.focus()
+      const g = new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true })
+      el.dispatchEvent(g)
+      expect(g.defaultPrevented).toBe(false)
+      const s = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true })
+      el.dispatchEvent(s)
+      expect(s.defaultPrevented).toBe(true)
+    }
+    expect(openSettings).toHaveBeenCalledTimes(3)
+    // With nothing focused, G is taken at once.
+    document.body.innerHTML = ''
+    const g = new KeyboardEvent('keydown', { key: 'g', bubbles: true, cancelable: true })
+    window.dispatchEvent(g)
+    expect(g.defaultPrevented).toBe(true)
+  })
+
+  it('a shortcut whose handler fails says so in the snackbar', async () => {
+    const failing = vi.fn<() => void>(() => { throw new Error('boom') })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, openSettings: failing }))
+    dispatchKey(window, 'g')
+    dispatchKey(window, 's')
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: expect.stringMatching(/^Couldn't run “.+”\.$/) }))
+    expect(failing).toHaveBeenCalledOnce()
+    error.mockRestore()
   })
 
   it('G then unrelated key (e.g., x) does not open Settings', () => {

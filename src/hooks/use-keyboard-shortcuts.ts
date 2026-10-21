@@ -8,6 +8,7 @@ import {
 } from '../services/keyboard-shortcuts'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
+import { useUndoStore } from '../stores/undo-store'
 import { resolveBindings } from '../utils/shortcut-bindings'
 import { comboMatchesEvent, sequenceKeyMatchesEvent } from '../utils/shortcut-chord'
 import { useLatestRef } from './use-latest-ref'
@@ -59,7 +60,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
           })
           if (seq) {
             e.preventDefault()
-            await SHORTCUT_HANDLERS[seq](ctx)
+            await run(seq, ctx)
             return
           }
         }
@@ -77,16 +78,19 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
         const spec = shortcutSpec(single)
         if (isInput && !spec.allowInInput) return
         if (spec.blockedByEditPopup && useUIStore.getState().editPopupMode) return
-        await SHORTCUT_HANDLERS[single](ctx)
+        await run(single, ctx)
         return
       }
 
       // 3. Sequence start: a plain key with no modifiers that is the first
-      //    key of a sequence (e.g. `g`) waits for the second.
+      //    key of a sequence (e.g. `g`) waits for the second. On a control
+      //    with its own use of a letter (a select's type-ahead, a link, a
+      //    button) the key keeps it: only the second key, if it completes the
+      //    sequence, is taken.
       if (!isInput && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const k = e.key.toLowerCase()
         if (SHORTCUT_IDS.some((id) => bindings[id].length === 2 && bindings[id][0].key === k)) {
-          e.preventDefault()
+          if (!ownsLetterKeys(target) && !ownsLetterKeys(active)) e.preventDefault()
           pendingChordRef.current = { key: k, timestamp: Date.now() }
         }
       }
@@ -95,6 +99,22 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [enabled, cbRef])
+}
+
+/** Runs a binding's handler; one that fails says so in the snackbar instead of rejecting unseen. */
+async function run(id: ShortcutId, ctx: ShortcutCtx): Promise<void> {
+  try {
+    await SHORTCUT_HANDLERS[id](ctx)
+  } catch (err) {
+    console.error(`[shortcuts] ${id} failed`, err)
+    useUndoStore.getState().notify(`Couldn't run “${shortcutSpec(id).description}”.`)
+  }
+}
+
+/** A control whose letter keys do something of its own: a select (type-ahead), a link, a button. */
+function ownsLetterKeys(el: HTMLElement | null): boolean {
+  if (!el || typeof el.closest !== 'function') return false
+  return el.closest('select, a[href], button, [role="button"], [role="combobox"], [role="listbox"]') !== null
 }
 
 function inModal(el: HTMLElement | null): boolean {
