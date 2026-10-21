@@ -21,7 +21,7 @@ import { resetDb, v50StoreSpecs, v65StoreSpecs, v66StoreSpecs } from '../helpers
  * - clean + synced browser → upgrade prompt (49 → CURRENT); cancel touches nothing;
  * - accept → the raw v49 text is backed up first, the browser gets the file's
  *   data with real `Date`s, and the file is rewritten at CURRENT;
- * - unsynced browser changes → conflict prompt; "Use file" backs up first too.
+ * - unsynced browser changes and a file changed since → conflict prompt; "Use file" backs up first too.
  */
 
 const mockLoadFileHandle = vi.fn()
@@ -32,6 +32,8 @@ vi.mock('../../services/file-handle-idb', () => ({
 }))
 
 const SAVED_AT = '2026-10-01T10:00:00.000Z'
+/** A sync record from before the file's last save: the file changed since. */
+const EARLIER_SYNC = '2026-09-01T00:00:00.000Z'
 const FILE_TEXT = JSON.stringify({ ...fixture, savedAt: SAVED_AT }, null, 2)
 const BROWSER_TASK = 'Browser-only task'
 
@@ -137,7 +139,7 @@ describe('v49 sync file opened by a post-v49 build (CURRENT ≥ 50)', () => {
   })
 
   it('unsynced browser changes: conflict names v49 as the file schema; "Use file" backs up before restoring', async () => {
-    setSyncState({ fileSavedAt: SAVED_AT, dirtySince: '2026-10-02T10:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T10:00:00.000Z' })
     const { handle, write } = makeHandle(FILE_TEXT)
     mockLoadFileHandle.mockResolvedValue(handle)
     let info: SyncConflictInfo | null = null
@@ -284,7 +286,7 @@ describe('a sync file missing some data tables still loads (missing tables arriv
     ['a v49 file with only todos + settings', v49RequiredOnly, fixture.todos.length],
     ['a current file without tags, todoTags, layouts, listOrders, todoEvents, notes, …', currentPartial, 1],
   ])('%s: "Use file" loads it', async (_label, text, taskCount) => {
-    setSyncState({ fileSavedAt: SAVED_AT, dirtySince: '2026-10-02T10:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T10:00:00.000Z' })
     const { handle } = makeHandle(text)
     mockLoadFileHandle.mockResolvedValue(handle)
     svc.onConflict(async () => 'file')

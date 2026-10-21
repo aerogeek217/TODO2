@@ -84,7 +84,6 @@ export function SyncConflictDialog({ info, onChoose }: SyncConflictDialogProps) 
               <span className={styles.sideLine}>{tasks(file.taskCount)}</span>
               <span className={styles.sideLine}>
                 Saved {formatTime(file.savedAt ?? file.lastModified)}
-                {file.changedSinceLastSync === false ? ' (unchanged since last sync)' : ''}
               </span>
               <span className={styles.sideLine}>
                 Schema v{file.schemaVersion ?? '?'}{fileOlder ? ' (older format)' : ''}

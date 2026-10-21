@@ -98,6 +98,8 @@ vi.mock('../../data/database', () => ({
 
 const SYNC_KEY = 'todo2-file-sync-state'
 const FILE_SAVED_AT = '2026-10-01T10:00:00.000Z'
+/** A sync record from before the file's last save: the file changed since. */
+const EARLIER_SYNC = '2026-09-01T00:00:00.000Z'
 
 function makeWritable() {
   return {
@@ -255,8 +257,77 @@ describe('FileStorageService — load decision matrix', () => {
     expect(syncState().fileSavedAt).toBe(FILE_SAVED_AT)
   })
 
-  it('browser has unsynced changes, file unchanged → conflict before anything changes', async () => {
+  it('browser has unsynced changes, file unchanged since the last sync → the browser data is written to it, after a backup, without asking', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockBrowserTaskCount.mockResolvedValue(5)
+    mockBuildExportData.mockResolvedValue({ todos: [{ id: 1, title: 'Edited in the browser' }] })
+    const { svc, writable } = await startWith()
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    const upgrade = vi.fn().mockResolvedValue(false)
+    svc.onConflict(conflict)
+    svc.onConfirmFileUpgrade(upgrade)
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(upgrade).not.toHaveBeenCalled()
+    // The file's text is backed up before it is overwritten.
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(mockSnapshotFileBeforeOverwrite.mock.invocationCallOrder[0]!).toBeLessThan(writable.write.mock.invocationCallOrder[0]!)
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    const written = JSON.parse(writable.write.mock.calls[0]![0] as string) as { todos: Array<{ title: string }>; savedAt: string }
+    expect(written.todos.map((t) => t.title)).toEqual(['Edited in the browser'])
+    expect(svc.status.isConnected).toBe(true)
+    expect(svc.status.paused).toBeNull()
+    expect(syncState()).toEqual({ fileSavedAt: written.savedAt, dirtySince: null })
+    // Syncing: the next edit reaches the file.
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writable.write).toHaveBeenCalledTimes(2)
+  })
+
+  it('browser ahead of an unchanged older file → the upgrade question first; yes writes the browser data (older copy kept), no pauses untouched', async () => {
+    const older = fileBody({ __schemaVersion: 47 })
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const yes = await startWith(older)
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    yes.svc.onConflict(conflict)
+    yes.svc.onConfirmFileUpgrade(async () => true)
+    await yes.svc.initialize()
+    expect(conflict).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(older), { olderVersion: true })
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(yes.writable.write).toHaveBeenCalledTimes(1)
+    expect(yes.svc.status.isConnected).toBe(true)
+    expect(syncState().dirtySince).toBeNull()
+
+    vi.resetModules()
+    mockSnapshotFileBeforeOverwrite.mockClear()
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const no = await startWith(older)
+    no.svc.onConflict(conflict)
+    no.svc.onConfirmFileUpgrade(async () => false)
+    await no.svc.initialize()
+    expect(conflict).not.toHaveBeenCalled()
+    expect(no.svc.status.paused?.reason).toBe('upgrade-cancelled')
+    expectUntouched(no.writable)
+    expect(syncState().dirtySince).toBe('2026-10-02T09:00:00.000Z')
+  })
+
+  it('browser ahead of an unchanged file: a failed file backup writes nothing and pauses', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    expect(writable.write).not.toHaveBeenCalled()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(syncState().dirtySince).toBe('2026-10-02T09:00:00.000Z')
+  })
+
+  it('browser has unsynced changes, file changed since → conflict before anything changes', async () => {
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockBrowserTaskCount.mockResolvedValue(5)
     const { svc, writable } = await startWith()
     let seen: SyncConflictInfo | null = null
@@ -272,7 +343,7 @@ describe('FileStorageService — load decision matrix', () => {
     expect(seen).toMatchObject({
       reason: 'browser-changes',
       browser: { taskCount: 5, schemaVersion: 48, unsyncedSince: '2026-10-02T09:00:00.000Z' },
-      file: { taskCount: 2, schemaVersion: 48, savedAt: FILE_SAVED_AT, changedSinceLastSync: false },
+      file: { taskCount: 2, schemaVersion: 48, savedAt: FILE_SAVED_AT, changedSinceLastSync: true },
     })
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('conflict-cancelled')
@@ -296,7 +367,7 @@ describe('FileStorageService — load decision matrix', () => {
   })
 
   it('"Use browser data" backs up the file text, overwrites the file, and resumes sync', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
     svc.onConflict(async () => 'browser')
     await svc.initialize()
@@ -358,7 +429,7 @@ describe('FileStorageService — load decision matrix', () => {
   })
 
   it('conflict with no dialog listener stays paused (safe default)', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
     await svc.initialize()
     expectUntouched(writable)
@@ -592,14 +663,14 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('conflict "Use file" with an older file: backs up first; failure pauses untouched', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const ok = await startWith(older)
     ok.svc.onConflict(async () => 'file')
     await ok.svc.initialize()
     expectBackupFirst(JSON.stringify(older), ok.writable)
 
     vi.resetModules()
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockRestoreFromImportData.mockClear()
     mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
     const bad = await startWith(older)
@@ -625,7 +696,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('"Use browser data" / "Keep browser data" over an older file keep its copy outside the pruned pool', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const a = await startWith(older)
     a.svc.onConflict(async () => 'browser')
     await a.svc.initialize()
@@ -662,7 +733,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('conflict "Use file" at the current version: no rewrite, so no file backup needed', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
     svc.onConflict(async () => 'file')
     await svc.initialize()
@@ -671,7 +742,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('conflict "Use browser data": backup failure leaves the file untouched and pauses', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
     const { svc, writable } = await startWith(older)
     svc.onConflict(async () => 'browser')
@@ -777,7 +848,7 @@ describe('FileStorageService — change tracking', () => {
     expect(syncState().dirtySince).not.toBeNull()
   })
 
-  it('edits made while permission is needed survive Grant Access via the conflict prompt', async () => {
+  it('edits made while permission is needed reach the unchanged file at Grant Access, without a prompt', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
     const { svc, writable } = await startWith(fileBody(), {
       queryPermission: vi.fn().mockResolvedValue('prompt'),
@@ -790,6 +861,29 @@ describe('FileStorageService — change tracking', () => {
     await vi.advanceTimersByTimeAsync(2000)
     expect(writable.write).not.toHaveBeenCalled()
     expect(syncState().dirtySince).not.toBeNull()
+
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+    await svc.reconnect()
+
+    expect(conflict).not.toHaveBeenCalled()
+    // The browser's edits were kept: no restore, the file backed up and overwritten.
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status.isConnected).toBe(true)
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('edits made while permission is needed, and the file changed elsewhere meanwhile: Grant Access asks', async () => {
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: null })
+    const { svc, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+    })
+    await svc.initialize()
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(2000)
 
     const conflict = vi.fn().mockResolvedValue('browser')
     svc.onConflict(conflict)
@@ -1122,7 +1216,7 @@ describe('FileStorageService — status notifications', () => {
   })
 
   it('a question has one handler: a later one replaces it, and removing the replaced one changes nothing', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockBrowserTaskCount.mockResolvedValue(5)
     const { svc } = await startWith()
     const first = vi.fn().mockResolvedValue('file')
@@ -1216,7 +1310,7 @@ describe('FileStorageService — browser backup before the file replaces it', ()
   })
 
   it('conflict "Use file": a failed backup asks before the browser data is replaced', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockSnapshotBeforeDestructive.mockRejectedValue(new Error('quota'))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { svc, writable } = await startWith()
@@ -1386,7 +1480,7 @@ describe('FileStorageService — reading a file that another write replaces', ()
 
 describe('FileStorageService — a load superseded by a newer one', () => {
   it('the older load, answered "cancel" late, does not pause what the newer one resumed', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc } = await startWith()
     let answerFirst!: () => void
     const firstAnswered = new Promise<void>((r) => { answerFirst = r })

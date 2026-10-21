@@ -142,6 +142,45 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   await expect((await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to Different File' })).toBeVisible()
 })
 
+test('a browser with unsaved changes over an unchanged sync file writes them to it at the next load, without asking', async ({ page }) => {
+  await stubPicker(page)
+  await page.goto('/')
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await addTodo(page, 'Synced task')
+  // An empty file is seeded with the browser's data: in sync from here.
+  await writeSyncFile(page, '')
+  await gotoSettingsDeepLink(page)
+  await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
+  const syncedText = await readSyncFile(page)
+  expect(syncedText).toContain('Synced task')
+  const synced = JSON.parse(await page.evaluate(() => localStorage.getItem('todo2-file-sync-state')) ?? '{}') as { fileSavedAt?: string; dirtySince?: string | null }
+  expect(synced.dirtySince ?? null).toBeNull()
+
+  // What a tab closed within the save's debounce leaves behind: the edit is
+  // in the browser's database and recorded as unsynced, the file unchanged.
+  await addTodo(page, 'Edit not yet saved to the file')
+  await page.evaluate((fileSavedAt) => {
+    localStorage.setItem('todo2-file-sync-state', JSON.stringify({ fileSavedAt, dirtySince: new Date().toISOString() }))
+  }, synced.fileSavedAt)
+  await page.goto('about:blank')
+  await page.goto('/')
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
+  await expect(page.getByRole('dialog', { name: 'Browser data and sync file differ' })).toHaveCount(0)
+  await expect.poll(async () => {
+    const written = JSON.parse(await readSyncFile(page)) as { todos: Array<{ title: string }> }
+    return written.todos.map((t) => t.title).sort()
+  }).toEqual(['Edit not yet saved to the file', 'Synced task'])
+  // The file's text was backed up before it was overwritten.
+  const backups = await readStore<{ trigger: string; data: string }>(page, 'backups')
+  expect(backups.some((b) => b.trigger === 'sync-file' && b.data.includes('Synced task') && !b.data.includes('Edit not yet saved'))).toBe(true)
+  const after = JSON.parse(await page.evaluate(() => localStorage.getItem('todo2-file-sync-state')) ?? '{}') as { dirtySince?: string | null }
+  expect(after.dirtySince ?? null).toBeNull()
+})
+
 test('an unreadable sync file pauses sync and is never overwritten by edits', async ({ page }) => {
   await stubPicker(page)
   await page.goto('/')

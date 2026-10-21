@@ -56,15 +56,17 @@ export interface SyncConflictInfo {
   fileName: string
   /**
    * `browser-changes`: this browser has changes that were never written to the
-   * file. `no-sync-record`: this browser has no record of syncing with this
-   * file (first attach, or the record was lost) and their contents differ.
+   * file, and the file changed since the last sync (over an unchanged file
+   * the browser's data is written without asking). `no-sync-record`: this
+   * browser has no record of syncing with this file (first attach, or the
+   * record was lost) and their contents differ.
    */
   reason: 'browser-changes' | 'no-sync-record'
   browser: { taskCount: number; schemaVersion: number; unsyncedSince: string | null }
   file: SyncSideSummary & {
     savedAt: string | null
     lastModified: string
-    /** null = unknown (no sync record). */
+    /** true with `browser-changes`; null = unknown (no sync record). */
     changedSinceLastSync: boolean | null
   }
 }
@@ -205,10 +207,13 @@ function errorDetail(e: unknown): string {
  * - below the floor → `MigrationDialog` (cancel → paused);
  * - browser clean and synced with some version of this file → load the file
  *   (multi-machine case), asking first if it needs a schema upgrade;
- * - browser has unsynced changes, or there is no sync record and the browser
- *   has tasks → conflict dialog (file / browser / cancel) unless both sides
- *   already hold identical data (an older file compared after its upgrade;
- *   identical + older → the upgrade prompt).
+ * - browser has unsynced changes and the file is the one it last synced
+ *   with → the browser's data is written to the file (its raw text backed
+ *   up first), asking first only if the file needs a schema upgrade;
+ * - browser has unsynced changes and the file changed since, or there is no
+ *   sync record and the browser has tasks → conflict dialog (file / browser
+ *   / cancel) unless both sides already hold identical data (an older file
+ *   compared after its upgrade; identical + older → the upgrade prompt).
  *
  * While synced, Dexie hooks write the whole DB to the file 500 ms after each
  * change. Change-tracking hooks stay installed while a file is attached even
@@ -714,12 +719,24 @@ class FileStorageService {
       })
       : false
 
+    // The browser is only ahead: the file is the one it last read or wrote
+    // (a tab closed within the save debounce, permission lost mid-session,
+    // an edit while paused). Nothing in the file is newer, so the browser's
+    // data is written to it — after a backup of its raw text — without
+    // asking. A file at an older schema still asks its upgrade question first.
+    const browserAhead = !identical && hasRecord && dirty && fileChanged === false
     let conflictReason: SyncConflictInfo['reason'] | null = null
-    if (!identical) {
+    if (!identical && !browserAhead) {
       if (hasRecord && dirty) conflictReason = 'browser-changes'
       else if (!hasRecord && (await browserTaskCount()) > 0) conflictReason = 'no-sync-record'
     }
     if (gen !== this.loadGen) return
+
+    if (browserAhead) {
+      if (prepared.upgraded && !prepared.legacy && !(await this.confirmFileUpgrade(gen, handle, prepared))) return
+      await this.keepBrowserData(text, prepared.upgraded)
+      return
+    }
 
     if (conflictReason) {
       const info: SyncConflictInfo = {
@@ -746,26 +763,13 @@ class FileStorageService {
         return
       }
       if (choice === 'browser') {
-        if (!(await this.backupFileText(text, prepared.upgraded))) return
-        if (await this.saveToFile({ force: true })) this.startSync()
-        this.notify()
+        await this.keepBrowserData(text, prepared.upgraded)
         return
       }
       // choice === 'file' — falls through to the load below (the dialog
       // already told the user an older file is saved back in this format).
     } else if (prepared.upgraded && !prepared.legacy) {
-      const ok = this.fileUpgradeHandler
-        ? await this.fileUpgradeHandler({
-          fileName: handle.name,
-          fromVersion: prepared.sourceVersion ?? CURRENT_DB_VERSION,
-          toVersion: CURRENT_DB_VERSION,
-        })
-        : false
-      if (gen !== this.loadGen) return
-      if (!ok) {
-        this.pause('upgrade-cancelled', `${PAUSED_PREFIX} — ${handle.name} was saved by an older version of TODO2 and needs to be upgraded before syncing.`)
-        return
-      }
+      if (!(await this.confirmFileUpgrade(gen, handle, prepared))) return
     }
 
     // Every path that rewrites the file at a newer schema (confirmed upgrade,
@@ -792,6 +796,42 @@ class FileStorageService {
       return
     }
     this.startSync()
+    this.notify()
+  }
+
+  /**
+   * The upgrade question for an older file. Returns whether to go on: false
+   * when the user cancelled (sync paused) or a newer load took over.
+   */
+  private async confirmFileUpgrade(
+    gen: number,
+    handle: FileSystemFileHandle,
+    prepared: Extract<ReturnType<typeof prepareImport>, { ok: true }>,
+  ): Promise<boolean> {
+    const ok = this.fileUpgradeHandler
+      ? await this.fileUpgradeHandler({
+        fileName: handle.name,
+        fromVersion: prepared.sourceVersion ?? CURRENT_DB_VERSION,
+        toVersion: CURRENT_DB_VERSION,
+      })
+      : false
+    if (gen !== this.loadGen) return false
+    if (!ok) {
+      this.pause('upgrade-cancelled', `${PAUSED_PREFIX} — ${handle.name} was saved by an older version of TODO2 and needs to be upgraded before syncing.`)
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Keep this browser's data: back up the file's raw text (`text`; kept
+   * outside the pruned pool when it is at an older schema), then write the
+   * browser's data over it and resume sync. A failed backup writes nothing
+   * (sync pauses).
+   */
+  private async keepBrowserData(text: string, olderVersion: boolean): Promise<void> {
+    if (!(await this.backupFileText(text, olderVersion))) return
+    if (await this.saveToFile({ force: true })) this.startSync()
     this.notify()
   }
 
