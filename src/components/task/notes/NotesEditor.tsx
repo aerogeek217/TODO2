@@ -40,9 +40,11 @@ interface NotesEditorProps {
  * would bring in lang-html (and with it lang-css and lang-javascript, ~100 KB
  * minified): the CommonMark tree the keymap reads, Enter / Backspace
  * continuing and removing list markup, a URL pasted over a selection becoming
- * a link. The editor installs no highlighting, folding or completion, so the
- * parts left out (HTML blocks parsed as HTML, heading folds, `<tag`
- * completion) did nothing here.
+ * a link. Left out on purpose: lang-html's `autoCloseTags` — typing `<div>`
+ * in a note no longer adds `</div>` (notes are Markdown; the ~100 KB isn't
+ * worth it) — and parts that did nothing here, since the editor installs no
+ * highlighting, folding or completion (HTML blocks parsed as HTML, heading
+ * folds, `<tag` completion).
  */
 const notesMarkdown = [commonmarkLanguage, pasteURLAsLink, Prec.high(keymap.of(markdownKeymap))]
 
