@@ -9,7 +9,7 @@ import {
   widgetKindLabel,
 } from '../../models/workspace-layout'
 import { defaultDashboardConfig } from '../../models/dashboard-config'
-import { checkLayoutColumns, pickLayoutColumns } from '../../data/layout-shape'
+import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
 
 /** The widget-kind table and what derives from it. */
@@ -26,9 +26,9 @@ describe('widget kinds', () => {
       expect(isWidgetKind(v)).toBe(false)
     }
     const layout = (kind: unknown) => [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 't', kind, config: {} }] }] }]
-    expect(checkLayoutColumns(layout('status'))).toBe('columns[0].cells[0].tabs[0].kind')
-    expect(checkLayoutColumns(layout('toString'))).toBe('columns[0].cells[0].tabs[0].kind')
-    expect(pickLayoutColumns(layout('status')).fixes).toEqual(['tab dropped'])
+    expect(checkLayoutBody({ columns: layout('status') })).toBe('columns[0].cells[0].tabs[0].kind')
+    expect(checkLayoutBody({ columns: layout('toString') })).toBe('columns[0].cells[0].tabs[0].kind')
+    expect(pickLayoutBody({ columns: layout('status') }).fixes).toEqual(['tab dropped'])
   })
 
   it('makes each kind’s new tab with its defaults', () => {
@@ -48,8 +48,8 @@ describe('widget kinds', () => {
 
   it('every new tab passes the layout check', () => {
     const columns = [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) }] }]
-    expect(checkLayoutColumns(columns)).toBe(true)
-    expect(pickLayoutColumns(columns)).toEqual({ columns, fixes: [] })
+    expect(checkLayoutBody({ columns })).toBe(true)
+    expect(pickLayoutBody({ columns })).toEqual({ columns, fixes: [] })
   })
 
   it('titles a list tab by its list, “(Deleted list)” when the list is gone, every other tab by kind', () => {

@@ -165,16 +165,6 @@ function checkBand(band: unknown, path: string, fresh: (id: string) => boolean):
 }
 
 /**
- * `true` when `columns` is a valid list of columns, else the path of the
- * first bad field (e.g. `columns[0].cells[1].tabs[0].kind`). Ids must be
- * unique across columns, cells and tabs. A cell may have no tabs; a column
- * must have a cell.
- */
-export function checkLayoutColumns(columns: unknown): true | string {
-  return checkColumns(columns, idTracker())
-}
-
-/**
  * `true` when a layout row's columns and bands are valid, else the path of
  * the first bad field (`columns[0].weight`, `top.tabs`, …). A band is
  * optional; one that is there needs an id, a positive height and at least one
@@ -205,27 +195,12 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   eisenhower: ['Eisenhower tab setting dropped', 'Eisenhower tab settings dropped'],
 }
 
-export interface PickedLayoutColumns {
-  columns: LayoutColumn[]
-  /**
-   * The parts `checkLayoutColumns` rejects that were dropped or reset, in
-   * words (`2 tabs dropped`, …); empty for columns that pass it.
-   */
-  fixes: string[]
-}
-
 export interface PickedLayoutBody extends LayoutBody {
   /**
    * The parts `checkLayoutBody` rejects that were dropped or reset, in words
    * (`2 tabs dropped`, `band dropped`, …); empty for a body that passes it.
    */
   fixes: string[]
-}
-
-/** `pickLayoutBody` for the columns alone (a layout without bands). */
-export function pickLayoutColumns(raw: unknown): PickedLayoutColumns {
-  const { columns, fixes } = pickLayoutBody({ columns: raw })
-  return { columns, fixes }
 }
 
 /**

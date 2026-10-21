@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../models'
-import { DASHBOARD_TREND_RANGES, type DashboardTrendRange } from '../../models/dashboard-config'
+import type { DashboardTrendRange } from '../../models/dashboard-config'
 import { daysUntil } from '../../utils/effective-date'
 import type { StatsContext } from './stats-context'
 import { TREND_EVENT_TYPES, trendWindow, type TrendWindow } from '../../utils/trend-window'
@@ -10,8 +10,7 @@ import { TREND_EVENT_TYPES, trendWindow, type TrendWindow } from '../../utils/tr
  * (deleting or purging a task deletes its events).
  */
 
-/** The trend ranges: 14 days (daily bars) or 4 / 12 weeks (weekly bars). */
-export const TREND_RANGES = DASHBOARD_TREND_RANGES
+/** A trend range: 14 days (daily bars) or 4 / 12 weeks (weekly bars) — `DASHBOARD_TREND_RANGES`. */
 export type TrendRange = DashboardTrendRange
 
 export interface TrendBucket {

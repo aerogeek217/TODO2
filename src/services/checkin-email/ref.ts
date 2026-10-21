@@ -8,9 +8,6 @@
 /** Length of a ref (longer only when needed to tell two tasks apart). */
 export const TASK_REF_LENGTH = 8
 
-/** A ref token as it may appear in text: lowercase letters and digits. */
-export const TASK_REF_PATTERN = /^[a-z0-9]+$/
-
 /** FNV-1a (32-bit) of `s`'s UTF-16 code units, as 8 hex digits. */
 function fnv1aHex(s: string): string {
   let h = 0x811c9dc5
