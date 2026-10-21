@@ -60,6 +60,20 @@ describe('Settings → Import / Export — Export JSON self-check', () => {
   })
 })
 
+describe('Settings → Import / Export — the Markdown file’s name', () => {
+  it('is today’s local day, late in the evening too', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 21, 23, 45))
+    try {
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Export Markdown' }))
+      expect(await screen.findByText('Downloaded todos-2026-10-21.md — check your Downloads folder.')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('Settings → Import / Export — what an export says', () => {
   const pickerSaving = () => {
     picker.save = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) })

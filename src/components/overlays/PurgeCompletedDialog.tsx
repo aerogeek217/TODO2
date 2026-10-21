@@ -7,6 +7,7 @@ import { doneMessage, exportAndPurgeCompleted, keptMessage } from '../../service
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import buttons from './FileSyncDialogs.module.css'
 import styles from './TaskArchiveDialogs.module.css'
+import { formatDateWith } from '../../utils/date'
 
 interface PurgeCompletedDialogProps {
   /** The expired completed tasks, as currently in the store. */
@@ -25,7 +26,7 @@ function plural(n: number, word: string): string {
 function completedLabel(t: PersistedTodoItem): string {
   const when = t.completedAt ?? t.modifiedAt
   const d = new Date(when)
-  return Number.isNaN(d.getTime()) ? 'Completed' : `Completed ${d.toLocaleDateString()}`
+  return Number.isNaN(d.getTime()) ? 'Completed' : `Completed ${formatDateWith(d, { year: 'numeric', month: 'numeric', day: 'numeric' })}`
 }
 
 /**

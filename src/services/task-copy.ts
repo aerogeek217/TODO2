@@ -8,7 +8,7 @@
  * with no label; a grouped view passes one section per heading.
  */
 import type { PersistedTodoItem, Person, Status } from '../models'
-import { startOfToday } from '../utils/date'
+import { formatDateWith, startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
 import { escapeHtml } from '../utils/html'
 import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
@@ -38,6 +38,9 @@ export interface TaskLineParts {
   followup: string
 }
 
+/** `10/21/2026` (`en-US`, whatever the browser's locale). */
+const NUMERIC_DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric' }
+
 /** `status` is the task's status to name (none → no `[Status]`); `today` places the follow-up label. */
 export function taskLineParts(
   todo: Pick<PersistedTodoItem, 'isCompleted' | 'title' | 'dueDate' | 'nextFollowupAt'>,
@@ -48,7 +51,7 @@ export function taskLineParts(
     check: todo.isCompleted ? '[x]' : '[ ]',
     title: todo.title,
     statusStr: status ? ` [${status.name}]` : '',
-    deadline: todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : '',
+    deadline: todo.dueDate ? ` (due ${formatDateWith(todo.dueDate, NUMERIC_DATE)})` : '',
     followup: todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : '',
   }
 }

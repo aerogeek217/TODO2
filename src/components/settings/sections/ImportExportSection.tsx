@@ -16,6 +16,7 @@ import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import { plural } from './plural'
 import styles from './sections.module.css'
+import { dayKey } from '../../../utils/date'
 
 /** Pending append import: the prepared file waiting in the duplicate picker. */
 interface PendingAppend {
@@ -195,7 +196,8 @@ export function ImportExportSection() {
 
   const handleExportMarkdown = exporting(async () => {
     const md = await buildMarkdownExport()
-    const fileName = `todos-${new Date().toISOString().split('T')[0]}.md`
+    // Today's local day (not UTC's, which is tomorrow late in the evening west of Greenwich).
+    const fileName = `todos-${dayKey(new Date())}.md`
     const saved = await saveTextFile({
       text: md,
       suggestedName: fileName,
