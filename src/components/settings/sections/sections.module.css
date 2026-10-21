@@ -225,7 +225,7 @@
 
 .successMsg {
   font-size: var(--font-size-meta);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .errorMsg {
@@ -401,7 +401,7 @@
 
 .auditRowClickable:hover .auditViewHint,
 .auditRowClickable:focus-visible .auditViewHint {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* ═══ Delete completed tasks popup ═══ */

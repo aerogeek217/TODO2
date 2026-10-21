@@ -163,6 +163,8 @@
   /* Accent */
   --color-accent: #7ec4bc;
   --color-accent-dim: #4f9a91;
+  /* The accent as text (8.8:1 on the surface). */
+  --color-accent-text: var(--color-accent);
 
   /* Danger / warning accents */
   --color-danger: #ee7d77;
@@ -214,7 +216,8 @@
   --color-text-primary: #ece9e6;
   --color-text: var(--color-text-primary);
   --color-text-secondary: #bfbbb6;
-  --color-text-muted: #7d7972;
+  /* 5.1:1 on the surface, 4.8:1 on the elevated surface, 4.7:1 on a cell header. */
+  --color-text-muted: #8f8a83;
   --color-text-completed: #4a4743;
   --color-text-on-accent: #111110;
 
@@ -332,6 +335,9 @@
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;
   --color-accent-dim: #2d7d74;
+  /* The accent as text: darkened to 5.2:1 on the surface (4.5:1 on the
+     elevated surface), mixed from the accent so a colour override carries over. */
+  --color-accent-text: color-mix(in srgb, var(--color-accent) 76%, black);
 
   /* Danger / warning — deepened for readability */
   --color-danger: #d94a43;
@@ -379,7 +385,8 @@
   --color-text-primary: #1a1917;
   --color-text: var(--color-text-primary);
   --color-text-secondary: #5c5852;
-  --color-text-muted: #9a9590;
+  /* 5.3:1 on the surface, 4.8:1 on the app background, 4.6:1 on the elevated surface. */
+  --color-text-muted: #6f6b68;
   --color-text-completed: #c4c0bb;
   --color-text-on-accent: #ffffff;
 

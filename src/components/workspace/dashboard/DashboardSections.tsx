@@ -361,7 +361,7 @@ export function TrendSection({ data, onDrill, style }: DashboardSectionProps) {
               source: { kind: 'todos', todoIds: buckets.flatMap((b) => b.completedIds) },
             }) : undefined}
           >
-            <b style={{ color: 'var(--color-accent)' }}>{trend?.completed ?? 0}</b>completed
+            <b style={{ color: 'var(--color-accent-text)' }}>{trend?.completed ?? 0}</b>completed
           </Clickable>
           <Clickable
             as="span"

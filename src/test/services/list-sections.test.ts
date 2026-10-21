@@ -650,7 +650,7 @@ describe('buildListSections — accents and sentinels', () => {
       makeTodo({ id: 4, dueDate: new Date(2026, 1, 1) }),
     ]
     expect(buildDeadlineSections(todos, 1, today).map((s) => s.accentColor)).toEqual([
-      'var(--color-overdue)', 'var(--color-accent)', 'var(--color-text-secondary)', 'var(--color-text-muted)',
+      'var(--color-overdue)', 'var(--color-accent-text)', 'var(--color-text-secondary)', 'var(--color-text-muted)',
     ])
   })
 

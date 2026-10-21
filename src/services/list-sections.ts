@@ -145,7 +145,7 @@ function priorityComparator(ctx: ListSortContext, sign: 1 | -1): (a: PersistedTo
 /** Group colours of date sections; the trailing "No …" sections are muted too. */
 const DATE_ACCENTS: Partial<Record<DateBucketKey, string>> = {
   overdue: 'var(--color-overdue)',
-  today: 'var(--color-accent)',
+  today: 'var(--color-accent-text)',
   week: 'var(--color-text-secondary)',
   later: 'var(--color-text-muted)',
 }

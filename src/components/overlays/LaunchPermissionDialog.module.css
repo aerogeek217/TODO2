@@ -50,7 +50,7 @@
   height: 36px;
   border-radius: 10px;
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .title {
@@ -104,7 +104,7 @@
 
 .optionIconGrant {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .optionIconContinue {

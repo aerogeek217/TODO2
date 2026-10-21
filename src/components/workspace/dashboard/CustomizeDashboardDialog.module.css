@@ -163,7 +163,7 @@
 
 .rowDragging .grip {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   opacity: 1;
 }
 
@@ -199,7 +199,7 @@ span.check {
 }
 
 .listGlyph {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .hint {

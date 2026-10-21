@@ -126,11 +126,11 @@
 .navItemActive,
 .navItemActive:hover {
   background: var(--color-accent-bg);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .navItemActive .navIcon {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .content {

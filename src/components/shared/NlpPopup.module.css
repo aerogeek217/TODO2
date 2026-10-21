@@ -76,7 +76,7 @@
 .icon[data-command="focus"] { color: var(--color-marker-focus); }
 .icon[data-command="due"] { color: var(--color-overdue); }
 .icon[data-command="followup"] { color: var(--color-followup); }
-.icon[data-command="repeat"] { color: var(--color-accent); }
+.icon[data-command="repeat"] { color: var(--color-accent-text); }
 
 .dot {
   width: 8px;
@@ -193,7 +193,7 @@
 }
 
 .createPerson {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .createPerson .name {

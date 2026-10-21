@@ -46,7 +46,7 @@
 .undoButton {
   background: none;
   border: none;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--font-size-task);
   font-weight: var(--font-weight-semibold);
   padding: 2px 8px;

@@ -329,7 +329,7 @@
   background: none;
   border: none;
   font-size: var(--font-size-meta);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-family: inherit;
   text-align: left;
   cursor: pointer;

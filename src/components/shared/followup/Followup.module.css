@@ -296,7 +296,7 @@
 }
 
 .editorHintAccent {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 @media (max-width: 640px) {

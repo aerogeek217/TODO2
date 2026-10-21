@@ -122,7 +122,7 @@
 
 .highlight {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   border-radius: 2px;
 }
 

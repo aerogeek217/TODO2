@@ -97,7 +97,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--font-size-meta);
   cursor: pointer;
   text-decoration: underline;

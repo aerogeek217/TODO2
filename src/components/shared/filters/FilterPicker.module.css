@@ -38,7 +38,7 @@
 .dropdownAction {
   background: none;
   border: none;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--font-size-meta);
   font-family: inherit;
   cursor: pointer;
@@ -151,7 +151,7 @@
   display: block;
   width: 4px;
   height: 8px;
-  border: solid #fff;
+  border: solid var(--color-text-on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translate(-0.5px, -0.5px);
 }
@@ -224,7 +224,7 @@
 /* "Is not" picked: its ticks hide tasks, so it reads in the accent. */
 .modeSegmentNot,
 .modeSegmentNot:hover {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* The phone sheet: touch height. */

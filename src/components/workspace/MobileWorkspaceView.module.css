@@ -417,7 +417,7 @@
 
 .sheetCheck {
   display: inline-flex;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .sheetFooter {
@@ -446,7 +446,7 @@
 }
 
 .stripItemActive .bandGlyph {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* A second section's heading in a sheet. */

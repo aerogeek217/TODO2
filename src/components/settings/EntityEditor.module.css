@@ -124,7 +124,7 @@
 
 .nameEditable:hover {
   background: var(--color-surface);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .initials {

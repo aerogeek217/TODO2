@@ -187,7 +187,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-family: inherit;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);

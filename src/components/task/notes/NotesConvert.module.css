@@ -183,7 +183,7 @@
 .avatarNew {
   background: transparent;
   border: 1px dashed var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   box-sizing: border-box;
 }
 

@@ -58,7 +58,7 @@
 
 .danger {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-surface);
 }
 
 .kbd {

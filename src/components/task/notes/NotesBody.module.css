@@ -7,5 +7,5 @@
 }
 
 :global([data-theme="light"]) .body {
-  background: #ffffff;
+  background: var(--color-surface);
 }

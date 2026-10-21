@@ -66,7 +66,7 @@
   width: 14px;
   text-align: center;
   font-size: 11px;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   flex-shrink: 0;
 }
 
@@ -100,7 +100,7 @@
 /* Create preview: a dashed accent ring with the new name's initial. */
 .avatarNew {
   background: transparent;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   border: 1px dashed var(--color-accent);
   box-sizing: border-box;
 }
@@ -118,11 +118,11 @@
 }
 
 .createItem {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .people .createItem {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .createItem .name {

@@ -456,7 +456,7 @@
 .dayListToday {
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .dayListCount {
@@ -500,7 +500,7 @@
 
 .dayToday .weekdayName,
 .dayToday .weekDate {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .todayPill {
@@ -535,7 +535,7 @@
   gap: 4px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   pointer-events: none;
   white-space: nowrap;
 }

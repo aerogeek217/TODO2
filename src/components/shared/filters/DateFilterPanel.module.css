@@ -86,7 +86,7 @@
 /* A date type that filters, selected or not: accent text and a dot. */
 .lit,
 .lit:hover {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .lit::before {
@@ -133,7 +133,7 @@
 }
 
 .words {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .off {
