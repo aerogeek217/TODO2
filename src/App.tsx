@@ -50,13 +50,21 @@ import './styles/fonts.css'
 import './styles/tokens.css'
 
 /**
- * The command palette, mounted while it shows: its commands read the stores
- * when they run or search (`getState`), so the shell never re-renders for a
- * task write or a selection click.
+ * The command palette, mounted while it shows (so the shell never re-renders
+ * for a task write or a selection click). The command list is built from the
+ * tasks, people, their assignments, statuses and the check-in filter, and is
+ * rebuilt when they change: a palette opened while the app is still loading
+ * gains the per-person check-ins as the tasks and their people arrive.
+ * Commands that act read the stores when they run (`getState`).
  */
-function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
+export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
   const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+  const todos = useTodoStore((s) => s.todos)
+  const people = usePersonStore((s) => s.people)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const statuses = useStatusStore((s) => s.statuses)
+  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
 
   const commandCtx = useMemo(
     () => ({
@@ -70,20 +78,20 @@ function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortc
       setShowCompleted: useFilterStore.getState().setShowCompleted,
       getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
       setDateRange: useFilterStore.getState().setDateRange,
-      getTodos: () => useTodoStore.getState().todos,
+      getTodos: () => todos,
       focusTask: (todoId: number) => {
         useUIStore.getState().selectOneTodo(todoId)
         useUIStore.getState().openEditPopup(todoId)
       },
-      getStatuses: () => useStatusStore.getState().statuses,
+      getStatuses: () => statuses,
       openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
       sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
       openCheckinImport: () => useUIStore.getState().openCheckinImport(),
-      getPeople: () => usePersonStore.getState().people,
-      getOpenTaskCounts: () => openTaskCounts(useTodoStore.getState().todos, usePersonStore.getState().assignedPeopleMap),
-      getCheckinTaskCounts: () => currentCheckinTaskCounts(useSettingsStore.getState().checkinTaskFilter),
+      getPeople: () => people,
+      getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
+      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
     }),
-    [selectionCount, shortcuts],
+    [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter],
   )
 
   // The palette's key hints follow the user's shortcut changes.

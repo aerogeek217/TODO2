@@ -316,6 +316,10 @@ test('fallback: no open tasks match the saved check-in filter: opens the dialog 
   await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: 'hot' }) })
   await page.keyboard.press('Control+k')
   await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
+  // The command exists once Ada's tasks and their people have loaded (the reload above).
+  const top = page.getByRole('listbox').getByRole('option').first()
+  await expect(top).toContainText('Email check-in: Ada Lovelace')
+  await expect(top).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Enter')
   await expectTicked(page, ['Ada Lovelace'])
   await expect(checkinDialog(page).getByRole('status'))
