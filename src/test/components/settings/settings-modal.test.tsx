@@ -90,6 +90,24 @@ describe('SettingsModal', () => {
     expect(useUIStore.getState().settingsOpen).toBe(false)
   })
 
+  it.each([
+    ['Follow-up interval', '2w'],
+    ['Ask at most every (days)', '30'],
+  ])('Esc in the %s field reverts a changed draft and keeps Settings open; a second Esc closes it', (name, typed) => {
+    useSettingsStore.setState({ completedRetentionDays: 30 })
+    render(<SettingsModal />)
+    open('tasks')
+    const input = screen.getByRole(name === 'Follow-up interval' ? 'textbox' : 'spinbutton', { name }) as HTMLInputElement
+    const stored = input.value
+    input.focus()
+    fireEvent.change(input, { target: { value: typed } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input.value).toBe(stored)
+    expect(useUIStore.getState().settingsOpen).toBe(true)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+  })
+
   it('a click inside the frame does not close it', () => {
     render(<SettingsModal />)
     open()

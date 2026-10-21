@@ -285,7 +285,13 @@ function PurgePromptIntervalSetting() {
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-          if (e.key === 'Escape') setDraft(stored)
+          // Esc reverts a changed draft and stays in Settings; with nothing
+          // to revert it reaches the modal, which closes.
+          if (e.key === 'Escape' && draft !== stored) {
+            e.preventDefault()
+            e.stopPropagation()
+            setDraft(stored)
+          }
         }}
         aria-label="Ask at most every (days)"
         aria-invalid={!valid}
