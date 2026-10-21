@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, type WsTabSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, wsTab, type WsTabSeed } from './fixtures/workspace'
+import { pointIn } from './fixtures/geometry'
 
 /**
  * A cell's tab strip uses the room its header gives it: tabs at full width
@@ -172,4 +173,39 @@ test('the +N menu lists the folded tabs, and picking one shows it', async ({ pag
   await expect(cell.locator('[data-ws-tab="c2"]')).toHaveAttribute('aria-selected', 'true')
   await expect(cell.locator('[data-ws-tab="c2"]:not([data-ws-tab-folded])')).toBeVisible()
   expectFits(await stripState(page, 'k1'), 'after picking')
+})
+
+test('with tabs folded into +N, a tab dropped before the active tab pulled forward lands right before it', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 })
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'col1', weight: 1, cells: [{ id: 'k1', tabs: TABS, activeTabId: 'c2' }] },
+        { id: 'col2', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] }] },
+      ],
+    }],
+  })
+  const state = await stripState(page, 'k1')
+  const shown = state.shown.map((t) => t.id)
+  // The active last tab is shown, pulled forward past folded ones.
+  expect(state.folded.length).toBeGreaterThan(0)
+  expect(shown.at(-1)).toBe('c2')
+  expect(shown).toContain('n1')
+  // Drop n1 on the left part of c2: just before it (where c2 is once the drag has lifted).
+  const from = await pointIn(wsTab(page, 'n1'))
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(from.x, from.y + 8, { steps: 2 })
+  await expect(page.locator('[data-ws-tab="c2"]:not([data-ws-tab-folded])')).toBeVisible()
+  const to = await pointIn(wsTab(page, 'c2'), 0.2)
+  await page.mouse.move(to.x, to.y, { steps: 12 })
+  await releaseDrag(page)
+  // A layout edit, unsaved: the working copy's order.
+  await expect.poll(() => page.evaluate(async () => {
+    const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
+      useWorkspaceStore: { getState: () => { working: { columns: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> } | null } }
+    }
+    return ws.useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs.map((t) => t.id)
+  })).toEqual(['c1', 'd1', 'e1', 'n1', 'c2'])
 })

@@ -1,5 +1,5 @@
 import type { BandEdge, WorkspaceLayout } from '../models/workspace-layout'
-import { findTab, movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
+import { findPanel, findTab, movePanel, moveTab, panelAt, type LayoutDropTarget } from './workspace-layout-ops'
 
 /**
  * Hit testing for dragging a workspace tab or a whole panel (a cell or a
@@ -156,6 +156,24 @@ function stripHit(cell: CellGeometry, header: Rect, p: Point): WorkspaceDropHit 
   return { kind: 'tab-strip', cellId: cell.id, index, lineX }
 }
 
+/**
+ * A strip hit's insertion point among the panel's tabs in the layout. The
+ * hit counts the tabs the strip shows; with some folded into `+N` (and the
+ * active one shown out of turn), the layout's index is the shown tab's it
+ * lands before — or just after the last shown tab.
+ */
+function layoutTabIndex(layout: WorkspaceLayout, geo: WorkspaceGeometry, hit: { cellId: string; index: number }): number {
+  const loc = findPanel(layout, hit.cellId)
+  const ids = (loc ? panelAt(layout, loc)?.tabs ?? [] : []).map((t) => t.id)
+  const shown = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)].find((c) => c.id === hit.cellId)?.tabs ?? []
+  const before = shown[hit.index]
+  const beforeIdx = before ? ids.indexOf(before.id) : -1
+  if (beforeIdx !== -1) return beforeIdx
+  const last = shown.at(-1)
+  const lastIdx = last ? ids.indexOf(last.id) : -1
+  return lastIdx !== -1 ? lastIdx + 1 : Math.min(hit.index, ids.length)
+}
+
 /** Whether `p` is over any panel's header (a tab strip). */
 function overStrip(geo: WorkspaceGeometry, p: Point): boolean {
   const panels = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)]
@@ -242,8 +260,9 @@ export function dropTargetForHit(
       return last ? { kind: 'column-edge', columnId: last.id, edge: 'right' } : null
     }
     case 'tab-strip': {
+      const at = layoutTabIndex(layout, geo, hit)
       const loc = source.type === 'tab' ? findTab(layout, source.tabId) : null
-      const index = loc?.panelId === hit.cellId && loc.tabIdx < hit.index ? hit.index - 1 : hit.index
+      const index = loc?.panelId === hit.cellId && loc.tabIdx < at ? at - 1 : at
       return { kind: 'cell', cellId: hit.cellId, index }
     }
     case 'cell-body':
