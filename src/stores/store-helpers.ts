@@ -268,14 +268,20 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   const changedIds = new Set(prevValues.map((s) => s.id))
   // One timestamp for the store and the database write.
   const now = new Date()
-  /** The tasks back to `prevValues` — the `modifiedAt` too, where no later write stamped it. */
-  const revert = (keepNewerStamp: boolean) => {
+  /**
+   * The tasks back to `prevValues`. For a failed write (`onlyOwn`), only where
+   * the field still holds the value this write set — an edit of it that
+   * landed meanwhile stays — and the `modifiedAt` only where no later write
+   * stamped it.
+   */
+  const revert = (onlyOwn: boolean) => {
     const prevMap = new Map(prevValues.map((s) => [s.id, s]))
     set({
       todos: get().todos.map((t) => {
         const saved = prevMap.get(t.id)
         if (!saved) return t
-        const stamp = !keepNewerStamp || t.modifiedAt === now ? { modifiedAt: saved.modifiedAt } : {}
+        if (onlyOwn && !sameFieldValue(t[field], value)) return t
+        const stamp = !onlyOwn || t.modifiedAt === now ? { modifiedAt: saved.modifiedAt } : {}
         return { ...t, [field]: saved.prev, ...stamp }
       }),
     })
