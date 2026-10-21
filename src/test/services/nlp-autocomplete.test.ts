@@ -271,6 +271,20 @@ describe('@ and #', () => {
     expect(labels(at('x @Marco_R'))).toEqual(['create @Marco_R'])
   })
 
+  it('offers create for a name with accents or in another script (the parser reads it whole)', () => {
+    expect(labels(at('x @José'))).toEqual(['create @José'])
+    expect(labels(at('x @Ольга'))).toEqual(['create @Ольга'])
+    expect(pick('x @José')?.value).toBe('x @José ')
+    // Tags stay ASCII: no create row for one the parser would cut.
+    expect(isVisible(at('x #café'))).toBe(false)
+  })
+
+  it('a picked name that isn’t bare is quoted, so it reads back whole', () => {
+    const src = { ...sources, people: [{ id: 9, name: 'Mary-Jane', kind: 'person' as const }] }
+    const view = at('x @mary', src)!
+    expect(applyAutocompletePick('x @mary', view, view.rows[0]!)?.value).toBe('x @"Mary-Jane" ')
+  })
+
   it('picks quote a name with a space', () => {
     expect(pick('Call @dan')?.value).toBe('Call @"Dana Kim" ')
     expect(pick('Call @Marco')?.value).toBe('Call @Marco ')

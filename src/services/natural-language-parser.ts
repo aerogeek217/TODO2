@@ -83,9 +83,19 @@ export interface ParsedInput {
 
 // `@` mentions name a person. Whitespace-anchored like `#tag` and `/command`
 // (group 1 = the separator), so `bob@acme.com`, `a@b` or `(@Dana` are plain
-// text. The parser stays store-free and emits `'person'`-typed tokens;
-// `nlp-resolver.ts` looks the names up.
-const MENTION_PATTERN = /(^|\s)@(?:"([^"]+)"|(\w+))/g
+// text. A bare name is letters (with their accents), digits and `_` in any
+// script (`@José`, `@Zoë`); any other name is quoted (`@"Mary-Jane"`). The
+// parser stays store-free and emits `'person'`-typed tokens; `nlp-resolver.ts`
+// looks the names up.
+const MENTION_PATTERN = /(^|\s)@(?:"([^"]+)"|([\p{L}\p{M}\p{N}_]+))/gu
+
+/** A name `@` takes bare, without quotes (`@José`). */
+export const BARE_MENTION_NAME = /^[\p{L}\p{M}\p{N}_]+$/u
+
+/** The token that names a person: `@Name`, or `@"First Last"` for a name that isn't bare. */
+export function mentionToken(name: string): string {
+  return BARE_MENTION_NAME.test(name) ? `@${name}` : `@"${name}"`
+}
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input) and group 2 is the slug. Separator stays in the remaining title
 // after token removal.

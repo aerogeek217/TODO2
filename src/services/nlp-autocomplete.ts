@@ -8,7 +8,7 @@ import {
   relativeDayPhrase,
   type FollowupInterval,
 } from '../utils/followup'
-import { parseInput } from './natural-language-parser'
+import { BARE_MENTION_NAME, mentionToken, parseInput } from './natural-language-parser'
 import {
   COMMAND_SHAPE,
   DATE_ARGUMENT_HINT,
@@ -264,7 +264,7 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
 
 /** Names a create row may offer: what `parseInput` reads as a whole `@name` / `#tag`. */
 const CREATABLE: Record<'@' | '#', RegExp> = {
-  '@': /^\w+$/,
+  '@': BARE_MENTION_NAME,
   '#': /^[A-Za-z0-9_-]+$/,
 }
 
@@ -475,9 +475,10 @@ export function applyAutocompletePick(
   let reopen = false
   switch (row.kind) {
     case 'entity': {
-      // Tags stay bare (single-word); people quote when the name has a space.
+      // Tags stay bare (single-word); people quote a name that isn't bare
+      // (a space, a hyphen …), so the token reads back as the whole name.
       const name = row.item.name
-      insert = view.trigger === '#' ? `#${name}` : `@${/\s/.test(name) ? `"${name}"` : name}`
+      insert = view.trigger === '#' ? `#${name}` : mentionToken(name)
       break
     }
     case 'create':
