@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
+import { todoRepository } from '../../data/todo-repository'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -134,5 +135,36 @@ describe('bulk writes that fail part-way', () => {
     expect(await db.todoTags.count()).toBe(3)
     const map = useTagStore.getState().assignedTagsMap
     expect(ids.map((id) => map.get(id)?.length ?? 0)).toEqual([1, 1, 1])
+  })
+
+  it('a bulk field write stamps and writes only the tasks it changes; none changed = no write, no undo step', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 1, 9, 0))
+    const ids = await threeTasks()
+    const due = new Date(2026, 9, 9)
+    await useTodoStore.getState().update(ids[0], { dueDate: new Date(due) })
+    useUndoStore.setState(useUndoStore.getInitialState(), true)
+    const before = (await db.todos.get(ids[0]))!.modifiedAt.getTime()
+    vi.setSystemTime(new Date(2026, 9, 1, 10, 0))
+
+    await useTodoStore.getState().bulkSetDeadline(ids, new Date(due))
+    const rows = await db.todos.bulkGet(ids)
+    expect(rows[0]!.modifiedAt.getTime()).toBe(before)
+    expect(useTodoStore.getState().todos.find((t) => t.id === ids[0])!.modifiedAt.getTime()).toBe(before)
+    expect(rows[1]!.modifiedAt.getTime()).toBe(new Date(2026, 9, 1, 10, 0).getTime())
+    expect(rows.map((r) => r!.dueDate?.getTime())).toEqual([due.getTime(), due.getTime(), due.getTime()])
+    expect(useUndoStore.getState().undoStack).toHaveLength(1)
+
+    // Undo takes back the two it changed; the first keeps its date.
+    await useUndoStore.getState().undo()
+    expect((await db.todos.bulkGet(ids)).map((r) => r!.dueDate?.getTime())).toEqual([due.getTime(), undefined, undefined])
+
+    // Nothing to change: nothing written, no undo step.
+    const write = vi.spyOn(todoRepository, 'bulkUpdate')
+    await useTodoStore.getState().bulkSetDeadline([ids[0]], new Date(due))
+    expect(write).not.toHaveBeenCalled()
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(useUndoStore.getState().redoStack).toHaveLength(1)
+    vi.useRealTimers()
   })
 })

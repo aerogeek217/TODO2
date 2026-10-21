@@ -239,9 +239,17 @@ export async function captureAssignmentsBulk(todoIds: number[]): Promise<
   }))
 }
 
+/** Whether a task field already holds `value` (dates by their time). */
+function sameFieldValue(a: unknown, b: unknown): boolean {
+  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime()
+  return a === b
+}
+
 /**
  * Bulk update a single field on multiple todos, with undo support.
  * Uses optimistic update: state changes immediately, DB write follows.
+ * Only the tasks whose field changes are written (and get a new
+ * `modifiedAt`); when none does, nothing is written and no undo step added.
  */
 export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   ids: number[],
@@ -254,48 +262,44 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
 ): Promise<void> {
   const idSet = new Set(ids)
   const prevValues = get().todos
-    .filter((t) => idSet.has(t.id))
+    .filter((t) => idSet.has(t.id) && !sameFieldValue(t[field], value))
     .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
+  if (prevValues.length === 0) return
+  const changedIds = new Set(prevValues.map((s) => s.id))
   // One timestamp for the store and the database write.
   const now = new Date()
+  /** The tasks back to `prevValues` — the `modifiedAt` too, where no later write stamped it. */
+  const revert = (keepNewerStamp: boolean) => {
+    const prevMap = new Map(prevValues.map((s) => [s.id, s]))
+    set({
+      todos: get().todos.map((t) => {
+        const saved = prevMap.get(t.id)
+        if (!saved) return t
+        const stamp = !keepNewerStamp || t.modifiedAt === now ? { modifiedAt: saved.modifiedAt } : {}
+        return { ...t, [field]: saved.prev, ...stamp }
+      }),
+    })
+  }
 
   await optimistic(
     () => {
       set({
         todos: get().todos.map((t) =>
-          idSet.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
+          changedIds.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
         ),
       })
     },
-    () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } })), now),
-    () => {
-      const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
-      set({
-        todos: get().todos.map((t) => {
-          const saved = prevMap.get(t.id)
-          return saved ? { ...t, [field]: saved.prev, modifiedAt: saved.modifiedAt } : t
-        }),
-      })
-    },
+    () => todoRepository.bulkUpdate([...changedIds].map((id) => ({ todoId: id, changes: { [field]: value } })), now),
+    () => revert(true),
     label,
     {
       description: label,
       redo: () => bulkUpdateField(ids, field, value, label, get, set, opts),
       undo: async () => {
-        // Rows the edit changed get their value and modifiedAt back, in the
-        // database and the store alike; the others are left as they are.
-        const changed = prevValues.filter((s) => s.prev !== value)
-        const mutations = changed.map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } }))
-        if (mutations.length > 0) {
-          await todoRepository.bulkUpdate(mutations)
-          const prevMap = new Map(changed.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
-          set({
-            todos: get().todos.map((t) => {
-              const saved = prevMap.get(t.id)
-              return saved ? { ...t, [field]: saved.prev, modifiedAt: saved.modifiedAt } : t
-            }),
-          })
-        }
+        // The rows the edit changed get their value and modifiedAt back, in
+        // the database and the store alike; the others are left as they are.
+        await todoRepository.bulkUpdate(prevValues.map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } })))
+        revert(false)
       },
       showSnackbar: opts.showSnackbar,
     },

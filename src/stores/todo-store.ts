@@ -669,10 +669,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
         todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changes, modifiedAt: now } : t)),
       }),
       () => todoRepository.bulkUpdate(targetIds.map((todoId) => ({ todoId, changes })), now),
+      // The follow-up dates back; the modifiedAt only where no later write stamped it.
       () => set({
         todos: get().todos.map((t) => {
           const p = prev.get(t.id)
-          return p ? { ...t, ...p } : t
+          return p
+            ? { ...t, lastFollowupAt: p.lastFollowupAt, nextFollowupAt: p.nextFollowupAt, ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}) }
+            : t
         }),
       }),
       'Failed to mark tasks followed up',

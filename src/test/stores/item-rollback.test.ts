@@ -11,6 +11,8 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { todoRepository } from '../../data/todo-repository'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
@@ -213,5 +215,46 @@ describe('entity updates', () => {
     await expect(failing).rejects.toThrow('write failed')
 
     expect(useListDefinitionStore.getState().listDefinitions.map((d) => d.name).sort()).toEqual(['A', 'B 2'])
+  })
+})
+
+describe('task bulk writes', () => {
+  afterEach(() => { vi.useRealTimers() })
+
+  /** A task, then the clock moved on so each later write has its own stamp. */
+  async function oneTask() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 1, 9, 0))
+    const id = await useTodoStore.getState().add('Call')
+    vi.setSystemTime(new Date(2026, 9, 1, 10, 0))
+    return id
+  }
+  const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)!
+
+  it('a failed Mark followed up leaves the stamp of an edit made to the task meanwhile', async () => {
+    const id = await oneTask()
+    const created = mem(id).modifiedAt
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().markFollowedUp([id])
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    await useTodoStore.getState().update(id, { title: 'Call back' })
+    const edited = mem(id).modifiedAt
+    expect(edited.getTime()).not.toBe(created.getTime())
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    expect(mem(id)).toMatchObject({ title: 'Call back', lastFollowupAt: undefined, modifiedAt: edited })
+  })
+
+  it('a failed bulk field write leaves the stamp of an edit made to the task meanwhile', async () => {
+    const id = await oneTask()
+    const waiting = await db.statuses.add({ name: 'Waiting', color: '#000', icon: 'circle', sortOrder: 9 }) as number
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().bulkSetStatus([id], waiting)
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    await useTodoStore.getState().update(id, { title: 'Call back' })
+    const edited = mem(id).modifiedAt
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    expect(mem(id)).toMatchObject({ title: 'Call back', statusId: undefined, modifiedAt: edited })
   })
 })
