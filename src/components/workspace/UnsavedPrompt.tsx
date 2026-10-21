@@ -64,16 +64,11 @@ function widgetCount(id: number): number {
   return countListWidgets(useWorkspaceStore.getState(), id)
 }
 
-/**
- * "Save changes to list …?" for one list. `revertOnDiscard`: Discard drops
- * the edits as an undo step (the snackbar's Undo brings them back), as the
- * list's Revert does.
- */
-export function UnsavedListDialog({ listId, onDone, onCancel, revertOnDiscard = false }: {
+/** "Save changes to list …?" for one list. */
+function UnsavedListDialog({ listId, onDone, onCancel }: {
   listId: number
   onDone: () => void
   onCancel: () => void
-  revertOnDiscard?: boolean
 }) {
   const saveRef = useRef<HTMLButtonElement>(null)
   const name = listName(listId)
@@ -89,9 +84,7 @@ export function UnsavedListDialog({ listId, onDone, onCancel, revertOnDiscard = 
           type="button"
           className={styles.dangerGhost}
           onClick={() => {
-            const drafts = useListDraftStore.getState()
-            if (revertOnDiscard) drafts.revert(listId)
-            else drafts.discard(listId)
+            useListDraftStore.getState().discard(listId)
             onDone()
           }}
         >

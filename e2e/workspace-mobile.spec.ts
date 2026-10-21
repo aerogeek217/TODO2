@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed, editListDraft } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -213,20 +213,19 @@ test('long-pressing a list tab opens its list sheet; Edit list is a half sheet w
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   await expect(wsCell(page, 'a1').locator('[data-todo-id]').first()).toContainText('Call plumber')
 
-  // A tap above the sheet asks about the unsaved list first: Cancel keeps the sheet.
-  const prompt = page.getByRole('dialog', { name: 'Save changes to list “Today”?' })
+  // A tap above the sheet closes it at once, nothing asked: the list stays unsaved.
   await page.mouse.click(195, 100)
-  await expect(prompt).toBeVisible()
-  await prompt.getByRole('button', { name: /^Cancel/ }).click()
-  await expect(sheet).toBeVisible()
-  // × asks the same: Discard reverts the edit and closes it.
-  await sheet.getByRole('button', { name: 'Close Edit list' }).click()
-  await prompt.getByRole('button', { name: 'Discard' }).click()
   await expect(sheet).toHaveCount(0)
-  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: /^Save changes to list/ })).toHaveCount(0)
+  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+  // × closes it the same way.
+  await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
+  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
+  await sheet.getByRole('button', { name: 'Close Edit list' }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
 
-  // An unsaved edit made outside Edit list: Revert · Save on the filter line, at touch size.
-  await editListDraft(page, 'Today', { sort: 'name' })
+  // The unsaved list: Revert · Save on the filter line, at touch size.
   const line = wsCell(page, 'a1').getByTestId('list-filter-row')
   await expect(line).toContainText('No filters')
   await expect(line.getByTestId('save-list')).toHaveText('Save')

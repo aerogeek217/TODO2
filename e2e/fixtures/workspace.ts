@@ -519,8 +519,7 @@ export function wsListWidget(page: Page, tabId: string): Locator {
 
 /**
  * An unsaved edit to the list named `listName` made outside Edit list (as the
- * filter line's chips make them): its shared draft, with Edit list closed —
- * Edit list itself asks before it closes on an unsaved list.
+ * filter line's chips make them): its shared draft, with Edit list closed.
  */
 export async function editListDraft(page: Page, listName: string, changes: Record<string, unknown>): Promise<void> {
   await page.evaluate(async ({ name, patch }) => {

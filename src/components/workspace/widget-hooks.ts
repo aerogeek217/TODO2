@@ -61,23 +61,18 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 /**
  * Opens Edit list for a list tab: the tab is made its panel's active one and
  * the panel expanded (so the list it previews is on screen), then the
- * surface opens beside it. Another list's open Edit list closes first (asking
- * while that list is unsaved — Cancel keeps it, and nothing else changes).
+ * surface opens beside it, in place of another list's open Edit list (that
+ * list keeps its draft).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
-  const open = () => {
-    const ws = useWorkspaceStore.getState()
-    const working = ws.working
-    const cell = working ? panelOfTab(working, tabId) : undefined
-    if (cell) {
-      if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-      if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
-    }
-    useUIStore.getState().openListEditor(listDefinitionId, tabId)
+  const ws = useWorkspaceStore.getState()
+  const working = ws.working
+  const cell = working ? panelOfTab(working, tabId) : undefined
+  if (cell) {
+    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
+    if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
   }
-  const ui = useUIStore.getState()
-  if (ui.listEditor != null && ui.listEditor.listDefinitionId !== listDefinitionId) ui.requestCloseListEditor(open)
-  else open()
+  useUIStore.getState().openListEditor(listDefinitionId, tabId)
 }
 
 /** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */

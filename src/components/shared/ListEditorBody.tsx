@@ -218,6 +218,8 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
           <PredicateChips
             predicate={predicate}
             onChange={(next) => onChange({ ...draft, membership: { kind: 'custom', predicate: next } })}
+            // Esc closes an open field picker only, not Edit list around it.
+            inDialog
           />
         </div>
         {variant !== 'sheet' && showCompleted}

@@ -88,11 +88,10 @@ test.describe('desktop', () => {
     await expect.poll(() => sorted(page)).toEqual(['Due tomorrow', 'Flagged urgent'])
     await expect(editList.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Urgent, not Important/)
     await expect(editList.locator('[data-changed]')).toHaveText(['Filters'])
-    // Esc closes the picker, then Edit list — which asks about the unsaved list: Save list.
+    // Esc closes the picker; Edit list's Save list writes the edit.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
-    await page.keyboard.press('Escape')
-    await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Save list' }).click()
+    await editList.getByRole('button', { name: 'Save list' }).click()
     await expect(editList).toHaveCount(0)
     await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 
