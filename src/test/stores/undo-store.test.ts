@@ -175,11 +175,11 @@ describe('useUndoStore', () => {
   // 11. beginGroup + entries + endGroup: merges into compound entry
   it('beginGroup/endGroup merges entries into a single compound entry', () => {
     const store = useUndoStore.getState()
-    store.beginGroup()
+    const group = store.beginGroup()
     store.push(makeEntry('a'))
     store.push(makeEntry('b'))
     store.push(makeEntry('c'))
-    useUndoStore.getState().endGroup('compound')
+    useUndoStore.getState().endGroup(group, 'compound')
 
     const state = useUndoStore.getState()
     expect(state.undoStack).toHaveLength(1)
@@ -197,11 +197,11 @@ describe('useUndoStore', () => {
     })
 
     const store = useUndoStore.getState()
-    store.beginGroup()
+    const group = store.beginGroup()
     store.push(mkEntry('first'))
     store.push(mkEntry('second'))
     store.push(mkEntry('third'))
-    useUndoStore.getState().endGroup('compound')
+    useUndoStore.getState().endGroup(group, 'compound')
 
     await useUndoStore.getState().undo()
 
@@ -218,11 +218,11 @@ describe('useUndoStore', () => {
     })
 
     const store = useUndoStore.getState()
-    store.beginGroup()
+    const group = store.beginGroup()
     store.push(mkEntry('first'))
     store.push(mkEntry('second'))
     store.push(mkEntry('third'))
-    useUndoStore.getState().endGroup('compound')
+    useUndoStore.getState().endGroup(group, 'compound')
 
     await useUndoStore.getState().undo()
     await useUndoStore.getState().redo()
@@ -233,10 +233,10 @@ describe('useUndoStore', () => {
   // 14. endGroup with no entries since begin -> clears groupStartIndex only
   it('endGroup with no entries since beginGroup is a no-op', () => {
     const store = useUndoStore.getState()
-    store.beginGroup()
+    const group = store.beginGroup()
     expect(useUndoStore.getState().groupStartIndex).toBe(0)
 
-    useUndoStore.getState().endGroup('empty group')
+    useUndoStore.getState().endGroup(group, 'empty group')
 
     const state = useUndoStore.getState()
     expect(state.groupStartIndex).toBeNull()
@@ -246,10 +246,10 @@ describe('useUndoStore', () => {
   it('a group on a full stack still merges into one entry (pushes inside it never trim)', () => {
     const store = useUndoStore.getState()
     for (let i = 0; i < 50; i++) store.push(makeEntry(`old${i}`))
-    store.beginGroup()
+    const group = store.beginGroup()
     store.push(makeEntry('a'))
     store.push(makeEntry('b'))
-    useUndoStore.getState().endGroup('compound')
+    useUndoStore.getState().endGroup(group, 'compound')
 
     const state = useUndoStore.getState()
     expect(state.undoStack).toHaveLength(50)
@@ -260,10 +260,10 @@ describe('useUndoStore', () => {
 
   it('pushes inside a group show no snackbar; endGroup shows the group description', () => {
     const store = useUndoStore.getState()
-    store.beginGroup()
+    const group = store.beginGroup()
     store.push(makeEntry('a'), true)
     expect(useUndoStore.getState().snackbar).toBeNull()
-    useUndoStore.getState().endGroup('compound', true)
+    useUndoStore.getState().endGroup(group, 'compound', true)
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'compound' })
   })
 
@@ -282,9 +282,9 @@ describe('useUndoStore', () => {
   // 17. endGroup with showSnackbar sets snackbar
   it('endGroup with showSnackbar sets snackbar', () => {
     const store = useUndoStore.getState()
-    store.beginGroup()
+    const group = store.beginGroup()
     store.push(makeEntry('a'))
-    useUndoStore.getState().endGroup('grouped action', true)
+    useUndoStore.getState().endGroup(group, 'grouped action', true)
 
     const state = useUndoStore.getState()
     expect(state.snackbar).toEqual({ description: 'grouped action' })
@@ -383,6 +383,8 @@ describe('useUndoStore — an undo or redo that fails', () => {
     vi.restoreAllMocks()
   })
 
+  const makeEntry = (label: string) => ({ description: label, undo: vi.fn(), redo: vi.fn() })
+
   function failingEntry(label: string, failing: 'undo' | 'redo') {
     let fail = true
     const run = vi.fn(async () => { if (fail) throw new Error('write failed') })
@@ -431,11 +433,11 @@ describe('useUndoStore — an undo or redo that fails', () => {
     const order: string[] = []
     const kept = { description: 'Before', undo: vi.fn(), redo: vi.fn() }
     useUndoStore.getState().push(kept)
-    useUndoStore.getState().beginGroup()
+    const group = useUndoStore.getState().beginGroup()
     for (const label of ['A', 'B']) {
       useUndoStore.getState().push({ description: label, undo: vi.fn(() => { order.push(label) }), redo: vi.fn() })
     }
-    await expect(useUndoStore.getState().abortGroup('Drop')).resolves.toBe(true)
+    await expect(useUndoStore.getState().abortGroup(group, 'Drop')).resolves.toBe(true)
     const state = useUndoStore.getState()
     expect(order).toEqual(['B', 'A'])
     expect(state.undoStack).toEqual([kept])
@@ -445,11 +447,11 @@ describe('useUndoStore — an undo or redo that fails', () => {
 
   it('abortGroup: an entry that can’t be taken back stays undoable with what is left, as one entry', async () => {
     const undoneA = vi.fn()
-    useUndoStore.getState().beginGroup()
+    const group = useUndoStore.getState().beginGroup()
     useUndoStore.getState().push({ description: 'A', undo: undoneA, redo: vi.fn() })
     useUndoStore.getState().push({ description: 'B', undo: vi.fn(async () => { throw new Error('write failed') }), redo: vi.fn() })
     useUndoStore.getState().push({ description: 'C', undo: vi.fn(), redo: vi.fn() })
-    await expect(useUndoStore.getState().abortGroup('Drop')).resolves.toBe(false)
+    await expect(useUndoStore.getState().abortGroup(group, 'Drop')).resolves.toBe(false)
     const state = useUndoStore.getState()
     expect(state.undoStack.map((e) => e.description)).toEqual(['Drop'])
     expect(state.isPerformingUndoRedo).toBe(false)
@@ -458,8 +460,96 @@ describe('useUndoStore — an undo or redo that fails', () => {
   })
 
   it('abortGroup without an open group does nothing', async () => {
-    await expect(useUndoStore.getState().abortGroup('Drop')).resolves.toBe(true)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const group = useUndoStore.getState().beginGroup()
+    useUndoStore.getState().endGroup(group, 'Done')
+    await expect(useUndoStore.getState().abortGroup(group, 'Drop')).resolves.toBe(true)
     expect(useUndoStore.getState().undoStack).toEqual([])
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('a token that is not the open group’s ends or takes back nothing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const stale = useUndoStore.getState().beginGroup()
+    useUndoStore.getState().endGroup(stale, 'First')
+    const before = makeEntry('Before')
+    useUndoStore.getState().push(before)
+    const open = useUndoStore.getState().beginGroup()
+    const inside = makeEntry('Inside')
+    useUndoStore.getState().push(inside)
+
+    useUndoStore.getState().endGroup(stale, 'Wrong')
+    await expect(useUndoStore.getState().abortGroup(stale, 'Wrong')).resolves.toBe(true)
+    // The open group is untouched: nothing merged, nothing taken back.
+    expect(inside.undo).not.toHaveBeenCalled()
+    expect(useUndoStore.getState().groupToken).toBe(open)
+    expect(useUndoStore.getState().undoStack).toEqual([before, inside])
+    expect(warn).toHaveBeenCalledTimes(2)
+
+    useUndoStore.getState().endGroup(open, 'Right')
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Before', 'Right'])
+    warn.mockRestore()
+  })
+
+  describe('runGroup', () => {
+    beforeEach(() => { vi.useRealTimers() })
+
+    it('ends the group as one entry with the snackbar, named when it ends', async () => {
+      let count = 0
+      await useUndoStore.getState().runGroup(() => `Applied ${count}`, async () => {
+        useUndoStore.getState().push(makeEntry('a'), true)
+        count++
+        useUndoStore.getState().push(makeEntry('b'), true)
+        count++
+      })
+      const state = useUndoStore.getState()
+      expect(state.undoStack.map((e) => e.description)).toEqual(['Applied 2'])
+      expect(state.snackbar).toEqual({ description: 'Applied 2' })
+      expect(state.groupToken).toBeNull()
+    })
+
+    it('a group that throws still ends as one entry, and the error reaches the caller', async () => {
+      const run = useUndoStore.getState().runGroup('Partial', async () => {
+        useUndoStore.getState().push(makeEntry('a'))
+        throw new Error('write failed')
+      })
+      await expect(run).rejects.toThrow('write failed')
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Partial'])
+      expect(useUndoStore.getState().groupToken).toBeNull()
+    })
+
+    it('groups started together run one after the other: each its own entry, and a group’s abort takes back only its own', async () => {
+      let releaseFirst!: () => void
+      const firstHeld = new Promise<void>((r) => { releaseFirst = r })
+      const firstA = makeEntry('first a')
+      const secondA = makeEntry('second a')
+      const first = useUndoStore.getState().runGroup('First', async () => {
+        useUndoStore.getState().push(firstA)
+        await firstHeld
+      })
+      const second = useUndoStore.getState().runGroup('Second', async (group) => {
+        useUndoStore.getState().push(secondA)
+        await useUndoStore.getState().abortGroup(group, 'Second')
+      })
+      // The second hasn't started while the first is held open.
+      await Promise.resolve()
+      expect(secondA.undo).not.toHaveBeenCalled()
+      expect(useUndoStore.getState().undoStack).toEqual([firstA])
+      releaseFirst()
+      await Promise.all([first, second])
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['First'])
+      expect(firstA.undo).not.toHaveBeenCalled()
+      expect(secondA.undo).toHaveBeenCalledTimes(1)
+    })
+
+    it('a group that failed doesn’t stop the next', async () => {
+      const failed = useUndoStore.getState().runGroup('Bad', async () => { throw new Error('boom') })
+      const next = useUndoStore.getState().runGroup('Good', async () => { useUndoStore.getState().push(makeEntry('x')) })
+      await expect(failed).rejects.toThrow('boom')
+      await next
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Good'])
+    })
   })
 
   it('a failed undo goes back where it was: an entry pushed meanwhile stays on top', async () => {

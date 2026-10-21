@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { NOTICE_SNACKBAR_MS, UNDO_SNACKBAR_MS } from '../constants'
+import { registerModuleReset } from '../utils/module-reset'
 
 export interface UndoEntry {
   description: string
@@ -10,6 +11,16 @@ export interface UndoEntry {
 }
 
 const MAX_STACK_SIZE = 50
+
+/**
+ * The handle of one open undo group (`beginGroup`): only its holder ends or
+ * aborts it. Opaque — compared by identity.
+ */
+export interface UndoGroupToken { readonly __undoGroup: true }
+
+/** The groups run through `runGroup`, in order: one at a time (the store has one open group). */
+let groupQueue: Promise<unknown> = Promise.resolve()
+registerModuleReset(() => { groupQueue = Promise.resolve() })
 
 /**
  * Thrown by an undo / redo that can't run yet for a reason the user can fix
@@ -50,6 +61,8 @@ interface UndoState {
   redoStack: UndoEntry[]
   isPerformingUndoRedo: boolean
   groupStartIndex: number | null
+  /** The open group's handle (`beginGroup`), or null. */
+  groupToken: UndoGroupToken | null
   /** What the snackbar shows. `notice`: a message with no Undo (`notify`); `detail`: a second line. */
   snackbar: { description: string; notice?: true; detail?: string } | null
   snackbarTimerId: ReturnType<typeof setTimeout> | null
@@ -65,20 +78,42 @@ interface UndoState {
   redo: () => Promise<void>
   /**
    * Mark the start of a compound operation. All entries pushed until
-   * endGroup() are merged into one; while the group is open, pushes show no
-   * snackbar.
+   * `endGroup(token)` are merged into one; while the group is open, pushes
+   * show no snackbar. Returns the group's handle. Callers use `runGroup`,
+   * which waits for any group before it — a second `beginGroup` while one is
+   * open warns and starts a new group (the first one's entries stay as they
+   * were pushed, and its token ends nothing).
    */
-  beginGroup: () => void
-  /** Merge all entries pushed since beginGroup() into a single undo entry. */
-  endGroup: (description: string, showSnackbar?: boolean) => void
+  beginGroup: () => UndoGroupToken
+  /**
+   * Merge all entries pushed since `beginGroup()` into a single undo entry.
+   * A token that isn't the open group's does nothing (and warns).
+   */
+  endGroup: (token: UndoGroupToken, description: string, showSnackbar?: boolean) => void
   /**
    * Ends the open group by taking back what it holds, newest first — a
    * compound operation that failed part-way leaves nothing behind and no
    * entry. Resolves `false` when an entry can't be taken back: the entries
    * not taken back then stay, as one entry named `description`, for the
-   * user to undo. Shows no snackbar (the caller says what happened).
+   * user to undo. Shows no snackbar (the caller says what happened). A
+   * token that isn't the open group's takes nothing back (and warns).
    */
-  abortGroup: (description: string) => Promise<boolean>
+  abortGroup: (token: UndoGroupToken, description: string) => Promise<boolean>
+  /**
+   * Runs `fn` as one compound operation: after every group run before it
+   * has settled, inside a group of its own (`fn` gets its token). When `fn`
+   * settles — resolves or throws — with the group still open, the group
+   * ends as one entry named `description` (a function: read then, e.g. a
+   * count of what went in) with the undo snackbar; `fn` may close it itself
+   * first (`abortGroup` on a failure). Resolves / rejects as `fn` does.
+   *
+   * Every compound operation (Eisenhower drops, check-in replies) goes
+   * through here, so groups never overlap. An unrelated undoable write that
+   * lands while a group is open (a user edit in the milliseconds a drop
+   * takes) is still merged into it — accepted: groups are short, and
+   * nothing but these writes runs between their awaits in practice.
+   */
+  runGroup: <T>(description: string | (() => string), fn: (token: UndoGroupToken) => Promise<T>) => Promise<T>
   /**
    * Shows `description` in the snackbar without an Undo button — the result
    * of an operation that can't be undone (e.g. one run without a backup).
@@ -107,6 +142,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
     redoStack: [],
     isPerformingUndoRedo: false,
     groupStartIndex: null,
+    groupToken: null,
     snackbar: null,
     snackbarTimerId: null,
 
@@ -196,16 +232,22 @@ export const useUndoStore = create<UndoState>((set, get) => {
     },
 
     beginGroup() {
-      set({ groupStartIndex: get().undoStack.length })
+      if (get().groupToken != null) console.warn('[undo] a group was opened while another was open')
+      const token: UndoGroupToken = { __undoGroup: true }
+      set({ groupStartIndex: get().undoStack.length, groupToken: token })
+      return token
     },
 
-    endGroup(description: string, showSnackbar = false) {
-      const { undoStack, groupStartIndex, snackbarTimerId } = get()
-      if (groupStartIndex == null) return
+    endGroup(token: UndoGroupToken, description: string, showSnackbar = false) {
+      const { undoStack, groupStartIndex, groupToken, snackbarTimerId } = get()
+      if (groupStartIndex == null || groupToken !== token) {
+        console.warn(`[undo] endGroup for a group that isn't open: ${description}`)
+        return
+      }
 
       const grouped = undoStack.slice(groupStartIndex)
       if (grouped.length === 0) {
-        set({ groupStartIndex: null })
+        set({ groupStartIndex: null, groupToken: null })
         return
       }
 
@@ -224,6 +266,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
           undoStack: [...trimmed, compound],
           redoStack: [],
           groupStartIndex: null,
+          groupToken: null,
           snackbar: { description },
           snackbarTimerId: timerId,
         })
@@ -232,18 +275,22 @@ export const useUndoStore = create<UndoState>((set, get) => {
           undoStack: [...trimmed, compound],
           redoStack: [],
           groupStartIndex: null,
+          groupToken: null,
           snackbar: null,
           snackbarTimerId: null,
         })
       }
     },
 
-    async abortGroup(description: string) {
-      const { undoStack, groupStartIndex } = get()
-      if (groupStartIndex == null) return true
+    async abortGroup(token: UndoGroupToken, description: string) {
+      const { undoStack, groupStartIndex, groupToken } = get()
+      if (groupStartIndex == null || groupToken !== token) {
+        console.warn(`[undo] abortGroup for a group that isn't open: ${description}`)
+        return true
+      }
       const grouped = undoStack.slice(groupStartIndex)
       // Like an undo: the stores' writes made while taking back push nothing.
-      set({ undoStack: undoStack.slice(0, groupStartIndex), groupStartIndex: null, isPerformingUndoRedo: true })
+      set({ undoStack: undoStack.slice(0, groupStartIndex), groupStartIndex: null, groupToken: null, isPerformingUndoRedo: true })
       try {
         for (let i = grouped.length - 1; i >= 0; i--) {
           const entry = grouped[i]
@@ -262,6 +309,22 @@ export const useUndoStore = create<UndoState>((set, get) => {
       }
     },
 
+    runGroup<T>(description: string | (() => string), fn: (token: UndoGroupToken) => Promise<T>): Promise<T> {
+      const run = groupQueue.then(async () => {
+        const token = get().beginGroup()
+        try {
+          return await fn(token)
+        } finally {
+          if (get().groupToken === token) {
+            get().endGroup(token, typeof description === 'function' ? description() : description, true)
+          }
+        }
+      })
+      // A group that failed doesn't stop the ones after it.
+      groupQueue = run.catch(() => {})
+      return run
+    },
+
     notify(description: string) {
       const { snackbarTimerId } = get()
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
@@ -278,7 +341,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
     clear() {
       const { snackbarTimerId } = get()
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
-      set({ undoStack: [], redoStack: [], groupStartIndex: null, snackbar: null, snackbarTimerId: null })
+      set({ undoStack: [], redoStack: [], groupStartIndex: null, groupToken: null, snackbar: null, snackbarTimerId: null })
     },
   }
 })

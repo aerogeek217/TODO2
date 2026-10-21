@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
+import { applyCheckinUpdates } from '../../services/checkin-reply/apply'
 import { applyPaneDrop, currentPaneContext, currentPanes } from '../../services/eisenhower-drop'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import type { LayoutTab, PersistedWorkspaceLayout } from '../../models/workspace-layout'
@@ -93,7 +94,7 @@ describe('applyPaneDrop — a write that fails', () => {
     expect(row?.statusId).toBeUndefined()
     const undo = useUndoStore.getState()
     expect(undo.undoStack).toEqual([])
-    expect(undo.groupStartIndex).toBeNull()
+    expect(undo.groupToken).toBeNull()
     expect(undo.snackbar).toEqual({
       description: 'Couldn’t save: Marked urgent, status Waiting, tagged #home · 2 tasks. Nothing changed.',
       notice: true,
@@ -108,6 +109,29 @@ describe('applyPaneDrop — a write that fails', () => {
     expect(mem(a).important).toBeUndefined()
     expect(useUndoStore.getState().undoStack).toEqual([])
     expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t save: Marked important · Chase vendor. Nothing changed.')
+  })
+
+  it('a drop that fails while a check-in reply is being applied takes back only its own writes', async () => {
+    const { home, waiting, a, b } = await seed()
+    const c = await useTodoStore.getState().add('Reply task')
+    useUndoStore.setState(useUndoStore.getInitialState(), true)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(db.todoTags, 'add').mockRejectedValue(new Error('disk full'))
+
+    const reply = applyCheckinUpdates([{ todoId: c, complete: false, progress: 'Half done', changeCount: 1 }], { recordFollowup: false, personName: 'Ann' })
+    const drop = applyPaneDrop([
+      { todoId: a, urgent: true, statusId: waiting, tagId: home },
+      { todoId: b, urgent: true, statusId: waiting, tagId: home },
+    ])
+    await Promise.all([reply, drop])
+
+    // The reply's write stays, as its own undo step; the drop left nothing.
+    expect(mem(c).progress).toBe('Half done')
+    expect((await db.todos.get(c))!.progress).toBe('Half done')
+    expect(mem(a).urgent).toBeUndefined()
+    expect(mem(a).statusId).toBeUndefined()
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Applied 1 change from Ann'])
+    expect(useUndoStore.getState().groupToken).toBeNull()
   })
 
   it('two drops at once are written one after the other, each its own undo step', async () => {

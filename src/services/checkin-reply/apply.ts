@@ -90,11 +90,10 @@ export async function applyCheckinUpdates(
 ): Promise<number> {
   const changeCount = updates.reduce((n, u) => n + u.changeCount, 0)
   if (changeCount === 0) return 0
-  const undo = useUndoStore.getState()
   // Counted as each write lands, so a failure part-way says how many went in.
   let applied = 0
-  undo.beginGroup()
-  try {
+  // One group (`runGroup`): ended — on a failure too — as one entry named for what went in.
+  await useUndoStore.getState().runGroup(() => checkinAppliedMessage(applied, options.personName), async () => {
     const completeIds = updates.filter((u) => u.complete).map((u) => u.todoId)
     // The same path as completing tasks in the app (a repeating task moves
     // to its next due date instead).
@@ -114,8 +113,6 @@ export async function applyCheckinUpdates(
     }
 
     if (options.recordFollowup) await useTodoStore.getState().markFollowedUp(updates.map((u) => u.todoId))
-  } finally {
-    useUndoStore.getState().endGroup(checkinAppliedMessage(applied, options.personName), true)
-  }
+  })
   return applied
 }

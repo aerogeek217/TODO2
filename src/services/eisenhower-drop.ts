@@ -3,11 +3,10 @@ import { currentFilterSettings, useSettingsStore } from '../stores/settings-stor
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
-import { useUndoStore } from '../stores/undo-store'
+import { useUndoStore, type UndoGroupToken } from '../stores/undo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { dropDescription, type PaneChange, type PaneContext } from '../utils/eisenhower'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
-import { registerModuleReset } from '../utils/module-reset'
 import { getTab } from '../utils/workspace-layout-ops'
 
 /**
@@ -54,22 +53,20 @@ function idsByValue(changes: readonly PaneChange[], key: 'statusId' | 'personId'
   return out
 }
 
-/** The drops being written, in order: one at a time (an undo group is the undo store's one open group). */
-let queue: Promise<void> = Promise.resolve()
-registerModuleReset(() => { queue = Promise.resolve() })
-
 /**
  * Writes a pane drop's changes (`resolvePaneDrop`) as one undo step with
  * the undo snackbar (`dropDescription`): the flags, then the status, then
- * the person / tag added. Drops are written one after another. Never
- * rejects: a write that fails takes back what the drop wrote before it
- * (`abortGroup`) and a notice says so.
+ * the person / tag added. Drops are written one after another (with every
+ * other compound operation — `undo-store.runGroup`). Never rejects: a
+ * write that fails takes back what the drop wrote before it (`abortGroup`)
+ * and a notice says so.
  */
 export function applyPaneDrop(changes: readonly PaneChange[]): Promise<void> {
-  const run = queue.then(() => writePaneDrop(changes))
-  // A drop that failed in an unforeseen way doesn't stop the ones after it.
-  queue = run.catch((e: unknown) => { console.error('[eisenhower-drop] a drop could not be written', e) })
-  return run
+  if (changes.length === 0) return Promise.resolve()
+  return useUndoStore.getState()
+    .runGroup(() => describeDrop(changes), (group) => writePaneDrop(changes, group))
+    // A drop that failed in an unforeseen way is logged; the caller never sees it.
+    .catch((e: unknown) => { console.error('[eisenhower-drop] a drop could not be written', e) })
 }
 
 function failed(description: string, clean: boolean): string {
@@ -78,29 +75,22 @@ function failed(description: string, clean: boolean): string {
     : `Couldn’t fully save: ${description}. Undo takes back what was saved.`
 }
 
-async function writePaneDrop(changes: readonly PaneChange[]): Promise<void> {
-  if (changes.length === 0) return
+/** The drop's undo step's name, from the stores as they are when it is written. */
+function describeDrop(changes: readonly PaneChange[]): string {
   const todos = useTodoStore.getState().todos
-  const description = dropDescription(changes, (id) => todos.find((t) => t.id === id)?.title, {
+  return dropDescription(changes, (id) => todos.find((t) => t.id === id)?.title, {
     people: usePersonStore.getState().people,
     tags: useTagStore.getState().tags,
     statuses: useStatusStore.getState().statuses,
   })
+}
+
+async function writePaneDrop(changes: readonly PaneChange[], group: UndoGroupToken): Promise<void> {
+  const description = describeDrop(changes)
   const flags = changes.filter((c) => c.urgent !== undefined || c.important !== undefined || c.focus !== undefined)
   const statuses = idsByValue(changes, 'statusId')
   const people = idsByValue(changes, 'personId')
   const tags = idsByValue(changes, 'tagId')
-  // Flags alone (the default panes): the flag write is the undo step itself.
-  if (statuses.size === 0 && people.size === 0 && tags.size === 0) {
-    try {
-      await useTodoStore.getState().setMarkerFlags(flags, description)
-    } catch {
-      // The store took its write back (and logged it).
-      useUndoStore.getState().notify(failed(description, true))
-    }
-    return
-  }
-  useUndoStore.getState().beginGroup()
   try {
     if (flags.length > 0) await useTodoStore.getState().setMarkerFlags(flags, description)
     for (const [statusId, ids] of statuses) await useTodoStore.getState().bulkSetStatus(ids, statusId)
@@ -108,9 +98,8 @@ async function writePaneDrop(changes: readonly PaneChange[]): Promise<void> {
     for (const [tagId, ids] of tags) await useTagStore.getState().bulkAssignTag(ids, tagId)
   } catch {
     // The failed write took itself back; the ones before it are taken back here.
-    const clean = await useUndoStore.getState().abortGroup(description)
+    const clean = await useUndoStore.getState().abortGroup(group, description)
     useUndoStore.getState().notify(failed(description, clean))
-    return
   }
-  useUndoStore.getState().endGroup(description, true)
+  // Written: `runGroup` ends the group as one step named for the drop.
 }
