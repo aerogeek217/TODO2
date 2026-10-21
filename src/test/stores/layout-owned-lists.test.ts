@@ -115,11 +115,42 @@ describe('layout Save', () => {
     expect(back?.owner).toEqual({ layoutId: w.a })
     expect(await ranksOf(w.mine1)).toEqual([[1, 1], [2, 2]])
     expect(useListDefinitionStore.getState().listDefinitions.some((d) => d.id === w.mine1)).toBe(true)
-    // The layout stays as saved (without the tab).
+    // Its tab comes back too, as an unsaved edit (the stored layout stays as saved).
     expect(layoutListRefs(await stored(w.a)).has(w.mine1)).toBe(false)
+    expect(layoutListRefs(ws().working!).has(w.mine1)).toBe(true)
+    expect(ws().isDirty).toBe(true)
     await useUndoStore.getState().redo()
     expect(await storedListIds()).not.toContain(w.mine1)
     expect(storeListIds()).not.toContain(w.mine1)
+    expect(layoutListRefs(ws().working!).has(w.mine1)).toBe(false)
+  })
+
+  it('a list Undo brought back survives the next page load (its tab is kept with the unsaved edits)', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    await ws().save()
+    await useUndoStore.getState().undo()
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await useListDefinitionStore.getState().load()
+    await ws().init()
+    expect(await storedListIds()).toContain(w.mine1)
+    expect(layoutListRefs(ws().working!).has(w.mine1)).toBe(true)
+    expect(await ws().save()).toBe(true)
+    expect(await storedListIds()).toContain(w.mine1)
+  })
+
+  it('Undo while another layout is open brings nothing back yet and says to open the layout; it stays on the stack', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    await ws().save()
+    await ws().load(w.b)
+    await useUndoStore.getState().undo()
+    expect(await storedListIds()).not.toContain(w.mine1)
+    expect(useUndoStore.getState().snackbar?.description).toBe('Open layout “A” to bring back “Mine 1”.')
+    await ws().load(w.a)
+    await useUndoStore.getState().undo()
+    expect(await storedListIds()).toContain(w.mine1)
+    expect(layoutListRefs(ws().working!).has(w.mine1)).toBe(true)
   })
 
   it('Redo leaves a restored list alone once something shows it', async () => {

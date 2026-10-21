@@ -3,7 +3,7 @@ import { byLayoutOrder, layoutRepository, type ListCopy, type OwnedListsRemoved,
 import { trackWrite } from './store-helpers'
 import { readLayoutDraft, writeLayoutDraft, type LayoutDraftRecord } from '../data/draft-storage'
 import { ownerLayoutId } from '../models/list-definition'
-import { useUndoStore } from './undo-store'
+import { UndoRefused, useUndoStore } from './undo-store'
 import { undoable } from './undoable'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListDraftStore } from './list-draft-store'
@@ -365,11 +365,21 @@ async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promi
   }
 }
 
+/** Where Undo puts back a removed list's tab: the layout's first cell, else a new column. */
+function restoredTabTarget(layout: Layout): LayoutDropTarget {
+  const cell = layout.columns[0]?.cells[0]
+  return cell ? { kind: 'cell', cellId: cell.id } : { kind: 'layout' }
+}
+
 /**
  * The undo step (with the snackbar) for the lists a layout Save removed
  * from layout `layoutId`: Undo brings them back as its lists, with their
- * manual order (unless the layout is gone by then — it says so); Redo
- * removes them again unless the layout shows them by then.
+ * manual order, each in a tab of the layout again (an unsaved edit: nothing
+ * shows them otherwise, so the next Save or page load would remove them
+ * again). It runs only while that layout is open (else it says to open it
+ * and stays to try again) and brings nothing back once the layout is gone
+ * (it says so). Redo closes those tabs and removes the lists again unless
+ * the layout shows them otherwise by then.
  */
 function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null, shownNow: () => ReadonlySet<number>): void {
   const defs = removed?.rows.defs ?? []
@@ -379,12 +389,24 @@ function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null,
     ? `Removed the list “${first.name}”`
     : `Removed ${defs.length} lists`
   const ids = new Set(defs.map((d) => d.id))
+  /** The tabs the last Undo put back. */
+  let restoredTabs: string[] = []
   undoable(
     description,
     async () => {
+      const ws = useWorkspaceStore.getState()
+      if (ws.saved?.id === layoutId) for (const tabId of restoredTabs) ws.closeTab(tabId)
+      restoredTabs = []
       await applyRemoved(await trackWrite(() => layoutRepository.pruneOwnedLists(layoutId, shownNow(), ids)))
     },
     async () => {
+      const ws = useWorkspaceStore.getState()
+      const layout = ws.layouts.find((l) => l.id === layoutId)
+      if (layout && ws.saved?.id !== layoutId) {
+        throw new UndoRefused(defs.length === 1
+          ? `Open layout “${layout.name}” to bring back “${first.name}”.`
+          : `Open layout “${layout.name}” to bring back its ${defs.length} lists.`)
+      }
       const back = await trackWrite(() => layoutRepository.restoreLists(removed.rows))
       if (!back) {
         useUndoStore.getState().notify(defs.length === 1
@@ -393,6 +415,12 @@ function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null,
         return
       }
       await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
+      const open = useWorkspaceStore.getState()
+      if (open.saved?.id !== layoutId || !open.working) return
+      const target = restoredTabTarget(open.working)
+      restoredTabs = defs
+        .map((d) => open.addWidget('lens', target, { listDefinitionId: d.id }))
+        .filter((id): id is string => id != null)
     },
     true,
   )
