@@ -5,10 +5,12 @@ import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useListWidgetCount } from '../../../hooks/use-list-widget-count'
+import { useCopySources } from '../../../hooks/use-copy-sources'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { withCopiedParts } from '../../../utils/list-copy'
 import { findTab } from '../../../utils/workspace-layout-ops'
 import { ListEditorBody } from '../../shared/ListEditorBody'
 import { CloseIcon, LinkIcon } from '../../shared/icons'
@@ -27,12 +29,15 @@ const TOP_INSET_PX = 6
  * The list as edited (its shared draft, else the saved list), the saved
  * list, and the draft actions. Save list and Revert finish the edit, so they
  * close the surface too (a failed save keeps the edits unsaved; Revert is
- * undoable).
+ * undoable). Copy from takes another list's filters, group, sort, prompt
+ * and filter line into the draft (`withCopiedParts`: the name and the
+ * manual order stay) — an unsaved edit like any other.
  */
 function useEditListModel(listDefinitionId: number, onClose: () => void) {
   const saved = useListDefinitionStore((s) => s.listDefinitions.find((d) => d.id === listDefinitionId))
   const draft = useListDraftStore((s) => s.drafts[listDefinitionId])
   const widgets = useListWidgetCount(listDefinitionId)
+  const copyGroups = useCopySources(listDefinitionId)
   const def = saved ? (draft ?? saved) : undefined
   return {
     def,
@@ -40,6 +45,11 @@ function useEditListModel(listDefinitionId: number, onClose: () => void) {
     dirty: saved != null && draft != null,
     canSave: saved != null && draft != null && draft.name.trim() !== '',
     widgets,
+    copyFrom: {
+      groups: copyGroups,
+      onPick: (source: { def: PersistedListDefinition }) =>
+        useListDraftStore.getState().edit(listDefinitionId, (current) => withCopiedParts(current, source.def)),
+    },
     onChange: (next: PersistedListDefinition) => useListDraftStore.getState().edit(listDefinitionId, () => next),
     save: () => {
       void useListDraftStore.getState().save(listDefinitionId)
@@ -106,7 +116,8 @@ function useFocusReturn(panelRef: React.RefObject<HTMLElement | null>, tabId: st
 
 /**
  * Edit list: the one surface for a list's name, filters, group, sort,
- * prompt and Show completed. Every control edits the list's shared draft at
+ * prompt and Show completed, and Copy from (another list's parts into this
+ * one). Every control edits the list's shared draft at
  * once (`list-draft-store`), so every widget showing the list updates live
  * and shows it unsaved; Save list / Revert act on that draft and close it. Desktop: a
  * non-modal popover beside the list's panel; phone: a half sheet with the
@@ -362,7 +373,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose, onRequestClose }: S
         </button>
       </header>
       <div className={styles.body}>
-        <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="popover" nameRef={nameRef} />
+        <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="popover" nameRef={nameRef} copyFrom={model.copyFrom} />
         <p className={styles.hint}>Changes show in the list right away and stay unsaved until you save.</p>
       </div>
       <Footer model={model} className={styles.footer} buttonClass={styles.footerButton} saveClass={styles.footerSave}>
@@ -459,7 +470,7 @@ function EditListSheet({ listDefinitionId, tabId, onClose, onRequestClose }: Sur
           </button>
         </header>
         <div className={styles.sheetBody}>
-          <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="sheet" />
+          <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="sheet" copyFrom={model.copyFrom} />
         </div>
         <Footer model={model} className={styles.sheetFooter} buttonClass={styles.sheetButton} saveClass={styles.sheetSave} />
       </div>

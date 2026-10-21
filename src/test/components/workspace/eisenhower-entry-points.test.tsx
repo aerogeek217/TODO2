@@ -63,8 +63,8 @@ describe('Eisenhower entry points', () => {
     const menu = openTabMenu()
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: /^List/ }))
     const picker = screen.getByText('Show list').parentElement!
-    // No saved list yet: only Create new list….
-    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['+ Create new list…'])
+    // No list in the layout yet: Create new list… and Copy of ›.
+    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['+ Create new list…', 'Copy of'])
     expect(useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]?.kind).toBe('eisenhower')
   })
 

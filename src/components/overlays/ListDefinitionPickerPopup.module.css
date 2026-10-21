@@ -73,12 +73,15 @@
 }
 
 .footer {
+  display: flex;
+  gap: 6px;
   padding: 6px;
   border-top: 1px solid var(--color-border);
 }
 
 .createBtn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: transparent;
   color: var(--color-accent);
   border: 1px dashed var(--color-border);
@@ -94,8 +97,37 @@
   border-color: var(--color-accent);
 }
 
+/* "Copy of ›": beside Create new list…, opens the Copy from chooser to its right. */
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.copyBtn:hover,
+.copyBtn[aria-expanded="true"] {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
 .emptyCta {
   padding: 20px 14px;
+}
+
+.emptyCopy {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
 }
 
 .primaryCreateBtn {

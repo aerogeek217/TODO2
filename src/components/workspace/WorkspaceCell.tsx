@@ -24,7 +24,7 @@ import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-ops'
-import { createListThenEdit, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
+import { copyListThenEdit, createListThenEdit, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
@@ -161,7 +161,7 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   )
 }
 
-/** "Change widget → List": pick (or create) the list first, so a list tab always has one. */
+/** "Change widget → List": pick (or create, or copy) the list first, so a list tab always has one. */
 function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor: { x: number; y: number }; onClose: () => void }) {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   const layoutId = useListOwnerLayoutId()
@@ -173,6 +173,10 @@ function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor:
       layoutId={layoutId}
       onSelect={(id) => changeTabKind(tabId, 'lens', { listDefinitionId: id })}
       onCreateNew={layoutId != null ? () => createListThenEdit((id) => {
+        changeTabKind(tabId, 'lens', { listDefinitionId: id })
+        return tabId
+      }, layoutId) : undefined}
+      onCopyOf={layoutId != null ? (source) => copyListThenEdit(source.def, (id) => {
         changeTabKind(tabId, 'lens', { listDefinitionId: id })
         return tabId
       }, layoutId) : undefined}

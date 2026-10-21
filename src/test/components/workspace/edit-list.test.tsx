@@ -6,6 +6,7 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate } from '../../../models'
 import type { PersistedListDefinition } from '../../../models/list-definition'
@@ -237,5 +238,65 @@ describe('Edit list', () => {
     open()
     act(() => useListDefinitionStore.setState({ listDefinitions: [] }))
     expect(useUIStore.getState().listEditor).toBeNull()
+  })
+})
+
+describe('Edit list › Copy from…', () => {
+  const other: PersistedWorkspaceLayout = { ...layout, id: 2, sortOrder: 1, name: 'Second', columns: [] }
+  const calls: PersistedListDefinition = {
+    id: 8, name: 'Calls', sortOrder: 1, owner: { layoutId: 2 },
+    membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText: 'call' } },
+    sort: 'created', sortDirection: 'desc', grouping: 'status', runtimeFilter: { field: 'tag' }, showFilterLine: false,
+  }
+  const sibling: PersistedListDefinition = { ...saved, id: 9, name: 'Sibling', sortOrder: 2, owner: { layoutId: 1 }, sort: 'manual', grouping: 'none' }
+  const eisenhower: PersistedListDefinition = { ...saved, id: 10, name: 'Eisenhower', sortOrder: 3, owner: { eisenhower: true }, sort: 'manual', grouping: 'none' }
+
+  beforeEach(() => {
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout, other] })
+    useListDefinitionStore.setState({ listDefinitions: [{ ...saved, owner: { layoutId: 1 } }, calls, sibling, eisenhower] })
+    useSettingsStore.setState({ eisenhowerListId: 10 })
+  })
+
+  /** The open menu's headings and items, in order. */
+  const outline = (menu: HTMLElement) => Array.from(menu.children).flatMap((c) =>
+    c.getAttribute('role') === 'presentation' ? [`# ${c.textContent}`] : c.getAttribute('data-menu-label') != null ? [c.getAttribute('data-menu-label')] : [])
+
+  it('offers every list but this one, by layout — this layout first —, then the Eisenhower’s, each with its filters in words', () => {
+    const dialog = open()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy from…' }))
+    const menu = screen.getByRole('menu', { name: 'Copy from' })
+    expect(outline(menu)).toEqual(['# Default · this layout', 'Sibling', '# Second', 'Calls', '# Eisenhower', 'Eisenhower'])
+    expect(within(menu).getByRole('menuitem', { name: /^Calls/ })).toHaveTextContent('Text: “call”')
+    expect(within(menu).getByRole('menuitem', { name: /^Sibling/ })).toHaveTextContent('All tasks')
+  })
+
+  it('a pick copies the source’s parts into the draft — the name kept — as an unsaved edit; Revert drops it', () => {
+    const dialog = open()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy from…' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Copy from' })).getByRole('menuitem', { name: /^Calls/ }))
+    expect(draft()).toEqual({
+      ...saved, owner: { layoutId: 1 },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText: 'call' } },
+      sort: 'created', sortDirection: 'desc', grouping: 'status', runtimeFilter: { field: 'tag' }, showFilterLine: false,
+    })
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Copied from “Calls” · unsaved')
+    expect(Array.from(dialog.querySelectorAll('[data-changed]')).map((el) => el.textContent)).toEqual(['Filters', 'Group by', 'Sort by', 'Prompt for', 'Filter line'])
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Waiting on')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Revert' }))
+    expect(draft()).toBeUndefined()
+  })
+
+  it('a press in the chooser isn’t a press elsewhere: an unsaved list stays open, nothing asked', () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy from…' }))
+    const item = within(screen.getByRole('menu', { name: 'Copy from' })).getByRole('menuitem', { name: /^Sibling/ })
+    fireEvent.pointerDown(item)
+    fireEvent.mouseDown(item)
+    fireEvent.click(item)
+    expect(screen.queryByRole('dialog', { name: /^Save changes to list/ })).not.toBeInTheDocument()
+    expect(useUIStore.getState().listEditor).not.toBeNull()
+    // The edited name stays; Sibling's parts came in.
+    expect(draft()).toMatchObject({ name: 'Waiting', sort: 'manual', grouping: 'none' })
   })
 })

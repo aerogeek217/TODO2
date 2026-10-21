@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
-import { ownerLayoutId } from '../../models/list-definition'
+import { ownerLayoutId, type PersistedListDefinition } from '../../models/list-definition'
 import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { copiedListParts, uniqueListName } from '../../utils/list-copy'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
@@ -79,24 +80,48 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
   else open()
 }
 
-/** A list name layout `layoutId` doesn't use yet: "New list", "New list 2", … */
-function freshListName(layoutId: number): string {
-  const taken = new Set(useListDefinitionStore.getState().listDefinitions
+/** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
+function freshListName(base: string, layoutId: number): string {
+  const taken = useListDefinitionStore.getState().listDefinitions
     .filter((d) => ownerLayoutId(d) === layoutId)
-    .map((d) => d.name.toLowerCase()))
-  let name = 'New list'
-  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New list ${n}`
-  return name
+    .map((d) => d.name)
+  return uniqueListName(base, taken)
 }
 
 /**
  * "Create new list…" in a list picker: saves a blank list of layout
- * `layoutId` (no filter; Settings' new-list sort and grouping), hands its
- * id to `show` (which puts it in a tab and returns
- * that tab's id), then opens Edit list beside that tab.
+ * `layoutId` (`New list`, `New list 2`, …; no filter; Settings' new-list
+ * sort and grouping), hands its id to `show` (which puts it in a tab and
+ * returns that tab's id), then opens Edit list beside that tab.
  */
 export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): void {
-  void useListDefinitionStore.getState().add({ name: freshListName(layoutId), owner: { layoutId } }).then((id) => {
+  void useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
+    const tabId = show(id)
+    if (tabId != null) openEditList(tabId, id)
+  })
+}
+
+/**
+ * "Copy of ›" in a list picker: saves a copy of `source` (any layout's
+ * list, or the Eisenhower's, as it shows — its unsaved edits included) for
+ * layout `layoutId` — named as the source, unique within the layout
+ * (`Someday 2`), with its filters, group, sort, prompt, Show filter line
+ * and manual order (`copiedListParts`; Settings' new-list defaults don't
+ * apply) —, hands its id to `show`, then opens Edit list beside that tab.
+ */
+export function copyListThenEdit(
+  source: PersistedListDefinition,
+  show: (listDefinitionId: number) => string | null,
+  layoutId: number,
+): void {
+  const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === source.id)
+  const base = source.name.trim() || saved?.name || 'New list'
+  void useListDefinitionStore.getState().add({
+    ...copiedListParts(source),
+    name: freshListName(base, layoutId),
+    owner: { layoutId },
+    ranksFrom: source.id,
+  }).then((id) => {
     const tabId = show(id)
     if (tabId != null) openEditList(tabId, id)
   })
