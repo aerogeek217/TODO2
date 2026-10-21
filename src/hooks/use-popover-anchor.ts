@@ -184,7 +184,7 @@ function viewportSize(): { vw: number; vh: number } {
  * it forces the panel to 0×0, `compute()` reads 0, the `panelHeight > 0` gate
  * skips both flip and clamp, and the panel ends up positioned at the raw
  * anchor — clipping the bottom of the viewport for anchors near the bottom
- * (e.g. a cell's "+" → list picker near the bottom of the screen).
+ * (e.g. a cell's "+" menu near the bottom of the screen).
  */
 const OFFSCREEN_PX = -9999
 

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * A tab's menu (`WidgetKindMenu` on `MenuPopover`): the list tab's "Change
@@ -69,53 +69,6 @@ test('keyboard: ArrowRight on Change list opens the flyout, Escape closes it bac
   await expect(flyout(page)).toHaveCount(0)
   await expect(menu).toBeVisible()
   await expect(changeList).toBeFocused()
-})
-
-test('the add-tab list picker opened from a cell near the bottom stays inside the viewport', async ({ page }) => {
-  await page.setViewportSize({ width: 1200, height: 800 })
-  await seedWorkspace(page, {
-    listDefinitions: ['List A', 'List B', 'List C', 'List D', 'List E'].map((name) => ({ name })),
-    layouts: [{
-      name: 'Main',
-      columns: [{
-        id: 'col',
-        cells: [
-          { id: 'top', weight: 5, tabs: [{ id: 'notesTab', kind: 'notes' }] },
-          { id: 'bottom', weight: 1, tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
-        ],
-      }, {
-        // The layout's lists, each shown by a tab.
-        id: 'lists',
-        cells: [{ id: 'listsCell', tabs: [0, 1, 2, 3, 4].map((i) => ({ id: `l${i}`, kind: 'lens' as const, listDefIdx: i })) }],
-      }],
-    }],
-  })
-
-  const addBtn = wsCell(page, 'bottom').getByRole('button', { name: 'Add widget as tab' })
-  const addBox = await addBtn.boundingBox()
-  if (!addBox) throw new Error('no add button')
-  // The button sits low enough that a picker hanging below it would overflow.
-  expect(addBox.y).toBeGreaterThan(560)
-  await addBtn.click()
-  await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
-  await expect(page.getByText('Add list', { exact: true })).toBeVisible()
-
-  const popup = await page.evaluate(() => {
-    const header = Array.from(document.querySelectorAll('div')).find((d) => d.textContent === 'Add list')
-    let el: HTMLElement | null = header ?? null
-    while (el && getComputedStyle(el).position !== 'fixed') el = el.parentElement
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    return { y: r.y, height: r.height }
-  })
-  expect(popup).not.toBeNull()
-  expect(popup!.height).toBeGreaterThan(0)
-  expect(popup!.y).toBeGreaterThanOrEqual(0)
-  expect(popup!.y + popup!.height).toBeLessThanOrEqual(800)
-
-  // Picking a list adds it as a tab of that cell.
-  await page.getByRole('button', { name: /^List E/ }).click()
-  await expect(wsCell(page, 'bottom').getByRole('tab', { name: 'List E' })).toHaveAttribute('aria-selected', 'true')
 })
 
 /** A tab in the right-hand of two columns (near the right edge) and one on the left. */

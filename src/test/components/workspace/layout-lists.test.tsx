@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, cleanup, fireEvent, within, screen, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
+import { AddWidgetButtons } from '../../../components/workspace/AddWidgetFlow'
 import { createListThenEdit } from '../../../components/workspace/widget-hooks'
 import { deleteLayoutMessage } from '../../../components/workspace/delete-layout-message'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -15,9 +16,10 @@ import { db } from '../../../data/database'
 import { resetDb, resetEntityStores } from '../../helpers'
 
 /**
- * A layout's lists in the workspace: Create new list makes one owned by the
- * open layout; Change list offers only the layout's own lists; the delete
- * confirm says they go with the layout.
+ * A layout's lists in the workspace: a new list widget makes a blank list
+ * owned by the open layout (Edit list opens on it, no picker); Change list
+ * offers only the layout's own lists; the delete confirm says they go with
+ * the layout.
  */
 
 const AT = new Date(2026, 0, 1)
@@ -47,7 +49,7 @@ function openTabMenu(): HTMLElement {
 }
 
 describe('a layout’s lists in the workspace', () => {
-  it('Create new list: the new list belongs to the open layout, shown in a tab with Edit list beside it', async () => {
+  it('a new list belongs to the open layout, shown in a tab with Edit list beside it', async () => {
     let shown: number | null = null
     createListThenEdit((id) => {
       shown = id
@@ -58,7 +60,7 @@ describe('a layout’s lists in the workspace', () => {
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: shown, tabId: 'mine' })
   })
 
-  it('Create new list: the new list sorts and groups as Settings’ new-list defaults say', async () => {
+  it('a new list sorts and groups as Settings’ new-list defaults say', async () => {
     useSettingsStore.setState({ newListSort: 'followup', newListSortDirection: 'desc', newListGroup: 'priority' })
     let shown: number | null = null
     createListThenEdit((id) => {
@@ -78,6 +80,47 @@ describe('a layout’s lists in the workspace', () => {
     }, 1)
     await waitFor(() => expect(shown).not.toBeNull())
     expect((await db.listDefinitions.get(shown!))?.name).toBe('New list 2')
+  })
+
+  /** The new list tab's list (the only tab not seeded), once the add has landed. */
+  async function addedListTab(): Promise<{ tabId: string; listId: number }> {
+    let found: { tabId: string; listId: number } | null = null
+    await waitFor(() => {
+      const tabs = useWorkspaceStore.getState().working!.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))
+      const tab = tabs.find((t) => t.id !== 'mine')
+      expect(tab?.kind).toBe('lens')
+      const listId = tab?.kind === 'lens' ? tab.config.listDefinitionId : undefined
+      expect(listId).toBeDefined()
+      found = { tabId: tab!.id, listId: listId! }
+    })
+    return found!
+  }
+
+  it('the add-tab + › List: a new blank list of the layout in a new tab, its Edit list open — no list picker', async () => {
+    render(<DndContext><WorkspaceCell cell={CELL} /></DndContext>)
+    fireEvent.click(screen.getByRole('button', { name: 'Add widget as tab' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Add widget' })).getByRole('menuitem', { name: /^List/ }))
+    expect(screen.queryByText('Add list')).toBeNull()
+    const { tabId, listId } = await addedListTab()
+    expect(listId).not.toBe(2)
+    expect(await db.listDefinitions.get(listId)).toMatchObject({ name: 'New list', owner: { layoutId: 1 } })
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId })
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+  })
+
+  it('an empty layout’s List tile does the same; a layout not stored yet offers it disabled, saying why', async () => {
+    const { unmount } = render(<AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={undefined} iconClassName={undefined} />)
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
+    const { tabId, listId } = await addedListTab()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId })
+    unmount()
+
+    useWorkspaceStore.setState({ saved: null })
+    render(<AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={undefined} iconClassName={undefined} />)
+    const list = screen.getByRole('button', { name: 'List' })
+    expect(list).toBeDisabled()
+    expect(list).toHaveAttribute('title', 'Save the layout first to add lists.')
+    expect(screen.getByRole('button', { name: 'Notes' })).toBeEnabled()
   })
 
   it('Change list offers only this layout’s own lists', () => {

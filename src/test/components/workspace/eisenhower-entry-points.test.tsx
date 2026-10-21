@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, within, screen } from '@testing-library/react'
+import { render, cleanup, fireEvent, within, screen, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -59,12 +59,25 @@ describe('Eisenhower entry points', () => {
     expect(useUIStore.getState().listEditor).toMatchObject({ listDefinitionId: 8, tabId: 'eis' })
   })
 
-  it('switched to List: picks a list (the Eisenhower’s own is never a list tab’s)', () => {
+  it('switched to List: a new blank list of the layout (the Eisenhower’s own is never a list tab’s), its Edit list open — no picker', async () => {
     const menu = openTabMenu()
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: /^List/ }))
-    const picker = screen.getByText('Show list').parentElement!
-    // No list in the layout yet: Create new list… and Copy of ›.
-    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['+ Create new list…', 'Copy of'])
+    expect(screen.queryByText('Show list')).toBeNull()
+    await waitFor(() => expect(useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]?.kind).toBe('lens'))
+    const tab = useWorkspaceStore.getState().working!.columns[0]!.cells[0]!.tabs[0]!
+    const listId = tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
+    expect(listId).not.toBe(8)
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === listId)).toMatchObject({ name: 'New list', owner: { layoutId: 1 } })
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId: 'eis' })
+  })
+
+  it('a layout not stored yet can’t make a list: List is offered disabled, saying why', () => {
+    useWorkspaceStore.setState({ saved: null })
+    const menu = openTabMenu()
+    const list = within(menu).getByRole('menuitemradio', { name: /^List/ })
+    expect(list).toBeDisabled()
+    expect(list).toHaveTextContent('Save the layout first to add lists.')
+    fireEvent.click(list)
     expect(useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]?.kind).toBe('eisenhower')
   })
 

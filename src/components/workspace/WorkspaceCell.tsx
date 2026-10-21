@@ -18,13 +18,12 @@ import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { copyTasksRich } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-ops'
-import { copyListThenEdit, createListThenEdit, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
+import { createListThenEdit, NO_LIST_LAYOUT_REASON, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import {
@@ -161,30 +160,6 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
   )
 }
 
-/** "Change widget → List": pick (or create, or copy) the list first, so a list tab always has one. */
-function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor: { x: number; y: number }; onClose: () => void }) {
-  const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
-  const layoutId = useListOwnerLayoutId()
-  return (
-    <ListDefinitionPickerPopup
-      x={anchor.x}
-      y={anchor.y}
-      header="Show list"
-      layoutId={layoutId}
-      onSelect={(id) => changeTabKind(tabId, 'lens', { listDefinitionId: id })}
-      onCreateNew={layoutId != null ? () => createListThenEdit((id) => {
-        changeTabKind(tabId, 'lens', { listDefinitionId: id })
-        return tabId
-      }, layoutId) : undefined}
-      onCopyOf={layoutId != null ? (source) => copyListThenEdit(source.def, (id) => {
-        changeTabKind(tabId, 'lens', { listDefinitionId: id })
-        return tabId
-      }, layoutId) : undefined}
-      onClose={onClose}
-    />
-  )
-}
-
 /**
  * Lists with unsaved edits whose last widget (in any layout) is among
  * `tabIds` of the open layout — closing or re-pointing those tabs would leave
@@ -237,7 +212,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
-  const [changeToList, setChangeToList] = useState<{ tabId: string; anchor: { x: number; y: number } } | null>(null)
   const [customize, setCustomize] = useState<{ tabId: string; focusListTiles: boolean } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
@@ -285,16 +259,20 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   )
 
   /**
-   * Changes a tab's kind. A list tab picks its list first — an Eisenhower
-   * tab switched to List too: the Eisenhower's own list is never a list
-   * tab's.
+   * Changes a tab's kind. Switched to List — an Eisenhower tab too: the
+   * Eisenhower's own list is never a list tab's — it shows a new blank list
+   * of the layout, whose Edit list opens at once.
    */
-  const changeKind = (tab: LayoutTab, kind: WidgetKind, anchor: { x: number; y: number }) => {
+  const changeKind = (tab: LayoutTab, kind: WidgetKind) => {
     if (kind === tab.kind) return
     if (WIDGET_KIND_SPECS[kind].showsList) {
+      if (layoutId == null) return
       // An Eisenhower tab shows the Eisenhower's list: asked about first,
       // as any change of the last widget showing an unsaved list.
-      guarded([tab.id], 'You’re changing the last widget that shows it.', () => setChangeToList({ tabId: tab.id, anchor }))
+      guarded([tab.id], 'You’re changing the last widget that shows it.', () => createListThenEdit((id) => {
+        changeTabKind(tab.id, 'lens', { listDefinitionId: id })
+        return tab.id
+      }, layoutId))
       return
     }
     guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
@@ -464,7 +442,8 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
         <WidgetKindMenu
           anchor={{ x: tabMenu.x, y: tabMenu.y }}
           currentKind={menuTab.kind}
-          onChangeKind={(kind) => changeKind(menuTab, kind, { x: tabMenu.x, y: tabMenu.y })}
+          onChangeKind={(kind) => changeKind(menuTab, kind)}
+          unavailableKinds={layoutId == null ? { lens: NO_LIST_LAYOUT_REASON } : undefined}
           pickListForLens={menuTab.kind === 'lens'
             ? (id) => {
                 if (id === menuTab.config.listDefinitionId) return
@@ -511,13 +490,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           tabId={customize.tabId}
           focusListTiles={customize.focusListTiles}
           onClose={closeCustomize}
-        />
-      )}
-      {changeToList && (
-        <ChangeToListPicker
-          tabId={changeToList.tabId}
-          anchor={changeToList.anchor}
-          onClose={() => setChangeToList(null)}
         />
       )}
     </section>

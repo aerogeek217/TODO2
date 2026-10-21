@@ -74,15 +74,11 @@ const filterLine = (scope: Locator) => scope.getByTestId('list-filter-row')
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('Create new list: the new list is the open layout’s, offered only there (Change list, Add a list ›); Settings has no Lists', async ({ page }) => {
+test('a new list widget’s list is the open layout’s, offered only there (Change list, Add a list ›); Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsCell(page, 'b1').getByRole('button', { name: 'Add widget as tab' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
-  // Only the layout's own lists, and no choice of where a new list goes.
-  await expect(page.getByRole('button', { name: /^Mine/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^Theirs/ })).toHaveCount(0)
-  await expect(page.getByRole('radio')).toHaveCount(0)
-  await page.getByRole('button', { name: /Create new list/ }).click()
+  // A new list for this layout at once: no picker, no choice of where it goes.
   const editor = page.getByRole('dialog', { name: 'Edit list New list' })
   await expect(editor).toBeVisible()
   await editor.getByRole('textbox', { name: 'Name' }).fill('Errands')

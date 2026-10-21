@@ -1,61 +1,50 @@
-import { useRef, useState } from 'react'
 import { WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { WidgetKindIcon } from '../shared/icons'
-import { copyListThenEdit, createListThenEdit, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
+import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
+
+/**
+ * Adds a widget of `kind` at `target`. A list widget gets a new blank list
+ * of the open layout and opens its Edit list at once (`createListThenEdit`)
+ * — copying another list's setup is Edit list's Copy from…. Nothing for a
+ * list while the open layout isn't stored (`layoutId` undefined): it can't
+ * own a list yet.
+ */
+function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
+  const add = useAddWidget()
+  const layoutId = useListOwnerLayoutId()
+  return (kind) => {
+    if (!WIDGET_KIND_SPECS[kind].showsList) {
+      add(kind, target)
+      return
+    }
+    if (layoutId != null) createListThenEdit((id) => add('lens', target, id), layoutId)
+  }
+}
+
+/** The kinds that can't be added to the open layout yet, with why (a list, while the layout isn't stored). */
+function useUnavailableKinds(): Partial<Record<WidgetKind, string>> | undefined {
+  const layoutId = useListOwnerLayoutId()
+  if (layoutId != null) return undefined
+  return Object.fromEntries(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList).map((k) => [k, NO_LIST_LAYOUT_REASON]))
+}
 
 interface AddWidgetFlowProps {
   target: LayoutDropTarget
   anchor: { x: number; y: number }
-  /** Skip the kind menu (a kind button was clicked); only a kind that shows a list needs this flow then. */
-  kind?: WidgetKind
   onClose: () => void
 }
 
-/**
- * Adds a widget at `target`: picks the kind (unless `kind` is given), then —
- * for a list — which of this layout's lists to show ("Create new" makes a
- * blank one for the layout, "Copy of ›" a copy of any layout's list or the
- * Eisenhower's; either opens that list's editor). A list tab is never added
- * without a list.
- */
-export function AddWidgetFlow({ target, anchor, kind, onClose }: AddWidgetFlowProps) {
-  const [step, setStep] = useState<'kind' | 'list'>(kind != null && WIDGET_KIND_SPECS[kind].showsList ? 'list' : 'kind')
-  // The kind menu closes itself after a pick; picking "List" moves on to the
-  // list picker instead of ending the flow.
-  const movingOnRef = useRef(false)
-  const add = useAddWidget()
-  const layoutId = useListOwnerLayoutId()
-
-  if (step === 'kind') {
-    return (
-      <WidgetKindMenu
-        anchor={anchor}
-        heading="Add widget"
-        onChangeKind={(k) => {
-          if (WIDGET_KIND_SPECS[k].showsList) {
-            movingOnRef.current = true
-            setStep('list')
-            return
-          }
-          add(k, target)
-        }}
-        onClose={() => { if (!movingOnRef.current) onClose() }}
-      />
-    )
-  }
-
+/** The add-tab `+` menu: picks a kind and adds that widget at `target` (`useAddKind`). */
+export function AddWidgetFlow({ target, anchor, onClose }: AddWidgetFlowProps) {
+  const addKind = useAddKind(target)
   return (
-    <ListDefinitionPickerPopup
-      x={anchor.x}
-      y={anchor.y}
-      header="Add list"
-      layoutId={layoutId}
-      onSelect={(id) => { add('lens', target, id) }}
-      onCreateNew={layoutId != null ? () => createListThenEdit((id) => add('lens', target, id), layoutId) : undefined}
-      onCopyOf={layoutId != null ? (source) => copyListThenEdit(source.def, (id) => add('lens', target, id), layoutId) : undefined}
+    <WidgetKindMenu
+      anchor={anchor}
+      heading="Add widget"
+      unavailableKinds={useUnavailableKinds()}
+      onChangeKind={addKind}
       onClose={onClose}
     />
   )
@@ -70,12 +59,11 @@ interface AddWidgetButtonsProps {
 
 /**
  * One button per widget kind (an empty layout's tiles, an empty cell's row):
- * adds that widget at `target`, or — for a kind that shows a list — opens
- * the list picker under the button first.
+ * adds that widget at `target` (`useAddKind` — a list opens its Edit list).
  */
 export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconSize }: AddWidgetButtonsProps) {
-  const add = useAddWidget()
-  const [listFlow, setListFlow] = useState<{ kind: WidgetKind; anchor: { x: number; y: number } } | null>(null)
+  const addKind = useAddKind(target)
+  const unavailable = useUnavailableKinds()
   return (
     <>
       {WIDGET_KINDS.map((kind) => (
@@ -83,22 +71,14 @@ export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconS
           key={kind}
           type="button"
           className={buttonClassName}
-          onClick={(e) => {
-            if (WIDGET_KIND_SPECS[kind].showsList) {
-              const r = e.currentTarget.getBoundingClientRect()
-              setListFlow({ kind, anchor: { x: r.left, y: r.bottom + 4 } })
-              return
-            }
-            add(kind, target)
-          }}
+          disabled={unavailable?.[kind] != null}
+          title={unavailable?.[kind]}
+          onClick={() => addKind(kind)}
         >
           <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>
           {widgetKindLabel(kind)}
         </button>
       ))}
-      {listFlow && (
-        <AddWidgetFlow kind={listFlow.kind} target={target} anchor={listFlow.anchor} onClose={() => setListFlow(null)} />
-      )}
     </>
   )
 }

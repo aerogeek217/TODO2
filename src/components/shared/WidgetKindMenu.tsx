@@ -49,6 +49,8 @@ export interface WidgetKindMenuProps {
   /** Current widget kind. Omit in "add" mode — no row is marked active and no secondary row is shown. */
   currentKind?: WidgetKind
   onChangeKind: (kind: WidgetKind) => void
+  /** Kinds offered but not available now, each with why (shown under it, the item disabled). */
+  unavailableKinds?: Partial<Record<WidgetKind, string>>
   /**
    * Lens-only: fires when the user picks a list from the "Change list"
    * submenu (the layout's lists in their order); a pick closes the menu.
@@ -103,6 +105,7 @@ export function WidgetKindMenu({
   anchor,
   currentKind,
   onChangeKind,
+  unavailableKinds,
   pickListForLens,
   onEditList,
   onClose,
@@ -141,6 +144,8 @@ export function WidgetKindMenu({
     // Changing a widget: one of them is the current kind. Adding: plain actions.
     radio: currentKind != null,
     checked: currentKind != null ? k === currentKind : undefined,
+    disabled: k !== currentKind && unavailableKinds?.[k] != null ? true : undefined,
+    description: k !== currentKind ? unavailableKinds?.[k] : undefined,
     onSelect: () => onChangeKind(k),
   }))
 
