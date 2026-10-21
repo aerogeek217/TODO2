@@ -232,6 +232,13 @@ describe('sendPersonCheckin before the tasks’ people and tags are loaded', () 
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 
+  it('a Text contains filter with tags not loaded opens the dialog instead: the text matches tag names too', async () => {
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), searchText: 'home' } })
+    useTagStore.setState({ tags: [home], assignedTagsMap: new Map([[1, []]]) })
+    expect(await sendPersonCheckin(1)).toBe('dialog')
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })
+  })
+
   it('any filter with an open task’s people not loaded opens the dialog instead', async () => {
     useSettingsStore.setState({ checkinTaskFilter: emptyPredicate() })
     usePersonStore.setState({ assignedPeopleMap: new Map([[1, [ada]], [2, [ada, bob]]]) })
