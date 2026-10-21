@@ -142,7 +142,7 @@ describe('a layout’s lists in the workspace', () => {
     await db.listDefinitions.add(eisenhowerList)
     useListDefinitionStore.setState({ listDefinitions: [...useListDefinitionStore.getState().listDefinitions, eisenhowerList] })
     useSettingsStore.setState({ eisenhowerListId: 5 })
-    const cell: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'eis', kind: 'eisenhower' }] }
+    const cell: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }
     const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, cells: [cell] }] }
     useWorkspaceStore.setState({ layouts: [layout], working: layout, saved: layout })
     useListDraftStore.getState().edit(5, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText: 'q4' } } }))
