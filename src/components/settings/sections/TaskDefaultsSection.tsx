@@ -105,8 +105,9 @@ export function TaskDefaultsSection() {
 }
 
 /**
- * What a list made with Create new list… starts sorted (and which way, for a
- * sort with a direction) and grouped by. Each change is one undo step.
+ * What a new blank list (adding a List widget, or a tab switched to List)
+ * starts sorted (and which way, for a sort with a direction) and grouped by.
+ * Each change is one undo step.
  */
 function NewListDefaults() {
   const sort = useSettingsStore((s) => s.newListSort)
