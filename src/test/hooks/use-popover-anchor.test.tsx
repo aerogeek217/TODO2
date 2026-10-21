@@ -15,12 +15,16 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 const VIEWPORT_W = 1024
 const VIEWPORT_H = 768
 
+// Stubbed, not redefined: later files in a shared worker get jsdom's own size back.
 beforeEach(() => {
-  Object.defineProperty(window, 'innerWidth', { value: VIEWPORT_W, writable: true, configurable: true })
-  Object.defineProperty(window, 'innerHeight', { value: VIEWPORT_H, writable: true, configurable: true })
+  vi.stubGlobal('innerWidth', VIEWPORT_W)
+  vi.stubGlobal('innerHeight', VIEWPORT_H)
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 interface HarnessProps {
   anchor: PopoverAnchor
@@ -145,7 +149,7 @@ describe('usePopoverAnchor — positioning math', () => {
   })
 
   it('clamps a too-tall panel into the viewport with 8px margin', () => {
-    Object.defineProperty(window, 'innerHeight', { value: 300, writable: true, configurable: true })
+    vi.stubGlobal('innerHeight', 300)
     const { getByTestId } = render(
       <Harness
         anchor={{ kind: 'point', x: 50, y: 50 }}

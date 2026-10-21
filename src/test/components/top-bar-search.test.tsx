@@ -1,5 +1,5 @@
 import { Profiler } from 'react'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../components/layout/TopBar'
@@ -139,16 +139,21 @@ describe('TopBar grouped search', () => {
   // next test (after unmount) and wrote its stale query into the filter
   // store, which re-synced the new bar's input and unmounted the focused
   // option — the intermittent "roving focus" failure under full-suite load.
-  it('an unmounted bar does not write its pending search into the filter store', async () => {
-    const view = renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
-    await act(async () => {
-      input.focus()
-      fireEvent.change(input, { target: { value: 'zzz' } })
-    })
-    view.unmount()
-    await act(async () => { await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 100)) })
-    expect(useFilterStore.getState().filters.searchText).toBe('')
+  it('an unmounted bar does not write its pending search into the filter store', () => {
+    vi.useFakeTimers()
+    try {
+      const view = renderBar()
+      const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+      act(() => {
+        input.focus()
+        fireEvent.change(input, { target: { value: 'zzz' } })
+      })
+      view.unmount()
+      act(() => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 100) })
+      expect(useFilterStore.getState().filters.searchText).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keyboard roving focus steps into the Tags group', async () => {
