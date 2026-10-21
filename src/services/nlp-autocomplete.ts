@@ -9,7 +9,7 @@ import {
   type FollowupInterval,
 } from '../utils/followup'
 import { BARE_MENTION_NAME, mentionToken, parseInput } from './natural-language-parser'
-import { rankPeople } from './nlp-resolver'
+import { rankPeople, rankTags } from './nlp-resolver'
 import {
   COMMAND_SHAPE,
   DATE_ARGUMENT_HINT,
@@ -34,7 +34,8 @@ import { byName } from '../utils/sort-order'
  * Triggers count only at the start of the text or after whitespace:
  *  - `@` people (substring or exact initials — an exact name or initials match
  *    first, then names starting with the query; create row when nothing matches);
- *  - `#` tags (prefix; create row when nothing matches);
+ *  - `#` tags (prefix — the exact name first, then alphabetical; create row
+ *    when nothing matches);
  *  - `/` slash commands (prefix on the name), then the command's argument
  *    (date suggestions / live parse / error, statuses, frequencies).
  */
@@ -299,7 +300,8 @@ function entityView(
   const query = rawQuery.toLowerCase()
   let items: readonly AutocompleteItem[]
   if (trigger === '#') {
-    items = query ? sources.tags.filter((t) => t.name.toLowerCase().startsWith(query)) : sources.tags
+    // Best match first — the ranking the typed tag resolves by.
+    items = query ? rankTags(query, sources.tags) : sources.tags
   } else {
     // A leading quote (`@"First Last"` being typed) is ignored for matching.
     // Best match first — the ranking the typed name resolves by.

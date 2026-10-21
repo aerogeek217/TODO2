@@ -45,6 +45,19 @@ describe('draftFromText', () => {
     expect(d.newTags).toEqual(['launch'])
   })
 
+  it('a #tag resolves as the # popup ranks it: the exact tag, else the first starting with it; created only when none does', () => {
+    const tagsQ: Tag[] = [
+      { id: 21, name: 'q4-review', color: '#000' } as Tag,
+      { id: 22, name: 'Q4', color: '#000' } as Tag,
+      { id: 23, name: 'q3', color: '#000' } as Tag,
+    ]
+    const c = { ...ctx, tags: tagsQ }
+    expect(draftFromText('Plan #q4', c)).toMatchObject({ tagIds: [22], newTags: [] }) // exact, any case
+    expect(draftFromText('Plan #q', c)).toMatchObject({ tagIds: [23], newTags: [] }) // first alphabetically: q3
+    expect(draftFromText('Plan #q4-r', c)).toMatchObject({ tagIds: [21], newTags: [] })
+    expect(draftFromText('Plan #zz', c)).toMatchObject({ tagIds: [], newTags: ['zz'] })
+  })
+
   it('reads markers, /followup, /status and /repeat', () => {
     const d = draftFromText('Ask @Ben /urgent /important /focus /followup 2w /status waiting', ctx)
     expect(d).toMatchObject({ title: 'Ask', urgent: true, important: true, focus: true, statusId: 8 })

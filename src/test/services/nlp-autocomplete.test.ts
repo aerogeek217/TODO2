@@ -16,7 +16,7 @@ import {
   type AutocompleteView,
 } from '../../services/nlp-autocomplete'
 import { parseInput } from '../../services/natural-language-parser'
-import { resolveInput } from '../../services/nlp-resolver'
+import { matchTag, resolveInput } from '../../services/nlp-resolver'
 import { tokenTints } from '../../services/nlp-token-tints'
 
 // Sat 10 Oct 2026.
@@ -481,5 +481,18 @@ describe('implicitAccept — typing on uses the highlighted row', () => {
 
   it('nothing for an edit that is neither (a deletion)', () => {
     expect(typed('Call @an', 0, 'Call @a')).toBeNull()
+  })
+})
+
+describe('# rows and the resolver rank tags the same way', () => {
+  it('the exact tag first, then alphabetical prefixes; matchTag is the first row', () => {
+    const src = { ...sources, tags: tagItems([
+      { id: 1, name: 'q4-review', color: '#000' }, { id: 2, name: 'Q4', color: '#000' }, { id: 3, name: 'q3', color: '#000' },
+    ]) }
+    expect(labels(at('x #q4', src))).toEqual(['Q4', 'q4-review'])
+    expect(labels(at('x #q', src))).toEqual(['q3', 'Q4', 'q4-review'])
+    expect(matchTag('q', src.tags)?.name).toBe('q3')
+    expect(matchTag('q4', src.tags)?.name).toBe('Q4')
+    expect(matchTag('zz', src.tags)).toBeUndefined()
   })
 })

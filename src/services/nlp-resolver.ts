@@ -67,6 +67,26 @@ export function rankPeople<P extends { name: string; initials?: string }>(name: 
     .map((x) => x.p)
 }
 
+/**
+ * The tags a `#` name matches, best first, ignoring case: the tags whose name
+ * starts with it, the exact one first, then alphabetically. The one ranking:
+ * the `#` popup lists it, and a typed tag resolves to its first
+ * (`matchTag`), so a tag typed without picking gets the tag the popup showed
+ * first. An empty name matches every tag.
+ */
+export function rankTags<T extends { name: string }>(name: string, tags: readonly T[]): T[] {
+  const q = name.trim().toLowerCase()
+  const exact = (t: T) => (t.name.trim().toLowerCase() === q ? 0 : 1)
+  return tags
+    .filter((t) => t.name.trim().toLowerCase().startsWith(q))
+    .sort((a, b) => exact(a) - exact(b) || a.name.localeCompare(b.name))
+}
+
+/** The tag a parsed `#` name resolves to: `rankTags`' first (none: the tag is created). */
+export function matchTag<T extends { name: string }>(name: string, tags: readonly T[]): T | undefined {
+  return name.trim() ? rankTags(name, tags)[0] : undefined
+}
+
 /** The person a parsed `@` name resolves to: `rankPeople`'s first. */
 export function matchPerson(name: string, people: readonly Person[]): Person | undefined {
   return rankPeople(name, people)[0]
