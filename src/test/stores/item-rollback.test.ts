@@ -52,10 +52,12 @@ describe('assignment maps', () => {
     const repo = {
       assign: vi.fn(async () => {}),
       unassign: vi.fn(async () => {}),
+      bulkAssign: vi.fn(async () => {}),
+      bulkUnassign: vi.fn(async () => {}),
       getForTodos: vi.fn(async () => new Map<number, E[]>()),
     }
     /** The next repo write of `kind` waits, then fails on `fail()`. */
-    const holdNext = (kind: 'assign' | 'unassign'): Held => {
+    const holdNext = (kind: 'assign' | 'unassign' | 'bulkAssign' | 'bulkUnassign'): Held => {
       let fail!: () => void
       const gate = new Promise<void>((r) => { fail = r })
       repo[kind].mockImplementationOnce(async () => {
@@ -99,7 +101,7 @@ describe('assignment maps', () => {
 
   it('a failed bulk assign keeps an assignment made to another task meanwhile', async () => {
     const { actions, holdNext, getMap } = setup()
-    const held = holdNext('assign')
+    const held = holdNext('bulkAssign')
     const failing = actions.bulkAssign([10, 11], A.id!)
     await actions.assign(20, B.id!)
     held.fail()
@@ -111,7 +113,7 @@ describe('assignment maps', () => {
 
   it('a failed bulk unassign puts the entity back and keeps another change', async () => {
     const { actions, holdNext, getMap } = setup(new Map([[10, [A]], [11, [A, B]]]))
-    const held = holdNext('unassign')
+    const held = holdNext('bulkUnassign')
     const failing = actions.bulkUnassign([10, 11], A.id!)
     await actions.assign(20, B.id!)
     held.fail()

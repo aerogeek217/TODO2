@@ -70,6 +70,16 @@ export const tagRepository = {
     await todoTagOps.unassign(todoId, tagId)
   },
 
+  /** Assigns the tag to each of `todoIds` that doesn't have it, in one transaction. */
+  async bulkAssignTag(todoIds: readonly number[], tagId: number): Promise<void> {
+    await todoTagOps.bulkAssign(todoIds, tagId)
+  },
+
+  /** Unassigns the tag from each of `todoIds`, in one transaction. */
+  async bulkUnassignTag(todoIds: readonly number[], tagId: number): Promise<void> {
+    await todoTagOps.bulkUnassign(todoIds, tagId)
+  },
+
   /**
    * Undo-restore for `delete`: re-insert the tag row (preserving its id) plus
    * every captured `todoTags` join row inside one transaction; a tag of the

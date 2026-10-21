@@ -49,6 +49,16 @@ export const personRepository = {
     await todoPeopleOps.unassign(todoId, personId)
   },
 
+  /** Assigns the person to each of `todoIds` that doesn't have it, in one transaction. */
+  async bulkAssignPerson(todoIds: readonly number[], personId: number): Promise<void> {
+    await todoPeopleOps.bulkAssign(todoIds, personId)
+  },
+
+  /** Unassigns the person from each of `todoIds`, in one transaction. */
+  async bulkUnassignPerson(todoIds: readonly number[], personId: number): Promise<void> {
+    await todoPeopleOps.bulkUnassign(todoIds, personId)
+  },
+
   async getTodoCountForPerson(personId: number): Promise<number> {
     return db.todoPeople.where('personId').equals(personId).count()
   },

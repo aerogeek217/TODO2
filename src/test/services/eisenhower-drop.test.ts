@@ -79,7 +79,7 @@ describe('applyPaneDrop — a write that fails', () => {
     const { home, waiting, a, b } = await seed()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     // The tag is the last write: the flags and the status went in before it.
-    vi.spyOn(db.todoTags, 'add').mockRejectedValue(new Error('disk full'))
+    vi.spyOn(db.todoTags, 'bulkAdd').mockRejectedValue(new Error('disk full'))
 
     await expect(applyPaneDrop([
       { todoId: a, urgent: true, statusId: waiting, tagId: home },
@@ -116,7 +116,7 @@ describe('applyPaneDrop — a write that fails', () => {
     const c = await useTodoStore.getState().add('Reply task')
     useUndoStore.setState(useUndoStore.getInitialState(), true)
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.spyOn(db.todoTags, 'add').mockRejectedValue(new Error('disk full'))
+    vi.spyOn(db.todoTags, 'bulkAdd').mockRejectedValue(new Error('disk full'))
 
     const reply = applyCheckinUpdates([{ todoId: c, complete: false, progress: 'Half done', changeCount: 1 }], { recordFollowup: false, personName: 'Ann' })
     const drop = applyPaneDrop([

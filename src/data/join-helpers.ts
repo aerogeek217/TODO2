@@ -70,6 +70,30 @@ export function createJoinOps<
         .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
         .delete()
     },
+
+    /** `assign` for each of `aIds`, in one transaction: all of them, or none. */
+    async bulkAssign(aIds: readonly number[], bId: number): Promise<void> {
+      if (aIds.length === 0) return
+      await db.transaction('rw', table, async () => {
+        const existing = await table
+          .where(aKey).anyOf([...aIds])
+          .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
+          .toArray()
+        const have = new Set(existing.map((l) => (l as Record<string, unknown>)[aKey]))
+        const rows = [...new Set(aIds)].filter((aId) => !have.has(aId))
+          .map((aId) => ({ [aKey]: aId, [bKey]: bId }) as Record<AK | BK, number>)
+        if (rows.length > 0) await table.bulkAdd(rows as T[])
+      })
+    },
+
+    /** `unassign` for each of `aIds`, in one transaction. */
+    async bulkUnassign(aIds: readonly number[], bId: number): Promise<void> {
+      if (aIds.length === 0) return
+      await table
+        .where(aKey).anyOf([...aIds])
+        .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
+        .delete()
+    },
   }
 }
 

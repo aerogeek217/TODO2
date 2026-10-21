@@ -201,6 +201,21 @@ export const useTodoStore = create<TodoState>((set, get) => {
     })
   }
 
+  /**
+   * `write`, and after a failed one the tasks read back from the database —
+   * the rollback put back what the store had, this makes sure it matches
+   * what is stored. Outside the tracked write: the load waits for writes in
+   * flight, `write` included.
+   */
+  async function reloadOnFailure(write: Promise<void>): Promise<void> {
+    try {
+      await write
+    } catch (e) {
+      await get().loadAll().catch(() => {})
+      throw e
+    }
+  }
+
   return {
   todos: [],
   todosVersion: 0,
@@ -444,7 +459,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     )
 
     const label = completed ? 'Complete' : 'Uncomplete'
-    return optimistic(
+    return reloadOnFailure(optimistic(
       () => {
         set({
           todos: get().todos.map((t) => {
@@ -457,12 +472,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
           }),
         })
       },
-      async () => {
-        if (recurringMutations.length > 0) {
-          await todoRepository.bulkUpdate(recurringMutations, now)
-        }
-        await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed, completedAtById.get(id), now)))
-      },
+      // One transaction: every task changes, or none does.
+      () => todoRepository.bulkUpdate([
+        ...recurringMutations,
+        ...normalIds.map((id) => ({ todoId: id, changes: { isCompleted: completed, completedAt: completedAtById.get(id) } })),
+      ], now),
       () => {
         const prevCompletedMap = new Map(prevStates.map(s => [s.id, s]))
         const prevModified = new Map(allTodos.map((t) => [t.id, t.modifiedAt]))
@@ -485,26 +499,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
         description: `${label} ${ids.length} tasks`,
         redo: () => get().bulkSetCompleted(ids, completed),
         undo: async () => {
-          // One timestamp for every write of the undo, in the store and the DB.
+          // One timestamp and one transaction for every write of the undo,
+          // in the store and the DB: the recurring date advances go back,
+          // and the completions (re-completing restores the original
+          // completion time, resolved once per task).
           const undoNow = new Date()
-          // Revert recurring date advances
-          if (recurringAdvances.length > 0) {
-            const revertMutations = recurringAdvances.map(r => ({
-              todoId: r.id,
-              changes: { dueDate: r.prev },
-            }))
-            await todoRepository.bulkUpdate(revertMutations, undoNow)
-            set({
-              todos: get().todos.map((t) => {
-                const r = recurringPrevMap.get(t.id)
-                if (!r) return t
-                return { ...t, dueDate: r.prev, modifiedAt: undoNow }
-              }),
-            })
-          }
-          // Revert normal completions
-          // (re-completing restores the original completion time)
-          // Resolved once per task and written to both store and DB.
           const reverts = prevStates
             .filter(s => s.wasCompleted !== completed)
             .map(s => {
@@ -512,22 +511,24 @@ export const useTodoStore = create<TodoState>((set, get) => {
               const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
               return { id: s.id, isCompleted: s.wasCompleted, completedAt: resolveCompletedAt(current, next, undoNow) }
             })
-          for (const r of reverts) {
-            await todoRepository.complete(r.id, r.isCompleted, r.completedAt, undoNow)
-          }
-          if (reverts.length > 0) {
-            const revertMap = new Map(reverts.map(r => [r.id, r]))
-            set({
-              todos: get().todos.map((t) => {
-                const r = revertMap.get(t.id)
-                return r ? { ...t, isCompleted: r.isCompleted, completedAt: r.completedAt, modifiedAt: undoNow } : t
-              }),
-            })
-          }
+          if (recurringAdvances.length === 0 && reverts.length === 0) return
+          await todoRepository.bulkUpdate([
+            ...recurringAdvances.map(r => ({ todoId: r.id, changes: { dueDate: r.prev } })),
+            ...reverts.map(r => ({ todoId: r.id, changes: { isCompleted: r.isCompleted, completedAt: r.completedAt } })),
+          ], undoNow)
+          const revertMap = new Map(reverts.map(r => [r.id, r]))
+          set({
+            todos: get().todos.map((t) => {
+              const r = recurringPrevMap.get(t.id)
+              if (r) return { ...t, dueDate: r.prev, modifiedAt: undoNow }
+              const c = revertMap.get(t.id)
+              return c ? { ...t, isCompleted: c.isCompleted, completedAt: c.completedAt, modifiedAt: undoNow } : t
+            }),
+          })
         },
         showSnackbar: true,
       },
-    )
+    ))
   },
 
   async bulkSetStatus(ids: number[], statusId: number | undefined) {

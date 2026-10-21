@@ -34,6 +34,8 @@ export const useTagStore = create<TagState>((set, get) => {
       repo: {
         assign: tagRepository.assignTag,
         unassign: tagRepository.unassignTag,
+        bulkAssign: tagRepository.bulkAssignTag,
+        bulkUnassign: tagRepository.bulkUnassignTag,
         getForTodos: tagRepository.getAssignedTagsForTodos,
       },
       label: 'tag',
