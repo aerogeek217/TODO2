@@ -407,7 +407,7 @@
 /* ═══ Delete completed tasks popup ═══ */
 
 .cleanupPopup {
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   width: 400px;
@@ -442,10 +442,6 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-[data-theme="light"] .cleanupPopup {
-  background: var(--color-surface);
 }
 
 /* ── Mobile: rows stack, controls get touch sizes ── */

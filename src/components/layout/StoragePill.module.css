@@ -141,13 +141,9 @@
   overflow-y: auto;
   padding: 14px 16px 12px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-popover);
-}
-
-[data-theme="light"] .popover {
-  background: var(--color-surface);
 }
 
 .title {

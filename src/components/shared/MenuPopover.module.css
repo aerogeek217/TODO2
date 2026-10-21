@@ -3,16 +3,12 @@
   z-index: var(--z-dialog-nested);
   min-width: 200px;
   padding: 4px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-chip);
   box-shadow: var(--shadow-dropdown);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-}
-
-[data-theme="light"] .menu {
-  background: var(--color-surface);
 }
 
 .groupLabel {

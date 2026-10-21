@@ -184,13 +184,9 @@
   width: 280px;
   padding: 4px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-dialog-nested);
-}
-
-[data-theme="light"] .menu {
-  background: var(--color-surface);
 }
 
 .menuLabel {

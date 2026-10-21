@@ -20,13 +20,13 @@ const THEMES: ThemeName[] = ['dark', 'light']
 
 describe('text contrast (WCAG AA)', () => {
   it.each(THEMES)('%s: muted text reads on every surface it sits on', (theme) => {
-    for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg']) {
+    for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg']) {
       expect(ratio(theme, '--color-text-muted', bg), `${theme} muted on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
     }
   })
 
   it.each(THEMES)('%s: the accent as text reads on the surfaces', (theme) => {
-    for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg']) {
+    for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-popover-bg']) {
       expect(ratio(theme, '--color-accent-text', bg), `${theme} accent text on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
     }
   })

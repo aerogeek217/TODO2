@@ -274,13 +274,9 @@
   height: 36px;
   padding: 0 4px 0 12px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   white-space: nowrap;
-}
-
-:global([data-theme='light']) .bulkBar {
-  background: var(--color-surface);
 }
 
 .bulkCount {
@@ -357,13 +353,9 @@
   width: 330px;
   padding: 12px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   color: var(--color-text-primary);
-}
-
-:global([data-theme='light']) .switchPopover {
-  background: var(--color-surface);
 }
 
 .switchTitle {

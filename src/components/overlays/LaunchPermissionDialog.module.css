@@ -34,12 +34,8 @@
   box-sizing: border-box;
   padding: 24px 24px 20px;
   border-radius: 16px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-modal);
-}
-
-[data-theme="light"] .card {
-  background: var(--color-surface);
 }
 
 .icon {

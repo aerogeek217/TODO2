@@ -133,8 +133,13 @@
   --color-surface-bright: #2d2b29;
   --color-surface-glass: rgba(26, 25, 24, 0.85);
   --color-surface-hover: rgba(255, 255, 255, 0.05);
-  /* Alias for elevated surfaces (modals, popovers, the QuickAddBar). */
+  /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
+  /* Popovers, menus, dialogs and sheets: raised above the surface here, the
+     surface itself in the light theme (where the shadow does the lifting). */
+  --color-popover-bg: var(--color-surface-high);
+  /* Their 1px ring (`--shadow-dropdown`, Edit list's arrow). */
+  --color-popover-ring: rgba(48, 46, 43, 0.5);
   --color-border: #302e2b;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
@@ -143,6 +148,14 @@
      an `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
      colour editor shows the actual rendered colour. */
   --color-header-bg: #1f2120;
+  /* The top bar's search field, recessed into the app background. */
+  --color-search-bg: var(--color-inset);
+  /* The notes editor's page (task notes and the global note). */
+  --color-notes-bg: var(--color-app-bg);
+  /* The system I-beam (white on the dark notes page). */
+  --notes-text-cursor: text;
+  /* A calendar day cell. */
+  --cal-day-fill: var(--color-tint-5);
 
   /* Task markers (shown before the title when set). */
   --color-marker-urgent: var(--color-danger);
@@ -274,7 +287,7 @@
 
   /* Shadows */
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.2);
-  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(48, 46, 43, 0.5);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--color-popover-ring);
   --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(48, 46, 43, 0.4);
   --shadow-glow: 0 0 20px rgba(126, 196, 188, 0.3);
   --shadow-glass-card:
@@ -308,14 +321,24 @@
   --color-surface-bright: #e5e3e0;
   --color-surface-glass: rgba(255, 255, 255, 0.88);
   --color-surface-hover: rgba(0, 0, 0, 0.05);
-  /* Alias for elevated surfaces (modals, popovers, the QuickAddBar). */
+  /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
+  /* Popovers, menus, dialogs and sheets. */
+  --color-popover-bg: var(--color-surface);
+  --color-popover-ring: rgba(0, 0, 0, 0.06);
   --color-border: #d9d5d0;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(0, 0, 0, 0.06);
   /* Solid background for the workspace cell headers (tab strips). */
   --color-header-bg: #f7fbfa;
+  --color-search-bg: var(--color-surface-high);
+  --color-notes-bg: var(--color-surface);
+  /* The system I-beam follows the OS pointer scheme, not `color-scheme`: a
+     white pointer vanishes on the white notes page, so the I-beam is drawn
+     black. */
+  --notes-text-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='16'><path d='M2 1 H6 M4 1 V15 M2 15 H6' stroke='black' stroke-width='1' fill='none'/></svg>") 4 8, text;
+  --cal-day-fill: var(--color-tint-4);
 
   /* Task markers (shown before the title when set). */
   --color-marker-urgent: var(--color-danger);
@@ -443,7 +466,7 @@
 
   /* Shadows — lighter, subtler */
   --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--color-popover-ring);
   --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
   --shadow-glow: 0 0 16px rgba(58, 158, 147, 0.15);
   --shadow-glass-card:

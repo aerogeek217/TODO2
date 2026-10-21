@@ -349,14 +349,10 @@
   padding: 14px 16px;
   box-sizing: border-box;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   text-align: center;
   z-index: 2;
-}
-
-:global([data-theme='light']) .notePanel {
-  background: var(--color-surface);
 }
 
 .noteTitle {

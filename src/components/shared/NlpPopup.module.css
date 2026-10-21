@@ -5,17 +5,13 @@
   max-width: calc(100vw - 16px);
   box-sizing: border-box;
   padding: 4px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
   max-height: 320px;
   overflow-y: auto;
   font-family: inherit;
   text-align: left;
-}
-
-[data-theme="light"] .popup {
-  background: var(--color-surface);
 }
 
 .header {
