@@ -18,6 +18,8 @@ interface TagState {
   add: (name: string, color?: string) => Promise<number>
   update: (tag: Tag) => Promise<void>
   remove: (id: number) => Promise<void>
+  /** Drops tags the database no longer has (removed with their assignments) from the store and the assignment map. */
+  forgetTags: (ids: readonly number[]) => void
   /** How many tasks (any, loaded or not) carry the tag — read from the database, for the delete confirm. */
   countTasks: (tagId: number) => Promise<number>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
@@ -122,6 +124,16 @@ export const useTagStore = create<TagState>((set, get) => {
             true,
           )
         }
+      })
+    },
+
+    forgetTags(ids: readonly number[]) {
+      if (ids.length === 0) return
+      const gone = new Set(ids)
+      const keep = (t: Tag) => t.id == null || !gone.has(t.id)
+      set({
+        tags: get().tags.filter(keep),
+        assignedTagsMap: new Map(Array.from(get().assignedTagsMap, ([k, tags]) => [k, tags.filter(keep)] as const)),
       })
     },
 

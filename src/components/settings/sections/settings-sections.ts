@@ -3,6 +3,7 @@ import type { SettingsPartId, SettingsSectionId } from '../../../stores/ui-store
 import { AppearanceSection } from './AppearanceSection'
 import { TaskDefaultsSection } from './TaskDefaultsSection'
 import { EntitiesSection } from './EntitiesSection'
+import { UnusedEntitiesSection } from './UnusedEntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
 import { EisenhowerSection } from './EisenhowerSection'
 import { FileStorageSection } from './FileStorageSection'
@@ -58,7 +59,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },
     ],
   },
-  single('entities', 'People, statuses & tags', EntitiesIcon, EntitiesSection, false),
+  {
+    id: 'entities',
+    label: 'People, statuses & tags',
+    Icon: EntitiesIcon,
+    parts: [
+      { id: 'entities-manage', label: 'Manage', Body: EntitiesSection, mobile: false },
+      { id: 'unused-entities', label: 'Unused people & tags', Body: UnusedEntitiesSection, mobile: true },
+    ],
+  },
   {
     id: 'database',
     label: 'Database',

@@ -574,6 +574,8 @@ const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
   'Task defaults': 'Tasks',
   Eisenhower: 'Tasks',
   'Completed tasks': 'Tasks',
+  Manage: 'People, statuses & tags',
+  'Unused people & tags': 'People, statuses & tags',
   'File storage': 'Database',
   Backups: 'Database',
   'Import / Export': 'Database',

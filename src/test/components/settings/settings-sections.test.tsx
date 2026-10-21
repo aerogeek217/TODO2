@@ -22,12 +22,22 @@ describe('Settings sections', () => {
     expect(resolveSettingsTarget('task-defaults' satisfies SettingsPartId)).toEqual({ section: 'tasks', part: 'task-defaults' })
   })
 
-  it('the phone lists Appearance, Database and About; Database shows only Import / Export and File storage', () => {
-    expect(MOBILE_SETTINGS_SECTIONS.map((s) => s.label)).toEqual(['Appearance', 'Database', 'About'])
+  it('the phone lists Appearance, People statuses & tags, Database and About; Database shows only Import / Export and File storage', () => {
+    expect(MOBILE_SETTINGS_SECTIONS.map((s) => s.label)).toEqual(['Appearance', 'People, statuses & tags', 'Database', 'About'])
     render(<MemoryRouter><SettingsPage /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
     const headings = Array.from(document.querySelectorAll('h3')).map((h) => h.textContent)
     expect(headings).toEqual(['Import / Export', 'File storage'])
+  })
+
+  it('People, statuses & tags shows Manage then Unused people & tags; the phone shows only Unused people & tags', () => {
+    expect(SETTINGS_SECTIONS.find((s) => s.id === 'entities')?.parts.map((p) => [p.label, p.mobile]))
+      .toEqual([['Manage', false], ['Unused people & tags', true]])
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'People, statuses & tags' }))
+    const headings = Array.from(document.querySelectorAll('h3')).map((h) => h.textContent)
+    expect(headings).toEqual(['Unused people & tags'])
+    expect(screen.queryByRole('button', { name: 'Manage people…' })).toBeNull()
   })
 
   it('the phone page opens on the section named in its route state (the storage status sheet)', () => {
