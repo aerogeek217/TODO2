@@ -202,6 +202,25 @@ describe('TaskNotePopover: notes are written as one edit session at a time', () 
     expect(storedNotes()).toBe('x')
   })
 
+  it.each([
+    ['pagehide', () => window.dispatchEvent(new Event('pagehide'))],
+    ['visibilitychange to hidden', () => {
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      document.dispatchEvent(new Event('visibilitychange'))
+    }],
+  ])('%s starts writing what was typed in the handler, before the debounce', async (_name, hide) => {
+    await seedStored('')
+    const writes = vi.spyOn(todoRepository, 'update')
+    await open()
+    type('closing the tab')
+    act(() => hide())
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(writes).toHaveBeenCalledWith(100, { notes: 'closing the tab' }, expect.any(Date))
+    await vi.waitFor(async () => expect((await db.todos.get(100))?.notes).toBe('closing the tab'))
+    await settle()
+    expect(writes).toHaveBeenCalledTimes(1)
+  })
+
   it('one Undo takes back the whole edit', async () => {
     await seedStored('start')
     await open()

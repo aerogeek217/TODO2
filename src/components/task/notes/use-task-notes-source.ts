@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTodoStore } from '../../../stores/todo-store'
 import { SAVE_DEBOUNCE_MS } from '../../../stores/note-store'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
+import { onPageHide } from '../../../utils/page-hide'
 import type { NotesSource } from './NotesBody'
 
 /**
@@ -37,7 +38,8 @@ export interface TaskNotesSession {
 /**
  * A task's notes as one edit session at a time, the global note's shape:
  * typed changes are written after `SAVE_DEBOUNCE_MS` without typing, or at a
- * flush (blur, close / unmount, Copy, Convert, another write to the task);
+ * flush (blur, close / unmount, the page hidden or closed, Copy, Convert,
+ * another write to the task);
  * each write is one `todo-store` edit, so one undo entry covers everything
  * typed since the last write. Writes run one at a time, in order, each with
  * the text as it was when it was asked for. A failed write keeps the text as
@@ -137,10 +139,13 @@ export function useTaskNotesSource({ todoId, initial = '', write = storeWrite }:
   // A change made elsewhere shows while nothing typed waits.
   useLayoutEffect(() => { followStore() }, [stored, followStore])
 
-  // Closing keeps what was typed.
+  // Closing keeps what was typed — the popover or editor, or the page: hidden
+  // or closed, the write starts in the event handler.
   useEffect(() => {
     mountedRef.current = true
+    const stopOnHide = onPageHide(() => { void flush() })
     return () => {
+      stopOnHide()
       mountedRef.current = false
       void flush()
     }

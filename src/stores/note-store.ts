@@ -4,6 +4,7 @@ import type { PersistedNote } from '../models'
 import { reportLoadFailure } from './store-helpers'
 import { useUndoStore } from './undo-store'
 import { registerModuleReset } from '../utils/module-reset'
+import { onPageHide } from '../utils/page-hide'
 
 /**
  * Single-row note store. Holds the one global "outside-tasks" note — shown in
@@ -68,6 +69,10 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined
 let editSeq = 0
 /** The save in progress, if any; the next save starts after it. */
 let saveQueue: Promise<void> = Promise.resolve()
+/** Saves started or queued and not finished. */
+let savesInFlight = 0
+/** Bumped by `resetNoteSaves`: a save started before it doesn't count down the new count. */
+let saveGeneration = 0
 
 /**
  * Clears the save timer and the save chain, for tests that share one module
@@ -79,6 +84,8 @@ export function resetNoteSaves(): void {
   saveTimer = undefined
   editSeq = 0
   saveQueue = Promise.resolve()
+  savesInFlight = 0
+  saveGeneration++
 }
 registerModuleReset(resetNoteSaves)
 
@@ -109,9 +116,15 @@ async function saveOnce(): Promise<void> {
   }
 }
 
-/** Queues a save after the one in progress. */
+/**
+ * Saves the pending text: at once when no save is running (the write starts
+ * before this returns), else after the one in progress.
+ */
 function persistPending(): Promise<void> {
-  saveQueue = saveQueue.then(saveOnce)
+  savesInFlight++
+  const generation = saveGeneration
+  const run = () => saveOnce().finally(() => { if (generation === saveGeneration) savesInFlight-- })
+  saveQueue = savesInFlight === 1 ? run() : saveQueue.then(run)
   return saveQueue
 }
 
@@ -198,3 +211,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     }
   },
 }))
+
+// Hidden or closed right after typing: the pending text is saved now (the
+// write starts in the event handler), not after the debounce.
+onPageHide(() => {
+  if (useNoteStore.getState().pending) void useNoteStore.getState().flush()
+})
