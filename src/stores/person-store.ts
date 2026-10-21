@@ -27,6 +27,8 @@ interface PersonState {
   /** Replaces the person row; `email` is stored trimmed and dropped when empty. */
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
+  /** Drops people the database no longer has (removed with their assignments) from the store and the assignment map. */
+  forgetPeople: (ids: readonly number[]) => void
   /** How many tasks (any, loaded or not) the person is assigned to — read from the database, for the delete confirm. */
   countTasks: (personId: number) => Promise<number>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
@@ -141,6 +143,16 @@ export const usePersonStore = create<PersonState>((set, get) => {
             true,
           )
         }
+      })
+    },
+
+    forgetPeople(ids: readonly number[]) {
+      if (ids.length === 0) return
+      const gone = new Set(ids)
+      const keep = (p: Person) => p.id == null || !gone.has(p.id)
+      set({
+        people: get().people.filter(keep),
+        assignedPeopleMap: new Map(Array.from(get().assignedPeopleMap, ([k, people]) => [k, people.filter(keep)] as const)),
       })
     },
 
