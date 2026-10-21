@@ -388,9 +388,6 @@ function CopyFromButton({ groups, onPick }: {
 }) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
-  // A click on the button while its menu is open closes it (the menu's
-  // outside-click handler already did) instead of reopening it.
-  const wasOpen = useRef(false)
   return (
     <>
       <button
@@ -400,14 +397,8 @@ function CopyFromButton({ groups, onPick }: {
         aria-haspopup="menu"
         aria-expanded={open}
         title="Take the filters, group, sort, prompt and filter line of another list"
-        onMouseDown={() => { wasOpen.current = open }}
-        onClick={() => {
-          if (wasOpen.current) {
-            wasOpen.current = false
-            return
-          }
-          setOpen(true)
-        }}
+        // The menu leaves a press on its own button to the button: it toggles.
+        onClick={() => setOpen((o) => !o)}
       >
         {COPY_FROM_LABEL}
         <ChevronDownIcon />
@@ -496,9 +487,6 @@ function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   const ref = useRef<HTMLButtonElement | null>(null)
   const valueId = useId()
   const [open, setOpen] = useState(false)
-  // A click on the button while its menu is open closes it (the menu's
-  // outside-click handler already did) instead of reopening it.
-  const wasOpen = useRef(false)
   const current = choices.find((c) => c.value === value)
   const entries: MenuEntry[] = choices.map((c) => ({
     kind: 'item',
@@ -518,14 +506,8 @@ function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-labelledby={placeholder ? labelId : `${labelId} ${valueId}`}
-        onMouseDown={() => { wasOpen.current = open }}
-        onClick={() => {
-          if (wasOpen.current) {
-            wasOpen.current = false
-            return
-          }
-          setOpen(true)
-        }}
+        // The menu leaves a press on its own button to the button: it toggles.
+        onClick={() => setOpen((o) => !o)}
       >
         {placeholder
           ? <span className={`${styles.selectValue} ${styles.selectPlaceholder}`} data-placeholder="" aria-hidden="true">{placeholder}</span>

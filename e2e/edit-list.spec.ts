@@ -273,6 +273,21 @@ test('the summary toggles Edit list: a second press asks first while the list is
   await expect(popover).toHaveCount(0)
 })
 
+test('Group by and Copy from… toggle their menus: a second press closes it, Edit list stays open', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, shared)
+  const popover = await openFromTabMenu(page, 't1')
+  for (const [button, menu] of [['Group by', 'Group by'], ['Copy from…', 'Copy from']] as const) {
+    const trigger = popover.getByRole('button', { name: new RegExp(`^${button}`) })
+    await trigger.click()
+    await expect(page.getByRole('menu', { name: menu })).toBeVisible()
+    await trigger.click()
+    await expect(page.getByRole('menu', { name: menu })).toHaveCount(0)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect(popover).toBeVisible()
+  }
+})
+
 test('Revert drops the edit and closes it, with Undo', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
