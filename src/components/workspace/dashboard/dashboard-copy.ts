@@ -1,7 +1,6 @@
 import type { MarkerKey, MarkerSet } from '../../../models'
 import type { DashboardTrendRange } from '../../../models/dashboard-config'
 import type { TileStats } from '../../../services/stats/tiles'
-import type { FilterChip } from '../../../utils/filter-chips'
 import { formatFollowupDate, formatFollowupDay } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
 import { lineMarkers, type HotRule } from '../../../utils/hot'
@@ -157,16 +156,6 @@ export function nextDayLabels(date: Date | null, index: number): [string, string
   if (date == null) return ['Late', '–']
   if (index === 1) return ['Today', String(date.getDate())]
   return [date.toLocaleDateString('en-US', { weekday: 'short' }), String(date.getDate())]
-}
-
-/** A list's filters in a few words: `Status: Waiting`, `@Priya`, `#q4`. */
-export function listTileHint(chips: readonly FilterChip[]): string {
-  if (chips.length === 0) return 'All tasks'
-  return chips.map((c) => {
-    if (c.field === 'people') return `@${c.value}`
-    if (c.field === 'tags') return c.value
-    return `${c.label}: ${c.value}`
-  }).join(' · ')
 }
 
 // ── The task dialog's words ──────────────────────────────────────────────────

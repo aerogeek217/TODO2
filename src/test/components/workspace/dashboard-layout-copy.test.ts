@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { packSections, sectionRowTracks } from '../../../components/workspace/dashboard/dashboard-layout'
 import {
-  countOf, hotLineLabel, hotRuleInWords, listTileHint, nextDayLabels, signed, tileSubLine, trendBucketLabel,
+  countOf, hotLineLabel, hotRuleInWords, nextDayLabels, signed, tileSubLine, trendBucketLabel,
 } from '../../../components/workspace/dashboard/dashboard-copy'
 import { computeTiles } from '../../../services/stats/tiles'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SAMPLE_CTX } from '../../fixtures/dashboard-sample'
 import { makeTodo } from '../../helpers'
-import { filterChips } from '../../../utils/filter-chips'
+import { filterChips, listFilterHint } from '../../../utils/filter-chips'
 import { emptyPredicate } from '../../../models'
 
 const spans = (rows: ReturnType<typeof packSections>) => rows.map((r) => r.map((s) => `${s.id}:${s.span}`))
@@ -77,8 +77,8 @@ describe('dashboard copy', () => {
   })
 
   it('a list tile hint: people as @, tags as #, the rest as Label: value', () => {
-    expect(listTileHint([])).toBe('All tasks')
-    expect(listTileHint([
+    expect(listFilterHint([])).toBe('All tasks')
+    expect(listFilterHint([
       { field: 'people', label: 'People', value: 'Priya +1' },
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'status', label: 'Status', value: 'Waiting' },
@@ -90,6 +90,6 @@ describe('dashboard copy', () => {
       ...emptyPredicate(),
       dates: { deadline: { match: 'set' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } },
     }, { people: [], tags: [], statuses: [] })
-    expect(listTileHint(chips)).toBe('Due: has a date · Created: from start of month')
+    expect(listFilterHint(chips)).toBe('Due: has a date · Created: from start of month')
   })
 })
