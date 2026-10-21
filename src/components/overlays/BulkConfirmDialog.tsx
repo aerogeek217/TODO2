@@ -43,7 +43,7 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
       onConfirm={onConfirm}
       onCancel={onCancel}
       // Singleton confirm — render at --z-dialog-nested so it always lands
-      // above any other open dialog (list editor, dashboard-lists modal, etc.).
+      // above any other open dialog (Settings, the task dialog, etc.).
       nested
     />
   )

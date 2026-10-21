@@ -11,7 +11,7 @@ import { useBackdropPress } from './use-backdrop-press'
  * - `overlay` — the big workspace dialogs (task dialog, check-ins, Settings,
  *   Customize dashboard); row pickers and menus open above them.
  * - `dialog` — the default for the small titled dialogs.
- * - `raised` — the list editor, over the lists editor in Settings.
+ * - `raised` — the task editor stacked over another dialog (`nested`).
  * - `nested` — over any other dialog (confirms asked from inside one).
  */
 export type DialogLayer = 'overlay' | 'dialog' | 'raised' | 'nested'

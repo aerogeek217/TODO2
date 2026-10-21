@@ -114,7 +114,6 @@ export function UnsavedListDialog({ listId, onDone, onCancel, revertOnDiscard = 
   )
 }
 
-/** "Save your changes?" with one checked row per unsaved layout / list. */
 /**
  * The open layout's own lists among `listIds` that only its unsaved edits
  * show: discarding the layout deletes them, so their rows follow its row.
@@ -130,6 +129,7 @@ function listsMadeForEdits(listIds: readonly number[]): Set<number> {
   }))
 }
 
+/** "Save your changes?" with one checked row per unsaved layout / list. */
 function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<UnsavedPromptProps, 'layoutLead'>) {
   const saveRef = useRef<HTMLButtonElement>(null)
   const layoutName = useWorkspaceStore((s) => s.working?.name ?? '')

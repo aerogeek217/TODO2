@@ -9,9 +9,8 @@ import { readStore } from './fixtures/db'
  * press that starts inside the panel and ends on the backdrop keeps it open,
  * a press on the backdrop closes it. And the stacks: the editor over the
  * task dialog, the check-in dialog over the task dialog, the email editor
- * over the check-in dialog, the people editor over Settings, the list editor
- * over the lists editor in Settings, "Continue without a backup?" over the
- * append-import dialog.
+ * over the check-in dialog, the people editor over Settings, "Continue without
+ * a backup?" over the append-import dialog.
  */
 
 const VIEWPORT = { width: 1440, height: 900 }

@@ -3,7 +3,7 @@
  * from the task row's container queries — each quadrant body is the size
  * container. */
 
-/* The widget's frame: the list's filter line (when it shows a saved list)
+/* The widget's frame: the Eisenhower's list's filter line (when it shows)
  * above the quadrants. The size container for the filter line's narrow
  * rules. */
 .frame {

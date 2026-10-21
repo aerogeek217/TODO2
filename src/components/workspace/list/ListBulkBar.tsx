@@ -40,7 +40,7 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
  * tri-state checkbox items by flag: when only some tasks have one, a click
  * gives it to all of them; when all have it, a click takes it off all (Urgent
  * too: a due date that keeps a task urgent is left alone). Each goes through the existing bulk paths
- * (`bulkSet*`, `bulkAssign*`, `markFollowedUp`, `showBulkConfirmation`).
+ * (`bulkSet*`, `bulkAssign*`, `markFollowedUp`; Delete asks through `showBulkConfirmation`).
  */
 export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: number }) {
   const [open, setOpen] = useState<OpenPicker>(null)
