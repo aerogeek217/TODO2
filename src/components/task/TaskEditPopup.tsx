@@ -434,6 +434,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const creatingRef = useRef(false)
   const handleCreate = async () => {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
+    // A person / tag picked from the title's Create row is saved first, so the token names it.
+    if (ac.creating()) await ac.whenCreated()
     const partial: Partial<TodoItem> = {
       title: title.trim(),
       notes: notesSession.text() || undefined,

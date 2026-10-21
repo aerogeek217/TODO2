@@ -68,11 +68,12 @@ test.describe('QuickAddBar @ mention picker', () => {
     await expect(popup).toBeVisible()
     await expect(popup.getByText('People', { exact: true })).toBeVisible()
 
-    // Substring match: only the person whose name contains "acme" surfaces.
+    // Substring match: only the person whose name contains "acme" surfaces,
+    // then the Create row (no one is named exactly "acme").
     const targetOption = popup.getByRole('option', { name: `@${TARGET_NAME}` })
     await expect(targetOption).toBeVisible()
     await expect(targetOption).toHaveAttribute('aria-selected', 'true')
-    await expect(popup.getByRole('option')).toHaveCount(1)
+    await expect(popup.getByRole('option')).toHaveText([`@${TARGET_NAME}`, /Create @acme/])
 
     // Tab picks (⏎ would add the task at once, with the same match).
     await page.keyboard.press('Tab')
@@ -125,5 +126,30 @@ test.describe('QuickAddBar @ popup: the highlighted row is what you get', () => 
     await input.press('Space')
     await expect(input).toHaveValue('Call @Fred ')
     await expect(popup).toHaveCount(0)
+  })
+})
+
+test.describe('QuickAddBar @ popup: the Create row', () => {
+  test('@Ed with Fred stored: Fred highlighted, ↓ to Create "Ed", Tab makes Ed at once; the task gets Ed', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Call @Ed')
+    const popup = page.getByRole('listbox', { name: 'People' })
+    await expect(popup.getByRole('option')).toHaveText(['@Fred', /Create @Ed/])
+    await expect(popup.getByRole('option', { name: '@Fred' })).toHaveAttribute('aria-selected', 'true')
+
+    await input.press('ArrowDown')
+    await expect(popup.getByRole('option', { name: /Create @Ed/ })).toHaveAttribute('aria-selected', 'true')
+    await input.press('Tab')
+    await expect(input).toHaveValue('Call @Ed ')
+    await expect.poll(() => readPersonIdByName(page, 'Ed')).not.toBeNull()
+
+    await input.press('Enter')
+    await expect(dialog).toHaveCount(0)
+    const ed = await readPersonIdByName(page, 'Ed')
+    await expect.poll(async () => (await readTodoPeopleForTitle(page, 'Call')).map((j) => j.personId)).toEqual([ed])
   })
 })

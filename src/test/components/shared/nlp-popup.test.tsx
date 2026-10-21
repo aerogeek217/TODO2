@@ -83,7 +83,7 @@ describe('NlpPopup — a person’s / tag’s menu on its rows', () => {
 
   it('no menu on create or command rows, nor without entityMenu', () => {
     const { input, unmount } = renderPopup('@zed')
-    fireEvent.contextMenu(screen.getByRole('option', { name: /create @zed/ }), { button: 2 })
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Create @zed/ }), { button: 2 })
     fireEvent.contextMenu(input, { button: 0 })
     expect(screen.queryByRole('menu')).toBeNull()
     unmount()

@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QuickAddBar, type QuickAddDraft } from '../../../components/overlays/QuickAddBar'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { db } from '../../../data/database'
 import type { PersistedPerson, PersistedStatus } from '../../../models'
 
 const anna: PersistedPerson = { id: 1, name: 'Anna', initials: 'AN' }
@@ -336,12 +337,40 @@ describe('QuickAddBar', () => {
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call @an')
       expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
-      fireEvent.mouseMove(option(/@Hannah/))
+      fireEvent.mouseMove(option(/@Hannah/), { clientX: 40, clientY: 60 })
       expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
       expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'false')
       fireEvent.keyDown(getInput(), { key: 'Enter' })
       expect(onSubmit).toHaveBeenCalledTimes(1)
       expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([3])
+    })
+
+    it('a Create row below the matches: picking it makes the person at once, and Enter adds the task with them', async () => {
+      await db.people.clear()
+      await db.people.bulkAdd([anna, bob]) // the store's people, stored (new ids come after theirs)
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @an') // Anna (substring), then Create "an"
+      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
+      fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
+      expect(option(/Create @an/)).toHaveAttribute('aria-selected', 'true')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Tab' }) })
+      expect(getInput().value).toBe('Call @an ')
+      await waitFor(() => expect(usePersonStore.getState().people.map((p) => p.name)).toContain('an'))
+      const created = usePersonStore.getState().people.find((p) => p.name === 'an')!
+      fireEvent.keyDown(getInput(), { key: 'Enter' })
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+      expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([created.id])
+    })
+
+    it('typing on never creates: a space with the Create row highlighted leaves the text as typed', async () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeTo('Call @an')
+      fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
+      typeTo('Call @an ')
+      expect(getInput().value).toBe('Call @an ')
+      await act(async () => {})
+      expect(usePersonStore.getState().people.map((p) => p.name)).toEqual(['Anna', 'Bob'])
     })
 
     it('narrowing keeps the highlighted person, not the index', () => {
@@ -525,12 +554,12 @@ describe('QuickAddBar', () => {
       return input
     }
 
-    it('offers "Press ⏎ to create @Name" when nobody matches; Tab inserts the token', async () => {
+    it('offers "Create @Name" when nobody matches; Tab inserts the token', async () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeAtCaret('Call legal @Marco')
       const listbox = screen.getByRole('listbox', { name: 'People' })
-      const option = screen.getByRole('option', { name: 'Press ⏎ to create @Marco' })
+      const option = screen.getByRole('option', { name: 'Create @Marco' })
       expect(listbox).toContainElement(option)
       expect(option).toHaveAttribute('aria-selected', 'true')
 

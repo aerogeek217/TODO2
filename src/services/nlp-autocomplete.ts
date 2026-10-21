@@ -33,9 +33,9 @@ import { byName } from '../utils/sort-order'
  *
  * Triggers count only at the start of the text or after whitespace:
  *  - `@` people (substring or exact initials — an exact name or initials match
- *    first, then names starting with the query; create row when nothing matches);
- *  - `#` tags (prefix — the exact name first, then alphabetical; create row
- *    when nothing matches);
+ *    first, then names starting with the query);
+ *  - `#` tags (prefix — the exact name first, then alphabetical);
+ *    both with a Create row below the matches unless one is exactly the name;
  *  - `/` slash commands (prefix on the name), then the command's argument
  *    (date suggestions / live parse / error, statuses, frequencies).
  */
@@ -73,7 +73,7 @@ export interface AutocompleteSources {
 export type AutocompleteRow =
   /** An existing person / tag. */
   | { kind: 'entity'; item: AutocompleteItem }
-  /** `@name` / `#tag` that matches nothing: insert it; created with the task. */
+  /** Create `@name` / `#tag`: offered below the matches unless one is exactly the name; picking it creates the entity at once. */
   | { kind: 'create'; trigger: '@' | '#'; name: string }
   | { kind: 'command'; command: SlashCommandSpec; matchLength: number }
   /** An argument suggestion (`fri`, `2w`, `none`, a status, a frequency). */
@@ -308,10 +308,12 @@ function entityView(
     items = rankPeople(query.replace(/^"/, ''), sources.people)
   }
   const rows: AutocompleteRow[] = items.slice(0, MAX_ENTITY_ROWS).map((item) => ({ kind: 'entity', item }))
-  // Nothing matches: offer to create — only a name the parser reads as one
-  // token (`#q4`, `@Marco`; not `##` or `#a.b`), and not while a quoted
-  // `@"First Last"` is being typed (it can't be completed before the closing quote).
-  if (items.length === 0 && query.length > 0 && CREATABLE[trigger].test(rawQuery)) {
+  // Offer to create, below the matches, unless one of them is exactly the
+  // name typed — only a name the parser reads as one token (`#q4`, `@Marco`;
+  // not `##` or `#a.b`), and not while a quoted `@"First Last"` is being
+  // typed (it can't be completed before the closing quote).
+  const exact = items.some((item) => item.name.trim().toLowerCase() === query)
+  if (!exact && query.length > 0 && CREATABLE[trigger].test(rawQuery)) {
     rows.push({ kind: 'create', trigger, name: rawQuery })
   }
   return {

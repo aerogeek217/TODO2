@@ -46,7 +46,7 @@ test.describe('Quick Add', () => {
     await seedWorkspace(page, SEED)
     const input = await openQuickAdd(page)
     await page.keyboard.type('Call @an')
-    await expect(popup(page).getByRole('option')).toHaveText(['@Anna', '@Andy Ross'])
+    await expect(popup(page).getByRole('option')).toHaveText(['@Anna', '@Andy Ross', /Create @an$/])
 
     const andy = popup(page).getByRole('option', { name: '@Andy Ross' })
     const b = await box(andy)
@@ -68,8 +68,8 @@ test.describe('Quick Add', () => {
     await expect(input).toHaveValue('Call @an')
     expect(await caret(input)).toBe(8)
 
-    // Shift+F10 on the active row (↓ → Andy Ross), under it.
-    await page.keyboard.press('ArrowDown')
+    // Shift+F10 on the highlighted row — Andy Ross, which the pointer moved to — under it.
+    await expect(andy).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Shift+F10')
     await expect(page.getByRole('menu', { name: '@Andy Ross' })).toBeVisible()
     expect((await box(page.getByRole('menu'))).y).toBeGreaterThanOrEqual(b.y + b.height - 1)
@@ -101,7 +101,7 @@ test.describe('Quick Add', () => {
     await expect(editor).toHaveCount(0)
     await expect(input).toBeFocused()
     await expect(input).toHaveValue('Call @an')
-    await expect(popup(page).getByRole('option')).toHaveCount(2)
+    await expect(popup(page).getByRole('option')).toHaveCount(3) // Annabel, Andy Ross, Create "an"
     await expect(popup(page).getByRole('option', { name: '@Annabel' })).toBeVisible()
   })
 
@@ -117,7 +117,7 @@ test.describe('Quick Add', () => {
     await confirm.getByRole('button', { name: 'Delete' }).click()
     await expect(confirm).toHaveCount(0)
     await expect(popup(page).getByRole('option', { name: '@Andy Ross' })).toHaveCount(0)
-    await expect(popup(page).getByRole('option')).toHaveText([/create @andy/])
+    await expect(popup(page).getByRole('option')).toHaveText([/Create @andy$/])
     await expect(input).toBeFocused()
     await expect(input).toHaveValue('@andy')
     expect((await readStore<{ name: string }>(page, 'people')).map((p) => p.name)).toEqual(['Anna'])
@@ -136,7 +136,7 @@ test.describe('notes editor', () => {
   test('right-click / Shift+F10 open the menu over the popup; Esc keeps the popup and the caret; Show tasks closes the popup', async ({ page }) => {
     await seedWorkspace(page, SEED)
     const editor = await typeInNotes(page, '- Call @an')
-    await expect(popup(page).getByRole('option')).toHaveText(['@Anna', '@Andy Ross'])
+    await expect(popup(page).getByRole('option')).toHaveText(['@Anna', '@Andy Ross', /Create @an$/])
     await popup(page).getByRole('option', { name: '@Andy Ross' }).click({ button: 'right' })
     const menu = page.getByRole('menu', { name: '@Andy Ross' })
     await expect(menu.getByRole('menuitem')).toHaveText(['Show tasks', 'Edit…', 'Delete…'])
@@ -150,7 +150,7 @@ test.describe('notes editor', () => {
     await expect(editor).toBeFocused()
     // The caret is where it was: typing narrows the same token.
     await page.keyboard.type('d')
-    await expect(popup(page).getByRole('option')).toHaveText(['@Andy Ross'])
+    await expect(popup(page).getByRole('option')).toHaveText(['@Andy Ross', /Create @and$/])
     await expect(editor.locator('.cm-line').first()).toHaveText('- Call @and')
 
     await page.keyboard.press('Shift+F10')
@@ -182,7 +182,7 @@ test.describe('notes editor', () => {
     await expect(popup(page)).toBeVisible()
     await page.keyboard.type('n')
     await expect(editor.locator('.cm-line').first()).toHaveText('- Call @ann')
-    await expect(popup(page).getByRole('option')).toHaveText(['@Annabel'])
+    await expect(popup(page).getByRole('option')).toHaveText(['@Annabel', /Create @ann$/])
   })
 })
 

@@ -252,9 +252,19 @@ describe('/repeat argument', () => {
 
 describe('@ and #', () => {
   it('@ matches people by substring or exact initials; # tags by prefix', () => {
-    expect(labels(at('x @an'))).toEqual(['Anna', 'Dana Kim'])
-    expect(labels(at('x @dk'))).toEqual(['Dana Kim'])
-    expect(labels(at('x #b'))).toEqual(['Backend'])
+    expect(labels(at('x @an'))).toEqual(['Anna', 'Dana Kim', 'create @an'])
+    expect(labels(at('x @dk'))).toEqual(['Dana Kim', 'create @dk'])
+    expect(labels(at('x #b'))).toEqual(['Backend', 'create #b'])
+  })
+
+  it('a Create row below the matches unless one is exactly the name typed (any case)', () => {
+    expect(labels(at('x @anna'))).toEqual(['Anna'])
+    expect(labels(at('x @ANNA'))).toEqual(['Anna'])
+    expect(labels(at('x @ann'))).toEqual(['Anna', 'create @ann'])
+    expect(labels(at('x #backend'))).toEqual(['Backend'])
+    expect(labels(at('x #back'))).toEqual(['Backend', 'create #back'])
+    // The best match is highlighted on open; with no match, the Create row is the only row.
+    expect(at('x @ann')?.rows[0]?.kind).toBe('entity')
   })
 
   it('offers create when nothing matches (not while a quote is open)', () => {
@@ -298,8 +308,11 @@ describe('@ and #', () => {
       { id: 3, name: 'Al', initials: 'AX', kind: 'person' as const },
     ] }
     expect(labels(at('x @al', src))).toEqual(['Al', 'Alice', 'Sal'])
-    expect(labels(at('x @ali', src))).toEqual(['Alice'])
-    expect(labels(at('x @a', src))).toEqual(['Alice', 'Al', 'Sal'])
+    expect(labels(at('x @ali', src))).toEqual(['Alice', 'create @ali'])
+    expect(labels(at('x @a', src))).toEqual(['Alice', 'Al', 'Sal', 'create @a'])
+    // An exact name beats someone's initials (a person just made from the Create row).
+    const withAc = { ...sources, people: [...src.people, { id: 4, name: 'AC', initials: 'A2', kind: 'person' as const }] }
+    expect(labels(at('x @ac', withAc))).toEqual(['AC', 'Alice'])
   })
 })
 
@@ -490,7 +503,7 @@ describe('# rows and the resolver rank tags the same way', () => {
       { id: 1, name: 'q4-review', color: '#000' }, { id: 2, name: 'Q4', color: '#000' }, { id: 3, name: 'q3', color: '#000' },
     ]) }
     expect(labels(at('x #q4', src))).toEqual(['Q4', 'q4-review'])
-    expect(labels(at('x #q', src))).toEqual(['q3', 'Q4', 'q4-review'])
+    expect(labels(at('x #q', src))).toEqual(['q3', 'Q4', 'q4-review', 'create #q'])
     expect(matchTag('q', src.tags)?.name).toBe('q3')
     expect(matchTag('q4', src.tags)?.name).toBe('Q4')
     expect(matchTag('zz', src.tags)).toBeUndefined()

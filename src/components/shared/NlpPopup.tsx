@@ -7,6 +7,7 @@ import { DEFAULT_STATUS_ICON } from '../../models'
 import styles from './NlpPopup.module.css'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { PickerEntityMenu } from './EntityMenu'
+import { registerModuleReset } from '../../utils/module-reset'
 
 /** A person / tag row's menu (Show tasks · Edit… · Delete…) on the popup's rows. */
 export interface NlpEntityMenuOptions {
@@ -34,6 +35,21 @@ interface NlpPopupProps {
   popupRef?: Ref<HTMLDivElement>
   /** People / tag rows get the person's / tag's menu. */
   entityMenu?: NlpEntityMenuOptions
+}
+
+/** Where the pointer was before the latest move, and where it is (window capture listener). */
+let pointerBefore: { x: number; y: number } | null = null
+let pointerNow: { x: number; y: number } | null = null
+let trackingPointer = false
+registerModuleReset(() => { pointerBefore = null; pointerNow = null })
+
+function trackPointer(): void {
+  if (trackingPointer || typeof window === 'undefined') return
+  trackingPointer = true
+  window.addEventListener('mousemove', (e) => {
+    pointerBefore = pointerNow
+    pointerNow = { x: e.clientX, y: e.clientY }
+  }, true)
 }
 
 /** The person / tag a row is for, or null (create, command, value rows; statuses). */
@@ -115,7 +131,14 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
     openMenu(row, e.clientX, e.clientY)
   }
 
-  const hover = (i: number) => () => { if (i !== selectedIndex) onHighlight?.(i) }
+  useEffect(trackPointer, [])
+  // A real pointer move only: the browser also sends a move where the pointer
+  // already was when the rows change under it (the popup opening or narrowing
+  // beneath a resting pointer), which must not take the highlight from the best match.
+  const hover = (i: number) => (e: React.MouseEvent) => {
+    if (pointerBefore && pointerBefore.x === e.clientX && pointerBefore.y === e.clientY) return
+    if (i !== selectedIndex) onHighlight?.(i)
+  }
 
   const renderRow = (row: AutocompleteRow, i: number) => {
     const active = i === selectedIndex
@@ -150,7 +173,7 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
           >
             {person && <span className={styles.newAvatar} aria-hidden="true">{row.name.charAt(0).toUpperCase()}</span>}
             <span className={styles.name}>
-              {person ? `Press ⏎ to create @${row.name}` : `Press Enter to create #${row.name.toLowerCase()}`}
+              {person ? `Create @${row.name}` : `Create #${row.name}`}
             </span>
           </button>
         )

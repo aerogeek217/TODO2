@@ -224,7 +224,7 @@ describe('TaskEditPopup', () => {
     it('an @name in the title that matches nobody offers to create it', () => {
       renderCreateMode()
       typeTitle('Call legal @Marco')
-      const row = screen.getByRole('option', { name: 'Press ⏎ to create @Marco' })
+      const row = screen.getByRole('option', { name: 'Create @Marco' })
       expect(row).toBeInTheDocument()
       fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
       expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Marco ')

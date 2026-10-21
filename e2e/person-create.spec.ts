@@ -122,7 +122,7 @@ test.describe('Quick Add @ — create on submit', () => {
     await page.keyboard.type('Call legal @Marco')
 
     const popup = page.getByRole('listbox', { name: 'People' })
-    const create = popup.getByRole('option', { name: 'Press ⏎ to create @Marco' })
+    const create = popup.getByRole('option', { name: 'Create @Marco' })
     await expect(create).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Tab')
     await expect(popup).toBeHidden()

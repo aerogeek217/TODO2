@@ -44,9 +44,10 @@ function matchByName<T>(name: string, items: readonly T[], getKey: (item: T) => 
 }
 
 /**
- * The people an `@` name matches, best first, ignoring case: an exact name or
- * initials, then names starting with it, then names containing it — each
- * rank in the order given. The one ranking: the `@` popup lists it, and a
+ * The people an `@` name matches, best first, ignoring case: an exact name,
+ * then exact initials, then names starting with it, then names containing it
+ * — each rank in the order given (a person named exactly what was typed —
+ * e.g. one just made from the Create row — wins over someone's initials). The one ranking: the `@` popup lists it, and a
  * typed name resolves to its first (`matchPerson`), so a name typed without
  * picking gets the person the popup showed first. An empty name matches
  * everyone.
@@ -56,9 +57,10 @@ export function rankPeople<P extends { name: string; initials?: string }>(name: 
   if (!q) return [...people]
   const rank = (p: P): number | null => {
     const lower = p.name.toLowerCase()
-    if (lower === q || p.initials?.toLowerCase() === q) return 0
-    if (lower.startsWith(q)) return 1
-    return lower.includes(q) ? 2 : null
+    if (lower === q) return 0
+    if (p.initials?.toLowerCase() === q) return 1
+    if (lower.startsWith(q)) return 2
+    return lower.includes(q) ? 3 : null
   }
   return people
     .map((p, i) => ({ p, i, r: rank(p) }))

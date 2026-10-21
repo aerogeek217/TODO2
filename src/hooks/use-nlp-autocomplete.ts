@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useLatestRef } from './use-latest-ref'
 import { registerModuleReset } from '../utils/module-reset'
 import { newTaskFollowupInterval, useSettingsStore } from '../stores/settings-store'
+import { useUndoStore } from '../stores/undo-store'
+import { createNlpEntity } from '../services/nlp-create'
 import {
   applyAutocompletePick,
   bestMatchCompletion,
@@ -48,6 +50,8 @@ interface UseNlpAutocompleteOptions {
   enterSubmits?: boolean
   /** Writes a pick into the input: set the value, then put the caret at `cursor`. */
   onApply: (value: string, cursor: number) => void
+  /** A picked create row: makes the person / tag (default: the stores, `services/nlp-create`). */
+  onCreate?: (trigger: '@' | '#', name: string) => Promise<void>
 }
 
 /** The text-measuring context, made once (`null` where there is no canvas); `undefined` = not made yet. */
@@ -81,17 +85,24 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * the popup is open Tab picks the highlighted row; ⏎ picks it too — or, with
  * `enterSubmits`, only after ↑/↓ moved it, and otherwise goes to the host,
  * which submits `completeForSubmit(value)` (the half-typed token completed to
- * the highlighted row). Typing on past an `@` / `#` token without picking (a
+ * the highlighted row) once `whenCreated()` resolves. A picked Create row
+ * makes the person / tag at once (`onCreate`); typing on never creates. Typing on past an `@` / `#` token without picking (a
  * space, punctuation, the caret moved off it) completes it to the
  * highlighted person / tag (`implicitAccept`).
  */
-export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({
+  people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply, onCreate = createNlpEntity,
+}: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   /** The text the popup was last computed for (re-read when the candidates change). */
   const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
   const followupDefault = useSettingsStore(newTaskFollowupInterval)
   const onApplyRef = useLatestRef(onApply)
+  const onCreateRef = useLatestRef(onCreate)
   const stateRef = useLatestRef(state)
+  /** The creates picked and still being saved (a submit waits for them: `whenCreated`). */
+  const creatingRef = useRef<Promise<void>>(Promise.resolve())
+  const pendingCreatesRef = useRef(0)
 
   const dismiss = useCallback(() => setState(initialState), [])
 
@@ -146,7 +157,20 @@ export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEM
     onApplyRef.current(pick.value, pick.cursor)
     if (pick.reopen) handleInputChange(pick.value, pick.cursor, input)
     else dismiss()
-  }, [state.view, handleInputChange, dismiss, onApplyRef])
+    // A picked Create row makes the person / tag now, so the token resolves to it.
+    if (row.kind === 'create') {
+      pendingCreatesRef.current++
+      const made = onCreateRef.current(row.trigger, row.name).catch((err: unknown) => {
+        useUndoStore.getState().notify(err instanceof Error ? err.message : String(err))
+      }).finally(() => { pendingCreatesRef.current-- })
+      creatingRef.current = Promise.all([creatingRef.current, made]).then(() => undefined)
+    }
+  }, [state.view, handleInputChange, dismiss, onApplyRef, onCreateRef])
+
+  /** Resolves once every Create row picked so far is saved (or failed). */
+  const whenCreated = useCallback(() => creatingRef.current, [])
+  /** Whether a picked Create row is still being saved. */
+  const creating = useCallback(() => pendingCreatesRef.current > 0, [])
 
   /** Keys while the popup is open. Returns true when the key was consumed. */
   const handleKeyDown = useCallback((e: React.KeyboardEvent<TextInput>, input: TextInput | null): boolean => {
@@ -183,5 +207,5 @@ export function useNlpAutocomplete({ people, tags = NO_ITEMS, statuses = NO_ITEM
     setState((s) => (s.view && isSelectable(s.view.rows[index]) ? { ...s, selectedIndex: index } : s))
   }, [])
 
-  return { state, handleInputChange, handleKeyDown, select, dismiss, completeForSubmit, highlight }
+  return { state, handleInputChange, handleKeyDown, select, dismiss, completeForSubmit, highlight, whenCreated, creating }
 }
