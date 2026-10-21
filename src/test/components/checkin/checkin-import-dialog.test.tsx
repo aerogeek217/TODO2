@@ -130,6 +130,20 @@ describe('CheckinImportDialog — reading a paste', () => {
     expect(applyButton().textContent).toBe('Apply 2 changes')
   })
 
+  it('a task not assigned to the person who replied (a forwarded email): a note, its rows unticked', () => {
+    usePersonStore.setState({ assignedPeopleMap: new Map(tasks.map((t) => [t.id, t.id === 1 ? [ada] : [marcus]])) })
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const other = card('Answer Northwind’s security questionnaire')
+    expect(other.textContent).toContain('Not assigned to Marcus Chen. Check before applying.')
+    expect(within(other).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', false)
+    // Still matched and offered: a tick applies it.
+    expect(applyButton().textContent).toBe('Apply 2 changes')
+    fireEvent.click(within(other).getByRole('checkbox', { name: 'Progress' }))
+    expect(applyButton().textContent).toBe('Apply 3 changes')
+    expect(card('Review the staging load-test results').textContent).not.toContain('Not assigned')
+  })
+
   it('emptied notes: a warning, unticked', () => {
     const email = sampleEmail()
     open()
@@ -197,8 +211,48 @@ describe('CheckinImportDialog — who replied', () => {
     expect(applyButton()).toHaveProperty('disabled', true)
     expect(applyButton().title).toBe('Choose who replied first')
 
-    fireEvent.change(within(dialog()).getByRole('combobox', { name: 'Reply from' }), { target: { value: String(ada.id) } })
+    fireEvent.change(within(dialog()).getByRole('combobox', { name: 'Reply from' }), { target: { value: String(marcus.id) } })
     expect(applyButton()).toHaveProperty('disabled', false)
+    expect(applyButton().textContent).toBe('Apply 1 change')
+  })
+
+  it('no footer: picking someone the tasks aren’t assigned to unticks their changes, with the note', () => {
+    open()
+    paste({ plain: noFooter() })
+    fireEvent.change(within(dialog()).getByRole('combobox', { name: 'Reply from' }), { target: { value: String(ada.id) } })
+    const done = card('Review the staging load-test results')
+    expect(done.textContent).toContain('Not assigned to Ada Lovelace. Check before applying.')
+    expect(within(done).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', false)
+    expect(applyButton().title).toBe('Nothing is ticked')
+  })
+
+  it('no footer: switching who replied re-derives the ticks and notes, but a tick changed by hand stays', () => {
+    open()
+    paste({ plain: noFooter() })
+    const pick = (id: number) => fireEvent.change(within(dialog()).getByRole('combobox', { name: 'Reply from' }), { target: { value: String(id) } })
+    const done = () => card('Review the staging load-test results')
+    const completed = () => within(done()).getByRole('checkbox', { name: 'Completed' })
+
+    pick(ada.id)
+    expect(completed()).toHaveProperty('checked', false)
+    // Marcus, whose task it is: ticked again, no note.
+    pick(marcus.id)
+    expect(completed()).toHaveProperty('checked', true)
+    expect(done().textContent).not.toContain('Not assigned to')
+    expect(applyButton().textContent).toBe('Apply 1 change')
+
+    // Unticked by hand, then back to Ada and Marcus: it stays unticked.
+    fireEvent.click(completed())
+    pick(ada.id)
+    expect(done().textContent).toContain('Not assigned to Ada Lovelace. Check before applying.')
+    pick(marcus.id)
+    expect(completed()).toHaveProperty('checked', false)
+    // Ticked by hand while Ada is picked: it stays ticked.
+    pick(ada.id)
+    fireEvent.click(completed())
+    pick(marcus.id)
+    pick(ada.id)
+    expect(completed()).toHaveProperty('checked', true)
   })
 
   it('a footer name that is not one of your people: the picker, with the name', () => {
@@ -268,7 +322,7 @@ describe('entry points', () => {
 
   it('the palette command opens it', () => {
     const openCheckinImport = vi.fn()
-    const commands = createCommands({ openCheckinImport } as unknown as CommandContext)
+    const commands = createCommands({ shortcuts: {}, openCheckinImport } as unknown as CommandContext)
     const cmd = commands.find((c) => c.name === 'Import check-in reply…')
     expect(cmd?.category).toBe('email')
     cmd?.action()

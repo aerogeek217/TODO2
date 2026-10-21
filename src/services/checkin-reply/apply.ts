@@ -27,6 +27,19 @@ export function defaultCheckinSelection(diff: CheckinReplyDiff): Set<string> {
   return keys
 }
 
+/**
+ * `selection` without the changes of the tasks in `todoIds` — tasks whose
+ * changes start unticked (e.g. not assigned to the person who replied).
+ */
+export function withoutTaskChanges(selection: ReadonlySet<string>, diff: CheckinReplyDiff, todoIds: ReadonlySet<number>): Set<string> {
+  const next = new Set(selection)
+  for (const task of diff.tasks) {
+    if (!todoIds.has(task.todo.id)) continue
+    for (const change of task.changes) next.delete(checkinChangeKey(task.todo.id, change.field))
+  }
+  return next
+}
+
 /** One task's ticked changes. */
 export interface CheckinTaskUpdate {
   todoId: number
@@ -77,11 +90,10 @@ export async function applyCheckinUpdates(
 ): Promise<number> {
   const changeCount = updates.reduce((n, u) => n + u.changeCount, 0)
   if (changeCount === 0) return 0
-  const undo = useUndoStore.getState()
   // Counted as each write lands, so a failure part-way says how many went in.
   let applied = 0
-  undo.beginGroup()
-  try {
+  // One group (`runGroup`): ended — on a failure too — as one entry named for what went in.
+  await useUndoStore.getState().runGroup(() => checkinAppliedMessage(applied, options.personName), async () => {
     const completeIds = updates.filter((u) => u.complete).map((u) => u.todoId)
     // The same path as completing tasks in the app (a repeating task moves
     // to its next due date instead).
@@ -101,8 +113,6 @@ export async function applyCheckinUpdates(
     }
 
     if (options.recordFollowup) await useTodoStore.getState().markFollowedUp(updates.map((u) => u.todoId))
-  } finally {
-    useUndoStore.getState().endGroup(checkinAppliedMessage(applied, options.personName), true)
-  }
+  })
   return applied
 }

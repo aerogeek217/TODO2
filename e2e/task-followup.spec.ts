@@ -164,6 +164,35 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
   })
 
+  test('the Next field’s calendar button: reached by Tab from the field; a day set in its date input is the next follow-up and closes the popover', async ({ page }) => {
+    await setNextFollowup(page, 'alpha', 2026, 10, 13)
+    const row = taskRowByTitle(page, 'alpha')
+    await row.getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
+    const pop = popover(page)
+    await pop.getByRole('textbox', { name: 'Next follow-up' }).focus()
+    await page.keyboard.press('Tab') // the field's ×
+    await page.keyboard.press('Tab')
+    const calendar = pop.getByRole('button', { name: 'Pick next follow-up date' })
+    await expect(calendar).toBeFocused()
+    // The browser's own picker can't be driven: set the date input it edits.
+    const dateInput = pop.locator('input[type="date"]')
+    await expect(dateInput).toHaveValue('2026-10-13')
+    await dateInput.fill('2026-11-20', { force: true })
+    await expect(pop).toBeHidden()
+    await expect(row.getByRole('button', { name: 'Follow-up: Fri 20 Nov', exact: true })).toBeVisible()
+    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-11-20 00:00', last: null })
+  })
+
+  test('task editor: Next has the same calendar button; a day set there is saved', async ({ page }) => {
+    await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
+    const editor = page.getByRole('dialog', { name: 'Edit task' })
+    const calendar = editor.getByRole('button', { name: 'Pick next follow-up date' })
+    await expect(calendar).toBeVisible()
+    await calendar.locator('xpath=following-sibling::input[@type="date"]').fill('2026-10-30', { force: true })
+    await expect(editor.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('Fri 30 Oct')
+    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-30 00:00', last: null })
+  })
+
   test('overdue follow-up: the filled flag and its date ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
     const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })

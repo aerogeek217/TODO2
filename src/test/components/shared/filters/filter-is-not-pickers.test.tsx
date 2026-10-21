@@ -56,10 +56,8 @@ function ListPicker({ field, initial, updates, adding = false }: { field: ListFi
 
 const mode = (field: string) => screen.getByRole('radiogroup', { name: `${field}: is or is not` })
 const choose = (field: string, label: 'Is' | 'Is not') => fireEvent.click(within(mode(field)).getByRole('radio', { name: label }))
-/** The picker rows shown ticked (their check mark's `checked` class). */
-const ticked = () => Array.from(document.querySelectorAll('label'))
-  .filter((l) => /checked/.test(l.querySelector('span')?.className ?? ''))
-  .map((l) => l.textContent?.trim())
+/** The picker rows shown ticked. */
+const ticked = () => screen.queryAllByRole('option', { selected: true }).map((o) => o.textContent?.trim())
 
 describe('the top bar’s Status picker', () => {
   it('Is not keeps the ticks and writes the switch; Is takes it back', () => {

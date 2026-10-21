@@ -8,6 +8,7 @@ import { GearIcon } from '../shared/icons'
 import { storagePillLabel, useStorageStatus, warningTone } from './sync-status'
 import { SyncWarningIcon, SyncWarningSections } from './SyncWarningSections'
 import { SyncWarningAnnouncer } from './SyncWarningAnnouncer'
+import { usePopoverFocus } from '../shared/use-popover-focus'
 import styles from './StoragePill.module.css'
 
 /**
@@ -34,6 +35,13 @@ export function StoragePill() {
     offset: 8,
     onClose: close,
   })
+  const popoverRef = useRef<HTMLDivElement | null>(null)
+  const setPopover = useCallback((el: HTMLDivElement | null) => {
+    popoverRef.current = el
+    panelRef(el)
+  }, [panelRef])
+  // Keyboard: the focus moves in, Tab stays in, and it comes back to the pill.
+  const onPopoverKeyDown = usePopoverFocus({ open, panelRef: popoverRef, triggerRef })
 
   const openSettings = (section: SettingsTarget) => {
     close()
@@ -128,11 +136,13 @@ export function StoragePill() {
       <SyncWarningAnnouncer warnings={warnings} />
       {open && createPortal(
         <div
-          ref={panelRef}
+          ref={setPopover}
           className={styles.popover}
           style={{ position: style.position, left: style.left, top: style.top }}
           role="dialog"
           aria-labelledby={titleId}
+          tabIndex={-1}
+          onKeyDown={onPopoverKeyDown}
           data-testid="storage-popover"
         >
           {content}

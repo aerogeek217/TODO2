@@ -5,7 +5,6 @@ import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useFileStorageStore } from './services/file-storage-store'
-import { fileStorageService } from './services/file-storage'
 import { TopBar } from './components/layout/TopBar'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
@@ -22,11 +21,13 @@ import { useShortcutLabel } from './hooks/use-shortcut-label'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
+import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
 import { CURRENT_DB_VERSION, findDatabaseTooNew } from './data/database'
 import { runAppStartup } from './services/app-startup'
+import { onDataReplaced } from './services/replace-data'
 import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
 import { checkTooNewDB, checkUnsupportedOldDB } from './services/migration-check'
@@ -48,9 +49,64 @@ import styles from './App.module.css'
 import './styles/fonts.css'
 import './styles/tokens.css'
 
+/**
+ * The command palette, mounted while it shows (so the shell never re-renders
+ * for a task write or a selection click). The command list is built from the
+ * tasks, people, their assignments, statuses and the check-in filter, and is
+ * rebuilt when they change: a palette opened while the app is still loading
+ * gains the per-person check-ins as the tasks and their people arrive.
+ * Commands that act read the stores when they run (`getState`).
+ */
+export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
+  const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
+  const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+  const todos = useTodoStore((s) => s.todos)
+  const people = usePersonStore((s) => s.people)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const statuses = useStatusStore((s) => s.statuses)
+  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
+
+  const commandCtx = useMemo(
+    () => ({
+      shortcuts,
+      selectionCount,
+      bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
+      bulkSetStatus: useTodoStore.getState().bulkSetStatus,
+      bulkRemove: useTodoStore.getState().bulkRemove,
+      getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
+      clearAllFilters: useFilterStore.getState().clearAll,
+      setShowCompleted: useFilterStore.getState().setShowCompleted,
+      getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
+      setDateRange: useFilterStore.getState().setDateRange,
+      getTodos: () => todos,
+      focusTask: (todoId: number) => {
+        useUIStore.getState().selectOneTodo(todoId)
+        useUIStore.getState().openEditPopup(todoId)
+      },
+      getStatuses: () => statuses,
+      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
+      sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
+      openCheckinImport: () => useUIStore.getState().openCheckinImport(),
+      getPeople: () => people,
+      getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
+      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
+    }),
+    [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter],
+  )
+
+  // The palette's key hints follow the user's shortcut changes.
+  const commands = useMemo(() => createCommands(commandCtx, shortcutOverrides), [commandCtx, shortcutOverrides])
+  const handleSearchDynamic = useCallback(
+    (query: string) => searchDynamicCommands(query, commandCtx),
+    [commandCtx],
+  )
+  return <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={onClose} />
+}
+
 function AppBulkConfirmDialog() {
-  const { bulkConfirmation, clearBulkConfirmation, clearSelection, closeEditPopup } = useUIStore()
+  const bulkConfirmation = useUIStore((s) => s.bulkConfirmation)
   if (!bulkConfirmation) return null
+  const { clearBulkConfirmation, clearSelection, closeEditPopup } = useUIStore.getState()
   return (
     <BulkConfirmDialog
       confirmation={bulkConfirmation}
@@ -239,11 +295,11 @@ function AppShell() {
   // its expired tasks too — those the prompt hasn't already asked about this
   // launch — unless the loaded data says the prompt showed within its
   // interval (`expiredCompletedUids`). A load before that is covered by
-  // launch's own check. Runs after the stores reloaded (an earlier
-  // subscriber), so the interval is the loaded data's.
+  // launch's own check. Runs after the stores reloaded (`replaceData`), so
+  // the interval is the loaded data's.
   useEffect(() => {
-    return fileStorageService.onAfterImport(async () => {
-      if (!purgeCheckStartedRef.current) return
+    return onDataReplaced(async (source) => {
+      if (source !== 'sync-file' || !purgeCheckStartedRef.current) return
       try {
         const expired = await expiredCompletedUids()
         const fresh = [...(expired ?? [])].filter((uid) => !purgeAskedRef.current.has(uid))
@@ -254,62 +310,22 @@ function AppShell() {
     })
   }, [])
 
-  // Global keyboard shortcuts
-  useKeyboardShortcuts({
+  // What the shortcut handlers call — from a key press or a palette command.
+  const shortcutCallbacks = useMemo<ShortcutCallbacks>(() => ({
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
     openSettings: () => useUIStore.getState().openSettings(),
     openShortcutsModal: () => setShowShortcuts(true),
+  }), [])
+
+  // Global keyboard shortcuts
+  useKeyboardShortcuts({
+    ...shortcutCallbacks,
     // Nothing to act on before launch is done (the launch question is up, the stores load).
     enabled: !isMobile && initialized,
   })
 
-  const handleClosePalette = useCallback(() => setShowPalette(false), [])
-
-  const todos = useTodoStore((s) => s.todos)
-  const people = usePersonStore((s) => s.people)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
-  const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
-  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
   const quickAddKeys = useShortcutLabel('quick-add')
-
-  const commandCtx = useMemo(
-    () => ({
-      openSettings: () => useUIStore.getState().openSettings(),
-      openQuickAdd: () => useUIStore.getState().openQuickAdd(),
-      selectionCount,
-      bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
-      bulkSetStatus: useTodoStore.getState().bulkSetStatus,
-      bulkRemove: useTodoStore.getState().bulkRemove,
-      getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
-      clearAllFilters: useFilterStore.getState().clearAll,
-      setShowCompleted: useFilterStore.getState().setShowCompleted,
-      getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
-      setDateRange: useFilterStore.getState().setDateRange,
-      getTodos: () => todos,
-      focusTask: (todoId: number) => {
-        useUIStore.getState().selectOneTodo(todoId)
-        useUIStore.getState().openEditPopup(todoId)
-      },
-      openShortcutsModal: () => setShowShortcuts(true),
-      getStatuses: () => useStatusStore.getState().statuses,
-      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
-      sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
-      openCheckinImport: () => useUIStore.getState().openCheckinImport(),
-      getPeople: () => people,
-      getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
-      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
-    }),
-    [todos, people, assignedPeopleMap, selectionCount, checkinTaskFilter]
-  )
-
-  // The palette's key hints follow the user's shortcut changes.
-  const commands = useMemo(() => createCommands(commandCtx, shortcutOverrides), [commandCtx, shortcutOverrides])
-  const handleSearchDynamic = useCallback(
-    (query: string) => searchDynamicCommands(query, commandCtx),
-    [commandCtx]
-  )
 
   if (initTooNew) return <DatabaseTooNewDialog info={initTooNew} />
 
@@ -366,7 +382,7 @@ function AppShell() {
           </button>
         </div>
       )}
-      {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
+      {!isMobile && showPalette && <AppCommandPalette onClose={shortcutCallbacks.closePalette} shortcuts={shortcutCallbacks} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {!isMobile && settingsOpen && (
         <Suspense fallback={null}>

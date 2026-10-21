@@ -14,15 +14,11 @@
   width: 300px;
   padding: 12px;
   box-sizing: border-box;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
   color: var(--color-text-primary);
   font-size: var(--font-size-task);
-}
-
-:global([data-theme="light"]) .popover {
-  background: var(--color-surface);
 }
 
 .fieldLabel {
@@ -296,7 +292,7 @@
 }
 
 .editorHintAccent {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 @media (max-width: 640px) {

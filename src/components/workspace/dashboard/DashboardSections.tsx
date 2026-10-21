@@ -31,6 +31,7 @@ import {
 } from './dashboard-copy'
 import { tileDrill } from './dashboard-tiles'
 import { DashGlyph } from '../../shared/DashGlyph'
+import type { DashGlyphName } from '../../../utils/dash-glyphs'
 import { SECTION_META, type DashboardSectionMeta } from './section-meta'
 import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
@@ -89,10 +90,11 @@ function Empty({ title, hint }: { title: string; hint: string }) {
   )
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+/** A chart key: the series' colour as a swatch, or as its glyph when the marks carry it too (Next 7 days). */
+function Legend({ color, label, glyph }: { color: string; label: string; glyph?: DashGlyphName }) {
   return (
     <span className={styles.legend}>
-      <i className={styles.swatch} style={{ background: color }} />
+      {glyph ? <DashGlyph name={glyph} size={11} color={color} /> : <i className={styles.swatch} style={{ background: color }} />}
       {label}
     </span>
   )
@@ -275,7 +277,7 @@ export function NextDaysSection({ data, onDrill, style }: DashboardSectionProps)
     <Panel
       def={SECTION_META.next7}
       style={style}
-      extras={<><Legend color="var(--color-overdue)" label="Due" /><Legend color="var(--color-followup)" label="Follow-up" /></>}
+      extras={<><Legend color="var(--color-overdue)" label="Due" glyph="calendar" /><Legend color="var(--color-followup)" label="Follow-up" glyph="followup" /></>}
     >
       <div ref={ref} className={styles.days}>
         {cols.map((c, i) => {
@@ -306,8 +308,9 @@ export function NextDaysSection({ data, onDrill, style }: DashboardSectionProps)
             >
               <span className={styles.dayCounts}>
                 {d + f === 0 && <span className={styles.muted}>–</span>}
-                {d > 0 && <span style={{ color: 'var(--color-overdue)' }}>{d}</span>}
-                {f > 0 && <span style={{ color: 'var(--color-followup)' }}>{f}</span>}
+                {/* Each count with its glyph, so due and follow-up don't rest on colour alone. */}
+                {d > 0 && <span className={styles.dayCount} data-count="due" style={{ color: 'var(--color-overdue)' }}><DashGlyph name="calendar" size={10} />{d}</span>}
+                {f > 0 && <span className={styles.dayCount} data-count="followup" style={{ color: 'var(--color-followup)' }}><DashGlyph name="followup" size={10} />{f}</span>}
               </span>
               <span className={styles.dayBars}>
                 {d > 0 && <span className={styles.bar} style={{ height: d * unit, background: 'var(--color-overdue)' }} />}
@@ -361,7 +364,7 @@ export function TrendSection({ data, onDrill, style }: DashboardSectionProps) {
               source: { kind: 'todos', todoIds: buckets.flatMap((b) => b.completedIds) },
             }) : undefined}
           >
-            <b style={{ color: 'var(--color-accent)' }}>{trend?.completed ?? 0}</b>completed
+            <b style={{ color: 'var(--color-accent-text)' }}>{trend?.completed ?? 0}</b>completed
           </Clickable>
           <Clickable
             as="span"

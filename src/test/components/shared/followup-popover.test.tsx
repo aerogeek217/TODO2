@@ -49,3 +49,54 @@ describe('formatWeekdayNumeric', () => {
     expect(formatWeekdayNumeric(new Date(2027, 0, 5))).toBe('Tue 01/05')
   })
 })
+
+describe('<FollowupPopover> date picker', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TODAY)
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  function renderPopover(todo = makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 13) })) {
+    const onSetNext = vi.fn()
+    const onClose = vi.fn()
+    render(<FollowupPopover todo={todo} anchor={anchor} onClose={onClose} onSetNext={onSetNext} onFollowedUp={vi.fn()} />)
+    const button = screen.getByRole('button', { name: 'Pick next follow-up date' })
+    return { onSetNext, onClose, button, picker: button.nextElementSibling as HTMLInputElement }
+  }
+
+  it('the Next field has a calendar button, in the tab order, that opens the browser’s picker on the stored day', () => {
+    const { button, picker } = renderPopover()
+    const showPicker = vi.fn()
+    picker.showPicker = showPicker
+    expect(button.tabIndex).toBe(0)
+    expect(picker).toHaveAttribute('type', 'date')
+    expect(picker.tabIndex).toBe(-1)
+    expect(picker.value).toBe('2026-10-13')
+    fireEvent.click(button)
+    expect(showPicker).toHaveBeenCalledTimes(1)
+  })
+
+  it('without showPicker, the button focuses the date input instead', () => {
+    const { button, picker } = renderPopover()
+    picker.showPicker = () => { throw new Error('not allowed') }
+    fireEvent.click(button)
+    expect(picker).toHaveFocus()
+  })
+
+  it('a picked day sets the next follow-up and closes the popover', () => {
+    const { onSetNext, onClose, picker } = renderPopover()
+    fireEvent.change(picker, { target: { value: '2026-11-20' } })
+    expect(onSetNext).toHaveBeenCalledWith(new Date(2026, 10, 20))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a cleared picker clears the next follow-up', () => {
+    const { onSetNext, picker } = renderPopover()
+    fireEvent.change(picker, { target: { value: '' } })
+    expect(onSetNext).toHaveBeenCalledWith(null)
+  })
+})

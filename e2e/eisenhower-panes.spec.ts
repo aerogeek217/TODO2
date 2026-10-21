@@ -62,7 +62,7 @@ async function addStatusFilter(page: Page, card: Locator, status: string, mode: 
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
   const picker = page.getByTestId('list-filter-picker')
   if (mode === 'Is not') await picker.getByRole('radio', { name: 'Is not' }).click()
-  await picker.locator('label', { hasText: status }).click()
+  await picker.getByRole('option', { name: status }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 }

@@ -80,6 +80,24 @@ export function sectionsFor(state: CustomizeState, shown: ReadonlySet<DashboardS
   })
 }
 
+/**
+ * The dialog's state once its tab's config changed: the same state while it
+ * still shows what `config` stores (the dialog's own edits) — the hidden
+ * rows keep their places and the hidden sections their options; else (a
+ * change made elsewhere, e.g. a sync-file load) the state from `config`,
+ * the hidden sections' options kept.
+ */
+export function syncCustomizeState(state: CustomizeState, config: DashboardTabConfig): CustomizeState {
+  const shownTiles = new Set(config.tiles)
+  const shownSections = new Set(config.sections.map((s) => s.id))
+  const fromConfig = customizeStateFrom(config)
+  const same = JSON.stringify(tilesFor(state, shownTiles)) === JSON.stringify(config.tiles)
+    && JSON.stringify(sectionsFor(state, shownSections)) === JSON.stringify(sectionsFor(fromConfig, shownSections))
+  if (same) return state
+  const hiddenOptions = Object.fromEntries(Object.entries(state.options).filter(([id]) => !shownSections.has(id as DashboardSectionId)))
+  return { ...fromConfig, options: { ...hiddenOptions, ...fromConfig.options } }
+}
+
 /** `state` with one option of section `id` set. */
 export function withSectionOption<K extends keyof DashboardSectionOptions>(
   state: CustomizeState,

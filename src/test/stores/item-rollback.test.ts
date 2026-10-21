@@ -11,6 +11,8 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { todoRepository } from '../../data/todo-repository'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
@@ -52,10 +54,12 @@ describe('assignment maps', () => {
     const repo = {
       assign: vi.fn(async () => {}),
       unassign: vi.fn(async () => {}),
+      bulkAssign: vi.fn(async () => {}),
+      bulkUnassign: vi.fn(async () => {}),
       getForTodos: vi.fn(async () => new Map<number, E[]>()),
     }
     /** The next repo write of `kind` waits, then fails on `fail()`. */
-    const holdNext = (kind: 'assign' | 'unassign'): Held => {
+    const holdNext = (kind: 'assign' | 'unassign' | 'bulkAssign' | 'bulkUnassign'): Held => {
       let fail!: () => void
       const gate = new Promise<void>((r) => { fail = r })
       repo[kind].mockImplementationOnce(async () => {
@@ -99,7 +103,7 @@ describe('assignment maps', () => {
 
   it('a failed bulk assign keeps an assignment made to another task meanwhile', async () => {
     const { actions, holdNext, getMap } = setup()
-    const held = holdNext('assign')
+    const held = holdNext('bulkAssign')
     const failing = actions.bulkAssign([10, 11], A.id!)
     await actions.assign(20, B.id!)
     held.fail()
@@ -111,7 +115,7 @@ describe('assignment maps', () => {
 
   it('a failed bulk unassign puts the entity back and keeps another change', async () => {
     const { actions, holdNext, getMap } = setup(new Map([[10, [A]], [11, [A, B]]]))
-    const held = holdNext('unassign')
+    const held = holdNext('bulkUnassign')
     const failing = actions.bulkUnassign([10, 11], A.id!)
     await actions.assign(20, B.id!)
     held.fail()
@@ -211,5 +215,75 @@ describe('entity updates', () => {
     await expect(failing).rejects.toThrow('write failed')
 
     expect(useListDefinitionStore.getState().listDefinitions.map((d) => d.name).sort()).toEqual(['A', 'B 2'])
+  })
+})
+
+describe('task bulk writes', () => {
+  afterEach(() => { vi.useRealTimers() })
+
+  /** A task, then the clock moved on so each later write has its own stamp. */
+  async function oneTask() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 1, 9, 0))
+    const id = await useTodoStore.getState().add('Call')
+    vi.setSystemTime(new Date(2026, 9, 1, 10, 0))
+    return id
+  }
+  const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)!
+
+  it('a failed Mark followed up leaves the stamp of an edit made to the task meanwhile', async () => {
+    const id = await oneTask()
+    const created = mem(id).modifiedAt
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().markFollowedUp([id])
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    await useTodoStore.getState().update(id, { title: 'Call back' })
+    const edited = mem(id).modifiedAt
+    expect(edited.getTime()).not.toBe(created.getTime())
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    expect(mem(id)).toMatchObject({ title: 'Call back', lastFollowupAt: undefined, modifiedAt: edited })
+  })
+
+  it('a failed Mark followed up keeps a follow-up date set on the task meanwhile', async () => {
+    const id = await oneTask()
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().markFollowedUp([id])
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    const picked = new Date(2026, 9, 20)
+    await useTodoStore.getState().update(id, { nextFollowupAt: picked })
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    // The date picked meanwhile stays; the follow-up this write recorded goes.
+    expect(mem(id).nextFollowupAt?.getTime()).toBe(picked.getTime())
+    expect(mem(id).lastFollowupAt).toBeUndefined()
+    expect((await todoRepository.getById(id))?.nextFollowupAt?.getTime()).toBe(picked.getTime())
+  })
+
+  it('a failed bulk field write keeps the same field edited meanwhile', async () => {
+    const id = await oneTask()
+    const waiting = await db.statuses.add({ name: 'Waiting', color: '#000', icon: 'circle', sortOrder: 9 }) as number
+    const done = await db.statuses.add({ name: 'Done', color: '#000', icon: 'circle', sortOrder: 10 }) as number
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().bulkSetStatus([id], waiting)
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    await useTodoStore.getState().update(id, { statusId: done })
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    expect(mem(id).statusId).toBe(done)
+    expect((await todoRepository.getById(id))?.statusId).toBe(done)
+  })
+
+  it('a failed bulk field write leaves the stamp of an edit made to the task meanwhile', async () => {
+    const id = await oneTask()
+    const waiting = await db.statuses.add({ name: 'Waiting', color: '#000', icon: 'circle', sortOrder: 9 }) as number
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().bulkSetStatus([id], waiting)
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    await useTodoStore.getState().update(id, { title: 'Call back' })
+    const edited = mem(id).modifiedAt
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    expect(mem(id)).toMatchObject({ title: 'Call back', statusId: undefined, modifiedAt: edited })
   })
 })

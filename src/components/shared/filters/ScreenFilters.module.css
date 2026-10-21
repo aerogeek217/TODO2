@@ -20,7 +20,7 @@
 .filterButtonActive,
 .filterButtonActive:hover {
   background: var(--color-accent-bg);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .filterMain {
@@ -62,7 +62,7 @@
 }
 
 .filterButtonActive .icon {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .filterLabel {
@@ -88,7 +88,7 @@
 }
 
 .filterButtonActive .chevron {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .chevronOpen {
@@ -156,7 +156,7 @@
 .completedOn,
 .completedOn:hover,
 .completedOn svg {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* ═══ Filters (narrow windows) ═══ */
@@ -184,13 +184,9 @@
   width: 280px;
   padding: 4px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-dialog-nested);
-}
-
-[data-theme="light"] .menu {
-  background: var(--color-surface);
 }
 
 .menuLabel {
@@ -240,7 +236,7 @@
   white-space: nowrap;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .menuRowAny {
@@ -299,7 +295,7 @@
   border: none;
   border-radius: var(--radius-chip);
   background: transparent;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-family: inherit;
   font-size: var(--font-size-nav);
   font-weight: var(--font-weight-semibold);

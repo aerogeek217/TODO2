@@ -3,6 +3,7 @@ import {
   applyAutocompletePick,
   bestMatchCompletion,
   carrySelection,
+  implicitAccept,
   computeAutocomplete,
   isPartialDateArgument,
   isVisible,
@@ -15,7 +16,7 @@ import {
   type AutocompleteView,
 } from '../../services/nlp-autocomplete'
 import { parseInput } from '../../services/natural-language-parser'
-import { resolveInput } from '../../services/nlp-resolver'
+import { matchTag, resolveInput } from '../../services/nlp-resolver'
 import { tokenTints } from '../../services/nlp-token-tints'
 
 // Sat 10 Oct 2026.
@@ -251,9 +252,19 @@ describe('/repeat argument', () => {
 
 describe('@ and #', () => {
   it('@ matches people by substring or exact initials; # tags by prefix', () => {
-    expect(labels(at('x @an'))).toEqual(['Anna', 'Dana Kim'])
-    expect(labels(at('x @dk'))).toEqual(['Dana Kim'])
-    expect(labels(at('x #b'))).toEqual(['Backend'])
+    expect(labels(at('x @an'))).toEqual(['Anna', 'Dana Kim', 'create @an'])
+    expect(labels(at('x @dk'))).toEqual(['Dana Kim', 'create @dk'])
+    expect(labels(at('x #b'))).toEqual(['Backend', 'create #b'])
+  })
+
+  it('a Create row below the matches unless one is exactly the name typed (any case)', () => {
+    expect(labels(at('x @anna'))).toEqual(['Anna'])
+    expect(labels(at('x @ANNA'))).toEqual(['Anna'])
+    expect(labels(at('x @ann'))).toEqual(['Anna', 'create @ann'])
+    expect(labels(at('x #backend'))).toEqual(['Backend'])
+    expect(labels(at('x #back'))).toEqual(['Backend', 'create #back'])
+    // The best match is highlighted on open; with no match, the Create row is the only row.
+    expect(at('x @ann')?.rows[0]?.kind).toBe('entity')
   })
 
   it('offers create when nothing matches (not while a quote is open)', () => {
@@ -271,6 +282,20 @@ describe('@ and #', () => {
     expect(labels(at('x @Marco_R'))).toEqual(['create @Marco_R'])
   })
 
+  it('offers create for a name with accents or in another script (the parser reads it whole)', () => {
+    expect(labels(at('x @José'))).toEqual(['create @José'])
+    expect(labels(at('x @Ольга'))).toEqual(['create @Ольга'])
+    expect(pick('x @José')?.value).toBe('x @José ')
+    // Tags stay ASCII: no create row for one the parser would cut.
+    expect(isVisible(at('x #café'))).toBe(false)
+  })
+
+  it('a picked name that isn’t bare is quoted, so it reads back whole', () => {
+    const src = { ...sources, people: [{ id: 9, name: 'Mary-Jane', kind: 'person' as const }] }
+    const view = at('x @mary', src)!
+    expect(applyAutocompletePick('x @mary', view, view.rows[0]!)?.value).toBe('x @"Mary-Jane" ')
+  })
+
   it('picks quote a name with a space', () => {
     expect(pick('Call @dan')?.value).toBe('Call @"Dana Kim" ')
     expect(pick('Call @Marco')?.value).toBe('Call @Marco ')
@@ -283,8 +308,11 @@ describe('@ and #', () => {
       { id: 3, name: 'Al', initials: 'AX', kind: 'person' as const },
     ] }
     expect(labels(at('x @al', src))).toEqual(['Al', 'Alice', 'Sal'])
-    expect(labels(at('x @ali', src))).toEqual(['Alice'])
-    expect(labels(at('x @a', src))).toEqual(['Alice', 'Al', 'Sal'])
+    expect(labels(at('x @ali', src))).toEqual(['Alice', 'create @ali'])
+    expect(labels(at('x @a', src))).toEqual(['Alice', 'Al', 'Sal', 'create @a'])
+    // An exact name beats someone's initials (a person just made from the Create row).
+    const withAc = { ...sources, people: [...src.people, { id: 4, name: 'AC', initials: 'A2', kind: 'person' as const }] }
+    expect(labels(at('x @ac', withAc))).toEqual(['AC', 'Alice'])
   })
 })
 
@@ -363,12 +391,30 @@ describe('tokenTints', () => {
 })
 
 describe('carrySelection', () => {
-  it('keeps the active row (clamped) while the same list narrows', () => {
+  it('keeps the highlighted command while the same list narrows — by what it is, not its index', () => {
     const a = at('x /')
     const b = at('x /f')
     if (!a || !b) throw new Error('no popup')
-    expect(carrySelection(a, 5, b)).toBe(b.rows.length - 1)
-    expect(carrySelection(a, 0, b)).toBe(0)
+    // /followup: 5th in the full list, 2nd under /f.
+    const followupAt = a.rows.findIndex((r) => r.kind === 'command' && r.command.name === 'followup')
+    expect(followupAt).toBe(4)
+    expect(carrySelection(a, followupAt, b)).toBe(1)
+    const kept = b.rows[1]
+    expect(kept?.kind === 'command' && kept.command.name).toBe('followup')
+    // Highlighted a command the narrower list drops: the best match.
+    const dueAt = a.rows.findIndex((r) => r.kind === 'command' && r.command.name === 'due')
+    expect(carrySelection(a, dueAt, b)).toBe(0)
+  })
+
+  it('keeps the highlighted person while narrowing moves them to another index', () => {
+    const src = { ...sources, people: [...people, { id: 3, name: 'Danny', initials: 'DY', kind: 'person' as const }] }
+    const a = at('x @an', src) // Anna, Dana Kim, Danny (substring)
+    const b = at('x @ann', src) // Anna, Danny
+    if (!a || !b) throw new Error('no popup')
+    const dannyAt = a.rows.findIndex((r) => r.kind === 'entity' && r.item.name === 'Danny')
+    expect(dannyAt).toBe(2)
+    const kept = b.rows[carrySelection(a, dannyAt, b)]
+    expect(kept?.kind === 'entity' && kept.item.name).toBe('Danny')
   })
 
   it('resets to the first row for another list or trigger', () => {
@@ -393,5 +439,107 @@ describe('candidate builders', () => {
       .toEqual(['alpha', 'zeta'])
     expect(statusItems([{ id: 3, name: 'Done', color: '#0f0', icon: 'check', sortOrder: 0 }]))
       .toEqual([{ id: 3, name: 'Done', color: '#0f0', icon: 'check', kind: 'status' }])
+  })
+})
+
+describe('bestMatchCompletion — the highlighted row', () => {
+  it('completes to the row at `index` (default: the first)', () => {
+    const view = at('Call @an')
+    if (!view) throw new Error('no popup')
+    expect(bestMatchCompletion('Call @an', view)).toBe('Call @Anna ')
+    expect(bestMatchCompletion('Call @an', view, 1)).toBe('Call @"Dana Kim" ')
+  })
+})
+
+describe('implicitAccept — typing on uses the highlighted row', () => {
+  const open = (text: string) => {
+    const view = at(text)
+    if (!view) throw new Error('no popup')
+    return view
+  }
+  const typed = (prev: string, index: number, value: string, cursor = value.length) =>
+    implicitAccept({ value: prev, view: open(prev), index }, value, cursor, computeAutocomplete(value, cursor, sources))
+
+  it('a space after the token completes it to the highlighted person, the space kept', () => {
+    expect(typed('Call @an', 0, 'Call @an ')).toEqual({ value: 'Call @Anna ', cursor: 11 })
+    expect(typed('Call @an', 1, 'Call @an ')).toEqual({ value: 'Call @"Dana Kim" ', cursor: 17 })
+  })
+
+  it('punctuation does too; a tag completes the same way', () => {
+    expect(typed('Call @an', 0, 'Call @an,')).toEqual({ value: 'Call @Anna,', cursor: 11 })
+    expect(typed('Plan #ba', 0, 'Plan #ba ')).toEqual({ value: 'Plan #Backend ', cursor: 14 })
+  })
+
+  it('moving the caret off the token completes it; the caret stays where it went', () => {
+    const text = 'Call @an now'
+    const view = computeAutocomplete(text, 8, sources)
+    if (!view) throw new Error('no popup')
+    // Back to the start: nothing moves before the caret.
+    expect(implicitAccept({ value: text, view, index: 0 }, text, 0, computeAutocomplete(text, 0, sources)))
+      .toEqual({ value: 'Call @Anna now', cursor: 0 })
+    // To the end: the caret moves with the text after the token.
+    expect(implicitAccept({ value: text, view, index: 0 }, text, text.length, computeAutocomplete(text, text.length, sources)))
+      .toEqual({ value: 'Call @Anna now', cursor: 14 })
+    // Within the token: still open, nothing yet.
+    expect(implicitAccept({ value: text, view, index: 0 }, text, 7, computeAutocomplete(text, 7, sources))).toBeNull()
+  })
+
+  it('nothing when the popup goes on (a letter typed), a create row is highlighted, or nothing was typed after the trigger', () => {
+    expect(typed('Call @an', 0, 'Call @ann')).toBeNull()
+    const create = open('Call @zed')
+    expect(create.rows.map((r) => r.kind)).toEqual(['create'])
+    expect(implicitAccept({ value: 'Call @zed', view: create, index: 0 }, 'Call @zed ', 10, null)).toBeNull()
+    expect(typed('Call @', 0, 'Call @ ')).toBeNull()
+  })
+
+  it('nothing while a quoted name is being typed: its space is part of the name', () => {
+    expect(typed('Call @"an', 0, 'Call @"an ')).toBeNull()
+  })
+
+  it('nothing for an edit that is neither (a deletion)', () => {
+    expect(typed('Call @an', 0, 'Call @a')).toBeNull()
+  })
+})
+
+describe('# rows and the resolver rank tags the same way', () => {
+  it('the exact tag first, then alphabetical prefixes; matchTag is the first row', () => {
+    const src = { ...sources, tags: tagItems([
+      { id: 1, name: 'q4-review', color: '#000' }, { id: 2, name: 'Q4', color: '#000' }, { id: 3, name: 'q3', color: '#000' },
+    ]) }
+    expect(labels(at('x #q4', src))).toEqual(['Q4', 'q4-review'])
+    expect(labels(at('x #q', src))).toEqual(['q3', 'Q4', 'q4-review', 'create #q'])
+    expect(matchTag('q', src.tags)?.name).toBe('q3')
+    expect(matchTag('q4', src.tags)?.name).toBe('Q4')
+    expect(matchTag('zz', src.tags)).toBeUndefined()
+  })
+})
+
+describe('a tag no bare #slug can spell (R&D, Q4 plan) is reachable and round-trips', () => {
+  const src = { ...sources, tags: tagItems([
+    { id: 7, name: 'R&D', color: '#000' }, { id: 8, name: 'Q4 plan', color: '#000' }, { id: 9, name: 'rd', color: '#000' },
+  ]) }
+  const tagsOf = (text: string) => parseInput(text, TODAY).tags
+
+  it('typing #R& lists it; a pick writes the quoted token, which parses back as the whole name', () => {
+    const view = at('Plan #R&', src)
+    expect(labels(view)).toEqual(['R&D'])
+    const row = view!.rows[0]!
+    const picked = applyAutocompletePick('Plan #R&', view!, row)!.value
+    expect(picked).toBe('Plan #"R&D" ')
+    expect(tagsOf(picked)).toEqual(['R&D'])
+    expect(parseInput(picked, TODAY).title).toBe('Plan')
+  })
+
+  it('typed then completed: a space after #R& completes to #"R&D"', () => {
+    const view = at('Plan #R&', src)!
+    const next = computeAutocomplete('Plan #R& ', 9, src)
+    expect(implicitAccept({ value: 'Plan #R&', view, index: 0 }, 'Plan #R& ', 9, next)).toEqual({ value: 'Plan #"R&D" ', cursor: 12 })
+  })
+
+  it('a quoted name with a space; a bare slug stays bare', () => {
+    const view = at('x #"Q4', src)!
+    expect(labels(view)).toEqual(['Q4 plan'])
+    expect(applyAutocompletePick('x #"Q4', view, view.rows[0]!)!.value).toBe('x #"Q4 plan" ')
+    expect(tagsOf('x #"Q4 plan" #rd')).toEqual(['Q4 plan', 'rd'])
   })
 })

@@ -95,12 +95,6 @@ export function panelAt(layout: WorkspaceLayout, loc: PanelLocation): LayoutPane
   return loc.kind === 'band' ? layout[loc.edge] : layout.columns[loc.colIdx]?.cells[loc.cellIdx]
 }
 
-/** The panel with id `panelId`, if any. */
-export function getPanel(layout: WorkspaceLayout, panelId: string): LayoutPanel | undefined {
-  const loc = findPanel(layout, panelId)
-  return loc ? panelAt(layout, loc) : undefined
-}
-
 /** Every panel, top band first, then the columns' cells in order, then the bottom band. */
 export function layoutPanels(layout: LayoutBody): LayoutPanel[] {
   const out: LayoutPanel[] = []

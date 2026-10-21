@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   TASK_REF_LENGTH,
-  TASK_REF_PATTERN,
   createTaskRefLookup,
   resolveTaskRef,
   taskRef,
   taskRefKey,
 } from '../../../services/checkin-email/ref'
 
+/** A ref token: lowercase letters and digits. */
+const LOWER_ALNUM = /^[a-z0-9]+$/
 const uuid = '0C4D8E17-5b2a-4f1e-9c3d-7a6b5c4d3e2f'
 const todo = (uid: string, id = 0) => ({ uid, id })
 
@@ -26,7 +27,7 @@ describe('taskRef', () => {
     for (const uid of ['x', '', '---', 'αβγδεζηθικ', 'ab-12']) {
       const ref = taskRef(uid)
       expect(ref).toHaveLength(TASK_REF_LENGTH)
-      expect(ref).toMatch(TASK_REF_PATTERN)
+      expect(ref).toMatch(LOWER_ALNUM)
       expect(taskRef(uid)).toBe(ref)
     }
     expect(taskRef('x')).not.toBe(taskRef('y'))
@@ -34,7 +35,7 @@ describe('taskRef', () => {
   })
 
   it('is always lowercase letters and digits', () => {
-    for (const uid of [uuid, 'Ünïcødé-uid-12345678', 'ABCDEFGHIJ']) expect(taskRef(uid)).toMatch(TASK_REF_PATTERN)
+    for (const uid of [uuid, 'Ünïcødé-uid-12345678', 'ABCDEFGHIJ']) expect(taskRef(uid)).toMatch(LOWER_ALNUM)
   })
 })
 

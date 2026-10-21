@@ -4,6 +4,7 @@ import { TaskRow } from '../../task/TaskRow'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { taskDragId } from '../../../utils/task-dnd'
 import styles from './ListWidget.module.css'
+import { ROW_KEY_ATTR, ROW_TODO_ATTR } from '../../../utils/dom-contract'
 
 /** Drag data of a list widget row (merged into the task drag payload). */
 export interface ListRowDragData {
@@ -33,6 +34,8 @@ export interface ListRowSelectMods {
 interface ListWidgetRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
+  /** A person's group: the person it is, left out of the row's people cell. */
+  hiddenPersonId?: number
   /** The widget's tab id (selection scope, drag id). */
   tabId: string
   sectionKey: string
@@ -54,7 +57,7 @@ interface ListWidgetRowProps {
  * widget's selection and keyboard cursor.
  */
 export const ListWidgetRow = memo(function ListWidgetRow({
-  todo, assignedPeople, tabId, sectionKey, rowKey,
+  todo, assignedPeople, hiddenPersonId, tabId, sectionKey, rowKey,
   selected, selFirst, selLast, cursor, look, onSelect, onOpenDetail,
 }: ListWidgetRowProps) {
   const handleSelect = useCallback(
@@ -78,8 +81,7 @@ export const ListWidgetRow = memo(function ListWidgetRow({
         <div
           ref={setNodeRef}
           className={cls}
-          data-row-key={rowKey}
-          data-row-todo={todo.id}
+          {...{ [ROW_KEY_ATTR]: rowKey, [ROW_TODO_ATTR]: todo.id }}
           data-drag-id={taskDragId('list-widget', todo.id, { scope: tabId, sectionKey })}
           data-selected={selected ? 'true' : undefined}
           data-cursor={cursor ? 'true' : undefined}
@@ -94,6 +96,7 @@ export const ListWidgetRow = memo(function ListWidgetRow({
             <TaskRow
               todo={todo}
               assignedPeople={assignedPeople}
+              hiddenPersonId={hiddenPersonId}
               isSelected={selected}
               onSelect={handleSelect}
               onOpenDetail={onOpenDetail}

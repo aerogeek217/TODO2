@@ -2,11 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createCommands, searchDynamicCommands } from '../../services/command-registry'
 import type { CommandContext } from '../../services/command-registry'
 import { makeTodo } from '../helpers'
+import { useUIStore } from '../../stores/ui-store'
+import { useUndoStore } from '../../stores/undo-store'
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
-    openSettings: vi.fn(),
-    openQuickAdd: vi.fn(),
+    shortcuts: { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn() },
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
     bulkSetStatus: vi.fn().mockResolvedValue(undefined),
@@ -41,7 +42,7 @@ describe('createCommands — navigation commands', () => {
     const commands = createCommands(ctx)
     const cmd = commands.find(c => c.id === 'open-settings')!
     cmd.action()
-    expect(ctx.openSettings).toHaveBeenCalledOnce()
+    expect(ctx.shortcuts.openSettings).toHaveBeenCalledOnce()
   })
 
   it('createCommands_noSelection_includesNewTaskCommand', () => {
@@ -50,7 +51,48 @@ describe('createCommands — navigation commands', () => {
     const cmd = commands.find(c => c.id === 'new-task')!
     expect(cmd).toBeDefined()
     cmd.action()
-    expect(ctx.openQuickAdd).toHaveBeenCalled()
+    expect(useUIStore.getState().quickAddOpen).toBe(true)
+  })
+
+  it('createCommands_keyboardShortcuts_onlyWithTheModal_andOpensIt', () => {
+    expect(createCommands(makeContext()).some(c => c.id === 'keyboard-shortcuts')).toBe(false)
+    const openShortcutsModal = vi.fn()
+    const ctx = makeContext({ shortcuts: { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn(), openShortcutsModal } })
+    createCommands(ctx).find(c => c.id === 'keyboard-shortcuts')!.action()
+    expect(openShortcutsModal).toHaveBeenCalledOnce()
+  })
+
+  it('createCommands_undoRedo_undoAndRedoTheLastEntry', async () => {
+    let value = 0
+    useUndoStore.getState().push({ description: 'Set value', undo: () => { value = 0 }, redo: () => { value = 1 } })
+    value = 1
+    const commands = createCommands(makeContext())
+    commands.find(c => c.id === 'undo')!.action()
+    await vi.waitFor(() => expect(value).toBe(0))
+    commands.find(c => c.id === 'redo')!.action()
+    await vi.waitFor(() => expect(value).toBe(1))
+  })
+
+  it('createCommands_focusSearch_focusesAndSelectsTheSearchField', () => {
+    const input = document.createElement('input')
+    input.setAttribute('data-search-input', '')
+    input.value = 'old query'
+    document.body.appendChild(input)
+    try {
+      createCommands(makeContext()).find(c => c.id === 'focus-search')!.action()
+      expect(document.activeElement).toBe(input)
+      expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'old query'.length])
+    } finally {
+      input.remove()
+    }
+  })
+
+  it('createCommands_aFailingCommand_saysSoInTheSnackbar', async () => {
+    const ctx = makeContext({ shortcuts: { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: () => { throw new Error('boom') } } })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    createCommands(ctx).find(c => c.id === 'open-settings')!.action()
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar?.description).toMatch(/Couldn't run/))
+    error.mockRestore()
   })
 })
 

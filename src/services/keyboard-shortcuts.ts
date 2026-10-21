@@ -2,12 +2,15 @@
  * What each keyboard shortcut does, by binding id. The keys live in the
  * binding table (`models/keyboard-shortcut`, with the user's changes from
  * `utils/shortcut-bindings`); `hooks/use-keyboard-shortcuts` matches a key
- * press to a binding and runs its handler here. The table is compile-checked
- * against every id, so a new binding needs its handler.
+ * press to a binding and runs its handler here, and the command palette runs
+ * the same handlers for its commands that have a binding
+ * (`runShortcutCommand`). The table is compile-checked against every id, so a
+ * new binding needs its handler.
  */
 
-import type { ShortcutId } from '../models/keyboard-shortcut'
+import { shortcutSpec, type ShortcutId } from '../models/keyboard-shortcut'
 import { useUIStore } from '../stores/ui-store'
+import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import {
@@ -16,6 +19,14 @@ import {
   readScopeRows,
   type ScopedSelectMode,
 } from '../utils/scoped-selection'
+import {
+  attrSelector,
+  FILTER_ROW_ATTR,
+  readTodoIds,
+  ROW_KEY_ATTR,
+  SEARCH_INPUT_ATTR,
+  SELECTION_SCOPE_ATTR,
+} from '../utils/dom-contract'
 
 export interface ShortcutCallbacks {
   openPalette: () => void
@@ -24,12 +35,18 @@ export interface ShortcutCallbacks {
   openShortcutsModal?: () => void
 }
 
+/** What a handler reads of the key press: a `KeyboardEvent`, or `NO_KEY_PRESS` from the palette. */
+export type ShortcutInput = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'preventDefault'>
+
 export interface ShortcutCtx {
-  e: KeyboardEvent
+  e: ShortcutInput
   callbacks: ShortcutCallbacks
 }
 
 export type ShortcutHandler = (ctx: ShortcutCtx) => void | Promise<void>
+
+/** A palette command's run: no key, no Shift, nothing to prevent. */
+const NO_KEY_PRESS: ShortcutInput = { key: '', shiftKey: false, preventDefault: () => {} }
 
 // ── Shared task-shortcut handlers (selection nav branches on shift) ──
 
@@ -55,13 +72,13 @@ function selectScopeRow(scope: string, pick: (count: number, cursorIdx: number) 
     scope, rows, row.key, mode,
   )
   if (next) ui.setScopedSelection(scope, next)
-  el.querySelectorAll<HTMLElement>('[data-row-key]')[idx as number]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  el.querySelectorAll<HTMLElement>(attrSelector(ROW_KEY_ATTR))[idx as number]?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
   return true
 }
 
 /** The list widget a fresh keyboard selection starts in: the one holding `row`, if any. */
 function scopeOf(row: Element | undefined): string | null {
-  return row?.closest<HTMLElement>('[data-selection-scope]')?.dataset.selectionScope ?? null
+  return row?.closest(attrSelector(SELECTION_SCOPE_ATTR))?.getAttribute(SELECTION_SCOPE_ATTR) ?? null
 }
 
 function arrowKeyHandler({ e }: ShortcutCtx) {
@@ -83,8 +100,7 @@ function arrowKeyHandler({ e }: ShortcutCtx) {
     }
   }
 
-  const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
-  const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
+  const { rows, ids: todoIds } = readTodoIds()
   if (todoIds.length === 0) return
 
   const ids = useUIStore.getState().selectedTodoIds
@@ -104,7 +120,7 @@ function arrowKeyHandler({ e }: ShortcutCtx) {
     } else {
       useUIStore.getState().selectOneTodo(nextId)
     }
-    rows[nextIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    rows[nextIdx]?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
     return
   }
 
@@ -116,7 +132,7 @@ function arrowKeyHandler({ e }: ShortcutCtx) {
   const targetId = todoIds[targetIdx]
   if (targetId == null) return
   useUIStore.getState().selectOneTodo(targetId)
-  rows[targetIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  rows[targetIdx]?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
 }
 
 function homeEndHandler({ e }: ShortcutCtx) {
@@ -126,10 +142,9 @@ function homeEndHandler({ e }: ShortcutCtx) {
     e.preventDefault()
     return
   }
-  const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
+  const { rows, ids: todoIds } = readTodoIds()
   if (rows.length === 0) return
   e.preventDefault()
-  const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
   const targetId = e.key === 'Home' ? todoIds[0] : todoIds[todoIds.length - 1]
   if (targetId == null) return
   const ids = useUIStore.getState().selectedTodoIds
@@ -139,12 +154,12 @@ function homeEndHandler({ e }: ShortcutCtx) {
     useUIStore.getState().selectOneTodo(targetId)
   }
   const targetEl = e.key === 'Home' ? rows[0] : rows[rows.length - 1]
-  targetEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  targetEl?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
 }
 
 
 function focusSearch({ e }: ShortcutCtx) {
-  const searchInput = document.querySelector<HTMLInputElement>('[data-search-input]')
+  const searchInput = document.querySelector<HTMLInputElement>(attrSelector(SEARCH_INPUT_ATTR))
   if (!searchInput) return
   e.preventDefault()
   searchInput.focus()
@@ -196,10 +211,9 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
       })
       return
     }
-    const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
+    const { rows, ids: todoIds } = readTodoIds()
     if (rows.length === 0) return
     e.preventDefault()
-    const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
     useUIStore.getState().selectAll(todoIds)
   },
   'show-shortcuts': ({ e, callbacks }) => {
@@ -210,7 +224,7 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
   'focus-search': focusSearch,
   'focus-search-alt': focusSearch,
   'focus-filters': ({ e }) => {
-    const filterRow = document.querySelector('[data-filter-row]')
+    const filterRow = document.querySelector(attrSelector(FILTER_ROW_ATTR))
     const firstBtn = filterRow?.querySelector<HTMLElement>('button')
     if (!firstBtn) return
     e.preventDefault()
@@ -252,4 +266,19 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
     e.preventDefault()
     useUIStore.getState().showBulkConfirmation('delete', Array.from(ids))
   },
+}
+
+/** Runs a binding's handler; one that fails says so in the snackbar instead of rejecting unseen. */
+export async function runShortcut(id: ShortcutId, ctx: ShortcutCtx): Promise<void> {
+  try {
+    await SHORTCUT_HANDLERS[id](ctx)
+  } catch (err) {
+    console.error(`[shortcuts] ${id} failed`, err)
+    useUndoStore.getState().notify(`Couldn't run “${shortcutSpec(id).description}”.`)
+  }
+}
+
+/** A palette command that has a binding: its handler, as the key press would run it. */
+export function runShortcutCommand(id: ShortcutId, callbacks: ShortcutCallbacks): Promise<void> {
+  return runShortcut(id, { e: NO_KEY_PRESS, callbacks })
 }

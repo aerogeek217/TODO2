@@ -37,6 +37,8 @@ function makeActions(initialEntities: E[] = []) {
       await assignGate.promise
     },
     async unassign() { /* unused */ },
+    async bulkAssign() { /* unused */ },
+    async bulkUnassign() { /* unused */ },
     async getForTodos() {
       return fetchGate.promise
     },

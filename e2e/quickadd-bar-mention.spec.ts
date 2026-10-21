@@ -68,11 +68,12 @@ test.describe('QuickAddBar @ mention picker', () => {
     await expect(popup).toBeVisible()
     await expect(popup.getByText('People', { exact: true })).toBeVisible()
 
-    // Substring match: only the person whose name contains "acme" surfaces.
+    // Substring match: only the person whose name contains "acme" surfaces,
+    // then the Create row (no one is named exactly "acme").
     const targetOption = popup.getByRole('option', { name: `@${TARGET_NAME}` })
     await expect(targetOption).toBeVisible()
     await expect(targetOption).toHaveAttribute('aria-selected', 'true')
-    await expect(popup.getByRole('option')).toHaveCount(1)
+    await expect(popup.getByRole('option')).toHaveText([`@${TARGET_NAME}`, /Create @acme/])
 
     // Tab picks (⏎ would add the task at once, with the same match).
     await page.keyboard.press('Tab')
@@ -98,5 +99,85 @@ test.describe('QuickAddBar @ mention picker', () => {
     }).toBe(1)
     const rows = await readTodoPeopleForTitle(page, 'demo task')
     expect(rows[0]?.personId).toBe(targetId)
+  })
+})
+
+test.describe('QuickAddBar @ popup: the highlighted row is what you get', () => {
+  test('the pointer moves the highlight; a space typed after @Fr completes to the highlighted person', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }, { name: 'Frida', initials: 'FA' }] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Call @Fr')
+    const popup = page.getByRole('listbox', { name: 'People' })
+    const fred = popup.getByRole('option', { name: /@Fred$/ })
+    const frida = popup.getByRole('option', { name: /@Frida$/ })
+    await expect(fred).toHaveAttribute('aria-selected', 'true')
+
+    // One highlighted row: the pointer moves it.
+    await frida.hover()
+    await expect(frida).toHaveAttribute('aria-selected', 'true')
+    await expect(fred).toHaveAttribute('aria-selected', 'false')
+    await fred.hover()
+    await expect(fred).toHaveAttribute('aria-selected', 'true')
+
+    // Typing on without picking uses the highlighted row.
+    await input.press('Space')
+    await expect(input).toHaveValue('Call @Fred ')
+    await expect(popup).toHaveCount(0)
+  })
+})
+
+test.describe('QuickAddBar @ popup: the Create row', () => {
+  test('@Ed with Fred stored: Fred highlighted, ↓ to Create "Ed", Tab makes Ed at once; the task gets Ed', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Call @Ed')
+    const popup = page.getByRole('listbox', { name: 'People' })
+    await expect(popup.getByRole('option')).toHaveText(['@Fred', /Create @Ed/])
+    await expect(popup.getByRole('option', { name: '@Fred' })).toHaveAttribute('aria-selected', 'true')
+
+    await input.press('ArrowDown')
+    await expect(popup.getByRole('option', { name: /Create @Ed/ })).toHaveAttribute('aria-selected', 'true')
+    await input.press('Tab')
+    await expect(input).toHaveValue('Call @Ed ')
+    await expect.poll(() => readPersonIdByName(page, 'Ed')).not.toBeNull()
+
+    await input.press('Enter')
+    await expect(dialog).toHaveCount(0)
+    const ed = await readPersonIdByName(page, 'Ed')
+    await expect.poll(async () => (await readTodoPeopleForTitle(page, 'Call')).map((j) => j.personId)).toEqual([ed])
+  })
+})
+
+test.describe('QuickAddBar # popup: a tag no bare #slug can spell', () => {
+  test('R&D: typing #R& offers it; Tab writes #"R&D"; the task gets R&D and no tag "R" is made', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }], tags: ['R&D', 'rd'] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Plan #R&')
+    const popup = page.getByRole('listbox', { name: 'Tags' })
+    await expect(popup.getByRole('option')).toHaveText(['#R&D'])
+    await input.press('Tab')
+    await expect(input).toHaveValue('Plan #"R&D" ')
+
+    // Typed and completed with a space (the other way in) gives the same token.
+    await input.pressSequentially('#R& ')
+    await expect(input).toHaveValue('Plan #"R&D" #"R&D" ')
+
+    await input.press('Enter')
+    await expect(dialog).toHaveCount(0)
+    const { todos, tags, todoTags } = await readStores(page, ['todos', 'tags', 'todoTags'])
+    const rd = (tags ?? []).find((t) => t.name === 'R&D')
+    const task = (todos ?? []).find((t) => t.title === 'Plan')
+    expect(task).toBeDefined()
+    expect((todoTags ?? []).filter((j) => j.todoId === task?.id).map((j) => j.tagId)).toEqual([rd?.id])
+    expect((tags ?? []).map((t) => t.name).sort()).toEqual(['R&D', 'rd'])
   })
 })

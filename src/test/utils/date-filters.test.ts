@@ -3,7 +3,6 @@ import type { DateFilters } from '../../models'
 import {
   activeDateFields,
   dateFiltersEqual,
-  datePresenceOf,
   dateRangeOf,
   hasDateFilters,
   isDateMatchOn,
@@ -57,12 +56,9 @@ describe('date filters', () => {
     expect(withDateMatch(two, 'created', { match: 'range', start: null, end: null })).toEqual(one)
   })
 
-  it('reads a clause’s range and presence', () => {
+  it('reads a clause’s range', () => {
     expect(dateRangeOf({ match: 'range', start: TODAY, end: null, includeNoDate: true })).toEqual({ start: TODAY, end: null, includeNoDate: true })
     expect(dateRangeOf({ match: 'set' })).toEqual({ start: null, end: null, includeNoDate: false })
-    expect(datePresenceOf({ match: 'set' })).toBe(true)
-    expect(datePresenceOf({ match: 'unset' })).toBe(false)
-    expect(datePresenceOf({ match: 'range', start: TODAY, end: null })).toBeNull()
   })
 
   it('compares maps by what they filter', () => {

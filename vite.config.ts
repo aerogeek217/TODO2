@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 
 // Guard against a stray `public/node_modules/` shadowing real node_modules
 // via Vite's static-file serving (see git log 2026-05-09 for the postmortem).
-if (existsSync(resolve(__dirname, 'public/node_modules'))) {
+if (existsSync(resolve(import.meta.dirname, 'public/node_modules'))) {
   throw new Error(
     'public/node_modules/ exists — Vite will serve it instead of running the\n' +
     'transform pipeline, breaking dev mode (`__DEFINES__ is not defined`).\n' +

@@ -31,10 +31,10 @@ import styles from './ListEditorBody.module.css'
 
 /**
  * How the form is laid out: `popover` — the workspace's compact side
- * popover; `dialog` — Settings › Lists' modal; `sheet` — the phone's half
- * sheet (touch sizes, choices as rows that open a list of choices).
+ * popover; `sheet` — the phone's half sheet (touch sizes, choices as rows
+ * that open a list of choices).
  */
-export type ListEditorVariant = 'popover' | 'dialog' | 'sheet'
+export type ListEditorVariant = 'popover' | 'sheet'
 
 export interface ListEditorBodyProps {
   draft: PersistedListDefinition
@@ -90,7 +90,7 @@ const COPY_FROM_LABEL = 'Copy from…'
  * With `saved`, a row whose value differs from the saved list shows its
  * label in the accent colour with a dot.
  */
-export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nameRef, copyFrom }: ListEditorBodyProps) {
+export function ListEditorBody({ draft, onChange, saved, variant = 'popover', nameRef, copyFrom }: ListEditorBodyProps) {
   const idBase = useId()
   const [choiceList, setChoiceList] = useState<ChoiceField | 'copyFrom' | null>(null)
   // The list last copied from, named under the control.
@@ -218,6 +218,8 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
           <PredicateChips
             predicate={predicate}
             onChange={(next) => onChange({ ...draft, membership: { kind: 'custom', predicate: next } })}
+            // Esc closes an open field picker only, not Edit list around it.
+            inDialog
           />
         </div>
         {variant !== 'sheet' && showCompleted}
@@ -347,7 +349,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
   }
 
   return (
-    <div className={`${styles.form} ${variant === 'popover' ? styles.compact : ''}`}>
+    <div className={`${styles.form} ${styles.compact}`}>
       {copyFrom && (
         <div className={styles.copyRow}>
           <CopyFromButton groups={copyFrom.groups} onPick={pickCopy} />
@@ -356,7 +358,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
       )}
       {nameRow}
       {filtersRow}
-      {variant === 'popover' && <div className={styles.rule} role="separator" />}
+      <div className={styles.rule} role="separator" />
       {(['group', 'sort', 'prompt'] as const).map((field) => (
         <div key={field} className={styles.row}>
           {label(field)}
@@ -388,9 +390,6 @@ function CopyFromButton({ groups, onPick }: {
 }) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
-  // A click on the button while its menu is open closes it (the menu's
-  // outside-click handler already did) instead of reopening it.
-  const wasOpen = useRef(false)
   return (
     <>
       <button
@@ -400,14 +399,8 @@ function CopyFromButton({ groups, onPick }: {
         aria-haspopup="menu"
         aria-expanded={open}
         title="Take the filters, group, sort, prompt and filter line of another list"
-        onMouseDown={() => { wasOpen.current = open }}
-        onClick={() => {
-          if (wasOpen.current) {
-            wasOpen.current = false
-            return
-          }
-          setOpen(true)
-        }}
+        // The menu leaves a press on its own button to the button: it toggles.
+        onClick={() => setOpen((o) => !o)}
       >
         {COPY_FROM_LABEL}
         <ChevronDownIcon />
@@ -496,9 +489,6 @@ function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
   const ref = useRef<HTMLButtonElement | null>(null)
   const valueId = useId()
   const [open, setOpen] = useState(false)
-  // A click on the button while its menu is open closes it (the menu's
-  // outside-click handler already did) instead of reopening it.
-  const wasOpen = useRef(false)
   const current = choices.find((c) => c.value === value)
   const entries: MenuEntry[] = choices.map((c) => ({
     kind: 'item',
@@ -518,14 +508,8 @@ function ChoiceSelect({ labelId, label, value, choices, placeholder, onPick }: {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-labelledby={placeholder ? labelId : `${labelId} ${valueId}`}
-        onMouseDown={() => { wasOpen.current = open }}
-        onClick={() => {
-          if (wasOpen.current) {
-            wasOpen.current = false
-            return
-          }
-          setOpen(true)
-        }}
+        // The menu leaves a press on its own button to the button: it toggles.
+        onClick={() => setOpen((o) => !o)}
       >
         {placeholder
           ? <span className={`${styles.selectValue} ${styles.selectPlaceholder}`} data-placeholder="" aria-hidden="true">{placeholder}</span>

@@ -72,7 +72,7 @@
   border: 1px solid var(--color-accent-dim);
   border-radius: 6px;
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -255,7 +255,7 @@
 .groupDropPreview {
   margin-left: auto;
   padding-right: 4px;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
@@ -274,13 +274,9 @@
   height: 36px;
   padding: 0 4px 0 12px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   white-space: nowrap;
-}
-
-:global([data-theme='light']) .bulkBar {
-  background: var(--color-surface);
 }
 
 .bulkCount {
@@ -357,13 +353,9 @@
   width: 330px;
   padding: 12px;
   border-radius: 8px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
   color: var(--color-text-primary);
-}
-
-:global([data-theme='light']) .switchPopover {
-  background: var(--color-surface);
 }
 
 .switchTitle {
@@ -460,7 +452,7 @@
   padding: 0 8px 0 20px;
   border: none;
   background: transparent;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-family: inherit;
   font-size: var(--font-size-task);
   font-weight: var(--font-weight-semibold);

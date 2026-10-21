@@ -60,6 +60,20 @@ describe('Settings → Import / Export — Export JSON self-check', () => {
   })
 })
 
+describe('Settings → Import / Export — the Markdown file’s name', () => {
+  it('is today’s local day, late in the evening too', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 21, 23, 45))
+    try {
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: 'Export Markdown' }))
+      expect(await screen.findByText('Downloaded todos-2026-10-21.md — check your Downloads folder.')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('Settings → Import / Export — what an export says', () => {
   const pickerSaving = () => {
     picker.save = async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) })
@@ -90,6 +104,15 @@ describe('Settings → Import / Export — what an export says', () => {
       expect(await screen.findByText(savedText)).toBeTruthy()
       expect(screen.queryByText(/Downloaded/)).toBeNull()
       expect(URL.createObjectURL).not.toHaveBeenCalled()
+    })
+
+    it(`${button}: an export that fails says so`, async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.mocked(URL.createObjectURL).mockImplementation(() => { throw new Error('Out of memory') })
+      render(<ImportExportSection />)
+      fireEvent.click(await screen.findByRole('button', { name: button }))
+      expect(await screen.findByText('Export failed — Out of memory')).toBeTruthy()
+      expect(screen.queryByText(savedText)).toBeNull()
     })
 
     it(`${button}: cancelling the save dialog says nothing`, async () => {

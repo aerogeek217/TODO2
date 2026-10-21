@@ -5,6 +5,8 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './Dialog.module.css'
 import { DialogLayerContext, MODAL_BACKDROP_ATTR } from './dialog-layer'
 import { useBackdropPress } from './use-backdrop-press'
+import { tabbables } from '../../utils/focusables'
+import { shortcutScope } from '../../utils/dom-contract'
 
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
@@ -63,15 +65,6 @@ export interface DialogFrameProps {
   stopKeys?: boolean
 }
 
-const FOCUSABLE =
-  'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
-
-/** The panel's tabbable controls; where the browser lays out, only rendered ones. */
-function focusables(panel: HTMLElement): HTMLElement[] {
-  const all = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
-  if (panel.getClientRects().length === 0) return all
-  return all.filter((el) => el.getClientRects().length > 0 || el === document.activeElement)
-}
 
 /** Whether `panel` is the last modal in the page (portaled dialogs append in open order). */
 function isTopmostModal(panel: HTMLElement): boolean {
@@ -162,7 +155,7 @@ export function DialogFrame({
     if (panel && !panel.contains(document.activeElement)) {
       const target = initialFocusRef.current
       const el = target === 'panel' ? panel
-        : target === 'first' ? focusables(panel)[0] ?? panel
+        : target === 'first' ? tabbables(panel)[0] ?? panel
           : target.current ?? panel
       el.focus()
     }
@@ -192,7 +185,7 @@ export function DialogFrame({
         return
       }
       e.preventDefault()
-      const items = focusables(panel)
+      const items = tabbables(panel)
       const next = e.shiftKey ? items.at(-1) : items.at(0)
       ;(next ?? panel).focus()
     }
@@ -215,7 +208,7 @@ export function DialogFrame({
       return
     }
     if (e.key !== 'Tab') return
-    const items = focusables(panel)
+    const items = tabbables(panel)
     const first = items.at(0)
     const last = items.at(-1)
     const active = document.activeElement
@@ -253,7 +246,7 @@ export function DialogFrame({
         tabIndex={-1}
         className={`${styles.panel} ${layerClass} ${className ?? ''}`}
         style={style}
-        data-shortcut-scope="modal"
+        {...shortcutScope('modal')}
         onKeyDown={onKeyDown}
         {...dataAttributes}
       >

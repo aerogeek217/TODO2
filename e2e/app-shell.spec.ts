@@ -75,7 +75,7 @@ test('the filter tray turns red while a screen filter is on', async ({ page }) =
   expect(await funnelColor()).not.toBe(danger)
 
   await page.getByRole('button', { name: 'People filter' }).click()
-  await page.locator('label', { hasText: '@Alice' }).click()
+  await page.getByRole('option', { name: '@Alice' }).click()
   await page.keyboard.press('Escape')
   await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
   await expect(page.getByRole('button', { name: 'People filter: Alice' })).toBeVisible()
@@ -99,7 +99,7 @@ test('the red funnel, left of search, clears every screen filter at once; there 
   expect(funnelBox && searchBox && funnelBox.x + funnelBox.width <= searchBox.x).toBe(true)
 
   await page.getByRole('button', { name: 'People filter' }).click()
-  await page.locator('label', { hasText: '@Alice' }).click()
+  await page.getByRole('option', { name: '@Alice' }).click()
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Show completed' }).click()
   await search.fill('a')
@@ -129,7 +129,7 @@ test('with other layouts taking the room, the filters fold into a Filters menu t
   const menu = page.getByRole('group', { name: 'Screen filters', exact: true })
   await expect(menu).toContainText('Screen filters · apply to every widget')
   await menu.getByRole('button', { name: 'Tags filter' }).click()
-  await page.locator('label', { hasText: '#q4' }).click()
+  await page.getByRole('option', { name: '#q4' }).click()
   await expect(rows(page)).toHaveCount(1)
   await expect(menu.getByRole('button', { name: 'Tags filter: q4' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Filters, 1 active' })).toBeVisible()

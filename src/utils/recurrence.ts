@@ -92,6 +92,46 @@ function advanceOnce(date: Date, rule: RecurrenceRule): Date {
 
 const MAX_ITERATIONS = 10_000
 
+const DAY_STEP: Partial<Record<RecurrenceRule['type'], number>> = { daily: 1, weekly: 7, biweekly: 14 }
+const MONTH_STEP: Partial<Record<RecurrenceRule['type'], number>> = { monthly: 1, quarterly: 3, yearly: 12 }
+
+/**
+ * The occurrence a few steps short of `target`, reached arithmetically
+ * instead of one step at a time: `date` advanced by the whole steps that
+ * still end before `target`, less one (the walk that follows takes it from
+ * there). Exactly what that many `advanceOnce` calls give — local midnight
+ * of the stepped calendar day; for the month rules the kept day of the
+ * month, clamped to the month's length. `date` itself when no step can be
+ * skipped, or for a month rule without a kept day on the 29th or later
+ * (each step locks to the day it lands on, so only a walk knows it).
+ */
+function skipToward(date: Date, rule: RecurrenceRule, target: Date): Date {
+  const days = DAY_STEP[rule.type]
+  if (days != null) {
+    const between = Math.round(
+      (Date.UTC(target.getFullYear(), target.getMonth(), target.getDate())
+        - Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())) / 86_400_000,
+    )
+    const steps = Math.floor(between / days) - 1
+    if (steps < 1) return date
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + steps * days)
+    next.setHours(0, 0, 0, 0)
+    return next
+  }
+  const months = MONTH_STEP[rule.type]
+  if (months == null) return date
+  if (rule.originalDayOfMonth == null && date.getDate() > 28) return date
+  const targetDay = rule.originalDayOfMonth ?? date.getDate()
+  const between = (target.getFullYear() - date.getFullYear()) * 12 + target.getMonth() - date.getMonth()
+  const steps = Math.floor(between / months) - 1
+  if (steps < 1) return date
+  const next = new Date(date.getFullYear(), date.getMonth() + steps * months, 1)
+  const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+  next.setDate(Math.min(targetDay, maxDay))
+  next.setHours(0, 0, 0, 0)
+  return next
+}
+
 /**
  * Compute the next due date for a recurring task.
  * Keeps advancing until the result is >= today (start of day).
@@ -99,7 +139,7 @@ const MAX_ITERATIONS = 10_000
 export function computeNextDueDate(currentDueDate: Date, rule: RecurrenceRule): Date {
   const today = startOfToday()
 
-  let next = advanceOnce(currentDueDate, rule)
+  let next = skipToward(advanceOnce(currentDueDate, rule), rule, today)
   let iterations = 0
   while (next < today) {
     next = advanceOnce(next, rule)
@@ -131,10 +171,10 @@ export function generateRecurringInstances(
   rangeEnd: Date,
 ): Date[] {
   const instances: Date[] = []
-  // Start from the first occurrence at or after rangeStart
-  let current = new Date(dueDate)
+  // Start from the first occurrence at or after rangeStart: skip to just
+  // before the range, then walk.
+  let current = dueDate < rangeStart ? skipToward(new Date(dueDate), rule, rangeStart) : new Date(dueDate)
   let iterations = 0
-  // Advance to reach the range
   while (current < rangeStart) {
     current = advanceOnce(current, rule)
     if (++iterations >= MAX_ITERATIONS) return instances

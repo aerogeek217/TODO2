@@ -41,6 +41,7 @@ import { ChevronDownIcon, CloseIcon } from '../../shared/icons'
 import { tileCatalogHint, trendRangeLabel } from './dashboard-copy'
 import {
   customizeStateFrom,
+  syncCustomizeState,
   knownListTiles,
   moveItem,
   sectionOptionValues,
@@ -92,6 +93,14 @@ export function CustomizeDashboardDialog({ tabId, focusListTiles = false, onClos
 function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; focusListTiles: boolean; onClose: () => void }) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const [state, setState] = useState<CustomizeState>(() => customizeStateFrom(config))
+  // The config changed (this dialog's edits, or elsewhere — a sync-file
+  // load): the state follows what it stores, so the next edit builds on it.
+  const [syncedFrom, setSyncedFrom] = useState(config)
+  if (config !== syncedFrom) {
+    setSyncedFrom(config)
+    const synced = syncCustomizeState(state, config)
+    if (synced !== state) setState(synced)
+  }
   const [dragging, setDragging] = useState(false)
   const today = useToday()
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)

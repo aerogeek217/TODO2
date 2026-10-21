@@ -86,7 +86,9 @@ describe('layoutRepository: the layout order', () => {
 
   it('insert puts a layout after the others, whatever order it carries', async () => {
     await db.layouts.bulkAdd([layoutRow(1, { sortOrder: 3 }), layoutRow(2, { sortOrder: 1 })] as unknown as WorkspaceLayout[])
-    const id = await layoutRepository.insert({ name: 'New', sortOrder: 0, columns: [], createdAt: AT, modifiedAt: AT })
+    // A row that still carries an order (e.g. a stored layout spread into it).
+    const carried = { name: 'New', sortOrder: 0, columns: [], createdAt: AT, modifiedAt: AT }
+    const id = await layoutRepository.insert(carried)
     expect((await db.layouts.get(id))?.sortOrder).toBe(4)
     await db.layouts.clear()
     const first = await layoutRepository.insert({ name: 'First', columns: [], createdAt: AT, modifiedAt: AT })

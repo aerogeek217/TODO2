@@ -3,6 +3,7 @@ import { taskRowColumns, TASK_ROW } from '../../utils/task-row-columns'
 import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
+import { KEEPS_SELECTION_ATTR, shortcutScope } from '../../utils/dom-contract'
 
 /** One arrow-key step of the divider, px. */
 const KEY_STEP = 8
@@ -103,8 +104,8 @@ export function TaskRowGrid({
       aria-valuemax={cols.maxDetails}
       tabIndex={0}
       data-task-row-divider=""
-      data-keeps-selection=""
-      data-shortcut-scope="none"
+      {...{ [KEEPS_SELECTION_ATTR]: '' }}
+      {...shortcutScope('none')}
       onPointerDown={(e) => {
         if (e.button !== 0) return
         e.preventDefault()

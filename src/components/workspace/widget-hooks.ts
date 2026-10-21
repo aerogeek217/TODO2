@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
-import { ownerLayoutId, type PersistedListDefinition } from '../../models/list-definition'
+import { ownerLayoutId } from '../../models/list-definition'
 import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { copiedListParts, uniqueListName } from '../../utils/list-copy'
+import { uniqueListName } from '../../utils/list-copy'
+import { registerModuleReset } from '../../utils/module-reset'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
@@ -61,23 +62,18 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 /**
  * Opens Edit list for a list tab: the tab is made its panel's active one and
  * the panel expanded (so the list it previews is on screen), then the
- * surface opens beside it. Another list's open Edit list closes first (asking
- * while that list is unsaved — Cancel keeps it, and nothing else changes).
+ * surface opens beside it, in place of another list's open Edit list (that
+ * list keeps its draft).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
-  const open = () => {
-    const ws = useWorkspaceStore.getState()
-    const working = ws.working
-    const cell = working ? panelOfTab(working, tabId) : undefined
-    if (cell) {
-      if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-      if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
-    }
-    useUIStore.getState().openListEditor(listDefinitionId, tabId)
+  const ws = useWorkspaceStore.getState()
+  const working = ws.working
+  const cell = working ? panelOfTab(working, tabId) : undefined
+  if (cell) {
+    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
+    if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
   }
-  const ui = useUIStore.getState()
-  if (ui.listEditor != null && ui.listEditor.listDefinitionId !== listDefinitionId) ui.requestCloseListEditor(open)
-  else open()
+  useUIStore.getState().openListEditor(listDefinitionId, tabId)
 }
 
 /** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
@@ -88,43 +84,29 @@ function freshListName(base: string, layoutId: number): string {
   return uniqueListName(base, taken)
 }
 
-/**
- * "Create new list…" in a list picker: saves a blank list of layout
- * `layoutId` (`New list`, `New list 2`, …; no filter; Settings' new-list
- * sort and grouping), hands its id to `show` (which puts it in a tab and
- * returns that tab's id), then opens Edit list beside that tab.
- */
-export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): void {
-  void useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
-    const tabId = show(id)
-    if (tabId != null) openEditList(tabId, id)
-  })
-}
+/** Why a list widget can't be added to (or a tab switched to List in) a layout that isn't stored yet. */
+export const NO_LIST_LAYOUT_REASON = 'Save the layout first to add lists.'
+
+/** The new list widget being made, while its list is being saved (`createListThenEdit`). */
+let creatingList: Promise<void> | null = null
+registerModuleReset(() => { creatingList = null })
 
 /**
- * "Copy of ›" in a list picker: saves a copy of `source` (any layout's
- * list, or the Eisenhower's, as it shows — its unsaved edits included) for
- * layout `layoutId` — named as the source, unique within the layout
- * (`Someday 2`), with its filters, group, sort, prompt, Show filter line
- * and manual order (`copiedListParts`; Settings' new-list defaults don't
- * apply) —, hands its id to `show`, then opens Edit list beside that tab.
+ * A new list widget (adding one, a tab switched to List): saves a blank
+ * list of layout `layoutId` (`New list`, `New list 2`, …; no filter;
+ * Settings' new-list sort and grouping), hands its id to `show` (which puts
+ * it in a tab and returns that tab's id), then opens Edit list beside that
+ * tab. One at a time: a call while one is still saving its list (a
+ * double-click on a List button or menu item) does nothing.
  */
-export function copyListThenEdit(
-  source: PersistedListDefinition,
-  show: (listDefinitionId: number) => string | null,
-  layoutId: number,
-): void {
-  const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === source.id)
-  const base = source.name.trim() || saved?.name || 'New list'
-  void useListDefinitionStore.getState().add({
-    ...copiedListParts(source),
-    name: freshListName(base, layoutId),
-    owner: { layoutId },
-    ranksFrom: source.id,
-  }).then((id) => {
+export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): Promise<void> {
+  if (creatingList) return creatingList
+  const run = useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
     const tabId = show(id)
     if (tabId != null) openEditList(tabId, id)
   })
+  creatingList = run.finally(() => { creatingList = null })
+  return creatingList
 }
 
 /**

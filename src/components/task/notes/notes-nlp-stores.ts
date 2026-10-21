@@ -10,6 +10,7 @@ import { newTaskFollowupInterval, useSettingsStore } from '../../../stores/setti
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import type { NotesNlpConfig } from './notes-nlp'
+import { createNlpEntity } from '../../../services/nlp-create'
 
 /** `build(list)`, recomputed only when the list itself changes. */
 function memoBy<T, R>(build: (list: readonly T[]) => R): (list: readonly T[]) => R {
@@ -27,8 +28,8 @@ function memoBy<T, R>(build: (list: readonly T[]) => R): (list: readonly T[]) =>
 /**
  * The notes autocomplete over the live stores: people / tags / statuses and
  * the default follow-up as candidates; a picked create row creates the person
- * (`getOrCreate`) or tag (`add`, lookup-or-create) straight away; when that
- * fails it rejects with a user-facing message.
+ * or tag straight away (`services/nlp-create`); when that fails it rejects
+ * with a user-facing message.
  */
 export function storeNotesNlpConfig(): NotesNlpConfig {
   const people = memoBy<Person, AutocompleteItem[]>(personItems)
@@ -47,13 +48,7 @@ export function storeNotesNlpConfig(): NotesNlpConfig {
       people: usePersonStore.getState().people,
       statuses: useStatusStore.getState().statuses,
     }),
-    onCreate: async (trigger, name) => {
-      try {
-        await (trigger === '@' ? usePersonStore.getState().getOrCreate(name) : useTagStore.getState().add(name))
-      } catch (err: unknown) {
-        throw new Error(`Couldn't create ${trigger}${name}`, { cause: err })
-      }
-    },
+    onCreate: createNlpEntity,
     subscribe: (listener) => {
       const unsubs = [
         usePersonStore.subscribe((s, prev) => { if (s.people !== prev.people) listener() }),

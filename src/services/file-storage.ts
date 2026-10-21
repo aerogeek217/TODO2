@@ -7,7 +7,8 @@ import type { PrepareImportFailure } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData, selfCheckExportJson } from '../data/export-data'
 import { backupScheduler } from '../data/backup-scheduler'
-import { NO_BACKUP_NOTE, takeSafetySnapshot } from '../stores/safety-snapshot'
+import { NO_BACKUP_NOTE } from '../stores/safety-snapshot'
+import { replaceData, withDataReplaceHold } from './replace-data'
 import { useUndoStore } from '../stores/undo-store'
 import { SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from '../data/file-version'
 import {
@@ -56,15 +57,17 @@ export interface SyncConflictInfo {
   fileName: string
   /**
    * `browser-changes`: this browser has changes that were never written to the
-   * file. `no-sync-record`: this browser has no record of syncing with this
-   * file (first attach, or the record was lost) and their contents differ.
+   * file, and the file changed since the last sync (over an unchanged file
+   * the browser's data is written without asking). `no-sync-record`: this
+   * browser has no record of syncing with this file (first attach, or the
+   * record was lost) and their contents differ.
    */
   reason: 'browser-changes' | 'no-sync-record'
   browser: { taskCount: number; schemaVersion: number; unsyncedSince: string | null }
   file: SyncSideSummary & {
     savedAt: string | null
     lastModified: string
-    /** null = unknown (no sync record). */
+    /** true with `browser-changes`; null = unknown (no sync record). */
     changedSinceLastSync: boolean | null
   }
 }
@@ -83,9 +86,6 @@ export interface LaunchPermissionInfo {
 }
 
 type StatusListener = (status: FileStorageStatus) => void
-type AfterImportListener = () => Promise<void>
-/** Runs before the browser data is backed up and replaced; resolves to a release called after the reload. */
-type BeforeImportListener = () => Promise<() => void>
 type MigrationConfirmHandler = (info: UnsupportedImportInfo) => Promise<boolean>
 type ConflictHandler = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
 type FileUpgradeHandler = (info: FileUpgradeInfo) => Promise<boolean>
@@ -118,10 +118,22 @@ function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
 /** Reading a sync file's text: what was read, or why it couldn't be. */
 type FileRead =
   | { ok: true; text: string; lastModified: number }
-  | { ok: false; reason: 'not-found' | 'too-large' | 'read-error'; error: unknown }
+  | { ok: false; reason: 'not-found' | 'too-large' | 'permission' | 'read-error'; error: unknown }
 
 /** Reads of a file that keeps being replaced while it is read, before giving up. */
 const READ_ATTEMPTS = 3
+
+/**
+ * The wait before reading again a file `getFile()` didn't find, times the
+ * attempt (0.4 s, then 0.8 s): cloud-synced folders (OneDrive, Dropbox,
+ * Drive) replace a file by writing a temporary one and renaming it, so the
+ * file can be briefly absent while another machine saves it.
+ */
+const READ_RETRY_DELAY_MS = 400
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
+}
 
 /**
  * Whether a sync file's text is a TODO2 file at an older schema version (or
@@ -154,26 +166,44 @@ function isNamedError(e: unknown, name: string): boolean {
 }
 
 /**
+ * The browser no longer lets the app use the file: Chrome takes a granted
+ * permission back after a while (idle, or the user revoked it), and then
+ * `getFile()` / `createWritable()` / a write throw `NotAllowedError`.
+ */
+function isPermissionError(e: unknown): boolean {
+  return isNamedError(e, 'NotAllowedError')
+}
+
+/**
  * Reads the file's text, refusing a file over the import cap (50 MB) before
  * reading it. `getFile()` is a snapshot: when a save (this tab's or
  * another's) replaces the file between `getFile()` and reading its text,
  * the read fails with `NotFoundError` / `NotReadableError` although the file
- * is fine — then it is read again. `not-found` only when `getFile()` itself
- * finds no file.
+ * is fine — then it is read again. A file `getFile()` doesn't find is looked
+ * for again after a short wait (`READ_RETRY_DELAY_MS`) — a cloud folder may
+ * be renaming a new copy into place; `not-found` only when it is still
+ * missing at the last attempt.
  */
 async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
   let replacedError: unknown = null
   for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
+    const last = attempt === READ_ATTEMPTS - 1
     let file: File
     try {
       file = await handle.getFile()
     } catch (e: unknown) {
-      return { ok: false, reason: isNamedError(e, 'NotFoundError') ? 'not-found' : 'read-error', error: e }
+      if (isPermissionError(e)) return { ok: false, reason: 'permission', error: e }
+      if (!isNamedError(e, 'NotFoundError')) return { ok: false, reason: 'read-error', error: e }
+      if (last) return { ok: false, reason: 'not-found', error: e }
+      console.warn('[file-storage] the file was not found; looking again shortly', e)
+      await wait(READ_RETRY_DELAY_MS * (attempt + 1))
+      continue
     }
     if (file.size > MAX_IMPORT_SIZE_BYTES) return { ok: false, reason: 'too-large', error: null }
     try {
       return { ok: true, text: await file.text(), lastModified: file.lastModified }
     } catch (e: unknown) {
+      if (isPermissionError(e)) return { ok: false, reason: 'permission', error: e }
       if (!isNamedError(e, 'NotFoundError') && !isNamedError(e, 'NotReadableError')) {
         return { ok: false, reason: 'read-error', error: e }
       }
@@ -205,10 +235,13 @@ function errorDetail(e: unknown): string {
  * - below the floor → `MigrationDialog` (cancel → paused);
  * - browser clean and synced with some version of this file → load the file
  *   (multi-machine case), asking first if it needs a schema upgrade;
- * - browser has unsynced changes, or there is no sync record and the browser
- *   has tasks → conflict dialog (file / browser / cancel) unless both sides
- *   already hold identical data (an older file compared after its upgrade;
- *   identical + older → the upgrade prompt).
+ * - browser has unsynced changes and the file is the one it last synced
+ *   with → the browser's data is written to the file (its raw text backed
+ *   up first), asking first only if the file needs a schema upgrade;
+ * - browser has unsynced changes and the file changed since, or there is no
+ *   sync record and the browser has tasks → conflict dialog (file / browser
+ *   / cancel) unless both sides already hold identical data (an older file
+ *   compared after its upgrade; identical + older → the upgrade prompt).
  *
  * While synced, Dexie hooks write the whole DB to the file 500 ms after each
  * change. Change-tracking hooks stay installed while a file is attached even
@@ -235,8 +268,6 @@ class FileStorageService {
   /** When the written text was last run back through the import, and what that said. */
   private lastLoadBackCheck: { at: number; problem: string | null } | null = null
   private statusListeners = new Set<StatusListener>()
-  private afterImportListeners = new Set<AfterImportListener>()
-  private beforeImportListeners = new Set<BeforeImportListener>()
   private migrationConfirmHandler: MigrationConfirmHandler | null = null
   private conflictHandler: ConflictHandler | null = null
   private fileUpgradeHandler: FileUpgradeHandler | null = null
@@ -269,27 +300,6 @@ class FileStorageService {
    */
   onStatusChange(listener: StatusListener): () => void {
     return subscribe(this.statusListeners, listener)
-  }
-
-  /**
-   * `listener` runs after the file's data replaced the browser's (the stores
-   * reload there); returns its unsubscribe. Subscribers run in turn, each
-   * awaited; one that rejects doesn't stop the others, and the load then
-   * rejects with its error.
-   */
-  onAfterImport(listener: AfterImportListener): () => void {
-    return subscribe(this.afterImportListeners, listener)
-  }
-
-  /**
-   * `listener` runs before the browser data is backed up and replaced by
-   * the file's, and resolves to a release, called once the after-import
-   * reload is done (or the load was cancelled or failed) — the note store
-   * saves its pending text and then holds its saves in between. Returns its
-   * unsubscribe; every subscriber runs, in turn.
-   */
-  onBeforeImport(listener: BeforeImportListener): () => void {
-    return subscribe(this.beforeImportListeners, listener)
   }
 
   /**
@@ -334,32 +344,6 @@ class FileStorageService {
         console.warn('[file-storage] a status listener failed', err)
       }
     }
-  }
-
-  /** Runs every before-import subscriber; resolves to one release for them all. */
-  private async holdForImport(): Promise<() => void> {
-    const releases: Array<() => void> = []
-    const releaseAll = () => { for (const release of releases.splice(0)) release() }
-    try {
-      for (const listener of [...this.beforeImportListeners]) releases.push(await listener())
-    } catch (err) {
-      releaseAll()
-      throw err
-    }
-    return releaseAll
-  }
-
-  /** Runs every after-import subscriber in turn; rethrows the first failure once all ran. */
-  private async afterImport(): Promise<void> {
-    let failure: { error: unknown } | null = null
-    for (const listener of [...this.afterImportListeners]) {
-      try {
-        await listener()
-      } catch (error) {
-        failure ??= { error }
-      }
-    }
-    if (failure) throw failure.error
   }
 
   /**
@@ -462,12 +446,12 @@ class FileStorageService {
     try {
       const [handle] = await window.showOpenFilePicker({ types: FILE_TYPES })
       if (!handle) return
+      if (!(await this.rememberHandle(handle, `Could not attach ${handle.name} — the browser could not remember the file, so nothing changed.`))) return
       this.stopSync()
       this.handle = handle
       this._error = null
       this._needsPermission = false
       this._paused = null
-      await saveFileHandle(handle)
       // A newly attached file has no sync record with this browser.
       clearFileSyncState()
       this.installTracking()
@@ -486,12 +470,12 @@ class FileStorageService {
         suggestedName: newSyncFileName(),
         types: FILE_TYPES,
       })
+      if (!(await this.rememberHandle(handle, `${handle.name} was created, but the browser could not remember it, so it was not attached. Nothing else changed.`))) return
       this.stopSync()
       this.handle = handle
       this._error = null
       this._needsPermission = false
       this._paused = null
-      await saveFileHandle(handle)
       clearFileSyncState()
       this.installTracking()
       // A brand-new file: writing the browser data into it loses nothing.
@@ -502,6 +486,24 @@ class FileStorageService {
       this._error = 'Failed to create file'
     }
     this.notify()
+  }
+
+  /**
+   * Stores a newly picked file's handle for the next start, before anything
+   * switches to it. When the browser can't, the file isn't attached — the
+   * file attached before (if any) stays, syncing as it was — and the status
+   * error says so (`failure`); returns false.
+   */
+  private async rememberHandle(handle: FileSystemFileHandle, failure: string): Promise<boolean> {
+    try {
+      await saveFileHandle(handle)
+      return true
+    } catch (err) {
+      console.warn('[file-storage] storing the file handle failed', err)
+      this._error = failure
+      this.notify()
+      return false
+    }
   }
 
   async disconnect(): Promise<void> {
@@ -538,6 +540,10 @@ class FileStorageService {
     await this.whenIdle()
     if (this.handle !== handle) return
     const read = await readFileText(handle)
+    if (!read.ok && read.reason === 'permission') {
+      this.permissionLost(read.error)
+      return
+    }
     if (!read.ok) {
       console.warn('[file-storage] could not read the file to back it up', read.error)
       const why = read.reason === 'too-large' ? 'is too large to back up (50 MB max)' : 'could not be read, so it could not be backed up'
@@ -555,6 +561,19 @@ class FileStorageService {
   private pause(reason: SyncPauseReason, message: string) {
     this.stopSync()
     this._paused = { reason, message }
+    this.notify()
+  }
+
+  /**
+   * The browser took its permission for the file back mid-session: sync
+   * stops and the storage pill says Permission needed. Edits keep marking
+   * the browser dirty; Grant access (`reconnect`) runs the load decision,
+   * which writes them to the file when it is unchanged since, else asks.
+   */
+  private permissionLost(err: unknown) {
+    console.warn('[file-storage] the browser no longer allows access to the file', err)
+    this.stopSync()
+    this._needsPermission = true
     this.notify()
   }
 
@@ -620,6 +639,10 @@ class FileStorageService {
         this.pause('too-large', `${PAUSED_PREFIX} — the file is too large (50 MB max).`)
         return
       }
+      if (read.reason === 'permission') {
+        this.permissionLost(read.error)
+        return
+      }
       if (read.reason === 'not-found') {
         // The file is gone — nothing to protect on disk. Forget it.
         this._error = 'File not found — it may have been moved or deleted'
@@ -679,12 +702,9 @@ class FileStorageService {
     // save landing after a load would put this browser's text over the
     // file's note. Text typed meanwhile is saved on release unless the
     // reload replaced the notes.
-    const release = await this.holdForImport()
-    try {
+    await withDataReplaceHold(async () => {
       if (gen === this.loadGen) await this.decide(gen, handle, text, raw, prepared, fileId, lastModified)
-    } finally {
-      release()
-    }
+    })
   }
 
   /** The load decision for a read, prepared file (`loadFromFile`, inside its note hold). */
@@ -714,12 +734,24 @@ class FileStorageService {
       })
       : false
 
+    // The browser is only ahead: the file is the one it last read or wrote
+    // (a tab closed within the save debounce, permission lost mid-session,
+    // an edit while paused). Nothing in the file is newer, so the browser's
+    // data is written to it — after a backup of its raw text — without
+    // asking. A file at an older schema still asks its upgrade question first.
+    const browserAhead = !identical && hasRecord && dirty && fileChanged === false
     let conflictReason: SyncConflictInfo['reason'] | null = null
-    if (!identical) {
+    if (!identical && !browserAhead) {
       if (hasRecord && dirty) conflictReason = 'browser-changes'
       else if (!hasRecord && (await browserTaskCount()) > 0) conflictReason = 'no-sync-record'
     }
     if (gen !== this.loadGen) return
+
+    if (browserAhead) {
+      if (prepared.upgraded && !prepared.legacy && !(await this.confirmFileUpgrade(gen, handle, prepared))) return
+      await this.keepBrowserData(text, prepared.upgraded)
+      return
+    }
 
     if (conflictReason) {
       const info: SyncConflictInfo = {
@@ -746,26 +778,13 @@ class FileStorageService {
         return
       }
       if (choice === 'browser') {
-        if (!(await this.backupFileText(text, prepared.upgraded))) return
-        if (await this.saveToFile({ force: true })) this.startSync()
-        this.notify()
+        await this.keepBrowserData(text, prepared.upgraded)
         return
       }
       // choice === 'file' — falls through to the load below (the dialog
       // already told the user an older file is saved back in this format).
     } else if (prepared.upgraded && !prepared.legacy) {
-      const ok = this.fileUpgradeHandler
-        ? await this.fileUpgradeHandler({
-          fileName: handle.name,
-          fromVersion: prepared.sourceVersion ?? CURRENT_DB_VERSION,
-          toVersion: CURRENT_DB_VERSION,
-        })
-        : false
-      if (gen !== this.loadGen) return
-      if (!ok) {
-        this.pause('upgrade-cancelled', `${PAUSED_PREFIX} — ${handle.name} was saved by an older version of TODO2 and needs to be upgraded before syncing.`)
-        return
-      }
+      if (!(await this.confirmFileUpgrade(gen, handle, prepared))) return
     }
 
     // Every path that rewrites the file at a newer schema (confirmed upgrade,
@@ -796,6 +815,42 @@ class FileStorageService {
   }
 
   /**
+   * The upgrade question for an older file. Returns whether to go on: false
+   * when the user cancelled (sync paused) or a newer load took over.
+   */
+  private async confirmFileUpgrade(
+    gen: number,
+    handle: FileSystemFileHandle,
+    prepared: Extract<ReturnType<typeof prepareImport>, { ok: true }>,
+  ): Promise<boolean> {
+    const ok = this.fileUpgradeHandler
+      ? await this.fileUpgradeHandler({
+        fileName: handle.name,
+        fromVersion: prepared.sourceVersion ?? CURRENT_DB_VERSION,
+        toVersion: CURRENT_DB_VERSION,
+      })
+      : false
+    if (gen !== this.loadGen) return false
+    if (!ok) {
+      this.pause('upgrade-cancelled', `${PAUSED_PREFIX} — ${handle.name} was saved by an older version of TODO2 and needs to be upgraded before syncing.`)
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Keep this browser's data: back up the file's raw text (`text`; kept
+   * outside the pruned pool when it is at an older schema), then write the
+   * browser's data over it and resume sync. A failed backup writes nothing
+   * (sync pauses).
+   */
+  private async keepBrowserData(text: string, olderVersion: boolean): Promise<void> {
+    if (!(await this.backupFileText(text, olderVersion))) return
+    if (await this.saveToFile({ force: true })) this.startSync()
+    this.notify()
+  }
+
+  /**
    * Back up the sync file's raw text (Settings → Backups) before it is
    * overwritten or rewritten at another schema version. On failure nothing is
    * written: sync pauses and this returns false. Empty text needs no backup.
@@ -817,39 +872,35 @@ class FileStorageService {
   }
 
   /**
-   * Replace the browser data with the file's, backing the browser data up
-   * first (`takeSafetySnapshot`). If that backup fails the user is asked;
+   * Replace the browser data with the file's (`replaceData`: the stores
+   * reload, the replace listeners hear `sync-file`), backing the browser data
+   * up first (`takeSafetySnapshot`). If that backup fails the user is asked;
    * on Cancel nothing changes, sync pauses and this returns false. When the
    * browser already holds exactly this file's data (`browserHoldsFile`),
    * nothing can be lost, so a failed backup doesn't stop the load.
    */
   private async applyFileData(data: ImportData, fileId: string, browserHoldsFile: boolean): Promise<boolean> {
     const name = this.handle?.name ?? 'the sync file'
-    let noBackup = false
     // Called inside `loadFromFile`'s note hold: typed text is already saved.
-    if (browserHoldsFile) {
-      await backupScheduler.snapshotBeforeDestructive().catch((err) => {
-        console.warn('[file-storage] snapshot before reloading the unchanged file failed', err)
-      })
-    } else {
-      const snapshot = await takeSafetySnapshot(`loading ${name} over this browser's data`)
-      if (snapshot === 'cancelled') {
-        this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
-        return false
-      }
-      noBackup = snapshot === 'without-backup'
+    const outcome = await replaceData('sync-file', {
+      backup: browserHoldsFile ? 'best-effort' : { operation: `loading ${name} over this browser's data` },
+      write: async () => {
+        this.suppressSync = true
+        try {
+          await restoreFromImportData(data)
+        } finally {
+          this.suppressSync = false
+        }
+        this.changeGen++
+        writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
+      },
+    })
+    if (outcome.status === 'cancelled') {
+      this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
+      return false
     }
-    this.suppressSync = true
-    try {
-      await restoreFromImportData(data)
-    } finally {
-      this.suppressSync = false
-    }
-    this.changeGen++
-    writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
-    await this.afterImport()
     // After the stores reload (which clears the snackbar): the result toast.
-    if (noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
+    if (outcome.noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
     return true
   }
 
@@ -924,11 +975,17 @@ class FileStorageService {
       this.notify()
       return true
     } catch (err) {
-      console.warn('[file-storage] saving to the file failed', err)
-      if (handle === this.handle) {
-        this._error = 'Failed to save to file'
-        this.notify()
+      if (handle !== this.handle) {
+        console.warn('[file-storage] saving to the file failed', err)
+        return false
       }
+      if (isPermissionError(err)) {
+        this.permissionLost(err)
+        return false
+      }
+      console.warn('[file-storage] saving to the file failed', err)
+      this._error = 'Failed to save to file'
+      this.notify()
       return false
     }
   }

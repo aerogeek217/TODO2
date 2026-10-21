@@ -7,7 +7,6 @@ import {
   type PersistedListDefinition,
 } from '../models/list-definition'
 import { emptyPredicate } from '../models/filter-predicate'
-import type { RankWrite } from '../utils/list-order'
 import { pickPredicate } from './predicate-shape'
 import { SETTING_KEYS } from './setting-keys'
 import { formatEisenhowerSource, parseEisenhowerSource } from './eisenhower-shape'
@@ -34,26 +33,6 @@ export const listDefinitionRepository = {
   /** Adds a list after the others (sort order: one past the highest, from 0). */
   async insertLast(def: Omit<ListDefinition, 'id' | 'sortOrder'>): Promise<{ id: number; sortOrder: number }> {
     return insertLast(db.listDefinitions, def, -1)
-  },
-
-  /**
-   * Adds a copy of list `fromId` after the others (`def` — its parts as
-   * copied, a name and an owner) with `fromId`'s manual order: the list and
-   * its ranks in one transaction. Returns the new id, its sort order and
-   * the ranks written.
-   */
-  async insertCopy(
-    def: Omit<ListDefinition, 'id' | 'sortOrder'>,
-    fromId: number,
-  ): Promise<{ id: number; sortOrder: number; ranks: RankWrite[] }> {
-    return db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
-      const sortOrder = await nextSortOrder(db.listDefinitions, -1)
-      const id = await db.listDefinitions.add({ ...def, sortOrder })
-      const from = await db.listOrders.where('listDefinitionId').equals(fromId).toArray()
-      const ranks = from.map((r): RankWrite => ({ todoId: r.todoId, rank: r.rank }))
-      if (ranks.length > 0) await db.listOrders.bulkAdd(ranks.map((r) => ({ listDefinitionId: id, ...r })))
-      return { id, sortOrder, ranks }
-    })
   },
 
   /**

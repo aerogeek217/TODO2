@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { Profiler } from 'react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../components/layout/TopBar'
@@ -138,16 +139,21 @@ describe('TopBar grouped search', () => {
   // next test (after unmount) and wrote its stale query into the filter
   // store, which re-synced the new bar's input and unmounted the focused
   // option — the intermittent "roving focus" failure under full-suite load.
-  it('an unmounted bar does not write its pending search into the filter store', async () => {
-    const view = renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
-    await act(async () => {
-      input.focus()
-      fireEvent.change(input, { target: { value: 'zzz' } })
-    })
-    view.unmount()
-    await act(async () => { await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 100)) })
-    expect(useFilterStore.getState().filters.searchText).toBe('')
+  it('an unmounted bar does not write its pending search into the filter store', () => {
+    vi.useFakeTimers()
+    try {
+      const view = renderBar()
+      const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+      act(() => {
+        input.focus()
+        fireEvent.change(input, { target: { value: 'zzz' } })
+      })
+      view.unmount()
+      act(() => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 100) })
+      expect(useFilterStore.getState().filters.searchText).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keyboard roving focus steps into the Tags group', async () => {
@@ -193,5 +199,55 @@ describe('TopBar search box and the filter store', () => {
     expect(input.value).toBe('')
     act(() => useFilterStore.getState().setSearchText('from elsewhere'))
     expect(input.value).toBe('from elsewhere')
+  })
+})
+
+describe('TopBar renders for the tasks only while it searches them', () => {
+  beforeEach(() => {
+    useFilterStore.getState().clearAll()
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Buy milk' }), makeTodo({ id: 2, title: 'Call Bob' })] })
+    usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
+    useStatusStore.setState({ statuses: [] })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+  })
+
+  afterEach(cleanup)
+
+  function renderCounted() {
+    const renders = { n: 0 }
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Profiler id="bar" onRender={() => { renders.n++ }}>
+          <TopBar />
+        </Profiler>
+      </MemoryRouter>,
+    )
+    return renders
+  }
+
+  const rename = (id: number, title: string) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, title } : t)) })
+    usePersonStore.setState({ assignedPeopleMap: new Map() })
+    useTagStore.setState({ assignedTagsMap: new Map() })
+  })
+
+  it('a task write, or an assignment, renders nothing while no search is typed', () => {
+    const renders = renderCounted()
+    renders.n = 0
+    rename(2, 'Call Bob back')
+    expect(renders.n).toBe(0)
+  })
+
+  it('while the dropdown shows, it follows a task changed meanwhile', async () => {
+    renderCounted()
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'buy' } })
+    })
+    const listbox = await screen.findByRole('listbox', { name: /search results/i })
+    expect(within(listbox).getAllByRole('option').map((o) => o.textContent)).toEqual(['Buy milk'])
+    rename(2, 'Buy stamps')
+    expect(within(listbox).getAllByRole('option').map((o) => o.textContent)).toEqual(['Buy milk', 'Buy stamps'])
   })
 })

@@ -136,7 +136,7 @@ describe('LayoutControls — tabs', () => {
 
   it('a kept new layout from an older build: the open tab after the saved ones; Save asks its name', async () => {
     await seed('Main')
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns: [] }, listNames: {} })
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns: [] } })
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
     await ws().init()
     render(<LayoutControls mode="tabs" />)

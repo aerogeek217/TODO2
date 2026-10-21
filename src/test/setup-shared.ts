@@ -26,6 +26,11 @@ afterAll(() => {
   // (jsdom has neither): a later file would find a working clipboard.
   Reflect.deleteProperty(navigator, 'clipboard')
   Reflect.deleteProperty(globalThis, 'ClipboardItem')
+  // Likewise `HTMLInputElement.prototype.showPicker = vi.fn()` (jsdom has no
+  // date picker): a later file would find one that silently succeeds.
+  if (vi.isMockFunction(HTMLInputElement.prototype.showPicker)) {
+    Reflect.deleteProperty(HTMLInputElement.prototype, 'showPicker')
+  }
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   vi.restoreAllMocks()

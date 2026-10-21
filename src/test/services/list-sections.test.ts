@@ -8,6 +8,7 @@ import {
   type Section,
 } from '../../services/list-sections'
 import { makeTodo } from '../helpers'
+import { expectWithin } from '../timing'
 
 function ctxWith(over: Partial<ListSectionsContext> = {}): ListSectionsContext {
   return {
@@ -649,7 +650,7 @@ describe('buildListSections — accents and sentinels', () => {
       makeTodo({ id: 4, dueDate: new Date(2026, 1, 1) }),
     ]
     expect(buildDeadlineSections(todos, 1, today).map((s) => s.accentColor)).toEqual([
-      'var(--color-overdue)', 'var(--color-accent)', 'var(--color-text-secondary)', 'var(--color-text-muted)',
+      'var(--color-overdue)', 'var(--color-accent-text)', 'var(--color-text-secondary)', 'var(--color-text-muted)',
     ])
   })
 
@@ -733,5 +734,36 @@ describe('buildListSections — a list grouped by Priority', () => {
   it('leaves empty groups out and keeps the sort inside each group', () => {
     const todos = [makeTodo({ id: 1, important: true, title: 'b' }), makeTodo({ id: 2, important: true, title: 'a' })]
     expect(titles(build(todos, 'priority', { today, urgentRange: 3 }, { sortBy: 'name' }))).toEqual([['Important', [2, 1]]])
+  })
+})
+
+describe('buildListSections — people / tag groups stay fast with many', () => {
+  // Every task has its own person and its own tag: the group order compares
+  // labels, which must be read from a lookup, not by scanning every task's
+  // assignments per comparison (quadratic: seconds at this size).
+  const N = 3000
+  const todos = Array.from({ length: N }, (_, i) => makeTodo({ id: i + 1, sortOrder: i }))
+  // Names in a scrambled order (7919 is prime to N), so the sort compares in earnest.
+  const nth = (id: number) => String((id * 7919) % N).padStart(5, '0')
+  const people: Person[] = todos.map((t) => ({ id: t.id, name: `Person ${nth(t.id)}`, initials: 'P' }))
+  const tags: Tag[] = todos.map((t) => ({ id: t.id, name: `tag${nth(t.id)}`, color: '#123456' }))
+  const assignedPeopleMap = new Map(todos.map((t, i) => [t.id, [people[i]!]]))
+  const assignedTagsMap = new Map(todos.map((t, i) => [t.id, [tags[i]!]]))
+
+  it('groups by people in name order', () => {
+    expectWithin(120, () => {
+      const sections = build(todos, 'people', { people, assignedPeopleMap })
+      expect(sections).toHaveLength(N)
+      expect(sections[0]!.label).toBe('Person 00000')
+      expect(sections.at(-1)!.label).toBe(`Person ${String(N - 1).padStart(5, '0')}`)
+    })
+  })
+
+  it('groups by tag in name order, with the tag colour', () => {
+    expectWithin(120, () => {
+      const sections = build(todos, 'tag', { assignedTagsMap })
+      expect(sections).toHaveLength(N)
+      expect(sections[0]).toMatchObject({ label: '#tag00000', accentColor: '#123456' })
+    })
   })
 })

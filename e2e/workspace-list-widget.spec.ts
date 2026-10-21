@@ -71,7 +71,7 @@ test('a completed task comes back in a list widget when the top bar shows comple
 test('a screen filter narrows every list widget and shows the count as shown of total', async ({ page }) => {
   await seedWorkspace(page, team)
   await page.getByRole('button', { name: 'People filter' }).click()
-  await page.locator('label', { hasText: '@Alice' }).click()
+  await page.getByRole('option', { name: '@Alice' }).click()
   await page.keyboard.press('Escape')
   for (const tabId of ['t1', 't2']) {
     await expect(rows(page, tabId)).toHaveCount(1)
@@ -88,7 +88,7 @@ test('adding a filter from the filter row makes the list unsaved; saving keeps i
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'People' }).click()
   const picker = page.getByTestId('list-filter-picker')
-  await picker.locator('label', { hasText: '@Bob' }).click()
+  await picker.getByRole('option', { name: '@Bob' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 

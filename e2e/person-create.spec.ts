@@ -108,13 +108,13 @@ test.describe('person picker — lookup or create', () => {
   })
 })
 
-test.describe('Quick Add @ — create on submit', () => {
+test.describe('Quick Add @ — create on pick, or on submit', () => {
   test.beforeEach(async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Dana Kim', initials: 'DK' }] })
     await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
   })
 
-  test('nothing matches: Tab on the create row inserts the token; submit creates and assigns the person', async ({ page }) => {
+  test('nothing matches: Tab on the Create row makes the person at once; a quoted name typed and left is made on submit', async ({ page }) => {
     await page.keyboard.press('Control+Space')
     const dialog = page.getByRole('dialog', { name: 'Quick add task' })
     const input = dialog.getByPlaceholder('New task…')
@@ -122,18 +122,21 @@ test.describe('Quick Add @ — create on submit', () => {
     await page.keyboard.type('Call legal @Marco')
 
     const popup = page.getByRole('listbox', { name: 'People' })
-    const create = popup.getByRole('option', { name: 'Press ⏎ to create @Marco' })
+    const create = popup.getByRole('option', { name: 'Create @Marco' })
     await expect(create).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Tab')
     await expect(popup).toBeHidden()
     await expect(input).toHaveValue('Call legal @Marco ')
-    await expect(dialog.getByText('New person:')).toBeVisible()
+    // Picked from the Create row: Marco exists at once (no "New person" line for him).
+    await expect.poll(async () => (await readPeople(page)).map((p) => p.name).sort()).toEqual(['Dana Kim', 'Marco'])
+    await expect(dialog.getByText('New person:')).toHaveCount(0)
 
-    // A quoted multi-word name that matches nobody is created too.
+    // A quoted multi-word name that matches nobody, typed and left, is created on submit.
     await page.keyboard.type('@"Ana Lopez" @dana')
     await expect(popup.getByRole('option', { name: '@Dana Kim' })).toBeVisible()
     await page.keyboard.press('Tab')
-    await expect(dialog.getByText('@Marco @Ana Lopez')).toBeVisible()
+    await expect(dialog.getByText('New person:').locator('..')).toContainText('@Ana Lopez')
+    await expect(dialog.getByText('New person:').locator('..')).not.toContainText('@Marco')
     await page.keyboard.press('Enter')
     await expect(dialog).toBeHidden()
 

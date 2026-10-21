@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { Person, Status } from '../../../models'
-import { closeNotesPopup, holdNotesPopup, notesNlp, notesPopupField, notesPopupFocusEffect, type NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
+import { closeNotesPopup, highlightNotesPopupRow, holdNotesPopup, notesNlp, notesPopupField, notesPopupFocusEffect, type NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
 import { personItems, statusItems, tagItems } from '../../../services/nlp-autocomplete'
 
 // Sat 10 Oct 2026.
@@ -193,6 +193,42 @@ describe('notes autocomplete — commands and create', () => {
     type(v, '@an')
     key(v, 'Enter')
     expect(v.state.doc.toString()).toBe('- Call @Anna later')
+  })
+})
+
+describe('notes autocomplete — the highlighted row is what you get', () => {
+  it('a space typed after the token completes it to the highlighted person', () => {
+    const { view: v, onCreate } = setup('- Call ')
+    type(v, '@an')
+    type(v, ' ')
+    expect(v.state.doc.toString()).toBe('- Call @Anna ')
+    expect(v.state.selection.main.head).toBe(13)
+    expect(popup(v)).toBeNull()
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('the pointer moves the highlight; typing on then uses that row', () => {
+    const { view: v } = setup('- Call ')
+    type(v, '@an') // Anna, Dana Kim
+    highlightNotesPopupRow(v, 1)
+    expect(popup(v)?.selectedIndex).toBe(1)
+    type(v, ',')
+    expect(v.state.doc.toString()).toBe('- Call @"Dana Kim",')
+  })
+
+  it('moving the caret off the token completes it', () => {
+    const { view: v } = setup('- Call ')
+    type(v, '@an')
+    v.dispatch({ selection: { anchor: 2 } })
+    expect(v.state.doc.toString()).toBe('- Call @Anna')
+    expect(v.state.selection.main.head).toBe(2)
+  })
+
+  it('a highlighted create row leaves the text as typed — a typed space never creates', () => {
+    const { view: v, onCreate } = setup('- Call ')
+    type(v, '@zed ')
+    expect(v.state.doc.toString()).toBe('- Call @zed ')
+    expect(onCreate).not.toHaveBeenCalled()
   })
 })
 

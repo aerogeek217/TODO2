@@ -3,6 +3,7 @@ import { BAND_DEFAULT_HEIGHT, type BandEdge, type LayoutBand } from '../../model
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { BAND_MIN_PX, COLUMN_AREA_MIN_PX, resizeBand } from '../../utils/workspace-resize'
 import styles from './WorkspaceDivider.module.css'
+import { shortcutScope } from '../../utils/dom-contract'
 
 /** Keyboard step for a focused band divider (px). */
 const KEY_STEP_PX = 16
@@ -123,7 +124,7 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
       tabIndex={0}
       data-ws-band-divider={edge}
       // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
-      data-shortcut-scope="none"
+      {...shortcutScope('none')}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

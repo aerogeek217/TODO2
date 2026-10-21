@@ -47,7 +47,7 @@ test.describe('notes autocomplete', () => {
     // `@` opens under the trigger character.
     await page.keyboard.type('- Call @Da')
     await expect(popup(page)).toBeVisible()
-    await expect(popup(page).getByRole('option')).toHaveText(['@Dana Kim'])
+    await expect(popup(page).getByRole('option')).toHaveText(['@Dana Kim', /Create @Da$/])
     const { tokenBox, popupBox } = await boxes(page, editor, '@Da')
     expect(Math.abs(popupBox.x - tokenBox.x)).toBeLessThan(2)
     expect(popupBox.y - (tokenBox.y + tokenBox.height)).toBeGreaterThanOrEqual(0)
@@ -61,7 +61,7 @@ test.describe('notes autocomplete', () => {
 
     // Tab picks a tag.
     await page.keyboard.type('#q')
-    await expect(popup(page).getByRole('option')).toHaveText(['#q4'])
+    await expect(popup(page).getByRole('option')).toHaveText(['#q4', /Create #q$/])
     await page.keyboard.press('Tab')
     expect(await lineWith(editor, '- Call')).toBe('- Call @"Dana Kim" #q4 ')
 
@@ -100,7 +100,7 @@ test.describe('notes autocomplete', () => {
     // Create rows create the person / tag on pick, before any conversion.
     // (⏎ on a list line continued the `- ` marker.)
     await page.keyboard.type('Call legal @Marco')
-    await expect(popup(page).getByRole('option')).toHaveText(['MPress ⏎ to create @Marco'])
+    await expect(popup(page).getByRole('option')).toHaveText(['MCreate @Marco'])
     await page.keyboard.press('Enter')
     await expect.poll(() => storedNames(page, 'people')).toContain('Marco')
     // A person that exists now tints as a known one.

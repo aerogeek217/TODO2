@@ -45,6 +45,28 @@ describe('draftFromText', () => {
     expect(d.newTags).toEqual(['launch'])
   })
 
+  it('a #tag resolves as the # popup ranks it: the exact tag, else the first starting with it; created only when none does', () => {
+    const tagsQ: Tag[] = [
+      { id: 21, name: 'q4-review', color: '#000' } as Tag,
+      { id: 22, name: 'Q4', color: '#000' } as Tag,
+      { id: 23, name: 'q3', color: '#000' } as Tag,
+    ]
+    const c = { ...ctx, tags: tagsQ }
+    expect(draftFromText('Plan #q4', c)).toMatchObject({ tagIds: [22], newTags: [] }) // exact, any case
+    expect(draftFromText('Plan #q', c)).toMatchObject({ tagIds: [23], newTags: [] }) // first alphabetically: q3
+    expect(draftFromText('Plan #q4-r', c)).toMatchObject({ tagIds: [21], newTags: [] })
+    expect(draftFromText('Plan #zz', c)).toMatchObject({ tagIds: [], newTags: ['zz'] })
+  })
+
+  it('a quoted #"R&D" names that tag (any tag name a bare slug can’t spell); a new one goes back into the title quoted', () => {
+    const c = { ...ctx, tags: [...tags, { id: 31, name: 'R&D', color: '#000' } as Tag] }
+    expect(draftFromText('Plan #"R&D" budget', c)).toMatchObject({ title: 'Plan budget', tagIds: [31], newTags: [] })
+    const d = draftFromText('Plan #"Q4 plan"', c)
+    expect(d).toMatchObject({ title: 'Plan', tagIds: [], newTags: ['Q4 plan'] })
+    expect(draftEditorTitle(d)).toBe('Plan #"Q4 plan"')
+    expect(draftFromEditor({ title: draftEditorTitle(d) }, { personIds: [], tagIds: [] }, c).newTags).toEqual(['Q4 plan'])
+  })
+
   it('reads markers, /followup, /status and /repeat', () => {
     const d = draftFromText('Ask @Ben /urgent /important /focus /followup 2w /status waiting', ctx)
     expect(d).toMatchObject({ title: 'Ask', urgent: true, important: true, focus: true, statusId: 8 })

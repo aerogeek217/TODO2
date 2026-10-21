@@ -1,60 +1,23 @@
 import { describe, it, expect } from 'vitest'
 import {
   blockedPaneLines,
-  buildQuadrants,
   classifyPanes,
-  classifyEisenhower,
   compareInQuadrant,
   dropDescription,
   dropPreviewLabel,
   insertionIndex,
   paneAddHint,
-  quadrantOf,
   resolvePaneDrop,
 } from '../../utils/eisenhower'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
-import { emptyPredicate, type TodoPredicate } from '../../models'
+import { isEffectivelyUrgent, isUrgentByDate, type UrgentDueWithinDays } from '../../utils/urgency'
+import { emptyPredicate, type TodoItem, type TodoPredicate } from '../../models'
 import type { EisenhowerQuadrant } from '../../models/workspace-layout'
 import { blockedDropLines, makePaneContext, makeTodo, resolveQuadrantDrop } from '../helpers'
 
 // Sat 10 Oct 2026, range 3 days (due by Tue 13 counts as urgent).
 const TODAY = new Date(2026, 9, 10)
 const day = (n: number) => new Date(2026, 9, 10 + n)
-
-describe('quadrantOf', () => {
-  it.each<[boolean, boolean, EisenhowerQuadrant]>([
-    [true, true, 'do'],
-    [false, true, 'schedule'],
-    [true, false, 'delegate'],
-    [false, false, 'drop'],
-  ])('urgent %s, important %s → %s', (u, i, q) => {
-    expect(quadrantOf(u, i)).toBe(q)
-  })
-})
-
-describe('classifyEisenhower', () => {
-  it.each<[string, Parameters<typeof makeTodo>[0], number | null, EisenhowerQuadrant, boolean]>([
-    ['no flags, no date', {}, 3, 'drop', false],
-    ['important only', { important: true }, 3, 'schedule', false],
-    ['urgent flag', { urgent: true }, 3, 'delegate', false],
-    ['both flags', { urgent: true, important: true }, 3, 'do', false],
-    ['due today', { dueDate: day(0) }, 3, 'delegate', true],
-    ['due on the range edge', { dueDate: day(3) }, 3, 'delegate', true],
-    ['due a day past the range', { dueDate: day(4) }, 3, 'drop', false],
-    ['overdue', { dueDate: day(-5) }, 3, 'delegate', true],
-    ['overdue + important', { dueDate: day(-1), important: true }, 3, 'do', true],
-    ['flagged and due soon', { urgent: true, dueDate: day(1) }, 3, 'delegate', true],
-    ['range Off: due today is not urgent', { dueDate: day(0) }, null, 'drop', false],
-    ['range Off: the flag still counts', { urgent: true, dueDate: day(0) }, null, 'delegate', false],
-    ['range Today: tomorrow is not urgent', { dueDate: day(1) }, 0, 'drop', false],
-    ['range Today: overdue is urgent', { dueDate: day(-1) }, 0, 'delegate', true],
-    ['completed: the due date never makes it urgent', { isCompleted: true, dueDate: day(-1) }, 3, 'drop', false],
-    ['completed: flags still place it', { isCompleted: true, urgent: true, important: true }, 3, 'do', false],
-    ['follow-up dates never count', { nextFollowupAt: day(0) }, 3, 'drop', false],
-  ])('%s', (_label, fields, range, quadrant, byDate) => {
-    expect(classifyEisenhower(makeTodo({ id: 1, ...fields }), TODAY, range)).toEqual({ quadrant, urgentByDate: byDate })
-  })
-})
 
 describe('order inside a quadrant', () => {
   it('overdue first, then by due date, undated last, ties by sortOrder, completed last', () => {
@@ -65,21 +28,6 @@ describe('order inside a quadrant', () => {
     const e = makeTodo({ id: 5, dueDate: day(-9), isCompleted: true, sortOrder: 0 })
     const f = makeTodo({ id: 6, dueDate: day(2), sortOrder: 0 })
     expect([a, b, c, d, e, f].sort(compareInQuadrant).map((t) => t.id)).toEqual([3, 6, 2, 4, 1, 5])
-  })
-
-  it('buildQuadrants puts every task in exactly one quadrant, sorted', () => {
-    const todos = [
-      makeTodo({ id: 1, urgent: true, important: true }),
-      makeTodo({ id: 2, important: true, dueDate: day(10) }),
-      makeTodo({ id: 3, important: true, dueDate: day(5) }),
-      makeTodo({ id: 4, dueDate: day(2) }),
-      makeTodo({ id: 5 }),
-    ]
-    const q = buildQuadrants(todos, TODAY, 3)
-    expect(q.do.map((t) => t.id)).toEqual([1])
-    expect(q.schedule.map((t) => t.id)).toEqual([3, 2])
-    expect(q.delegate.map((t) => t.id)).toEqual([4])
-    expect(q.drop.map((t) => t.id)).toEqual([5])
   })
 
   it('insertionIndex: where a task lands in the sorted quadrant', () => {
@@ -220,7 +168,21 @@ describe('classifyPanes on the default panes', () => {
     }
   }
 
-  it('places every task exactly as classifyEisenhower does (generated tasks, every urgent range)', () => {
+  /** The classic quadrants: effective Urgent × the Important flag, each sorted by `compareInQuadrant`. */
+  function classicQuadrants<T extends Pick<TodoItem, 'urgent' | 'important' | 'dueDate' | 'isCompleted' | 'sortOrder'>>(
+    todos: readonly T[],
+    range: UrgentDueWithinDays,
+  ): Record<EisenhowerQuadrant, T[]> {
+    const out: Record<EisenhowerQuadrant, T[]> = { do: [], schedule: [], delegate: [], drop: [] }
+    for (const t of todos) {
+      const urgent = isEffectivelyUrgent(t, TODAY, range)
+      out[urgent ? (t.important ? 'do' : 'delegate') : (t.important ? 'schedule' : 'drop')].push(t)
+    }
+    for (const q of ['do', 'schedule', 'delegate', 'drop'] as const) out[q].sort(compareInQuadrant)
+    return out
+  }
+
+  it('places every task in its classic quadrant (generated tasks, every urgent range)', () => {
     const next = rng(20261019)
     const todos = Array.from({ length: 2000 }, (_, i) => makeTodo({
       id: i + 1,
@@ -235,15 +197,15 @@ describe('classifyPanes on the default panes', () => {
     for (const range of [null, 0, 1, 3, 7, 14] as const) {
       const { byPane, none } = classifyPanes(todos, resolvePanes(undefined), makePaneContext(TODAY, range))
       expect(none).toEqual([])
-      const expected = buildQuadrants(todos, TODAY, range)
+      const expected = classicQuadrants(todos, range)
       for (const q of ['do', 'schedule', 'delegate', 'drop'] as const) {
         expect(byPane[q].map((t) => t.id)).toEqual(expected[q].map((t) => t.id))
       }
     }
     // The generator covers every quadrant, urgent-by-date and completed tasks included.
-    const covered = buildQuadrants(todos, TODAY, 3)
+    const covered = classicQuadrants(todos, 3)
     for (const q of ['do', 'schedule', 'delegate', 'drop'] as const) expect(covered[q].length).toBeGreaterThan(50)
-    expect(todos.some((t) => t.urgent !== true && classifyEisenhower(t, TODAY, 3).urgentByDate)).toBe(true)
+    expect(todos.some((t) => t.urgent !== true && isUrgentByDate(t, TODAY, 3))).toBe(true)
     expect(todos.some((t) => t.isCompleted && t.dueDate != null && t.urgent !== true)).toBe(true)
   })
 })

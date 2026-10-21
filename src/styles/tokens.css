@@ -8,12 +8,7 @@
   --space-3: 8px;
   --space-4: 10px;
   --space-5: 12px;
-  --space-6: 16px;
-  --space-7: 20px;
-  --space-8: 24px;
   --space-9: 28px;
-  --space-10: 32px;
-  --space-12: 48px;
 
   /* Border Radius */
   --radius-sm: 4px;
@@ -56,11 +51,8 @@
   --cell-tab-height: 26px;
   --column-min-width: 280px;
   --cell-body-min-height: 80px;
-  --band-default-height: 160px;
-  --band-edge-zone: 24px;
   --column-area-min-height: 160px;
   --panel-ghost-width: 180px;
-  --divider-hit: 10px;
 
   /* List widget (narrow rows below 360px of widget width — a container query) */
   --list-filter-row-height: 36px;
@@ -82,7 +74,8 @@
   --mobile-fab-bottom: 16px;
   --mobile-topbar-height: 52px;
   --mobile-column-strip-height: 40px;
-  --mobile-cell-header-height: 40px;
+  /* A touch target tall above its 1px bottom rule (the tabs take taps across it). */
+  --mobile-cell-header-height: 45px;
   --mobile-cell-tab-height: 34px;
   --mobile-list-filter-row-height: 48px;
   --mobile-list-group-header-height: 36px;
@@ -92,15 +85,13 @@
 
   /* Transitions */
   --transition-fast: 120ms ease;
-  --transition-fade: 180ms ease;
   --transition-medium: 200ms ease;
   --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 
-  /* Breakpoints — value-only; CSS @media queries cannot consume custom
-     properties, so the literal `640px` is duplicated in @media (max-width:
-     640px) rules across component .module.css files and in
-     `hooks/use-is-mobile.ts` MOBILE_QUERY. Update all three together. */
-  --breakpoint-mobile: 640px;
+  /* The phone breakpoint is 640px. CSS @media queries cannot read custom
+     properties, so the literal is written in each `@media (max-width:
+     640px)` rule and in `hooks/use-is-mobile.ts` MOBILE_QUERY — change them
+     together. */
 
   /* Typography */
   --font-family: 'Plus Jakarta Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
@@ -133,8 +124,13 @@
   --color-surface-bright: #2d2b29;
   --color-surface-glass: rgba(26, 25, 24, 0.85);
   --color-surface-hover: rgba(255, 255, 255, 0.05);
-  /* Alias for elevated surfaces (modals, popovers, the QuickAddBar). */
+  /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
+  /* Popovers, menus, dialogs and sheets: raised above the surface here, the
+     surface itself in the light theme (where the shadow does the lifting). */
+  --color-popover-bg: var(--color-surface-high);
+  /* Their 1px ring (`--shadow-dropdown`, Edit list's arrow). */
+  --color-popover-ring: rgba(48, 46, 43, 0.5);
   --color-border: #302e2b;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
@@ -143,6 +139,14 @@
      an `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
      colour editor shows the actual rendered colour. */
   --color-header-bg: #1f2120;
+  /* The top bar's search field, recessed into the app background. */
+  --color-search-bg: var(--color-inset);
+  /* The notes editor's page (task notes and the global note). */
+  --color-notes-bg: var(--color-app-bg);
+  /* The system I-beam (white on the dark notes page). */
+  --notes-text-cursor: text;
+  /* A calendar day cell. */
+  --cal-day-fill: var(--color-tint-5);
 
   /* Task markers (shown before the title when set). */
   --color-marker-urgent: var(--color-danger);
@@ -163,6 +167,8 @@
   /* Accent */
   --color-accent: #7ec4bc;
   --color-accent-dim: #4f9a91;
+  /* The accent as text (8.8:1 on the surface). */
+  --color-accent-text: var(--color-accent);
 
   /* Danger / warning accents */
   --color-danger: #ee7d77;
@@ -196,7 +202,6 @@
   --color-overdue: #e86bf0;
   --color-overdue-bg: rgba(232, 107, 240, 0.12);
   --color-overdue-bg-strong: rgba(232, 107, 240, 0.22);
-  --color-overdue-glow: rgba(232, 107, 240, 0.3);
 
   /* Calendar widget: solid overdue entries (and text on them), past-day washes */
   --cal-overdue-solid: #e86bf0;
@@ -214,14 +219,10 @@
   --color-text-primary: #ece9e6;
   --color-text: var(--color-text-primary);
   --color-text-secondary: #bfbbb6;
-  --color-text-muted: #7d7972;
+  /* 5.1:1 on the surface, 4.8:1 on the elevated surface, 4.7:1 on a cell header. */
+  --color-text-muted: #8f8a83;
   --color-text-completed: #4a4743;
   --color-text-on-accent: #111110;
-
-  /* Assigned status */
-  --color-assigned-bg: rgba(126, 196, 188, 0.07);
-  --color-assigned-border: rgba(126, 196, 188, 0.25);
-  --color-assigned-text: #7db8b3;
 
   /* Accent alpha */
   --color-accent-bg-subtle: rgba(126, 196, 188, 0.05);
@@ -238,7 +239,6 @@
   --color-overlay: rgba(0, 0, 0, 0.4);
 
   /* Tint scale — foreground contrast overlays (white on dark) */
-  --color-tint-2: rgba(255, 255, 255, 0.02);
   --color-tint-3: rgba(255, 255, 255, 0.03);
   --color-tint-4: rgba(255, 255, 255, 0.04);
   --color-tint-5: rgba(255, 255, 255, 0.05);
@@ -271,9 +271,8 @@
 
   /* Shadows */
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.2);
-  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(48, 46, 43, 0.5);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--color-popover-ring);
   --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(48, 46, 43, 0.4);
-  --shadow-glow: 0 0 20px rgba(126, 196, 188, 0.3);
   --shadow-glass-card:
     0 0 0 1px rgba(0, 0, 0, 0.4),
     0 8px 24px rgba(0, 0, 0, 0.35),
@@ -281,14 +280,10 @@
     inset 0 1px 0 var(--color-tint-4);
   --shadow-fab: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2);
   --shadow-fab-hover: 0 6px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.25);
-  --shadow-card-hover-color: 0 4px 16px rgba(0, 0, 0, 0.4);
   --shadow-drag-overlay:
     0 4px 12px rgba(0, 0, 0, 0.4),
     0 12px 32px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--color-accent-shadow-subtle);
-  --shadow-drag-node: 0 12px 32px rgba(0, 0, 0, 0.5);
-  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
@@ -305,14 +300,24 @@
   --color-surface-bright: #e5e3e0;
   --color-surface-glass: rgba(255, 255, 255, 0.88);
   --color-surface-hover: rgba(0, 0, 0, 0.05);
-  /* Alias for elevated surfaces (modals, popovers, the QuickAddBar). */
+  /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
+  /* Popovers, menus, dialogs and sheets. */
+  --color-popover-bg: var(--color-surface);
+  --color-popover-ring: rgba(0, 0, 0, 0.06);
   --color-border: #d9d5d0;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(0, 0, 0, 0.06);
   /* Solid background for the workspace cell headers (tab strips). */
   --color-header-bg: #f7fbfa;
+  --color-search-bg: var(--color-surface-high);
+  --color-notes-bg: var(--color-surface);
+  /* The system I-beam follows the OS pointer scheme, not `color-scheme`: a
+     white pointer vanishes on the white notes page, so the I-beam is drawn
+     black. */
+  --notes-text-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='16'><path d='M2 1 H6 M4 1 V15 M2 15 H6' stroke='black' stroke-width='1' fill='none'/></svg>") 4 8, text;
+  --cal-day-fill: var(--color-tint-4);
 
   /* Task markers (shown before the title when set). */
   --color-marker-urgent: var(--color-danger);
@@ -332,6 +337,9 @@
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;
   --color-accent-dim: #2d7d74;
+  /* The accent as text: darkened to 5.2:1 on the surface (4.5:1 on the
+     elevated surface), mixed from the accent so a colour override carries over. */
+  --color-accent-text: color-mix(in srgb, var(--color-accent) 76%, black);
 
   /* Danger / warning — deepened for readability */
   --color-danger: #d94a43;
@@ -359,7 +367,6 @@
   --color-overdue: #b838c0;
   --color-overdue-bg: rgba(184, 56, 192, 0.08);
   --color-overdue-bg-strong: rgba(163, 44, 171, 0.16);
-  --color-overdue-glow: rgba(184, 56, 192, 0.15);
 
   /* Calendar widget: solid overdue entries (and text on them), past-day washes.
      The overdue follow-up fill stays bright yellow: the darker text yellow
@@ -379,14 +386,10 @@
   --color-text-primary: #1a1917;
   --color-text: var(--color-text-primary);
   --color-text-secondary: #5c5852;
-  --color-text-muted: #9a9590;
+  /* 5.3:1 on the surface, 4.8:1 on the app background, 4.6:1 on the elevated surface. */
+  --color-text-muted: #6f6b68;
   --color-text-completed: #c4c0bb;
   --color-text-on-accent: #ffffff;
-
-  /* Assigned status */
-  --color-assigned-bg: rgba(58, 158, 147, 0.06);
-  --color-assigned-border: rgba(58, 158, 147, 0.25);
-  --color-assigned-text: #2d7d74;
 
   /* Accent alpha */
   --color-accent-bg-subtle: rgba(58, 158, 147, 0.04);
@@ -403,7 +406,6 @@
   --color-overlay: rgba(0, 0, 0, 0.25);
 
   /* Tint scale — foreground contrast overlays (black on light) */
-  --color-tint-2: rgba(0, 0, 0, 0.02);
   --color-tint-3: rgba(0, 0, 0, 0.03);
   --color-tint-4: rgba(0, 0, 0, 0.04);
   --color-tint-5: rgba(0, 0, 0, 0.05);
@@ -436,23 +438,18 @@
 
   /* Shadows — lighter, subtler */
   --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--color-popover-ring);
   --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
-  --shadow-glow: 0 0 16px rgba(58, 158, 147, 0.15);
   --shadow-glass-card:
     0 0 0 1px rgba(0, 0, 0, 0.06),
     0 8px 24px rgba(0, 0, 0, 0.08),
     0 24px 64px rgba(0, 0, 0, 0.05);
   --shadow-fab: 0 2px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-fab-hover: 0 4px 16px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-card-hover-color: 0 2px 12px rgba(0, 0, 0, 0.08);
   --shadow-drag-overlay:
     0 4px 12px rgba(0, 0, 0, 0.1),
     0 12px 32px rgba(0, 0, 0, 0.08),
     0 0 0 1px var(--color-accent-shadow-subtle);
-  --shadow-drag-node: 0 12px 32px rgba(0, 0, 0, 0.12);
-  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
@@ -497,4 +494,20 @@ select option,
 select optgroup {
   background: var(--color-surface);
   color: var(--color-text-primary);
+}
+
+/* Reduced motion: every animation and transition finishes at once (1 ms, so
+ * `animationend` / `transitionend` still fire) and a spinner turns once. An
+ * animation that times something the user reads (the recent-task pill)
+ * keeps its length in its own stylesheet, without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }

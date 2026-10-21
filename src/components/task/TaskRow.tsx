@@ -20,10 +20,16 @@ import {
   DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
 } from './row-cells'
 import styles from './TaskRow.module.css'
+import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
 interface TaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
+  /**
+   * A person's group: the person it is, left out of the people cell (the
+   * group says it) — still assigned, so the people picker shows them ticked.
+   */
+  hiddenPersonId?: number
   isSelected?: boolean
   /** The drag overlay's copy of the row: no triggers or pickers, no hover sync. */
   ghost?: boolean
@@ -51,7 +57,7 @@ const NO_PEOPLE: Person[] = []
  * button); the whole row is the drag source (its list wraps it).
  */
 export const TaskRow = memo(function TaskRow({
-  todo, assignedPeople, isSelected, ghost,
+  todo, assignedPeople, hiddenPersonId, isSelected, ghost,
   onSelect, onOpenDetail,
 }: TaskRowProps) {
   // Whether the people / tags columns are there: a row re-renders when one comes or goes, not on every
@@ -119,6 +125,10 @@ export const TaskRow = memo(function TaskRow({
 
   const today = startOfToday()
   const people = assignedPeople ?? NO_PEOPLE
+  const cellPeople = useMemo(
+    () => (hiddenPersonId == null ? people : people.filter((p) => p.id !== hiddenPersonId)),
+    [people, hiddenPersonId],
+  )
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen
@@ -145,7 +155,7 @@ export const TaskRow = memo(function TaskRow({
     <div
       ref={rowRef}
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
-      data-todo-id={todo.id}
+      {...{ [TODO_ID_ATTR]: todo.id }}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
@@ -229,12 +239,12 @@ export const TaskRow = memo(function TaskRow({
           <NotesCell progress={todo.progress} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
           {hasPeople && (
             <PeopleCell
-              people={people}
+              people={cellPeople}
               anchorRef={peopleRef}
               open={peopleOpen}
               onToggle={togglePeople}
               onPersonContextMenu={onPersonContextMenu}
-              onCellContextMenu={onCellContextMenu('people', people.map((p) => ({ kind: 'person', entity: p })))}
+              onCellContextMenu={onCellContextMenu('people', cellPeople.map((p) => ({ kind: 'person', entity: p })))}
             />
           )}
           {hasTags && (

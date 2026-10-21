@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import { useUndoStore } from '../../stores/undo-store'
 import type { WidgetKind } from '../../models/workspace-layout'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import type { WorkspaceDragSource, WorkspaceDropHit, WorkspaceGeometry } from '../../utils/workspace-drop'
@@ -76,4 +77,20 @@ export function useWorkspaceDrag(): WorkspaceDragState | null {
 /** The drop label for `n` dragged tabs of a panel drag ("Merge 2 tabs here"). */
 export function tabsCount(n: number): string {
   return `${n} ${n === 1 ? 'tab' : 'tabs'}`
+}
+
+/** What the snackbar says when a drop's writes fail. */
+export const DROP_FAILED_NOTICE = 'Couldn’t finish the drop.'
+
+/**
+ * Runs a drop's handler (dnd-kit's `onDragEnd` can't await it): a failure is
+ * logged and said in the snackbar instead of rejecting unseen.
+ */
+export async function runDrop(drop: () => Promise<void>): Promise<void> {
+  try {
+    await drop()
+  } catch (err) {
+    console.error('[workspace] the drop failed', err)
+    useUndoStore.getState().notify(DROP_FAILED_NOTICE)
+  }
 }

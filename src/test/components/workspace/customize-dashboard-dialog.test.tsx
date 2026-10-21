@@ -105,6 +105,24 @@ describe('CustomizeDashboardDialog', () => {
     expect(dirty()).toBe(false)
   })
 
+  it('a config change made elsewhere while open (a sync-file load) shows, and the next edit builds on it', () => {
+    setup()
+    act(() => {
+      useWorkspaceStore.getState().patchTabConfig('dash', 'dashboard', {
+        tiles: ['dueToday', 'open'],
+        sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'hot' }],
+      })
+    })
+    expect(rowIds('Tiles').slice(0, 2)).toEqual(['tile:dueToday', 'tile:open'])
+    expect(rowIds('Sections').slice(0, 2)).toEqual(['section:people', 'section:hot'])
+    expect(screen.getByRole('button', { name: 'Unassigned: Hidden' })).toBeTruthy()
+    fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Hot' }))
+    expect(tabConfig().tiles).toEqual(['dueToday', 'open', 'hot'])
+    fireEvent.click(within(group('Sections')).getByRole('checkbox', { name: 'Status' }))
+    expect(tabConfig().sections.map((s) => s.id)).toEqual(['people', 'hot', 'status'])
+    expect(tabConfig().sections[0]).toEqual({ id: 'people', options: { showUnassigned: false } })
+  })
+
   it('hiding a section drops it from the config; its option is disabled while hidden', () => {
     setup()
     fireEvent.click(within(group('Sections')).getByRole('checkbox', { name: 'Created vs completed' }))

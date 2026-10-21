@@ -1,5 +1,7 @@
 import { useSettingsStore } from '../../../stores/settings-store'
 import { wrapClipboardHtml, writeRichClipboard } from '../../../services/rich-clipboard'
+import { COPY_REFUSED_NOTICE } from '../../../services/task-copy'
+import { useUndoStore } from '../../../stores/undo-store'
 import { HotRuleEditor } from '../../shared/HotRuleEditor'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
 import { hotRuleShort } from './dashboard-copy'
@@ -33,7 +35,11 @@ export function useDashboardMenuActions({ onCustomize, summary }: {
     actions.push({
       label: 'Copy summary',
       icon: <DashGlyph name="copy" />,
-      onSelect: () => { void writeRichClipboard(wrapClipboardHtml(summary.html), summary.plain) },
+      onSelect: () => {
+        void writeRichClipboard(wrapClipboardHtml(summary.html), summary.plain).then((ok) => {
+          if (!ok) useUndoStore.getState().notify(COPY_REFUSED_NOTICE)
+        })
+      },
     })
   }
   return actions

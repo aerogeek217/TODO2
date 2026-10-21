@@ -113,7 +113,7 @@
 
 .tint[data-tint="new"] {
   box-shadow: 0 0 0 1px var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .tint[data-tint="due"] {
@@ -137,7 +137,7 @@
 .tint[data-tint="accent"] {
   background: var(--color-accent-bg-medium);
   box-shadow: 0 0 0 2px var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .tint[data-tint="error"] {
@@ -192,7 +192,7 @@
 
 .chip[data-tint="accent"] {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* A chip's × (the follow-up pill's ×, always shown: phones have no hover). */
@@ -279,7 +279,7 @@
   background: transparent;
   box-sizing: border-box;
   border: 1px dashed var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* ─── Problem lines (new people, commands that set nothing) ────── */
@@ -395,6 +395,6 @@
 
 /* `@name` that matches nobody — created on submit. */
 .newPersonNames {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   font-weight: 600;
 }

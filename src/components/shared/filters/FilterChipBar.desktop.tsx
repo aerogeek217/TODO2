@@ -24,6 +24,7 @@ import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody, type FilterM
 import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
+import { useReturnFocus } from '../use-popover-focus'
 import {
   narrowedPeople,
   useFilterChipBarState,
@@ -151,6 +152,8 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
 function FilterButton({ field }: { field: FieldDef }) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLButtonElement>(null)
+  useReturnFocus(open, mainRef)
   const { onOpen, onClose } = field
   const close = useCallback(() => {
     setOpen(false)
@@ -167,6 +170,7 @@ function FilterButton({ field }: { field: FieldDef }) {
       className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${on && open ? styles.filterButtonOpen : ''}`}
     >
       <button
+        ref={mainRef}
         type="button"
         className={styles.filterMain}
         aria-expanded={open}
@@ -472,6 +476,7 @@ export function FilterChipBarDesktop({
           <EntityDropdownItems
             searchText={searchText}
             entities={people}
+            label="People"
             isChecked={h.isChecked}
             onToggle={h.onToggle}
             namePrefix="@"
@@ -513,6 +518,7 @@ export function FilterChipBarDesktop({
           <EntityDropdownItems
             searchText={searchText}
             entities={sortedTags}
+            label="Tags"
             isChecked={h.isChecked}
             onToggle={h.onToggle}
             namePrefix="#"
@@ -570,6 +576,7 @@ export function FilterChipBarDesktop({
           <EntityDropdownItems
             searchText={searchText}
             entities={statuses}
+            label="Status"
             isChecked={h.isChecked}
             onToggle={h.onToggle}
           />

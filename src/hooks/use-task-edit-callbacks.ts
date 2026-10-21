@@ -3,8 +3,11 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useUIStore } from '../stores/ui-store'
-import type { TodoItem, TodoChanges } from '../models'
+import type { Person, Tag, TodoItem, TodoChanges } from '../models'
 import { createEditorTask } from '../services/create-task'
+
+const NO_PEOPLE: Person[] = []
+const NO_TAGS: Tag[] = []
 
 /** Return the IDs of other multi-selected tasks (excluding the primary edit target). */
 function getOtherSelectedIds(primaryId: number): number[] {
@@ -18,15 +21,24 @@ function getOtherSelectedIds(primaryId: number): number[] {
  * and the edit-mode callbacks that also apply to the other selected tasks.
  */
 export function useTaskEditCallbacks() {
-  const { todos, update: updateTodo } = useTodoStore()
-  const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
-  const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
-  const { selectedTodoId, editPopupMode, openEditPopup, closeEditPopup } = useUIStore()
-
-  const selectedTodo = useMemo(
-    () => todos.find((t) => t.id === selectedTodoId) ?? null,
-    [todos, selectedTodoId]
-  )
+  // Selectors only: the editor re-renders for its own task, its people / tags
+  // and the lists to pick from — not for every other task's write, a hover or
+  // a selection click.
+  const selectedTodoId = useUIStore((s) => s.selectedTodoId)
+  const editPopupMode = useUIStore((s) => s.editPopupMode)
+  const openEditPopup = useUIStore((s) => s.openEditPopup)
+  const closeEditPopup = useUIStore((s) => s.closeEditPopup)
+  const updateTodo = useTodoStore((s) => s.update)
+  const selectedTodo = useTodoStore((s) =>
+    selectedTodoId == null ? null : s.todos.find((t) => t.id === selectedTodoId) ?? null)
+  const people = usePersonStore((s) => s.people)
+  const assignedPeople = usePersonStore((s) => (selectedTodoId == null ? undefined : s.assignedPeopleMap.get(selectedTodoId)))
+  const assignPerson = usePersonStore((s) => s.assignPerson)
+  const unassignPerson = usePersonStore((s) => s.unassignPerson)
+  const tags = useTagStore((s) => s.tags)
+  const assignedTags = useTagStore((s) => (selectedTodoId == null ? undefined : s.assignedTagsMap.get(selectedTodoId)))
+  const assignTag = useTagStore((s) => s.assignTag)
+  const unassignTag = useTagStore((s) => s.unassignTag)
 
   const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds?: number[] }) => {
     const id = await createEditorTask(partial, {
@@ -77,8 +89,8 @@ export function useTaskEditCallbacks() {
 
     return {
       todo: selectedTodo,
-      assignedPeople: assignedPeopleMap.get(selectedTodo.id) ?? [],
-      assignedTags: assignedTagsMap.get(selectedTodo.id) ?? [],
+      assignedPeople: assignedPeople ?? NO_PEOPLE,
+      assignedTags: assignedTags ?? NO_TAGS,
       onUpdate: (changes: TodoChanges) => bulkAwareUpdate(selectedTodo.id, changes),
       onToggleComplete: () => useTodoStore.getState().toggleComplete(selectedTodo.id),
       onFollowedUp: () => {
@@ -97,7 +109,7 @@ export function useTaskEditCallbacks() {
       onAssignTag: bulkAssign(assignTag, useTagStore.getState().bulkAssignTag),
       onUnassignTag: bulkAssign(unassignTag, useTagStore.getState().bulkUnassignTag),
     }
-  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedTagsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignTag, unassignTag])
+  }, [selectedTodo, selectedTodoId, assignedPeople, assignedTags, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignTag, unassignTag])
 
   const entityCreators = useMemo(() => ({
     onCreatePerson: (name: string) => usePersonStore.getState().getOrCreate(name),

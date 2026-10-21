@@ -207,6 +207,25 @@ describe('backupRepository', () => {
       expect(removed).toBe(0)
     })
 
+    it('past the byte limit the oldest go, newest first by stored size; the newest stays however large', async () => {
+      const text = (n: number, size: number) => `{"n":${n},"pad":"${'x'.repeat(size)}"}`
+      const ids: number[] = []
+      for (let n = 0; n < 5; n++) ids.push(await backupRepository.createSnapshotFromJson(text(n, 1000), 'sync-file'))
+      const other = await backupRepository.createSnapshotFromJson(text(9, 1000), 'auto')
+      // Each is ~1 KB: 3 fit in 3.5 KB.
+      expect(await backupRepository.pruneSnapshots('sync-file', 10, 3500)).toBe(2)
+      const left = (await backupRepository.listSnapshots()).map((b) => b.id).sort((a, b) => a - b)
+      expect(left).toEqual([...ids.slice(2), other].sort((a, b) => a - b))
+
+      // The count still applies within the budget.
+      expect(await backupRepository.pruneSnapshots('sync-file', 2, 1_000_000)).toBe(1)
+
+      // A newest backup larger than the limit is kept, alone.
+      const big = await backupRepository.createSnapshotFromJson(text(7, 5000), 'sync-file')
+      expect(await backupRepository.pruneSnapshots('sync-file', 10, 3500)).toBe(2)
+      expect((await backupRepository.listSnapshots()).filter((b) => b.trigger === 'sync-file').map((b) => b.id)).toEqual([big])
+    })
+
     it('prunes only the given kind: manual and sync-file backups outlive any number of others', async () => {
       const manual = await backupRepository.createSnapshot('manual')
       const file = await backupRepository.createSnapshotFromJson('{"raw":1}', 'sync-file')

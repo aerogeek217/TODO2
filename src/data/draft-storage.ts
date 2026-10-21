@@ -36,10 +36,11 @@ export type LayoutDraftRecord =
   /** Edits to a stored layout, made against `base` (its stored body then). */
   | { kind: 'saved'; layoutId: number; base: LayoutBody; body: LayoutBody }
   /**
-   * A new layout not stored yet. `listNames` names the lists its tabs show
-   * (by id), so a draft whose lists are gone or are other lists now is dropped.
+   * A new layout not stored yet (only one an older build kept; it opens
+   * again only while it shows no list). A `listNames` an older build kept
+   * with it is ignored.
    */
-  | { kind: 'new'; name: string; body: LayoutBody; listNames: Record<string, string> }
+  | { kind: 'new'; name: string; body: LayoutBody }
 
 /** A list's unsaved edits, made against `base` (the saved definition then). */
 export interface ListDraftRecord {
@@ -131,13 +132,8 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
     return { kind: 'saved', layoutId: v.layoutId, base, body }
   }
   if (v.kind === 'new') {
-    if (typeof v.name !== 'string' || v.name.trim() === '' || v.name.length > LAYOUT_NAME_MAX || !isRecord(v.listNames)) return null
-    const listNames: Record<string, string> = {}
-    for (const [id, name] of Object.entries(v.listNames)) {
-      if (typeof name !== 'string') return null
-      listNames[id] = name
-    }
-    return { kind: 'new', name: v.name, body, listNames }
+    if (typeof v.name !== 'string' || v.name.trim() === '' || v.name.length > LAYOUT_NAME_MAX) return null
+    return { kind: 'new', name: v.name, body }
   }
   return null
 }
@@ -151,7 +147,7 @@ export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
 function storedForm(record: LayoutDraftRecord): Record<string, unknown> {
   const { body } = record
   const flat = { columns: body.columns, top: body.top, bottom: body.bottom }
-  if (record.kind === 'new') return { kind: 'new', name: record.name, listNames: record.listNames, ...flat }
+  if (record.kind === 'new') return { kind: 'new', name: record.name, ...flat }
   const { base } = record
   return {
     kind: 'saved', layoutId: record.layoutId, ...flat,

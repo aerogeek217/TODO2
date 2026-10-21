@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { useFlashMessage } from '../../../hooks/use-flash-message'
-import { useFileOpsStore } from '../../../stores/file-ops-store'
 import type { ImportData } from '../../../data/import-validation'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
@@ -16,6 +15,8 @@ import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import { plural } from './plural'
 import styles from './sections.module.css'
+import { dayKey } from '../../../utils/date'
+import { restoreFromImport } from '../../../services/replace-data'
 
 /** Pending append import: the prepared file waiting in the duplicate picker. */
 interface PendingAppend {
@@ -33,7 +34,6 @@ interface PendingAppend {
 const DOWNLOADED_MESSAGE_MS = 8000
 
 export function ImportExportSection() {
-  const restoreFromImport = useFileOpsStore((s) => s.restoreFromImport)
   const [message, showMessage] = useFlashMessage('')
   /** Persistent: set when the last JSON export failed its re-import self-check. */
   const [exportWarning, setExportWarning] = useState<string | null>(null)
@@ -45,7 +45,17 @@ export function ImportExportSection() {
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
   useStackedLayer(pendingAppend !== null || pendingMigration !== null)
 
-  const handleExport = async () => {
+  /** Runs an export; a failure says so in the result line (an export never fails silently). */
+  const exporting = (run: () => Promise<void>) => async () => {
+    try {
+      await run()
+    } catch (err) {
+      console.error('[export] failed', err)
+      showMessage(`Export failed — ${err instanceof Error ? err.message : String(err)}`, DOWNLOADED_MESSAGE_MS)
+    }
+  }
+
+  const handleExport = exporting(async () => {
     const now = new Date()
     const json = await buildJsonExport(now)
     const timestamp = exportFileTimestamp(now)
@@ -67,7 +77,7 @@ export function ImportExportSection() {
     if (saved === 'cancelled') return
     if (saved === 'downloaded') showMessage(downloadedMessage(fileName), DOWNLOADED_MESSAGE_MS)
     else showMessage('Exported!', 2000)
-  }
+  })
 
   /** Open a JSON file via the picker, or the hidden `<input>` fallback. */
   const pickJsonFile = async (fallbackInput: HTMLInputElement | null, onFile: (file: File) => Promise<void>) => {
@@ -183,9 +193,10 @@ export function ImportExportSection() {
     }
   }
 
-  const handleExportMarkdown = async () => {
+  const handleExportMarkdown = exporting(async () => {
     const md = await buildMarkdownExport()
-    const fileName = `todos-${new Date().toISOString().split('T')[0]}.md`
+    // Today's local day (not UTC's, which is tomorrow late in the evening west of Greenwich).
+    const fileName = `todos-${dayKey(new Date())}.md`
     const saved = await saveTextFile({
       text: md,
       suggestedName: fileName,
@@ -196,7 +207,7 @@ export function ImportExportSection() {
     if (saved === 'cancelled') return
     if (saved === 'downloaded') showMessage(downloadedMessage(fileName), DOWNLOADED_MESSAGE_MS)
     else showMessage('Markdown exported!', 2000)
-  }
+  })
 
   const secondary = `${styles.button} ${styles.buttonSecondary}`
 

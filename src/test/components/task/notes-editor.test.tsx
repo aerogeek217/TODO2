@@ -206,3 +206,38 @@ describe('NotesEditor — value and callbacks', () => {
     expect(first).not.toHaveBeenCalled()
   })
 })
+
+describe('NotesEditor — Markdown editing', () => {
+  function editorWith(doc: string) {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    render(<NotesEditor value={doc} onChange={() => {}} viewRef={viewRef} />)
+    const view = viewRef.current!
+    view.dispatch({ selection: { anchor: doc.length } })
+    return view
+  }
+  const press = (view: EditorView, key: string) =>
+    view.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
+
+  it('Enter at the end of a list item starts the next item', () => {
+    const view = editorWith('- one')
+    press(view, 'Enter')
+    expect(view.state.doc.toString()).toBe('- one\n- ')
+  })
+
+  it('Backspace after an empty item’s marker turns it into the item’s indent', () => {
+    const view = editorWith('- one\n- ')
+    press(view, 'Backspace')
+    expect(view.state.doc.toString()).toBe('- one\n  ')
+  })
+
+  it('a URL pasted over selected text makes it a link', () => {
+    const view = editorWith('docs')
+    view.dispatch({ selection: { anchor: 0, head: 4 } })
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', {
+      value: { types: ['text/plain'], getData: (type: string) => (type === 'text/plain' ? 'https://example.com' : '') },
+    })
+    view.contentDOM.dispatchEvent(event)
+    expect(view.state.doc.toString()).toBe('[docs](https://example.com)')
+  })
+})

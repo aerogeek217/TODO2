@@ -180,6 +180,19 @@ describe('FilterSheet', () => {
       expect(personIds!.has(2)).toBe(true)
     })
 
+    it('each person is a real checkbox named by the row: Space on it ticks, as a tap does', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('People'))
+      const alice = screen.getByRole('checkbox', { name: 'Alice' })
+      expect(alice).toBeChecked()
+      expect(alice).not.toHaveAttribute('tabindex', '-1')
+      expect(screen.getByRole('checkbox', { name: 'Unassigned' })).toBeInTheDocument()
+      // A keyboard Space on a checkbox is a click.
+      fireEvent.click(alice)
+      expect(useFilterStore.getState().filters.personIds?.has(1)).toBe(false)
+      expect(screen.getByRole('checkbox', { name: 'Alice' })).not.toBeChecked()
+    })
+
     it('shows Unassigned option in people list', () => {
       renderSheet()
       fireEvent.click(screen.getByText('People'))

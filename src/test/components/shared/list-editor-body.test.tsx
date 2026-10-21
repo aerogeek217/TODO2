@@ -26,6 +26,13 @@ function openChoices(row: string) {
   fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${row}`) }))
 }
 
+/** A real press on a button: mousedown (where popovers close on outside presses), then click. */
+function pressButton(el: HTMLElement) {
+  fireEvent.mouseDown(el)
+  fireEvent.mouseUp(el)
+  fireEvent.click(el)
+}
+
 /** The labels of the open radio menu's choices. */
 const choiceLabels = () => screen.getAllByRole('menuitemradio').map((el) => el.getAttribute('data-menu-label'))
 
@@ -60,6 +67,18 @@ describe('<ListEditorBody>', () => {
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')
     expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+  })
+
+  it.each(['Group by', 'Sort by'])('a second press on %s closes its menu; a third opens it again', (row) => {
+    render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} />)
+    const button = screen.getByRole('button', { name: new RegExp(`^${row}`) })
+    pressButton(button)
+    expect(screen.getByRole('menu', { name: row })).toBeInTheDocument()
+    pressButton(button)
+    expect(screen.queryByRole('menu', { name: row })).not.toBeInTheDocument()
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    pressButton(button)
+    expect(screen.getByRole('menu', { name: row })).toBeInTheDocument()
   })
 
   it('groups by Priority, with a note saying a task shows in each of its groups', () => {
@@ -231,6 +250,16 @@ describe('<ListEditorBody>', () => {
       { key: 'layout:1', heading: 'Main · this layout', lists: [{ id: 9, owner: { layoutId: 1 }, sortOrder: 0, def: makeDraft({ id: 9, name: 'Mine' }), name: 'Mine', hint: 'All tasks' }] },
       { key: 'layout:2', heading: 'Second', lists: [{ id: 8, owner: { layoutId: 2 }, sortOrder: 1, def: calls, name: 'Calls', hint: 'Text: “call”' }] },
     ]
+
+    it('a second press on Copy from… closes its chooser', () => {
+      render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} variant="popover" copyFrom={{ groups, onPick: vi.fn() }} />)
+      const button = screen.getByRole('button', { name: 'Copy from…' })
+      pressButton(button)
+      expect(screen.getByRole('menu', { name: 'Copy from' })).toBeInTheDocument()
+      pressButton(button)
+      expect(screen.queryByRole('menu', { name: 'Copy from' })).not.toBeInTheDocument()
+      expect(button).toHaveAttribute('aria-expanded', 'false')
+    })
 
     it('no control without `copyFrom`', () => {
       render(<ListEditorBody draft={makeDraft()} onChange={vi.fn()} variant="popover" />)

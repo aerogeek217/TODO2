@@ -39,7 +39,7 @@ test.describe('desktop', () => {
     await expect(mode.getByRole('radio', { name: 'Is not' })).toHaveAttribute('aria-checked', 'true')
     // Nothing ticked yet: no filter.
     await expect.poll(() => titles(page)).toEqual(ALL)
-    await page.locator('label', { hasText: 'Waiting' }).click()
+    await page.getByRole('option', { name: 'Waiting' }).click()
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
 
     // Is: the same tick now picks the Waiting task.
@@ -48,11 +48,11 @@ test.describe('desktop', () => {
     await mode.getByRole('radio', { name: 'Is not' }).click()
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
     // The last tick removed: no filter, and the picker stays on Is not.
-    const waitingRow = page.locator('label', { hasText: 'Waiting' })
+    const waitingRow = page.getByRole('option', { name: 'Waiting' })
     await waitingRow.click()
     await expect.poll(() => titles(page)).toEqual(ALL)
     await expect(mode.getByRole('radio', { name: 'Is not' })).toHaveAttribute('aria-checked', 'true')
-    await expect(waitingRow.locator('span').first()).not.toHaveClass(/checked/)
+    await expect(waitingRow).toHaveAttribute('aria-selected', 'false')
     await waitingRow.click()
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
     await page.keyboard.press('Escape')
@@ -80,14 +80,14 @@ test.describe('desktop', () => {
     await page.getByRole('menuitem', { name: 'People' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()
-    await picker.locator('label', { hasText: '@Ann' }).click()
+    await picker.getByRole('option', { name: '@Ann' }).click()
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
     await expect(editList.getByTestId('list-filter-chip')).toHaveText(/People\s*not Ann/)
     await expect(editList.locator('[data-changed]')).toHaveText(['Filters'])
-    // Esc closes the picker, then Edit list asks about the unsaved list: Save list.
+    // Esc closes the picker; Edit list's Save list writes the edit.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
-    await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Save list' }).click()
+    await editList.getByRole('button', { name: 'Save list' }).click()
     await expect(editList).toHaveCount(0)
     await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 
@@ -108,7 +108,7 @@ test.describe('desktop', () => {
     await wsListWidget(page, 't1').getByTestId('list-filter-chip').click()
     await expect(picker.getByRole('radio', { name: 'Is not' })).toHaveAttribute('aria-checked', 'true')
     // Is not Ann + Unassigned: only Bob's task.
-    await picker.locator('label', { hasText: 'None' }).click()
+    await picker.getByRole('option', { name: 'None' }).click()
     await expect.poll(() => titles(page)).toEqual(['Bob task'])
     // Is with the same ticks: the other two.
     await picker.getByRole('radio', { name: 'Is', exact: true }).click()
@@ -125,7 +125,7 @@ test.describe('narrow window', () => {
     await page.getByRole('button', { name: 'Filters', exact: true }).click()
     await page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'People filter' }).click()
     await page.getByRole('radiogroup', { name: 'People: is or is not' }).getByRole('radio', { name: 'Is not' }).click()
-    await page.locator('label', { hasText: '@Bob' }).click()
+    await page.getByRole('option', { name: '@Bob' }).click()
     await expect.poll(() => titles(page)).toEqual(['Ann waiting', 'Nobody task'])
     await expect(page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'People filter: not Bob' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Filters, 1 active' })).toBeVisible()

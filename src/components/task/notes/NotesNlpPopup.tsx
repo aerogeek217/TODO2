@@ -4,7 +4,7 @@ import type { EditorView } from '@codemirror/view'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { NlpPopup } from '../../shared/NlpPopup'
-import { closeNotesPopup, holdNotesPopup, pickNotesPopupRow, type NotesPopupState } from './notes-nlp'
+import { closeNotesPopup, highlightNotesPopupRow, holdNotesPopup, pickNotesPopupRow, type NotesPopupState } from './notes-nlp'
 import styles from './NotesEditor.module.css'
 
 interface AnchorRect { left: number; top: number; right: number; bottom: number }
@@ -78,6 +78,7 @@ export function NotesNlpPopup({ editor, popup }: { editor: EditorView; popup: No
       view={popup.view}
       selectedIndex={popup.selectedIndex}
       onPick={(row) => pickNotesPopupRow(editor, row)}
+      onHighlight={(index) => highlightNotesPopupRow(editor, index)}
       entityMenu={{
         keyTarget: () => editor.contentDOM,
         // Held from the menu's opening until the focus is back in the editor —

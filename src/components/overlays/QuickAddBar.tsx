@@ -73,6 +73,7 @@ import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
+import { shortcutScope } from '../../utils/dom-contract'
 
 const POPUP_GAP_PX = 4
 const POPUP_WIDTH_PX = 280
@@ -690,32 +691,49 @@ export function QuickAddBar({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (submittingRef.current) return
-      // A token the popup is open on is completed to its best match.
+      // A token the popup is open on is completed to the highlighted row.
       const text = ac.completeForSubmit(raw)
       ac.dismiss()
       if (text !== raw) setRaw(text)
-      const submitted = draftFor(text)
-      if (submitted.title.trim().length === 0) {
-        if (text.trim().length > 0) setTitleMissing(true)
+      if (ac.creating()) {
+        // A person / tag picked from a Create row is still being saved: submit
+        // once it is, read against the stores then (the token names it).
+        submittingRef.current = true
+        const opening = openingRef.current
+        void ac.whenCreated().then(() => {
+          submittingRef.current = false
+          if (openingRef.current !== opening) return
+          const run = runParse(text, usePersonStore.getState().people, useStatusStore.getState().statuses)
+          submit(text, { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset })
+        })
         return
       }
-      const result = onSubmit(submitted)
-      if (!(result instanceof Promise)) {
-        onClose()
-        return
-      }
-      submittingRef.current = true
-      const opening = openingRef.current
-      void result
-        .then((created) => {
-          if (created && openingRef.current === opening) onClose()
-        })
-        .catch((err: unknown) => {
-          // The bar stays open with the text; Enter tries again.
-          console.warn('[quick-add] the task could not be created', err)
-        })
-        .finally(() => { submittingRef.current = false })
+      submit(text, draftFor(text))
     }
+  }
+
+  /** Submits `submitted` (the draft for `text`); the bar closes once the task is stored. */
+  const submit = (text: string, submitted: QuickAddDraft) => {
+    if (submitted.title.trim().length === 0) {
+      if (text.trim().length > 0) setTitleMissing(true)
+      return
+    }
+    const result = onSubmit(submitted)
+    if (!(result instanceof Promise)) {
+      onClose()
+      return
+    }
+    submittingRef.current = true
+    const opening = openingRef.current
+    void result
+      .then((created) => {
+        if (created && openingRef.current === opening) onClose()
+      })
+      .catch((err: unknown) => {
+        // The bar stays open with the text; Enter tries again.
+        console.warn('[quick-add] the task could not be created', err)
+      })
+      .finally(() => { submittingRef.current = false })
   }
 
   if (!open) return null
@@ -769,7 +787,7 @@ export function QuickAddBar({
               }}
               onScroll={syncMirror}
               onKeyDown={onInputKeyDown}
-              data-shortcut-scope="none"
+              {...shortcutScope('none')}
               spellCheck={false}
             />
           </div>
@@ -854,6 +872,7 @@ export function QuickAddBar({
               view={ac.state.view}
               selectedIndex={ac.state.selectedIndex}
               onPick={(row) => ac.select(row, inputRef.current)}
+              onHighlight={ac.highlight}
               popupRef={setPopupEl}
               className={styles.popup}
               style={{ top: popupStyle.top, left: popupStyle.left, width: POPUP_WIDTH_PX }}

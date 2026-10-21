@@ -102,12 +102,12 @@
   outline: none;
   background: var(--color-accent-bg-medium);
   box-shadow: inset 0 0 0 1.5px var(--color-accent), var(--shadow-card);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .tileIcon {
   display: inline-flex;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* ── Tab drag feedback (viewport coordinates) ── */

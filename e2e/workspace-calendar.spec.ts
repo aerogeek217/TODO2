@@ -69,6 +69,19 @@ async function dragOnto(page: Page, from: Locator, to: Locator, during?: () => P
   return end
 }
 
+/**
+ * A menu opened at point `p` has a corner there: its left edge at `p.x`, or —
+ * flipped, when it would pass the viewport's right edge (a day in the week's
+ * last columns) — its right edge; its top just below `p.y`, or its bottom just
+ * above when flipped up (a day in the month's last rows).
+ */
+async function expectCornerAt(menu: Locator, p: Point): Promise<void> {
+  const b = await box(menu)
+  const near = (a: number, z: number) => Math.abs(a - z) <= 6
+  expect(near(b.x, p.x) || near(b.x + b.width, p.x), `menu x ${b.x}–${b.x + b.width} vs point ${p.x}`).toBe(true)
+  expect(near(b.y, p.y) || near(b.y + b.height, p.y), `menu y ${b.y}–${b.y + b.height} vs point ${p.y}`).toBe(true)
+}
+
 const listRow = (page: Page, title: string) => wsCell(page, 'a1').locator('[data-row-key]').filter({ hasText: title })
 const chooser = (page: Page) => page.getByRole('menu', { name: 'Set which date' })
 
@@ -88,8 +101,7 @@ test.describe('dropping a list task on a day', () => {
     // The chooser opens at the pointer; the day stays highlighted.
     const menu = chooser(page)
     await expect(menu).toBeVisible()
-    const box = await menu.boundingBox()
-    expect(box && Math.abs(box.x - (end.x + 2)) < 40 && Math.abs(box.y - (end.y + 10)) < 40).toBe(true)
+    await expectCornerAt(menu, { x: end.x + 2, y: end.y + 10 })
     await expect(target).toHaveAttribute('data-drop-target', 'true')
     await expect(menu.getByRole('menuitem', { name: /Due date/ })).toContainText('was')
     await expect(menu.getByRole('menuitem', { name: /Follow-up/ })).toContainText('not set')

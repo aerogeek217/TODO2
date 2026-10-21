@@ -52,6 +52,26 @@
   }
 }
 
+/* Reduced motion: no slide in, but the pill still shows for its whole time
+ * (the global rule would end the animation, and with it the pill, at once). */
+@media (prefers-reduced-motion: reduce) {
+  .pill {
+    animation: appearLingerStill 5500ms forwards !important;
+  }
+}
+
+@keyframes appearLingerStill {
+  0%,
+  90% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
 .label {
   font-size: 11px;
   text-transform: uppercase;

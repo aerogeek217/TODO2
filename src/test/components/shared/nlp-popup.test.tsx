@@ -83,7 +83,7 @@ describe('NlpPopup — a person’s / tag’s menu on its rows', () => {
 
   it('no menu on create or command rows, nor without entityMenu', () => {
     const { input, unmount } = renderPopup('@zed')
-    fireEvent.contextMenu(screen.getByRole('option', { name: /create @zed/ }), { button: 2 })
+    fireEvent.contextMenu(screen.getByRole('option', { name: /Create @zed/ }), { button: 2 })
     fireEvent.contextMenu(input, { button: 0 })
     expect(screen.queryByRole('menu')).toBeNull()
     unmount()
@@ -112,5 +112,16 @@ describe('useNlpAutocomplete — the open popup follows its candidates', () => {
     expect(names()).toEqual(['Anna', 'Andy Ross'])
     rerender({ people: personItems([{ id: 1, name: 'Annabel', initials: 'AN' }]) })
     expect(names()).toEqual(['Annabel'])
+  })
+
+  it('makes its text-measuring context once, not per caret measurement', () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const input = document.createElement('input')
+    const people = personItems(PEOPLE)
+    const onApply = vi.fn()
+    const { result } = renderHook(() => useNlpAutocomplete({ people, onApply }))
+    for (const text of ['@a', '@an', '@and']) act(() => { result.current.handleInputChange(text, text.length, input) })
+    expect(result.current.state.view).not.toBeNull()
+    expect(getContext).toHaveBeenCalledTimes(1)
   })
 })

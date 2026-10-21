@@ -1,14 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { readListDefinitions, readListOrders, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
-import { readStore, writeStores } from './fixtures/db'
+import { readListDefinitions, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
 
 /**
  * Copy from, in a real browser: Edit list's Copy from… takes another list's
  * filters, group, sort, prompt and filter line into the list as an unsaved
- * edit (its name kept; Revert drops it, Save list keeps it); a list
- * picker's Copy of › makes a copy of any layout's list for the open layout
- * (named uniquely within it, with the source's manual order). One chooser:
+ * edit (its name kept; Revert drops it, Save list keeps it). One chooser:
  * the lists by layout — this one first —, then the Eisenhower's.
  */
 
@@ -76,24 +74,6 @@ async function openEditList(page: Page, tabId: string): Promise<Locator> {
   return editList(page)
 }
 
-/** Manual ranks for `Ordered`: Call mom, Book flights, Call the plumber. */
-async function seedOrderedRanks(page: Page): Promise<void> {
-  const todos = await readStore<{ id: number; title: string }>(page, 'todos')
-  const id = (title: string) => todos.find((t) => t.title === title)!.id
-  const ordered = (await listNamed(page, 'Ordered'))!.id
-  await writeStores(page, {
-    add: {
-      listOrders: [
-        { listDefinitionId: ordered, todoId: id('Call mom'), rank: 1000 },
-        { listDefinitionId: ordered, todoId: id('Book flights'), rank: 2000 },
-        { listDefinitionId: ordered, todoId: id('Call the plumber'), rank: 3000 },
-      ],
-    },
-  })
-  await page.reload()
-  await expect(wsTab(page, 'orderedTab')).toBeVisible()
-}
-
 test.use({ viewport: { width: 1600, height: 900 } })
 
 test('Edit list › Copy from…: by layout; the copy is an unsaved edit — Revert drops it, Save list keeps it, the name stays', async ({ page }) => {
@@ -140,46 +120,4 @@ test('Edit list › Copy from…: by layout; the copy is an unsaved edit — Rev
   })
   // The source is untouched.
   expect((await lists(page)).filter((d) => d.name === 'Calls')).toHaveLength(1)
-})
-
-test('a list picker’s Copy of ›: a copy of another layout’s list, or this one’s (named uniquely, its manual order kept), for this layout', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  await seedOrderedRanks(page)
-  const main = await layoutId(page, 'Main')
-
-  const addFromCopyOf = async (source: RegExp, mainLists: string[]) => {
-    await wsCell(page, 'b1').getByRole('button', { name: 'Add widget as tab' }).click()
-    await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
-    await page.getByRole('button', { name: 'Copy of' }).click()
-    const menu = page.getByRole('menu', { name: 'Copy of' })
-    await expect(menu).toBeVisible()
-    expect(await menuOutline(menu)).toEqual(['# Main · this layout', ...mainLists, '# Second', 'Calls', '# Eisenhower', 'Eisenhower'])
-    await menu.getByRole('menuitem', { name: source }).first().click()
-    await expect(menu).toHaveCount(0)
-  }
-
-  // Another layout's list: same name (Main has none), its parts, owned by Main; Edit list opens on it.
-  await addFromCopyOf(/^Calls/, ['Mine', 'Ordered'])
-  await expect(page.getByRole('dialog', { name: 'Edit list Calls' })).toBeVisible()
-  await expect(wsCell(page, 'b1').getByRole('tab', { name: 'Calls' })).toHaveAttribute('aria-selected', 'true')
-  await expect.poll(async () => (await lists(page)).filter((d) => d.name === 'Calls').length).toBe(2)
-  const copy = (await lists(page)).find((d) => d.name === 'Calls' && d.owner?.layoutId === main)!
-  expect(copy).toMatchObject({ sort: 'deadline', sortDirection: 'desc', grouping: 'status', showFilterLine: false, membership: { predicate: { searchText: 'call' } } })
-  // Nothing unsaved about the copy: Esc just closes Edit list.
-  await page.keyboard.press('Escape')
-  await expect(editList(page)).toHaveCount(0)
-
-  // This layout's own list: `Ordered 2`, with Ordered's manual order.
-  await addFromCopyOf(/^Ordered/, ['Mine', 'Ordered', 'Calls'])
-  await expect(page.getByRole('dialog', { name: 'Edit list Ordered 2' })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect.poll(() => listNamed(page, 'Ordered 2')).toMatchObject({ owner: { layoutId: main }, sort: 'manual', grouping: 'none' })
-  const ordered = (await listNamed(page, 'Ordered'))!.id
-  const ordered2 = (await listNamed(page, 'Ordered 2'))!.id
-  const ranksOf = async (listId: number) => Object.fromEntries((await readListOrders(page))
-    .filter((r) => r.listDefinitionId === listId).map((r) => [r.todoId, r.rank]))
-  expect(await ranksOf(ordered2)).toEqual(await ranksOf(ordered))
-  const tab = wsCell(page, 'b1').getByRole('tab', { name: 'Ordered 2' })
-  const tabId = (await tab.getAttribute('data-ws-tab'))!
-  await expect.poll(() => rowTitles(wsListWidget(page, tabId))).toEqual(['Call mom', 'Book flights', 'Call the plumber'])
 })

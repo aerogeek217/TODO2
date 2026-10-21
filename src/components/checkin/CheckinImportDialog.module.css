@@ -281,13 +281,9 @@
   max-height: 260px;
   overflow-y: auto;
   padding: 6px 10px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border: 1px solid var(--color-border);
   border-radius: 6px;
-}
-
-:global([data-theme="light"]) .diff {
-  background: var(--color-surface);
 }
 
 .line {
@@ -317,7 +313,7 @@
 }
 
 .lineAdded {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .followup {

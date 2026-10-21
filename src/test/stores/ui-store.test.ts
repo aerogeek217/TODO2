@@ -113,41 +113,10 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('opening Settings closes Edit list first (it belongs to the workspace), through its close request', () => {
+  it('opening Settings closes Edit list at once (it belongs to the workspace)', () => {
     useUIStore.getState().openListEditor(7, 'tab-1')
     useUIStore.getState().openSettings('tasks')
-    // Waiting on Edit list's host (it asks while the list is unsaved).
-    expect(useUIStore.getState().settingsOpen).toBe(false)
-    expect(useUIStore.getState().listEditorCloseRequest).not.toBeNull()
-    useUIStore.getState().finishListEditorClose()
-    expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null, settingsOpen: true, settingsSection: 'tasks' })
-  })
-
-  it('finishing a close twice (the prompt’s Save landing after the draft went) leaves the Edit list its follow-up opened', () => {
-    useUIStore.getState().openListEditor(7, 'tab-1')
-    useUIStore.getState().requestCloseListEditor(() => useUIStore.getState().openListEditor(8, 'tab-2'))
-    useUIStore.getState().finishListEditorClose()
-    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
-    useUIStore.getState().finishListEditorClose()
-    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 8, tabId: 'tab-2' })
-  })
-
-  it('a close request runs its follow-up at once when no Edit list is open; Cancel drops it', () => {
-    let ran = 0
-    useUIStore.getState().requestCloseListEditor(() => { ran++ })
-    expect(ran).toBe(1)
-    expect(useUIStore.getState().listEditorCloseRequest).toBeNull()
-
-    useUIStore.getState().openListEditor(7, 'tab-1')
-    useUIStore.getState().requestCloseListEditor(() => { ran++ })
-    useUIStore.getState().cancelListEditorClose()
-    expect(useUIStore.getState().listEditor).not.toBeNull()
-    expect(ran).toBe(1)
-    // closeListEditor (the list left the screen) drops a waiting request too.
-    useUIStore.getState().requestCloseListEditor(() => { ran++ })
-    useUIStore.getState().closeListEditor()
-    expect(useUIStore.getState()).toMatchObject({ listEditor: null, listEditorCloseRequest: null })
-    expect(ran).toBe(1)
+    expect(useUIStore.getState()).toMatchObject({ listEditor: null, settingsOpen: true, settingsSection: 'tasks' })
   })
 
   it('a control to focus is kept only on the way to a part, and forgotten when Settings closes', () => {

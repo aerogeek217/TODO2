@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useTodoStore } from '../../stores/todo-store'
 
 const now = new Date()
 
@@ -146,6 +147,30 @@ describe('useStatusStore', () => {
 
       const todo = await db.todos.get(todoId)
       expect(todo!.statusId).toBeUndefined()
+    })
+
+    it('stamps the tasks it clears with one modifiedAt, in the store and the database, and records the change (the dashboard trend, the check-in reply’s stale rule see it); undo puts it back', async () => {
+      await useStatusStore.getState().add('Waiting', '#00ff00')
+      const statusId = useStatusStore.getState().statuses[0]!.id!
+      const old = new Date(2026, 0, 5)
+      const todoId = await db.todos.add({
+        uid: 'status-store-stamp', title: 'Task', isCompleted: false,
+        sortOrder: 0, createdAt: old, modifiedAt: old, statusId,
+      })
+      await useTodoStore.getState().loadAll()
+
+      await useStatusStore.getState().remove(statusId)
+      const inStore = useTodoStore.getState().todos.find((t) => t.id === todoId)!
+      const inDb = (await db.todos.get(todoId))!
+      expect(inStore.statusId).toBeUndefined()
+      expect(inStore.modifiedAt.getTime()).toBeGreaterThan(old.getTime())
+      expect(inDb.modifiedAt).toEqual(inStore.modifiedAt)
+      expect(await db.todoEvents.where('todoId').equals(todoId).toArray())
+        .toMatchObject([{ type: 'status', fromValue: statusId, toValue: null }])
+
+      await useUndoStore.getState().undo()
+      expect(useTodoStore.getState().todos.find((t) => t.id === todoId)!.statusId).toBe(statusId)
+      expect((await db.todoEvents.where('todoId').equals(todoId).toArray()).map((e) => e.toValue)).toEqual([null, statusId])
     })
 
     it('registers undo action', async () => {

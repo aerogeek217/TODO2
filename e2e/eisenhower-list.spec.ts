@@ -75,7 +75,7 @@ async function filterWaiting(page: Page, isNot: boolean): Promise<void> {
   await page.getByRole('menuitem', { name: 'Status' }).click()
   const picker = page.getByTestId('list-filter-picker')
   if (isNot) await picker.getByRole('radio', { name: 'Is not' }).click()
-  await picker.locator('label', { hasText: 'Waiting' }).click()
+  await picker.getByRole('option', { name: 'Waiting' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 }
@@ -145,7 +145,7 @@ test.describe('desktop', () => {
     // Its filter, in Edit list's form: Status is Waiting.
     await editList.getByRole('button', { name: 'Filter', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Status' }).click()
-    await page.getByTestId('list-filter-picker').locator('label', { hasText: 'Waiting' }).click()
+    await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Waiting' }).click()
     // A click in Edit list closes the picker (it stays open).
     await editList.getByRole('textbox', { name: 'Name' }).click()
     await expect(page.getByTestId('list-filter-picker')).toHaveCount(0)
@@ -186,7 +186,7 @@ test.describe('desktop', () => {
     await expect(row(quadrant(page, 'drop'), 'Tidy the backlog')).toBeVisible()
   })
 
-  test('an Eisenhower switched to List picks a list — never the Eisenhower’s; a list tab switched to Eisenhower shows its list', async ({ page }) => {
+  test('an Eisenhower switched to List shows a new list of the layout — never the Eisenhower’s —, its Edit list open; switched back it shows its list', async ({ page }) => {
     // "Other" is the layout's list: a tab of it shows it.
     await seedWorkspace(page, {
       ...ON_TEAM,
@@ -199,13 +199,13 @@ test.describe('desktop', () => {
       }],
     })
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'List' }).click()
-    const picker = page.getByText('Show list', { exact: true }).locator('..')
-    await expect(picker).toBeVisible()
-    await expect(picker.getByRole('button', { name: /^Other/ })).toBeVisible()
-    await expect(picker.getByRole('button', { name: /^Team/ })).toHaveCount(0)
-    await picker.getByRole('button', { name: /^Other/ }).click()
-    await expect(wsTab(page, 'eisTab')).toHaveAttribute('title', 'Other')
+    // No picker: a new blank list, its Edit list open beside the tab.
+    await expect(page.getByText('Show list', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Edit list New list' })).toBeVisible()
+    await expect(wsTab(page, 'eisTab')).toHaveAttribute('title', 'New list')
     await expect(wsCell(page, 'b1').locator('[data-list-widget="eisTab"]')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: /^Edit list/ })).toHaveCount(0)
     // Back to Eisenhower: its own list's filter line.
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'Eisenhower' }).click()
     await expect(widget(page)).toBeVisible()

@@ -4,6 +4,7 @@ import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../mod
 import { encodeDateValue } from './todo-event-repository'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { newTodoUid } from '../utils/todo-uid'
+import { withOrphanedRuleDropped } from '../utils/todo-changes'
 
 /**
  * `completedAt` bookkeeping for a write that may touch `isCompleted`:
@@ -28,24 +29,6 @@ function withoutUndefinedCompletedAt<T extends Partial<TodoItem>>(row: T): T {
   const rest: Partial<TodoItem> = { ...row }
   delete rest.completedAt
   return rest as T
-}
-
-/**
- * Repository-level invariant: a `recurrenceRule` is only meaningful when the
- * row has a due date to advance from.
- * When a write produces a merged row with a rule but no anchor — e.g. a bulk
- * `bulkSetDeadline(null)` clears the due date — splice
- * `recurrenceRule: undefined` into the patch so the rule is dropped on disk.
- * Mirrors TaskEditPopup's silent-clear UX so every write path converges on
- * the same shape regardless of caller.
- */
-function dropOrphanedRule<T extends Partial<TodoItem>>(
-  merged: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>,
-  changes: T,
-): T {
-  if (!merged.recurrenceRule) return changes
-  if (merged.dueDate != null) return changes
-  return { ...changes, recurrenceRule: undefined }
 }
 
 /**
@@ -272,7 +255,8 @@ export const todoRepository = {
         const prior = await db.todos.get(todoId) as PersistedTodoItem | undefined
         if (!prior) continue
         const merged = { ...prior, ...changes }
-        const cleaned = withCompletedAt(prior, dropOrphanedRule(merged, changes), now)
+        // A rule left without a due date to advance from goes (the stores mirror it).
+        const cleaned = withCompletedAt(prior, withOrphanedRuleDropped(merged, changes), now)
         await db.todos.update(todoId, { ...cleaned, modifiedAt: changes.modifiedAt ?? now })
         events.push(...buildFieldChangeEvents(todoId, prior, cleaned, ts))
       }

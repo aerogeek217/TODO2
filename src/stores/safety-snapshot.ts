@@ -38,7 +38,6 @@ export async function takeSafetySnapshot(operation: string): Promise<SafetySnaps
       + 'Browser storage may be full. '
       + 'Continue without a backup, or cancel?',
     confirmLabel: 'Continue',
-    cancelLabel: 'Cancel',
     danger: true,
     cancelIsDefault: true,
   })

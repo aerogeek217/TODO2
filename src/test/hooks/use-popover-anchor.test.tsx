@@ -15,12 +15,16 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 const VIEWPORT_W = 1024
 const VIEWPORT_H = 768
 
+// Stubbed, not redefined: later files in a shared worker get jsdom's own size back.
 beforeEach(() => {
-  Object.defineProperty(window, 'innerWidth', { value: VIEWPORT_W, writable: true, configurable: true })
-  Object.defineProperty(window, 'innerHeight', { value: VIEWPORT_H, writable: true, configurable: true })
+  vi.stubGlobal('innerWidth', VIEWPORT_W)
+  vi.stubGlobal('innerHeight', VIEWPORT_H)
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 interface HarnessProps {
   anchor: PopoverAnchor
@@ -145,7 +149,7 @@ describe('usePopoverAnchor — positioning math', () => {
   })
 
   it('clamps a too-tall panel into the viewport with 8px margin', () => {
-    Object.defineProperty(window, 'innerHeight', { value: 300, writable: true, configurable: true })
+    vi.stubGlobal('innerHeight', 300)
     const { getByTestId } = render(
       <Harness
         anchor={{ kind: 'point', x: 50, y: 50 }}
@@ -226,6 +230,29 @@ describe('usePopoverAnchor — dismissal', () => {
     // panel and let it bubble.
     fireEvent.scroll(panel)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('does NOT close on a scroll in its own flyout or in a layer stacked above it (a submenu’s list); a page scroll still closes it', () => {
+    const onClose = vi.fn()
+    const { getByTestId } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 10, y: 10 }}
+        open={true}
+        onClose={onClose}
+        insideTestId="flyout"
+        panelRect={{ width: 100, height: 100 }}
+      />,
+    )
+    fireEvent.scroll(getByTestId('flyout'))
+    const layer = document.createElement('div')
+    const list = document.createElement('div')
+    layer.appendChild(list)
+    document.body.appendChild(layer)
+    fireEvent.scroll(list)
+    expect(onClose).not.toHaveBeenCalled()
+    layer.remove()
+    fireEvent.scroll(window)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('does NOT close on scroll when closeOnScroll is false', () => {

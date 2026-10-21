@@ -1,6 +1,7 @@
 import { db } from './database'
 import type { Status } from '../models'
 import { createRepository, insertLast, reorderBySortOrder } from './create-repository'
+import { todoRepository } from './todo-repository'
 
 const base = createRepository<Status>(db.statuses, 'sortOrder')
 
@@ -23,10 +24,17 @@ export const statusRepository = {
     })
   },
 
-  async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.statuses, db.todos], async () => {
-      await db.todos.where('statusId').equals(id).modify({ statusId: undefined })
+  /**
+   * Deletes the status and clears it from its tasks — as any status edit
+   * (`todoRepository.bulkUpdate`: one `modifiedAt`, a `status` event per
+   * task) — in one transaction. Returns the tasks it was cleared from.
+   */
+  async delete(id: number, now: Date = new Date()): Promise<number[]> {
+    return db.transaction('rw', [db.statuses, db.todos, db.todoEvents], async () => {
+      const todoIds = (await db.todos.where('statusId').equals(id).primaryKeys()) as number[]
+      await todoRepository.bulkUpdate(todoIds.map((todoId) => ({ todoId, changes: { statusId: undefined } })), now)
       await db.statuses.delete(id)
+      return todoIds
     })
   },
 
@@ -34,22 +42,17 @@ export const statusRepository = {
     return db.todos.where('statusId').equals(statusId).count()
   },
 
-  async getTodoIdsForStatus(statusId: number): Promise<number[]> {
-    return (await db.todos.where('statusId').equals(statusId).primaryKeys()) as number[]
-  },
-
   /**
    * Undo-restore for `delete`: re-insert the status row (preserving its id) and
-   * re-assign `statusId` on every todo that previously pointed to it. One
+   * re-assign `statusId` on every todo that previously pointed to it (as
+   * `delete`, through `todoRepository.bulkUpdate`). One
    * transaction so the file-storage debounce-save sees a single completed unit
    * of work rather than two interleaved batches.
    */
-  async restoreWithTodos(status: Status, affectedTodoIds: number[]): Promise<void> {
-    await db.transaction('rw', [db.statuses, db.todos], async () => {
+  async restoreWithTodos(status: Status, affectedTodoIds: number[], now: Date = new Date()): Promise<void> {
+    await db.transaction('rw', [db.statuses, db.todos, db.todoEvents], async () => {
       await db.statuses.add(status)
-      for (const todoId of affectedTodoIds) {
-        await db.todos.update(todoId, { statusId: status.id })
-      }
+      await todoRepository.bulkUpdate(affectedTodoIds.map((todoId) => ({ todoId, changes: { statusId: status.id } })), now)
     })
   },
 

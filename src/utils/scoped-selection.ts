@@ -6,6 +6,8 @@
  * set of task ids (selecting one occurrence selects the task everywhere).
  */
 
+import { attrSelector, ROW_KEY_ATTR, ROW_TODO_ATTR, SELECTION_SCOPE_ATTR } from './dom-contract'
+
 /** One rendered row of a scope, in display order. */
 export interface ScopedRow {
   /** Unique within the scope (e.g. `<section key>|<todo id>`). */
@@ -74,16 +76,16 @@ export function nextScopedSelection(
 
 /** The rows of a rendered scope, read from the DOM (`data-row-key` / `data-row-todo`). */
 export function readScopeRows(scopeEl: ParentNode): ScopedRow[] {
-  return Array.from(scopeEl.querySelectorAll<HTMLElement>('[data-row-key]')).map((el) => ({
-    key: el.dataset.rowKey ?? '',
-    todoId: Number(el.dataset.rowTodo),
+  return Array.from(scopeEl.querySelectorAll(attrSelector(ROW_KEY_ATTR))).map((el) => ({
+    key: el.getAttribute(ROW_KEY_ATTR) ?? '',
+    todoId: Number(el.getAttribute(ROW_TODO_ATTR)),
   }))
 }
 
 /** The rendered element of a selection scope, if any. */
 export function findScopeElement(scope: string): HTMLElement | null {
-  for (const el of document.querySelectorAll<HTMLElement>('[data-selection-scope]')) {
-    if (el.dataset.selectionScope === scope) return el
+  for (const el of document.querySelectorAll<HTMLElement>(attrSelector(SELECTION_SCOPE_ATTR))) {
+    if (el.getAttribute(SELECTION_SCOPE_ATTR) === scope) return el
   }
   return null
 }

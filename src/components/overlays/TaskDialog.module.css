@@ -10,14 +10,10 @@
   gap: 12px;
   padding: 20px 24px;
   box-sizing: border-box;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   box-shadow: var(--shadow-modal);
-}
-
-:global([data-theme="light"]) .dialog {
-  background: var(--color-surface);
 }
 
 .header {

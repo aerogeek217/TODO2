@@ -107,6 +107,39 @@ describe('useNoteStore', () => {
     })
   })
 
+  describe('the page hidden or closed', () => {
+    it.each([
+      ['pagehide', () => window.dispatchEvent(new Event('pagehide'))],
+      ['visibilitychange to hidden', () => {
+        vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+        document.dispatchEvent(new Event('visibilitychange'))
+      }],
+    ])('%s starts the pending save in the handler, before the debounce', async (_name, hide) => {
+      await useNoteStore.getState().load()
+      const id = useNoteStore.getState().activeId!
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const save = vi.spyOn(noteRepository, 'saveContent')
+      useNoteStore.getState().setContent(id, 'typed just before closing')
+      hide()
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(save).toHaveBeenCalledWith(id, 'typed just before closing', expect.any(Date))
+      await save.mock.results[0]?.value
+      expect(await contentInDb()).toBe('typed just before closing')
+      // The debounce has nothing left to save.
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+      expect(save).toHaveBeenCalledTimes(1)
+    })
+
+    it('a page shown again saves nothing', async () => {
+      await useNoteStore.getState().load()
+      const save = vi.spyOn(noteRepository, 'saveContent')
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('pagehide'))
+      expect(save).not.toHaveBeenCalled()
+    })
+  })
+
   describe('concurrent loads', () => {
     it('two loads at once seed one note and agree on it', async () => {
       const seed = vi.spyOn(noteRepository, 'getOrSeedGlobal')
@@ -296,6 +329,21 @@ describe('useNoteStore.holdForDataReplace', () => {
     await useNoteStore.getState().flush()
     expect(await contentInDb()).toBe('typed during')
     expect(useNoteStore.getState().replaceHolds).toBe(0)
+  })
+
+  it('holds nest: text typed during an outer hold survives an inner one and is saved when the last is released', async () => {
+    await useNoteStore.getState().load()
+    const id = useNoteStore.getState().activeId!
+    const releaseOuter = await useNoteStore.getState().holdForDataReplace()
+    useNoteStore.getState().setContent(id, 'typed during the outer hold')
+    const releaseInner = await useNoteStore.getState().holdForDataReplace()
+    expect(useNoteStore.getState().pending?.content).toBe('typed during the outer hold')
+    releaseInner()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('')
+    releaseOuter()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('typed during the outer hold')
   })
 })
 

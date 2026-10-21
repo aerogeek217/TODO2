@@ -6,6 +6,7 @@ import {
   checkinChangeKey,
   defaultCheckinSelection,
   selectedCheckinUpdates,
+  withoutTaskChanges,
 } from '../../services/checkin-reply/apply'
 import {
   diffCheckinReply,
@@ -39,6 +40,38 @@ interface ReadReply {
   orphanUpdates: number
 }
 
+/**
+ * The reply's tasks not assigned to `personId` — a Ref the person was never
+ * sent (a forwarded email): their changes start unticked, with a note.
+ */
+function tasksNotAssigned(diff: CheckinReplyDiff, personId: number): Set<number> {
+  const assigned = usePersonStore.getState().assignedPeopleMap
+  return new Set(diff.tasks
+    .filter((t) => !(assigned.get(t.todo.id) ?? []).some((p) => p.id === personId))
+    .map((t) => t.todo.id))
+}
+
+/**
+ * The ticks for the reply as it reads with `personId` as the one who replied
+ * (none: nobody chosen yet): the default ticks, without the changes of the
+ * tasks not assigned to them — except the changes the user ticked or
+ * unticked by hand (`touched`), which keep their state from `current`.
+ */
+function selectionFor(
+  diff: CheckinReplyDiff,
+  personId: number | null,
+  current: ReadonlySet<string>,
+  touched: ReadonlySet<string>,
+): Set<string> {
+  const defaults = defaultCheckinSelection(diff)
+  const next = personId != null ? withoutTaskChanges(defaults, diff, tasksNotAssigned(diff, personId)) : defaults
+  for (const key of touched) {
+    if (current.has(key)) next.add(key)
+    else next.delete(key)
+  }
+  return next
+}
+
 /** Reads a paste into the proposed changes, or says why it can't be read. */
 function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: string } {
   if ((input.html ?? '').trim() === '' && input.plain.trim() === '') {
@@ -58,8 +91,9 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
 /**
  * The check-in reply import dialog (`ui-store.checkinImportOpen`): the user
  * pastes a reply to a check-in email, reviews each proposed change (all
- * ticked except on tasks changed in the app since the email, and emptied
- * notes) and applies the ticked ones as one undoable step — optionally
+ * ticked except on tasks changed in the app since the email or not assigned
+ * to the person who replied, and emptied notes) and applies the ticked ones
+ * as one undoable step — optionally
  * recording a follow-up on every task that changed.
  *
  * The paste is read from the `paste` event's `text/html` and `text/plain`
@@ -85,6 +119,8 @@ function CheckinImportPanel() {
   const [reply, setReply] = useState<ReadReply | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
+  /** The changes the user ticked or unticked by hand: picking who replied leaves them alone. */
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
   const [recordFollowup, setRecordFollowup] = useState(true)
   const [pickedPersonId, setPickedPersonId] = useState<number | null>(null)
   const [applying, setApplying] = useState(false)
@@ -113,7 +149,10 @@ function CheckinImportPanel() {
     setError(null)
     setApplyError(null)
     setReply(result.reply)
-    setSelected(defaultCheckinSelection(result.reply.diff))
+    const name = result.reply.diff.personName
+    const from = name ? people.find((p) => sameName(p.name, name)) : undefined
+    setSelected(selectionFor(result.reply.diff, from?.id ?? null, new Set(), new Set()))
+    setTouched(new Set())
     setPickedPersonId(null)
     requestAnimationFrame(() => panelRef.current?.focus())
   }
@@ -130,11 +169,13 @@ function CheckinImportPanel() {
     setError(null)
     setApplyError(null)
     setSelected(new Set())
+    setTouched(new Set())
     setPickedPersonId(null)
     requestAnimationFrame(() => pasteRef.current?.focus())
   }
 
   const toggle = (key: string) => {
+    setTouched((prev) => new Set(prev).add(key))
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
@@ -181,7 +222,12 @@ function CheckinImportPanel() {
           footerPerson={footerPerson}
           people={people}
           pickedPersonId={pickedPersonId}
-          onPick={setPickedPersonId}
+          onPick={(id) => {
+            setPickedPersonId(id)
+            // The ticks follow who replied: the tasks not theirs unticked, the
+            // others ticked as by default — but a tick changed by hand stays.
+            setSelected((prev) => selectionFor(reply.diff, id, prev, touched))
+          }}
           onPasteAgain={pasteAgain}
         />
       )}
@@ -212,6 +258,7 @@ function CheckinImportPanel() {
         {reply && (
           <ReplyChanges
             reply={reply}
+            notAssigned={person ? { name: person.name, todoIds: tasksNotAssigned(reply.diff, person.id) } : null}
             selected={selected}
             onToggle={toggle}
             recordFollowup={recordFollowup}
@@ -304,8 +351,10 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
   )
 }
 
-function ReplyChanges({ reply, selected, onToggle, recordFollowup, onRecordFollowup, followupId }: {
+function ReplyChanges({ reply, notAssigned, selected, onToggle, recordFollowup, onRecordFollowup, followupId }: {
   reply: ReadReply
+  /** The person who replied and the reply's tasks not assigned to them; null while nobody is chosen. */
+  notAssigned: { name: string; todoIds: ReadonlySet<number> } | null
   selected: ReadonlySet<string>
   onToggle: (key: string) => void
   recordFollowup: boolean
@@ -319,7 +368,13 @@ function ReplyChanges({ reply, selected, onToggle, recordFollowup, onRecordFollo
   return (
     <>
       {shown.map((task) => (
-        <TaskCard key={task.todo.id} task={task} selected={selected} onToggle={onToggle} />
+        <TaskCard
+          key={task.todo.id}
+          task={task}
+          notAssignedTo={notAssigned?.todoIds.has(task.todo.id) ? notAssigned.name : null}
+          selected={selected}
+          onToggle={onToggle}
+        />
       ))}
       {shown.length === 0 && <div className={styles.note}>No changes to apply: the reply matches the tasks as they are now.</div>}
       {unchanged.length > 0 && shown.length > 0 && (
@@ -362,8 +417,10 @@ function ReplyChanges({ reply, selected, onToggle, recordFollowup, onRecordFollo
   )
 }
 
-function TaskCard({ task, selected, onToggle }: {
+function TaskCard({ task, notAssignedTo, selected, onToggle }: {
   task: CheckinTaskDiff
+  /** The person who replied, when the task isn't assigned to them. */
+  notAssignedTo: string | null
   selected: ReadonlySet<string>
   onToggle: (key: string) => void
 }) {
@@ -377,6 +434,9 @@ function TaskCard({ task, selected, onToggle }: {
       {task.completedSinceSent
         ? <div className={styles.note}>Completed in the app since this email was sent. Nothing to apply.</div>
         : task.stale && <div className={styles.warn}>Changed in the app since this email was sent. Check before applying.</div>}
+      {!task.completedSinceSent && notAssignedTo != null && (
+        <div className={styles.warn}>Not assigned to {notAssignedTo}. Check before applying.</div>
+      )}
       {task.changes.map((change) => {
         const key = checkinChangeKey(todo.id, change.field)
         return (

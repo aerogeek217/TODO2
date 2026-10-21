@@ -13,21 +13,13 @@ vi.mock('../../services/file-handle-idb', () => ({
   clearFileHandle: (...args: unknown[]) => mockClearFileHandle(...args),
 }))
 
-const mockValidateImportData = vi.fn()
-
-vi.mock('../../data/import-validation', () => ({
-  validateImportData: (...args: unknown[]) => mockValidateImportData(...args),
-  MAX_IMPORT_SIZE_BYTES: 50 * 1024 * 1024,
-  MAX_RECORDS_PER_TABLE: 100_000,
-}))
-
 const mockRestoreFromImportData = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../../data/restore', () => ({
   restoreFromImportData: (...args: unknown[]) => mockRestoreFromImportData(...args),
 }))
 
-const mockBuildExportData = vi.fn().mockResolvedValue({ todos: [], projects: [] })
+const mockBuildExportData = vi.fn().mockResolvedValue({ todos: [], settings: [] })
 
 const mockSelfCheckExportJson = vi.fn<(json: string) => string | null>(() => null)
 
@@ -44,6 +36,27 @@ vi.mock('../../data/backup-scheduler', () => ({
     snapshotBeforeDestructive: (...args: unknown[]) => mockSnapshotBeforeDestructive(...args),
     snapshotFileBeforeOverwrite: (...args: unknown[]) => mockSnapshotFileBeforeOverwrite(...args),
   },
+}))
+
+// The note store's hold around a replace (`replace-data`): counted, not run.
+const noteHolds = { taken: 0, released: 0 }
+vi.mock('../../stores/note-store', () => ({
+  useNoteStore: {
+    getState: () => ({
+      holdForDataReplace: async () => {
+        noteHolds.taken++
+        return () => { noteHolds.released++ }
+      },
+    }),
+  },
+}))
+
+// The stores' reload after a replace (`replace-data`); the stores themselves aren't under test here.
+const mockRefreshAllStores = vi.fn().mockResolvedValue(undefined)
+
+vi.mock('../../services/refresh-all', () => ({
+  refreshAllStores: (...args: unknown[]) => mockRefreshAllStores(...args),
+  refreshTaskStores: vi.fn().mockResolvedValue(undefined),
 }))
 
 const mockBrowserMatchesFile = vi.fn().mockResolvedValue(false)
@@ -88,16 +101,29 @@ function fireSettingWrite(key: string) {
   for (const h of mockTables.at(-1)!.hook('updating').handlers) h({ value: 'x' }, key, { key, value: 'x' })
 }
 
-vi.mock('../../data/database', () => ({
-  ALL_DATA_TABLES: mockTables,
-  CURRENT_DB_VERSION: 48,
-  OLDEST_SUPPORTED_DB_VERSION: 16,
-}))
+// The real schema versions: files go through the real import pipeline
+// (upgrades + validation); only the tables are stand-ins.
+vi.mock('../../data/database', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/database')>()
+  return {
+    ALL_DATA_TABLES: mockTables,
+    CURRENT_DB_VERSION: actual.CURRENT_DB_VERSION,
+    OLDEST_SUPPORTED_DB_VERSION: actual.OLDEST_SUPPORTED_DB_VERSION,
+  }
+})
+const { CURRENT_DB_VERSION: CURRENT, OLDEST_SUPPORTED_DB_VERSION: FLOOR } =
+  await vi.importActual<typeof import('../../data/database')>('../../data/database')
+/** A supported older file, a file below the floor, a file from a newer build. */
+const OLDER = CURRENT - 1
+const BELOW_FLOOR = FLOOR - 1
+const NEWER = CURRENT + 1
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 const SYNC_KEY = 'todo2-file-sync-state'
 const FILE_SAVED_AT = '2026-10-01T10:00:00.000Z'
+/** A sync record from before the file's last save: the file changed since. */
+const EARLIER_SYNC = '2026-09-01T00:00:00.000Z'
 
 function makeWritable() {
   return {
@@ -107,8 +133,14 @@ function makeWritable() {
   }
 }
 
+function fileTodo(id: number) {
+  const at = '2026-09-15T10:00:00.000Z'
+  return { id, uid: `uid-${id}`, title: `Task ${id}`, isCompleted: false, createdAt: at, modifiedAt: at, sortOrder: id }
+}
+
+/** A sync file at the current schema: two tasks and no settings. */
 function fileBody(overrides: Record<string, unknown> = {}) {
-  return { __schemaVersion: 48, savedAt: FILE_SAVED_AT, canvases: [{ id: 1 }], todos: [], ...overrides }
+  return { __schemaVersion: CURRENT, savedAt: FILE_SAVED_AT, todos: [fileTodo(1), fileTodo(2)], settings: [], ...overrides }
 }
 
 function createMockHandle(content: unknown = fileBody(), overrides: Record<string, unknown> = {}) {
@@ -129,7 +161,11 @@ function createMockHandle(content: unknown = fileBody(), overrides: Record<strin
   }
 }
 
-const validImportData = { todos: [{ id: 1 }, { id: 2 }], canvases: [{ id: 1, name: 'Default' }] }
+/** What the import pipeline hands the restore for `fileBody()`. */
+const validImportData = expect.objectContaining({
+  todos: [expect.objectContaining({ id: 1, uid: 'uid-1' }), expect.objectContaining({ id: 2, uid: 'uid-2' })],
+  settings: [],
+})
 
 function setSyncState(state: { fileSavedAt: string | null; dirtySince: string | null }) {
   localStorage.setItem(SYNC_KEY, JSON.stringify(state))
@@ -174,13 +210,13 @@ beforeEach(() => {
   mockLoadFileHandle.mockReset().mockResolvedValue(null)
   mockSaveFileHandle.mockReset().mockResolvedValue(undefined)
   mockClearFileHandle.mockReset().mockResolvedValue(undefined)
-  mockValidateImportData.mockReset().mockReturnValue({ ok: true, data: validImportData, warnings: [] })
   mockRestoreFromImportData.mockReset().mockResolvedValue(undefined)
-  mockBuildExportData.mockReset().mockResolvedValue({ todos: [], projects: [] })
+  mockBuildExportData.mockReset().mockResolvedValue({ todos: [], settings: [] })
   mockSelfCheckExportJson.mockReset().mockReturnValue(null)
   mockSnapshotBeforeDestructive.mockReset().mockResolvedValue(undefined)
   mockSnapshotFileBeforeOverwrite.mockReset().mockResolvedValue(undefined)
   mockBrowserMatchesFile.mockReset().mockResolvedValue(false)
+  mockRefreshAllStores.mockReset().mockResolvedValue(undefined)
   mockBrowserTaskCount.mockReset().mockResolvedValue(0)
 
   for (const table of mockTables) {
@@ -255,8 +291,77 @@ describe('FileStorageService — load decision matrix', () => {
     expect(syncState().fileSavedAt).toBe(FILE_SAVED_AT)
   })
 
-  it('browser has unsynced changes, file unchanged → conflict before anything changes', async () => {
+  it('browser has unsynced changes, file unchanged since the last sync → the browser data is written to it, after a backup, without asking', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockBrowserTaskCount.mockResolvedValue(5)
+    mockBuildExportData.mockResolvedValue({ todos: [{ id: 1, title: 'Edited in the browser' }] })
+    const { svc, writable } = await startWith()
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    const upgrade = vi.fn().mockResolvedValue(false)
+    svc.onConflict(conflict)
+    svc.onConfirmFileUpgrade(upgrade)
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(upgrade).not.toHaveBeenCalled()
+    // The file's text is backed up before it is overwritten.
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(mockSnapshotFileBeforeOverwrite.mock.invocationCallOrder[0]!).toBeLessThan(writable.write.mock.invocationCallOrder[0]!)
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    const written = JSON.parse(writable.write.mock.calls[0]![0] as string) as { todos: Array<{ title: string }>; savedAt: string }
+    expect(written.todos.map((t) => t.title)).toEqual(['Edited in the browser'])
+    expect(svc.status.isConnected).toBe(true)
+    expect(svc.status.paused).toBeNull()
+    expect(syncState()).toEqual({ fileSavedAt: written.savedAt, dirtySince: null })
+    // Syncing: the next edit reaches the file.
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writable.write).toHaveBeenCalledTimes(2)
+  })
+
+  it('browser ahead of an unchanged older file → the upgrade question first; yes writes the browser data (older copy kept), no pauses untouched', async () => {
+    const older = fileBody({ __schemaVersion: OLDER })
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const yes = await startWith(older)
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    yes.svc.onConflict(conflict)
+    yes.svc.onConfirmFileUpgrade(async () => true)
+    await yes.svc.initialize()
+    expect(conflict).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(older), { olderVersion: true })
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(yes.writable.write).toHaveBeenCalledTimes(1)
+    expect(yes.svc.status.isConnected).toBe(true)
+    expect(syncState().dirtySince).toBeNull()
+
+    vi.resetModules()
+    mockSnapshotFileBeforeOverwrite.mockClear()
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const no = await startWith(older)
+    no.svc.onConflict(conflict)
+    no.svc.onConfirmFileUpgrade(async () => false)
+    await no.svc.initialize()
+    expect(conflict).not.toHaveBeenCalled()
+    expect(no.svc.status.paused?.reason).toBe('upgrade-cancelled')
+    expectUntouched(no.writable)
+    expect(syncState().dirtySince).toBe('2026-10-02T09:00:00.000Z')
+  })
+
+  it('browser ahead of an unchanged file: a failed file backup writes nothing and pauses', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
+    const { svc, writable } = await startWith()
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    expect(writable.write).not.toHaveBeenCalled()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(syncState().dirtySince).toBe('2026-10-02T09:00:00.000Z')
+  })
+
+  it('browser has unsynced changes, file changed since → conflict before anything changes', async () => {
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockBrowserTaskCount.mockResolvedValue(5)
     const { svc, writable } = await startWith()
     let seen: SyncConflictInfo | null = null
@@ -271,8 +376,8 @@ describe('FileStorageService — load decision matrix', () => {
 
     expect(seen).toMatchObject({
       reason: 'browser-changes',
-      browser: { taskCount: 5, schemaVersion: 48, unsyncedSince: '2026-10-02T09:00:00.000Z' },
-      file: { taskCount: 2, schemaVersion: 48, savedAt: FILE_SAVED_AT, changedSinceLastSync: false },
+      browser: { taskCount: 5, schemaVersion: CURRENT, unsyncedSince: '2026-10-02T09:00:00.000Z' },
+      file: { taskCount: 2, schemaVersion: CURRENT, savedAt: FILE_SAVED_AT, changedSinceLastSync: true },
     })
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('conflict-cancelled')
@@ -296,7 +401,7 @@ describe('FileStorageService — load decision matrix', () => {
   })
 
   it('"Use browser data" backs up the file text, overwrites the file, and resumes sync', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
     svc.onConflict(async () => 'browser')
     await svc.initialize()
@@ -358,7 +463,7 @@ describe('FileStorageService — load decision matrix', () => {
   })
 
   it('conflict with no dialog listener stays paused (safe default)', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
     await svc.initialize()
     expectUntouched(writable)
@@ -388,17 +493,16 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
   })
 
   it('validation failure', async () => {
-    mockValidateImportData.mockReturnValue({ ok: false, error: 'Missing todos field' })
-    const { svc, writable } = await startWith()
+    const { svc, writable } = await startWith(fileBody({ todos: undefined }))
     await svc.initialize()
     expect(svc.status.paused).toMatchObject({ reason: 'invalid' })
-    expect(svc.status.paused?.message).toContain('Missing todos field')
+    expect(svc.status.paused?.message).toContain('missing tasks or settings')
     expectUntouched(writable)
     await expectNoWriteAfterChange(writable)
   })
 
   it('file from a newer schema', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 49 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: NEWER }))
     await svc.initialize()
     expect(svc.status.paused?.reason).toBe('too-new')
     expect(svc.status.paused?.message).toMatch(/^File sync paused — .*newer version of TODO2/)
@@ -427,14 +531,45 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
     await expectNoWriteAfterChange(writable)
   })
 
-  it('file not found forgets the handle (nothing on disk to protect)', async () => {
+  it('a file still not found after looking again forgets the handle (nothing on disk to protect)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const notFound = new Error('gone')
     notFound.name = 'NotFoundError'
-    const { svc } = await startWith(fileBody(), { getFile: vi.fn().mockRejectedValue(notFound) })
-    await svc.initialize()
+    const getFile = vi.fn().mockRejectedValue(notFound)
+    const { svc } = await startWith(fileBody(), { getFile })
+    let done = false
+    const init = svc.initialize().then(() => { done = true })
+    // Looked for again after a short wait: not forgotten at the first miss.
+    await vi.advanceTimersByTimeAsync(300)
+    expect(done).toBe(false)
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2000)
+    await init
+    expect(getFile).toHaveBeenCalledTimes(3)
     expect(svc.status.error).toMatch(/not found/)
     expect(svc.status.fileName).toBeNull()
     expect(mockClearFileHandle).toHaveBeenCalled()
+  })
+
+  it('a file briefly absent (a cloud folder renaming a new copy into place) is found on a later look and loads; the handle and sync record are kept', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: null })
+    const notFound = new Error('gone')
+    notFound.name = 'NotFoundError'
+    const good = new File([JSON.stringify(fileBody())], 'todo2-data.json')
+    const getFile = vi.fn().mockRejectedValueOnce(notFound).mockRejectedValueOnce(notFound).mockResolvedValue(good)
+    const { svc } = await startWith(fileBody(), { getFile })
+    const init = svc.initialize()
+    await vi.advanceTimersByTimeAsync(2000)
+    await init
+    expect(getFile).toHaveBeenCalledTimes(3)
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(svc.status.error).toBeNull()
+    expect(mockRestoreFromImportData).toHaveBeenCalled()
+    expect(svc.status.isConnected).toBe(true)
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
   })
 
   it('"Keep browser data" from a paused state backs up the file, overwrites it, and resumes', async () => {
@@ -455,8 +590,11 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
   })
 
   it('Retry re-runs the load (e.g. the file was fixed)', async () => {
-    mockValidateImportData.mockReturnValueOnce({ ok: false, error: 'bad' })
-    const { svc } = await startWith()
+    const broken = new File([JSON.stringify(fileBody({ todos: 'none' }))], 'todo2-data.json', { type: 'application/json' })
+    const fixed = new File([JSON.stringify(fileBody())], 'todo2-data.json', { type: 'application/json' })
+    const { svc } = await startWith(fileBody(), {
+      getFile: vi.fn().mockResolvedValueOnce(broken).mockResolvedValue(fixed),
+    })
     await svc.initialize()
     expect(svc.status.paused).not.toBeNull()
 
@@ -468,24 +606,23 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
 })
 
 // ─── Schema upgrades ──────────────────────────────────────────────────
-// The database mock pins CURRENT_DB_VERSION = 48 / floor = 16.
 
 describe('FileStorageService — older sync files', () => {
   it('asks before upgrading an older file; cancel leaves everything untouched', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 47 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     const ask = vi.fn().mockResolvedValue(false)
     svc.onConfirmFileUpgrade(ask)
     await svc.initialize()
 
-    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 47, toVersion: 48 })
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: OLDER, toVersion: CURRENT })
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('upgrade-cancelled')
   })
 
   it('accepting the upgrade loads the file and restamps it', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 47 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     svc.onConfirmFileUpgrade(async () => true)
     await svc.initialize()
 
@@ -495,7 +632,7 @@ describe('FileStorageService — older sync files', () => {
   })
 
   it('upgrade prompt with no listener stays paused', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 47 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     await svc.initialize()
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('upgrade-cancelled')
@@ -509,19 +646,19 @@ describe('FileStorageService — older sync files', () => {
   })
 
   it('below-floor file: cancelling the MigrationDialog pauses (handle kept, nothing touched)', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 10 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: BELOW_FLOOR }))
     const confirm = vi.fn().mockResolvedValue(false)
     svc.onConfirmMigration(confirm)
     await svc.initialize()
 
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ sourceVersion: 10, targetVersion: 48 }))
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ sourceVersion: BELOW_FLOOR, targetVersion: CURRENT }))
     expectUntouched(writable)
     expect(mockClearFileHandle).not.toHaveBeenCalled()
     expect(svc.status.paused?.reason).toBe('legacy-cancelled')
   })
 
   it('below-floor file: confirming loads and restamps without a second upgrade prompt', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 10 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: BELOW_FLOOR }))
     svc.onConfirmMigration(async () => true)
     const ask = vi.fn()
     svc.onConfirmFileUpgrade(ask)
@@ -555,8 +692,8 @@ describe('FileStorageService — file backup before rewrite', () => {
     expect(writable.write).not.toHaveBeenCalled()
   }
 
-  const older = fileBody({ __schemaVersion: 47 })
-  const belowFloor = fileBody({ __schemaVersion: 10 })
+  const older = fileBody({ __schemaVersion: OLDER })
+  const belowFloor = fileBody({ __schemaVersion: BELOW_FLOOR })
 
   it('confirmed upgrade: backs up the raw text before restoring and restamping', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
@@ -592,14 +729,14 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('conflict "Use file" with an older file: backs up first; failure pauses untouched', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const ok = await startWith(older)
     ok.svc.onConflict(async () => 'file')
     await ok.svc.initialize()
     expectBackupFirst(JSON.stringify(older), ok.writable)
 
     vi.resetModules()
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockRestoreFromImportData.mockClear()
     mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
     const bad = await startWith(older)
@@ -625,7 +762,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('"Use browser data" / "Keep browser data" over an older file keep its copy outside the pruned pool', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const a = await startWith(older)
     a.svc.onConflict(async () => 'browser')
     await a.svc.initialize()
@@ -643,18 +780,20 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('a current-version file the import trimmed (warnings): its raw text is backed up before sync rewrites it', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    mockValidateImportData.mockReturnValue({ ok: true, data: validImportData, warnings: ['Ignored 1 unrecognized setting: color.dark.old'] })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // A setting this build doesn't know: the import drops it with a warning.
+    const trimmed = fileBody({ settings: [{ key: 'color.dark.old', value: '#123456' }] })
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc, writable } = await startWith()
+    const { svc, writable } = await startWith(trimmed)
     await svc.initialize()
-    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('color.dark.old'))
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(trimmed))
     expect(svc.status.isConnected).toBe(true)
     // …and a failed backup leaves the file untouched (paused), as for every rewrite.
     vi.resetModules()
     mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
     mockRestoreFromImportData.mockClear()
-    const bad = await startWith()
+    const bad = await startWith(trimmed)
     await bad.svc.initialize()
     expect(bad.svc.status.paused?.reason).toBe('backup-failed')
     expect(mockRestoreFromImportData).not.toHaveBeenCalled()
@@ -662,7 +801,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('conflict "Use file" at the current version: no rewrite, so no file backup needed', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith()
     svc.onConflict(async () => 'file')
     await svc.initialize()
@@ -671,7 +810,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('conflict "Use browser data": backup failure leaves the file untouched and pauses', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
     const { svc, writable } = await startWith(older)
     svc.onConflict(async () => 'browser')
@@ -680,7 +819,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('"Keep browser data": backup failure keeps the file untouched and stays paused', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 49 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: NEWER }))
     await svc.initialize()
     mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
     await svc.overwriteFileWithBrowser()
@@ -777,7 +916,7 @@ describe('FileStorageService — change tracking', () => {
     expect(syncState().dirtySince).not.toBeNull()
   })
 
-  it('edits made while permission is needed survive Grant Access via the conflict prompt', async () => {
+  it('edits made while permission is needed reach the unchanged file at Grant Access, without a prompt', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
     const { svc, writable } = await startWith(fileBody(), {
       queryPermission: vi.fn().mockResolvedValue('prompt'),
@@ -790,6 +929,29 @@ describe('FileStorageService — change tracking', () => {
     await vi.advanceTimersByTimeAsync(2000)
     expect(writable.write).not.toHaveBeenCalled()
     expect(syncState().dirtySince).not.toBeNull()
+
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+    await svc.reconnect()
+
+    expect(conflict).not.toHaveBeenCalled()
+    // The browser's edits were kept: no restore, the file backed up and overwritten.
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status.isConnected).toBe(true)
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('edits made while permission is needed, and the file changed elsewhere meanwhile: Grant Access asks', async () => {
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: null })
+    const { svc, writable } = await startWith(fileBody(), {
+      queryPermission: vi.fn().mockResolvedValue('prompt'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+    })
+    await svc.initialize()
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(2000)
 
     const conflict = vi.fn().mockResolvedValue('browser')
     svc.onConflict(conflict)
@@ -819,9 +981,8 @@ describe('FileStorageService — changes made while sync starts', () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
     const { svc, writable } = await startWith()
     // A store seeding a row as it reloads, before sync is switched on.
-    const off = svc.onAfterImport(async () => { fireLocalChange() })
+    mockRefreshAllStores.mockImplementationOnce(async () => { fireLocalChange() })
     await svc.initialize()
-    off()
     expect(svc.status.isConnected).toBe(true)
     expect(syncState().dirtySince).not.toBeNull()
 
@@ -955,6 +1116,47 @@ describe('FileStorageService — attach, create, disconnect', () => {
     expect(svc.status.isConnected).toBe(true)
   })
 
+  /** A session synced with `first.json`, whose browser can't store the next picked file's handle. */
+  async function syncedWithHandleStoreFailing() {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const first = createMockHandle(fileBody(), { name: 'first.json' })
+    mockLoadFileHandle.mockResolvedValue(first.handle)
+    const svc = await getService()
+    await svc.initialize()
+    expect(svc.status).toMatchObject({ isConnected: true, fileName: 'first.json' })
+    mockSaveFileHandle.mockRejectedValue(new Error('QuotaExceededError'))
+    const next = createMockHandle('', { name: 'second.json' })
+    return { svc, first, next }
+  }
+
+  /** The first file is still the attached one: its sync record kept, the next edit written to it, not to `next`. */
+  async function expectFirstStillSyncing(svc: Awaited<ReturnType<typeof getService>>, first: ReturnType<typeof createMockHandle>, next: ReturnType<typeof createMockHandle>) {
+    expect(svc.status).toMatchObject({ isConnected: true, fileName: 'first.json' })
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    expect(next.handle.getFile).not.toHaveBeenCalled()
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(first.writable.write).toHaveBeenCalledTimes(1)
+    expect(next.writable.write).not.toHaveBeenCalled()
+  }
+
+  it('openFile whose handle the browser cannot store attaches nothing, says so, and keeps the file attached before', async () => {
+    const { svc, first, next } = await syncedWithHandleStoreFailing()
+    vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([next.handle]))
+    await svc.openFile()
+    expect(svc.status.error).toBe('Could not attach second.json — the browser could not remember the file, so nothing changed.')
+    await expectFirstStillSyncing(svc, first, next)
+  })
+
+  it('createFile whose handle the browser cannot store attaches nothing, says so, and keeps the file attached before', async () => {
+    const { svc, first, next } = await syncedWithHandleStoreFailing()
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(next.handle))
+    await svc.createFile()
+    expect(svc.status.error).toBe('second.json was created, but the browser could not remember it, so it was not attached. Nothing else changed.')
+    await expectFirstStillSyncing(svc, first, next)
+  })
+
   it('does not set error when user cancels the picker', async () => {
     const abortError = new Error('User cancelled')
     abortError.name = 'AbortError'
@@ -1039,12 +1241,20 @@ describe('FileStorageService — status notifications', () => {
     expect(lastStatus.isConnected).toBe(true)
   })
 
-  it('notifies afterImport listener after loading file data', async () => {
-    const afterImport = vi.fn().mockResolvedValue(undefined)
+  it('loading the file data is a data replace: the stores reload, then the replace listeners hear `sync-file`', async () => {
+    const order: string[] = []
     const { svc } = await startWith()
-    svc.onAfterImport(afterImport)
+    const { onDataReplaced } = await import('../../services/replace-data')
+    mockRestoreFromImportData.mockImplementation(async () => { order.push('restore') })
+    mockRefreshAllStores.mockImplementation(async () => { order.push('reload') })
+    const off = onDataReplaced((source) => { order.push(`heard ${source}`) })
+    const held = { ...noteHolds }
     await svc.initialize()
-    expect(afterImport).toHaveBeenCalled()
+    off()
+    expect(order).toEqual(['restore', 'reload', 'heard sync-file'])
+    // Note saves held through the load decision and the replace, then let go.
+    expect(noteHolds.taken - held.taken).toBeGreaterThan(0)
+    expect(noteHolds.released - held.released).toBe(noteHolds.taken - held.taken)
   })
 
   it('every status subscriber gets every change; an unsubscribed one gets no more', async () => {
@@ -1075,54 +1285,15 @@ describe('FileStorageService — status notifications', () => {
     expect(later.mock.calls.at(-1)![0].isConnected).toBe(true)
   })
 
-  it('every import subscriber runs: before-import holds are released after every after-import listener', async () => {
-    const order: string[] = []
+  it('a reload that fails after the file data was written: the load rejects with its error', async () => {
     const { svc } = await startWith()
-    svc.onBeforeImport(async () => { order.push('hold 1'); return () => order.push('release 1') })
-    svc.onBeforeImport(async () => { order.push('hold 2'); return () => order.push('release 2') })
-    svc.onAfterImport(async () => { order.push('after 1') })
-    svc.onAfterImport(async () => { order.push('after 2') })
-    mockRestoreFromImportData.mockImplementation(async () => { order.push('restore') })
-    await svc.initialize()
-    expect(order).toEqual(['hold 1', 'hold 2', 'restore', 'after 1', 'after 2', 'release 1', 'release 2'])
-  })
-
-  it('an after-import listener that fails does not stop the next one; the load rejects with its error', async () => {
-    const second = vi.fn().mockResolvedValue(undefined)
-    const release = vi.fn()
-    const { svc } = await startWith()
-    svc.onBeforeImport(async () => release)
-    svc.onAfterImport(async () => { throw new Error('reload failed') })
-    svc.onAfterImport(second)
+    mockRefreshAllStores.mockRejectedValueOnce(new Error('reload failed'))
     await expect(svc.initialize()).rejects.toThrow('reload failed')
-    expect(second).toHaveBeenCalled()
-    expect(release).toHaveBeenCalledTimes(1)
-  })
-
-  it('a before-import hold that fails releases the holds already taken and nothing is replaced', async () => {
-    const release = vi.fn()
-    const { svc } = await startWith()
-    svc.onBeforeImport(async () => release)
-    svc.onBeforeImport(async () => { throw new Error('hold failed') })
-    await expect(svc.initialize()).rejects.toThrow('hold failed')
-    expect(release).toHaveBeenCalledTimes(1)
-    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
-  })
-
-  it('unsubscribed import listeners no longer run', async () => {
-    const before = vi.fn().mockResolvedValue(() => {})
-    const after = vi.fn().mockResolvedValue(undefined)
-    const { svc } = await startWith()
-    svc.onBeforeImport(before)()
-    svc.onAfterImport(after)()
-    await svc.initialize()
     expect(mockRestoreFromImportData).toHaveBeenCalled()
-    expect(before).not.toHaveBeenCalled()
-    expect(after).not.toHaveBeenCalled()
   })
 
   it('a question has one handler: a later one replaces it, and removing the replaced one changes nothing', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockBrowserTaskCount.mockResolvedValue(5)
     const { svc } = await startWith()
     const first = vi.fn().mockResolvedValue('file')
@@ -1216,7 +1387,7 @@ describe('FileStorageService — browser backup before the file replaces it', ()
   })
 
   it('conflict "Use file": a failed backup asks before the browser data is replaced', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     mockSnapshotBeforeDestructive.mockRejectedValue(new Error('quota'))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { svc, writable } = await startWith()
@@ -1330,6 +1501,87 @@ describe('FileStorageService — saves in flight', () => {
   })
 })
 
+describe('FileStorageService — permission taken back mid-session', () => {
+  function notAllowed() {
+    const err = new Error('The request is not allowed by the user agent or the platform in the current context.')
+    err.name = 'NotAllowedError'
+    return err
+  }
+
+  /** A synced session whose next save fails because the browser took its permission back. */
+  async function syncedThenRevoked(failAt: 'createWritable' | 'write') {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const started = await startWith()
+    await started.svc.initialize()
+    expect(started.svc.status.isConnected).toBe(true)
+    mockRestoreFromImportData.mockClear()
+    if (failAt === 'createWritable') started.handle.createWritable.mockRejectedValueOnce(notAllowed())
+    else started.writable.write.mockRejectedValueOnce(notAllowed())
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    return started
+  }
+
+  it.each(['createWritable', 'write'] as const)('a save refused at %s says Permission needed, not a save error, and keeps the edit unsynced', async (failAt) => {
+    const { svc, writable } = await syncedThenRevoked(failAt)
+    expect(svc.status.needsPermission).toBe(true)
+    expect(svc.status.isConnected).toBe(false)
+    expect(svc.status.error).toBeNull()
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(syncState().dirtySince).not.toBeNull()
+    if (failAt === 'write') expect(writable.abort).toHaveBeenCalled()
+    // Sync is off: later edits stay in the browser, nothing is retried at the file.
+    const writes = writable.write.mock.calls.length
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(writable.write).toHaveBeenCalledTimes(writes)
+  })
+
+  it('Grant access then writes the edits to the unchanged file without a prompt and resumes sync', async () => {
+    const { svc, handle, writable } = await syncedThenRevoked('createWritable')
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+    await svc.reconnect()
+
+    expect(handle.requestPermission).toHaveBeenCalled()
+    expect(conflict).not.toHaveBeenCalled()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalled()
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status).toMatchObject({ needsPermission: false, isConnected: true, error: null })
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('a load whose read is refused says Permission needed and keeps the file (not paused, not forgotten)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const getFile = vi.fn().mockRejectedValue(notAllowed())
+    const { svc, writable } = await startWith(fileBody(), { getFile })
+    await svc.initialize()
+    expect(svc.status.needsPermission).toBe(true)
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expectUntouched(writable)
+    // Retry waits for Grant access (it would only be refused again).
+    await svc.retry()
+    expect(getFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('"Keep browser data" whose read for the backup is refused says Permission needed and writes nothing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc, handle, writable } = await startWith('not json{{{')
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('invalid-json')
+    handle.getFile.mockRejectedValue(notAllowed())
+    await svc.overwriteFileWithBrowser()
+    expect(svc.status.needsPermission).toBe(true)
+    expect(mockSnapshotFileBeforeOverwrite).not.toHaveBeenCalled()
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+})
+
 describe('FileStorageService — reading a file that another write replaces', () => {
   function replacedError() {
     const err = new Error('A requested file or directory could not be found at the time an operation was processed.')
@@ -1386,7 +1638,7 @@ describe('FileStorageService — reading a file that another write replaces', ()
 
 describe('FileStorageService — a load superseded by a newer one', () => {
   it('the older load, answered "cancel" late, does not pause what the newer one resumed', async () => {
-    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc } = await startWith()
     let answerFirst!: () => void
     const firstAnswered = new Promise<void>((r) => { answerFirst = r })

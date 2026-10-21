@@ -15,6 +15,8 @@ interface TaskEditHeaderProps {
   onClose: () => void
   acState: AutocompleteState
   onAcPick: (row: AutocompleteRow) => void
+  /** The pointer moved over a popup row: it becomes the highlighted one. */
+  onAcHighlight?: (index: number) => void
   /** Draft mode: a dashed ring instead of the checkbox and a Draft badge. */
   isDraft?: boolean
 }
@@ -22,7 +24,7 @@ interface TaskEditHeaderProps {
 export function TaskEditHeader({
   isEdit, isCompleted, title, mode, titleRef,
   onToggleComplete, onTitleChange, onTitleBlur, onTitleKeyDown,
-  onClose, acState, onAcPick, isDraft = false,
+  onClose, acState, onAcPick, onAcHighlight, isDraft = false,
 }: TaskEditHeaderProps) {
   return (
     <div className={styles.header}>
@@ -51,6 +53,7 @@ export function TaskEditHeader({
             view={acState.view}
             selectedIndex={acState.selectedIndex}
             onPick={onAcPick}
+            onHighlight={onAcHighlight}
             className={styles.titlePopup}
             style={{ left: acState.caretLeft }}
           />

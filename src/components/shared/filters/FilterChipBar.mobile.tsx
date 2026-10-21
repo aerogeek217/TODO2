@@ -96,8 +96,9 @@ function MobileEntityList({
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </ClearableField>
+      {/* Each row is a real checkbox with its name as the label: a tap, Space or a screen reader ticks it. */}
       {showNoneSentinel && (
-        <div className={sheet.entityItem} onClick={() => onToggle(0)}>
+        <label className={sheet.entityItem}>
           <span
             className={sheet.entityDot}
             style={{ background: 'var(--color-text-muted)' }}
@@ -106,18 +107,16 @@ function MobileEntityList({
           <input
             type="checkbox"
             className={sheet.entityCheck}
-            tabIndex={-1}
-            aria-hidden="true"
             checked={entityTicked(filterIds, negated, 0)}
-            readOnly
+            onChange={() => onToggle(0)}
           />
-        </div>
+        </label>
       )}
       {entities
         .filter((e) => !searchText || e.name.toLowerCase().includes(searchText.toLowerCase()))
         .toSorted(byName)
         .map((e) => (
-          <div key={e.id} className={sheet.entityItem} onClick={() => onToggle(e.id!)}>
+          <label key={e.id} className={sheet.entityItem}>
             <span
               className={sheet.entityDot}
               style={{ background: e.color || 'var(--color-accent)' }}
@@ -129,12 +128,10 @@ function MobileEntityList({
             <input
               type="checkbox"
               className={sheet.entityCheck}
-              tabIndex={-1}
-              aria-hidden="true"
               checked={entityTicked(filterIds, negated, e.id!)}
-              readOnly
+              onChange={() => onToggle(e.id!)}
             />
-          </div>
+          </label>
         ))}
     </div>
   )

@@ -104,7 +104,8 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
 }
 
 export function StatusEditor({ onClose }: StatusEditorProps) {
-  const { statuses, load, add, update, remove, reorder, selectTodoCountByStatusId } = useStatusStore()
+  const statuses = useStatusStore((s) => s.statuses)
+  const { load, add, update, remove, reorder, selectTodoCountByStatusId } = useStatusStore.getState()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)

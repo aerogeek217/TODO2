@@ -8,13 +8,13 @@ import { AuditIssueDetailDialog } from '../../overlays/AuditIssueDetailDialog'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
+import { cleanupCurrentAudit } from '../../../services/replace-data'
 
 /** The database audit: orphaned joins, dangling references, unrecognized data. */
 export function DataIntegritySection() {
   const auditReport = useFileOpsStore((s) => s.auditReport)
   const runAudit = useFileOpsStore((s) => s.runAudit)
   const setAuditReport = useFileOpsStore((s) => s.setAuditReport)
-  const cleanupCurrentAudit = useFileOpsStore((s) => s.cleanupCurrentAudit)
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [running, setRunning] = useState(false)
   const [message, flash] = useFlashMessage('')

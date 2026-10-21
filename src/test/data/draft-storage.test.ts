@@ -34,8 +34,8 @@ describe('draft storage', () => {
     writeLayoutDraft(savedDraft)
     expect(localStorage.getItem('todo2-unsaved-layout')).not.toBeNull()
     expect(readLayoutDraft()).toEqual(savedDraft)
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns }, listNames: { 3: 'Inbox' } })
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'Untitled layout', body: { columns }, listNames: { 3: 'Inbox' } })
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns } })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'Untitled layout', body: { columns } })
     writeLayoutDraft(null)
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
     expect(readLayoutDraft()).toBeNull()
@@ -50,8 +50,8 @@ describe('draft storage', () => {
     expect(stored.top).toEqual(top)
     expect(stored.baseBottom).toEqual(bottom)
     expect(readLayoutDraft()).toEqual(record)
-    writeLayoutDraft({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom }, listNames: {} })
+    writeLayoutDraft({ kind: 'new', name: 'N', body: { columns: [], top, bottom } })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom } })
   })
 
   it('reads a layout draft kept at v65 through v66: its Eisenhower tabs lose their list and panes (now settings)', () => {
@@ -61,7 +61,7 @@ describe('draft storage', () => {
     ] }] }]
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', columns: v65Columns, listNames: { 3: 'Inbox' }, schemaVersion: 65 }))
     const tab: EisenhowerTab = { id: 'e', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }] }, listNames: { 3: 'Inbox' } })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }] } })
   })
 
   it('a current draft whose Eisenhower tab holds a config key (it has none) is no draft', () => {

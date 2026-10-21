@@ -91,7 +91,7 @@ describe('task title autocomplete — tags', () => {
       typeTitle('#')
 
       expect(getPopoverItemTexts()).toEqual([])
-      expect(screen.queryByText(/Press Enter to create/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Create #/)).not.toBeInTheDocument()
     })
   })
 
@@ -149,7 +149,7 @@ describe('task title autocomplete — tags', () => {
       renderPopup()
       typeTitle('#newtag')
 
-      expect(screen.getByText(/Press Enter to create #newtag/)).toBeInTheDocument()
+      expect(screen.getByText(/Create #newtag/)).toBeInTheDocument()
     })
 
     it('Enter on no-matches completes the token with user-typed casing', () => {
@@ -158,14 +158,14 @@ describe('task title autocomplete — tags', () => {
 
       fireEvent.keyDown(input, { key: 'Enter' })
       expect(input.value).toBe('#NewTag ')
-      expect(screen.queryByText(/Press Enter to create/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Create #/)).not.toBeInTheDocument()
     })
 
     it('clicking the create-new hint row completes the token', () => {
       renderPopup()
       typeTitle('#xyz')
 
-      const hint = screen.getByText(/Press Enter to create #xyz/)
+      const hint = screen.getByText(/Create #xyz/)
       fireEvent.mouseDown(hint)
 
       const input = getTitleInput()
@@ -178,7 +178,7 @@ describe('task title autocomplete — tags', () => {
 
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(input.value).toBe('#xyz')
-      expect(screen.queryByText(/Press Enter to create/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^Create #/)).not.toBeInTheDocument()
     })
   })
 })

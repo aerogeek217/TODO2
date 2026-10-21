@@ -12,13 +12,9 @@
   width: min(var(--settings-modal-width), calc(100vw - 64px));
   height: min(var(--settings-modal-height), calc(100vh - 64px));
   border-radius: var(--radius-lg);
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-modal);
   overflow: hidden;
-}
-
-[data-theme="light"] .dialog {
-  background: var(--color-surface);
 }
 
 .header {
@@ -126,11 +122,11 @@
 .navItemActive,
 .navItemActive:hover {
   background: var(--color-accent-bg);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .navItemActive .navIcon {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .content {

@@ -15,6 +15,7 @@ import {
 } from '../../../utils/followup'
 import { FollowedUpIcon } from '../FollowupIcons'
 import { useTooltip } from '../use-tooltip'
+import { FollowupDateButton } from './FollowupDateButton'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
 import styles from './Followup.module.css'
 
@@ -44,8 +45,9 @@ interface FollowupPopoverProps {
  * its empty-slot flag, the row menu or the bulk bar. It opens with focus on
  * "Mark followed up" (⏎ or a click stamps the task today), or on the Next
  * follow-up field (`initialFocus: 'next'`). Next follow-up takes an interval
- * or a date; quick buttons set common intervals. ⏎ in the field (valid
- * input) or a quick button applies and closes; Esc / outside click closes
+ * or a date, or a day from the browser's date picker (the field's calendar
+ * button); quick buttons set common intervals. ⏎ in the field (valid input),
+ * a picked day or a quick button applies and closes; Esc / outside click closes
  * without change. On close, focus goes back to what had it before (the
  * trigger) unless something else took it.
  */
@@ -158,6 +160,7 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
             &times;
           </button>
         )}
+        <FollowupDateButton label="Pick next follow-up date" value={todo.nextFollowupAt} onPick={apply} />
       </div>
       <div id={`followup-next-help-${todo.id}`} className={styles.help} aria-live="polite">
         {s.kind === 'valid' && (

@@ -67,3 +67,20 @@ export function fieldsOf(row: Partial<TodoItem>, changes: Partial<TodoItem>): Pa
   for (const key of Object.keys(changes)) out[key] = source[key]
   return out as Partial<TodoItem>
 }
+
+/**
+ * A task write's changes, with `recurrenceRule: undefined` added when the
+ * written task (`merged`: the task with the changes applied) would hold a
+ * rule but no due date to advance it from — e.g. a bulk "clear due date".
+ * The repository applies it to every task write; a store applies the same to
+ * its in-memory copy, so the two match. A write that sets the rule itself
+ * keeps it (an undo putting a dropped rule back).
+ */
+export function withOrphanedRuleDropped<T extends Partial<TodoItem>>(
+  merged: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>,
+  changes: T,
+): T {
+  if (!merged.recurrenceRule || merged.dueDate != null) return changes
+  if (changes.recurrenceRule != null) return changes
+  return { ...changes, recurrenceRule: undefined }
+}

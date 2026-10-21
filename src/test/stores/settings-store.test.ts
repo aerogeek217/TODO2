@@ -27,6 +27,13 @@ describe('useSettingsStore', () => {
     expect(error).toHaveBeenCalled()
   })
 
+  it('a failed load says so in the snackbar: the app runs on the defaults', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'getAll').mockRejectedValueOnce(new Error('IndexedDB unavailable'))
+    await useSettingsStore.getState().load()
+    expect(useUndoStore.getState().snackbar).toEqual({ description: "Couldn't load settings. Reload the page to try again.", notice: true })
+  })
+
   it('load reads color.dark.<key> and color.light.<key> rows', async () => {
     await db.settings.put({ key: 'color.dark.accent', value: '#112233' })
     await db.settings.put({ key: 'color.light.appBg', value: '#fafafa' })

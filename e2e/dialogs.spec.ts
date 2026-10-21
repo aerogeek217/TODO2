@@ -340,6 +340,20 @@ test('Settings: contract; Esc over it closes the people editor only, focused or 
   await expect(people).toBeVisible()
 })
 
+test('Settings: Esc in the follow-up interval reverts the typed value and keeps Settings; the next Esc closes it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const settings = await openSettings(page, 'Task defaults')
+  const interval = settings.getByRole('textbox', { name: 'Follow-up interval' })
+  const stored = await interval.inputValue()
+  await interval.fill('3w')
+  await page.keyboard.press('Escape')
+  await expect(interval).toHaveValue(stored)
+  await expect(settings).toBeVisible()
+  await expect(interval).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(settings).toBeHidden()
+})
+
 test('“Continue without a backup?” over the append-import dialog: Esc, focused or not, closes only the prompt', async ({ page }) => {
   const FILE = 'e2e-dialogs-append.json'
   await page.addInitScript((name) => {

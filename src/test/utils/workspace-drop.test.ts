@@ -146,6 +146,29 @@ describe('dropTargetForHit', () => {
     expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 0 }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a1', index: 2 })
   })
 
+  it('with tabs folded into +N, a strip position counts the shown tabs: it maps to the layout tab it lands before (or after the last shown); a gap beside the dragged tab is no move', () => {
+    // Layout a1: t1 t2 t5 t6 t7; shown: t1, then the active t7 pulled forward.
+    const folded: WorkspaceLayout = { ...l, columns: [col('a', [{ ...cell('a1', ['t1', 't2', 't5', 't6', 't7']), activeTabId: 't7' }, cell('a2', ['t3'])]), col('b', [cell('b1', ['t4'])])] }
+    const base = geometry()
+    const [a, ...rest] = base.columns
+    const g: WorkspaceGeometry = { ...base, columns: [{ ...a!, cells: [cellGeo('a1', 6, 500, 6, 350, ['t1', 't7']), ...a!.cells.slice(1)] }, ...rest] }
+    const hit = (index: number) => ({ kind: 'tab-strip' as const, cellId: 'a1', index, lineX: 0 })
+    // The gaps either side of t1 (shown t1 | t7, t2 t5 t6 folded between): t1 stays where it is.
+    expect(dropTargetForHit(folded, g, hit(0), { type: 'tab', tabId: 't1' })).toEqual({ kind: 'cell', cellId: 'a1', index: 0 })
+    expect(dropTargetForHit(folded, g, hit(1), { type: 'tab', tabId: 't1' })).toEqual({ kind: 'cell', cellId: 'a1', index: 0 })
+    // After the last shown (t7, layout index 4): t1 goes to the end — index 4 among the others.
+    expect(dropTargetForHit(folded, g, hit(2), { type: 'tab', tabId: 't1' })).toEqual({ kind: 'cell', cellId: 'a1', index: 4 })
+    // t7 (pulled forward) dropped beside itself: no move.
+    expect(dropTargetForHit(folded, g, hit(1), { type: 'tab', tabId: 't7' })).toEqual({ kind: 'cell', cellId: 'a1', index: 4 })
+    expect(dropTargetForHit(folded, g, hit(2), { type: 'tab', tabId: 't7' })).toEqual({ kind: 'cell', cellId: 'a1', index: 4 })
+    // t7 dropped before t1: the front.
+    expect(dropTargetForHit(folded, g, hit(0), { type: 'tab', tabId: 't7' })).toEqual({ kind: 'cell', cellId: 'a1', index: 0 })
+    // From another cell: before t7 is index 4; after the last shown, the end.
+    expect(dropTargetForHit(folded, g, hit(1), { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a1', index: 4 })
+    expect(dropTargetForHit(folded, g, hit(2), { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a1', index: 5 })
+    expect(dropTargetForHit(folded, g, hit(0), { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell', cellId: 'a1', index: 0 })
+  })
+
   it('body zones map to cell edges / joining the cell', () => {
     expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'top' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell-edge', cellId: 'a2', edge: 'top' })
     expect(dropTargetForHit(l, geo, { kind: 'cell-body', cellId: 'a2', zone: 'bottom' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell-edge', cellId: 'a2', edge: 'bottom' })

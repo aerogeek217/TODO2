@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, act } from '@testing-library/react'
 import { db } from '../../data/database'
+import { todoRepository } from '../../data/todo-repository'
 import { SETTING_KEYS } from '../../data/setting-keys'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -118,10 +119,13 @@ describe('StartupPurgePrompt — the stamp is the showing', () => {
   })
 
   it('no stamp while it waits behind a sync-file prompt, or when nothing is left to ask about', async () => {
+    // The prompt's read of the expired tasks, watched so the test waits for
+    // it (not for a timer) before saying nothing showed.
+    const reads = vi.spyOn(todoRepository, 'getByUids')
     act(() => useFileStorageStore.setState({ pendingConflict: { fileName: 'f.json' } as unknown as SyncConflictInfo }))
     const view = render(<StartupPurgePrompt launchUids={new Set([expiredUid])} onClose={vi.fn()} />)
-    // Let the effects and the database read run.
-    await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
+    await act(async () => {})
+    expect(reads).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
     view.unmount()
@@ -130,7 +134,9 @@ describe('StartupPurgePrompt — the stamp is the showing', () => {
     await db.todos.clear()
     useTodoStore.setState({ todosVersion: useTodoStore.getState().todosVersion + 1 })
     render(<StartupPurgePrompt launchUids={new Set([expiredUid])} onClose={vi.fn()} />)
-    await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
+    await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(1))
+    // The read finished and its result reached the component.
+    await act(async () => { await reads.mock.results[0]?.value })
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
     expect(await db.settings.get(SETTING_KEYS.purgePromptLastAt)).toBeUndefined()

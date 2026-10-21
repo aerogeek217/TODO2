@@ -21,37 +21,10 @@
   opacity: 0.85;
 }
 
-.buttonPrimary {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  border: none;
-  font-weight: var(--font-weight-semibold);
-}
-
 .buttonSecondary {
   background: transparent;
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
-}
-
-.buttonDanger {
-  background: transparent;
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-}
-
-.buttonDanger:hover:not(:disabled) {
-  background: var(--color-danger);
-  color: var(--color-app-bg);
-}
-
-.buttonDanger:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.buttonDanger:disabled:hover {
-  opacity: 0.4;
 }
 
 /* ── Color rows (ThemeColorsEditor) ── */

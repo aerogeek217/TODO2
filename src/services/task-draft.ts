@@ -1,7 +1,7 @@
 import type { NewTodoItem, Person, RecurrenceType, Status, Tag, TodoChanges, TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
-import { parseInput } from './natural-language-parser'
-import { resolveInput, type ResolvedInput } from './nlp-resolver'
+import { mentionToken, parseInput, tagToken } from './natural-language-parser'
+import { matchTag, resolveInput, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from '../utils/recurrence'
 
 /**
@@ -83,14 +83,19 @@ function existingId(id: number | null | undefined, rows: readonly { id?: number 
   return id != null && rows.some((r) => r.id === id) ? id : undefined
 }
 
-/** Splits `#tag` names into existing tag ids and names still to create (case-insensitive). */
+/**
+ * Splits `#tag` names into existing tag ids and names still to create: a
+ * name resolves as the `#` popup ranks it (`matchTag` — the exact tag, else
+ * the first whose name starts with it), and is created only when no tag does.
+ */
 function splitTags(names: readonly string[], tags: readonly Tag[]): { ids: number[]; missing: string[] } {
   const ids: number[] = []
   const missing: string[] = []
+  const stored = tags.filter((t) => t.id !== undefined)
   for (const name of names) {
     const lower = name.trim().toLowerCase()
     if (!lower) continue
-    const match = tags.find((t) => t.id !== undefined && t.name.trim().toLowerCase() === lower)
+    const match = matchTag(lower, stored)
     if (match?.id !== undefined) {
       if (!ids.includes(match.id)) ids.push(match.id)
     } else if (!missing.some((m) => m.toLowerCase() === lower)) {
@@ -184,18 +189,13 @@ export function draftFromEditor(
   }
 }
 
-/** `@Name` / `@"First Last"` — the token that names a person. */
-function personToken(name: string): string {
-  return /^\w+$/.test(name) ? `@${name}` : `@"${name}"`
-}
-
 /**
  * The title the task editor shows for a draft: the title, then the people
  * and tags still to create as `@` / `#` tokens (they're created with the
  * task; deleting the token drops them).
  */
 export function draftEditorTitle(draft: TaskDraft): string {
-  return [draft.title, ...draft.newPeople.map(personToken), ...draft.newTags.map((t) => `#${t}`)].join(' ')
+  return [draft.title, ...draft.newPeople.map(mentionToken), ...draft.newTags.map(tagToken)].join(' ')
 }
 
 /**

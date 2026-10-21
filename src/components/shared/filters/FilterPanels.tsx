@@ -2,12 +2,14 @@ import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, 
 import { MARKER_KEYS, type MarkerKey, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
+import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import { PickerEntityMenu } from '../EntityMenu'
 import picker from './FilterPicker.module.css'
 import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, isHotFilter, markerCondition, toggleHot, withMarkerCondition } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
 import { byName } from '../../../utils/sort-order'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
@@ -151,6 +153,26 @@ export function MarkerConditionToggle({ marker, value, onChange, touch = false, 
   )
 }
 
+/** Marks a picker's search box: ↓ in it moves into the rows below, ↑ on the first row comes back. */
+const PICKER_SEARCH_ATTR = 'data-picker-search'
+
+/** The search box of the picker `list` sits in: the nearest one above it in its popover. */
+function focusSearchAbove(list: HTMLElement) {
+  for (let el: HTMLElement | null = list.parentElement; el; el = el.parentElement) {
+    const search = el.querySelector<HTMLInputElement>(`input[${PICKER_SEARCH_ATTR}]`)
+    if (search) { search.focus(); return }
+  }
+}
+
+/** The first row's tab stop of the listbox after `search` in its picker. */
+function focusRowsBelow(search: HTMLElement): boolean {
+  for (let el: HTMLElement | null = search.parentElement; el; el = el.parentElement) {
+    const row = el.querySelector<HTMLElement>('[role="listbox"] [role="option"][tabindex="0"]')
+    if (row) { row.focus(); return true }
+  }
+  return false
+}
+
 interface SelectionPanelBodyProps {
   /** The Is / Is not toggle above the actions (People / Status / Tags). */
   mode?: FilterModeProps
@@ -209,10 +231,21 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
               placeholder="Search..."
               value={search.text}
               onChange={(e) => search.setText(e.target.value)}
+              {...{ [ESCAPE_CLEARS_ATTR]: '', [PICKER_SEARCH_ATTR]: '' }}
               onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  if (search.text) search.setText('')
-                  else search.onEscape()
+                if (e.key === 'ArrowDown') {
+                  if (focusRowsBelow(e.currentTarget)) e.preventDefault()
+                  return
+                }
+                if (e.key !== 'Escape') return
+                // Esc empties the search first (the popover leaves it to the
+                // field while it has text); the next one closes the picker.
+                if (search.text) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  search.setText('')
+                } else {
+                  search.onEscape()
                 }
               }}
             />
@@ -240,14 +273,25 @@ interface EntityDropdownItemsProps {
    */
   entityMenu?: 'person' | 'tag'
   onShowTasks?: () => void
+  /** The list's name (`People`, `Tags`, `Status`). */
+  label?: string
 }
 
-/** A right-click's press keeps the focus where it is (the picker's search box). */
-function keepFocusOnRightPress(e: MouseEvent) {
-  if (e.button === 2) e.preventDefault()
+/** A press on a row keeps the focus where it is (the picker's search box), as the people / tag pickers do. */
+function keepFocus(e: MouseEvent) {
+  e.preventDefault()
 }
 
-/** Checkable entity rows (plus a leading "None" row, id 0), filtered by `searchText`. */
+/** The picker's rows: a listbox of checkable options (Is / Is not and Select all sit above it). */
+const ROW_SELECTOR = '[role="option"]'
+
+/**
+ * Checkable entity rows (plus a leading "None" row, id 0), filtered by
+ * `searchText`: a multi-select listbox with one tab stop — ↑ / ↓ / Home / End
+ * move between the rows (↑ on the first goes back to a search box above),
+ * Space or Enter ticks the focused one, Shift+F10 / the context-menu key
+ * opens a person's / tag's menu under it.
+ */
 export function EntityDropdownItems({
   searchText,
   entities,
@@ -258,45 +302,84 @@ export function EntityDropdownItems({
   withNone = true,
   entityMenu,
   onShowTasks,
+  label,
 }: EntityDropdownItemsProps) {
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null)
+  // The row that takes the tab stop, by id (0 = None), so it survives the search narrowing.
+  const [activeId, setActiveId] = useState<number | null>(null)
   const q = searchText.toLowerCase()
   const showNone = withNone && (!q || 'none'.includes(q))
   const filtered = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
     .toSorted(byName)
+  const rowIds = [...(showNone ? [0] : []), ...filtered.flatMap((e) => (e.id == null ? [] : [e.id]))]
+  const tabStop = activeId != null && rowIds.includes(activeId) ? activeId : rowIds[0]
+
   const onRowContextMenu = (id: number | undefined) => (e: MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (id != null && id !== 0) setMenu({ id, x: e.clientX, y: e.clientY })
+    if (id == null || id === 0) return
+    // From the keyboard (no right button): under the row, as the people / tag pickers do.
+    const rect = e.button === 2 ? null : e.currentTarget.getBoundingClientRect()
+    setMenu({ id, x: rect ? rect.left + 16 : e.clientX, y: rect ? rect.bottom : e.clientY })
   }
+  const onListKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const rows = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(ROW_SELECTOR))
+    const at = rows.findIndex((r) => r === document.activeElement)
+    if (at < 0) return
+    const focusRow = (i: number) => {
+      const row = rows[i]
+      if (!row) return
+      setActiveId(Number(row.dataset.entityId))
+      row.focus()
+    }
+    const id = Number(rows[at]?.dataset.entityId)
+    if (e.key === 'ArrowDown') focusRow(Math.min(at + 1, rows.length - 1))
+    else if (e.key === 'ArrowUp') { if (at === 0) focusSearchAbove(e.currentTarget); else focusRow(at - 1) }
+    else if (e.key === 'Home') focusRow(0)
+    else if (e.key === 'End') focusRow(rows.length - 1)
+    else if (e.key === ' ' || e.key === 'Enter') onToggle(id)
+    else return
+    // The list's keys go no further (Space and Enter are task shortcuts too).
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  const row = (id: number, content: ReactNode, menuable: boolean) => (
+    <div
+      key={id}
+      role="option"
+      aria-selected={isChecked(id)}
+      tabIndex={id === tabStop ? 0 : -1}
+      data-entity-id={id}
+      className={picker.dropdownItem}
+      onClick={() => { setActiveId(id); onToggle(id) }}
+      onMouseDown={keepFocus}
+      onFocus={() => setActiveId(id)}
+      onContextMenu={menuable ? onRowContextMenu(id) : undefined}
+    >
+      <span className={`${picker.check} ${isChecked(id) ? picker.checked : ''}`} aria-hidden="true" />
+      {content}
+    </div>
+  )
   return (
     <>
-      {showNone && (
-        <label className={picker.dropdownItem} onClick={() => onToggle(0)} onContextMenu={entityMenu ? onRowContextMenu(0) : undefined}>
-          <span className={`${picker.check} ${isChecked(0) ? picker.checked : ''}`} />
-          <span className={picker.noneLabel}>None</span>
-        </label>
+      {rowIds.length > 0 && (
+        <div role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
+          {showNone && row(0, <span className={picker.noneLabel}>None</span>, !!entityMenu)}
+          {filtered.map((entity) => entity.id != null && row(entity.id, (
+            <>
+              {entity.icon ? (
+                <span className={picker.dotIcon} style={{ color: entity.color }} aria-hidden="true">
+                  <StatusIcon icon={entity.icon} filled />
+                </span>
+              ) : showDot && entity.color ? (
+                <span className={picker.dot} style={{ background: entity.color }} aria-hidden="true" />
+              ) : null}
+              {namePrefix}
+              {entity.name}
+            </>
+          ), !!entityMenu))}
+        </div>
       )}
-      {filtered.map((entity) => (
-        <label
-          key={entity.id}
-          className={picker.dropdownItem}
-          onClick={() => onToggle(entity.id!)}
-          onMouseDown={entityMenu ? keepFocusOnRightPress : undefined}
-          onContextMenu={entityMenu ? onRowContextMenu(entity.id) : undefined}
-        >
-          <span className={`${picker.check} ${isChecked(entity.id!) ? picker.checked : ''}`} />
-          {entity.icon ? (
-            <span className={picker.dotIcon} style={{ color: entity.color }}>
-              <StatusIcon icon={entity.icon} filled />
-            </span>
-          ) : showDot && entity.color ? (
-            <span className={picker.dot} style={{ background: entity.color }} />
-          ) : null}
-          {namePrefix}
-          {entity.name}
-        </label>
-      ))}
       {q && !showNone && filtered.length === 0 && (
         <div className={picker.dropdownEmpty}>No matches</div>
       )}

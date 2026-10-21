@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { EditorState, Compartment } from '@codemirror/state'
+import { EditorState, Compartment, Prec } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { markdown } from '@codemirror/lang-markdown'
+import { commonmarkLanguage, markdownKeymap, pasteURLAsLink } from '@codemirror/lang-markdown'
 import { htmlToMarkdown } from '../../../services/notes-export'
 import { notesNlp, notesPopupField, type NotesNlpConfig, type NotesPopupState } from './notes-nlp'
 import { NotesNlpPopup } from './NotesNlpPopup'
 import { convertHighlight } from './notes-convert-highlight'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesEditor.module.css'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 interface NotesEditorProps {
   value: string
@@ -33,6 +34,19 @@ interface NotesEditorProps {
   /** Shown to the user when the `nlp` popup's create row fails. */
   onNlpError?: (message: string) => void
 }
+
+/**
+ * lang-markdown's `markdown()` without its HTML-in-Markdown support, which
+ * would bring in lang-html (and with it lang-css and lang-javascript, ~100 KB
+ * minified): the CommonMark tree the keymap reads, Enter / Backspace
+ * continuing and removing list markup, a URL pasted over a selection becoming
+ * a link. Left out on purpose: lang-html's `autoCloseTags` — typing `<div>`
+ * in a note no longer adds `</div>` (notes are Markdown; the ~100 KB isn't
+ * worth it) — and parts that did nothing here, since the editor installs no
+ * highlighting, folding or completion (HTML blocks parsed as HTML, heading
+ * folds, `<tag` completion).
+ */
+const notesMarkdown = [commonmarkLanguage, pasteURLAsLink, Prec.high(keymap.of(markdownKeymap))]
 
 /**
  * CodeMirror 6 wrapper. Deliberately minimal — only imports the
@@ -101,7 +115,7 @@ export function NotesEditor({
       doc: value,
       extensions: [
         history(),
-        markdown(),
+        notesMarkdown,
         EditorView.lineWrapping,
         pasteHandler,
         keymapCompartment.current.of(buildKeymap()),
@@ -200,7 +214,7 @@ export function NotesEditor({
         className={styles.host}
         ref={hostRef}
         data-placeholder={placeholder ?? undefined}
-        data-shortcut-scope="none"
+        {...shortcutScope('none')}
         onMouseDown={handleHostMouseDown}
       />
       {popup && <NotesNlpPopup editor={popup.editor} popup={popup.state} />}

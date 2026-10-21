@@ -148,6 +148,28 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onUpdate.mock.calls[1]![0].nextFollowupAt).toBeUndefined()
   })
 
+  it('edit mode: Next has a date picker; a picked day sets the next follow-up', () => {
+    const todo = makeTodo({ id: 7, nextFollowupAt: day(2026, 10, 13) })
+    const { onUpdate } = renderEdit(todo)
+    const button = screen.getByRole('button', { name: 'Pick next follow-up date' })
+    fireEvent.click(button)
+    const picker = button.nextElementSibling as HTMLInputElement
+    expect(picker).toHaveAttribute('type', 'date')
+    expect(picker.showPicker).toHaveBeenCalled()
+    expect(picker.value).toBe('2026-10-13')
+    fireEvent.change(picker, { target: { value: '2026-11-20' } })
+    expect(onUpdate).toHaveBeenCalledWith({ nextFollowupAt: day(2026, 11, 20) })
+  })
+
+  it('create mode: a day picked for Next goes into the new task', async () => {
+    const { onCreate } = renderCreate()
+    const button = screen.getByRole('button', { name: 'Pick next follow-up date' })
+    fireEvent.change(button.nextElementSibling as HTMLInputElement, { target: { value: '2026-12-01' } })
+    fireEvent.click(screen.getByText('Create task'))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    expect(onCreate.mock.calls[0]![0].nextFollowupAt).toEqual(day(2026, 12, 1))
+  })
+
   it('edit mode: Last rejects future dates; Mark followed up goes to the bulk-aware handler', () => {
     const onFollowedUp = vi.fn()
     const todo = makeTodo({ id: 7, nextFollowupAt: day(2026, 10, 13) })

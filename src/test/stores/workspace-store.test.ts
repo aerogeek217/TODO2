@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -46,8 +46,8 @@ const ws = () => useWorkspaceStore.getState()
  * Opens an unsaved new layout as an older build kept it in the browser
  * (its New layout wasn't stored until saved): kept, then a page load.
  */
-async function openKeptNewLayout(body: LayoutBody = { columns: [] }, name = 'Untitled layout', listNames: Record<string, string> = {}) {
-  writeLayoutDraft({ kind: 'new', name, body, listNames })
+async function openKeptNewLayout(body: LayoutBody = { columns: [] }, name = 'Untitled layout') {
+  writeLayoutDraft({ kind: 'new', name, body })
   useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
   await ws().init()
 }
@@ -238,6 +238,68 @@ describe('view state', () => {
     expect(row.columns[1]!.cells[0]!.activeTabId).toBe('b1')
     ws().discard()
     expect(ws().working!.columns[0]!.cells[0]!.tabs[1]!.viewState).toEqual({ offset: -1 })
+  })
+})
+
+describe('view state written while a Save runs', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  /**
+   * Holds the layout writes behind `gate`, in call order — as IndexedDB runs
+   * read-write transactions on one store: each starts after the one before.
+   */
+  function holdLayoutWrites() {
+    let release!: () => void
+    let chain: Promise<unknown> = new Promise<void>((r) => { release = r })
+    const queue = <T>(run: () => Promise<T>): Promise<T> => {
+      const p = chain.then(run)
+      chain = p.catch(() => undefined)
+      return p
+    }
+    const put = layoutRepository.put.bind(layoutRepository)
+    const updateView = layoutRepository.updateView.bind(layoutRepository)
+    vi.spyOn(layoutRepository, 'put').mockImplementation((l) => queue(() => put(l)))
+    vi.spyOn(layoutRepository, 'updateView').mockImplementation((id, fn) => queue(() => updateView(id, fn)))
+    return () => release()
+  }
+
+  it('a tab switched while the Save writes keeps the saved structure, stored and on a reload, with the switch', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    const tabId = ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })!
+    const release = holdLayoutWrites()
+    const saving = ws().save()
+    const switching = ws().setActiveTab('a2')
+    release()
+    expect(await saving).toBe(true)
+    await switching
+
+    const row = await stored(id!)
+    expect(row.columns[1]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['b1', tabId])
+    expect(row.columns[0]!.cells[0]!.activeTabId).toBe('a2')
+    expect(ws().isDirty).toBe(false)
+    expect(ws().saved!.columns[0]!.cells[0]!.activeTabId).toBe('a2')
+    expect(ws().saved!.columns[1]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['b1', tabId])
+
+    vi.restoreAllMocks()
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await ws().init()
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working!.columns[1]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['b1', tabId])
+    expect(ws().working!.columns[0]!.cells[0]!.activeTabId).toBe('a2')
+  })
+
+  it('a view change made before the Save is in what it writes', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
+    const release = holdLayoutWrites()
+    const switching = ws().setActiveTab('a2')
+    const saving = ws().save()
+    release()
+    await Promise.all([switching, saving])
+    const row = await stored(id!)
+    expect(row.columns[0]!.cells[0]!.activeTabId).toBe('a2')
+    expect(row.columns[1]!.cells[0]!.tabs).toHaveLength(2)
+    expect(ws().saved).toEqual(row)
   })
 })
 

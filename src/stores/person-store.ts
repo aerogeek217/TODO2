@@ -43,6 +43,8 @@ export const usePersonStore = create<PersonState>((set, get) => {
       repo: {
         assign: personRepository.assignPerson,
         unassign: personRepository.unassignPerson,
+        bulkAssign: personRepository.bulkAssignPerson,
+        bulkUnassign: personRepository.bulkUnassignPerson,
         getForTodos: personRepository.getAssignedPeopleForTodos,
       },
       label: 'person',

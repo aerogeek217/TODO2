@@ -76,13 +76,6 @@ export function dateRangeOf(m: DateMatch | null | undefined): { start: DateAncho
   return { start: m.start, end: m.end, includeNoDate: m.includeNoDate === true }
 }
 
-/** A clause's presence choice: `true` = Has a date, `false` = No date, `null` = neither. */
-export function datePresenceOf(m: DateMatch | null | undefined): boolean | null {
-  if (m?.match === 'set') return true
-  if (m?.match === 'unset') return false
-  return null
-}
-
 function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
   if (a == null || b == null) return a == null && b == null
   if (a.kind === 'fixed' && b.kind === 'fixed') return a.iso === b.iso

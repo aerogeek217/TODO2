@@ -291,7 +291,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
   // Not narrowed: a hint.
   await expect(page.getByText('Narrow to some people to email them.')).toBeVisible()
   // One person (the first pick replaces "everyone"): sends at once and closes the picker.
-  await page.locator('label').filter({ hasText: '@Ada Lovelace' }).click()
+  await page.getByRole('option', { name: '@Ada Lovelace' }).click()
   // (The group header's envelope has the same name, but no text.)
   await page.getByRole('button', { name: 'Email check-in to Ada Lovelace', exact: true }).filter({ hasText: 'Email check-in' }).click()
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0)
@@ -303,7 +303,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
 
   // Two people: the dialog with both ticked.
   await peopleButton.click()
-  await page.locator('label').filter({ hasText: '@Bob Stone' }).click()
+  await page.getByRole('option', { name: '@Bob Stone' }).click()
   const action = page.getByRole('button', { name: 'Email check-in to 2 people…' })
   await expect(action).toBeVisible()
   await action.click()
@@ -316,6 +316,10 @@ test('fallback: no open tasks match the saved check-in filter: opens the dialog 
   await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: 'hot' }) })
   await page.keyboard.press('Control+k')
   await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
+  // The command exists once Ada's tasks and their people have loaded (the reload above).
+  const top = page.getByRole('listbox').getByRole('option').first()
+  await expect(top).toContainText('Email check-in: Ada Lovelace')
+  await expect(top).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Enter')
   await expectTicked(page, ['Ada Lovelace'])
   await expect(checkinDialog(page).getByRole('status'))

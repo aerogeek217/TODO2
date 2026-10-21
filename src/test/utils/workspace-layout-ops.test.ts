@@ -7,7 +7,6 @@ import {
   countListTabs,
   findPanel,
   findTab,
-  getPanel,
   getTab,
   layoutPanels,
   movePanel,
@@ -315,7 +314,6 @@ describe('bands', () => {
     expect(panelOfTab(l, 'top1')?.id).toBe('tb')
     expect(getTab(l, 'bot1')?.kind).toBe('calendar')
     expect(findPanel(l, 'bb')).toEqual({ kind: 'band', edge: 'bottom' })
-    expect(getPanel(l, 'kc')?.id).toBe('kc')
     const active = setActiveTab(l, 'bot2')
     expect(active.bottom?.activeTabId).toBe('bot2')
     expect(active.bottom?.height).toBe(120)

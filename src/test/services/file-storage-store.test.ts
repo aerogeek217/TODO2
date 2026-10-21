@@ -5,8 +5,6 @@ import type { UnsupportedImportInfo } from '../../data/file-version'
 // The store's wiring to the service, with the service's subscribe calls captured.
 const wiring = vi.hoisted(() => ({
   status: [] as Array<(s: unknown) => void>,
-  before: [] as Array<() => Promise<() => void>>,
-  after: [] as Array<() => Promise<void>>,
   migration: null as null | ((info: unknown) => Promise<boolean>),
   conflict: null as null | ((info: unknown) => Promise<SyncConflictChoice>),
   upgrade: null as null | ((info: unknown) => Promise<boolean>),
@@ -19,8 +17,6 @@ vi.mock('../../services/file-storage', () => ({
   fileStorageService: {
     isSupported: true,
     onStatusChange: (l: (s: unknown) => void) => { wiring.status.push(l); return () => {} },
-    onBeforeImport: (l: () => Promise<() => void>) => { wiring.before.push(l); return () => {} },
-    onAfterImport: (l: () => Promise<void>) => { wiring.after.push(l); return () => {} },
     onConfirmMigration: (h: (info: unknown) => Promise<boolean>) => { wiring.migration = h; return () => {} },
     onConflict: (h: (info: unknown) => Promise<SyncConflictChoice>) => { wiring.conflict = h; return () => {} },
     onConfirmFileUpgrade: (h: (info: unknown) => Promise<boolean>) => { wiring.upgrade = h; return () => {} },
@@ -52,8 +48,6 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 describe('file-storage store — wiring', () => {
   it('subscribes once to each service event when created', () => {
     expect(wiring.status).toHaveLength(1)
-    expect(wiring.before).toHaveLength(1)
-    expect(wiring.after).toHaveLength(1)
     expect(wiring.migration && wiring.conflict && wiring.upgrade && wiring.launch).toBeTruthy()
   })
 

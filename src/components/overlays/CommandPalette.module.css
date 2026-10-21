@@ -85,12 +85,6 @@
   color: var(--color-text-primary);
 }
 
-.resultCategory {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  text-transform: capitalize;
-}
-
 .resultHint {
   flex-shrink: 0;
   font-size: var(--font-size-meta);
@@ -128,7 +122,7 @@
 
 .highlight {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   border-radius: 2px;
 }
 

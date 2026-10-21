@@ -43,6 +43,7 @@ import {
   isWorkspaceDragType,
   isWorkspacePanelDragData,
   isWorkspaceTabDragData,
+  runDrop,
   tabsCount,
   WorkspaceDragContext,
   type WorkspaceDragState,
@@ -418,7 +419,7 @@ export function WorkspacePage() {
       collisionDetection={collisionDetection}
       autoScroll={autoScroll}
       onDragStart={handleDragStart}
-      onDragEnd={(e) => { void handleDragEnd(e) }}
+      onDragEnd={(e) => { void runDrop(() => handleDragEnd(e)) }}
       onDragCancel={handleDragCancel}
     >
       <WorkspaceDragContext.Provider value={drag}>

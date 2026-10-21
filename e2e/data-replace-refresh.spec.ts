@@ -62,10 +62,10 @@ test('a data replace while the task editor is open closes it', async ({ page }) 
   // The restore Settings › Backups runs (the editor covers the app meanwhile,
   // as when a sync file loads under it).
   const outcome = await page.evaluate(async (id) => {
-    const mod = (await import(/* @vite-ignore */ '/src/stores/file-ops-store.ts' as string)) as {
-      useFileOpsStore: { getState(): { restoreBackup(id: number): Promise<{ status: string }> } }
+    const mod = (await import(/* @vite-ignore */ '/src/services/replace-data.ts' as string)) as {
+      restoreBackup(id: number): Promise<{ status: string }>
     }
-    return (await mod.useFileOpsStore.getState().restoreBackup(id)).status
+    return (await mod.restoreBackup(id)).status
   }, backupId)
   expect(outcome).toBe('done')
 

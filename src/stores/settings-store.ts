@@ -60,7 +60,7 @@ import {
   pickPanes,
   readPanesSetting,
 } from '../data/eisenhower-shape'
-import { readFresh, trackWrite } from './store-helpers'
+import { readFresh, reportLoadFailure, trackWrite } from './store-helpers'
 import { useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
@@ -417,7 +417,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
     } catch (e) {
-      console.error('Failed to load settings:', e)
+      // The app runs on the defaults: say so, as every store's failed load does.
+      reportLoadFailure('settings', e)
       // The page still gets a theme: the current (default) mode.
       applyThemeMode(get().themeMode)
     }

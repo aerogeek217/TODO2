@@ -5,14 +5,10 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   box-shadow: var(--shadow-modal);
-}
-
-:global([data-theme="light"]) .dialog {
-  background: var(--color-surface);
 }
 
 .header {
@@ -183,7 +179,7 @@
 .avatarNew {
   background: transparent;
   border: 1px dashed var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   box-sizing: border-box;
 }
 

@@ -30,8 +30,9 @@ describe('statusRepository', () => {
     expect(todo?.statusId).toBeUndefined()
   })
 
-  it('getTodoIdsForStatus returns the primary keys of todos pointing at the status', async () => {
+  it('delete is a status edit on each task it clears: returns them, one modifiedAt, a status event each; restore the same way back', async () => {
     const statusId = await statusRepository.insert({ name: 'Open', color: '#00ff00', sortOrder: 0 })
+    const status = (await statusRepository.getById(statusId))!
     const t1 = (await db.todos.add({
       title: 'A', isCompleted: false,
       sortOrder: 0, createdAt: now, modifiedAt: now, statusId,
@@ -40,13 +41,26 @@ describe('statusRepository', () => {
       title: 'B', isCompleted: false,
       sortOrder: 1, createdAt: now, modifiedAt: now, statusId,
     } as never)) as number
-    await db.todos.add({
+    const other = (await db.todos.add({
       title: 'C', isCompleted: false,
       sortOrder: 2, createdAt: now, modifiedAt: now,
-    } as never)
+    } as never)) as number
 
-    const ids = await statusRepository.getTodoIdsForStatus(statusId)
-    expect(ids.sort()).toEqual([t1, t2].sort())
+    const at = new Date(now.getTime() + 60_000)
+    const ids = await statusRepository.delete(statusId, at)
+    expect([...ids].sort()).toEqual([t1, t2].sort())
+    for (const id of [t1, t2]) expect((await db.todos.get(id))!.modifiedAt).toEqual(at)
+    expect((await db.todos.get(other))!.modifiedAt).toEqual(now)
+    const cleared = await db.todoEvents.where('type').equals('status').toArray()
+    expect(cleared.map((e) => [e.todoId, e.fromValue, e.toValue, e.timestamp]).sort())
+      .toEqual([[t1, statusId, null, at.toISOString()], [t2, statusId, null, at.toISOString()]].sort())
+
+    const back = new Date(now.getTime() + 120_000)
+    await statusRepository.restoreWithTodos(status, ids, back)
+    for (const id of [t1, t2]) {
+      expect((await db.todos.get(id))).toMatchObject({ statusId, modifiedAt: back })
+    }
+    expect(await db.todoEvents.where('type').equals('status').count()).toBe(4)
   })
 
   it('restoreWithTodos re-inserts the row preserving id and re-points affected todos', async () => {

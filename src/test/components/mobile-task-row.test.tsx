@@ -116,6 +116,20 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('BO')).toBeInTheDocument()
     })
 
+    it('in a person’s group, leaves that person out of the row’s people (hiddenPersonId)', () => {
+      const people = [
+        makePerson({ id: 1, name: 'Alice', initials: 'AL' }),
+        makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
+      ]
+      const { rerender } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} hiddenPersonId={1} />)
+      expect(screen.queryByText('AL')).not.toBeInTheDocument()
+      expect(screen.getByText('BO')).toBeInTheDocument()
+      // Only the group's person: no avatars at all.
+      rerender(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people.slice(0, 1)} hiddenPersonId={1} />)
+      expect(screen.queryByText('AL')).not.toBeInTheDocument()
+      expect(screen.queryByText('BO')).not.toBeInTheDocument()
+    })
+
     it('shows overflow count for 4+ people (avatar stack shows 3)', () => {
       const people = [
         makePerson({ id: 1, initials: 'A' }),
@@ -154,6 +168,20 @@ describe('MobileTaskRow', () => {
       const onSelect = vi.fn()
       render(<MobileTaskRow todo={makeTodo({ id: 7 })} onSelect={onSelect} />)
       fireEvent.click(getRow())
+      expect(onSelect).toHaveBeenCalledWith(7, { shift: false, ctrl: false })
+    })
+
+    it('the title is the row’s button: the keyboard selects through it, and the row holds its controls without being a button', () => {
+      const onSelect = vi.fn()
+      render(<MobileTaskRow todo={makeTodo({ id: 7, title: 'Call plumber' })} onSelect={onSelect} isSelected={false} />)
+      expect(getRow()).not.toHaveAttribute('role')
+      expect(getRow()).not.toHaveAttribute('tabindex')
+      const title = screen.getByRole('button', { name: 'Call plumber' })
+      expect(title).toHaveAttribute('aria-pressed', 'false')
+      // The checkbox and the status button are no longer inside a button.
+      expect(screen.getByRole('checkbox', { name: 'Toggle complete' }).closest('[role="button"]')).toBeNull()
+      fireEvent.click(title)
+      expect(onSelect).toHaveBeenCalledOnce()
       expect(onSelect).toHaveBeenCalledWith(7, { shift: false, ctrl: false })
     })
 

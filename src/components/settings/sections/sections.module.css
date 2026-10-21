@@ -169,12 +169,6 @@
   box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg);
 }
 
-/* A bare label in the left column (rows whose component renders its own label). */
-.labelInline {
-  composes: label;
-  padding-top: 5px;
-}
-
 /* A text input sized like `.select`. */
 .input {
   composes: select;
@@ -231,7 +225,7 @@
 
 .successMsg {
   font-size: var(--font-size-meta);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .errorMsg {
@@ -407,13 +401,13 @@
 
 .auditRowClickable:hover .auditViewHint,
 .auditRowClickable:focus-visible .auditViewHint {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* ═══ Delete completed tasks popup ═══ */
 
 .cleanupPopup {
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   width: 400px;
@@ -450,10 +444,6 @@
   gap: 4px;
 }
 
-[data-theme="light"] .cleanupPopup {
-  background: var(--color-surface);
-}
-
 /* ── Mobile: rows stack, controls get touch sizes ── */
 
 @media (max-width: 640px) {
@@ -462,8 +452,7 @@
     gap: 8px;
   }
 
-  .labelCell,
-  .labelInline {
+  .labelCell {
     padding-top: 0;
   }
 

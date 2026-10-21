@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PersistedTodoItem, Person } from '../../../models'
+import type { PersistedTodoItem } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -55,6 +55,7 @@ import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
+import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -256,6 +257,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   const renderSectionRows = (section: Section) => {
     const target = dropTarget?.sectionKey === section.key ? dropTarget : null
+    // A person's own group doesn't repeat their chip on its rows.
+    const hiddenPersonId = groupedBy === 'people' && section.key.startsWith('person-')
+      ? Number(section.key.slice('person-'.length))
+      : undefined
     const out: React.ReactNode[] = []
     let j = 0
     const indicator = () => {
@@ -280,14 +285,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         if (target?.index === j) indicator()
         j++
       }
-      let people: Person[] | undefined = assignedPeopleMap.get(todo.id)
-      // A person's own group doesn't repeat their chip on its rows.
-      if (groupedBy === 'people' && people && section.key.startsWith('person-')) {
-        const groupPersonId = Number(section.key.slice('person-'.length))
-        people = people.filter((p) => p.id !== groupPersonId)
-      }
+      const people = assignedPeopleMap.get(todo.id)
       if (isMobile) {
-        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={openEditPopup} />)
+        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} hiddenPersonId={hiddenPersonId} onOpenDetail={openEditPopup} />)
         return
       }
       const prev = section.todos[i - 1]
@@ -297,6 +297,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           key={key}
           todo={todo}
           assignedPeople={people}
+          hiddenPersonId={hiddenPersonId}
           tabId={tab.id}
           sectionKey={section.key}
           rowKey={key}
@@ -377,7 +378,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             key={section.key}
             className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
             data-list-group={section.key}
-            data-list-section={section.key}
+            {...{ [LIST_SECTION_ATTR]: section.key }}
           >
             {person ? (
               <PersonGroupHeader
@@ -392,7 +393,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           </div>
         )
       }) : sections.map((section) => (
-        <div key={section.key} data-list-section={section.key}>
+        <div key={section.key} {...{ [LIST_SECTION_ATTR]: section.key }}>
           {renderSectionRows(section)}
         </div>
       ))
@@ -417,7 +418,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       className={`${styles.widget} ${isMobile ? styles.touch : ''}`}
       data-list-widget={tab.id}
       data-list-host={tab.id}
-      data-selection-scope={isMobile ? undefined : tab.id}
+      {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
       // Phones: the filter chips (a shared stylesheet) get their touch height.
       data-touch-chips={isMobile ? '' : undefined}
     >

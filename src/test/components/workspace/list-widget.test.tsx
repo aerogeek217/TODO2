@@ -17,6 +17,7 @@ import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
+import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
@@ -275,6 +276,18 @@ describe('ListWidget', () => {
     expect(document.querySelector('[data-list-group="person-2"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(2)
   })
 
+  it('a row in a person’s group still has the person: its people picker shows them ticked', () => {
+    setup(def({ grouping: 'people' }))
+    const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
+    const sharedRow = aliceGroup.querySelector('[data-todo-id="3"]')!
+    fireEvent.click(sharedRow.querySelector('[data-row-cell="people"]')!)
+    const options = screen.getAllByRole('option')
+    const ticked = options.filter((o) => o.getAttribute('aria-selected') === 'true').map((o) => o.textContent)
+    expect(ticked).toHaveLength(2)
+    expect(ticked.some((t) => t?.includes('Alice'))).toBe(true)
+    expect(ticked.some((t) => t?.includes('Bob'))).toBe(true)
+  })
+
   it('renders the unsaved draft, and removing a list chip edits the draft', () => {
     useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
     setup(def({}, { statusIds: [5] }))
@@ -389,6 +402,24 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
   })
 
+  it('the palette’s Select All Tasks takes the widget with the selection, as Mod-A does', () => {
+    setup(def({ grouping: 'people' }))
+    // Another task shown elsewhere on the page (a calendar entry, another widget's row).
+    const elsewhere = document.createElement('button')
+    elsewhere.setAttribute('data-todo-id', '4')
+    document.body.appendChild(elsewhere)
+    clickTitle('person-1|1')
+    const ctx = {
+      shortcuts: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} },
+      selectionCount: 1,
+      getStatuses: () => [],
+    } as unknown as CommandContext
+    act(() => { createCommands(ctx).find((c) => c.id === 'select-all')!.action() })
+    expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
+    expect(useUIStore.getState().selectionScope).toBe('t1')
+    elsewhere.remove()
+  })
+
   it('selecting in another widget clears this one’s', () => {
     setup(def())
     clickTitle('all|1')
@@ -406,6 +437,23 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
     expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
     expect(screen.queryByTestId('list-bulk-bar')).toBeNull()
+  })
+
+  it('the bulk bar’s Set follow-up: a day picked in the date picker is every selected task’s next follow-up', async () => {
+    await db.todos.bulkPut(useTodoStore.getState().todos)
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    fireEvent.click(within(screen.getByTestId('list-bulk-bar')).getByRole('button', { name: 'Set follow-up' }))
+    const popover = screen.getByRole('dialog', { name: 'Follow-up' })
+    const button = within(popover).getByRole('button', { name: 'Pick next follow-up date' })
+    await act(async () => { fireEvent.change(button.nextElementSibling as HTMLInputElement, { target: { value: '2026-11-20' } }) })
+    expect(screen.queryByRole('dialog', { name: 'Follow-up' })).toBeNull()
+    const next = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt
+    expect(next(1)).toEqual(new Date(2026, 10, 20))
+    expect(next(2)).toEqual(new Date(2026, 10, 20))
+    expect(next(3)).toBeUndefined()
+    await vi.waitFor(async () => expect((await db.todos.get(2))?.nextFollowupAt).toEqual(new Date(2026, 10, 20)))
   })
 
   /** Opens the bulk bar's ⋯ More menu. */

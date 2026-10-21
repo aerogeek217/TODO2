@@ -12,6 +12,18 @@ import {
 const VIEWPORT_MARGIN_PX = 8
 const DEFAULT_GAP_PX = 4
 
+/**
+ * Marks a text field (a picker's search) that takes Escape while it holds
+ * text — to empty itself — so the popover it sits in stays open; with the
+ * field empty, Escape closes the popover as usual.
+ */
+export const ESCAPE_CLEARS_ATTR = 'data-escape-clears'
+
+/** Whether an Escape on `target` belongs to a field that empties itself first (`ESCAPE_CLEARS_ATTR`). */
+function escapeClearsField(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement && target.hasAttribute(ESCAPE_CLEARS_ATTR) && target.value !== ''
+}
+
 export type PopoverAnchor =
   | { kind: 'ref'; ref: RefObject<HTMLElement | null> }
   | { kind: 'point'; x: number; y: number }
@@ -70,7 +82,9 @@ export interface UsePopoverAnchorOptions {
   closeOnResize?: boolean
   /**
    * When `true` (default), `Escape` fires `onClose` (document-level) — not
-   * one pressed in a layer stacked above the panel (a dialog opened from it).
+   * one pressed in a layer stacked above the panel (a dialog opened from it),
+   * nor one pressed in a field that empties itself on Esc while it has text
+   * (`ESCAPE_CLEARS_ATTR`: a picker's search — the next Esc closes).
    */
   closeOnEscape?: boolean
   /**
@@ -170,7 +184,7 @@ function viewportSize(): { vw: number; vh: number } {
  * it forces the panel to 0×0, `compute()` reads 0, the `panelHeight > 0` gate
  * skips both flip and clamp, and the panel ends up positioned at the raw
  * anchor — clipping the bottom of the viewport for anchors near the bottom
- * (e.g. a cell's "+" → list picker near the bottom of the screen).
+ * (e.g. a cell's "+" menu near the bottom of the screen).
  */
 const OFFSCREEN_PX = -9999
 
@@ -445,6 +459,13 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       // be `window` / `document` for page scrolls, hence the Node check.
       const panel = panelElRef.current
       if (panel && e.target instanceof Node && panel.contains(e.target)) return
+      // Nor scrolls in its own flyouts (`extraInsideRefs`) or in a layer
+      // stacked above it — a submenu's or a picker's list opened from it.
+      if (e.target instanceof Node) {
+        const target = e.target
+        if (extraInsideRefsRef.current?.some((ref) => ref.current?.contains(target))) return
+        if (panel && isInLayerAbove(panel, target)) return
+      }
       if (closeOnScrollRef.current) {
         onCloseRef.current()
         return
@@ -464,13 +485,13 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleResize)
     }
-  }, [open, compute, anchorRef, onCloseRef, closeOnScrollRef, closeOnResizeRef])
+  }, [open, compute, anchorRef, onCloseRef, closeOnScrollRef, closeOnResizeRef, extraInsideRefsRef])
 
   // Escape close (document-level so it works even if focus has left the panel).
   useEffect(() => {
     if (!open || !closeOnEscape) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape' || escapeClearsField(e.target)) return
       // Pressed in a layer stacked above, or with nothing focused while a
       // dialog is open above: that layer's key.
       const panel = panelElRef.current

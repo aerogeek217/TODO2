@@ -7,7 +7,8 @@ import LOOKS from './fixtures/filter-chip-looks.json' with { type: 'json' }
  * filter row (desktop and phone) and the Edit list form — in both themes:
  * computed styles of the list chip, its label and × button, + Filter, the
  * screen-filter chip and the group · sort summary, pinned to their values
- * (`fixtures/filter-chip-looks.json`, recorded before the chips' styles moved).
+ * (`fixtures/filter-chip-looks.json`, recorded before the chips' styles moved;
+ * the muted and accent text colours are the AA-contrast tokens' values).
  */
 
 const SEED: WorkspaceSeed = {

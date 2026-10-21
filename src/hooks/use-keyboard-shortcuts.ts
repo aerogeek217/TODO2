@@ -2,12 +2,13 @@ import { useEffect, useRef } from 'react'
 import { CHORD_TIMEOUT_MS } from '../constants'
 import { SHORTCUT_IDS, shortcutSpec, type ShortcutId } from '../models/keyboard-shortcut'
 import {
-  SHORTCUT_HANDLERS,
+  runShortcut,
   type ShortcutCallbacks,
   type ShortcutCtx,
 } from '../services/keyboard-shortcuts'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
+import { attrSelector, SHORTCUT_SCOPE_ATTR, type ShortcutScope } from '../utils/dom-contract'
 import { resolveBindings } from '../utils/shortcut-bindings'
 import { comboMatchesEvent, sequenceKeyMatchesEvent } from '../utils/shortcut-chord'
 import { useLatestRef } from './use-latest-ref'
@@ -59,7 +60,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
           })
           if (seq) {
             e.preventDefault()
-            await SHORTCUT_HANDLERS[seq](ctx)
+            await runShortcut(seq, ctx)
             return
           }
         }
@@ -77,16 +78,19 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
         const spec = shortcutSpec(single)
         if (isInput && !spec.allowInInput) return
         if (spec.blockedByEditPopup && useUIStore.getState().editPopupMode) return
-        await SHORTCUT_HANDLERS[single](ctx)
+        await runShortcut(single, ctx)
         return
       }
 
       // 3. Sequence start: a plain key with no modifiers that is the first
-      //    key of a sequence (e.g. `g`) waits for the second.
+      //    key of a sequence (e.g. `g`) waits for the second. On a control
+      //    with its own use of a letter (a select's type-ahead, a link, a
+      //    button) the key keeps it: only the second key, if it completes the
+      //    sequence, is taken.
       if (!isInput && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const k = e.key.toLowerCase()
         if (SHORTCUT_IDS.some((id) => bindings[id].length === 2 && bindings[id][0].key === k)) {
-          e.preventDefault()
+          if (!ownsLetterKeys(target) && !ownsLetterKeys(active)) e.preventDefault()
           pendingChordRef.current = { key: k, timestamp: Date.now() }
         }
       }
@@ -97,8 +101,16 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
   }, [enabled, cbRef])
 }
 
+/** A control whose letter keys do something of its own: a select (type-ahead), a link, a button. */
+function ownsLetterKeys(el: HTMLElement | null): boolean {
+  if (!el || typeof el.closest !== 'function') return false
+  return el.closest('select, a[href], button, [role="button"], [role="combobox"], [role="listbox"]') !== null
+}
+
+const scopeSelector = (scope: ShortcutScope) => attrSelector(SHORTCUT_SCOPE_ATTR, scope)
+
 function inModal(el: HTMLElement | null): boolean {
-  return typeof el?.closest === 'function' && el.closest('[data-shortcut-scope="modal"]') !== null
+  return typeof el?.closest === 'function' && el.closest(scopeSelector('modal')) !== null
 }
 
 function isTextField(el: HTMLElement | null): boolean {
@@ -108,6 +120,6 @@ function isTextField(el: HTMLElement | null): boolean {
   if (el.isContentEditable) return true
   if (typeof el.closest !== 'function') return false
   if (el.closest('[contenteditable="true"], [contenteditable=""]')) return true
-  if (el.closest('[data-shortcut-scope="none"]')) return true
+  if (el.closest(scopeSelector('none'))) return true
   return false
 }

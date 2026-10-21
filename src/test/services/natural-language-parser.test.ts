@@ -89,6 +89,19 @@ describe('parseInput — people', () => {
     expect(r.persons).toEqual(['Mike', 'Sarah Connor'])
   })
 
+  it('a bare name is letters, accents, digits and _ in any script — the whole name, not a cut at the first accent', () => {
+    const r = parse('Call @José, @Zoë2 and @Łukasz_K then @Ольга and @佐藤')
+    expect(r.persons).toEqual(['José', 'Zoë2', 'Łukasz_K', 'Ольга', '佐藤'])
+    expect(r.title).toBe('Call , and then and')
+    // Decomposed (NFD) accents stay in the name too.
+    expect(parse('ping @José').persons).toEqual(['José'])
+  })
+
+  it('a bare name stops at punctuation; quotes take any name', () => {
+    expect(parse('ask @Mary-Jane').persons).toEqual(['Mary'])
+    expect(parse('ask @"Mary-Jane"').persons).toEqual(['Mary-Jane'])
+  })
+
   it('a person named like a date is just a person', () => {
     const r = parse('Ask @friday about the report')
     expect(r.persons).toEqual(['friday'])

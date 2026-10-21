@@ -19,8 +19,26 @@ export const BACKUPS_KEPT: Readonly<Record<BackupTrigger, number>> = {
   // The sync file's text can be as large as the import cap (50 MB).
   'sync-file': 5,
   // A file at an older schema version: the only copy of what that build
-  // wrote, kept until the user deletes it (one per text — see below).
-  'sync-file-original': Infinity,
+  // wrote (one per text — see below); one per schema upgrade of the file,
+  // so the newest five reach back several releases.
+  'sync-file-original': 5,
+}
+
+const MB = 1024 * 1024
+
+/**
+ * The most bytes the backups of each kind may hold together (their stored
+ * sizes) — about 200 MB in all, so backups alone don't fill the browser's
+ * storage: past it, the oldest of that kind go, as past `BACKUPS_KEPT`. The
+ * newest of a kind is always kept, however large (it may be the one just
+ * taken before a destructive operation).
+ */
+export const BACKUP_BYTES_KEPT: Readonly<Record<BackupTrigger, number>> = {
+  auto: 40 * MB,
+  'pre-destructive': 40 * MB,
+  manual: 40 * MB,
+  'sync-file': 40 * MB,
+  'sync-file-original': 40 * MB,
 }
 
 /** Shown when an automatic backup can't be stored (e.g. browser storage is full). */
@@ -29,7 +47,7 @@ export const AUTO_BACKUP_FAILED_WARNING =
 
 async function prune(trigger: BackupTrigger): Promise<void> {
   // Pruning is housekeeping; the new backup already exists, so don't fail on it.
-  await backupRepository.pruneSnapshots(trigger, BACKUPS_KEPT[trigger]).catch((err) => {
+  await backupRepository.pruneSnapshots(trigger, BACKUPS_KEPT[trigger], BACKUP_BYTES_KEPT[trigger]).catch((err) => {
     console.warn(`[backup] pruning ${trigger} backups failed`, err)
   })
 }
@@ -107,15 +125,16 @@ class BackupScheduler {
   /**
    * Saves a sync file's current text as a backup before the file is
    * overwritten or rewritten (Settings → Backups can restore it). The text
-   * of a file at an older schema version (`olderVersion`) goes outside the
-   * newest-5 pool, so later overwrites never push it out; the same text
-   * again (a retried upgrade) is not stored twice.
+   * of a file at an older schema version (`olderVersion`) goes to a pool of
+   * its own (`sync-file-original`), so later overwrites never push it out;
+   * the same text again (a retried upgrade) is not stored twice.
    */
   async snapshotFileBeforeOverwrite(fileText: string, opts: { olderVersion?: boolean } = {}): Promise<void> {
     if (opts.olderVersion) {
       if (await backupRepository.newestSnapshotDataIs('sync-file-original', fileText)) return
       // Throws if the backup can't be stored — callers must not overwrite then.
       await backupRepository.createSnapshotFromJson(fileText, 'sync-file-original')
+      await prune('sync-file-original')
       return
     }
     await backupRepository.createSnapshotFromJson(fileText, 'sync-file')

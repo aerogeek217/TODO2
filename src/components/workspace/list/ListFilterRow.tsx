@@ -99,7 +99,7 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, un
           data-testid="list-summary"
           {...{ [EDIT_LIST_KEEP_ATTR]: id }}
           onClick={() => {
-            if (editorOpen) useUIStore.getState().requestCloseListEditor()
+            if (editorOpen) useUIStore.getState().closeListEditor()
             else openEditList(tabId, id)
           }}
         >

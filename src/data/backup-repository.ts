@@ -85,14 +85,31 @@ async function deleteSnapshot(id: number): Promise<void> {
 }
 
 /**
- * Deletes all but the newest `keepCount` backups made by `trigger` (newest =
- * most recently stored); other kinds are never touched. Returns how many
- * were deleted. Reads keys only, never the snapshot data.
+ * Deletes the backups made by `trigger` past the newest `keepCount`, or past
+ * `maxBytes` of them (their stored `sizeBytes`, newest first) — whichever
+ * comes first; the byte limit always keeps the newest, however large. Other kinds are
+ * never touched. Returns how many were deleted. Without a byte limit it
+ * reads keys only; with one it reads the rows it keeps, one at a time, and
+ * none it deletes.
  */
-async function pruneSnapshots(trigger: BackupTrigger, keepCount: number): Promise<number> {
-  const ids = (await db.backups.where('trigger').equals(trigger).primaryKeys()) as number[]
-  if (ids.length <= keepCount) return 0
-  const toDelete = ids.sort((a, b) => b - a).slice(keepCount)
+async function pruneSnapshots(trigger: BackupTrigger, keepCount: number, maxBytes = Number.POSITIVE_INFINITY): Promise<number> {
+  const ids = ((await db.backups.where('trigger').equals(trigger).primaryKeys()) as number[]).sort((a, b) => b - a)
+  let keep = Math.min(ids.length, keepCount)
+  if (Number.isFinite(maxBytes)) {
+    let total = 0
+    for (let i = 0; i < keep; i++) {
+      const id = ids[i]
+      const row = id === undefined ? undefined : await db.backups.get(id)
+      const size = row ? (Number.isFinite(row.sizeBytes) ? row.sizeBytes : row.data.length) : 0
+      if (i > 0 && total + size > maxBytes) {
+        keep = i
+        break
+      }
+      total += size
+    }
+  }
+  const toDelete = ids.slice(keep)
+  if (toDelete.length === 0) return 0
   await db.backups.bulkDelete(toDelete)
   return toDelete.length
 }

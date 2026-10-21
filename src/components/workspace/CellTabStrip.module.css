@@ -72,7 +72,7 @@
 }
 
 .active .kindIcon {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .title {
@@ -136,7 +136,7 @@
 }
 
 .flat .kindIcon {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .dragSource,
@@ -152,12 +152,12 @@
 .ghost {
   background: var(--color-accent-bg);
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   cursor: default;
 }
 
 .ghost .kindIcon {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 /* A tab folded into `+N`: out of the row and out of sight, still measured. */
@@ -215,6 +215,17 @@
   padding: 0 12px;
   touch-action: auto;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* A finger-sized target: the tab takes taps up to the header's top, past its
+   drawn height (the header is a touch target tall). */
+.touch::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--touch-target-min);
 }
 
 /* No hover state on touch (it sticks after a tap). */

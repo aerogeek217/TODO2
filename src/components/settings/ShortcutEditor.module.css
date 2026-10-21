@@ -59,7 +59,7 @@
 
 /* A shortcut on keys other than its default. */
 .kbdChanged {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 

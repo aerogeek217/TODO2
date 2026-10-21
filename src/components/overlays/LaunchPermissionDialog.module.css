@@ -13,6 +13,7 @@
   width: 480px;
   max-width: calc(100vw - 32px);
   max-height: 100vh;
+  max-height: 100dvh;
   overflow-y: auto;
 }
 
@@ -34,12 +35,8 @@
   box-sizing: border-box;
   padding: 24px 24px 20px;
   border-radius: 16px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   box-shadow: var(--shadow-modal);
-}
-
-[data-theme="light"] .card {
-  background: var(--color-surface);
 }
 
 .icon {
@@ -50,7 +47,7 @@
   height: 36px;
   border-radius: 10px;
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .title {
@@ -104,7 +101,7 @@
 
 .optionIconGrant {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .optionIconContinue {

@@ -5,6 +5,17 @@ import { startOfToday } from '../utils/date'
 import { formatTaskLine, taskLineParts } from './task-copy'
 
 /**
+ * A task's notes as a details list item: one line inline, several as a block
+ * indented under the item (so the notes' own lines, lists and blank lines
+ * stay inside it instead of breaking the list).
+ */
+function notesItem(notes: string): string[] {
+  const noteLines = notes.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n')
+  if (noteLines.length === 1) return [`- **Notes:** ${noteLines[0] ?? ''}`]
+  return ['- **Notes:**', '', ...noteLines.map((l) => (l.trim() === '' ? '' : `  ${l}`))]
+}
+
+/**
  * Builds a markdown representation of all tasks (in manual order).
  * Uses buildExportData() to read from the repository layer.
  */
@@ -50,7 +61,7 @@ export async function buildMarkdownExport(): Promise<string> {
     details.push(`### ${todo.title}`)
     if (people.length > 0) details.push(`- **People:** ${people.join(', ')}`)
     if (tags.length > 0) details.push(`- **Tags:** ${tags.join(', ')}`)
-    if (todo.notes) details.push(`- **Notes:** ${todo.notes}`)
+    if (todo.notes) details.push(...notesItem(todo.notes))
     details.push('')
   }
 

@@ -16,9 +16,9 @@ import { withCopiedParts } from '../../../utils/list-copy'
 import { findTab, layoutTabs } from '../../../utils/workspace-layout-ops'
 import { ListEditorBody } from '../../shared/ListEditorBody'
 import { CloseIcon, LinkIcon } from '../../shared/icons'
-import { UnsavedListDialog } from '../UnsavedPrompt'
 import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
 import styles from './EditList.module.css'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 /** The side popover's width (px) and its gap to the panel. */
 const POPOVER_WIDTH_PX = 340
@@ -124,91 +124,49 @@ function useFocusReturn(panelRef: React.RefObject<HTMLElement | null>, tabId: st
  * and shows it unsaved; Save list / Revert act on that draft and close it. Desktop: a
  * non-modal popover beside the list's panel; phone: a half sheet with the
  * list live above it. Opened through `ui-store.openListEditor` (one at a
- * time). Every other way the user closes it — a press elsewhere, Esc, ×, the
- * sheet's scrim or handle, another list's Edit list, Settings — goes through
- * `ui-store.requestCloseListEditor`: it closes at once when the list is
- * saved, else after Save / Discard / Cancel (Discard reverts, undoably;
- * Cancel keeps it open). It closes without asking only when the list leaves
- * the screen or is deleted (the draft stays, with the tab's dot).
+ * time). Every way it closes — Esc, ×, a press elsewhere (which goes on to
+ * what it pressed), the sheet's scrim or handle, another list's Edit list,
+ * Settings, the list leaving the screen — closes it at once: an unsaved list
+ * keeps its draft, shown by the tab's dot and Revert · Save on its filter
+ * line.
  */
 export function EditListHost() {
   const target = useUIStore((s) => s.listEditor)
-  const request = useUIStore((s) => s.listEditorCloseRequest)
   const isMobile = useIsMobile()
   const listMissing = useListDefinitionStore((s) => target != null && !s.listDefinitions.some((d) => d.id === target.listDefinitionId))
-  const unsaved = useListDraftStore((s) => target != null && s.drafts[target.listDefinitionId] != null)
   const close = useUIStore((s) => s.closeListEditor)
-  const requestClose = useUIStore((s) => s.requestCloseListEditor)
   useEffect(() => {
     if (listMissing) close()
   }, [listMissing, close])
-  // A close with nothing to ask about goes through before the next paint.
-  const asking = request != null && target != null && !listMissing && unsaved
-  useLayoutEffect(() => {
-    if (request != null && !asking) useUIStore.getState().finishListEditorClose()
-  }, [request, asking])
   // The workspace went (a route change): nothing is left to edit beside.
   useEffect(() => () => useUIStore.getState().closeListEditor(), [])
-  const onRequestClose = useCallback(() => requestClose(), [requestClose])
   if (!target || listMissing) return null
   const key = `${target.listDefinitionId}-${target.tabId}`
-  return (
-    <>
-      {isMobile
-        ? <EditListSheet key={key} listDefinitionId={target.listDefinitionId} tabId={target.tabId} onClose={close} onRequestClose={onRequestClose} />
-        : <EditListPopover key={key} listDefinitionId={target.listDefinitionId} tabId={target.tabId} onClose={close} onRequestClose={onRequestClose} />}
-      {asking && (
-        <UnsavedListDialog
-          listId={target.listDefinitionId}
-          revertOnDiscard
-          onDone={() => useUIStore.getState().finishListEditorClose()}
-          onCancel={() => useUIStore.getState().cancelListEditorClose()}
-        />
-      )}
-    </>
-  )
+  return isMobile
+    ? <EditListSheet key={key} listDefinitionId={target.listDefinitionId} tabId={target.tabId} onClose={close} />
+    : <EditListPopover key={key} listDefinitionId={target.listDefinitionId} tabId={target.tabId} onClose={close} />
 }
 
 interface SurfaceProps {
   listDefinitionId: number
   tabId: string
-  /** Closes it at once (the list left the screen). */
+  /** Closes it (an unsaved list keeps its draft). */
   onClose: () => void
-  /** The user closes it: asks first while the list is unsaved. */
-  onRequestClose: () => void
 }
 
 /**
- * A press elsewhere closes the popover. Not: inside it, on a control that
- * acts on its list (`EDIT_LIST_KEEP_ATTR`), or in a layer portaled out of
- * the app — the menus, pickers and dialogs opened from it. A press in the
- * list's own panel counts. While the list is unsaved the press asks first
- * and reaches nothing underneath (its mouse events and click are swallowed
- * until the next press or key); else it passes through.
+ * A press elsewhere closes the popover and goes on to what it pressed. Not:
+ * inside it, on a control that acts on its list (`EDIT_LIST_KEEP_ATTR`), or
+ * in a layer portaled out of the app — the menus, pickers and dialogs opened
+ * from it. A press in the list's own panel counts.
  */
 function usePressElsewhereCloses(
   panelRef: React.RefObject<HTMLElement | null>,
   listDefinitionId: number,
-  onRequestClose: () => void,
+  onClose: () => void,
 ): void {
-  const onRequestCloseRef = useLatestRef(onRequestClose)
+  const onCloseRef = useLatestRef(onClose)
   useEffect(() => {
-    let unswallow: (() => void) | null = null
-    const stopSwallowing = () => {
-      unswallow?.()
-      unswallow = null
-    }
-    const swallowRestOfPress = () => {
-      // Never two sets of blockers (two lone mousedowns in a row): the first would stay.
-      stopSwallowing()
-      const block = (e: Event) => {
-        e.preventDefault()
-        e.stopPropagation()
-      }
-      const types = ['pointerup', 'mousedown', 'mouseup', 'click', 'auxclick', 'dblclick', 'contextmenu'] as const
-      for (const type of types) document.addEventListener(type, block, true)
-      unswallow = () => { for (const type of types) document.removeEventListener(type, block, true) }
-    }
     const isElsewhere = (t: EventTarget | null): boolean => {
       if (!(t instanceof Element) || !t.isConnected) return false
       if (panelRef.current?.contains(t)) return false
@@ -225,28 +183,16 @@ function usePressElsewhereCloses(
         pointerHandled = false
         return
       }
-      if (e.type === 'pointerdown') {
-        pointerHandled = true
-        stopSwallowing()
-      }
-      if (!isElsewhere(e.target)) return
-      if (useListDraftStore.getState().drafts[listDefinitionId] != null) {
-        e.preventDefault()
-        e.stopPropagation()
-        swallowRestOfPress()
-      }
-      onRequestCloseRef.current()
+      if (e.type === 'pointerdown') pointerHandled = true
+      if (isElsewhere(e.target)) onCloseRef.current()
     }
     document.addEventListener('pointerdown', onPress, true)
     document.addEventListener('mousedown', onPress, true)
-    document.addEventListener('keydown', stopSwallowing, true)
     return () => {
       document.removeEventListener('pointerdown', onPress, true)
       document.removeEventListener('mousedown', onPress, true)
-      document.removeEventListener('keydown', stopSwallowing, true)
-      stopSwallowing()
     }
-  }, [panelRef, listDefinitionId, onRequestCloseRef])
+  }, [panelRef, listDefinitionId, onCloseRef])
 }
 
 /** Where the popover goes: beside the panel (the hook picks the side), or below its filter line when neither side fits. */
@@ -287,38 +233,65 @@ function readPlacement(tabId: string): string {
 }
 
 /**
+ * Where the list's panel is (`readPlacement`), for `useSyncExternalStore`:
+ * measured again only when something may have moved it — a resize, a
+ * scroll, the cell's size; a layout change or the list coming or going
+ * makes a new store — not on every render (each keystroke in the form would
+ * force a layout). Only a placement beside the panel is kept: until the
+ * panel shows its list the lookup (no measuring) runs on every read, so the
+ * popover shows once it mounts, and the last resort below the filter line
+ * follows that line, which moves inside the cell.
+ */
+function createPlacementStore(tabId: string, cellId: string | undefined, shown: boolean) {
+  let kept: string | null = null
+  return {
+    subscribe: (notify: () => void) => {
+      const moved = () => { kept = null; notify() }
+      window.addEventListener('resize', moved)
+      window.addEventListener('scroll', moved, true)
+      // The cell holding the tab in the layout as it is now (a layout change
+      // makes a new store, so the observer follows the tab to another cell).
+      const cell = cellId != null ? document.querySelector(`[data-ws-cell="${cellId}"]`) : null
+      const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(moved) : null
+      if (ro && cell) ro.observe(cell)
+      return () => {
+        window.removeEventListener('resize', moved)
+        window.removeEventListener('scroll', moved, true)
+        ro?.disconnect()
+      }
+    },
+    getSnapshot: (): string => {
+      if (!shown) return MISSING
+      if (kept !== null) return kept
+      const now = readPlacement(tabId)
+      if (now !== MISSING && (JSON.parse(now) as Placement).mode === 'beside') kept = now
+      return now
+    },
+  }
+}
+
+/**
  * The desktop popover: 340 wide beside the list's panel (right, else left,
  * else below its filter line), its arrow at the panel's tab strip. Not
  * modal — the list stays in view, updating live; a press elsewhere in the
- * app (its own panel included), Esc or × close it (asking while the list is
- * unsaved), and so does the list leaving the screen.
+ * app (its own panel included), Esc or × close it, and so does the list
+ * leaving the screen.
  */
-function EditListPopover({ listDefinitionId, tabId, onClose, onRequestClose }: SurfaceProps) {
+function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const model = useEditListModel(listDefinitionId, onClose)
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
-  // Re-read whenever the layout changes (the list's tab may have moved, closed or switched).
   const working = useWorkspaceStore((s) => s.working)
-  const subscribe = useCallback((notify: () => void) => {
-    window.addEventListener('resize', notify)
-    window.addEventListener('scroll', notify, true)
-    // The cell holding the tab in the layout as it is now (a layout change
-    // re-subscribes, so the observer follows the tab to another cell).
-    const cellId = working ? findTab(working, tabId)?.panelId : undefined
-    const cell = cellId != null ? document.querySelector(`[data-ws-cell="${cellId}"]`) : null
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(notify) : null
-    if (ro && cell) ro.observe(cell)
-    return () => {
-      window.removeEventListener('resize', notify)
-      window.removeEventListener('scroll', notify, true)
-      ro?.disconnect()
-    }
-  }, [tabId, working])
   // The tab shows another list now (Change list by keyboard, an Eisenhower tab switched): this list left the screen.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
   const tab = working ? layoutTabs(working).find((t) => t.id === tabId) : undefined
   const tabShowsList = !working || (tab != null && tabListId(tab, eisenhowerListId) === listDefinitionId)
-  const snapshot = useSyncExternalStore(subscribe, () => (tabShowsList ? readPlacement(tabId) : MISSING))
+  const listExists = model.def != null && model.saved != null
+  const placementStore = useMemo(
+    () => createPlacementStore(tabId, working ? findTab(working, tabId)?.panelId : undefined, tabShowsList && listExists),
+    [tabId, working, tabShowsList, listExists],
+  )
+  const snapshot = useSyncExternalStore(placementStore.subscribe, placementStore.getSnapshot)
   const placement = useMemo<Placement | null>(() => (snapshot === MISSING ? null : JSON.parse(snapshot) as Placement), [snapshot])
 
   // The list left the screen (tab closed, switched, collapsed): nothing to preview.
@@ -346,8 +319,8 @@ function EditListPopover({ listDefinitionId, tabId, onClose, onRequestClose }: S
     panelRef(el)
   }, [panelRef])
 
-  usePressElsewhereCloses(panelElRef, listDefinitionId, onRequestClose)
-  useEscapeCloses(panelElRef, onRequestClose)
+  usePressElsewhereCloses(panelElRef, listDefinitionId, onClose)
+  useEscapeCloses(panelElRef, onClose)
   useFocusReturn(panelElRef, tabId)
 
   // Focus starts in Name once the popover is placed.
@@ -371,12 +344,12 @@ function EditListPopover({ listDefinitionId, tabId, onClose, onRequestClose }: S
       data-testid="edit-list"
       data-placement={placement?.mode === 'below' ? 'below' : placementUsed}
       // Keys inside are the form's, not the app's shortcuts.
-      data-shortcut-scope="none"
+      {...shortcutScope('none')}
     >
       {arrow && <span className={`${styles.arrow} ${arrow === 'right' ? styles.arrowRight : ''}`} aria-hidden="true" />}
       <header className={styles.header}>
         <span className={styles.eyebrow}>Edit list</span>
-        <button type="button" className={styles.close} aria-label="Close Edit list" title="Close" onClick={onRequestClose}>
+        <button type="button" className={styles.close} aria-label="Close Edit list" title="Close" onClick={onClose}>
           <CloseIcon size={12} />
         </button>
       </header>
@@ -427,12 +400,12 @@ const SHEET_DRAG_PX = 40
  * high with the list live above it (a light scrim; a tap on it closes the
  * sheet). The handle drags it up to full height, or down to close.
  */
-function EditListSheet({ listDefinitionId, tabId, onClose, onRequestClose }: SurfaceProps) {
+function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const model = useEditListModel(listDefinitionId, onClose)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const [full, setFull] = useState(false)
   const dragFrom = useRef<number | null>(null)
-  useEscapeCloses(sheetRef, onRequestClose)
+  useEscapeCloses(sheetRef, onClose)
   useFocusReturn(sheetRef, tabId)
   // Focus the sheet itself, not Name: no keyboard popping up on open.
   useLayoutEffect(() => { sheetRef.current?.focus({ preventScroll: true }) }, [])
@@ -440,14 +413,14 @@ function EditListSheet({ listDefinitionId, tabId, onClose, onRequestClose }: Sur
   if (!model.def || !model.saved) return null
   return createPortal(
     <>
-      <div className={`${styles.scrim} ${full ? styles.scrimFull : ''}`} onClick={onRequestClose} aria-hidden="true" />
+      <div className={`${styles.scrim} ${full ? styles.scrimFull : ''}`} onClick={onClose} aria-hidden="true" />
       <div
         ref={sheetRef}
         className={`${styles.sheet} ${full ? styles.sheetFull : ''}`}
         role="dialog"
         aria-label={`Edit list ${model.def.name.trim() || model.saved.name}`}
         data-testid="edit-list"
-        data-shortcut-scope="none"
+        {...shortcutScope('none')}
         data-touch-chips=""
         tabIndex={-1}
       >
@@ -466,14 +439,14 @@ function EditListSheet({ listDefinitionId, tabId, onClose, onRequestClose }: Sur
             if (dy < -SHEET_DRAG_PX) setFull(true)
             else if (dy > SHEET_DRAG_PX) {
               if (full) setFull(false)
-              else onRequestClose()
+              else onClose()
             }
           }}
           onPointerCancel={() => { dragFrom.current = null }}
         />
         <header className={styles.sheetHeader}>
           <span className={styles.sheetTitle}>Edit list</span>
-          <button type="button" className={styles.sheetClose} aria-label="Close Edit list" onClick={onRequestClose}>
+          <button type="button" className={styles.sheetClose} aria-label="Close Edit list" onClick={onClose}>
             <CloseIcon size={14} />
           </button>
         </header>

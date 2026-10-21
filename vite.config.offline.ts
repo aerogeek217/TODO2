@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
-if (existsSync(resolve(__dirname, 'public/node_modules'))) {
+if (existsSync(resolve(import.meta.dirname, 'public/node_modules'))) {
   throw new Error(
     'public/node_modules/ exists — Vite would copy 230MB of node_modules into\n' +
     'dist/. Delete public/node_modules/ and retry. (See vite.config.ts.)'
@@ -73,7 +73,7 @@ const ICON_LINKS = [
 ]
 
 function dataUrl(file: string, type: string): string {
-  return `data:${type};base64,${readFileSync(resolve(__dirname, 'public', file)).toString('base64')}`
+  return `data:${type};base64,${readFileSync(resolve(import.meta.dirname, 'public', file)).toString('base64')}`
 }
 
 function offlineIcons(): Plugin {

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { registerModuleReset } from '../utils/module-reset'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
@@ -82,7 +83,6 @@ export interface ConfirmPrompt {
   title: string
   message: string
   confirmLabel: string
-  cancelLabel?: string
   /** Renders the confirm button with danger styling. */
   danger?: boolean
   /** Focus (so Enter) starts on Cancel instead of the confirm button. */
@@ -90,8 +90,14 @@ export interface ConfirmPrompt {
 }
 
 interface PendingConfirmPrompt extends ConfirmPrompt {
+  /** Unique per question asked (the host keys its dialog by it). */
+  id: number
   resolve: (confirmed: boolean) => void
 }
+
+/** The last question's `id`. */
+let lastPromptId = 0
+registerModuleReset(() => { lastPromptId = 0 })
 
 interface UIState {
   selectedTodoId: number | null
@@ -132,13 +138,6 @@ interface UIState {
    * sits beside that tab's panel). One at a time.
    */
   listEditor: { listDefinitionId: number; tabId: string } | null
-  /**
-   * A close of Edit list waiting on its host (`EditListHost`): it closes at
-   * once when the list is saved, else after the Save / Discard / Cancel
-   * prompt. `then` runs once it has closed (what the close was for, e.g.
-   * Settings opening); Cancel drops it.
-   */
-  listEditorCloseRequest: { then: (() => void) | null } | null
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
@@ -227,18 +226,8 @@ interface UIState {
   /** Opens the mobile filter sheet with its search box focused. */
   openFilterSheetSearch: () => void
   openListEditor: (listDefinitionId: number, tabId: string) => void
-  /** Closes Edit list at once, whatever its list's state (the draft is kept). */
+  /** Closes Edit list at once, whatever its list's state (an unsaved list keeps its draft). */
   closeListEditor: () => void
-  /**
-   * The one way the user closes Edit list (a press elsewhere, Esc, ×,
-   * Settings opening): asks first while its list is unsaved (`EditListHost`).
-   * `then` runs once it has closed — at once when none is open.
-   */
-  requestCloseListEditor: (then?: () => void) => void
-  /** The host's answer to a close request: closes Edit list, then runs the request's `then` (nothing once answered). */
-  finishListEditorClose: () => void
-  /** The prompt's Cancel: Edit list stays open. */
-  cancelListEditorClose: () => void
   openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
@@ -279,7 +268,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   listEditor: null,
-  listEditorCloseRequest: null,
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
@@ -348,7 +336,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   askConfirmation(prompt) {
     return new Promise<boolean>((resolve) => {
-      set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, resolve }] })
+      set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, id: ++lastPromptId, resolve }] })
     })
   },
 
@@ -404,31 +392,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   closeListEditor() {
-    if (get().listEditor === null && get().listEditorCloseRequest === null) return
-    set({ listEditor: null, listEditorCloseRequest: null })
-  },
-
-  requestCloseListEditor(then) {
-    if (get().listEditor === null) {
-      then?.()
-      return
-    }
-    set({ listEditorCloseRequest: { then: then ?? null } })
-  },
-
-  finishListEditorClose() {
-    // Answered already (the prompt's Save resolving after its draft went):
-    // the follow-up may have opened another Edit list since.
-    const request = get().listEditorCloseRequest
-    if (request === null) return
-    const then = request.then
-    set({ listEditor: null, listEditorCloseRequest: null })
-    then?.()
-  },
-
-  cancelListEditorClose() {
-    if (get().listEditorCloseRequest === null) return
-    set({ listEditorCloseRequest: null })
+    if (get().listEditor === null) return
+    set({ listEditor: null })
   },
 
   openQuickAdd(seed) {
@@ -463,12 +428,9 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSettings(target, focus) {
-    // Edit list belongs to the workspace under the modal: it closes first
-    // (asking while its list is unsaved).
-    if (get().listEditor !== null) {
-      get().requestCloseListEditor(() => get().openSettings(target, focus))
-      return
-    }
+    // Edit list belongs to the workspace under the modal: it closes (an
+    // unsaved list keeps its draft).
+    get().closeListEditor()
     if (!target) {
       set({ settingsOpen: true })
       return

@@ -13,35 +13,14 @@ import { paneWrites, QUADRANT_ADD_HINT, QUADRANT_NAME, type EisenhowerPane, type
  * The Eisenhower matrix: a task shows in the first pane (in position order)
  * whose filter it matches, or in none (`classifyPanes`). The default panes
  * are the classic quadrants of effective Urgent (flag OR due within the
- * app-wide range, see `utils/urgency`) × Important (`classifyEisenhower`,
- * which the dashboard's Eisenhower section uses). Dropping a task on a pane
+ * app-wide range, see `utils/urgency`) × Important. Dropping a task on a pane
  * writes what the pane's filter implies (`resolvePaneDrop`) — and is refused
  * when the task still wouldn't land there, e.g. a task urgent by its due date
  * dropped on a not-urgent pane (clearing a flag wouldn't move it; the urgent
  * flag is never written for it).
  */
 
-export function quadrantOf(urgent: boolean, important: boolean): EisenhowerQuadrant {
-  if (urgent) return important ? 'do' : 'delegate'
-  return important ? 'schedule' : 'drop'
-}
-
 type MatrixFields = Pick<TodoItem, 'urgent' | 'important' | 'dueDate' | 'isCompleted'>
-
-export interface EisenhowerPlacement {
-  quadrant: EisenhowerQuadrant
-  /** The due date alone makes the task urgent (open tasks only). */
-  urgentByDate: boolean
-}
-
-/** Where a task sits among the default quadrants: completed tasks by their flags only. */
-export function classifyEisenhower(todo: MatrixFields, today: Date, range: UrgentDueWithinDays): EisenhowerPlacement {
-  return {
-    quadrant: quadrantOf(isEffectivelyUrgent(todo, today, range), todo.important === true),
-    urgentByDate: isUrgentByDate(todo, today, range),
-  }
-}
-
 type SortFields = Pick<TodoItem, 'dueDate' | 'isCompleted' | 'sortOrder'>
 
 /**
@@ -61,18 +40,6 @@ export function compareInQuadrant(a: SortFields, b: SortFields): number {
   if (ad != null && bd == null) return -1
   if (ad == null && bd != null) return 1
   return a.sortOrder - b.sortOrder
-}
-
-/** Tasks per default quadrant, each sorted by {@link compareInQuadrant}. */
-export function buildQuadrants<T extends MatrixFields & SortFields>(
-  todos: readonly T[],
-  today: Date,
-  range: UrgentDueWithinDays,
-): Record<EisenhowerQuadrant, T[]> {
-  const out: Record<EisenhowerQuadrant, T[]> = { do: [], schedule: [], delegate: [], drop: [] }
-  for (const t of todos) out[classifyEisenhower(t, today, range).quadrant].push(t)
-  for (const q of EISENHOWER_QUADRANTS) out[q].sort(compareInQuadrant)
-  return out
 }
 
 /** Where a task would land among a quadrant's sorted tasks (its index without it). */

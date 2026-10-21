@@ -179,9 +179,9 @@ export const layoutRepository = {
 
   /**
    * Adds a layout after the others: its `sortOrder` is picked here (one
-   * past the highest stored), whatever `layout` holds. Returns its id.
+   * past the highest stored). Returns its id.
    */
-  async insert(layout: Omit<WorkspaceLayout, 'id' | 'sortOrder'> & { sortOrder?: number }): Promise<number> {
+  async insert(layout: Omit<WorkspaceLayout, 'id' | 'sortOrder'>): Promise<number> {
     return db.transaction('rw', db.layouts, async () => {
       const sortOrder = await nextLayoutOrder()
       return db.layouts.add({ ...layout, sortOrder } as WorkspaceLayout)
@@ -198,6 +198,22 @@ export const layoutRepository = {
       const order = stored?.sortOrder
       const sortOrder = typeof order === 'number' && Number.isFinite(order) ? order : layout.sortOrder
       await db.layouts.put({ ...layout, sortOrder })
+    })
+  },
+
+  /**
+   * A view-state change (`apply`: active tab, collapse, a tab's view state)
+   * to the layout as stored, read and written in one transaction — so a
+   * Save that wrote a new structure just before keeps it, and the change
+   * lands on top. A row that needs the layout repair is left alone (only a
+   * Save, or the audit's cleanup, writes the repair).
+   */
+  async updateView(id: number, apply: (layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout): Promise<void> {
+    await db.transaction('rw', db.layouts, async () => {
+      const row = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
+      if (!row || rowFixes('layouts', row).length > 0) return
+      const next = apply(row)
+      if (next !== row) await db.layouts.put(next)
     })
   },
 

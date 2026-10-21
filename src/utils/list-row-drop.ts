@@ -5,6 +5,8 @@
  * scroll container's content coordinates (`clientY - top + scrollTop`).
  */
 
+import { attrSelector, LIST_SECTION_ATTR, ROW_KEY_ATTR, ROW_TODO_ATTR } from './dom-contract'
+
 export interface ListRowGeom {
   key: string
   todoId: number
@@ -73,15 +75,15 @@ export function listRowDropTarget(
 /** Reads a list widget's geometry from the DOM (`data-list-section` blocks, `data-row-key` rows). */
 export function measureListGeometry(scrollEl: HTMLElement): ListGeometry {
   const origin = scrollEl.getBoundingClientRect().top - scrollEl.scrollTop
-  const sections = Array.from(scrollEl.querySelectorAll<HTMLElement>('[data-list-section]')).map((el): ListSectionGeom => {
+  const sections = Array.from(scrollEl.querySelectorAll(attrSelector(LIST_SECTION_ATTR))).map((el): ListSectionGeom => {
     const r = el.getBoundingClientRect()
     return {
-      key: el.dataset.listSection ?? '',
+      key: el.getAttribute(LIST_SECTION_ATTR) ?? '',
       top: r.top - origin,
       bottom: r.bottom - origin,
-      rows: Array.from(el.querySelectorAll<HTMLElement>('[data-row-key]')).map((row) => {
+      rows: Array.from(el.querySelectorAll(attrSelector(ROW_KEY_ATTR))).map((row) => {
         const rr = row.getBoundingClientRect()
-        return { key: row.dataset.rowKey ?? '', todoId: Number(row.dataset.rowTodo), mid: (rr.top + rr.bottom) / 2 - origin }
+        return { key: row.getAttribute(ROW_KEY_ATTR) ?? '', todoId: Number(row.getAttribute(ROW_TODO_ATTR)), mid: (rr.top + rr.bottom) / 2 - origin }
       }),
     }
   })

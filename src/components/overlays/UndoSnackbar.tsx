@@ -1,14 +1,16 @@
 import { useUndoStore } from '../../stores/undo-store'
 import styles from './UndoSnackbar.module.css'
+import { KEEPS_SELECTION_ATTR } from '../../utils/dom-contract'
 
 export function UndoSnackbar() {
   const snackbar = useUndoStore((s) => s.snackbar)
-  const { undo, dismissSnackbar } = useUndoStore()
+  const undo = useUndoStore((s) => s.undo)
+  const dismissSnackbar = useUndoStore((s) => s.dismissSnackbar)
 
   if (!snackbar) return null
 
   return (
-    <div className={styles.snackbar} data-keeps-selection>
+    <div className={styles.snackbar} {...{ [KEEPS_SELECTION_ATTR]: '' }}>
       {snackbar.detail ? (
         <span className={styles.lines}>
           <span className={styles.message}>{snackbar.description}</span>

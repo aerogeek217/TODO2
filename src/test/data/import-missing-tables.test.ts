@@ -6,6 +6,7 @@ import { prepareImportText } from '../../data/import-pipeline'
 import { DATA_TABLE_NAMES } from '../../data/tables'
 import { isEisenhowerOwner } from '../../models/list-definition'
 import { useFileOpsStore } from '../../stores/file-ops-store'
+import { restoreBackup, restoreFromImport } from '../../services/replace-data'
 import { useTodoStore } from '../../stores/todo-store'
 import { runAppendImport } from '../../services/append-import'
 import { makeTodo, resetDb } from '../helpers'
@@ -64,7 +65,7 @@ describe.each(FILES)('%s', (_label, text, taskCount) => {
   it('Settings › Import JSON restores it', async () => {
     const prepared = prepareImportText(text)
     if (!prepared.ok) throw new Error(prepared.error)
-    expect(await useFileOpsStore.getState().restoreFromImport(prepared.data)).toMatchObject({ status: 'done' })
+    expect(await restoreFromImport(prepared.data)).toMatchObject({ status: 'done' })
     expect(await db.todos.count()).toBe(taskCount)
     expect(await db.todos.get(99)).toBeUndefined()
     for (const name of DATA_TABLE_NAMES) {
@@ -79,7 +80,7 @@ describe.each(FILES)('%s', (_label, text, taskCount) => {
 
   it('Settings › Backups restores a backup holding it', async () => {
     const id = await backupRepository.createSnapshotFromJson(text, 'manual')
-    expect(await useFileOpsStore.getState().restoreBackup(id)).toMatchObject({ status: 'done' })
+    expect(await restoreBackup(id)).toMatchObject({ status: 'done' })
     expect(await db.todos.count()).toBe(taskCount)
     expect(await db.todos.get(99)).toBeUndefined()
   })

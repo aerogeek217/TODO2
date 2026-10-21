@@ -9,6 +9,10 @@ import { optimistic } from './store-helpers'
 interface AssignmentRepo<T> {
   assign(todoId: number, entityId: number): Promise<void>
   unassign(todoId: number, entityId: number): Promise<void>
+  /** `assign` for several tasks in one transaction (all or none). */
+  bulkAssign(todoIds: readonly number[], entityId: number): Promise<void>
+  /** `unassign` for several tasks in one transaction. */
+  bulkUnassign(todoIds: readonly number[], entityId: number): Promise<void>
   getForTodos(todoIds: number[]): Promise<Map<number, T[]>>
 }
 
@@ -186,7 +190,8 @@ export function createAssignmentActions<T extends { id?: number }>(
 
       return optimistic(
         () => setMap(withEntity(getMap(), toAssign, entity)),
-        () => Promise.all(toAssign.map((id) => repo.assign(id, entityId))).then(() => {}),
+        // One transaction (all or none), so the rollback leaves the map as stored.
+        () => repo.bulkAssign(toAssign, entityId),
         () => setMap(withoutEntity(getMap(), toAssign, entityId)),
         `Failed to assign ${label}`,
         {
@@ -212,7 +217,8 @@ export function createAssignmentActions<T extends { id?: number }>(
 
       return optimistic(
         () => setMap(withoutEntity(getMap(), toUnassign, entityId)),
-        () => Promise.all(toUnassign.map((id) => repo.unassign(id, entityId))).then(() => {}),
+        // One transaction (all or none), so the rollback leaves the map as stored.
+        () => repo.bulkUnassign(toUnassign, entityId),
         () => {
           let next = getMap()
           for (const [todoId, { entity: e, index }] of removed) next = withEntityAt(next, todoId, e, index)

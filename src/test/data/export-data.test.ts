@@ -192,7 +192,7 @@ describe('buildMarkdownExport', () => {
     const lines = md.split('\n')
     expect(lines.slice(0, 2)).toEqual(['# TODOs', ''])
     expect(lines.filter((l) => l.startsWith('- ['))).toEqual([
-      `- [ ] First [Waiting] (due ${new Date(2026, 9, 16).toLocaleDateString()})`,
+      '- [ ] First [Waiting] (due 10/16/2026)',
       '- [x] Second',
       '- [ ] Third',
     ])
@@ -238,5 +238,24 @@ describe('buildMarkdownExport', () => {
       '- **Notes:** Use the **new** template',
       '',
     ])
+  })
+
+  it('several lines of notes are a block indented under the Notes item (the list stays one list); the due date reads en-US', async () => {
+    const toLocale = vi.spyOn(Date.prototype, 'toLocaleDateString')
+    await db.todos.add(makeTodo({ id: 1, title: 'Runbook', sortOrder: 1, dueDate: new Date(2026, 0, 5), notes: 'Steps:\r\n- back up\n\n- switch over\n' }))
+    const md = await buildMarkdownExport()
+    expect(md).toContain('- [ ] Runbook (due 1/5/2026)')
+    expect(md.slice(md.indexOf('### Runbook')).split('\n')).toEqual([
+      '### Runbook',
+      '- **Notes:**',
+      '',
+      '  Steps:',
+      '  - back up',
+      '',
+      '  - switch over',
+      '',
+    ])
+    // No locale-dependent date call (the browser's locale doesn't change the file).
+    expect(toLocale.mock.calls.every((c) => c[0] === 'en-US')).toBe(true)
   })
 })

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTagStore } from '../../stores/tag-store'
 import { countTodosByEntity } from '../../stores/assignment-helpers'
 import { useTodoStore } from '../../stores/todo-store'
+import { useTagAssignmentsForLoadedTodos } from '../../hooks/use-entity-assignments-for-todos'
 import type { Tag } from '../../models'
 import type { DialogLayer } from '../shared/Dialog'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
@@ -27,9 +28,10 @@ interface TagEditorProps {
 }
 
 export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
-  const { tags, load, add, update, loadAssignments, assignedTagsMap } = useTagStore()
+  const tags = useTagStore((s) => s.tags)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const { load, add, update } = useTagStore.getState()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
-  const todos = useTodoStore((s) => s.todos)
 
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
@@ -39,14 +41,10 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
   const [nameError, setNameError] = useState('')
   const [searchText, setSearchText] = useState('')
 
-  // Ensure todos are loaded so we can derive counts from the cached
-  // `assignedTagsMap`. The map is keyed by todoId, so it only covers todos
-  // we've explicitly loaded assignments for — request the assignment join
-  // for every todo whenever the visible todo set changes.
+  // Every task and its tags, so each row can show its task count (the
+  // cached `assignedTagsMap` covers only the tasks whose joins were loaded).
   useEffect(() => { load(); ensureTodosLoaded() }, [load, ensureTodosLoaded])
-  useEffect(() => {
-    if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
-  }, [todos, loadAssignments])
+  useTagAssignmentsForLoadedTodos()
 
   const counts = useMemo(() => countTodosByEntity(assignedTagsMap), [assignedTagsMap])
 

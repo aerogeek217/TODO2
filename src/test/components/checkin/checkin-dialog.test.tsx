@@ -373,7 +373,7 @@ describe('CheckinDialog — layers and closing', () => {
 describe('Email task check-ins command', () => {
   it('opens the dialog with nobody ticked', () => {
     const openCheckinDialog = vi.fn()
-    const ctx = { openCheckinDialog, getStatuses: () => [], selectionCount: 0 } as unknown as CommandContext
+    const ctx = { shortcuts: {}, openCheckinDialog, getStatuses: () => [], selectionCount: 0 } as unknown as CommandContext
     const cmd = createCommands(ctx).find((c) => c.id === 'email-checkins')
     expect(cmd).toMatchObject({ name: 'Email task check-ins…', category: 'email' })
     cmd!.action()

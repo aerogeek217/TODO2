@@ -4,6 +4,8 @@ import { nextScopedSelection, type ScopedRow } from '../utils/scoped-selection'
 import { useLatestRef } from './use-latest-ref'
 import { useScopedSelectionRelease } from './use-scoped-selection-release'
 
+const NO_IDS: ReadonlySet<number> = new Set()
+
 /** The modifier keys of a row click. */
 export interface RowSelectMods {
   shift: boolean
@@ -13,6 +15,7 @@ export interface RowSelectMods {
 export interface WidgetSelection {
   /** This widget owns the selection. */
   inScope: boolean
+  /** The selected tasks while this widget owns the selection, else none. */
   selectedIds: ReadonlySet<number>
   /** The keyboard cursor's row, while this widget owns the selection. */
   cursorKey: string | null
@@ -31,7 +34,8 @@ export interface WidgetSelection {
 export function useWidgetSelection(scope: string, getRows: () => readonly ScopedRow[]): WidgetSelection {
   const inScope = useUIStore((s) => s.selectionScope === scope)
   useScopedSelectionRelease(scope)
-  const selectedIds = useUIStore((s) => s.selectedTodoIds)
+  // Another widget's selection clicks don't render this one.
+  const selectedIds = useUIStore((s) => (s.selectionScope === scope ? s.selectedTodoIds : NO_IDS))
   const cursorKey = useUIStore((s) => (s.selectionScope === scope ? s.selectionCursorKey : null))
   const getRowsRef = useLatestRef(getRows)
 

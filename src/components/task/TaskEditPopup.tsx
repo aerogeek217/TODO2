@@ -21,7 +21,8 @@ import { draftEditorTitle, type TaskDraft } from '../../services/task-draft'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
-import { NotesBody, type NotesSource } from './notes/NotesBody'
+import { NotesBody } from './notes/NotesBody'
+import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { isInLayerAbove } from '../../utils/dom-layers'
@@ -150,8 +151,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   })
 
   const [title, setTitle] = useState(todo?.title ?? (seed ? draftEditorTitle(seed) : quickAddSeed?.title) ?? '')
-  const [notes, setNotes] = useState(todo?.notes ?? seed?.notes ?? '')
-  const notesRef = useRef<string>(todo?.notes ?? seed?.notes ?? '')
+  // Notes: one edit session at a time, written debounced (edit mode), and
+  // following changes made elsewhere while nothing typed waits. Every other
+  // write to the task writes the notes typed so far first (`flushNotes`), so
+  // each stays its own undo step, in order. A create reads the text.
+  const notesSession = useTaskNotesSource({ todoId: todo?.id, initial: todo?.notes ?? seed?.notes ?? '' })
+  const flushNotes = notesSession.flush
   const [progress, setProgress] = useState(todo?.progress ?? seed?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
     seed ? seed.statusId : (
@@ -236,20 +241,20 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // last sync, which keep the user's text. `baselineRef` holds the task's
   // values at the last sync; saving writes only the fields that differ from
   // it (`editorChanges`), so nothing changed elsewhere is written back over.
+  // (The notes do the same in their session.)
   const todoId = todo?.id
   const todoTitle = todo?.title
-  const todoNotes = todo?.notes
   const todoProgress = todo?.progress
   const todoStatusId = todo?.statusId
   const todoDueDate = todo?.dueDate
   const todoRecurrenceRule = todo?.recurrenceRule
   const baselineRef = useRef<EditorFields | null>(todo ? editorFieldsOf(todo) : null)
   const baselineIdRef = useRef(todoId)
-  const formRef = useLatestRef<EditorFields>({ title, notes, progress, statusId, deadline, recurrenceType })
+  const formRef = useLatestRef<EditorFields>({ title, progress, statusId, deadline, recurrenceType })
   useEffect(() => {
     if (todoId === undefined || todoTitle === undefined) return
     const store = editorFieldsOf({
-      title: todoTitle, notes: todoNotes, progress: todoProgress, statusId: todoStatusId,
+      title: todoTitle, progress: todoProgress, statusId: todoStatusId,
       dueDate: todoDueDate, recurrenceRule: todoRecurrenceRule,
     })
     const baseline = baselineRef.current
@@ -260,15 +265,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     baselineRef.current = store
     baselineIdRef.current = todoId
     if (show.title !== undefined) setTitle(show.title)
-    if (show.notes !== undefined) {
-      setNotes(show.notes)
-      notesRef.current = show.notes
-    }
     if (show.progress !== undefined) setProgress(show.progress)
     if ('statusId' in show) setStatusId(show.statusId)
     if (show.deadline !== undefined) setDeadline(show.deadline)
     if (show.recurrenceType !== undefined) setRecurrenceType(show.recurrenceType)
-  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
+  }, [todoId, todoTitle, todoProgress, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
 
   // The first Esc in a text field only leaves the field (claimed, so the
   // frame doesn't close); focus stays in the editor, so the next Esc closes it.
@@ -295,7 +296,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const baseline = baselineRef.current
     if (props.mode !== 'edit' || !baseline) return
     const changes = editorChanges(formRef.current, baseline)
-    if (Object.keys(changes).length > 0) props.onUpdate(changes)
+    if (Object.keys(changes).length === 0) return
+    void flushNotes()
+    props.onUpdate(changes)
   }
 
   const handleTitleBlur = () => { if (isEdit) saveEdit() }
@@ -319,16 +322,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (e.key === 'Escape') titleRef.current?.blur()
   }
 
-  const onUpdateRef = useLatestRef(isEdit ? props.onUpdate : undefined)
-
-  const notesSource = useMemo<NotesSource>(() => ({
-    get: () => notesRef.current,
-    set: (next) => {
-      notesRef.current = next
-      setNotes(next)
-      onUpdateRef.current?.({ notes: next ? next : undefined })
-    },
-  }), [onUpdateRef])
+  /** Edit mode: the notes typed so far, then `run` (another write to the task). */
+  const afterNotes = <A extends unknown[]>(run: (...args: A) => unknown) => (...args: A) => {
+    void flushNotes()
+    run(...args)
+  }
 
   const handleDeadlineChange = (next: Date | null) => {
     setDeadline(next)
@@ -337,6 +335,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (isEdit && todo) {
       const nextRule: typeof todo.recurrenceRule =
         recurrenceType && next ? makeRecurrenceRule(recurrenceType, next) : undefined
+      void flushNotes()
       props.onUpdate({ dueDate: next ?? undefined, recurrenceRule: nextRule })
     }
   }
@@ -347,16 +346,20 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (isEdit && todo) {
       const nextRule: typeof todo.recurrenceRule =
         val && deadline ? makeRecurrenceRule(val, deadline) : undefined
+      void flushNotes()
       props.onUpdate({ recurrenceRule: nextRule })
     }
   }
 
   const handleToggleComplete = () => {
-    if (isEdit) props.onToggleComplete()
+    if (!isEdit) return
+    void flushNotes()
+    props.onToggleComplete()
   }
 
   const handleNextFollowupChange = (next: Date | null) => {
     if (isEdit && todo) {
+      void flushNotes()
       props.onUpdate({ nextFollowupAt: next ?? undefined })
     } else {
       setDraftNextFollowup(next ?? undefined)
@@ -366,6 +369,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const handleLastFollowupChange = (last: Date | null) => {
     if (isEdit && todo) {
+      void flushNotes()
       props.onUpdate({ lastFollowupAt: last ?? undefined })
     } else {
       setDraftLastFollowup(last ?? undefined)
@@ -374,6 +378,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const handleFollowedUp = () => {
     if (isEdit && todo) {
+      void flushNotes()
       if (props.onFollowedUp) props.onFollowedUp()
       else void useTodoStore.getState().markFollowedUp([todo.id])
       return
@@ -398,6 +403,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const urgentHint = urgentToggleHint([urgentSubject], markerToday, urgentRange)
   const handleToggleUrgent = () => {
     if (isEdit && todo) {
+      void flushNotes()
       void useTodoStore.getState().bulkSetUrgent([todo.id], !urgentOn)
     } else {
       setDraftUrgent((v) => !v)
@@ -407,6 +413,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const importantOn = isEdit ? todo?.important === true : draftImportant
   const handleToggleImportant = () => {
     if (isEdit && todo) {
+      void flushNotes()
       void useTodoStore.getState().bulkSetImportant([todo.id], !importantOn)
     } else {
       setDraftImportant((v) => !v)
@@ -416,6 +423,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const focusOn = isEdit ? todo?.focus === true : draftFocus
   const handleToggleFocus = () => {
     if (isEdit && todo) {
+      void flushNotes()
       void useTodoStore.getState().bulkSetFocus([todo.id], !focusOn)
     } else {
       setDraftFocus((v) => !v)
@@ -426,9 +434,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const creatingRef = useRef(false)
   const handleCreate = async () => {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
+    // A person / tag picked from the title's Create row is saved first, so the token names it.
+    if (ac.creating()) await ac.whenCreated()
     const partial: Partial<TodoItem> = {
       title: title.trim(),
-      notes: notes || undefined,
+      notes: notesSession.text() || undefined,
       progress: progress || undefined,
       statusId,
       dueDate: deadline ?? undefined,
@@ -462,6 +472,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (mode === 'create') {
       setPendingPersonIds(prev => new Set([...prev, id]))
     } else {
+      void flushNotes()
       onAssignPerson(id)
     }
   } : undefined
@@ -475,6 +486,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       })
       return
     }
+    void flushNotes()
     const assigned = assignedPeople.some((p) => p.id === id)
     if (assigned) onUnassignPerson(id)
     else onAssignPerson(id)
@@ -490,6 +502,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       return
     }
     if (!onAssignTag || !onUnassignTag) return
+    void flushNotes()
     const isAssigned = assignedTags.some((t) => t.id === id)
     if (isAssigned) onUnassignTag(id)
     else onAssignTag(id)
@@ -500,6 +513,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (mode === 'create') {
       setPendingTagIds(prev => new Set([...prev, id]))
     } else if (onAssignTag) {
+      void flushNotes()
       onAssignTag(id)
     }
   } : undefined
@@ -565,6 +579,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onClose={onClose}
           acState={ac.state}
           onAcPick={(row) => ac.select(row, titleRef.current)}
+          onAcHighlight={ac.highlight}
           isDraft={isDraft}
         />
 
@@ -591,7 +606,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                       e.stopPropagation()
                       setStatusId(undefined)
                       setShowStatusMenu(false)
-                      if (props.mode === 'edit') props.onUpdate({ statusId: undefined })
+                      if (props.mode === 'edit') afterNotes(props.onUpdate)({ statusId: undefined })
                     }}
                   >
                     <span style={{ color: 'var(--color-text-muted)' }}><StatusIcon icon="circle" /></span>
@@ -605,7 +620,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                         e.stopPropagation()
                         setStatusId(s.id)
                         setShowStatusMenu(false)
-                        if (props.mode === 'edit') props.onUpdate({ statusId: s.id })
+                        if (props.mode === 'edit') afterNotes(props.onUpdate)({ statusId: s.id })
                       }}
                     >
                       <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
@@ -697,7 +712,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             <div className={styles.notesLabel}>Notes</div>
             <div className={styles.notesBodyWrap}>
               <NotesBody
-                source={notesSource}
+                source={notesSession.source}
                 showToolbar
                 placeholder="Add notes..."
                 convert={!seed}
@@ -707,7 +722,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         </div>
 
         {isEdit && todo ? (
-          <TaskEditFooter mode="edit" todo={todo} onDelete={props.onDelete} onDuplicate={props.onDuplicate} onClose={onClose} />
+          <TaskEditFooter
+            mode="edit"
+            todo={todo}
+            onDelete={afterNotes(props.onDelete)}
+            onDuplicate={props.onDuplicate && afterNotes(props.onDuplicate)}
+            onClose={onClose}
+          />
         ) : (
           <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
         )}

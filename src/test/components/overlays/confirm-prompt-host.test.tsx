@@ -48,6 +48,25 @@ describe('ConfirmPromptHost', () => {
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
   })
 
+  it('a question queued behind the one on screen leaves it as it is: same dialog, the focus where it was, then back to the opener', async () => {
+    render(<><button type="button">Opener</button><ConfirmPromptHost /></>)
+    const opener = screen.getByRole('button', { name: 'Opener' })
+    opener.focus()
+    const first = ask(NO_BACKUP)
+    const dialog = screen.getByRole('dialog', { name: 'Continue without a backup?' })
+    screen.getByRole('button', { name: 'Continue' }).focus()
+    const second = ask({ ...NO_BACKUP, title: 'Did the file save?', confirmLabel: 'Delete 2 tasks' })
+    expect(screen.getByRole('dialog', { name: 'Continue without a backup?' })).toBe(dialog)
+    expect(screen.getByRole('button', { name: 'Continue' })).toHaveFocus()
+    // Two questions with the same title still get a dialog each.
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(await first).toBe(true)
+    expect(screen.getByRole('dialog', { name: 'Did the file save?' })).not.toBe(dialog)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(await second).toBe(false)
+    expect(opener).toHaveFocus()
+  })
+
   it('shows queued questions one after another', async () => {
     render(<ConfirmPromptHost />)
     const first = ask(NO_BACKUP)

@@ -129,7 +129,7 @@
 
 .convertBtn[data-selection="true"] .convertBadge {
   background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 @container (max-width: 359px) {

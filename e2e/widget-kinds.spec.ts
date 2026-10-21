@@ -9,7 +9,7 @@ import { seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
  * menu too.
  */
 
-/** The list the list tabs show: the name Create new list… gives a layout's first list. */
+/** The list the list tabs show: the name a layout's first new list gets. */
 const LIST = 'New list'
 
 /** What a kind's body shows, to know it rendered. */
@@ -25,8 +25,6 @@ function body(cell: Locator, kind: WidgetKind): Locator {
 
 /** A kind's tab title: a list tab shows its list. */
 const title = (kind: WidgetKind) => (kind === 'lens' ? LIST : widgetKindLabel(kind))
-/** The list picker's row for the list (`Team Add` / `Team Show`). */
-const listOption = (page: Page) => page.getByRole('button', { name: new RegExp(`^${LIST} `) })
 const tab = (page: Page, kind: WidgetKind) => page.getByRole('tab', { name: new RegExp(`^${title(kind)}`) })
 
 test.describe('desktop', () => {
@@ -45,13 +43,16 @@ test.describe('desktop', () => {
     const cell = page.locator('[data-ws-cell]').first()
     await expect(body(cell, 'notes')).toBeVisible()
 
-    // Add: every kind but Notes, from the add-tab menu (a list picks its list first: a new one here).
+    // Add: every kind but Notes, from the add-tab menu (a list gets a new list, its Edit list open).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
       await page.getByRole('button', { name: 'Add widget as tab' }).click()
       const menu = page.getByRole('menu', { name: 'Add widget' })
       await expect(menu.getByRole('menuitem')).toHaveText(WIDGET_KINDS.map(widgetKindLabel))
       await menu.getByRole('menuitem', { name: widgetKindLabel(kind) }).click()
-      if (kind === 'lens') await page.getByRole('button', { name: '+ Create new list…' }).click()
+      if (kind === 'lens') {
+        await expect(page.getByRole('dialog', { name: `Edit list ${LIST}` })).toBeVisible()
+        await page.keyboard.press('Escape')
+      }
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await expect(body(cell, kind)).toBeVisible()
     }
@@ -64,7 +65,11 @@ test.describe('desktop', () => {
       const menu = page.getByRole('menu', { name: 'Change widget' })
       await expect(menu.getByRole('menuitemradio', { name: widgetKindLabel(current) })).toHaveAttribute('aria-checked', 'true')
       await menu.getByRole('menuitemradio', { name: widgetKindLabel(kind) }).click()
-      if (kind === 'lens') await listOption(page).click()
+      // Switched to List: a new list of the layout, its Edit list open.
+      if (kind === 'lens') {
+        await expect(page.getByRole('dialog', { name: /^Edit list / })).toBeVisible()
+        await page.keyboard.press('Escape')
+      }
       current = kind
       await expect(body(cell, kind)).toBeVisible()
     }

@@ -82,15 +82,19 @@ export function TaskEditMetadata({
       <div className={styles.metaRow}>
         <span className={styles.metaLabel}>People</span>
         <div className={styles.chipArea} ref={peopleRef}>
+          {/* A chip: its name opens the picker, its × (a button of its own, beside it) unassigns. */}
           {assignedPeople.map((person) => (
-            <button key={`p-${person.id}`} className={styles.personTag}
-              onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
-              <span className={styles.personAvatar} style={{ background: person.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
-                {(person.initials || person.name).charAt(0).toUpperCase()}
-              </span>
-              <span className={styles.personName}>{person.name}</span>
-              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onTogglePerson(person.id!) }}>&times;</span>
-            </button>
+            <span key={`p-${person.id}`} className={styles.personTag}>
+              <button type="button" className={styles.chipOpen}
+                onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
+                <span className={styles.personAvatar} style={{ background: person.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
+                  {(person.initials || person.name).charAt(0).toUpperCase()}
+                </span>
+                <span className={styles.personName}>{person.name}</span>
+              </button>
+              <button type="button" className={styles.chipRemove} aria-label={`Remove ${person.name}`}
+                onClick={() => onTogglePerson(person.id!)}>&times;</button>
+            </span>
           ))}
           <button className={styles.chipAddBtn}
             onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
@@ -118,12 +122,14 @@ export function TaskEditMetadata({
         <span className={styles.metaLabel}>Tags</span>
         <div className={styles.chipArea} ref={tagsRef}>
           {assignedTags.map((tag) => (
-            <button key={`t-${tag.id}`} className={styles.tagChip}
-              style={{ color: tag.color, borderColor: tag.color }}
-              onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
-              #{tag.name}
-              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onToggleTag(tag.id!) }}>&times;</span>
-            </button>
+            <span key={`t-${tag.id}`} className={styles.tagChip} style={{ color: tag.color, borderColor: tag.color }}>
+              <button type="button" className={styles.chipOpen}
+                onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
+                #{tag.name}
+              </button>
+              <button type="button" className={styles.chipRemove} aria-label={`Remove #${tag.name}`}
+                onClick={() => onToggleTag(tag.id!)}>&times;</button>
+            </span>
           ))}
           <button className={styles.chipAddBtn}
             onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>

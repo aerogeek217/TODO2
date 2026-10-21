@@ -7,15 +7,11 @@
   width: 336px;
   max-width: calc(100vw - 16px);
   overflow-y: auto;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-dialog-nested);
   animation: dropIn 0.1s ease-out;
-}
-
-[data-theme='light'] .popover {
-  background: var(--color-surface);
 }
 
 @keyframes dropIn {
@@ -86,7 +82,7 @@
 /* A date type that filters, selected or not: accent text and a dot. */
 .lit,
 .lit:hover {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .lit::before {
@@ -133,7 +129,7 @@
 }
 
 .words {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .off {

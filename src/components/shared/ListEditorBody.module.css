@@ -1,6 +1,6 @@
-/* The list editor's form. `dialog` (Settings › Lists): a 108px label column
- * and 32px controls. `.compact` (the workspace's side popover): a 62px label
- * column and 28px controls. `.sheet` (phone): stacked, touch sizes. */
+/* The list editor's form: the base rules below, refined by `.compact` (the
+ * workspace's side popover: a 62px label column and 28px controls) or
+ * `.sheet` (phone: stacked, touch sizes). */
 
 .form {
   display: flex;
@@ -29,7 +29,7 @@
 
 /* A row whose value differs from the saved list. */
 .labelChanged {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .changedDot {
@@ -148,7 +148,7 @@
 }
 
 .compact .labelChanged {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .compact .changedDot {
@@ -191,7 +191,7 @@
 }
 
 .sheet .labelChanged {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .sheet .changedDot {
@@ -388,7 +388,7 @@
 }
 
 .direction[aria-pressed='true'] {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
 }
 
 .direction:focus-visible {
