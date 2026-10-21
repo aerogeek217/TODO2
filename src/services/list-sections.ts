@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models'
 import { effectiveSortDirection, isTodoGroupBy } from '../models'
-import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
+import { assignedEntitiesById, partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
 import { bySortOrder } from '../utils/sort-order'
 import { startOfDay } from '../utils/date'
@@ -213,6 +213,8 @@ export function buildListSections(
   const groupingCtx: GroupingContext = {
     assignedPeopleMap: ctx.assignedPeopleMap,
     assignedTagsMap: ctx.assignedTagsMap,
+    peopleById: assignedEntitiesById(ctx.assignedPeopleMap),
+    tagsById: assignedEntitiesById(ctx.assignedTagsMap),
     statuses: ctx.statuses,
     today: ctx.today,
     weekStartsOn: ctx.weekStartsOn,

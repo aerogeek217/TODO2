@@ -105,7 +105,7 @@ describe('sort + group by next follow-up', () => {
 
   it('partitionByGroup buckets on the next follow-up', () => {
     const ctx: GroupingContext = {
-      assignedPeopleMap: new Map(), assignedTagsMap: new Map(),
+      assignedPeopleMap: new Map(), assignedTagsMap: new Map(), peopleById: new Map(), tagsById: new Map(),
       statuses: [], today, weekStartsOn: 1,
     }
     const { groups, ungrouped } = partitionByGroup(all, 'followup', ctx)

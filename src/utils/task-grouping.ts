@@ -17,6 +17,13 @@ import {
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
+  /**
+   * The people / tags of the assignment maps by id, for the group labels and
+   * colours (`assignedEntitiesById`, built once per grouping — a group order
+   * compares labels, so a scan of the maps per label would be quadratic).
+   */
+  peopleById: ReadonlyMap<number, Person>
+  tagsById: ReadonlyMap<number, Tag>
   statuses: readonly Status[]
   today: Date
   /** Week boundary for the date axes' "This Week" bucket. */
@@ -36,6 +43,15 @@ export interface PartitionGroup<T extends PersistedTodoItem> {
 export interface PartitionResult<T extends PersistedTodoItem> {
   ungrouped: T[]
   groups: PartitionGroup<T>[]
+}
+
+/** Every person / tag the assignment map names, by id (the first copy of each). */
+export function assignedEntitiesById<E extends { id?: number }>(assigned: ReadonlyMap<number, readonly E[]>): Map<number, E> {
+  const byId = new Map<number, E>()
+  for (const entities of assigned.values()) {
+    for (const e of entities) if (e.id != null && !byId.has(e.id)) byId.set(e.id, e)
+  }
+  return byId
 }
 
 function parseId(prefix: string, key: string): number | null {
@@ -101,7 +117,7 @@ export function getGroupKey(
 
 /**
  * Human-readable label for a key produced by `getGroupKey`. Person / tag
- * names are looked up via the assigned-{people,tags} maps; status names
+ * names are looked up in `ctx.peopleById` / `ctx.tagsById`; status names
  * via `ctx.statuses`; deadline/followup keys map to the shared date labels
  * ("Overdue" / "Today" / "This Week" / "Later").
  */
@@ -119,21 +135,11 @@ export function getGroupLabel(
     }
     case 'people': {
       const id = parseId('person-', key)
-      if (id == null) return ''
-      for (const arr of ctx.assignedPeopleMap.values()) {
-        const hit = arr.find((p) => p.id === id)
-        if (hit) return hit.name
-      }
-      return ''
+      return id == null ? '' : ctx.peopleById.get(id)?.name ?? ''
     }
     case 'tag': {
       const id = parseId('tag-', key)
-      if (id == null) return ''
-      for (const arr of ctx.assignedTagsMap.values()) {
-        const hit = arr.find((t) => t.id === id)
-        if (hit) return hit.name
-      }
-      return ''
+      return id == null ? '' : ctx.tagsById.get(id)?.name ?? ''
     }
     case 'deadline':
     case 'followup':
@@ -171,20 +177,12 @@ export function getGroupColor(
     case 'people': {
       const id = parseId('person-', key)
       if (id == null) return undefined
-      for (const arr of ctx.assignedPeopleMap.values()) {
-        const hit = arr.find((p) => p.id === id)
-        if (hit) return hit.color ?? NEUTRAL_PERSON_COLOR
-      }
-      return NEUTRAL_PERSON_COLOR
+      return ctx.peopleById.get(id)?.color ?? NEUTRAL_PERSON_COLOR
     }
     case 'tag': {
       const id = parseId('tag-', key)
       if (id == null) return undefined
-      for (const arr of ctx.assignedTagsMap.values()) {
-        const hit = arr.find((t) => t.id === id)
-        if (hit?.color) return hit.color
-      }
-      return undefined
+      return ctx.tagsById.get(id)?.color || undefined
     }
     case 'priority': {
       const group = priorityGroupOfKey(key)
@@ -235,10 +233,10 @@ function orderGroupKeys(
         return keys.slice().sort((a, b) => idx(a) - idx(b))
       }
       case 'people':
-      case 'tag':
-        return keys.slice().sort((a, b) =>
-          getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
-        )
+      case 'tag': {
+        const label = new Map(keys.map((k) => [k, getGroupLabel(k, groupBy, ctx)] as const))
+        return keys.slice().sort((a, b) => (label.get(a) ?? '').localeCompare(label.get(b) ?? ''))
+      }
       case 'priority': {
         const idx = (k: string) => {
           const group = priorityGroupOfKey(k)

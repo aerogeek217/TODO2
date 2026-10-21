@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
 import {
+  assignedEntitiesById,
   getGroupKey,
   getGroupLabel,
   getGroupColor,
@@ -11,9 +12,13 @@ import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { makeTodo } from '../helpers'
 
 function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
+  const assignedPeopleMap = over.assignedPeopleMap ?? new Map()
+  const assignedTagsMap = over.assignedTagsMap ?? new Map()
   return {
-    assignedPeopleMap: new Map(),
-    assignedTagsMap: new Map(),
+    assignedPeopleMap,
+    assignedTagsMap,
+    peopleById: assignedEntitiesById(assignedPeopleMap),
+    tagsById: assignedEntitiesById(assignedTagsMap),
     statuses: [],
     today: new Date(2026, 0, 15),
     weekStartsOn: 1,
