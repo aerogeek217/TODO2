@@ -330,3 +330,57 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 })
+
+describe('ChipSelector — Tab accepts the highlighted row', () => {
+  afterEach(cleanup)
+  const tab = (shift = false) => fireEvent.keyDown(input(), { key: 'Tab', shiftKey: shift })
+
+  it('with a query typed, Tab assigns the highlighted item, clears the query and keeps the focus', () => {
+    const { onToggle } = renderPicker()
+    input().focus()
+    type('ida')
+    expect(activeOption()).toHaveTextContent('Aidan Ross')
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    act(() => { input().dispatchEvent(ev) })
+    expect(ev.defaultPrevented).toBe(true)
+    expect(onToggle).toHaveBeenCalledWith(5)
+    expect(input()).toHaveValue('')
+    expect(input()).toHaveFocus()
+  })
+
+  it('Tab on the Create row creates it', () => {
+    const { onCreate, onToggle } = renderPicker()
+    type('Zed')
+    expect(activeOption()).toHaveTextContent('Create "Zed"')
+    tab()
+    expect(onCreate).toHaveBeenCalledWith('Zed')
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(input()).toHaveValue('')
+  })
+
+  it('Tab never unassigns: on a ticked item it only clears the query (Enter still toggles)', () => {
+    const { onToggle } = renderPicker({ selectedIds: new Set([5]) })
+    type('ida')
+    tab()
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(input()).toHaveValue('')
+    type('ida')
+    key('Enter')
+    expect(onToggle).toHaveBeenCalledWith(5)
+  })
+
+  it('with no query, Tab (and Shift+Tab) are left to the browser', () => {
+    const { onToggle, onCreate } = renderPicker()
+    for (const shift of [false, true]) {
+      const ev = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: shift, bubbles: true, cancelable: true })
+      input().dispatchEvent(ev)
+      expect(ev.defaultPrevented).toBe(false)
+    }
+    type('ida')
+    const back = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    input().dispatchEvent(back)
+    expect(back.defaultPrevented).toBe(false)
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+})

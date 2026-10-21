@@ -63,7 +63,9 @@ function Highlighted({ name, query }: { name: string; query: string }) {
  * check per assigned item, and a `Create "<query>"` row when nothing matches
  * the query exactly. Matching is a case-insensitive substring of the name.
  * Keyboard: ↑/↓ move the active row (wrapping), ⏎ toggles it (or creates),
- * Esc calls `onClose`; the search's × empties it. After a create the query
+ * Tab — while a query is typed — accepts it: assigns it (never unassigns a
+ * ticked one) or creates the Create row's, then clears the query (no query:
+ * Tab moves on as usual); Esc calls `onClose`; the search's × empties it. After a create the query
  * clears and the picker stays open. Used for people (`avatars`) and tags. With `entityMenu`, an option's
  * context menu is the person's / tag's menu — it never picks the option; Esc
  * closes just the menu. A right-click anywhere else in the picker never
@@ -172,6 +174,20 @@ export function ChipSelector({
     } else if (e.key === 'Enter') {
       e.preventDefault()
       activate(rows[active])
+    } else if (e.key === 'Tab' && !e.shiftKey && lowerQuery.length > 0 && rows[active]) {
+      // Tab accepts the highlighted row, as the `@` / `#` popup does: assigns
+      // an item (never unassigns one already ticked) or creates the Create
+      // row's; the query clears and the focus stays. With no query typed,
+      // Tab moves on as usual (never a Tab trap).
+      e.preventDefault()
+      const row = rows[active]
+      if (row.kind === 'create') {
+        create(row.name)
+        return
+      }
+      if (!selectedIds.has(row.item.id)) onToggle(row.item.id)
+      setQuery('')
+      setActiveChoice(null)
     } else if (e.key === 'Escape' && onClose) {
       e.preventDefault()
       onClose()
