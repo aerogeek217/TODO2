@@ -293,7 +293,7 @@ describe('entry points', () => {
 
   it('the palette command opens it', () => {
     const openCheckinImport = vi.fn()
-    const commands = createCommands({ openCheckinImport } as unknown as CommandContext)
+    const commands = createCommands({ shortcuts: {}, openCheckinImport } as unknown as CommandContext)
     const cmd = commands.find((c) => c.name === 'Import check-in reply…')
     expect(cmd?.category).toBe('email')
     cmd?.action()

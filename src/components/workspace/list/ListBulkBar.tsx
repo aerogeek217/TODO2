@@ -17,6 +17,7 @@ import { followedUpMenuEntry, markerMenuEntries } from '../../task/task-menu-ent
 import { MenuPopover } from '../../shared/MenuPopover'
 import { AtIcon, CheckIcon, CloseIcon, HashIcon, MoreIcon, TrashIcon } from '../../shared/icons'
 import styles from './ListWidget.module.css'
+import { KEEPS_SELECTION_ATTR } from '../../../utils/dom-contract'
 
 type OpenPicker = 'people' | 'tags' | 'followup' | 'more' | null
 
@@ -81,7 +82,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
       role="toolbar"
       aria-label="Selected tasks"
       data-testid="list-bulk-bar"
-      data-keeps-selection
+      {...{ [KEEPS_SELECTION_ATTR]: '' }}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >

@@ -73,6 +73,7 @@ import { useBackdropPress } from '../shared/use-backdrop-press'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
+import { shortcutScope } from '../../utils/dom-contract'
 
 const POPUP_GAP_PX = 4
 const POPUP_WIDTH_PX = 280
@@ -769,7 +770,7 @@ export function QuickAddBar({
               }}
               onScroll={syncMirror}
               onKeyDown={onInputKeyDown}
-              data-shortcut-scope="none"
+              {...shortcutScope('none')}
               spellCheck={false}
             />
           </div>

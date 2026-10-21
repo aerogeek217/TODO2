@@ -6,6 +6,7 @@ import styles from './Dialog.module.css'
 import { DialogLayerContext, MODAL_BACKDROP_ATTR } from './dialog-layer'
 import { useBackdropPress } from './use-backdrop-press'
 import { tabbables } from '../../utils/focusables'
+import { shortcutScope } from '../../utils/dom-contract'
 
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
@@ -245,7 +246,7 @@ export function DialogFrame({
         tabIndex={-1}
         className={`${styles.panel} ${layerClass} ${className ?? ''}`}
         style={style}
-        data-shortcut-scope="modal"
+        {...shortcutScope('modal')}
         onKeyDown={onKeyDown}
         {...dataAttributes}
       >

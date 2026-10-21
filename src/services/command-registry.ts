@@ -1,12 +1,11 @@
 import type { Person, PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { byName } from '../utils/sort-order'
-import { useUndoStore } from '../stores/undo-store'
-import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { shortcutLabel } from '../utils/shortcut-bindings'
 import type { ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
+import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts'
 
 /** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
@@ -22,9 +21,11 @@ export interface Command {
 }
 
 export interface CommandContext {
-  /** Opens the Settings modal. */
-  openSettings: () => void
-  openQuickAdd: () => void
+  /**
+   * What the shortcut handlers the palette runs may call (Settings, the
+   * shortcuts modal): the commands that have a binding run its handler.
+   */
+  shortcuts: ShortcutCallbacks
   /** Number of currently selected tasks */
   selectionCount: number
   /** Bulk actions on selected tasks */
@@ -41,8 +42,6 @@ export interface CommandContext {
   getTodos: () => PersistedTodoItem[]
   /** Open a task (from a palette task search hit) */
   focusTask: (todoId: number) => void
-  /** Open keyboard shortcuts modal */
-  openShortcutsModal?: () => void
   /** Statuses for bulk commands */
   getStatuses?: () => Status[]
   /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
@@ -98,31 +97,23 @@ export function createCommands(
   overrides: ShortcutOverrides = useSettingsStore.getState().shortcutOverrides,
 ): Command[] {
   const keys = (id: ShortcutId) => shortcutLabel(id, overrides)
+  /** A command that has a binding: its keys as the hint, its handler as the action. */
+  const bound = (id: string, name: string, binding: ShortcutId, category: CommandCategory): Command => ({
+    id, name, shortcut: keys(binding), category,
+    action: () => { void runShortcutCommand(binding, ctx.shortcuts) },
+  })
   const commands: Command[] = [
     // Navigation
-    { id: 'open-settings', name: 'Open Settings', shortcut: keys('open-settings'), category: 'navigation', action: ctx.openSettings },
-    { id: 'focus-filter', name: 'Focus Filters', shortcut: keys('focus-filters'), category: 'navigation', action: () => {
-      const filterRow = document.querySelector('[data-filter-row]')
-      const firstBtn = filterRow?.querySelector('button') as HTMLElement | null
-      firstBtn?.focus()
-    }},
-    { id: 'focus-search', name: 'Focus Search', shortcut: keys('focus-search'), category: 'navigation', action: () => {
-      const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement | null
-      if (searchInput) { searchInput.focus(); searchInput.select() }
-    }},
-    ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: keys('show-shortcuts'), category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
+    bound('open-settings', 'Open Settings', 'open-settings', 'navigation'),
+    bound('focus-filter', 'Focus Filters', 'focus-filters', 'navigation'),
+    bound('focus-search', 'Focus Search', 'focus-search', 'navigation'),
+    ...(ctx.shortcuts.openShortcutsModal ? [bound('keyboard-shortcuts', 'Keyboard Shortcuts', 'show-shortcuts', 'navigation')] : []),
 
     // Task actions
-    { id: 'new-task', name: 'New Task', shortcut: keys('quick-add'), category: 'task', action: ctx.openQuickAdd },
-    { id: 'undo', name: 'Undo', shortcut: keys('undo'), category: 'task', action: () => { void useUndoStore.getState().undo() } },
-    { id: 'redo', name: 'Redo', shortcut: keys('redo'), category: 'task', action: () => { void useUndoStore.getState().redo() } },
-    { id: 'select-all', name: 'Select All Tasks', shortcut: keys('select-all'), category: 'task', action: () => {
-      const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
-      if (rows.length > 0) {
-        const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
-        useUIStore.getState().selectAll(todoIds)
-      }
-    }},
+    bound('new-task', 'New Task', 'quick-add', 'task'),
+    bound('undo', 'Undo', 'undo', 'task'),
+    bound('redo', 'Redo', 'redo', 'task'),
+    bound('select-all', 'Select All Tasks', 'select-all', 'task'),
 
     // Filter presets
     { id: 'filter-show-completed', name: 'Toggle Show Completed', category: 'filter', action: () => ctx.setShowCompleted(!ctx.getShowCompleted()) },

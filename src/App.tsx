@@ -22,6 +22,7 @@ import { useShortcutLabel } from './hooks/use-shortcut-label'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
+import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
@@ -53,14 +54,13 @@ import './styles/tokens.css'
  * when they run or search (`getState`), so the shell never re-renders for a
  * task write or a selection click.
  */
-function AppCommandPalette({ onClose, openShortcutsModal }: { onClose: () => void; openShortcutsModal: () => void }) {
+function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
   const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
 
   const commandCtx = useMemo(
     () => ({
-      openSettings: () => useUIStore.getState().openSettings(),
-      openQuickAdd: () => useUIStore.getState().openQuickAdd(),
+      shortcuts,
       selectionCount,
       bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
       bulkSetStatus: useTodoStore.getState().bulkSetStatus,
@@ -75,7 +75,6 @@ function AppCommandPalette({ onClose, openShortcutsModal }: { onClose: () => voi
         useUIStore.getState().selectOneTodo(todoId)
         useUIStore.getState().openEditPopup(todoId)
       },
-      openShortcutsModal,
       getStatuses: () => useStatusStore.getState().statuses,
       openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
       sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
@@ -84,7 +83,7 @@ function AppCommandPalette({ onClose, openShortcutsModal }: { onClose: () => voi
       getOpenTaskCounts: () => openTaskCounts(useTodoStore.getState().todos, usePersonStore.getState().assignedPeopleMap),
       getCheckinTaskCounts: () => currentCheckinTaskCounts(useSettingsStore.getState().checkinTaskFilter),
     }),
-    [selectionCount, openShortcutsModal],
+    [selectionCount, shortcuts],
   )
 
   // The palette's key hints follow the user's shortcut changes.
@@ -303,18 +302,20 @@ function AppShell() {
     })
   }, [])
 
-  // Global keyboard shortcuts
-  useKeyboardShortcuts({
+  // What the shortcut handlers call — from a key press or a palette command.
+  const shortcutCallbacks = useMemo<ShortcutCallbacks>(() => ({
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
     openSettings: () => useUIStore.getState().openSettings(),
     openShortcutsModal: () => setShowShortcuts(true),
+  }), [])
+
+  // Global keyboard shortcuts
+  useKeyboardShortcuts({
+    ...shortcutCallbacks,
     // Nothing to act on before launch is done (the launch question is up, the stores load).
     enabled: !isMobile && initialized,
   })
-
-  const handleClosePalette = useCallback(() => setShowPalette(false), [])
-  const openShortcutsModal = useCallback(() => setShowShortcuts(true), [])
 
   const quickAddKeys = useShortcutLabel('quick-add')
 
@@ -373,7 +374,7 @@ function AppShell() {
           </button>
         </div>
       )}
-      {!isMobile && showPalette && <AppCommandPalette onClose={handleClosePalette} openShortcutsModal={openShortcutsModal} />}
+      {!isMobile && showPalette && <AppCommandPalette onClose={shortcutCallbacks.closePalette} shortcuts={shortcutCallbacks} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {!isMobile && settingsOpen && (
         <Suspense fallback={null}>

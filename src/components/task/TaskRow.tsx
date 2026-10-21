@@ -20,6 +20,7 @@ import {
   DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
 } from './row-cells'
 import styles from './TaskRow.module.css'
+import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
 interface TaskRowProps {
   todo: PersistedTodoItem
@@ -154,7 +155,7 @@ export const TaskRow = memo(function TaskRow({
     <div
       ref={rowRef}
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
-      data-todo-id={todo.id}
+      {...{ [TODO_ID_ATTR]: todo.id }}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}

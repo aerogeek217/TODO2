@@ -18,6 +18,7 @@ import { ListEditorBody } from '../../shared/ListEditorBody'
 import { CloseIcon, LinkIcon } from '../../shared/icons'
 import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
 import styles from './EditList.module.css'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 /** The side popover's width (px) and its gap to the panel. */
 const POPOVER_WIDTH_PX = 340
@@ -343,7 +344,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
       data-testid="edit-list"
       data-placement={placement?.mode === 'below' ? 'below' : placementUsed}
       // Keys inside are the form's, not the app's shortcuts.
-      data-shortcut-scope="none"
+      {...shortcutScope('none')}
     >
       {arrow && <span className={`${styles.arrow} ${arrow === 'right' ? styles.arrowRight : ''}`} aria-hidden="true" />}
       <header className={styles.header}>
@@ -419,7 +420,7 @@ function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
         role="dialog"
         aria-label={`Edit list ${model.def.name.trim() || model.saved.name}`}
         data-testid="edit-list"
-        data-shortcut-scope="none"
+        {...shortcutScope('none')}
         data-touch-chips=""
         tabIndex={-1}
       >

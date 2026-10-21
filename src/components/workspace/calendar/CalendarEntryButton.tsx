@@ -6,6 +6,7 @@ import { AvatarStack } from '../../shared/AvatarStack'
 import { TaskPillStatus } from '../../shared/TaskPillBar'
 import { FlagIcon, RepeatIcon, WidgetKindIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
+import { TODO_ID_ATTR } from '../../../utils/dom-contract'
 
 /** Entry sizes: `sm` month cells, `md` week / day list / day popover, `touch` mobile day list. */
 export type CalendarEntrySize = 'sm' | 'md' | 'touch'
@@ -54,7 +55,7 @@ export const CalendarEntryButton = memo(function CalendarEntryButton({
       className={cls}
       data-cal-entry={entry.kind}
       data-state={state}
-      data-todo-id={todo.id}
+      {...{ [TODO_ID_ATTR]: todo.id }}
       data-virtual={entry.isVirtual ? 'true' : undefined}
       title={ghost ? undefined : calendarEntryTitle(entry, today)}
       onClick={(e) => {

@@ -17,6 +17,7 @@ import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
+import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
@@ -399,6 +400,24 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     const selectAll = SHORTCUT_HANDLERS['select-all']
     act(() => { void selectAll({ e: new KeyboardEvent('keydown', { key: 'a', ctrlKey: true }), callbacks: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} } }) })
     expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
+  })
+
+  it('the palette’s Select All Tasks takes the widget with the selection, as Mod-A does', () => {
+    setup(def({ grouping: 'people' }))
+    // Another task shown elsewhere on the page (a calendar entry, another widget's row).
+    const elsewhere = document.createElement('button')
+    elsewhere.setAttribute('data-todo-id', '4')
+    document.body.appendChild(elsewhere)
+    clickTitle('person-1|1')
+    const ctx = {
+      shortcuts: { openPalette: () => {}, closePalette: () => {}, openSettings: () => {} },
+      selectionCount: 1,
+      getStatuses: () => [],
+    } as unknown as CommandContext
+    act(() => { createCommands(ctx).find((c) => c.id === 'select-all')!.action() })
+    expect([...useUIStore.getState().selectedTodoIds].sort()).toEqual([1, 2, 3])
+    expect(useUIStore.getState().selectionScope).toBe('t1')
+    elsewhere.remove()
   })
 
   it('selecting in another widget clears this one’s', () => {

@@ -27,6 +27,7 @@ import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from '../../../hooks/use-dashboard-data'
 import styles from './DashboardWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
+import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 
 /** What the widget reports to its cell: the tab count and the counts for "Copy summary". */
 export interface DashboardResult {
@@ -271,7 +272,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
       style={wide ? { gridTemplateRows: tracks.join(' ') } : undefined}
       data-dashboard={tab.id}
       data-layout={wide ? 'grid' : 'column'}
-      data-selection-scope={isMobile ? undefined : tab.id}
+      {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
     >
       {showGear && onCustomize && <CustomizeGear onClick={onCustomize} />}
       {config.tiles.length > 0 && (

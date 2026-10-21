@@ -12,8 +12,7 @@ function stubPlatform(platform: string) {
 
 function makeContext(): CommandContext {
   return {
-    openSettings: vi.fn(),
-    openQuickAdd: vi.fn(),
+    shortcuts: { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn(), openShortcutsModal: vi.fn() },
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
     bulkSetStatus: vi.fn().mockResolvedValue(undefined),
@@ -25,7 +24,6 @@ function makeContext(): CommandContext {
     setDateRange: vi.fn(),
     getTodos: vi.fn().mockReturnValue([]),
     focusTask: vi.fn(),
-    openShortcutsModal: vi.fn(),
   }
 }
 

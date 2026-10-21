@@ -9,6 +9,7 @@ import { NotesNlpPopup } from './NotesNlpPopup'
 import { convertHighlight } from './notes-convert-highlight'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesEditor.module.css'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 interface NotesEditorProps {
   value: string
@@ -200,7 +201,7 @@ export function NotesEditor({
         className={styles.host}
         ref={hostRef}
         data-placeholder={placeholder ?? undefined}
-        data-shortcut-scope="none"
+        {...shortcutScope('none')}
         onMouseDown={handleHostMouseDown}
       />
       {popup && <NotesNlpPopup editor={popup.editor} popup={popup.state} />}

@@ -2,13 +2,13 @@ import { useEffect, useRef } from 'react'
 import { CHORD_TIMEOUT_MS } from '../constants'
 import { SHORTCUT_IDS, shortcutSpec, type ShortcutId } from '../models/keyboard-shortcut'
 import {
-  SHORTCUT_HANDLERS,
+  runShortcut,
   type ShortcutCallbacks,
   type ShortcutCtx,
 } from '../services/keyboard-shortcuts'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
-import { useUndoStore } from '../stores/undo-store'
+import { attrSelector, SHORTCUT_SCOPE_ATTR, type ShortcutScope } from '../utils/dom-contract'
 import { resolveBindings } from '../utils/shortcut-bindings'
 import { comboMatchesEvent, sequenceKeyMatchesEvent } from '../utils/shortcut-chord'
 import { useLatestRef } from './use-latest-ref'
@@ -60,7 +60,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
           })
           if (seq) {
             e.preventDefault()
-            await run(seq, ctx)
+            await runShortcut(seq, ctx)
             return
           }
         }
@@ -78,7 +78,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
         const spec = shortcutSpec(single)
         if (isInput && !spec.allowInInput) return
         if (spec.blockedByEditPopup && useUIStore.getState().editPopupMode) return
-        await run(single, ctx)
+        await runShortcut(single, ctx)
         return
       }
 
@@ -101,24 +101,16 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
   }, [enabled, cbRef])
 }
 
-/** Runs a binding's handler; one that fails says so in the snackbar instead of rejecting unseen. */
-async function run(id: ShortcutId, ctx: ShortcutCtx): Promise<void> {
-  try {
-    await SHORTCUT_HANDLERS[id](ctx)
-  } catch (err) {
-    console.error(`[shortcuts] ${id} failed`, err)
-    useUndoStore.getState().notify(`Couldn't run “${shortcutSpec(id).description}”.`)
-  }
-}
-
 /** A control whose letter keys do something of its own: a select (type-ahead), a link, a button. */
 function ownsLetterKeys(el: HTMLElement | null): boolean {
   if (!el || typeof el.closest !== 'function') return false
   return el.closest('select, a[href], button, [role="button"], [role="combobox"], [role="listbox"]') !== null
 }
 
+const scopeSelector = (scope: ShortcutScope) => attrSelector(SHORTCUT_SCOPE_ATTR, scope)
+
 function inModal(el: HTMLElement | null): boolean {
-  return typeof el?.closest === 'function' && el.closest('[data-shortcut-scope="modal"]') !== null
+  return typeof el?.closest === 'function' && el.closest(scopeSelector('modal')) !== null
 }
 
 function isTextField(el: HTMLElement | null): boolean {
@@ -128,6 +120,6 @@ function isTextField(el: HTMLElement | null): boolean {
   if (el.isContentEditable) return true
   if (typeof el.closest !== 'function') return false
   if (el.closest('[contenteditable="true"], [contenteditable=""]')) return true
-  if (el.closest('[data-shortcut-scope="none"]')) return true
+  if (el.closest(scopeSelector('none'))) return true
   return false
 }

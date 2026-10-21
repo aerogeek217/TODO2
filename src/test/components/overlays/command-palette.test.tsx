@@ -48,10 +48,11 @@ describe('CommandPalette', () => {
     ]
     function realCommands(sendPersonCheckin = vi.fn()): Command[] {
       const ctx: CommandContext = {
-        openSettings: vi.fn(), openQuickAdd: vi.fn(), selectionCount: 2,
+        shortcuts: { openPalette: vi.fn(), closePalette: vi.fn(), openSettings: vi.fn(), openShortcutsModal: vi.fn() },
+        selectionCount: 2,
         bulkSetCompleted: vi.fn(), bulkSetStatus: vi.fn(), bulkRemove: vi.fn(), getSelectedIds: () => [],
         clearAllFilters: vi.fn(), setShowCompleted: vi.fn(), getShowCompleted: () => false, setDateRange: vi.fn(),
-        getTodos: () => [], focusTask: vi.fn(), openShortcutsModal: vi.fn(),
+        getTodos: () => [], focusTask: vi.fn(),
         getStatuses: () => [{ id: 1, name: 'Waiting', color: '#888888', sortOrder: 0 }],
         openCheckinDialog: vi.fn(), sendPersonCheckin, openCheckinImport: vi.fn(),
         getPeople: () => people, getOpenTaskCounts: () => new Map([[1, 3], [2, 4], [3, 1]]),

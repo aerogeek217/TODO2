@@ -9,6 +9,7 @@ import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, isHotFilter, markerCondition, toggleHot, withMarkerCondition } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
 import { byName } from '../../../utils/sort-order'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
@@ -362,7 +363,7 @@ export function EntityDropdownItems({
   return (
     <>
       {rowIds.length > 0 && (
-        <div role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} data-shortcut-scope="none">
+        <div role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
           {showNone && row(0, <span className={picker.noneLabel}>None</span>, !!entityMenu)}
           {filtered.map((entity) => entity.id != null && row(entity.id, (
             <>

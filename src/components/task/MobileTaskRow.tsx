@@ -16,6 +16,7 @@ import { markerSummary } from '../../utils/markers'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
 import styles from './MobileTaskRow.module.css'
+import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
 interface MobileTaskRowProps {
   todo: PersistedTodoItem
@@ -114,7 +115,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   return (
     <div
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${isSelected ? styles.selected : ''}`}
-      data-todo-id={todo.id}
+      {...{ [TODO_ID_ATTR]: todo.id }}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       // A tap anywhere selects; the keyboard's way is the title button (the row holds controls of its own).
       onClick={handleRowTap}

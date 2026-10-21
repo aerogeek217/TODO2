@@ -4,6 +4,7 @@ import { TaskRow } from '../../task/TaskRow'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { taskDragId } from '../../../utils/task-dnd'
 import styles from './ListWidget.module.css'
+import { ROW_KEY_ATTR, ROW_TODO_ATTR } from '../../../utils/dom-contract'
 
 /** Drag data of a list widget row (merged into the task drag payload). */
 export interface ListRowDragData {
@@ -80,8 +81,7 @@ export const ListWidgetRow = memo(function ListWidgetRow({
         <div
           ref={setNodeRef}
           className={cls}
-          data-row-key={rowKey}
-          data-row-todo={todo.id}
+          {...{ [ROW_KEY_ATTR]: rowKey, [ROW_TODO_ATTR]: todo.id }}
           data-drag-id={taskDragId('list-widget', todo.id, { scope: tabId, sectionKey })}
           data-selected={selected ? 'true' : undefined}
           data-cursor={cursor ? 'true' : undefined}

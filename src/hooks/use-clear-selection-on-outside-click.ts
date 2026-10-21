@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { useUIStore } from '../stores/ui-store'
+import { attrSelector, KEEPS_SELECTION_ATTR, TODO_ID_ATTR } from '../utils/dom-contract'
 
 /** The element the app renders into (`index.html`); portaled UI sits outside it. */
 const APP_ROOT_ID = 'root'
@@ -10,7 +11,10 @@ const APP_ROOT_ID = 'root'
  * `data-todo-id`), an area marked `data-keeps-selection` (the bulk bar, the
  * snackbar), and menus / dialogs / pickers.
  */
-const KEEPS_SELECTION = '[data-todo-id], [data-keeps-selection], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
+const KEEPS_SELECTION = [
+  attrSelector(TODO_ID_ATTR), attrSelector(KEEPS_SELECTION_ATTR),
+  '[role="dialog"]', '[role="alertdialog"]', '[role="menu"]', '[role="listbox"]',
+].join(', ')
 
 /**
  * Whether a click on `target` keeps the row selection: it's on a row, the

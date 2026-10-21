@@ -14,6 +14,7 @@ import { DATE_FIELD_LABELS, DATE_FIELD_LABELS_SHORT } from '../../../utils/filte
 import { DateAnchorInput } from '../DateAnchorInput'
 import styles from './DateFilterPanel.module.css'
 import sheetStyles from './FilterChipBarMobile.module.css'
+import { shortcutScope } from '../../../utils/dom-contract'
 
 /** Which tasks a Due / Follow-up clause keeps. */
 type ShowMode = 'range' | 'set' | 'unset'
@@ -148,7 +149,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const noDateLabel = noDateName ? `Also tasks with no ${noDateName}` : undefined
 
   return (
-    <div ref={rootRef} className={`${styles.panel} ${sheet ? styles.sheet : ''}`} data-shortcut-scope="none">
+    <div ref={rootRef} className={`${styles.panel} ${sheet ? styles.sheet : ''}`} {...shortcutScope('none')}>
       <div className={styles.tabs} role="tablist" aria-label="Date type">
         {DATE_FIELD_VALUES.map((f) => {
           const lit = isDateMatchOn(dates[f])

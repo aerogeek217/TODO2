@@ -26,6 +26,7 @@ import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { FOLD_PART, useTopBarFold } from './use-top-bar-fold'
+import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
@@ -415,7 +416,7 @@ export function TopBar() {
         data-fold-part={FOLD_PART.tray}
         role="group"
         aria-label="Screen filters — apply to every widget"
-        data-filter-row
+        {...{ [FILTER_ROW_ATTR]: '' }}
         data-filtered={isActive || undefined}
       >
         <ClearFiltersButton active={isActive} />
@@ -451,7 +452,7 @@ export function TopBar() {
                 first?.focus()
               }
             }}
-            data-search-input
+            {...{ [SEARCH_INPUT_ATTR]: '' }}
           />
           {localSearch && (
             // Like `ClearableField`'s ×, a mouse target only (it acts on

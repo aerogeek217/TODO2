@@ -8,6 +8,7 @@ import { usePopoverAnchor, type PopoverAnchor, type PopoverPlacement } from '../
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { CheckIcon, ChevronRightIcon, DashIcon } from './icons'
 import styles from './MenuPopover.module.css'
+import { shortcutScope } from '../../utils/dom-contract'
 
 export interface MenuItemEntry {
   kind: 'item'
@@ -388,7 +389,7 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
       style={style}
       // Arrows / Enter / Space here are the menu's, not the app's (no task
       // cursor move, edit or complete behind it).
-      data-shortcut-scope="none"
+      {...shortcutScope('none')}
       onKeyDown={(e) => { onKey(e, elRef.current) }}
       {...KEEP_EVENTS_INSIDE}
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
@@ -662,7 +663,7 @@ function FlyoutPanel({ subRef, parentRef, parentIndex, panel, autoFocus, onPin, 
       style={{ position: 'fixed', left: style.left, top: style.top, maxHeight: style.maxHeight, width: panel.width }}
       role="dialog"
       aria-label={panel.label}
-      data-shortcut-scope="none"
+      {...shortcutScope('none')}
       {...KEEP_EVENTS_INSIDE}
       onPointerDown={(e) => { e.stopPropagation(); onPin() }}
       onFocus={onPin}

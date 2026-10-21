@@ -61,6 +61,7 @@ import { ListFilterRow } from '../list/ListFilterRow'
 import { openEditList } from '../widget-hooks'
 import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../../hooks/use-eisenhower-source'
 import { openEisenhowerSettings } from './eisenhower-settings-link'
+import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -525,7 +526,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
         data-eisenhower={tab.id}
         data-layout={stacked ? 'stacked' : 'grid'}
         data-dragging={drag ? 'true' : undefined}
-        data-selection-scope={isMobile ? undefined : tab.id}
+        {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
       >
         {panes.map((pane) => (
           <Quadrant

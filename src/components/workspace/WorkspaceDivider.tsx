@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Poin
 import { evenPair, pairPercent, resizePair } from '../../utils/workspace-resize'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './WorkspaceDivider.module.css'
+import { shortcutScope } from '../../utils/dom-contract'
 
 /** Keyboard step for a focused divider (px). */
 const KEY_STEP_PX = 16
@@ -151,7 +152,7 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
       tabIndex={0}
       data-ws-divider={`${aId}|${bId}`}
       // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
-      data-shortcut-scope="none"
+      {...shortcutScope('none')}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

@@ -55,6 +55,7 @@ import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
+import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -377,7 +378,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             key={section.key}
             className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
             data-list-group={section.key}
-            data-list-section={section.key}
+            {...{ [LIST_SECTION_ATTR]: section.key }}
           >
             {person ? (
               <PersonGroupHeader
@@ -392,7 +393,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           </div>
         )
       }) : sections.map((section) => (
-        <div key={section.key} data-list-section={section.key}>
+        <div key={section.key} {...{ [LIST_SECTION_ATTR]: section.key }}>
           {renderSectionRows(section)}
         </div>
       ))
@@ -417,7 +418,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       className={`${styles.widget} ${isMobile ? styles.touch : ''}`}
       data-list-widget={tab.id}
       data-list-host={tab.id}
-      data-selection-scope={isMobile ? undefined : tab.id}
+      {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
       // Phones: the filter chips (a shared stylesheet) get their touch height.
       data-touch-chips={isMobile ? '' : undefined}
     >
