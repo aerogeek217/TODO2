@@ -116,14 +116,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${isSelected ? styles.selected : ''}`}
       data-todo-id={todo.id}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
-      role="button"
-      tabIndex={0}
+      // A tap anywhere selects; the keyboard's way is the title button (the row holds controls of its own).
       onClick={handleRowTap}
       onMouseDown={keepRowTextUnselected}
       onContextMenu={handleContextMenu}
       onMouseEnter={() => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={() => useUIStore.getState().setHoveredTodoId(null)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowTap(e as unknown as React.MouseEvent) } }}
     >
       {/* Line 1 */}
       <div className={styles.primaryRow} ref={primaryRowRef}>
@@ -140,9 +138,14 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           <MarkerDots summary={markers} dim={todo.isCompleted} />
         </span>
 
-        <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
+        <button
+          type="button"
+          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          aria-pressed={!!isSelected}
+          onClick={handleRowTap}
+        >
           {todo.title}
-        </span>
+        </button>
 
         <button
           className={styles.statusButton}

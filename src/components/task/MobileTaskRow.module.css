@@ -81,14 +81,23 @@
   line-height: 1;
 }
 
+/* The title: the row's button (a tap selects the task), drawn as plain text. */
 .title {
   flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
   font-size: 15px;
   line-height: 1.3;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-text-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .completedTitle {

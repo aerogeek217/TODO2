@@ -157,6 +157,20 @@ describe('MobileTaskRow', () => {
       expect(onSelect).toHaveBeenCalledWith(7, { shift: false, ctrl: false })
     })
 
+    it('the title is the row’s button: the keyboard selects through it, and the row holds its controls without being a button', () => {
+      const onSelect = vi.fn()
+      render(<MobileTaskRow todo={makeTodo({ id: 7, title: 'Call plumber' })} onSelect={onSelect} isSelected={false} />)
+      expect(getRow()).not.toHaveAttribute('role')
+      expect(getRow()).not.toHaveAttribute('tabindex')
+      const title = screen.getByRole('button', { name: 'Call plumber' })
+      expect(title).toHaveAttribute('aria-pressed', 'false')
+      // The checkbox and the status button are no longer inside a button.
+      expect(screen.getByRole('checkbox', { name: 'Toggle complete' }).closest('[role="button"]')).toBeNull()
+      fireEvent.click(title)
+      expect(onSelect).toHaveBeenCalledOnce()
+      expect(onSelect).toHaveBeenCalledWith(7, { shift: false, ctrl: false })
+    })
+
     it('calls onOpenDetail on chevron click', () => {
       const onOpenDetail = vi.fn()
       render(<MobileTaskRow todo={makeTodo({ id: 3 })} onOpenDetail={onOpenDetail} />)
