@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PersistedTodoItem, Person } from '../../../models'
+import type { PersistedTodoItem } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -256,6 +256,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   const renderSectionRows = (section: Section) => {
     const target = dropTarget?.sectionKey === section.key ? dropTarget : null
+    // A person's own group doesn't repeat their chip on its rows.
+    const hiddenPersonId = groupedBy === 'people' && section.key.startsWith('person-')
+      ? Number(section.key.slice('person-'.length))
+      : undefined
     const out: React.ReactNode[] = []
     let j = 0
     const indicator = () => {
@@ -280,14 +284,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         if (target?.index === j) indicator()
         j++
       }
-      let people: Person[] | undefined = assignedPeopleMap.get(todo.id)
-      // A person's own group doesn't repeat their chip on its rows.
-      if (groupedBy === 'people' && people && section.key.startsWith('person-')) {
-        const groupPersonId = Number(section.key.slice('person-'.length))
-        people = people.filter((p) => p.id !== groupPersonId)
-      }
+      const people = assignedPeopleMap.get(todo.id)
       if (isMobile) {
-        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={openEditPopup} />)
+        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} hiddenPersonId={hiddenPersonId} onOpenDetail={openEditPopup} />)
         return
       }
       const prev = section.todos[i - 1]
@@ -297,6 +296,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           key={key}
           todo={todo}
           assignedPeople={people}
+          hiddenPersonId={hiddenPersonId}
           tabId={tab.id}
           sectionKey={section.key}
           rowKey={key}

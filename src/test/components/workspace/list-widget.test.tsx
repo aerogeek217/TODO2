@@ -275,6 +275,18 @@ describe('ListWidget', () => {
     expect(document.querySelector('[data-list-group="person-2"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(2)
   })
 
+  it('a row in a person’s group still has the person: its people picker shows them ticked', () => {
+    setup(def({ grouping: 'people' }))
+    const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
+    const sharedRow = aliceGroup.querySelector('[data-todo-id="3"]')!
+    fireEvent.click(sharedRow.querySelector('[data-row-cell="people"]')!)
+    const options = screen.getAllByRole('option')
+    const ticked = options.filter((o) => o.getAttribute('aria-selected') === 'true').map((o) => o.textContent)
+    expect(ticked).toHaveLength(2)
+    expect(ticked.some((t) => t?.includes('Alice'))).toBe(true)
+    expect(ticked.some((t) => t?.includes('Bob'))).toBe(true)
+  })
+
   it('renders the unsaved draft, and removing a list chip edits the draft', () => {
     useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
     setup(def({}, { statusIds: [5] }))

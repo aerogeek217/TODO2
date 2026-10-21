@@ -33,6 +33,8 @@ export interface ListRowSelectMods {
 interface ListWidgetRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
+  /** A person's group: the person it is, left out of the row's people cell. */
+  hiddenPersonId?: number
   /** The widget's tab id (selection scope, drag id). */
   tabId: string
   sectionKey: string
@@ -54,7 +56,7 @@ interface ListWidgetRowProps {
  * widget's selection and keyboard cursor.
  */
 export const ListWidgetRow = memo(function ListWidgetRow({
-  todo, assignedPeople, tabId, sectionKey, rowKey,
+  todo, assignedPeople, hiddenPersonId, tabId, sectionKey, rowKey,
   selected, selFirst, selLast, cursor, look, onSelect, onOpenDetail,
 }: ListWidgetRowProps) {
   const handleSelect = useCallback(
@@ -94,6 +96,7 @@ export const ListWidgetRow = memo(function ListWidgetRow({
             <TaskRow
               todo={todo}
               assignedPeople={assignedPeople}
+              hiddenPersonId={hiddenPersonId}
               isSelected={selected}
               onSelect={handleSelect}
               onOpenDetail={onOpenDetail}
