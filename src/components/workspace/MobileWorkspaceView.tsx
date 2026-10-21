@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import {
   getActiveTab,
   type BandEdge,
@@ -181,32 +180,50 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
 }
 
 /**
+ * The tab sheets' rows are a menu: ↑ / ↓ move between its items (wrapping);
+ * the frame round them (`DialogFrame`) keeps Tab inside and closes on Esc.
+ */
+function moveInMenu(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]'))
+  if (items.length === 0) return
+  e.preventDefault()
+  const at = items.findIndex((el) => el === document.activeElement)
+  const step = e.key === 'ArrowDown' ? 1 : -1
+  const next = at < 0 ? (step > 0 ? 0 : items.length - 1) : (at + step + items.length) % items.length
+  items[next]?.focus()
+}
+
+/**
  * An Eisenhower tab's long-press sheet: Edit list… (the Eisenhower's own
  * list) and the app-wide "Due date makes a task urgent" range (the desktop
- * tab menu's submenu).
+ * tab menu's submenu). The shared dialog frame, as the layout sheet: Esc, a
+ * backdrop press, focus in and kept inside, focus back on the tab.
  */
 function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => void }) {
   const setting = useUrgentRangeSetting()
   const listId = useSettingsStore((s) => s.eisenhowerListId)
   const listExists = useListDefinitionStore((s) => listId != null && s.listDefinitions.some((d) => d.id === listId))
-  const sheetRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    sheetRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"], [aria-checked="true"]')?.focus()
-  }, [])
-  return createPortal(
-    <>
-      <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />
-      <div
-        ref={sheetRef}
-        className={styles.sheet}
-        role="menu"
-        aria-label="Eisenhower"
-        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}
-      >
-        <span className={styles.handle} aria-hidden="true" />
+  const editList = listId != null && listExists
+  // The focus starts on Edit list…, else on the range picked now.
+  const focusRef = useRef<HTMLButtonElement | null>(null)
+  return (
+    <DialogFrame
+      onClose={onClose}
+      layer="overlay"
+      className={styles.sheet}
+      backdropClassName={styles.backdrop}
+      style={SHEET_PLACEMENT}
+      aria-label="Eisenhower tab"
+      initialFocus={focusRef}
+      onKeyDown={moveInMenu}
+    >
+      <span className={styles.handle} aria-hidden="true" />
+      <div role="menu" aria-label="Eisenhower">
         <div className={styles.sheetRows}>
-          {listId != null && listExists && (
+          {editList && (
             <button
+              ref={focusRef}
               type="button"
               role="menuitem"
               className={styles.sheetRow}
@@ -222,6 +239,7 @@ function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => 
           {setting.options.map((o) => (
             <button
               key={o.key}
+              ref={!editList && o.checked ? focusRef : undefined}
               type="button"
               role="menuitemradio"
               aria-checked={o.checked}
@@ -236,12 +254,11 @@ function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => 
         </div>
         {setting.footnote && <div className={styles.sheetFootnote}>{setting.footnote}</div>}
       </div>
-    </>,
-    document.body,
+    </DialogFrame>
   )
 }
 
-/** Long-press on a list tab: the tab menu's list items as a bottom sheet. */
+/** Long-press on a list tab: the tab menu's list items as a bottom sheet (the frame as `EisenhowerSheet`'s). */
 function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   tabId: string
   listDefinitionId: number
@@ -250,10 +267,6 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
 }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const sheetRef = useRef<HTMLDivElement | null>(null)
-  useEffect(() => {
-    sheetRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
-  }, [])
   const rows: Array<{ label: string; run: () => void }> = [
     { label: 'Edit list…', run: () => openEditList(tabId, listDefinitionId) },
     ...(result ? [{
@@ -267,33 +280,31 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
       },
     }] : []),
   ]
-  return createPortal(
-    <>
-      <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />
-      <div
-        ref={sheetRef}
-        className={styles.sheet}
-        role="menu"
-        aria-label="List"
-        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}
-      >
-        <span className={styles.handle} aria-hidden="true" />
-        <div className={styles.sheetRows}>
-          {rows.map((row) => (
-            <button
-              key={row.label}
-              type="button"
-              role="menuitem"
-              className={styles.sheetRow}
-              onClick={() => { onClose(); row.run() }}
-            >
-              <span className={styles.sheetName}>{row.label}</span>
-            </button>
-          ))}
-        </div>
+  return (
+    <DialogFrame
+      onClose={onClose}
+      layer="overlay"
+      className={styles.sheet}
+      backdropClassName={styles.backdrop}
+      style={SHEET_PLACEMENT}
+      aria-label="List tab"
+      onKeyDown={moveInMenu}
+    >
+      <span className={styles.handle} aria-hidden="true" />
+      <div role="menu" aria-label="List" className={styles.sheetRows}>
+        {rows.map((row) => (
+          <button
+            key={row.label}
+            type="button"
+            role="menuitem"
+            className={styles.sheetRow}
+            onClick={() => { onClose(); row.run() }}
+          >
+            <span className={styles.sheetName}>{row.label}</span>
+          </button>
+        ))}
       </div>
-    </>,
-    document.body,
+    </DialogFrame>
   )
 }
 

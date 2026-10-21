@@ -188,6 +188,34 @@ test('the layout sheet is a bottom sheet on the dialog frame: focus on the open 
   await expect(picker).toBeFocused()
 })
 
+test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Tab kept inside, Esc closes, focus back on the tab', async ({ page }) => {
+  await seed(page)
+  const tab = wsTab(page, 'todayTab')
+  await tab.focus()
+  await tab.dispatchEvent('contextmenu')
+  const menu = page.getByRole('menu', { name: 'List' })
+  const sheet = page.getByRole('dialog', { name: 'List tab' })
+  await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
+  const b = await box(sheet)
+  expect(Math.round(b.y + b.height)).toBe(844)
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Copy tasks' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Edit list…' })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  await expect(sheet.locator(':focus')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  await expect(tab).toBeFocused()
+
+  // A tap on the backdrop closes it the same way.
+  await tab.dispatchEvent('contextmenu')
+  await expect(sheet).toBeVisible()
+  await page.mouse.click(195, 100)
+  await expect(sheet).toHaveCount(0)
+})
+
 test('long-pressing a list tab opens its list sheet; Edit list is a half sheet with the list live above it', async ({ page }) => {
   await seed(page)
   // Mobile browsers turn a long press into `contextmenu`.
