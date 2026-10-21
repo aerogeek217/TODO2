@@ -179,6 +179,50 @@ describe('generateRecurringInstances', () => {
     )
     expect(instances).toHaveLength(0)
   })
+
+  it('a daily task due 30 years ago still shows this month', () => {
+    const instances = generateRecurringInstances(localDate(1996, 3, 4), { type: 'daily' }, localDate(2026, 10, 1), localDate(2026, 10, 4))
+    expect(instances.map(fmt)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03'])
+  })
+
+  it('a far range is reached without walking every occurrence before it', () => {
+    // Weekly from 1900: tens of thousands of weeks before the range.
+    const instances = generateRecurringInstances(localDate(1900, 1, 1), { type: 'weekly' }, localDate(2026, 10, 1), localDate(2026, 10, 15))
+    expect(instances.map(fmt)).toEqual(['2026-10-05', '2026-10-12'])
+  })
+
+  // The range reached arithmetically shows exactly what walking every
+  // occurrence from the due date shows (the due date's own time of day, the
+  // clamped month ends, Feb 29, a legacy rule that drifts).
+  const cases: Array<[string, Date, RecurrenceRule]> = [
+    ['daily at 09:30', new Date(2019, 4, 6, 9, 30), { type: 'daily' }],
+    ['weekly', localDate(2020, 2, 29), { type: 'weekly' }],
+    ['biweekly', localDate(2021, 12, 31), { type: 'biweekly' }],
+    ['monthly on the 31st', localDate(2019, 1, 31), { type: 'monthly', originalDayOfMonth: 31 }],
+    ['monthly on the 30th, no day kept (drifts at February)', localDate(2019, 1, 30), { type: 'monthly' }],
+    ['monthly on the 15th, no day kept', localDate(2019, 1, 15), { type: 'monthly' }],
+    ['quarterly on the 31st', localDate(2018, 8, 31), { type: 'quarterly', originalDayOfMonth: 31 }],
+    ['yearly on Feb 29', localDate(2004, 2, 29), { type: 'yearly', originalDayOfMonth: 29 }],
+    ['yearly on Feb 29, no day kept', localDate(2004, 2, 29), { type: 'yearly' }],
+  ]
+  it.each(cases)('%s: the same occurrences as a walk from the due date', (_name, due, rule) => {
+    const walkedAll = generateRecurringInstances(due, rule, due, localDate(2029, 1, 1))
+    for (const [from, to] of [[localDate(2026, 3, 1), localDate(2026, 6, 1)], [localDate(2028, 2, 1), localDate(2028, 3, 5)], [due, localDate(2019, 6, 1)]] as const) {
+      const expected = walkedAll.filter((d) => d >= from && d < to).map((d) => d.getTime())
+      expect(generateRecurringInstances(due, rule, from, to).map((d) => d.getTime())).toEqual(expected)
+    }
+  })
+})
+
+describe('computeNextDueDate — long overdue', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('a daily task overdue for 30 years moves to today', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(localDate(2026, 10, 21))
+    expect(fmt(computeNextDueDate(localDate(1996, 3, 4), { type: 'daily' }))).toBe('2026-10-21')
+    expect(fmt(computeNextDueDate(localDate(1996, 1, 31), { type: 'monthly', originalDayOfMonth: 31 }))).toBe('2026-10-31')
+  })
 })
 
 describe('makeRecurrenceRule', () => {
