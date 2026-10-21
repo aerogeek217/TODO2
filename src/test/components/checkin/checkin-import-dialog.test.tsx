@@ -226,6 +226,35 @@ describe('CheckinImportDialog — who replied', () => {
     expect(applyButton().title).toBe('Nothing is ticked')
   })
 
+  it('no footer: switching who replied re-derives the ticks and notes, but a tick changed by hand stays', () => {
+    open()
+    paste({ plain: noFooter() })
+    const pick = (id: number) => fireEvent.change(within(dialog()).getByRole('combobox', { name: 'Reply from' }), { target: { value: String(id) } })
+    const done = () => card('Review the staging load-test results')
+    const completed = () => within(done()).getByRole('checkbox', { name: 'Completed' })
+
+    pick(ada.id)
+    expect(completed()).toHaveProperty('checked', false)
+    // Marcus, whose task it is: ticked again, no note.
+    pick(marcus.id)
+    expect(completed()).toHaveProperty('checked', true)
+    expect(done().textContent).not.toContain('Not assigned to')
+    expect(applyButton().textContent).toBe('Apply 1 change')
+
+    // Unticked by hand, then back to Ada and Marcus: it stays unticked.
+    fireEvent.click(completed())
+    pick(ada.id)
+    expect(done().textContent).toContain('Not assigned to Ada Lovelace. Check before applying.')
+    pick(marcus.id)
+    expect(completed()).toHaveProperty('checked', false)
+    // Ticked by hand while Ada is picked: it stays ticked.
+    pick(ada.id)
+    fireEvent.click(completed())
+    pick(marcus.id)
+    pick(ada.id)
+    expect(completed()).toHaveProperty('checked', true)
+  })
+
   it('a footer name that is not one of your people: the picker, with the name', () => {
     const email = sampleEmail()
     open()

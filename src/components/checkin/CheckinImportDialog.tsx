@@ -51,6 +51,27 @@ function tasksNotAssigned(diff: CheckinReplyDiff, personId: number): Set<number>
     .map((t) => t.todo.id))
 }
 
+/**
+ * The ticks for the reply as it reads with `personId` as the one who replied
+ * (none: nobody chosen yet): the default ticks, without the changes of the
+ * tasks not assigned to them — except the changes the user ticked or
+ * unticked by hand (`touched`), which keep their state from `current`.
+ */
+function selectionFor(
+  diff: CheckinReplyDiff,
+  personId: number | null,
+  current: ReadonlySet<string>,
+  touched: ReadonlySet<string>,
+): Set<string> {
+  const defaults = defaultCheckinSelection(diff)
+  const next = personId != null ? withoutTaskChanges(defaults, diff, tasksNotAssigned(diff, personId)) : defaults
+  for (const key of touched) {
+    if (current.has(key)) next.add(key)
+    else next.delete(key)
+  }
+  return next
+}
+
 /** Reads a paste into the proposed changes, or says why it can't be read. */
 function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: string } {
   if ((input.html ?? '').trim() === '' && input.plain.trim() === '') {
@@ -98,6 +119,8 @@ function CheckinImportPanel() {
   const [reply, setReply] = useState<ReadReply | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
+  /** The changes the user ticked or unticked by hand: picking who replied leaves them alone. */
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
   const [recordFollowup, setRecordFollowup] = useState(true)
   const [pickedPersonId, setPickedPersonId] = useState<number | null>(null)
   const [applying, setApplying] = useState(false)
@@ -128,8 +151,8 @@ function CheckinImportPanel() {
     setReply(result.reply)
     const name = result.reply.diff.personName
     const from = name ? people.find((p) => sameName(p.name, name)) : undefined
-    const selection = defaultCheckinSelection(result.reply.diff)
-    setSelected(from ? withoutTaskChanges(selection, result.reply.diff, tasksNotAssigned(result.reply.diff, from.id)) : selection)
+    setSelected(selectionFor(result.reply.diff, from?.id ?? null, new Set(), new Set()))
+    setTouched(new Set())
     setPickedPersonId(null)
     requestAnimationFrame(() => panelRef.current?.focus())
   }
@@ -146,11 +169,13 @@ function CheckinImportPanel() {
     setError(null)
     setApplyError(null)
     setSelected(new Set())
+    setTouched(new Set())
     setPickedPersonId(null)
     requestAnimationFrame(() => pasteRef.current?.focus())
   }
 
   const toggle = (key: string) => {
+    setTouched((prev) => new Set(prev).add(key))
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
@@ -199,8 +224,9 @@ function CheckinImportPanel() {
           pickedPersonId={pickedPersonId}
           onPick={(id) => {
             setPickedPersonId(id)
-            // Picked as the one who replied: the tasks not theirs start unticked.
-            if (id != null) setSelected((prev) => withoutTaskChanges(prev, reply.diff, tasksNotAssigned(reply.diff, id)))
+            // The ticks follow who replied: the tasks not theirs unticked, the
+            // others ticked as by default — but a tick changed by hand stays.
+            setSelected((prev) => selectionFor(reply.diff, id, prev, touched))
           }}
           onPasteAgain={pasteAgain}
         />
