@@ -85,12 +85,6 @@
   color: var(--color-text-primary);
 }
 
-.resultCategory {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  text-transform: capitalize;
-}
-
 .resultHint {
   flex-shrink: 0;
   font-size: var(--font-size-meta);
