@@ -1424,6 +1424,87 @@ describe('FileStorageService — saves in flight', () => {
   })
 })
 
+describe('FileStorageService — permission taken back mid-session', () => {
+  function notAllowed() {
+    const err = new Error('The request is not allowed by the user agent or the platform in the current context.')
+    err.name = 'NotAllowedError'
+    return err
+  }
+
+  /** A synced session whose next save fails because the browser took its permission back. */
+  async function syncedThenRevoked(failAt: 'createWritable' | 'write') {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const started = await startWith()
+    await started.svc.initialize()
+    expect(started.svc.status.isConnected).toBe(true)
+    mockRestoreFromImportData.mockClear()
+    if (failAt === 'createWritable') started.handle.createWritable.mockRejectedValueOnce(notAllowed())
+    else started.writable.write.mockRejectedValueOnce(notAllowed())
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    return started
+  }
+
+  it.each(['createWritable', 'write'] as const)('a save refused at %s says Permission needed, not a save error, and keeps the edit unsynced', async (failAt) => {
+    const { svc, writable } = await syncedThenRevoked(failAt)
+    expect(svc.status.needsPermission).toBe(true)
+    expect(svc.status.isConnected).toBe(false)
+    expect(svc.status.error).toBeNull()
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(syncState().dirtySince).not.toBeNull()
+    if (failAt === 'write') expect(writable.abort).toHaveBeenCalled()
+    // Sync is off: later edits stay in the browser, nothing is retried at the file.
+    const writes = writable.write.mock.calls.length
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(writable.write).toHaveBeenCalledTimes(writes)
+  })
+
+  it('Grant access then writes the edits to the unchanged file without a prompt and resumes sync', async () => {
+    const { svc, handle, writable } = await syncedThenRevoked('createWritable')
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+    await svc.reconnect()
+
+    expect(handle.requestPermission).toHaveBeenCalled()
+    expect(conflict).not.toHaveBeenCalled()
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalled()
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status).toMatchObject({ needsPermission: false, isConnected: true, error: null })
+    expect(syncState().dirtySince).toBeNull()
+  })
+
+  it('a load whose read is refused says Permission needed and keeps the file (not paused, not forgotten)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const getFile = vi.fn().mockRejectedValue(notAllowed())
+    const { svc, writable } = await startWith(fileBody(), { getFile })
+    await svc.initialize()
+    expect(svc.status.needsPermission).toBe(true)
+    expect(svc.status.paused).toBeNull()
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expectUntouched(writable)
+    // Retry waits for Grant access (it would only be refused again).
+    await svc.retry()
+    expect(getFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('"Keep browser data" whose read for the backup is refused says Permission needed and writes nothing', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { svc, handle, writable } = await startWith('not json{{{')
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('invalid-json')
+    handle.getFile.mockRejectedValue(notAllowed())
+    await svc.overwriteFileWithBrowser()
+    expect(svc.status.needsPermission).toBe(true)
+    expect(mockSnapshotFileBeforeOverwrite).not.toHaveBeenCalled()
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+})
+
 describe('FileStorageService — reading a file that another write replaces', () => {
   function replacedError() {
     const err = new Error('A requested file or directory could not be found at the time an operation was processed.')

@@ -120,7 +120,7 @@ function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
 /** Reading a sync file's text: what was read, or why it couldn't be. */
 type FileRead =
   | { ok: true; text: string; lastModified: number }
-  | { ok: false; reason: 'not-found' | 'too-large' | 'read-error'; error: unknown }
+  | { ok: false; reason: 'not-found' | 'too-large' | 'permission' | 'read-error'; error: unknown }
 
 /** Reads of a file that keeps being replaced while it is read, before giving up. */
 const READ_ATTEMPTS = 3
@@ -156,6 +156,15 @@ function isNamedError(e: unknown, name: string): boolean {
 }
 
 /**
+ * The browser no longer lets the app use the file: Chrome takes a granted
+ * permission back after a while (idle, or the user revoked it), and then
+ * `getFile()` / `createWritable()` / a write throw `NotAllowedError`.
+ */
+function isPermissionError(e: unknown): boolean {
+  return isNamedError(e, 'NotAllowedError')
+}
+
+/**
  * Reads the file's text, refusing a file over the import cap (50 MB) before
  * reading it. `getFile()` is a snapshot: when a save (this tab's or
  * another's) replaces the file between `getFile()` and reading its text,
@@ -170,12 +179,14 @@ async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
     try {
       file = await handle.getFile()
     } catch (e: unknown) {
+      if (isPermissionError(e)) return { ok: false, reason: 'permission', error: e }
       return { ok: false, reason: isNamedError(e, 'NotFoundError') ? 'not-found' : 'read-error', error: e }
     }
     if (file.size > MAX_IMPORT_SIZE_BYTES) return { ok: false, reason: 'too-large', error: null }
     try {
       return { ok: true, text: await file.text(), lastModified: file.lastModified }
     } catch (e: unknown) {
+      if (isPermissionError(e)) return { ok: false, reason: 'permission', error: e }
       if (!isNamedError(e, 'NotFoundError') && !isNamedError(e, 'NotReadableError')) {
         return { ok: false, reason: 'read-error', error: e }
       }
@@ -543,6 +554,10 @@ class FileStorageService {
     await this.whenIdle()
     if (this.handle !== handle) return
     const read = await readFileText(handle)
+    if (!read.ok && read.reason === 'permission') {
+      this.permissionLost(read.error)
+      return
+    }
     if (!read.ok) {
       console.warn('[file-storage] could not read the file to back it up', read.error)
       const why = read.reason === 'too-large' ? 'is too large to back up (50 MB max)' : 'could not be read, so it could not be backed up'
@@ -560,6 +575,19 @@ class FileStorageService {
   private pause(reason: SyncPauseReason, message: string) {
     this.stopSync()
     this._paused = { reason, message }
+    this.notify()
+  }
+
+  /**
+   * The browser took its permission for the file back mid-session: sync
+   * stops and the storage pill says Permission needed. Edits keep marking
+   * the browser dirty; Grant access (`reconnect`) runs the load decision,
+   * which writes them to the file when it is unchanged since, else asks.
+   */
+  private permissionLost(err: unknown) {
+    console.warn('[file-storage] the browser no longer allows access to the file', err)
+    this.stopSync()
+    this._needsPermission = true
     this.notify()
   }
 
@@ -623,6 +651,10 @@ class FileStorageService {
     if (!read.ok) {
       if (read.reason === 'too-large') {
         this.pause('too-large', `${PAUSED_PREFIX} — the file is too large (50 MB max).`)
+        return
+      }
+      if (read.reason === 'permission') {
+        this.permissionLost(read.error)
         return
       }
       if (read.reason === 'not-found') {
@@ -964,11 +996,17 @@ class FileStorageService {
       this.notify()
       return true
     } catch (err) {
-      console.warn('[file-storage] saving to the file failed', err)
-      if (handle === this.handle) {
-        this._error = 'Failed to save to file'
-        this.notify()
+      if (handle !== this.handle) {
+        console.warn('[file-storage] saving to the file failed', err)
+        return false
       }
+      if (isPermissionError(err)) {
+        this.permissionLost(err)
+        return false
+      }
+      console.warn('[file-storage] saving to the file failed', err)
+      this._error = 'Failed to save to file'
+      this.notify()
       return false
     }
   }
