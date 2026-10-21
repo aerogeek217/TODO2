@@ -44,14 +44,32 @@ function matchByName<T>(name: string, items: readonly T[], getKey: (item: T) => 
 }
 
 /**
- * Case-insensitive prefix match: find the best person matching a parsed name.
- * Extends matchByName with initials and first-name matching.
+ * The people an `@` name matches, best first, ignoring case: an exact name or
+ * initials, then names starting with it, then names containing it — each
+ * rank in the order given. The one ranking: the `@` popup lists it, and a
+ * typed name resolves to its first (`matchPerson`), so a name typed without
+ * picking gets the person the popup showed first. An empty name matches
+ * everyone.
  */
+export function rankPeople<P extends { name: string; initials?: string }>(name: string, people: readonly P[]): P[] {
+  const q = name.toLowerCase()
+  if (!q) return [...people]
+  const rank = (p: P): number | null => {
+    const lower = p.name.toLowerCase()
+    if (lower === q || p.initials?.toLowerCase() === q) return 0
+    if (lower.startsWith(q)) return 1
+    return lower.includes(q) ? 2 : null
+  }
+  return people
+    .map((p, i) => ({ p, i, r: rank(p) }))
+    .filter((x): x is { p: P; i: number; r: number } => x.r !== null)
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map((x) => x.p)
+}
+
+/** The person a parsed `@` name resolves to: `rankPeople`'s first. */
 export function matchPerson(name: string, people: readonly Person[]): Person | undefined {
-  const lower = name.toLowerCase()
-  return matchByName(name, people, (p) => p.name)
-    ?? people.find((p) => p.initials.toLowerCase() === lower)
-    ?? people.find((p) => (p.name.split(/\s+/)[0] ?? '').toLowerCase() === lower)
+  return rankPeople(name, people)[0]
 }
 
 /**

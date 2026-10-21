@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { resolveInput, resolveTags, resolveUnmatchedPeople, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
+import { computeAutocomplete, personItems } from '../../services/nlp-autocomplete'
 import type { Person, Status, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 
@@ -49,6 +50,27 @@ describe('nlp-resolver', () => {
     const result = resolveInput(parsed, people)
     expect(result.personIds).toEqual(personIds)
     expect(result.unmatchedPersons).toEqual(unmatched)
+  })
+
+  it('a typed name resolves to the person the @ popup shows first', () => {
+    const crowd: Person[] = [
+      { id: 10, name: 'Dkarl Berg', initials: 'DB' },
+      { id: 11, name: 'Dana Kim', initials: 'DK' },
+      { id: 12, name: 'Mikkel', initials: 'MI' },
+      { id: 13, name: 'Jo Mike', initials: 'JM' },
+    ]
+    for (const name of ['dk', 'mik', 'ike', 'Dana']) {
+      const view = computeAutocomplete(`x @${name}`, name.length + 3, {
+        people: personItems(crowd), tags: [], statuses: [], commands: true, followupDefault: null, today: new Date(2026, 9, 10),
+      })
+      const first = view?.rows[0]
+      const shown = first?.kind === 'entity' ? first.item.id : undefined
+      expect(shown).toBeDefined()
+      expect(resolveInput(parseInput(`x @${name}`), crowd).personIds).toEqual([shown])
+    }
+    // Initials beat a name merely starting with them; a substring still matches.
+    expect(resolveInput(parseInput('x @dk'), crowd).personIds).toEqual([11])
+    expect(resolveInput(parseInput('x @ike'), crowd).personIds).toEqual([13])
   })
 
   it('passes the commands through', () => {

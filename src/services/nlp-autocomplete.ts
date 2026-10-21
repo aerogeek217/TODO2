@@ -9,6 +9,7 @@ import {
   type FollowupInterval,
 } from '../utils/followup'
 import { BARE_MENTION_NAME, mentionToken, parseInput } from './natural-language-parser'
+import { rankPeople } from './nlp-resolver'
 import {
   COMMAND_SHAPE,
   DATE_ARGUMENT_HINT,
@@ -281,21 +282,8 @@ function entityView(
     items = query ? sources.tags.filter((t) => t.name.toLowerCase().startsWith(query)) : sources.tags
   } else {
     // A leading quote (`@"First Last"` being typed) is ignored for matching.
-    const q = query.replace(/^"/, '')
-    // Best match first (stable within each rank): exact name or initials,
-    // then names starting with the query, then the other substring matches.
-    const rank = (p: AutocompleteItem) => {
-      const name = p.name.toLowerCase()
-      if (name === q || p.initials?.toLowerCase() === q) return 0
-      return name.startsWith(q) ? 1 : 2
-    }
-    items = q
-      ? sources.people
-        .filter((p) => p.name.toLowerCase().includes(q) || p.initials?.toLowerCase() === q)
-        .map((p, i) => ({ p, i, r: rank(p) }))
-        .sort((a, b) => a.r - b.r || a.i - b.i)
-        .map((x) => x.p)
-      : sources.people
+    // Best match first — the ranking the typed name resolves by.
+    items = rankPeople(query.replace(/^"/, ''), sources.people)
   }
   const rows: AutocompleteRow[] = items.slice(0, MAX_ENTITY_ROWS).map((item) => ({ kind: 'entity', item }))
   // Nothing matches: offer to create — only a name the parser reads as one
