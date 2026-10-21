@@ -408,6 +408,23 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(screen.queryByTestId('list-bulk-bar')).toBeNull()
   })
 
+  it('the bulk bar’s Set follow-up: a day picked in the date picker is every selected task’s next follow-up', async () => {
+    await db.todos.bulkPut(useTodoStore.getState().todos)
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    fireEvent.click(within(screen.getByTestId('list-bulk-bar')).getByRole('button', { name: 'Set follow-up' }))
+    const popover = screen.getByRole('dialog', { name: 'Follow-up' })
+    const button = within(popover).getByRole('button', { name: 'Pick next follow-up date' })
+    await act(async () => { fireEvent.change(button.nextElementSibling as HTMLInputElement, { target: { value: '2026-11-20' } }) })
+    expect(screen.queryByRole('dialog', { name: 'Follow-up' })).toBeNull()
+    const next = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt
+    expect(next(1)).toEqual(new Date(2026, 10, 20))
+    expect(next(2)).toEqual(new Date(2026, 10, 20))
+    expect(next(3)).toBeUndefined()
+    await vi.waitFor(async () => expect((await db.todos.get(2))?.nextFollowupAt).toEqual(new Date(2026, 10, 20)))
+  })
+
   /** Opens the bulk bar's ⋯ More menu. */
   function openMore() {
     fireEvent.click(screen.getByRole('button', { name: 'More' }))

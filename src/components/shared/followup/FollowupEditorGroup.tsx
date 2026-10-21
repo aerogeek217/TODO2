@@ -2,9 +2,9 @@ import { useRef } from 'react'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER, type FollowupInputState } from '../../../hooks/use-followup-input'
 import { useToday } from '../../../hooks/use-today'
 import { addFollowupInterval, formatFollowupDate, relativeDayPhrase, QUICK_FOLLOWUP_INTERVALS } from '../../../utils/followup'
-import { startOfDay, toDateInputValue } from '../../../utils/date'
+import { startOfDay } from '../../../utils/date'
 import { FollowedUpIcon, FollowupFlagIcon } from '../FollowupIcons'
-import { StatusIcon } from '../StatusIcon'
+import { FollowupDateButton } from './FollowupDateButton'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
 import styles from './Followup.module.css'
 
@@ -42,7 +42,7 @@ function HelpText({ state, today, fallback, fallbackClass }: {
 }
 
 /**
- * Task editor's Follow-up group: Next (interval or date, × clears, quick
+ * Task editor's Follow-up group: Next (interval or date, × clears, date picker, quick
  * intervals) and Last (date, never in the future, date picker) plus the
  * "Mark followed up" button. ⏎ / Tab / blur commit; Esc reverts; invalid input
  * keeps the old value until fixed.
@@ -55,7 +55,6 @@ export function FollowupEditorGroup({
   const nextInput = useFollowupInput(next, 'next', today)
   const lastInput = useFollowupInput(last, 'last', today)
   const skipCommitRef = useRef(false)
-  const lastPickerRef = useRef<HTMLInputElement>(null)
 
   const commit = (input: typeof nextInput, onChange: (d: Date | null) => void) => {
     if (skipCommitRef.current) {
@@ -124,6 +123,11 @@ export function FollowupEditorGroup({
               &times;
             </button>
           )}
+          <FollowupDateButton
+            label="Pick next follow-up date"
+            value={next}
+            onPick={(d) => { onNextChange(d); nextInput.settle(d) }}
+          />
         </div>
         <HelpText
           state={nextInput.state}
@@ -157,33 +161,11 @@ export function FollowupEditorGroup({
             autoComplete="off"
             spellCheck={false}
           />
-          <button
-            type="button"
-            className={styles.inputClear}
-            aria-label="Pick last follow-up date"
-            title="Pick a date"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              try { lastPickerRef.current?.showPicker?.() } catch { lastPickerRef.current?.focus() }
-            }}
-          >
-            <StatusIcon icon="calendar" />
-          </button>
-          <input
-            ref={lastPickerRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            tabIndex={-1}
-            aria-hidden="true"
-            max={toDateInputValue(today)}
-            value={last ? toDateInputValue(last) : ''}
-            onChange={(e) => {
-              const raw = e.target.value
-              const d = raw ? new Date(raw + 'T00:00:00') : null
-              if (d && d.getTime() > today.getTime()) return
-              onLastChange(d)
-              lastInput.settle(d)
-            }}
+          <FollowupDateButton
+            label="Pick last follow-up date"
+            value={last}
+            max={today}
+            onPick={(d) => { onLastChange(d); lastInput.settle(d) }}
           />
         </div>
         <HelpText
