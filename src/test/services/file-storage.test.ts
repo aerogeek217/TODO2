@@ -13,21 +13,13 @@ vi.mock('../../services/file-handle-idb', () => ({
   clearFileHandle: (...args: unknown[]) => mockClearFileHandle(...args),
 }))
 
-const mockValidateImportData = vi.fn()
-
-vi.mock('../../data/import-validation', () => ({
-  validateImportData: (...args: unknown[]) => mockValidateImportData(...args),
-  MAX_IMPORT_SIZE_BYTES: 50 * 1024 * 1024,
-  MAX_RECORDS_PER_TABLE: 100_000,
-}))
-
 const mockRestoreFromImportData = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../../data/restore', () => ({
   restoreFromImportData: (...args: unknown[]) => mockRestoreFromImportData(...args),
 }))
 
-const mockBuildExportData = vi.fn().mockResolvedValue({ todos: [], projects: [] })
+const mockBuildExportData = vi.fn().mockResolvedValue({ todos: [], settings: [] })
 
 const mockSelfCheckExportJson = vi.fn<(json: string) => string | null>(() => null)
 
@@ -109,11 +101,22 @@ function fireSettingWrite(key: string) {
   for (const h of mockTables.at(-1)!.hook('updating').handlers) h({ value: 'x' }, key, { key, value: 'x' })
 }
 
-vi.mock('../../data/database', () => ({
-  ALL_DATA_TABLES: mockTables,
-  CURRENT_DB_VERSION: 48,
-  OLDEST_SUPPORTED_DB_VERSION: 16,
-}))
+// The real schema versions: files go through the real import pipeline
+// (upgrades + validation); only the tables are stand-ins.
+vi.mock('../../data/database', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../data/database')>()
+  return {
+    ALL_DATA_TABLES: mockTables,
+    CURRENT_DB_VERSION: actual.CURRENT_DB_VERSION,
+    OLDEST_SUPPORTED_DB_VERSION: actual.OLDEST_SUPPORTED_DB_VERSION,
+  }
+})
+const { CURRENT_DB_VERSION: CURRENT, OLDEST_SUPPORTED_DB_VERSION: FLOOR } =
+  await vi.importActual<typeof import('../../data/database')>('../../data/database')
+/** A supported older file, a file below the floor, a file from a newer build. */
+const OLDER = CURRENT - 1
+const BELOW_FLOOR = FLOOR - 1
+const NEWER = CURRENT + 1
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -130,8 +133,14 @@ function makeWritable() {
   }
 }
 
+function fileTodo(id: number) {
+  const at = '2026-09-15T10:00:00.000Z'
+  return { id, uid: `uid-${id}`, title: `Task ${id}`, isCompleted: false, createdAt: at, modifiedAt: at, sortOrder: id }
+}
+
+/** A sync file at the current schema: two tasks and no settings. */
 function fileBody(overrides: Record<string, unknown> = {}) {
-  return { __schemaVersion: 48, savedAt: FILE_SAVED_AT, canvases: [{ id: 1 }], todos: [], ...overrides }
+  return { __schemaVersion: CURRENT, savedAt: FILE_SAVED_AT, todos: [fileTodo(1), fileTodo(2)], settings: [], ...overrides }
 }
 
 function createMockHandle(content: unknown = fileBody(), overrides: Record<string, unknown> = {}) {
@@ -152,7 +161,11 @@ function createMockHandle(content: unknown = fileBody(), overrides: Record<strin
   }
 }
 
-const validImportData = { todos: [{ id: 1 }, { id: 2 }], canvases: [{ id: 1, name: 'Default' }] }
+/** What the import pipeline hands the restore for `fileBody()`. */
+const validImportData = expect.objectContaining({
+  todos: [expect.objectContaining({ id: 1, uid: 'uid-1' }), expect.objectContaining({ id: 2, uid: 'uid-2' })],
+  settings: [],
+})
 
 function setSyncState(state: { fileSavedAt: string | null; dirtySince: string | null }) {
   localStorage.setItem(SYNC_KEY, JSON.stringify(state))
@@ -197,9 +210,8 @@ beforeEach(() => {
   mockLoadFileHandle.mockReset().mockResolvedValue(null)
   mockSaveFileHandle.mockReset().mockResolvedValue(undefined)
   mockClearFileHandle.mockReset().mockResolvedValue(undefined)
-  mockValidateImportData.mockReset().mockReturnValue({ ok: true, data: validImportData, warnings: [] })
   mockRestoreFromImportData.mockReset().mockResolvedValue(undefined)
-  mockBuildExportData.mockReset().mockResolvedValue({ todos: [], projects: [] })
+  mockBuildExportData.mockReset().mockResolvedValue({ todos: [], settings: [] })
   mockSelfCheckExportJson.mockReset().mockReturnValue(null)
   mockSnapshotBeforeDestructive.mockReset().mockResolvedValue(undefined)
   mockSnapshotFileBeforeOverwrite.mockReset().mockResolvedValue(undefined)
@@ -309,7 +321,7 @@ describe('FileStorageService — load decision matrix', () => {
   })
 
   it('browser ahead of an unchanged older file → the upgrade question first; yes writes the browser data (older copy kept), no pauses untouched', async () => {
-    const older = fileBody({ __schemaVersion: 47 })
+    const older = fileBody({ __schemaVersion: OLDER })
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
     const yes = await startWith(older)
     const conflict = vi.fn().mockResolvedValue('cancel')
@@ -364,8 +376,8 @@ describe('FileStorageService — load decision matrix', () => {
 
     expect(seen).toMatchObject({
       reason: 'browser-changes',
-      browser: { taskCount: 5, schemaVersion: 48, unsyncedSince: '2026-10-02T09:00:00.000Z' },
-      file: { taskCount: 2, schemaVersion: 48, savedAt: FILE_SAVED_AT, changedSinceLastSync: true },
+      browser: { taskCount: 5, schemaVersion: CURRENT, unsyncedSince: '2026-10-02T09:00:00.000Z' },
+      file: { taskCount: 2, schemaVersion: CURRENT, savedAt: FILE_SAVED_AT, changedSinceLastSync: true },
     })
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('conflict-cancelled')
@@ -481,17 +493,16 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
   })
 
   it('validation failure', async () => {
-    mockValidateImportData.mockReturnValue({ ok: false, error: 'Missing todos field' })
-    const { svc, writable } = await startWith()
+    const { svc, writable } = await startWith(fileBody({ todos: undefined }))
     await svc.initialize()
     expect(svc.status.paused).toMatchObject({ reason: 'invalid' })
-    expect(svc.status.paused?.message).toContain('Missing todos field')
+    expect(svc.status.paused?.message).toContain('missing tasks or settings')
     expectUntouched(writable)
     await expectNoWriteAfterChange(writable)
   })
 
   it('file from a newer schema', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 49 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: NEWER }))
     await svc.initialize()
     expect(svc.status.paused?.reason).toBe('too-new')
     expect(svc.status.paused?.message).toMatch(/^File sync paused — .*newer version of TODO2/)
@@ -579,8 +590,11 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
   })
 
   it('Retry re-runs the load (e.g. the file was fixed)', async () => {
-    mockValidateImportData.mockReturnValueOnce({ ok: false, error: 'bad' })
-    const { svc } = await startWith()
+    const broken = new File([JSON.stringify(fileBody({ todos: 'none' }))], 'todo2-data.json', { type: 'application/json' })
+    const fixed = new File([JSON.stringify(fileBody())], 'todo2-data.json', { type: 'application/json' })
+    const { svc } = await startWith(fileBody(), {
+      getFile: vi.fn().mockResolvedValueOnce(broken).mockResolvedValue(fixed),
+    })
     await svc.initialize()
     expect(svc.status.paused).not.toBeNull()
 
@@ -592,24 +606,23 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
 })
 
 // ─── Schema upgrades ──────────────────────────────────────────────────
-// The database mock pins CURRENT_DB_VERSION = 48 / floor = 16.
 
 describe('FileStorageService — older sync files', () => {
   it('asks before upgrading an older file; cancel leaves everything untouched', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 47 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     const ask = vi.fn().mockResolvedValue(false)
     svc.onConfirmFileUpgrade(ask)
     await svc.initialize()
 
-    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 47, toVersion: 48 })
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: OLDER, toVersion: CURRENT })
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('upgrade-cancelled')
   })
 
   it('accepting the upgrade loads the file and restamps it', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 47 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     svc.onConfirmFileUpgrade(async () => true)
     await svc.initialize()
 
@@ -619,7 +632,7 @@ describe('FileStorageService — older sync files', () => {
   })
 
   it('upgrade prompt with no listener stays paused', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 47 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: OLDER }))
     await svc.initialize()
     expectUntouched(writable)
     expect(svc.status.paused?.reason).toBe('upgrade-cancelled')
@@ -633,19 +646,19 @@ describe('FileStorageService — older sync files', () => {
   })
 
   it('below-floor file: cancelling the MigrationDialog pauses (handle kept, nothing touched)', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 10 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: BELOW_FLOOR }))
     const confirm = vi.fn().mockResolvedValue(false)
     svc.onConfirmMigration(confirm)
     await svc.initialize()
 
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ sourceVersion: 10, targetVersion: 48 }))
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ sourceVersion: BELOW_FLOOR, targetVersion: CURRENT }))
     expectUntouched(writable)
     expect(mockClearFileHandle).not.toHaveBeenCalled()
     expect(svc.status.paused?.reason).toBe('legacy-cancelled')
   })
 
   it('below-floor file: confirming loads and restamps without a second upgrade prompt', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 10 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: BELOW_FLOOR }))
     svc.onConfirmMigration(async () => true)
     const ask = vi.fn()
     svc.onConfirmFileUpgrade(ask)
@@ -679,8 +692,8 @@ describe('FileStorageService — file backup before rewrite', () => {
     expect(writable.write).not.toHaveBeenCalled()
   }
 
-  const older = fileBody({ __schemaVersion: 47 })
-  const belowFloor = fileBody({ __schemaVersion: 10 })
+  const older = fileBody({ __schemaVersion: OLDER })
+  const belowFloor = fileBody({ __schemaVersion: BELOW_FLOOR })
 
   it('confirmed upgrade: backs up the raw text before restoring and restamping', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
@@ -767,18 +780,20 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('a current-version file the import trimmed (warnings): its raw text is backed up before sync rewrites it', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    mockValidateImportData.mockReturnValue({ ok: true, data: validImportData, warnings: ['Ignored 1 unrecognized setting: color.dark.old'] })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // A setting this build doesn't know: the import drops it with a warning.
+    const trimmed = fileBody({ settings: [{ key: 'color.dark.old', value: '#123456' }] })
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
-    const { svc, writable } = await startWith()
+    const { svc, writable } = await startWith(trimmed)
     await svc.initialize()
-    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(fileBody()))
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('color.dark.old'))
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(trimmed))
     expect(svc.status.isConnected).toBe(true)
     // …and a failed backup leaves the file untouched (paused), as for every rewrite.
     vi.resetModules()
     mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
     mockRestoreFromImportData.mockClear()
-    const bad = await startWith()
+    const bad = await startWith(trimmed)
     await bad.svc.initialize()
     expect(bad.svc.status.paused?.reason).toBe('backup-failed')
     expect(mockRestoreFromImportData).not.toHaveBeenCalled()
@@ -804,7 +819,7 @@ describe('FileStorageService — file backup before rewrite', () => {
   })
 
   it('"Keep browser data": backup failure keeps the file untouched and stays paused', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 49 }))
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: NEWER }))
     await svc.initialize()
     mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
     await svc.overwriteFileWithBrowser()
