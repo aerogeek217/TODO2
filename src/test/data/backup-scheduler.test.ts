@@ -10,7 +10,7 @@ vi.mock('../../data/backup-repository', () => ({
   },
 }))
 
-import { AUTO_BACKUP_FAILED_WARNING, BACKUPS_KEPT, backupScheduler } from '../../data/backup-scheduler'
+import { AUTO_BACKUP_FAILED_WARNING, BACKUP_BYTES_KEPT, BACKUPS_KEPT, backupScheduler } from '../../data/backup-scheduler'
 import { backupRepository } from '../../data/backup-repository'
 
 const mockCreateSnapshot = vi.mocked(backupRepository.createSnapshot)
@@ -45,7 +45,7 @@ describe('BackupScheduler', () => {
       mockPruneSnapshots.mockRejectedValueOnce(new Error('prune'))
       await expect(backupScheduler.snapshotFileBeforeOverwrite('{raw')).resolves.toBeUndefined()
       expect(mockCreateSnapshotFromJson).toHaveBeenCalledWith('{raw', 'sync-file')
-      expect(mockPruneSnapshots).toHaveBeenCalledWith('sync-file', BACKUPS_KEPT['sync-file'])
+      expect(mockPruneSnapshots).toHaveBeenCalledWith('sync-file', BACKUPS_KEPT['sync-file'], BACKUP_BYTES_KEPT['sync-file'])
     })
 
     it('rejects when the backup itself cannot be stored', async () => {
@@ -91,7 +91,7 @@ describe('BackupScheduler', () => {
       expect(mockCreateSnapshot).toHaveBeenCalledTimes(1)
       expect(mockCreateSnapshot).toHaveBeenCalledWith('auto')
       expect(mockPruneSnapshots).toHaveBeenCalledTimes(1)
-      expect(mockPruneSnapshots).toHaveBeenCalledWith('auto', BACKUPS_KEPT.auto)
+      expect(mockPruneSnapshots).toHaveBeenCalledWith('auto', BACKUPS_KEPT.auto, BACKUP_BYTES_KEPT.auto)
     })
 
     it('takes one at start when the last is a day old', async () => {
@@ -185,7 +185,7 @@ describe('BackupScheduler', () => {
       await backupScheduler.createManualBackup()
       expect(mockCreateSnapshot).toHaveBeenCalledWith('manual')
       expect(mockPruneSnapshots).toHaveBeenCalledTimes(1)
-      expect(mockPruneSnapshots).toHaveBeenCalledWith('manual', BACKUPS_KEPT.manual)
+      expect(mockPruneSnapshots).toHaveBeenCalledWith('manual', BACKUPS_KEPT.manual, BACKUP_BYTES_KEPT.manual)
     })
 
     it('rejects when it cannot be stored', async () => {
@@ -199,7 +199,7 @@ describe('BackupScheduler', () => {
       await backupScheduler.snapshotBeforeDestructive()
       expect(mockCreateSnapshot).toHaveBeenCalledWith('pre-destructive')
       expect(mockPruneSnapshots).toHaveBeenCalledTimes(1)
-      expect(mockPruneSnapshots).toHaveBeenCalledWith('pre-destructive', BACKUPS_KEPT['pre-destructive'])
+      expect(mockPruneSnapshots).toHaveBeenCalledWith('pre-destructive', BACKUPS_KEPT['pre-destructive'], BACKUP_BYTES_KEPT['pre-destructive'])
     })
 
     it('creates the snapshot before pruning', async () => {

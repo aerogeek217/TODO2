@@ -6,7 +6,8 @@ import { resetDb } from '../helpers'
 // The raw text of a sync file at an older schema version is the only copy of
 // what the old build wrote. The newest-5 sync-file pool must never push it
 // out: later overwrites (Use browser data, Keep browser data) each add a
-// copy of a file that by then is a current-version dump.
+// copy of a file that by then is a current-version dump. Its own pool keeps
+// the newest five (one per schema upgrade of the file).
 
 const V49_TEXT = '{"__schemaVersion":49,"todos":[],"settings":[]}'
 const current = (n: number) => `{"__schemaVersion":63,"todos":[],"settings":[],"n":${n}}`
@@ -28,6 +29,14 @@ describe('the raw copy of an older sync file', () => {
     const kept = await byTrigger()
     expect(kept['sync-file-original']).toEqual([V49_TEXT])
     expect(kept['sync-file']).toHaveLength(BACKUPS_KEPT['sync-file'])
+  })
+
+  it('keeps the newest of its own, past its count', async () => {
+    const older = (n: number) => `{"__schemaVersion":${49 + n},"todos":[],"settings":[]}`
+    const total = BACKUPS_KEPT['sync-file-original'] + 2
+    for (let n = 0; n < total; n++) await backupScheduler.snapshotFileBeforeOverwrite(older(n), { olderVersion: true })
+    const kept = (await byTrigger())['sync-file-original']
+    expect(kept).toEqual(Array.from({ length: total }, (_, n) => older(n)).slice(2))
   })
 
   it('is stored once per text (a retried upgrade adds no second copy)', async () => {
