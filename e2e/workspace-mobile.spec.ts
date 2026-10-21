@@ -291,3 +291,32 @@ test('the task editor on a phone fills the screen (on the dialog frame)', async 
     return [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)]
   }).toEqual([0, 0, 390, 844])
 })
+
+test('touch targets: a cell’s tabs and a row’s checkbox take taps across 44px', async ({ page }) => {
+  await seed(page)
+  /** How far, in px, taps along a vertical line through the element's centre still land on it. */
+  const tappableHeight = (selector: string) => page.evaluate((sel) => {
+    const el = document.querySelector<HTMLElement>(sel)!
+    const r = el.getBoundingClientRect()
+    const x = r.left + r.width / 2
+    const ys = []
+    for (let y = Math.floor(r.top) - 30; y <= Math.ceil(r.bottom) + 30; y++) {
+      const hit = document.elementFromPoint(x, y)
+      if (hit === el || (hit && el.contains(hit))) ys.push(y)
+    }
+    return ys.length === 0 ? 0 : Math.max(...ys) - Math.min(...ys) + 1
+  }, selector)
+
+  await expect(wsTab(page, 'todayTab')).toBeVisible()
+  expect(await tappableHeight('[data-ws-tab="todayTab"]')).toBeGreaterThanOrEqual(44)
+  const row = wsCell(page, 'a1').locator('[data-todo-id]').first()
+  const id = await row.getAttribute('data-todo-id')
+  const checkbox = wsCell(page, 'a1').locator(`[data-todo-id="${id}"]`).getByRole('checkbox', { name: 'Toggle complete' })
+  await expect(checkbox).toBeVisible()
+  const b = await box(checkbox)
+  expect(Math.round(b.width)).toBeGreaterThanOrEqual(44)
+  expect(await tappableHeight('[data-ws-cell="a1"] input[type="checkbox"]')).toBeGreaterThanOrEqual(44)
+  // A tap well above the drawn box still completes the task (it leaves the list, or shows ticked).
+  await page.touchscreen.tap(b.x + b.width / 2, b.y + 4)
+  await expect.poll(async () => (await checkbox.count()) === 0 || await checkbox.isChecked()).toBe(true)
+})

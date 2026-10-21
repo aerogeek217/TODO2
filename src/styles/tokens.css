@@ -74,7 +74,8 @@
   --mobile-fab-bottom: 16px;
   --mobile-topbar-height: 52px;
   --mobile-column-strip-height: 40px;
-  --mobile-cell-header-height: 40px;
+  /* A touch target tall above its 1px bottom rule (the tabs take taps across it). */
+  --mobile-cell-header-height: 45px;
   --mobile-cell-tab-height: 34px;
   --mobile-list-filter-row-height: 48px;
   --mobile-list-group-header-height: 36px;

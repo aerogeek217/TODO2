@@ -49,22 +49,45 @@
   min-height: 32px;
 }
 
+/* A 44px target drawn as a 20px box: the input takes the finger-sized
+   square (its margin gives back the room, so the row lays out as before)
+   and its ::before draws the box. */
 .checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  border: 1.5px solid var(--color-text-muted);
-  border-radius: var(--radius-checkbox);
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  margin: -12px;
+  border: none;
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
   position: relative;
-  transition: border-color 0.15s, background 0.15s;
+  /* Above the markers its target reaches over. */
+  z-index: var(--z-above);
   -webkit-tap-highlight-color: transparent;
 }
 
-.checkbox:checked {
+.checkbox::before {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: var(--radius-checkbox);
+  background: transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.checkbox:focus-visible {
+  outline: none;
+}
+
+.checkbox:focus-visible::before {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.checkbox:checked::before {
   background: var(--color-accent);
   border-color: var(--color-accent);
 }

@@ -217,6 +217,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* A finger-sized target: the tab takes taps up to the header's top, past its
+   drawn height (the header is a touch target tall). */
+.touch::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--touch-target-min);
+}
+
 /* No hover state on touch (it sticks after a tap). */
 .touch:not(.active):not(.flat):hover {
   background: transparent;
