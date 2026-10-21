@@ -3,13 +3,14 @@ import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderC
 import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * What a row click and a row hover render, held without timing (render
+ * What a row click, a row hover and a task write render, held without timing (render
  * counts from a stand-in React DevTools hook, `fixtures/render-count`):
  * selecting a row renders that row — and the row it took the selection
  * from — but no other row, in its list or any other, not the shell (top
  * bar, workspace page) and not the editor host. A hover renders the rows it
  * leaves and enters (their hover highlight), nothing else — the editor host
- * not at all while the editor is closed. A list grouped by people is the
+ * not at all while the editor is closed. A task write renders neither the
+ * shell nor the editor host. A list grouped by people is the
  * case that used to render every row on any render of its list (each row's
  * people were a fresh array).
  */
