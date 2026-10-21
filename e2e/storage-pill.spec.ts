@@ -114,3 +114,33 @@ test('narrow window: Local only shrinks to its dot, a warning keeps its label', 
   await expect(pill.getByText('Permission needed')).toBeVisible()
   expect((await pill.boundingBox())!.width).toBeGreaterThan(100)
 })
+
+test('keyboard: the popover takes the focus, keeps Tab inside, and gives the focus back to the pill', async ({ page }) => {
+  // A warning with several actions (Retry, Keep browser data…, Dismiss, File storage settings…).
+  await setStorage(page, STATES.paused.fileStorage)
+  const pill = page.getByTestId('storage-pill')
+  await pill.focus()
+  await page.keyboard.press('Enter')
+  const popover = page.getByTestId('storage-popover')
+  await expect(popover).toBeVisible()
+  const inside = () => popover.evaluate((el) => el.contains(document.activeElement))
+  const focusedName = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? '')
+  await expect.poll(inside).toBe(true)
+  const first = await focusedName()
+
+  // Tab through every control and around: never out of the popover.
+  const count = await popover.locator('button:visible').count()
+  expect(count).toBeGreaterThan(1)
+  for (let i = 0; i < count; i++) {
+    await page.keyboard.press('Tab')
+    expect(await inside()).toBe(true)
+  }
+  expect(await focusedName()).toBe(first)
+  await page.keyboard.press('Shift+Tab')
+  expect(await inside()).toBe(true)
+  expect(await focusedName()).not.toBe(first)
+
+  await page.keyboard.press('Escape')
+  await expect(popover).toHaveCount(0)
+  await expect(pill).toBeFocused()
+})
