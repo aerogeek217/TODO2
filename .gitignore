@@ -8,6 +8,9 @@
 # Generated dev seed (npm run seed:dev)
 /dev-data/
 
+# Local sync file (task data — never commit)
+/sync.json
+
 # OS files
 .DS_Store
 Thumbs.db
