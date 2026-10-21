@@ -509,3 +509,33 @@ describe('# rows and the resolver rank tags the same way', () => {
     expect(matchTag('zz', src.tags)).toBeUndefined()
   })
 })
+
+describe('a tag no bare #slug can spell (R&D, Q4 plan) is reachable and round-trips', () => {
+  const src = { ...sources, tags: tagItems([
+    { id: 7, name: 'R&D', color: '#000' }, { id: 8, name: 'Q4 plan', color: '#000' }, { id: 9, name: 'rd', color: '#000' },
+  ]) }
+  const tagsOf = (text: string) => parseInput(text, TODAY).tags
+
+  it('typing #R& lists it; a pick writes the quoted token, which parses back as the whole name', () => {
+    const view = at('Plan #R&', src)
+    expect(labels(view)).toEqual(['R&D'])
+    const row = view!.rows[0]!
+    const picked = applyAutocompletePick('Plan #R&', view!, row)!.value
+    expect(picked).toBe('Plan #"R&D" ')
+    expect(tagsOf(picked)).toEqual(['R&D'])
+    expect(parseInput(picked, TODAY).title).toBe('Plan')
+  })
+
+  it('typed then completed: a space after #R& completes to #"R&D"', () => {
+    const view = at('Plan #R&', src)!
+    const next = computeAutocomplete('Plan #R& ', 9, src)
+    expect(implicitAccept({ value: 'Plan #R&', view, index: 0 }, 'Plan #R& ', 9, next)).toEqual({ value: 'Plan #"R&D" ', cursor: 12 })
+  })
+
+  it('a quoted name with a space; a bare slug stays bare', () => {
+    const view = at('x #"Q4', src)!
+    expect(labels(view)).toEqual(['Q4 plan'])
+    expect(applyAutocompletePick('x #"Q4', view, view.rows[0]!)!.value).toBe('x #"Q4 plan" ')
+    expect(tagsOf('x #"Q4 plan" #rd')).toEqual(['Q4 plan', 'rd'])
+  })
+})

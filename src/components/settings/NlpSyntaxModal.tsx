@@ -17,9 +17,10 @@ const SECTIONS: NlpSyntaxSection[] = [
   {
     label: 'People & tags',
     rows: [
-      { syntax: '@name', description: 'Assign a person (created when you add the task if nobody matches)' },
+      { syntax: '@name', description: 'Assign a person: the highlighted match (pick Create to add someone new; created with the task if nobody matches)' },
       { syntax: '@"First Last"', description: 'Quoted form when the name has a space' },
-      { syntax: '#tag', description: 'Add a tag (created when you add the task if it is new)' },
+      { syntax: '#tag', description: 'Add a tag: the highlighted match (pick Create to add a new one; created with the task if none matches)' },
+      { syntax: '#"R&D"', description: 'Quoted form for a tag name with a space or other characters' },
     ],
   },
   {

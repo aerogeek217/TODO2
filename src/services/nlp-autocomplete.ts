@@ -8,7 +8,7 @@ import {
   relativeDayPhrase,
   type FollowupInterval,
 } from '../utils/followup'
-import { BARE_MENTION_NAME, mentionToken, parseInput } from './natural-language-parser'
+import { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, parseInput, tagToken } from './natural-language-parser'
 import { rankPeople, rankTags } from './nlp-resolver'
 import {
   COMMAND_SHAPE,
@@ -287,7 +287,7 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
 /** Names a create row may offer: what `parseInput` reads as a whole `@name` / `#tag`. */
 const CREATABLE: Record<'@' | '#', RegExp> = {
   '@': BARE_MENTION_NAME,
-  '#': /^[A-Za-z0-9_-]+$/,
+  '#': BARE_TAG_NAME,
 }
 
 function entityView(
@@ -300,8 +300,10 @@ function entityView(
   const query = rawQuery.toLowerCase()
   let items: readonly AutocompleteItem[]
   if (trigger === '#') {
-    // Best match first — the ranking the typed tag resolves by.
-    items = query ? rankTags(query, sources.tags) : sources.tags
+    // Best match first — the ranking the typed tag resolves by. A leading
+    // quote (`#"R&D"` being typed) is ignored for matching.
+    const q = query.replace(/^"/, '')
+    items = q ? rankTags(q, sources.tags) : sources.tags
   } else {
     // A leading quote (`@"First Last"` being typed) is ignored for matching.
     // Best match first — the ranking the typed name resolves by.
@@ -487,8 +489,8 @@ export function applyAutocompletePick(
   let reopen = false
   switch (row.kind) {
     case 'entity': {
-      // Tags stay bare (single-word); people quote a name that isn't bare
-      // (a space, a hyphen …), so the token reads back as the whole name.
+      // A name that isn't bare is quoted (a person's space or hyphen, a tag's
+      // `&` or space …), so the token reads back as the whole name.
       insert = entityToken(view, row.item)
       break
     }
@@ -532,9 +534,9 @@ export function bestMatchCompletion(value: string, view: AutocompleteView, index
   return applyAutocompletePick(value, view, row)?.value ?? value
 }
 
-/** The token text picking an existing person / tag writes (`@Ann`, `@"Ann Lee"`, `#q4`). */
+/** The token text picking an existing person / tag writes (`@Ann`, `@"Ann Lee"`, `#q4`, `#"R&D"`). */
 function entityToken(view: AutocompleteView, item: AutocompleteItem): string {
-  return view.trigger === '#' ? `#${item.name}` : mentionToken(item.name)
+  return view.trigger === '#' ? tagToken(item.name) : mentionToken(item.name)
 }
 
 /**

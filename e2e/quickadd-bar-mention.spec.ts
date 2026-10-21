@@ -153,3 +153,31 @@ test.describe('QuickAddBar @ popup: the Create row', () => {
     await expect.poll(async () => (await readTodoPeopleForTitle(page, 'Call')).map((j) => j.personId)).toEqual([ed])
   })
 })
+
+test.describe('QuickAddBar # popup: a tag no bare #slug can spell', () => {
+  test('R&D: typing #R& offers it; Tab writes #"R&D"; the task gets R&D and no tag "R" is made', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }], tags: ['R&D', 'rd'] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Plan #R&')
+    const popup = page.getByRole('listbox', { name: 'Tags' })
+    await expect(popup.getByRole('option')).toHaveText(['#R&D'])
+    await input.press('Tab')
+    await expect(input).toHaveValue('Plan #"R&D" ')
+
+    // Typed and completed with a space (the other way in) gives the same token.
+    await input.pressSequentially('#R& ')
+    await expect(input).toHaveValue('Plan #"R&D" #"R&D" ')
+
+    await input.press('Enter')
+    await expect(dialog).toHaveCount(0)
+    const { todos, tags, todoTags } = await readStores(page, ['todos', 'tags', 'todoTags'])
+    const rd = (tags ?? []).find((t) => t.name === 'R&D')
+    const task = (todos ?? []).find((t) => t.title === 'Plan')
+    expect(task).toBeDefined()
+    expect((todoTags ?? []).filter((j) => j.todoId === task?.id).map((j) => j.tagId)).toEqual([rd?.id])
+    expect((tags ?? []).map((t) => t.name).sort()).toEqual(['R&D', 'rd'])
+  })
+})

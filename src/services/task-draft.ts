@@ -1,6 +1,6 @@
 import type { NewTodoItem, Person, RecurrenceType, Status, Tag, TodoChanges, TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
-import { mentionToken, parseInput } from './natural-language-parser'
+import { mentionToken, parseInput, tagToken } from './natural-language-parser'
 import { matchTag, resolveInput, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from '../utils/recurrence'
 
@@ -195,7 +195,7 @@ export function draftFromEditor(
  * task; deleting the token drops them).
  */
 export function draftEditorTitle(draft: TaskDraft): string {
-  return [draft.title, ...draft.newPeople.map(mentionToken), ...draft.newTags.map((t) => `#${t}`)].join(' ')
+  return [draft.title, ...draft.newPeople.map(mentionToken), ...draft.newTags.map(tagToken)].join(' ')
 }
 
 /**

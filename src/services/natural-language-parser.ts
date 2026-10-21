@@ -97,9 +97,18 @@ export function mentionToken(name: string): string {
   return BARE_MENTION_NAME.test(name) ? `@${name}` : `@"${name}"`
 }
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
-// of input) and group 2 is the slug. Separator stays in the remaining title
-// after token removal.
-const TAG_PATTERN = /(^|\s)#([A-Za-z0-9_-]+)/g
+// of input); group 2 a quoted name (`#"R&D"`, `#"Q4 plan"` — any tag name a
+// bare slug can't spell), group 3 the bare slug (ASCII). Separator stays in
+// the remaining title after token removal.
+const TAG_PATTERN = /(^|\s)#(?:"([^"]+)"|([A-Za-z0-9_-]+))/g
+
+/** A tag name `#` takes bare, without quotes (`#q4`): the ASCII slug characters. */
+export const BARE_TAG_NAME = /^[A-Za-z0-9_-]+$/
+
+/** The token that names a tag: `#name`, or `#"name"` for a name that isn't a bare slug (`#"R&D"`). */
+export function tagToken(name: string): string {
+  return BARE_TAG_NAME.test(name) ? `#${name}` : `#"${name}"`
+}
 // Whitespace-anchored `/word` (group 2) running to whitespace or the end.
 const SLASH_PATTERN = /(^|\s)\/(\S+)/g
 
@@ -275,15 +284,16 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   TAG_PATTERN.lastIndex = 0
   while ((match = TAG_PATTERN.exec(text)) !== null) {
     const sep = match[1]
-    const name = match[2]
+    const name = match[2] ?? match[3]
     if (sep == null || name == null) continue
     const start = match.index + sep.length
-    const end = start + 1 + name.length
+    const end = match.index + match[0].length
     if (inCommand(start, end)) continue
     tokens.push({ type: 'tag', value: name, raw: text.slice(start, end), start, end })
-    // Dedup by case-folded slug (`normalizeTag`), but keep the user-supplied
-    // case (trimmed) so `#FooBar` round-trips as `FooBar`.
-    const slug = normalizeTag(name)
+    // Dedup by case-folded slug (`normalizeTag`; a quoted name by its trimmed
+    // lowercase), but keep the user-supplied case (trimmed) so `#FooBar`
+    // round-trips as `FooBar`.
+    const slug = match[2] != null ? name.trim().toLowerCase() || null : normalizeTag(name)
     if (slug && !seenTags.has(slug)) {
       seenTags.add(slug)
       tags.push(name.trim())
