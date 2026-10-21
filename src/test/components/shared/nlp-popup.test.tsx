@@ -113,4 +113,15 @@ describe('useNlpAutocomplete — the open popup follows its candidates', () => {
     rerender({ people: personItems([{ id: 1, name: 'Annabel', initials: 'AN' }]) })
     expect(names()).toEqual(['Annabel'])
   })
+
+  it('makes its text-measuring context once, not per caret measurement', () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const input = document.createElement('input')
+    const people = personItems(PEOPLE)
+    const onApply = vi.fn()
+    const { result } = renderHook(() => useNlpAutocomplete({ people, onApply }))
+    for (const text of ['@a', '@an', '@and']) act(() => { result.current.handleInputChange(text, text.length, input) })
+    expect(result.current.state.view).not.toBeNull()
+    expect(getContext).toHaveBeenCalledTimes(1)
+  })
 })

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useLatestRef } from './use-latest-ref'
+import { registerModuleReset } from '../utils/module-reset'
 import { newTaskFollowupInterval, useSettingsStore } from '../stores/settings-store'
 import {
   applyAutocompletePick,
@@ -48,15 +49,23 @@ interface UseNlpAutocompleteOptions {
   onApply: (value: string, cursor: number) => void
 }
 
-// Shared canvas for text measurement — avoids creating one per keystroke
-const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
+/** The text-measuring context, made once (`null` where there is no canvas); `undefined` = not made yet. */
+let measureContext: CanvasRenderingContext2D | null | undefined
+registerModuleReset(() => { measureContext = undefined })
+
+function caretMeasureContext(): CanvasRenderingContext2D | null {
+  if (measureContext === undefined) {
+    measureContext = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+  }
+  return measureContext
+}
 
 /** Pixel offset of `value[0, index)` in `input`'s font, clamped to the input. */
 function measureCaretLeft(input: TextInput | null, value: string, index: number): number {
   if (!input) return 0
-  const style = getComputedStyle(input)
-  const ctx = measureCanvas?.getContext('2d')
+  const ctx = caretMeasureContext()
   if (!ctx) return 0
+  const style = getComputedStyle(input)
   ctx.font = `${style.fontSize} ${style.fontFamily}`
   const left = ctx.measureText(value.slice(0, index)).width - input.scrollLeft
   return Math.max(0, Math.min(left, input.offsetWidth - 200))
