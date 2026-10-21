@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { usePersonAssignmentsForLoadedTodos } from '../../hooks/use-entity-assignments-for-todos'
 import { countTodosByEntity } from '../../stores/assignment-helpers'
 import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
 import { ColorInput } from '../shared/ColorInput'
@@ -101,9 +102,10 @@ function withColor(person: Omit<Person, 'color'>, color: string | undefined): Pe
 }
 
 export function PeopleEditor({ onClose, editPersonId, focusField = 'email', layer }: PeopleEditorProps) {
-  const { people, load: loadPeople, add: addPerson, update: updatePerson, loadAssignments, assignedPeopleMap } = usePersonStore()
+  const people = usePersonStore((s) => s.people)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const { load: loadPeople, add: addPerson, update: updatePerson } = usePersonStore.getState()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
-  const todos = useTodoStore((s) => s.todos)
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -121,9 +123,7 @@ export function PeopleEditor({ onClose, editPersonId, focusField = 'email', laye
 
   // Every task and its people, so each row can show its task count.
   useEffect(() => { loadPeople(); ensureTodosLoaded() }, [loadPeople, ensureTodosLoaded])
-  useEffect(() => {
-    if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
-  }, [todos, loadAssignments])
+  usePersonAssignmentsForLoadedTodos()
   const counts = useMemo(() => countTodosByEntity(assignedPeopleMap), [assignedPeopleMap])
 
   // Opened onto one person: edit that row once the person is there.

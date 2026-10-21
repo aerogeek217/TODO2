@@ -26,7 +26,8 @@ interface ThemeColorsEditorProps {
 }
 
 export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
-  const { colors, setColor, resetColors } = useSettingsStore()
+  const colors = useSettingsStore((s) => s.colors)
+  const { setColor, resetColors } = useSettingsStore.getState()
   // Editor binds to the resolved theme on mount; the Light/Dark toggle below
   // only switches which `colors[theme]` bag the inputs read/write — it does
   // not change the user's theme (Settings → Appearance).

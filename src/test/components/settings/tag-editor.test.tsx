@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { Profiler } from 'react'
 import { render, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { TagEditor } from '../../../components/settings/TagEditor'
 import { db } from '../../../data/database'
@@ -107,5 +108,29 @@ describe('TagEditor', () => {
 
     await waitFor(() => expect(useTagStore.getState().tags).toHaveLength(0))
     expect(await db.todoTags.count()).toBe(0)
+  })
+
+  it('counts every task’s tags on a cold open, and a task edit while open renders nothing', async () => {
+    const tagId = await useTagStore.getState().add('urgent')
+    const first = await addTodo('First')
+    const second = await addTodo('Second')
+    await db.todoTags.bulkAdd([{ todoId: first, tagId }, { todoId: second, tagId }])
+    // Nothing preloaded: the editor loads the tasks and their tags itself.
+    const renders = { n: 0 }
+    let mountLoad: Promise<void> | undefined
+    useTagStore.setState({ load: () => (mountLoad = realLoad()) })
+    const { findByText, getByTestId } = render(
+      <Profiler id="tags" onRender={() => { renders.n++ }}>
+        <TagEditor onClose={() => {}} />
+      </Profiler>,
+    )
+    await act(async () => { await mountLoad })
+    await findByText('urgent')
+    await waitFor(() => expect(getByTestId('entity-task-count').textContent).toBe('2'))
+
+    renders.n = 0
+    await act(async () => { await useTodoStore.getState().update(first, { title: 'First, renamed' }) })
+    expect(renders.n).toBe(0)
+    expect(getByTestId('entity-task-count').textContent).toBe('2')
   })
 })

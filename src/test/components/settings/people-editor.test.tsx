@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { Profiler } from 'react'
+import { useTodoStore } from '../../../stores/todo-store'
 import { render, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { PeopleEditor } from '../../../components/settings/PeopleEditor'
 import { db } from '../../../data/database'
@@ -53,6 +55,26 @@ describe('PeopleEditor', () => {
     await findByText('Ann')
     const counts = () => [...document.body.querySelectorAll('[data-testid="entity-task-count"]')].map((el) => [el.textContent, el.getAttribute('title')])
     await waitFor(() => expect(counts()).toEqual([['2', '2 tasks'], ['', '0 tasks']]))
+  })
+
+  it('a task edit while it is open renders nothing (the counts follow the set of tasks, not each edit)', async () => {
+    const ann = await db.people.add({ name: 'Ann', initials: 'AN' }) as number
+    const open = await addTodo('Open', false)
+    await db.todoPeople.add({ todoId: open, personId: ann })
+    const renders = { n: 0 }
+    let mountLoad: Promise<void> | undefined
+    usePersonStore.setState({ load: () => (mountLoad = realLoad()) })
+    const { findByText, getByTestId } = render(
+      <Profiler id="people" onRender={() => { renders.n++ }}>
+        <PeopleEditor onClose={() => {}} />
+      </Profiler>,
+    )
+    await act(async () => { await mountLoad })
+    await findByText('Ann')
+    await waitFor(() => expect(getByTestId('entity-task-count').textContent).toBe('1'))
+    renders.n = 0
+    await act(async () => { await useTodoStore.getState().update(open, { title: 'Open, renamed' }) })
+    expect(renders.n).toBe(0)
   })
 
   it('adds a person without a color by default (neutral swatch)', async () => {
