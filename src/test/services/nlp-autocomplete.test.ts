@@ -492,6 +492,10 @@ describe('implicitAccept — typing on uses the highlighted row', () => {
     expect(typed('Call @', 0, 'Call @ ')).toBeNull()
   })
 
+  it('nothing while a quoted name is being typed: its space is part of the name', () => {
+    expect(typed('Call @"an', 0, 'Call @"an ')).toBeNull()
+  })
+
   it('nothing for an edit that is neither (a deletion)', () => {
     expect(typed('Call @an', 0, 'Call @a')).toBeNull()
   })

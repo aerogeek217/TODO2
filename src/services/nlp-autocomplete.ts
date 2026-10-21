@@ -547,7 +547,8 @@ function entityToken(view: AutocompleteView, item: AutocompleteItem): string {
  * popup was open on with its view and highlighted row; `value` / `cursor`
  * the input now. Null when nothing is to be completed: another popup or the
  * same token still open (`next` visible at the same trigger), a highlighted
- * create row (the text stays as typed), nothing typed after the trigger, or
+ * create row (the text stays as typed), nothing typed after the trigger, a
+ * quoted name still being typed (its spaces are part of it), or
  * an edit that isn't one of those two (a deletion, a paste elsewhere).
  */
 export function implicitAccept(
@@ -558,6 +559,8 @@ export function implicitAccept(
 ): { value: string; cursor: number } | null {
   const { view } = prev
   if (view.mode !== 'entity' || view.query.trim() === '') return null
+  // A quoted name being typed (`@"Ana Lo…`, `#"Q4 pl…`): a space is part of it.
+  if (view.query.startsWith('"')) return null
   if (isVisible(next) && next.mode === view.mode && next.anchor === view.anchor) return null
   const row = view.rows[prev.index]
   if (row?.kind !== 'entity') return null
