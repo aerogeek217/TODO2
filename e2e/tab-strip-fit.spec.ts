@@ -136,6 +136,30 @@ test('a band header fits its tabs the same way', async ({ page }) => {
   expectFits(wide, 'band at 1600')
 })
 
+test('at the narrowest column a long active tab still shows (squeezed beside +N), never no tab at all', async ({ page }) => {
+  await page.setViewportSize({ width: 860, height: 800 })
+  const narrow = (id: string): { id: string; weight: number; cells: Array<{ id: string; tabs: WsTabSeed[]; activeTabId?: string }> } =>
+    ({ id: `col-${id}`, weight: 1, cells: [{ id, tabs: [{ id: `n-${id}`, kind: 'notes' }] }] })
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'A list with a very long name for a narrow column' }],
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'col1', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'l1', kind: 'lens', listDefIdx: 0 }, ...TABS], activeTabId: 'l1' }] },
+        narrow('k2'),
+        narrow('k3'),
+      ],
+    }],
+  })
+  const state = await stripState(page, 'k1')
+  expect(state.overflow).toBe(true)
+  expect(state.shown.map((t) => t.id)).toEqual(['l1'])
+  for (const t of state.shown) expect(t.right).toBeLessThanOrEqual(state.strip.right + 0.5)
+  const active = wsCell(page, 'k1').locator('[data-ws-tab="l1"]')
+  await expect(active).toBeVisible()
+  await expect(active).toHaveAttribute('tabindex', '0')
+})
+
 test('the +N menu lists the folded tabs, and picking one shows it', async ({ page }) => {
   await seed(page, 750)
   const cell = wsCell(page, 'k1')

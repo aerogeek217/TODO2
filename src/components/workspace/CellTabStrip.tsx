@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
 import { getActiveTab, tabListId } from '../../models/workspace-layout'
@@ -28,7 +28,8 @@ function px(value: string): number {
  * A tab's measured sizes, whatever width it has now: its parts but the title
  * (padding, icon, dot, count, close ×, gaps) plus the whole title (its scroll
  * width) — read from the parts, so a tab given more room than it needs never
- * measures wider. The active tab never shrinks.
+ * measures wider. The active tab never shrinks — unless it shows alone and still
+ * doesn't fit (`least`).
  */
 function measureTab(id: string, el: HTMLElement, active: boolean): TabSize {
   const title = el.querySelector<HTMLElement>('[data-tab-title]')
@@ -48,7 +49,8 @@ function measureTab(id: string, el: HTMLElement, active: boolean): TabSize {
   // A title that isn't cut short: its exact width (the scroll width is rounded).
   const fullTitle = title.scrollWidth > title.clientWidth ? title.scrollWidth + 1 : title.getBoundingClientRect().width
   const natural = Math.min(TAB_MAX_PX, Math.ceil(chrome + fullTitle))
-  return { id, natural, min: active ? natural : Math.min(natural, Math.ceil(chrome + MIN_TITLE_PX)) }
+  const cut = Math.min(natural, Math.ceil(chrome + MIN_TITLE_PX))
+  return active ? { id, natural, min: natural, least: cut } : { id, natural, min: cut }
 }
 
 /**
@@ -217,7 +219,7 @@ export function CellTabStrip({
   const overflowRef = useRef<HTMLButtonElement | null>(null)
   const overflowWidth = useRef(OVERFLOW_FALLBACK_PX)
   const tabEls = useRef(new Map<string, HTMLDivElement>())
-  const [fit, setFit] = useState<{ count: number; shrink: boolean; sizes: readonly TabSize[] }>(
+  const [fit, setFit] = useState<TabFit & { sizes: readonly TabSize[] }>(
     () => ({ count: cell.tabs.length, shrink: false, sizes: [] }),
   )
   const fitCount = fit.count
@@ -237,7 +239,8 @@ export function CellTabStrip({
   const tabsRef = useLatestRef(cell.tabs)
   const activeId = active?.id
   const hasAdd = !collapsed && onAddTab != null
-  useEffect(() => {
+  // A layout effect: observed before the first paint, so the first fit lands before it (no frame of uncut tabs).
+  useLayoutEffect(() => {
     const strip = stripRef.current
     if (!strip || typeof ResizeObserver === 'undefined') return
     const measure = () => {
@@ -256,7 +259,7 @@ export function CellTabStrip({
       })
       const next: TabFit = fitTabs(sizes, activeId, room, overflowWidth.current + stripGap, tabGap)
       setFit((prev) => (
-        prev.count === next.count && prev.shrink === next.shrink && sameSizes(prev.sizes, sizes)
+        prev.count === next.count && prev.shrink === next.shrink && prev.squeeze === next.squeeze && sameSizes(prev.sizes, sizes)
           ? prev
           : { ...next, sizes }
       ))
@@ -288,7 +291,7 @@ export function CellTabStrip({
             key={tab.id}
             tab={tab}
             offstage={i >= Math.max(fitCount, 0)}
-            size={fit.shrink && i < fitCount ? shareOf(sizeOf.get(tab.id)) : undefined}
+            size={fit.shrink && i < fitCount ? shareOf(sizeOf.get(tab.id), fit.squeeze === true) : undefined}
             active={tab.id === active?.id}
             collapsed={collapsed}
             touch={touch}
@@ -347,15 +350,19 @@ export function CellTabStrip({
 function sameSizes(a: readonly TabSize[], b: readonly TabSize[]): boolean {
   return a.length === b.length && a.every((s, i) => {
     const t = b[i]
-    return t != null && s.id === t.id && s.natural === t.natural && s.min === t.min
+    return t != null && s.id === t.id && s.natural === t.natural && s.min === t.min && s.least === t.least
   })
 }
 
-/** A shown tab's share of the room while the tabs shrink: equal shares, each between its least and its full width. */
-function shareOf(size: TabSize | undefined): CSSProperties | undefined {
+/**
+ * A shown tab's share of the room while the tabs shrink: equal shares, each
+ * between its least and its full width (`squeeze`: the active tab alone,
+ * down to its `least`).
+ */
+function shareOf(size: TabSize | undefined, squeeze: boolean): CSSProperties | undefined {
   if (!size) return undefined
   // 1 px over the measured full width, so rounding never cuts a title that fits.
-  return { flex: '1 1 0px', minWidth: size.min, maxWidth: size.natural + 1 }
+  return { flex: '1 1 0px', minWidth: squeeze ? size.least ?? size.min : size.min, maxWidth: size.natural + 1 }
 }
 
 function OverflowMenu({ anchorRef, tabs, onPick, onClose }: {

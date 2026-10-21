@@ -36,8 +36,13 @@ describe('fitTabs', () => {
     expect(fitTabs(wide, 'c', 311, OVERFLOW, GAP)).toEqual({ count: 1, shrink: true })
   })
 
-  it('shows no tab when not even one fits', () => {
-    expect(fitTabs(tabs, 'a', 60, OVERFLOW, GAP)).toEqual({ count: 0, shrink: false })
+  it('when not even the active tab fits beside +N, shows it alone, squeezed (never no tab at all)', () => {
+    expect(fitTabs(tabs, 'a', 60, OVERFLOW, GAP)).toEqual({ count: 1, shrink: true, squeeze: true })
+    expect(fitTabs(tabs, 'c', 60, OVERFLOW, GAP)).toEqual({ count: 1, shrink: true, squeeze: true })
+  })
+
+  it('a lone tab wider than the room is squeezed, not hidden', () => {
+    expect(fitTabs([tab('a', 160)], 'a', 100, OVERFLOW, GAP)).toEqual({ count: 1, shrink: true, squeeze: true })
   })
 
   it('an empty strip fits', () => {
