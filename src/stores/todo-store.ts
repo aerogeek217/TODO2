@@ -184,6 +184,23 @@ export const useTodoStore = create<TodoState>((set, get) => {
     )
   }
 
+  /**
+   * Sets one task's completion to `isCompleted` with `completedAt` (undo /
+   * redo of a toggle): no undo entry, one timestamp for the store and the
+   * database, nothing written when the task already has that completion.
+   */
+  async function writeCompletion(id: number, isCompleted: boolean, completedAt: Date | undefined): Promise<void> {
+    const current = get().todos.find((t) => t.id === id)
+    if (!current) return
+    const at = new Date()
+    const nextAt = resolveCompletedAt(current, { isCompleted, completedAt }, at)
+    if (current.isCompleted === isCompleted && current.completedAt?.getTime() === nextAt?.getTime()) return
+    await todoRepository.complete(id, isCompleted, nextAt, at)
+    set({
+      todos: get().todos.map((t) => (t.id === id ? { ...t, isCompleted, completedAt: nextAt, modifiedAt: at } : t)),
+    })
+  }
+
   return {
   todos: [],
   todosVersion: 0,
@@ -357,8 +374,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
       'Failed to toggle task completion',
       {
         description: `${label} "${todo.title}"`,
-        redo: () => get().toggleComplete(id),
-        undo: () => get().toggleComplete(id),
+        // Both write the completion this toggle went from / to — never a
+        // second toggle from whatever the task is by then (which would
+        // advance a recurring task, or re-complete with a fresh time).
+        redo: () => writeCompletion(id, completed, completedAt),
+        undo: () => writeCompletion(id, todo.isCompleted, todo.completedAt),
       },
     )
   },

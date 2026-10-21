@@ -9,6 +9,7 @@ import { todoRepository } from '../../data/todo-repository'
 import { tagRepository } from '../../data/tag-repository'
 import { personRepository } from '../../data/person-repository'
 import { selectExpiredCompleted } from '../../utils/completed-at'
+import { makeTodo } from '../helpers'
 /** What the launch prompt / Settings cleanup delete once the user confirms. */
 const purgeExpired = async (days: number) => {
   const outcome = await useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
@@ -49,6 +50,45 @@ describe('todoStore', () => {
 
     await useTodoStore.getState().toggleComplete(id)
     expect(useTodoStore.getState().todos[0]!.isCompleted).toBe(false)
+  })
+
+  it('undo of uncompleting a completed recurring task completes it again with its original completedAt, the due date untouched; redo uncompletes', async () => {
+    const due = new Date(2026, 9, 1)
+    const completedAt = new Date(2026, 8, 20, 9, 30)
+    const id = await db.todos.add(makeTodo({
+      title: 'Water plants', isCompleted: true, completedAt, dueDate: due,
+      recurrenceRule: { type: 'weekly' }, modifiedAt: completedAt,
+    })) as number
+    await useTodoStore.getState().loadAll()
+    await useTodoStore.getState().toggleComplete(id)
+    expect(useTodoStore.getState().todos[0]).toMatchObject({ isCompleted: false, completedAt: undefined })
+
+    await useUndoStore.getState().undo()
+    for (const row of [useTodoStore.getState().todos[0]!, (await db.todos.get(id))!]) {
+      expect(row.isCompleted).toBe(true)
+      expect(row.completedAt?.getTime()).toBe(completedAt.getTime())
+      expect(row.dueDate?.getTime()).toBe(due.getTime())
+    }
+
+    await useUndoStore.getState().redo()
+    for (const row of [useTodoStore.getState().todos[0]!, (await db.todos.get(id))!]) {
+      expect(row.isCompleted).toBe(false)
+      expect(row.completedAt).toBeUndefined()
+      expect(row.dueDate?.getTime()).toBe(due.getTime())
+    }
+  })
+
+  it('undo of completing a task restores it open; redo completes it with the same completedAt', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    await useTodoStore.getState().toggleComplete(id)
+    const completedAt = useTodoStore.getState().todos[0]!.completedAt!
+    await useUndoStore.getState().undo()
+    expect(useTodoStore.getState().todos[0]).toMatchObject({ isCompleted: false, completedAt: undefined })
+    expect((await db.todos.get(id))!.isCompleted).toBe(false)
+    await useUndoStore.getState().redo()
+    expect(useTodoStore.getState().todos[0]!.isCompleted).toBe(true)
+    expect(useTodoStore.getState().todos[0]!.completedAt!.getTime()).toBe(completedAt.getTime())
+    expect((await db.todos.get(id))!.completedAt!.getTime()).toBe(completedAt.getTime())
   })
 
   it('remove deletes a todo from store and DB', async () => {
