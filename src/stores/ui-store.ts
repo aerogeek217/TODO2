@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { registerModuleReset } from '../utils/module-reset'
 import type { TaskDialogPayload } from './task-dialog-payload'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
@@ -89,8 +90,14 @@ export interface ConfirmPrompt {
 }
 
 interface PendingConfirmPrompt extends ConfirmPrompt {
+  /** Unique per question asked (the host keys its dialog by it). */
+  id: number
   resolve: (confirmed: boolean) => void
 }
+
+/** The last question's `id`. */
+let lastPromptId = 0
+registerModuleReset(() => { lastPromptId = 0 })
 
 interface UIState {
   selectedTodoId: number | null
@@ -329,7 +336,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   askConfirmation(prompt) {
     return new Promise<boolean>((resolve) => {
-      set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, resolve }] })
+      set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, id: ++lastPromptId, resolve }] })
     })
   },
 
