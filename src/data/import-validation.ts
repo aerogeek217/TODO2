@@ -81,6 +81,15 @@ function isOptNum(v: unknown): boolean {
   return v === undefined || v === null || isFiniteNum(v)
 }
 
+/**
+ * A row's primary key: absent (the database numbers it), or a whole number
+ * from 1 — what the database gives. A string or fractional id would be
+ * stored as a key no join matches.
+ */
+function isOptId(v: unknown): boolean {
+  return v === undefined || v === null || (Number.isSafeInteger(v) && (v as number) >= 1)
+}
+
 function isBool(v: unknown): v is boolean {
   return typeof v === 'boolean'
 }
@@ -114,6 +123,7 @@ function isOptColor(v: unknown): boolean {
 function checkTodo(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['uid', isStr(v.uid, 200)],
     ['title', isStr(v.title, TITLE_MAX_CHARS)],
     ['notes', isOptStr(v.notes, NOTES_MAX_CHARS)],
@@ -170,6 +180,7 @@ function isOptRuntimeFilter(v: unknown): boolean {
 function checkListDefinition(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['membership', isValidMembership(v.membership)],
@@ -186,6 +197,7 @@ function isOptStatusIcon(v: unknown): boolean {
 function checkStatus(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
@@ -196,6 +208,7 @@ function checkStatus(v: unknown): CheckResult {
 function checkPerson(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['initials', isStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
@@ -207,6 +220,7 @@ function checkPerson(v: unknown): CheckResult {
 function checkTag(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['name', isStr(v.name, NAME_MAX_CHARS)],
     ['color', isValidCssColor(v.color)],
   ])
@@ -215,6 +229,7 @@ function checkTag(v: unknown): CheckResult {
 function checkTodoTag(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['todoId', isFiniteNum(v.todoId)],
     ['tagId', isFiniteNum(v.tagId)],
   ])
@@ -223,7 +238,7 @@ function checkTodoTag(v: unknown): CheckResult {
 function checkListOrder(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
-    ['id', isOptNum(v.id)],
+    ['id', isOptId(v.id)],
     ['listDefinitionId', isFiniteNum(v.listDefinitionId)],
     ['todoId', isFiniteNum(v.todoId)],
     ['rank', isFiniteNum(v.rank)],
@@ -233,6 +248,7 @@ function checkListOrder(v: unknown): CheckResult {
 function checkTodoPerson(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['todoId', isFiniteNum(v.todoId)],
     ['personId', isFiniteNum(v.personId)],
   ])
@@ -241,6 +257,7 @@ function checkTodoPerson(v: unknown): CheckResult {
 function checkNote(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['content', typeof v.content === 'string' && (v.content as string).length <= NOTES_MAX_CHARS],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
@@ -258,6 +275,7 @@ function isOptScalarValue(v: unknown): boolean {
 function checkTodoEvent(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   return checkFields(v, [
+    ['id', isOptId(v.id)],
     ['todoId', isFiniteNum(v.todoId)],
     ['type', typeof v.type === 'string' && (VALID_TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
     ['fromValue', isOptScalarValue(v.fromValue)],
@@ -269,7 +287,7 @@ function checkTodoEvent(v: unknown): CheckResult {
 function checkLayout(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
   const fields = checkFields(v, [
-    ['id', isOptNum(v.id)],
+    ['id', isOptId(v.id)],
     ['name', isStr(v.name, LAYOUT_NAME_MAX) && (v.name as string).trim().length > 0],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['createdAt', isDateLike(v.createdAt)],
@@ -555,7 +573,8 @@ function layoutName(v: unknown): { name: string; fix?: string } {
 
 /**
  * What `pickLayout` drops or resets in a `layouts` row, in words; empty for a
- * row that passes `checkLayout`. Import rejects such rows; the audit
+ * row that passes `checkLayout` (but for parts past `LAYOUT_PART_LIMIT`,
+ * which import drops with a warning). Import rejects such rows; the audit
  * repairs a stored one with `pickLayout` instead of deleting it.
  */
 function layoutFixes(v: Raw): string[] {
@@ -857,6 +876,29 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       const label = rowLabel(row) === '' ? '' : ` (${rowLabel(row)})`
       rowErrors.push(`Invalid "${key}" record at index ${i}${label}: bad field "${result}"`)
     }
+  }
+
+  // Cross-row: primary keys are unique within a table (`bulkAdd` would
+  // abort the restore transaction on a repeated one); rows without an id are
+  // numbered by the database. Settings rows are keyed by `key` (the rows
+  // dropped above as unrecognized aside).
+  for (const key of DATA_TABLE_NAMES) {
+    const arr = raw[key]
+    if (!Array.isArray(arr)) continue
+    const firstIndexById = new Map<unknown, number>()
+    arr.forEach((row: unknown, i) => {
+      if (!isRecord(row)) return
+      const id = key === 'settings' ? (droppedSettingIdx.has(i) ? undefined : row.key) : row.id
+      if (id === undefined || id === null) return
+      const first = firstIndexById.get(id)
+      if (first === undefined) {
+        firstIndexById.set(id, i)
+        return
+      }
+      const label = rowLabel(row) === '' ? '' : ` (${rowLabel(row)})`
+      const what = key === 'settings' ? `duplicate key "${String(id)}"` : `duplicate id ${String(id)}`
+      rowErrors.push(`Invalid "${key}" record at index ${i}${label}: ${what} (same as index ${first})`)
+    })
   }
 
   // Cross-row: todo uids are unique (Dexie index `&uid` — a duplicate would

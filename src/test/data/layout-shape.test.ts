@@ -75,8 +75,8 @@ const EVERY_KIND = [
 ]
 
 describe('layouts row validation', () => {
-  it('accepts a layout with any number of columns, cells and tabs, as the workspace reducers build it', () => {
-    // Nothing in the workspace limits the counts, so import must not either.
+  it('accepts a layout with many columns, cells and tabs, as the workspace reducers build it', () => {
+    // Nothing in the workspace limits the counts; import keeps up to 1,000 of each.
     let n = 0
     const genId = () => `w-${n++}`
     let layout: WorkspaceLayout = { id: 1, sortOrder: 0, name: 'Big', columns: [], createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
@@ -273,6 +273,47 @@ describe('layouts row validation', () => {
   it('validates the activeLayoutId setting as a number', () => {
     expect(validateRow('settings', { key: 'activeLayoutId', value: '3' })).toBe(true)
     expect(validateRow('settings', { key: 'activeLayoutId', value: 'x' })).toBe('value (activeLayoutId must be numeric)')
+  })
+})
+
+describe('a layout past the limit of 1,000 columns, cells or tabs', () => {
+  const notes = (id: string) => ({ id, kind: 'notes', config: {} })
+
+  it('imports with the parts past the limit dropped, and a warning that says so', () => {
+    const columns = Array.from({ length: 1003 }, (_, c) => ({ id: `c${c}`, weight: 1, cells: [{ id: `k${c}`, weight: 1, tabs: [] }] }))
+    const row = layoutRow(columns)
+    expect(validateRow('layouts', row)).toBe(true)
+    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.columns).toHaveLength(1000)
+    expect(res.data.layouts[0]!.columns.at(-1)!.id).toBe('c999')
+    expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (3 columns past the limit of 1,000 dropped)'])
+  })
+
+  it('counts cells and tabs over the whole layout, bands included', () => {
+    const many = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => notes(`${prefix}${i}`))
+    const row = layoutRow([
+      { id: 'c0', weight: 1, cells: [{ id: 'k0', weight: 1, tabs: many('a', 600) }] },
+      { id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: many('b', 600) }] },
+    ], { top: { id: 'b', height: 160, tabs: many('t', 2) } })
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual(['202 tabs past the limit of 1,000 dropped', 'band dropped'])
+    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
+    expect(repaired.columns[1]!.cells[0]!.tabs).toHaveLength(400)
+    expect('top' in repaired).toBe(false)
+
+    const cells = Array.from({ length: 1001 }, (_, k) => ({ id: `k${k}`, weight: 1, tabs: [] }))
+    expect(rowFixes('layouts', layoutRow([{ id: 'c', weight: 1, cells }, { id: 'd', weight: 1, cells: [{ id: 'x', weight: 1, tabs: [] }] }])))
+      .toEqual(['2 cells past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
+  })
+
+  it('a dashboard tab keeps its first 1,000 list tiles', () => {
+    const listTiles = Array.from({ length: 1005 }, (_, i) => i + 1)
+    const row = layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles } }))
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual(['5 list tiles past the limit of 1,000 dropped'])
+    const tab = (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]!
+    expect(tab.kind === 'dashboard' && tab.config.listTiles).toEqual(listTiles.slice(0, 1000))
   })
 })
 

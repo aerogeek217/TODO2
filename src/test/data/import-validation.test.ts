@@ -148,6 +148,49 @@ describe('validateImportData', () => {
     expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 2 ("Dup"): duplicate uid (same as index 0)' })
   })
 
+  it('rejects an id that isn’t a whole number from 1, on every table that has one', () => {
+    for (const id of ['1', 0, -2, 1.5, Number.NaN, true]) {
+      const result = validateImportData(validData({ todos: [makeTodo({ id })] }))
+      expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "id"' })
+    }
+    const rows: Record<string, Record<string, unknown>> = {
+      people: makePerson({ id: 'p1' }),
+      tags: makeTag({ id: 'x' }),
+      statuses: { id: 'x', name: 'Waiting', color: '#000000', sortOrder: 0 },
+      todoPeople: { id: 'x', todoId: 1, personId: 1 },
+      todoTags: { id: 'x', todoId: 1, tagId: 1 },
+      notes: { id: 'x', content: '', createdAt: now, modifiedAt: now },
+      todoEvents: { id: 'x', todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now },
+      listOrders: { id: 'x', listDefinitionId: 1, todoId: 1, rank: 1 },
+      listDefinitions: { id: 'x', name: 'L', sortOrder: 0, membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none' },
+      layouts: { id: 'x', name: 'Main', sortOrder: 0, columns: [], createdAt: now, modifiedAt: now },
+    }
+    for (const [table, row] of Object.entries(rows)) {
+      const result = validateImportData(validData({ [table]: [row] }))
+      expect(result.ok ? 'accepted' : result.error, table).toMatch(/bad field "id"$/)
+      // The same row without an id is numbered by the database.
+      const { id: _id, ...withoutId } = row
+      void _id
+      expect(validateImportData(validData({ [table]: [withoutId] })).ok, table).toBe(true)
+    }
+  })
+
+  it('rejects a repeated id within a table, and a repeated settings key, with a message', () => {
+    const dupTodo = validateImportData(validData({ todos: [makeTodo({ id: 4 }), makeTodo({ id: 5 }), makeTodo({ id: 4, title: 'Again' })] }))
+    expect(dupTodo).toEqual({ ok: false, error: 'Invalid "todos" record at index 2 ("Again"): duplicate id 4 (same as index 0)' })
+    const dupTag = validateImportData(validData({ tags: [makeTag({ id: 2 }), makeTag({ id: 2, name: 'home' })] }))
+    expect(dupTag).toEqual({ ok: false, error: 'Invalid "tags" record at index 1 ("home"): duplicate id 2 (same as index 0)' })
+    const dupSetting = validateImportData(validData({ settings: [{ key: 'weekStartsOn', value: '1' }, { key: 'weekStartsOn', value: '0' }] }))
+    expect(dupSetting).toEqual({ ok: false, error: 'Invalid "settings" record at index 1: duplicate key "weekStartsOn" (same as index 0)' })
+    // Ids repeat freely across tables, and rows without one never clash.
+    const ok = validateImportData(validData({
+      todos: [makeTodo({ id: 1 }), makeTodo({ id: undefined }), makeTodo({ id: undefined })],
+      tags: [makeTag({ id: 1 })],
+      settings: [{ key: 'color.dark.nope', value: '#000' }, { key: 'color.dark.nope', value: '#111' }],
+    }))
+    expect(ok.ok).toBe(true)
+  })
+
   it('accepts an optional completedAt and rejects a malformed one', () => {
     const iso = '2026-10-01T09:30:00.000Z'
     const ok = validateImportData(validData({ todos: [makeTodo({ isCompleted: true, completedAt: iso })] }))

@@ -39,12 +39,20 @@ export interface RawLayoutBody {
 
 /**
  * Longest column / cell / tab id. The app's ids are short (`w-` + 8
- * characters; the v56 seed's are the old rail ids, deduplicated). There is
- * no limit on the number of columns, cells or tabs: nothing in the
- * workspace limits them, so a cap here would make a layout the app can
- * build fail to import. The file-size cap bounds them.
+ * characters; the v56 seed's are the old rail ids, deduplicated).
  */
 const MAX_ID_LEN = 100
+
+/**
+ * The most columns, cells and tabs a layout keeps (each counted over the
+ * whole layout, bands included), and list tiles a dashboard tab keeps. Far
+ * past anything one builds by hand, so nothing the app makes is cut; a file
+ * holding more (one a hand edit or a hostile file made, which would leave
+ * the app unable to show the workspace on every launch) still loads — the
+ * parts past the limit are dropped by `pickLayoutBody` and reported, never a
+ * failed import (`checkLayoutBody` doesn't count them).
+ */
+export const LAYOUT_PART_LIMIT = 1000
 
 type Obj = Record<string, unknown>
 
@@ -183,6 +191,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
 type LayoutFix = 'columns' | 'column' | 'cell' | 'band' | 'tab' | 'size' | 'settings' | 'eisenhower'
+  | 'columnLimit' | 'cellLimit' | 'tabLimit' | 'listTileLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   columns: ['columns reset', 'columns reset'],
@@ -193,12 +202,17 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
   eisenhower: ['Eisenhower tab setting dropped', 'Eisenhower tab settings dropped'],
+  columnLimit: ['column past the limit of 1,000 dropped', 'columns past the limit of 1,000 dropped'],
+  cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
+  tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
+  listTileLimit: ['list tile past the limit of 1,000 dropped', 'list tiles past the limit of 1,000 dropped'],
 }
 
 export interface PickedLayoutBody extends LayoutBody {
   /**
-   * The parts `checkLayoutBody` rejects that were dropped or reset, in words
-   * (`2 tabs dropped`, `band dropped`, …); empty for a body that passes it.
+   * The parts `checkLayoutBody` rejects that were dropped or reset, and the
+   * parts past `LAYOUT_PART_LIMIT`, in words (`2 tabs dropped`, `band
+   * dropped`, …); otherwise empty for a body that passes it.
    */
   fixes: string[]
 }
@@ -210,6 +224,9 @@ export interface PickedLayoutBody extends LayoutBody {
  * options, duplicate collapsed quadrants, an out-of-range calendar offset
  * (clamped), and any key of an Eisenhower tab's config (it has none —
  * reported in `fixes`); a details width is rounded.
+ *
+ * Past `LAYOUT_PART_LIMIT` columns, cells or tabs in the layout (or list
+ * tiles in a dashboard tab), the rest are dropped and reported in `fixes`.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
  * the audit can repair a stored layout instead of deleting it: a column /
@@ -229,6 +246,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     seen.add(id)
     return true
   }
+  // Parts kept so far, over the whole layout (`LAYOUT_PART_LIMIT`).
+  let columnsKept = 0
+  let cellsKept = 0
+  let tabsKept = 0
   const weightOf = (v: unknown, fallback = DEFAULT_WEIGHT): number => {
     if (isWeight(v)) return v
     fix('size')
@@ -299,7 +320,11 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           if (config[key] !== undefined && !Array.isArray(config[key])) fix('settings')
         }
         const dashboardView = rowsView()
-        const dashboard: LayoutTab = { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
+        const dashboardConfig = normalizeDashboardConfig(config)
+        const extraTiles = dashboardConfig.listTiles.length - LAYOUT_PART_LIMIT
+        for (let i = 0; i < extraTiles; i++) fix('listTileLimit')
+        if (extraTiles > 0) dashboardConfig.listTiles = dashboardConfig.listTiles.slice(0, LAYOUT_PART_LIMIT)
+        const dashboard: LayoutTab = { id, kind: 'dashboard', config: dashboardConfig }
         if (dashboardView) dashboard.viewState = dashboardView
         return dashboard
       }
@@ -311,8 +336,14 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
   const pickTabs = (raw: unknown[]): LayoutTab[] => {
     const tabs: LayoutTab[] = []
     for (const tab of raw) {
+      if (tabsKept >= LAYOUT_PART_LIMIT) {
+        fix('tabLimit')
+        continue
+      }
       const picked = pickTab(tab)
-      if (picked) tabs.push(picked)
+      if (!picked) continue
+      tabs.push(picked)
+      tabsKept++
     }
     return tabs
   }
@@ -355,6 +386,10 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
   const columns: LayoutColumn[] = []
   if (Array.isArray(raw)) {
     for (const col of raw as unknown[]) {
+      if (columnsKept >= LAYOUT_PART_LIMIT) {
+        fix('columnLimit')
+        continue
+      }
       if (!isRecord(col) || !fresh(col.id) || !Array.isArray(col.cells)) {
         fix('column')
         continue
@@ -363,14 +398,22 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       const weight = weightOf(col.weight)
       const cells: LayoutCell[] = []
       for (const cell of col.cells as unknown[]) {
+        if (cellsKept >= LAYOUT_PART_LIMIT) {
+          fix('cellLimit')
+          continue
+        }
         const picked = pickCell(cell)
-        if (picked) cells.push(picked)
+        if (!picked) continue
+        cells.push(picked)
+        cellsKept++
       }
       if (cells.length === 0) {
-        fix('column')
+        // Left without cells: by the cell limit, or by its own bad cells.
+        fix(cellsKept >= LAYOUT_PART_LIMIT ? 'columnLimit' : 'column')
         continue
       }
       columns.push({ id, weight, cells })
+      columnsKept++
     }
   } else {
     fix('columns')
