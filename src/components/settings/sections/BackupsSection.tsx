@@ -9,6 +9,7 @@ import type { BackupTrigger } from '../../../models'
 import { NO_BACKUP_NOTE } from '../../../stores/safety-snapshot'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
+import { restoreBackup } from '../../../services/replace-data'
 
 const TRIGGER_LABEL: Record<BackupTrigger, string> = {
   auto: 'auto',
@@ -25,7 +26,6 @@ export function BackupsSection() {
   const createBackup = useFileOpsStore((s) => s.createBackup)
   const deleteBackup = useFileOpsStore((s) => s.deleteBackup)
   const peekBackupData = useFileOpsStore((s) => s.peekBackupData)
-  const restoreBackup = useFileOpsStore((s) => s.restoreBackup)
   const [message, flash] = useFlashMessage<{ text: string; error?: boolean } | null>(null)
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)

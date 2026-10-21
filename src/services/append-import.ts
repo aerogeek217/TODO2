@@ -2,11 +2,7 @@ import type { PersistedTodoItem, TodoItem } from '../models'
 import type { ImportData } from '../data/import-validation'
 import { todoRepository } from '../data/todo-repository'
 import { appendImportTasks, nameKey, type AppendChoice, type AppendImportResult } from '../data/append-import'
-import { takeSafetySnapshot } from '../stores/safety-snapshot'
-import { useTodoStore } from '../stores/todo-store'
-import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
-import { useStatusStore } from '../stores/status-store'
+import { replaceData } from './replace-data'
 
 export type { AppendChoice, AppendImportResult }
 
@@ -67,28 +63,18 @@ export type RunAppendImportOutcome =
   | { status: 'cancelled' }
 
 /**
- * Runs a confirmed append import: backup snapshot (`takeSafetySnapshot`) →
- * `appendImportTasks` → reload the affected stores.
+ * Runs a confirmed append import through `replaceData`: note saves held,
+ * backup snapshot (`takeSafetySnapshot`) → `appendImportTasks` → the task
+ * stores reload.
  */
 export async function runAppendImport(
   data: ImportData,
   choices: ReadonlyMap<string, AppendChoice>,
 ): Promise<RunAppendImportOutcome> {
-  const snapshot = await takeSafetySnapshot('importing the tasks')
-  if (snapshot === 'cancelled') return { status: 'cancelled' }
-
-  const result = await appendImportTasks(data, choices)
-
-  await Promise.all([
-    useTodoStore.getState().loadAll(),
-    usePersonStore.getState().load(),
-    useTagStore.getState().load(),
-    useStatusStore.getState().load(),
-  ])
-  const todoIds = useTodoStore.getState().todos.map((t) => t.id)
-  await Promise.all([
-    usePersonStore.getState().loadAssignments(todoIds),
-    useTagStore.getState().loadAssignments(todoIds),
-  ])
-  return { ...result, status: 'done', noBackup: snapshot === 'without-backup' }
+  const outcome = await replaceData('append-import', {
+    backup: { operation: 'importing the tasks' },
+    write: () => appendImportTasks(data, choices),
+  })
+  if (outcome.status === 'cancelled') return outcome
+  return { ...outcome.result, status: 'done', noBackup: outcome.noBackup }
 }

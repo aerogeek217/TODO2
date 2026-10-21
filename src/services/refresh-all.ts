@@ -1,29 +1,26 @@
-import { useSettingsStore } from './settings-store'
-import { useTodoStore } from './todo-store'
-import { usePersonStore } from './person-store'
-import { useStatusStore } from './status-store'
-import { useTagStore } from './tag-store'
-import { useNoteStore } from './note-store'
-import { useListDraftStore } from './list-draft-store'
-import { useListWidgetStore } from './list-widget-store'
-import { useListDefinitionStore } from './list-definition-store'
-import { useListOrderStore } from './list-order-store'
-import { useUndoStore } from './undo-store'
-import { useFilterStore } from './filter-store'
-import { useWorkspaceStore } from './workspace-store'
-import { useTrendEventsStore } from './trend-events-store'
-import { useUIStore } from './ui-store'
+import { useSettingsStore } from '../stores/settings-store'
+import { useTodoStore } from '../stores/todo-store'
+import { usePersonStore } from '../stores/person-store'
+import { useStatusStore } from '../stores/status-store'
+import { useTagStore } from '../stores/tag-store'
+import { useNoteStore } from '../stores/note-store'
+import { useListDraftStore } from '../stores/list-draft-store'
+import { useListWidgetStore } from '../stores/list-widget-store'
+import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useListOrderStore } from '../stores/list-order-store'
+import { useUndoStore } from '../stores/undo-store'
+import { useFilterStore } from '../stores/filter-store'
+import { useWorkspaceStore } from '../stores/workspace-store'
+import { useTrendEventsStore } from '../stores/trend-events-store'
+import { useUIStore } from '../stores/ui-store'
 import { clearUnsavedDrafts } from '../data/draft-storage'
 
 /**
- * Reload every Zustand store from IndexedDB after a destructive replace
- * (file import, backup restore, audit cleanup, legacy migration).
- *
- * Why a top-level module and not a method on `file-storage-store`: this is
- * called by `file-ops-store` too, so colocating it under either store
- * creates a cross-store import. Living in its own module keeps each store
- * an entity owner and this function the single seam that knows about all
- * of them.
+ * Reloads every store from IndexedDB after a data replace (import, backup
+ * restore, audit cleanup, the sync file's load), resetting first what the
+ * replaced data may make wrong (the undo stack, the filters, unsaved edits,
+ * the selection …). Run by `replace-data.replaceData` — the one roster of the
+ * stores a replace reloads.
  *
  * Every store goes through `load()`, not `ensureLoaded()` — that is a no-op
  * once the store has loaded, which would silently keep the pre-import data.
@@ -68,12 +65,32 @@ export async function refreshAllStores() {
   await useListDefinitionStore.getState().ensureEisenhowerList().catch((err: unknown) => {
     console.warn('[refresh] the Eisenhower list could not be made', err)
   })
-  // Reload assignment maps after entities and todos are loaded. Refetch every
-  // id: the replaced tables can keep a todo's id while changing its people /
-  // tags, and the cached entries describe the old data.
+  // Refetch every id: the replaced tables can keep a todo's id while
+  // changing its people / tags, and the cached entries describe the old data.
+  await loadAssignmentMaps({ refetch: true })
+}
+
+/**
+ * The reload after an append import, which adds tasks (and the people, tags
+ * and statuses they name) and replaces nothing: the task-side stores only —
+ * the undo history, the selection, unsaved layout and list edits and the
+ * filters stay, as nothing they name changed.
+ */
+export async function refreshTaskStores() {
+  await Promise.all([
+    useTodoStore.getState().loadAll(),
+    usePersonStore.getState().load(),
+    useTagStore.getState().load(),
+    useStatusStore.getState().load(),
+  ])
+  await loadAssignmentMaps({ refetch: false })
+}
+
+/** The people / tag assignment maps of every loaded task, after the entities and tasks are loaded. */
+async function loadAssignmentMaps(opts: { refetch: boolean }) {
   const todoIds = useTodoStore.getState().todos.map(t => t.id)
   await Promise.all([
-    usePersonStore.getState().loadAssignments(todoIds, { refetch: true }),
-    useTagStore.getState().loadAssignments(todoIds, { refetch: true }),
+    usePersonStore.getState().loadAssignments(todoIds, opts),
+    useTagStore.getState().loadAssignments(todoIds, opts),
   ])
 }

@@ -46,6 +46,27 @@ vi.mock('../../data/backup-scheduler', () => ({
   },
 }))
 
+// The note store's hold around a replace (`replace-data`): counted, not run.
+const noteHolds = { taken: 0, released: 0 }
+vi.mock('../../stores/note-store', () => ({
+  useNoteStore: {
+    getState: () => ({
+      holdForDataReplace: async () => {
+        noteHolds.taken++
+        return () => { noteHolds.released++ }
+      },
+    }),
+  },
+}))
+
+// The stores' reload after a replace (`replace-data`); the stores themselves aren't under test here.
+const mockRefreshAllStores = vi.fn().mockResolvedValue(undefined)
+
+vi.mock('../../services/refresh-all', () => ({
+  refreshAllStores: (...args: unknown[]) => mockRefreshAllStores(...args),
+  refreshTaskStores: vi.fn().mockResolvedValue(undefined),
+}))
+
 const mockBrowserMatchesFile = vi.fn().mockResolvedValue(false)
 const mockBrowserTaskCount = vi.fn().mockResolvedValue(0)
 
@@ -183,6 +204,7 @@ beforeEach(() => {
   mockSnapshotBeforeDestructive.mockReset().mockResolvedValue(undefined)
   mockSnapshotFileBeforeOverwrite.mockReset().mockResolvedValue(undefined)
   mockBrowserMatchesFile.mockReset().mockResolvedValue(false)
+  mockRefreshAllStores.mockReset().mockResolvedValue(undefined)
   mockBrowserTaskCount.mockReset().mockResolvedValue(0)
 
   for (const table of mockTables) {
@@ -944,9 +966,8 @@ describe('FileStorageService — changes made while sync starts', () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
     const { svc, writable } = await startWith()
     // A store seeding a row as it reloads, before sync is switched on.
-    const off = svc.onAfterImport(async () => { fireLocalChange() })
+    mockRefreshAllStores.mockImplementationOnce(async () => { fireLocalChange() })
     await svc.initialize()
-    off()
     expect(svc.status.isConnected).toBe(true)
     expect(syncState().dirtySince).not.toBeNull()
 
@@ -1205,12 +1226,20 @@ describe('FileStorageService — status notifications', () => {
     expect(lastStatus.isConnected).toBe(true)
   })
 
-  it('notifies afterImport listener after loading file data', async () => {
-    const afterImport = vi.fn().mockResolvedValue(undefined)
+  it('loading the file data is a data replace: the stores reload, then the replace listeners hear `sync-file`', async () => {
+    const order: string[] = []
     const { svc } = await startWith()
-    svc.onAfterImport(afterImport)
+    const { onDataReplaced } = await import('../../services/replace-data')
+    mockRestoreFromImportData.mockImplementation(async () => { order.push('restore') })
+    mockRefreshAllStores.mockImplementation(async () => { order.push('reload') })
+    const off = onDataReplaced((source) => { order.push(`heard ${source}`) })
+    const held = { ...noteHolds }
     await svc.initialize()
-    expect(afterImport).toHaveBeenCalled()
+    off()
+    expect(order).toEqual(['restore', 'reload', 'heard sync-file'])
+    // Note saves held through the load decision and the replace, then let go.
+    expect(noteHolds.taken - held.taken).toBeGreaterThan(0)
+    expect(noteHolds.released - held.released).toBe(noteHolds.taken - held.taken)
   })
 
   it('every status subscriber gets every change; an unsubscribed one gets no more', async () => {
@@ -1241,50 +1270,11 @@ describe('FileStorageService — status notifications', () => {
     expect(later.mock.calls.at(-1)![0].isConnected).toBe(true)
   })
 
-  it('every import subscriber runs: before-import holds are released after every after-import listener', async () => {
-    const order: string[] = []
+  it('a reload that fails after the file data was written: the load rejects with its error', async () => {
     const { svc } = await startWith()
-    svc.onBeforeImport(async () => { order.push('hold 1'); return () => order.push('release 1') })
-    svc.onBeforeImport(async () => { order.push('hold 2'); return () => order.push('release 2') })
-    svc.onAfterImport(async () => { order.push('after 1') })
-    svc.onAfterImport(async () => { order.push('after 2') })
-    mockRestoreFromImportData.mockImplementation(async () => { order.push('restore') })
-    await svc.initialize()
-    expect(order).toEqual(['hold 1', 'hold 2', 'restore', 'after 1', 'after 2', 'release 1', 'release 2'])
-  })
-
-  it('an after-import listener that fails does not stop the next one; the load rejects with its error', async () => {
-    const second = vi.fn().mockResolvedValue(undefined)
-    const release = vi.fn()
-    const { svc } = await startWith()
-    svc.onBeforeImport(async () => release)
-    svc.onAfterImport(async () => { throw new Error('reload failed') })
-    svc.onAfterImport(second)
+    mockRefreshAllStores.mockRejectedValueOnce(new Error('reload failed'))
     await expect(svc.initialize()).rejects.toThrow('reload failed')
-    expect(second).toHaveBeenCalled()
-    expect(release).toHaveBeenCalledTimes(1)
-  })
-
-  it('a before-import hold that fails releases the holds already taken and nothing is replaced', async () => {
-    const release = vi.fn()
-    const { svc } = await startWith()
-    svc.onBeforeImport(async () => release)
-    svc.onBeforeImport(async () => { throw new Error('hold failed') })
-    await expect(svc.initialize()).rejects.toThrow('hold failed')
-    expect(release).toHaveBeenCalledTimes(1)
-    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
-  })
-
-  it('unsubscribed import listeners no longer run', async () => {
-    const before = vi.fn().mockResolvedValue(() => {})
-    const after = vi.fn().mockResolvedValue(undefined)
-    const { svc } = await startWith()
-    svc.onBeforeImport(before)()
-    svc.onAfterImport(after)()
-    await svc.initialize()
     expect(mockRestoreFromImportData).toHaveBeenCalled()
-    expect(before).not.toHaveBeenCalled()
-    expect(after).not.toHaveBeenCalled()
   })
 
   it('a question has one handler: a later one replaces it, and removing the replaced one changes nothing', async () => {

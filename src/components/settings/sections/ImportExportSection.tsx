@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { useFlashMessage } from '../../../hooks/use-flash-message'
-import { useFileOpsStore } from '../../../stores/file-ops-store'
 import type { ImportData } from '../../../data/import-validation'
 import type { UnsupportedImportInfo } from '../../../data/file-version'
 import { MigrationDialog } from '../../overlays/MigrationDialog'
@@ -17,6 +16,7 @@ import { useStackedLayer } from './settings-layer'
 import { plural } from './plural'
 import styles from './sections.module.css'
 import { dayKey } from '../../../utils/date'
+import { restoreFromImport } from '../../../services/replace-data'
 
 /** Pending append import: the prepared file waiting in the duplicate picker. */
 interface PendingAppend {
@@ -34,7 +34,6 @@ interface PendingAppend {
 const DOWNLOADED_MESSAGE_MS = 8000
 
 export function ImportExportSection() {
-  const restoreFromImport = useFileOpsStore((s) => s.restoreFromImport)
   const [message, showMessage] = useFlashMessage('')
   /** Persistent: set when the last JSON export failed its re-import self-check. */
   const [exportWarning, setExportWarning] = useState<string | null>(null)

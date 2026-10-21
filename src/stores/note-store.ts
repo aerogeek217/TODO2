@@ -195,11 +195,15 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
 
   async holdForDataReplace() {
+    // Holds nest (the sync file's load decision holds, then its replace):
+    // only the outermost saves and drops. Text typed during an outer hold
+    // stays pending for its release.
+    const outermost = get().replaceHolds === 0
     // Text typed just before: saved now, so the replace's backup has it.
-    if (get().replaceHolds === 0) await get().flush()
+    if (outermost) await get().flush()
     set({ replaceHolds: get().replaceHolds + 1 })
     // Unsaved now: the save failed, or it was typed while that save ran.
-    get().discardPending()
+    if (outermost) get().discardPending()
     // `saveOnce` never rejects, and a queued save that starts now skips.
     await saveQueue
     let released = false

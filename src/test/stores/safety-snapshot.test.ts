@@ -7,6 +7,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileOpsStore } from '../../stores/file-ops-store'
+import { cleanupCurrentAudit } from '../../services/replace-data'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -252,7 +253,7 @@ describe('audit cleanup', () => {
 
   it('backs up the database before it deletes anything', async () => {
     await scanOrphan()
-    expect(await useFileOpsStore.getState().cleanupCurrentAudit()).toEqual({ status: 'done', cleaned: 1, noBackup: false })
+    expect(await cleanupCurrentAudit()).toEqual({ status: 'done', cleaned: 1, noBackup: false })
     const backups = await db.backups.toArray()
     expect(backups.map((b) => b.trigger)).toEqual(['pre-destructive'])
     // The backup holds the row the cleanup deleted.
@@ -263,7 +264,7 @@ describe('audit cleanup', () => {
   it('failed backup + Cancel cleans nothing and keeps the report', async () => {
     await scanOrphan()
     failSnapshots()
-    const pending = useFileOpsStore.getState().cleanupCurrentAudit()
+    const pending = cleanupCurrentAudit()
     await answerBackupPrompt(false)
     expect(await pending).toEqual({ status: 'cancelled' })
     expect(await db.todoPeople.count()).toBe(1)
@@ -273,7 +274,7 @@ describe('audit cleanup', () => {
   it('failed backup + Continue cleans and reports it', async () => {
     await scanOrphan()
     failSnapshots()
-    const pending = useFileOpsStore.getState().cleanupCurrentAudit()
+    const pending = cleanupCurrentAudit()
     await answerBackupPrompt(true)
     expect(await pending).toEqual({ status: 'done', cleaned: 1, noBackup: true })
     expect(await db.todoPeople.count()).toBe(0)

@@ -330,6 +330,21 @@ describe('useNoteStore.holdForDataReplace', () => {
     expect(await contentInDb()).toBe('typed during')
     expect(useNoteStore.getState().replaceHolds).toBe(0)
   })
+
+  it('holds nest: text typed during an outer hold survives an inner one and is saved when the last is released', async () => {
+    await useNoteStore.getState().load()
+    const id = useNoteStore.getState().activeId!
+    const releaseOuter = await useNoteStore.getState().holdForDataReplace()
+    useNoteStore.getState().setContent(id, 'typed during the outer hold')
+    const releaseInner = await useNoteStore.getState().holdForDataReplace()
+    expect(useNoteStore.getState().pending?.content).toBe('typed during the outer hold')
+    releaseInner()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('')
+    releaseOuter()
+    await useNoteStore.getState().flush()
+    expect(await contentInDb()).toBe('typed during the outer hold')
+  })
 })
 
 describe('useNoteStore.holdForDataReplace when the save before it fails', () => {

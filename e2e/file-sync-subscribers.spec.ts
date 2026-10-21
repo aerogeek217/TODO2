@@ -3,10 +3,11 @@ import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
 import { readSyncFile } from './fixtures/sync-file'
 
 /**
- * The sync service's events in a real browser: another subscriber to the
- * status and import events doesn't take them from the app — the storage
- * pill and the stores keep following the sync while the extra subscriber
- * hears every event too, and stops hearing once it unsubscribes. The file
+ * The sync service's events in a real browser: another subscriber to its
+ * status and to the data replaces (`replace-data.onDataReplaced`, which a
+ * sync file load is) doesn't take them from the app — the storage pill and
+ * the stores keep following the sync while the extra subscriber hears every
+ * event too, and stops hearing once it unsubscribes. The file
  * is a real OPFS handle behind a stubbed picker (as in
  * `file-sync-conflict.spec.ts`), so everything after the picker is the
  * production path.
@@ -14,6 +15,7 @@ import { readSyncFile } from './fixtures/sync-file'
 
 const SYNC_FILE = 'e2e-subscribers.json'
 const SERVICE_URL = '/src/services/file-storage.ts'
+const REPLACE_URL = '/src/services/replace-data.ts'
 
 type Recorder = Window & {
   __syncEvents?: string[]
@@ -30,27 +32,24 @@ async function stubPicker(page: Page) {
   }, SYNC_FILE)
 }
 
-/** Subscribes a second listener to the status and import events (the app's module instance). */
+/** Subscribes a second listener to the status and the data replaces (the app's module instances). */
 async function subscribeRecorder(page: Page) {
-  await page.evaluate(async (url) => {
+  await page.evaluate(async ({ serviceUrl, replaceUrl }) => {
     type Svc = {
       onStatusChange: (l: (s: { fileName: string | null; isConnected: boolean }) => void) => () => void
-      onBeforeImport: (l: () => Promise<() => void>) => () => void
-      onAfterImport: (l: () => Promise<void>) => () => void
     }
-    const { fileStorageService } = (await import(/* @vite-ignore */ url)) as { fileStorageService: Svc }
+    const { fileStorageService } = (await import(/* @vite-ignore */ serviceUrl)) as { fileStorageService: Svc }
+    const { onDataReplaced } = (await import(/* @vite-ignore */ replaceUrl)) as {
+      onDataReplaced: (l: (source: string) => Promise<void>) => () => void
+    }
     const w = window as Recorder
     w.__syncEvents = []
     const offs = [
       fileStorageService.onStatusChange((s) => { w.__syncEvents!.push(`status ${s.fileName ?? '-'} ${s.isConnected}`) }),
-      fileStorageService.onBeforeImport(async () => {
-        w.__syncEvents!.push('before import')
-        return () => { w.__syncEvents!.push('released') }
-      }),
-      fileStorageService.onAfterImport(async () => { w.__syncEvents!.push('after import') }),
+      onDataReplaced(async (source) => { w.__syncEvents!.push(`replaced ${source}`) }),
     ]
     w.__unsubscribeSync = () => { for (const off of offs) off() }
-  }, SERVICE_URL)
+  }, { serviceUrl: SERVICE_URL, replaceUrl: REPLACE_URL })
 }
 
 const recorded = (page: Page) => page.evaluate(() => (window as Recorder).__syncEvents ?? [])
@@ -79,15 +78,15 @@ test('another subscriber hears the sync events without taking them from the app'
   await expect.poll(() => recorded(page)).toContain(`status ${SYNC_FILE} true`)
 
   // Retry re-runs the load: the file now matches this browser, so it is
-  // loaded back — both import events reach the extra subscriber, in order,
-  // and the app's own reload still runs (the pill stays on the file).
+  // loaded back — the replace reaches the extra subscriber, and the app's
+  // own reload still runs (the pill stays on the file).
   const before = (await recorded(page)).length
   await page.evaluate(async (url) => {
     const { fileStorageService } = (await import(/* @vite-ignore */ url)) as { fileStorageService: { retry: () => Promise<void> } }
     await fileStorageService.retry()
   }, SERVICE_URL)
   await expect.poll(async () => (await recorded(page)).slice(before).filter((e) => !e.startsWith('status')))
-    .toEqual(['before import', 'after import', 'released'])
+    .toEqual(['replaced sync-file'])
   await expect(pill).toHaveText('Synced')
   expect(JSON.parse(await readSyncFile(page, SYNC_FILE)).todos).toEqual([])
 

@@ -13,7 +13,11 @@ import { fileStorageService as svc } from '../../services/file-storage'
 import '../../services/file-storage-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useFileOpsStore } from '../../stores/file-ops-store'
+import { restoreBackup, restoreFromImport, cleanupCurrentAudit } from '../../services/replace-data'
 import { makeTodo, resetDb } from '../helpers'
+import { prepareImport } from '../../data/import-pipeline'
+import { SCHEMA_VERSION_KEY } from '../../data/file-version'
+import { runAppendImport } from '../../services/append-import'
 import { resetStores } from '../store-tracking'
 
 const mockLoadFileHandle = vi.fn()
@@ -137,7 +141,7 @@ describe('a note save started before a data replace', () => {
     const { release, saving } = await typedSaveInFlight('typed before the restore')
 
     const releaseLater = releaseWhenReplaceStarts(release)
-    const restoring = useFileOpsStore.getState().restoreBackup(backupId)
+    const restoring = restoreBackup(backupId)
     await releaseLater()
     expect(await restoring).toEqual({ status: 'done', noBackup: false })
     await saving
@@ -153,7 +157,7 @@ describe('a note save started before a data replace', () => {
     const { release, saving } = await typedSaveInFlight('typed before the import')
 
     const releaseLater = releaseWhenReplaceStarts(release)
-    const importing = useFileOpsStore.getState().restoreFromImport(data as never)
+    const importing = restoreFromImport(data as never)
     await releaseLater()
     expect(await importing).toEqual({ status: 'done', noBackup: false })
     await saving
@@ -185,7 +189,7 @@ describe('note text typed just before a data replace (its save not run yet)', ()
     await setNoteText('before')
     await typedJustBefore('typed just before the restore')
 
-    expect(await useFileOpsStore.getState().restoreBackup(backupId)).toEqual({ status: 'done', noBackup: false })
+    expect(await restoreBackup(backupId)).toEqual({ status: 'done', noBackup: false })
 
     expect(await preOpBackupNotes()).toEqual(['typed just before the restore'])
     expect(await noteText(id)).toBe('from the backup')
@@ -199,7 +203,7 @@ describe('note text typed just before a data replace (its save not run yet)', ()
     await setNoteText('before')
     await typedJustBefore('typed just before the import')
 
-    expect(await useFileOpsStore.getState().restoreFromImport(data as never)).toEqual({ status: 'done', noBackup: false })
+    expect(await restoreFromImport(data as never)).toEqual({ status: 'done', noBackup: false })
 
     expect(await preOpBackupNotes()).toEqual(['typed just before the import'])
     expect(await noteText(id)).toBe('from the file')
@@ -251,10 +255,29 @@ describe('note text typed just before a data replace (its save not run yet)', ()
     await typedJustBefore('typed just before the cleanup')
     useFileOpsStore.setState({ auditReport: { issues: [] } as never })
 
-    await useFileOpsStore.getState().cleanupCurrentAudit()
+    await cleanupCurrentAudit()
 
     expect(await noteText(id)).toBe('typed just before the cleanup')
     expect(useNoteStore.getState().notes.get(id)?.content).toBe('typed just before the cleanup')
+  })
+})
+
+describe('note text typed just before an append import (its save not run yet)', () => {
+  it('the text is in the pre-op backup and stays the note', async () => {
+    const id = await setNoteText('before')
+    await typedJustBefore('typed just before the append')
+    const now = new Date().toISOString()
+    const prepared = prepareImport({
+      [SCHEMA_VERSION_KEY]: 51,
+      kind: 'task-archive',
+      todos: [{ id: 1, uid: 'a-1', title: 'Archived', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+    }, { purpose: 'append' })
+    if (!prepared.ok) throw new Error(prepared.error)
+
+    expect(await runAppendImport(prepared.data, new Map())).toMatchObject({ status: 'done', imported: 1 })
+
+    expect(await preOpBackupNotes()).toEqual(['typed just before the append'])
+    expect(await noteText(id)).toBe('typed just before the append')
   })
 })
 

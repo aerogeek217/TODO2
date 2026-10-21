@@ -7,7 +7,8 @@ import type { PrepareImportFailure } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData, selfCheckExportJson } from '../data/export-data'
 import { backupScheduler } from '../data/backup-scheduler'
-import { NO_BACKUP_NOTE, takeSafetySnapshot } from '../stores/safety-snapshot'
+import { NO_BACKUP_NOTE } from '../stores/safety-snapshot'
+import { replaceData, withDataReplaceHold } from './replace-data'
 import { useUndoStore } from '../stores/undo-store'
 import { SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from '../data/file-version'
 import {
@@ -85,9 +86,6 @@ export interface LaunchPermissionInfo {
 }
 
 type StatusListener = (status: FileStorageStatus) => void
-type AfterImportListener = () => Promise<void>
-/** Runs before the browser data is backed up and replaced; resolves to a release called after the reload. */
-type BeforeImportListener = () => Promise<() => void>
 type MigrationConfirmHandler = (info: UnsupportedImportInfo) => Promise<boolean>
 type ConflictHandler = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
 type FileUpgradeHandler = (info: FileUpgradeInfo) => Promise<boolean>
@@ -270,8 +268,6 @@ class FileStorageService {
   /** When the written text was last run back through the import, and what that said. */
   private lastLoadBackCheck: { at: number; problem: string | null } | null = null
   private statusListeners = new Set<StatusListener>()
-  private afterImportListeners = new Set<AfterImportListener>()
-  private beforeImportListeners = new Set<BeforeImportListener>()
   private migrationConfirmHandler: MigrationConfirmHandler | null = null
   private conflictHandler: ConflictHandler | null = null
   private fileUpgradeHandler: FileUpgradeHandler | null = null
@@ -304,27 +300,6 @@ class FileStorageService {
    */
   onStatusChange(listener: StatusListener): () => void {
     return subscribe(this.statusListeners, listener)
-  }
-
-  /**
-   * `listener` runs after the file's data replaced the browser's (the stores
-   * reload there); returns its unsubscribe. Subscribers run in turn, each
-   * awaited; one that rejects doesn't stop the others, and the load then
-   * rejects with its error.
-   */
-  onAfterImport(listener: AfterImportListener): () => void {
-    return subscribe(this.afterImportListeners, listener)
-  }
-
-  /**
-   * `listener` runs before the browser data is backed up and replaced by
-   * the file's, and resolves to a release, called once the after-import
-   * reload is done (or the load was cancelled or failed) — the note store
-   * saves its pending text and then holds its saves in between. Returns its
-   * unsubscribe; every subscriber runs, in turn.
-   */
-  onBeforeImport(listener: BeforeImportListener): () => void {
-    return subscribe(this.beforeImportListeners, listener)
   }
 
   /**
@@ -369,32 +344,6 @@ class FileStorageService {
         console.warn('[file-storage] a status listener failed', err)
       }
     }
-  }
-
-  /** Runs every before-import subscriber; resolves to one release for them all. */
-  private async holdForImport(): Promise<() => void> {
-    const releases: Array<() => void> = []
-    const releaseAll = () => { for (const release of releases.splice(0)) release() }
-    try {
-      for (const listener of [...this.beforeImportListeners]) releases.push(await listener())
-    } catch (err) {
-      releaseAll()
-      throw err
-    }
-    return releaseAll
-  }
-
-  /** Runs every after-import subscriber in turn; rethrows the first failure once all ran. */
-  private async afterImport(): Promise<void> {
-    let failure: { error: unknown } | null = null
-    for (const listener of [...this.afterImportListeners]) {
-      try {
-        await listener()
-      } catch (error) {
-        failure ??= { error }
-      }
-    }
-    if (failure) throw failure.error
   }
 
   /**
@@ -753,12 +702,9 @@ class FileStorageService {
     // save landing after a load would put this browser's text over the
     // file's note. Text typed meanwhile is saved on release unless the
     // reload replaced the notes.
-    const release = await this.holdForImport()
-    try {
+    await withDataReplaceHold(async () => {
       if (gen === this.loadGen) await this.decide(gen, handle, text, raw, prepared, fileId, lastModified)
-    } finally {
-      release()
-    }
+    })
   }
 
   /** The load decision for a read, prepared file (`loadFromFile`, inside its note hold). */
@@ -926,39 +872,35 @@ class FileStorageService {
   }
 
   /**
-   * Replace the browser data with the file's, backing the browser data up
-   * first (`takeSafetySnapshot`). If that backup fails the user is asked;
+   * Replace the browser data with the file's (`replaceData`: the stores
+   * reload, the replace listeners hear `sync-file`), backing the browser data
+   * up first (`takeSafetySnapshot`). If that backup fails the user is asked;
    * on Cancel nothing changes, sync pauses and this returns false. When the
    * browser already holds exactly this file's data (`browserHoldsFile`),
    * nothing can be lost, so a failed backup doesn't stop the load.
    */
   private async applyFileData(data: ImportData, fileId: string, browserHoldsFile: boolean): Promise<boolean> {
     const name = this.handle?.name ?? 'the sync file'
-    let noBackup = false
     // Called inside `loadFromFile`'s note hold: typed text is already saved.
-    if (browserHoldsFile) {
-      await backupScheduler.snapshotBeforeDestructive().catch((err) => {
-        console.warn('[file-storage] snapshot before reloading the unchanged file failed', err)
-      })
-    } else {
-      const snapshot = await takeSafetySnapshot(`loading ${name} over this browser's data`)
-      if (snapshot === 'cancelled') {
-        this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
-        return false
-      }
-      noBackup = snapshot === 'without-backup'
+    const outcome = await replaceData('sync-file', {
+      backup: browserHoldsFile ? 'best-effort' : { operation: `loading ${name} over this browser's data` },
+      write: async () => {
+        this.suppressSync = true
+        try {
+          await restoreFromImportData(data)
+        } finally {
+          this.suppressSync = false
+        }
+        this.changeGen++
+        writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
+      },
+    })
+    if (outcome.status === 'cancelled') {
+      this.pause('backup-failed', `${PAUSED_PREFIX} — this browser's data could not be backed up before loading ${name}, so nothing changed. Retry, or free up browser storage first.`)
+      return false
     }
-    this.suppressSync = true
-    try {
-      await restoreFromImportData(data)
-    } finally {
-      this.suppressSync = false
-    }
-    this.changeGen++
-    writeFileSyncState({ fileSavedAt: fileId, dirtySince: null })
-    await this.afterImport()
     // After the stores reload (which clears the snackbar): the result toast.
-    if (noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
+    if (outcome.noBackup) useUndoStore.getState().notify(`Loaded ${name}. ${NO_BACKUP_NOTE}`)
     return true
   }
 

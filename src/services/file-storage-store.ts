@@ -6,8 +6,6 @@ import {
   type SyncConflictChoice,
   type FileUpgradeInfo,
 } from './file-storage'
-import { useNoteStore } from '../stores/note-store'
-import { refreshAllStores } from '../stores/refresh-all'
 import type { UnsupportedImportInfo } from '../data/file-version'
 import { registerModuleReset } from '../utils/module-reset'
 
@@ -87,10 +85,6 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
   // A dismissed error is forgotten once the error clears: the same failure
   // coming back later is news again.
   fileStorageService.onStatusChange((status) => set(status.error == null ? { ...status, dismissedError: null } : status))
-  // Hold note saves while a file import replaces the data, then refresh
-  // every Zustand store
-  fileStorageService.onBeforeImport(() => useNoteStore.getState().holdForDataReplace())
-  fileStorageService.onAfterImport(refreshAllStores)
   // Handle legacy-import confirmation requests from the service
   fileStorageService.onConfirmMigration((info) => {
     return new Promise<boolean>((resolve) => {

@@ -6,7 +6,7 @@ import { todoRepository } from '../../data/todo-repository'
 import { trendEventsKey, useTrendEventsStore } from '../../stores/trend-events-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTrendEvents } from '../../hooks/use-trend-events'
-import { refreshAllStores } from '../../stores/refresh-all'
+import { refreshAllStores } from '../../services/refresh-all'
 import { makeTodo } from '../helpers'
 
 const today = new Date(2026, 9, 10)

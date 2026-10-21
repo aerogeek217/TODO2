@@ -6,7 +6,7 @@ import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../
 import { prepareImport, prepareImportText } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
 import { backupRepository } from '../../data/backup-repository'
-import { useFileOpsStore } from '../../stores/file-ops-store'
+import { restoreBackup, restoreFromImport } from '../../services/replace-data'
 import { runAppendImport } from '../../services/append-import'
 import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo, resetDb, v62StoreSpecs } from '../helpers'
@@ -137,12 +137,12 @@ describe('a v62 file with colour overrides imports into the current build', () =
   it('Settings › Import JSON and Settings › Backups restore it with the colours', async () => {
     const prepared = prepareImportText(v62File())
     if (!prepared.ok) throw new Error(prepared.error)
-    expect(await useFileOpsStore.getState().restoreFromImport(prepared.data)).toMatchObject({ status: 'done' })
+    expect(await restoreFromImport(prepared.data)).toMatchObject({ status: 'done' })
     expect(await storedColours()).toEqual(UPGRADED_COLOURS)
 
     await db.settings.clear()
     const id = await backupRepository.createSnapshotFromJson(v62File(), 'manual')
-    expect(await useFileOpsStore.getState().restoreBackup(id)).toMatchObject({ status: 'done' })
+    expect(await restoreBackup(id)).toMatchObject({ status: 'done' })
     expect(await storedColours()).toEqual(UPGRADED_COLOURS)
   })
 

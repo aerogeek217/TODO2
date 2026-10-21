@@ -5,7 +5,6 @@ import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useFileStorageStore } from './services/file-storage-store'
-import { fileStorageService } from './services/file-storage'
 import { TopBar } from './components/layout/TopBar'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
 import { useUIStore } from './stores/ui-store'
@@ -28,6 +27,7 @@ import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-
 import { backupScheduler } from './data/backup-scheduler'
 import { CURRENT_DB_VERSION, findDatabaseTooNew } from './data/database'
 import { runAppStartup } from './services/app-startup'
+import { onDataReplaced } from './services/replace-data'
 import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
 import { checkTooNewDB, checkUnsupportedOldDB } from './services/migration-check'
@@ -287,11 +287,11 @@ function AppShell() {
   // its expired tasks too — those the prompt hasn't already asked about this
   // launch — unless the loaded data says the prompt showed within its
   // interval (`expiredCompletedUids`). A load before that is covered by
-  // launch's own check. Runs after the stores reloaded (an earlier
-  // subscriber), so the interval is the loaded data's.
+  // launch's own check. Runs after the stores reloaded (`replaceData`), so
+  // the interval is the loaded data's.
   useEffect(() => {
-    return fileStorageService.onAfterImport(async () => {
-      if (!purgeCheckStartedRef.current) return
+    return onDataReplaced(async (source) => {
+      if (source !== 'sync-file' || !purgeCheckStartedRef.current) return
       try {
         const expired = await expiredCompletedUids()
         const fresh = [...(expired ?? [])].filter((uid) => !purgeAskedRef.current.has(uid))
