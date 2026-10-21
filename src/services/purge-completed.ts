@@ -100,7 +100,6 @@ export async function exportAndPurgeCompleted(ids: readonly number[]): Promise<E
       message: `${fileName} was handed to the browser as a download, so TODO2 can't tell whether it was saved. `
         + `Check your downloads before deleting ${count}.`,
       confirmLabel: `Delete ${count}`,
-      cancelLabel: 'Cancel',
       danger: true,
       cancelIsDefault: true,
     })

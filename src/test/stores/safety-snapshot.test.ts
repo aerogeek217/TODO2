@@ -66,7 +66,6 @@ describe('takeSafetySnapshot', () => {
     expect(prompt).toMatchObject({
       title: 'Continue without a backup?',
       confirmLabel: 'Continue',
-      cancelLabel: 'Cancel',
       danger: true,
       cancelIsDefault: true,
     })

@@ -284,7 +284,7 @@ describe('page load', () => {
     const w = await world()
     const dash = createTab('dashboard', 'd')
     const withTile = { ...dash, config: { ...dash.config, listTiles: [w.theirs] } } as LayoutTab
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [withTile])), listNames: {} })
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [withTile])) })
     await reload()
     expect(ws().saved?.id).toBe(w.a)
     expect(useUndoStore.getState().snackbar?.description).toBe('The unsaved new layout “Untitled layout” was dropped: a layout shows only its own lists, and it wasn’t stored yet.')
@@ -292,7 +292,7 @@ describe('page load', () => {
 
   it('a kept new layout (an older build’s) that shows a list is not taken back (every list is a stored layout’s), and says so', async () => {
     const w = await world()
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [lens('n', w.theirs)])), listNames: { [w.theirs]: 'Theirs' } })
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [lens('n', w.theirs)])) })
     await reload()
     expect(ws().saved?.id).toBe(w.a)
     expect(ws().isDirty).toBe(false)
@@ -301,7 +301,7 @@ describe('page load', () => {
 
   it('a kept new layout that shows no list is taken back', async () => {
     const w = await world()
-    writeLayoutDraft({ kind: 'new', name: 'Plain', body: layoutBodyOf(layoutWith('N', [createTab('notes', 'n')])), listNames: {} })
+    writeLayoutDraft({ kind: 'new', name: 'Plain', body: layoutBodyOf(layoutWith('N', [createTab('notes', 'n')])) })
     await reload()
     expect(ws().saved).toBeNull()
     expect(ws().working?.name).toBe('Plain')

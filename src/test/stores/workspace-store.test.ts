@@ -46,8 +46,8 @@ const ws = () => useWorkspaceStore.getState()
  * Opens an unsaved new layout as an older build kept it in the browser
  * (its New layout wasn't stored until saved): kept, then a page load.
  */
-async function openKeptNewLayout(body: LayoutBody = { columns: [] }, name = 'Untitled layout', listNames: Record<string, string> = {}) {
-  writeLayoutDraft({ kind: 'new', name, body, listNames })
+async function openKeptNewLayout(body: LayoutBody = { columns: [] }, name = 'Untitled layout') {
+  writeLayoutDraft({ kind: 'new', name, body })
   useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
   await ws().init()
 }

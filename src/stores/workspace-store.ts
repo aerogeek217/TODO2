@@ -14,7 +14,6 @@ import {
   UNSAVED_LAYOUT_ID,
   createTab,
   layoutBodyOf,
-  tabListId,
   withLayoutBody,
   type BandEdge,
   type LayoutBody,
@@ -31,7 +30,6 @@ import {
   layoutIds,
   layoutListRefs,
   layoutStructureEqual,
-  layoutTabs,
   listIdChanges,
   movePanel,
   repointLayoutLists,
@@ -265,28 +263,10 @@ function reportWriteFailure(message: string, err: unknown): void {
 let firstInit: Promise<void> | null = null
 registerModuleReset(() => { firstInit = null })
 
-/**
- * The ids of the lists a layout's list tabs show (an Eisenhower tab's list
- * is an app-wide setting, not part of the layout).
- */
-function listIdsOf(body: LayoutBody): number[] {
-  const ids = new Set<number>()
-  for (const tab of layoutTabs(body)) {
-    const id = tabListId(tab, null)
-    if (id != null) ids.add(id)
-  }
-  return [...ids]
-}
-
 /** What the browser keeps of the open layout: its edited working copy, else nothing. */
 function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftRecord | null {
   if (!working) return null
-  if (!saved) {
-    const defs = useListDefinitionStore.getState().listDefinitions
-    const listNames: Record<string, string> = {}
-    for (const id of listIdsOf(working)) listNames[id] = defs.find((d) => d.id === id)?.name ?? ''
-    return { kind: 'new', name: working.name, body: layoutBodyOf(working), listNames }
-  }
+  if (!saved) return { kind: 'new', name: working.name, body: layoutBodyOf(working) }
   if (layoutStructureEqual(working, saved)) return null
   return { kind: 'saved', layoutId: saved.id, base: layoutBodyOf(saved), body: layoutBodyOf(working) }
 }

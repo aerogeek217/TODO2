@@ -82,7 +82,6 @@ export interface ConfirmPrompt {
   title: string
   message: string
   confirmLabel: string
-  cancelLabel?: string
   /** Renders the confirm button with danger styling. */
   danger?: boolean
   /** Focus (so Enter) starts on Cancel instead of the confirm button. */

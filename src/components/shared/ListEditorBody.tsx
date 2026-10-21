@@ -31,10 +31,10 @@ import styles from './ListEditorBody.module.css'
 
 /**
  * How the form is laid out: `popover` — the workspace's compact side
- * popover; `dialog` — Settings › Lists' modal; `sheet` — the phone's half
- * sheet (touch sizes, choices as rows that open a list of choices).
+ * popover; `sheet` — the phone's half sheet (touch sizes, choices as rows
+ * that open a list of choices).
  */
-export type ListEditorVariant = 'popover' | 'dialog' | 'sheet'
+export type ListEditorVariant = 'popover' | 'sheet'
 
 export interface ListEditorBodyProps {
   draft: PersistedListDefinition
@@ -90,7 +90,7 @@ const COPY_FROM_LABEL = 'Copy from…'
  * With `saved`, a row whose value differs from the saved list shows its
  * label in the accent colour with a dot.
  */
-export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nameRef, copyFrom }: ListEditorBodyProps) {
+export function ListEditorBody({ draft, onChange, saved, variant = 'popover', nameRef, copyFrom }: ListEditorBodyProps) {
   const idBase = useId()
   const [choiceList, setChoiceList] = useState<ChoiceField | 'copyFrom' | null>(null)
   // The list last copied from, named under the control.
@@ -347,7 +347,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
   }
 
   return (
-    <div className={`${styles.form} ${variant === 'popover' ? styles.compact : ''}`}>
+    <div className={`${styles.form} ${styles.compact}`}>
       {copyFrom && (
         <div className={styles.copyRow}>
           <CopyFromButton groups={copyFrom.groups} onPick={pickCopy} />
@@ -356,7 +356,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'dialog', nam
       )}
       {nameRow}
       {filtersRow}
-      {variant === 'popover' && <div className={styles.rule} role="separator" />}
+      <div className={styles.rule} role="separator" />
       {(['group', 'sort', 'prompt'] as const).map((field) => (
         <div key={field} className={styles.row}>
           {label(field)}

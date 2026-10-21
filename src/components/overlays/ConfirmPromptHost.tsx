@@ -20,7 +20,6 @@ export function ConfirmPromptHost() {
       title={prompt.title}
       message={prompt.message}
       confirmLabel={prompt.confirmLabel}
-      cancelLabel={prompt.cancelLabel ?? 'Cancel'}
       danger={prompt.danger ?? false}
       initialFocus={prompt.cancelIsDefault ? 'cancel' : 'confirm'}
       onConfirm={() => answer(true)}

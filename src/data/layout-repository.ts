@@ -179,9 +179,9 @@ export const layoutRepository = {
 
   /**
    * Adds a layout after the others: its `sortOrder` is picked here (one
-   * past the highest stored), whatever `layout` holds. Returns its id.
+   * past the highest stored). Returns its id.
    */
-  async insert(layout: Omit<WorkspaceLayout, 'id' | 'sortOrder'> & { sortOrder?: number }): Promise<number> {
+  async insert(layout: Omit<WorkspaceLayout, 'id' | 'sortOrder'>): Promise<number> {
     return db.transaction('rw', db.layouts, async () => {
       const sortOrder = await nextLayoutOrder()
       return db.layouts.add({ ...layout, sortOrder } as WorkspaceLayout)
