@@ -43,6 +43,8 @@ export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onCopyO
         actionLabel="Add"
         excludeIds={excludeIds}
         layoutId={layoutId}
+        // A layout an older build kept unsaved owns no list yet, and can't make one.
+        emptyLabel={layoutId == null ? 'Save the layout first to add lists.' : undefined}
         onPick={(id) => { onSelect(id); onClose() }}
         onCreateNew={onCreateNew ? () => { onCreateNew(); onClose() } : undefined}
         onCopyOf={onCopyOf ? (source) => { onCopyOf(source); onClose() } : undefined}
