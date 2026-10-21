@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow'
 import { useFileStorageStore } from '../../../services/file-storage-store'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { FileSyncPausedControls } from '../../layout/FileSyncPausedControls'
@@ -9,7 +10,21 @@ import styles from './sections.module.css'
  * (syncing, permission needed, paused) and the ways forward.
  */
 export function FileStorageSection() {
-  const fileStorage = useFileStorageStore()
+  // The fields shown, not the whole store (the launch question, a dismissed error).
+  const fileStorage = useFileStorageStore(useShallow((s) => ({
+    isSupported: s.isSupported,
+    isConnected: s.isConnected,
+    isLoading: s.isLoading,
+    needsPermission: s.needsPermission,
+    paused: s.paused,
+    error: s.error,
+    fileName: s.fileName,
+    lastSavedAt: s.lastSavedAt,
+    openFile: s.openFile,
+    createFile: s.createFile,
+    disconnect: s.disconnect,
+    reconnect: s.reconnect,
+  })))
   const isMobile = useIsMobile()
   const secondary = `${styles.button} ${styles.buttonSecondary}`
   const primary = `${styles.button} ${styles.buttonPrimary}`

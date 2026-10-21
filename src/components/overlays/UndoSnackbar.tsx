@@ -3,7 +3,8 @@ import styles from './UndoSnackbar.module.css'
 
 export function UndoSnackbar() {
   const snackbar = useUndoStore((s) => s.snackbar)
-  const { undo, dismissSnackbar } = useUndoStore()
+  const undo = useUndoStore((s) => s.undo)
+  const dismissSnackbar = useUndoStore((s) => s.dismissSnackbar)
 
   if (!snackbar) return null
 

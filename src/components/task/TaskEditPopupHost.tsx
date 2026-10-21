@@ -8,6 +8,12 @@ import { TaskEditPopup } from './TaskEditPopup'
  * (`ui-store.openCreatePopup`, e.g. QuickAdd's Details handoff).
  */
 export function TaskEditPopupHost() {
+  // Closed, the host renders for nothing but the editor opening.
+  const open = useUIStore((s) => s.editPopupMode !== null)
+  return open ? <OpenTaskEditor /> : null
+}
+
+function OpenTaskEditor() {
   const taskEdit = useTaskEditCallbacks()
   // Opened from the task dialog: stacked over it, which stays in view.
   const overTaskDialog = useUIStore((s) => s.taskDialog !== null)

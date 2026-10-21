@@ -4,7 +4,7 @@ import { ROUTE_WORKSPACE } from '../../routes'
 import { SEARCH_DEBOUNCE_MS } from '../../constants'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
-import type { Person, PersistedTodoItem, Status, TodoPredicate } from '../../models'
+import type { Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -202,6 +202,9 @@ function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
 }
 
 const NO_EXPANDED_FIELDS: ReadonlySet<TextMatchField> = new Set()
+const NO_TODOS: PersistedTodoItem[] = []
+const NO_PEOPLE_MAP = new Map<number, Person[]>()
+const NO_TAGS_MAP = new Map<number, Tag[]>()
 
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
@@ -306,10 +309,13 @@ export function TopBar() {
   const [searchContextMenu, setSearchContextMenu] = useState<
     { todoId: number; x: number; y: number } | null
   >(null)
-  const todos = useTodoStore((s) => s.todos)
+  // The tasks and their people / tags only while the search dropdown (or a
+  // result's menu) can show: otherwise a task write doesn't render the bar.
+  const searching = (localSearch.length > 0 && searchFocused) || searchContextMenu !== null
+  const todos = useTodoStore((s) => (searching ? s.todos : NO_TODOS))
   const statuses = useStatusStore((s) => s.statuses)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
+  const assignedTagsMap = useTagStore((s) => (searching ? s.assignedTagsMap : NO_TAGS_MAP))
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
   const handleSearchChange = useCallback((value: string) => {

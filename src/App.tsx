@@ -48,9 +48,58 @@ import styles from './App.module.css'
 import './styles/fonts.css'
 import './styles/tokens.css'
 
+/**
+ * The command palette, mounted while it shows: its commands read the stores
+ * when they run or search (`getState`), so the shell never re-renders for a
+ * task write or a selection click.
+ */
+function AppCommandPalette({ onClose, openShortcutsModal }: { onClose: () => void; openShortcutsModal: () => void }) {
+  const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
+  const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
+
+  const commandCtx = useMemo(
+    () => ({
+      openSettings: () => useUIStore.getState().openSettings(),
+      openQuickAdd: () => useUIStore.getState().openQuickAdd(),
+      selectionCount,
+      bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
+      bulkSetStatus: useTodoStore.getState().bulkSetStatus,
+      bulkRemove: useTodoStore.getState().bulkRemove,
+      getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
+      clearAllFilters: useFilterStore.getState().clearAll,
+      setShowCompleted: useFilterStore.getState().setShowCompleted,
+      getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
+      setDateRange: useFilterStore.getState().setDateRange,
+      getTodos: () => useTodoStore.getState().todos,
+      focusTask: (todoId: number) => {
+        useUIStore.getState().selectOneTodo(todoId)
+        useUIStore.getState().openEditPopup(todoId)
+      },
+      openShortcutsModal,
+      getStatuses: () => useStatusStore.getState().statuses,
+      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
+      sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
+      openCheckinImport: () => useUIStore.getState().openCheckinImport(),
+      getPeople: () => usePersonStore.getState().people,
+      getOpenTaskCounts: () => openTaskCounts(useTodoStore.getState().todos, usePersonStore.getState().assignedPeopleMap),
+      getCheckinTaskCounts: () => currentCheckinTaskCounts(useSettingsStore.getState().checkinTaskFilter),
+    }),
+    [selectionCount, openShortcutsModal],
+  )
+
+  // The palette's key hints follow the user's shortcut changes.
+  const commands = useMemo(() => createCommands(commandCtx, shortcutOverrides), [commandCtx, shortcutOverrides])
+  const handleSearchDynamic = useCallback(
+    (query: string) => searchDynamicCommands(query, commandCtx),
+    [commandCtx],
+  )
+  return <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={onClose} />
+}
+
 function AppBulkConfirmDialog() {
-  const { bulkConfirmation, clearBulkConfirmation, clearSelection, closeEditPopup } = useUIStore()
+  const bulkConfirmation = useUIStore((s) => s.bulkConfirmation)
   if (!bulkConfirmation) return null
+  const { clearBulkConfirmation, clearSelection, closeEditPopup } = useUIStore.getState()
   return (
     <BulkConfirmDialog
       confirmation={bulkConfirmation}
@@ -265,51 +314,9 @@ function AppShell() {
   })
 
   const handleClosePalette = useCallback(() => setShowPalette(false), [])
+  const openShortcutsModal = useCallback(() => setShowShortcuts(true), [])
 
-  const todos = useTodoStore((s) => s.todos)
-  const people = usePersonStore((s) => s.people)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
-  const shortcutOverrides = useSettingsStore((s) => s.shortcutOverrides)
-  const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
   const quickAddKeys = useShortcutLabel('quick-add')
-
-  const commandCtx = useMemo(
-    () => ({
-      openSettings: () => useUIStore.getState().openSettings(),
-      openQuickAdd: () => useUIStore.getState().openQuickAdd(),
-      selectionCount,
-      bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
-      bulkSetStatus: useTodoStore.getState().bulkSetStatus,
-      bulkRemove: useTodoStore.getState().bulkRemove,
-      getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
-      clearAllFilters: useFilterStore.getState().clearAll,
-      setShowCompleted: useFilterStore.getState().setShowCompleted,
-      getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
-      setDateRange: useFilterStore.getState().setDateRange,
-      getTodos: () => todos,
-      focusTask: (todoId: number) => {
-        useUIStore.getState().selectOneTodo(todoId)
-        useUIStore.getState().openEditPopup(todoId)
-      },
-      openShortcutsModal: () => setShowShortcuts(true),
-      getStatuses: () => useStatusStore.getState().statuses,
-      openCheckinDialog: (personIds?: number[]) => useUIStore.getState().openCheckinDialog(personIds),
-      sendPersonCheckin: (personId: number) => { void sendPersonCheckin(personId) },
-      openCheckinImport: () => useUIStore.getState().openCheckinImport(),
-      getPeople: () => people,
-      getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
-      getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
-    }),
-    [todos, people, assignedPeopleMap, selectionCount, checkinTaskFilter]
-  )
-
-  // The palette's key hints follow the user's shortcut changes.
-  const commands = useMemo(() => createCommands(commandCtx, shortcutOverrides), [commandCtx, shortcutOverrides])
-  const handleSearchDynamic = useCallback(
-    (query: string) => searchDynamicCommands(query, commandCtx),
-    [commandCtx]
-  )
 
   if (initTooNew) return <DatabaseTooNewDialog info={initTooNew} />
 
@@ -366,7 +373,7 @@ function AppShell() {
           </button>
         </div>
       )}
-      {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
+      {!isMobile && showPalette && <AppCommandPalette onClose={handleClosePalette} openShortcutsModal={openShortcutsModal} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {!isMobile && settingsOpen && (
         <Suspense fallback={null}>
