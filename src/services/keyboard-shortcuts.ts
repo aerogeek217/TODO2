@@ -8,6 +8,7 @@
 
 import type { ShortcutId } from '../models/keyboard-shortcut'
 import { useUIStore } from '../stores/ui-store'
+import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import {
@@ -55,7 +56,7 @@ function selectScopeRow(scope: string, pick: (count: number, cursorIdx: number) 
     scope, rows, row.key, mode,
   )
   if (next) ui.setScopedSelection(scope, next)
-  el.querySelectorAll<HTMLElement>('[data-row-key]')[idx as number]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  el.querySelectorAll<HTMLElement>('[data-row-key]')[idx as number]?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
   return true
 }
 
@@ -104,7 +105,7 @@ function arrowKeyHandler({ e }: ShortcutCtx) {
     } else {
       useUIStore.getState().selectOneTodo(nextId)
     }
-    rows[nextIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    rows[nextIdx]?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
     return
   }
 
@@ -116,7 +117,7 @@ function arrowKeyHandler({ e }: ShortcutCtx) {
   const targetId = todoIds[targetIdx]
   if (targetId == null) return
   useUIStore.getState().selectOneTodo(targetId)
-  rows[targetIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  rows[targetIdx]?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
 }
 
 function homeEndHandler({ e }: ShortcutCtx) {
@@ -139,7 +140,7 @@ function homeEndHandler({ e }: ShortcutCtx) {
     useUIStore.getState().selectOneTodo(targetId)
   }
   const targetEl = e.key === 'Home' ? rows[0] : rows[rows.length - 1]
-  targetEl?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  targetEl?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
 }
 
 

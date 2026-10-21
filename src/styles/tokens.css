@@ -528,3 +528,19 @@ select optgroup {
   background: var(--color-surface);
   color: var(--color-text-primary);
 }
+
+/* Reduced motion: every animation and transition finishes at once (1 ms, so
+ * `animationend` / `transitionend` still fire) and a spinner turns once. An
+ * animation that times something the user reads (the recent-task pill)
+ * keeps its length in its own stylesheet, without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

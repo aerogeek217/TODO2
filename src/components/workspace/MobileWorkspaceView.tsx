@@ -12,6 +12,7 @@ import {
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
+import { scrollBehavior } from '../../utils/motion'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -550,7 +551,7 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
     const pager = pagerRef.current
     if (!pager) return
     const i = Math.min(Math.max(index, 0), count - 1)
-    pager.scrollTo({ left: pageOffset(i, pager.clientWidth, PAGER_GAP_PX), behavior: 'smooth' })
+    pager.scrollTo({ left: pageOffset(i, pager.clientWidth, PAGER_GAP_PX), behavior: scrollBehavior() })
     if (focus) itemEls.current[i]?.focus()
   }, [count])
 
