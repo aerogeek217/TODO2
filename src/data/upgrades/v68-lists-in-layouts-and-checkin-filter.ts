@@ -73,6 +73,13 @@ const DUE_SOON_DAYS = 14
 const LIST_VALUE = /^list:([1-9]\d{0,14})$/
 /** The new layout's dates when the dataset has no layout date that reads. */
 const FALLBACK_AT = '2026-10-20T00:00:00.000Z'
+/**
+ * The rows a table may hold after the upgrade (the import's per-table
+ * limit, frozen here): copies' manual order stops there — a copy past it
+ * starts without one —, so a file can't make the upgrade build more rows
+ * than the import would take.
+ */
+const ROWS_CAP = 100_000
 
 /** A filter that hides nothing but completed tasks (frozen with this transform). */
 function emptyFilter(): Obj {
@@ -125,8 +132,12 @@ function tabListsOf(row: Obj): unknown[][] {
 /** The list ids a layout row names, in tab order, each once. */
 function listRefsOf(row: Obj): number[] {
   const ids: number[] = []
+  const seen = new Set<number>()
   const add = (id: unknown) => {
-    if (isId(id) && !ids.includes(id)) ids.push(id)
+    if (isId(id) && !seen.has(id)) {
+      seen.add(id)
+      ids.push(id)
+    }
   }
   for (const tabs of tabListsOf(row)) {
     for (const tab of tabs) {
@@ -168,12 +179,12 @@ function repointLayout(row: Obj, ids: ReadonlyMap<number, number>): Obj {
 /**
  * A new id: one past `top` (the highest id there is) — or, when that is no
  * longer a safe whole number (a huge id stored earlier), the smallest
- * positive one `taken` doesn't hold.
+ * positive one from `from` on that `taken` doesn't hold.
  */
-function idAfter(top: number, taken: ReadonlySet<number>): number {
+function idAfter(top: number, taken: ReadonlySet<number>, from = 1): number {
   const next = Math.floor(top) + 1
   if (Number.isSafeInteger(next) && !taken.has(next)) return next
-  let id = 1
+  let id = from
   while (taken.has(id)) id++
   return id
 }
@@ -181,10 +192,13 @@ function idAfter(top: number, taken: ReadonlySet<number>): number {
 /** Hands out new ids after `top`, never one of `taken`. */
 function idPool(top: number, taken: Set<number>): () => number {
   let last = top
+  /** Where the search for a free id goes on (every id below it is taken). */
+  let free = 1
   return () => {
-    const id = idAfter(last, taken)
+    const id = idAfter(last, taken, free)
     taken.add(id)
     if (id > last) last = id
+    else free = id + 1
     return id
   }
 }
@@ -212,6 +226,8 @@ function newLayoutDate(layouts: readonly DataRow[]): Date {
 function withListsInLayouts(data: DataSet, scopeListId: number | undefined): DataSet {
   const lists = data.listDefinitions
   if (!Array.isArray(lists) || !Array.isArray(data.settings)) return data
+  // A layouts value that isn't a table is left for the validation to refuse.
+  if (data.layouts != null && !Array.isArray(data.layouts)) return data
   const layouts = Array.isArray(data.layouts) ? data.layouts : []
 
   const ordered = layouts
@@ -335,9 +351,18 @@ function withListsInLayouts(data: DataSet, scopeListId: number | undefined): Dat
     const rankTaken = new Set<number>()
     for (const r of orders) if (isRecord(r) && isId(r.id)) rankTaken.add(r.id)
     const newRankId = idPool(maxId(orders), rankTaken)
+    const ranksOf = new Map<number, Obj[]>()
+    for (const r of orders) {
+      if (!isRecord(r) || !isId(r.listDefinitionId)) continue
+      const ranks = ranksOf.get(r.listDefinitionId)
+      if (ranks) ranks.push(r)
+      else ranksOf.set(r.listDefinitionId, [r])
+    }
     const added: DataRow[] = []
     for (const { from, to } of copiedRanks) {
-      for (const r of orders) if (isRecord(r) && r.listDefinitionId === from) added.push({ ...r, id: newRankId(), listDefinitionId: to })
+      const ranks = ranksOf.get(from) ?? []
+      if (orders.length + added.length + ranks.length > ROWS_CAP) continue
+      for (const r of ranks) added.push({ ...r, id: newRankId(), listDefinitionId: to })
     }
     if (added.length > 0) out.listOrders = [...orders, ...added]
   }

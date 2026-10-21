@@ -11,6 +11,7 @@ import { listedLists, type PersistedListDefinition } from '../../models/list-def
 import { useSettingsStore } from '../../stores/settings-store'
 import { checkinFiltersEqual } from '../../utils/checkin-settings'
 import { resetDb, v67StoreSpecs } from '../helpers'
+import { expectWithin } from '../timing'
 
 /** What `due-soon` becomes: due before today or within the next 14 days. */
 const dueSoonCheckinFilter = () => ({
@@ -165,6 +166,45 @@ describe('upgradeV68 (pure): every list belongs to a layout', () => {
     const layouts = [layout(1, 0, cells([lens('a', big)])), layout(2, 1, cells([lens('b', big)]))]
     const out = upgradeV68({ listDefinitions: [list(big), list(1, owned(1))], layouts, settings: settings() })
     expect(out.listDefinitions!.map((d) => [d.id, d.owner])).toEqual([[big, { layoutId: 1 }], [1, { layoutId: 1 }], [2, { layoutId: 2 }]])
+  })
+
+  it('a layouts value that isn’t a table is left for the validation to refuse (not replaced by the new layout)', () => {
+    const data: DataSet = { listDefinitions: [list(1)], layouts: 'x' as never, settings: settings() }
+    expect(upgradeV68(data)).toBe(data)
+    const asObject: DataSet = { listDefinitions: [list(1)], layouts: {} as never, settings: settings() }
+    expect(upgradeV68(asObject)).toBe(asObject)
+  })
+
+  it('copies manual order only up to the import’s row limit (100,000): a copy past it starts without one', () => {
+    // 100 layouts showing the same 100 lists, each list with 100 ranks:
+    // 9,900 copies × 100 ranks would add 990,000 rows.
+    const ids = Array.from({ length: 100 }, (_, i) => i + 1)
+    const layouts = ids.map((id) => layout(id, id, cells(ids.map((l) => lens(`t${l}`, l)))))
+    const listOrders = ids.flatMap((l) => Array.from({ length: 100 }, (_, t) => ({ id: (l - 1) * 100 + t + 1, listDefinitionId: l, todoId: t + 1, rank: t })))
+    expectWithin(2000, () => {
+      const out = upgradeV68({ listDefinitions: ids.map((id) => list(id)), layouts, listOrders, settings: settings() })
+      expect(out.listDefinitions).toHaveLength(100 + 99 * 100)
+      expect(out.listOrders!.length).toBeLessThanOrEqual(100_000)
+      // Whole copies: each copy has all of its source's ranks or none.
+      const per = new Map<number, number>()
+      for (const r of out.listOrders!) per.set(r.listDefinitionId as number, (per.get(r.listDefinitionId as number) ?? 0) + 1)
+      expect([...per.values()].every((n) => n === 100)).toBe(true)
+    })
+  })
+
+  it('stays fast with many lists on one layout and many copies past a huge id', () => {
+    const big = Number.MAX_SAFE_INTEGER
+    const ids = Array.from({ length: 20_000 }, (_, i) => i + 1)
+    const tabs = ids.map((l) => lens(`t${l}`, l))
+    expectWithin(2000, () => {
+      const out = upgradeV68({
+        listDefinitions: [...ids.map((id) => list(id)), list(big)],
+        layouts: [layout(1, 0, cells([...tabs, lens('big', big)])), layout(2, 1, cells(tabs))],
+        settings: settings(),
+      })
+      expect(new Set(out.listDefinitions!.map((d) => d.id)).size).toBe(out.listDefinitions!.length)
+      expect(out.listDefinitions).toHaveLength(20_001 + 20_000)
+    })
   })
 
   it('a kept layout draft, a kept list draft or a task archive is left as it is', () => {
