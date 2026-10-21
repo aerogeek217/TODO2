@@ -109,10 +109,11 @@ async function typedJustBefore(text: string) {
 
 /**
  * Attaches a sync file holding `fileText` while the browser has changes the
- * file doesn't: loading asks first, and the answer is "Use file".
+ * file doesn't and the file changed since the last sync: loading asks
+ * first, and the answer is "Use file".
  */
-function attachSyncFileOverBrowserChanges(fileText: string, savedAt: string) {
-  localStorage.setItem(FILE_SYNC_STATE_KEY, JSON.stringify({ fileSavedAt: savedAt, dirtySince: '2026-10-02T10:00:00.000Z' }))
+function attachSyncFileOverBrowserChanges(fileText: string) {
+  localStorage.setItem(FILE_SYNC_STATE_KEY, JSON.stringify({ fileSavedAt: '2026-09-01T00:00:00.000Z', dirtySince: '2026-10-02T10:00:00.000Z' }))
   mockLoadFileHandle.mockResolvedValue({
     kind: 'file',
     name: 'todo2-data.json',
@@ -164,7 +165,7 @@ describe('a note save started before a data replace', () => {
     const id = await setNoteText('from the sync file')
     const fileText = JSON.stringify({ ...(await buildExportData()), savedAt: SAVED_AT })
     await setNoteText('before')
-    attachSyncFileOverBrowserChanges(fileText, SAVED_AT)
+    attachSyncFileOverBrowserChanges(fileText)
     const { release, saving } = await typedSaveInFlight('typed before the load')
 
     const releaseLater = releaseWhenReplaceStarts(release)
@@ -208,13 +209,41 @@ describe('note text typed just before a data replace (its save not run yet)', ()
     const id = await setNoteText('from the sync file')
     const fileText = JSON.stringify({ ...(await buildExportData()), savedAt: SAVED_AT })
     await setNoteText('before')
-    attachSyncFileOverBrowserChanges(fileText, SAVED_AT)
+    attachSyncFileOverBrowserChanges(fileText)
     await typedJustBefore('typed just before the load')
 
     await svc.initialize()
 
     expect(await preOpBackupNotes()).toEqual(['typed just before the load'])
     expect(await noteText(id)).toBe('from the sync file')
+  })
+
+  it('sync file unchanged since the last sync: the text is written to the file with the browser’s other changes, no prompt', async () => {
+    const id = await setNoteText('before')
+    const fileText = JSON.stringify({ ...(await buildExportData()), savedAt: SAVED_AT })
+    localStorage.setItem(FILE_SYNC_STATE_KEY, JSON.stringify({ fileSavedAt: SAVED_AT, dirtySince: '2026-10-02T10:00:00.000Z' }))
+    const write = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    mockLoadFileHandle.mockResolvedValue({
+      kind: 'file',
+      name: 'todo2-data.json',
+      getFile: vi.fn().mockImplementation(async () => new File([fileText], 'todo2-data.json', { type: 'application/json', lastModified: 1_000 })),
+      queryPermission: vi.fn().mockResolvedValue('granted'),
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+      createWritable: vi.fn().mockResolvedValue({ write, close: vi.fn(), abort: vi.fn() }),
+      isSameEntry: vi.fn(),
+    })
+    vi.stubGlobal('showOpenFilePicker', vi.fn())
+    const conflict = vi.fn().mockResolvedValue('cancel')
+    svc.onConflict(conflict)
+    await typedJustBefore('typed just before the load')
+
+    await svc.initialize()
+
+    expect(conflict).not.toHaveBeenCalled()
+    expect(await noteText(id)).toBe('typed just before the load')
+    expect(write).toHaveBeenCalledTimes(1)
+    const written = JSON.parse(write.mock.calls[0]![0]) as { notes: Array<{ content: string }> }
+    expect(written.notes.map((n) => n.content)).toEqual(['typed just before the load'])
   })
 
   it('audit cleanup (notes untouched): the text is saved, not dropped', async () => {
