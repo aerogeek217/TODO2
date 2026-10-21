@@ -1080,6 +1080,47 @@ describe('FileStorageService — attach, create, disconnect', () => {
     expect(svc.status.isConnected).toBe(true)
   })
 
+  /** A session synced with `first.json`, whose browser can't store the next picked file's handle. */
+  async function syncedWithHandleStoreFailing() {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const first = createMockHandle(fileBody(), { name: 'first.json' })
+    mockLoadFileHandle.mockResolvedValue(first.handle)
+    const svc = await getService()
+    await svc.initialize()
+    expect(svc.status).toMatchObject({ isConnected: true, fileName: 'first.json' })
+    mockSaveFileHandle.mockRejectedValue(new Error('QuotaExceededError'))
+    const next = createMockHandle('', { name: 'second.json' })
+    return { svc, first, next }
+  }
+
+  /** The first file is still the attached one: its sync record kept, the next edit written to it, not to `next`. */
+  async function expectFirstStillSyncing(svc: Awaited<ReturnType<typeof getService>>, first: ReturnType<typeof createMockHandle>, next: ReturnType<typeof createMockHandle>) {
+    expect(svc.status).toMatchObject({ isConnected: true, fileName: 'first.json' })
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    expect(next.handle.getFile).not.toHaveBeenCalled()
+    fireLocalChange()
+    await vi.advanceTimersByTimeAsync(600)
+    expect(first.writable.write).toHaveBeenCalledTimes(1)
+    expect(next.writable.write).not.toHaveBeenCalled()
+  }
+
+  it('openFile whose handle the browser cannot store attaches nothing, says so, and keeps the file attached before', async () => {
+    const { svc, first, next } = await syncedWithHandleStoreFailing()
+    vi.stubGlobal('showOpenFilePicker', vi.fn().mockResolvedValue([next.handle]))
+    await svc.openFile()
+    expect(svc.status.error).toBe('Could not attach second.json — the browser could not remember the file, so nothing changed.')
+    await expectFirstStillSyncing(svc, first, next)
+  })
+
+  it('createFile whose handle the browser cannot store attaches nothing, says so, and keeps the file attached before', async () => {
+    const { svc, first, next } = await syncedWithHandleStoreFailing()
+    vi.stubGlobal('showSaveFilePicker', vi.fn().mockResolvedValue(next.handle))
+    await svc.createFile()
+    expect(svc.status.error).toBe('second.json was created, but the browser could not remember it, so it was not attached. Nothing else changed.')
+    await expectFirstStillSyncing(svc, first, next)
+  })
+
   it('does not set error when user cancels the picker', async () => {
     const abortError = new Error('User cancelled')
     abortError.name = 'AbortError'

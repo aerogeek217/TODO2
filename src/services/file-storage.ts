@@ -497,12 +497,12 @@ class FileStorageService {
     try {
       const [handle] = await window.showOpenFilePicker({ types: FILE_TYPES })
       if (!handle) return
+      if (!(await this.rememberHandle(handle, `Could not attach ${handle.name} — the browser could not remember the file, so nothing changed.`))) return
       this.stopSync()
       this.handle = handle
       this._error = null
       this._needsPermission = false
       this._paused = null
-      await saveFileHandle(handle)
       // A newly attached file has no sync record with this browser.
       clearFileSyncState()
       this.installTracking()
@@ -521,12 +521,12 @@ class FileStorageService {
         suggestedName: newSyncFileName(),
         types: FILE_TYPES,
       })
+      if (!(await this.rememberHandle(handle, `${handle.name} was created, but the browser could not remember it, so it was not attached. Nothing else changed.`))) return
       this.stopSync()
       this.handle = handle
       this._error = null
       this._needsPermission = false
       this._paused = null
-      await saveFileHandle(handle)
       clearFileSyncState()
       this.installTracking()
       // A brand-new file: writing the browser data into it loses nothing.
@@ -537,6 +537,24 @@ class FileStorageService {
       this._error = 'Failed to create file'
     }
     this.notify()
+  }
+
+  /**
+   * Stores a newly picked file's handle for the next start, before anything
+   * switches to it. When the browser can't, the file isn't attached — the
+   * file attached before (if any) stays, syncing as it was — and the status
+   * error says so (`failure`); returns false.
+   */
+  private async rememberHandle(handle: FileSystemFileHandle, failure: string): Promise<boolean> {
+    try {
+      await saveFileHandle(handle)
+      return true
+    } catch (err) {
+      console.warn('[file-storage] storing the file handle failed', err)
+      this._error = failure
+      this.notify()
+      return false
+    }
   }
 
   async disconnect(): Promise<void> {
