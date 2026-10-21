@@ -19,7 +19,7 @@ function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
       add(kind, target)
       return
     }
-    if (layoutId != null) createListThenEdit((id) => add('lens', target, id), layoutId)
+    if (layoutId != null) void createListThenEdit((id) => add('lens', target, id), layoutId)
   }
 }
 

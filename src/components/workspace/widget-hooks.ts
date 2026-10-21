@@ -6,6 +6,7 @@ import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
+import { registerModuleReset } from '../../utils/module-reset'
 import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
@@ -86,18 +87,26 @@ function freshListName(base: string, layoutId: number): string {
 /** Why a list widget can't be added to (or a tab switched to List in) a layout that isn't stored yet. */
 export const NO_LIST_LAYOUT_REASON = 'Save the layout first to add lists.'
 
+/** The new list widget being made, while its list is being saved (`createListThenEdit`). */
+let creatingList: Promise<void> | null = null
+registerModuleReset(() => { creatingList = null })
+
 /**
  * A new list widget (adding one, a tab switched to List): saves a blank
  * list of layout `layoutId` (`New list`, `New list 2`, …; no filter;
  * Settings' new-list sort and grouping), hands its id to `show` (which puts
  * it in a tab and returns that tab's id), then opens Edit list beside that
- * tab.
+ * tab. One at a time: a call while one is still saving its list (a
+ * double-click on a List button or menu item) does nothing.
  */
-export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): void {
-  void useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
+export function createListThenEdit(show: (listDefinitionId: number) => string | null, layoutId: number): Promise<void> {
+  if (creatingList) return creatingList
+  const run = useListDefinitionStore.getState().add({ name: freshListName('New list', layoutId), owner: { layoutId } }).then((id) => {
     const tabId = show(id)
     if (tabId != null) openEditList(tabId, id)
   })
+  creatingList = run.finally(() => { creatingList = null })
+  return creatingList
 }
 
 /**

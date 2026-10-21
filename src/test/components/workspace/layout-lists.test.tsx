@@ -123,6 +123,19 @@ describe('a layout’s lists in the workspace', () => {
     expect(screen.getByRole('button', { name: 'Notes' })).toBeEnabled()
   })
 
+  it('a double-click on the List tile makes one list and one tab', async () => {
+    render(<AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={undefined} iconClassName={undefined} />)
+    const list = screen.getByRole('button', { name: 'List' })
+    fireEvent.click(list)
+    fireEvent.click(list)
+    const { listId } = await addedListTab()
+    // A read after every list write the clicks started.
+    const stored = await db.listDefinitions.toArray()
+    expect(stored.filter((d) => d.name.startsWith('New list')).map((d) => d.id)).toEqual([listId])
+    const tabs = useWorkspaceStore.getState().working!.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))
+    expect(tabs.filter((t) => t.id !== 'mine')).toHaveLength(1)
+  })
+
   it('Change list offers only this layout’s own lists', () => {
     const menu = openTabMenu()
     const row = within(menu).getByRole('menuitem', { name: /Change list/ })
