@@ -498,14 +498,45 @@ describe('FileStorageService — failed loads pause sync and touch nothing', () 
     await expectNoWriteAfterChange(writable)
   })
 
-  it('file not found forgets the handle (nothing on disk to protect)', async () => {
+  it('a file still not found after looking again forgets the handle (nothing on disk to protect)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const notFound = new Error('gone')
     notFound.name = 'NotFoundError'
-    const { svc } = await startWith(fileBody(), { getFile: vi.fn().mockRejectedValue(notFound) })
-    await svc.initialize()
+    const getFile = vi.fn().mockRejectedValue(notFound)
+    const { svc } = await startWith(fileBody(), { getFile })
+    let done = false
+    const init = svc.initialize().then(() => { done = true })
+    // Looked for again after a short wait: not forgotten at the first miss.
+    await vi.advanceTimersByTimeAsync(300)
+    expect(done).toBe(false)
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(2000)
+    await init
+    expect(getFile).toHaveBeenCalledTimes(3)
     expect(svc.status.error).toMatch(/not found/)
     expect(svc.status.fileName).toBeNull()
     expect(mockClearFileHandle).toHaveBeenCalled()
+  })
+
+  it('a file briefly absent (a cloud folder renaming a new copy into place) is found on a later look and loads; the handle and sync record are kept', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: null })
+    const notFound = new Error('gone')
+    notFound.name = 'NotFoundError'
+    const good = new File([JSON.stringify(fileBody())], 'todo2-data.json')
+    const getFile = vi.fn().mockRejectedValueOnce(notFound).mockRejectedValueOnce(notFound).mockResolvedValue(good)
+    const { svc } = await startWith(fileBody(), { getFile })
+    const init = svc.initialize()
+    await vi.advanceTimersByTimeAsync(2000)
+    await init
+    expect(getFile).toHaveBeenCalledTimes(3)
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+    expect(svc.status.fileName).toBe('todo2-data.json')
+    expect(svc.status.error).toBeNull()
+    expect(mockRestoreFromImportData).toHaveBeenCalled()
+    expect(svc.status.isConnected).toBe(true)
+    expect(syncState()).toEqual({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
   })
 
   it('"Keep browser data" from a paused state backs up the file, overwrites it, and resumes', async () => {

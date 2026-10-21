@@ -126,6 +126,18 @@ type FileRead =
 const READ_ATTEMPTS = 3
 
 /**
+ * The wait before reading again a file `getFile()` didn't find, times the
+ * attempt (0.4 s, then 0.8 s): cloud-synced folders (OneDrive, Dropbox,
+ * Drive) replace a file by writing a temporary one and renaming it, so the
+ * file can be briefly absent while another machine saves it.
+ */
+const READ_RETRY_DELAY_MS = 400
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => { setTimeout(resolve, ms) })
+}
+
+/**
  * Whether a sync file's text is a TODO2 file at an older schema version (or
  * from before version markers) — its raw copy is then the only copy of
  * what that build wrote. Unreadable text counts as not older.
@@ -169,18 +181,25 @@ function isPermissionError(e: unknown): boolean {
  * reading it. `getFile()` is a snapshot: when a save (this tab's or
  * another's) replaces the file between `getFile()` and reading its text,
  * the read fails with `NotFoundError` / `NotReadableError` although the file
- * is fine — then it is read again. `not-found` only when `getFile()` itself
- * finds no file.
+ * is fine — then it is read again. A file `getFile()` doesn't find is looked
+ * for again after a short wait (`READ_RETRY_DELAY_MS`) — a cloud folder may
+ * be renaming a new copy into place; `not-found` only when it is still
+ * missing at the last attempt.
  */
 async function readFileText(handle: FileSystemFileHandle): Promise<FileRead> {
   let replacedError: unknown = null
   for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
+    const last = attempt === READ_ATTEMPTS - 1
     let file: File
     try {
       file = await handle.getFile()
     } catch (e: unknown) {
       if (isPermissionError(e)) return { ok: false, reason: 'permission', error: e }
-      return { ok: false, reason: isNamedError(e, 'NotFoundError') ? 'not-found' : 'read-error', error: e }
+      if (!isNamedError(e, 'NotFoundError')) return { ok: false, reason: 'read-error', error: e }
+      if (last) return { ok: false, reason: 'not-found', error: e }
+      console.warn('[file-storage] the file was not found; looking again shortly', e)
+      await wait(READ_RETRY_DELAY_MS * (attempt + 1))
+      continue
     }
     if (file.size > MAX_IMPORT_SIZE_BYTES) return { ok: false, reason: 'too-large', error: null }
     try {
