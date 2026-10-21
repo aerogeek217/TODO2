@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import { EditorView } from '@codemirror/view'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
+import { TaskEditPopupHost } from '../../components/task/TaskEditPopupHost'
+import { db } from '../../data/database'
+import { todoRepository } from '../../data'
+import { SAVE_DEBOUNCE_MS } from '../../stores/note-store'
+import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -666,5 +672,109 @@ describe('TaskEditPopup — a create that fails', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(onCreate).toHaveBeenCalledTimes(2)
     expect(onCreate.mock.calls[1]![0]).toEqual(onCreate.mock.calls[0]![0])
+  })
+})
+
+describe('TaskEditPopup — notes are written as one edit session at a time', () => {
+  // Only the debounce timer is faked: the database runs on its own scheduler.
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await resetDb()
+    resetStores()
+    useUndoStore.getState().clear()
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  async function openStored(notes?: string) {
+    const todo = makeTodo({ id: 100, title: 'Task', notes })
+    await db.todos.add(todo)
+    useTodoStore.setState({ todos: [todo] })
+    act(() => useUIStore.getState().openEditPopup(100))
+    render(<TaskEditPopupHost />)
+    await act(async () => { await Promise.resolve() })
+  }
+
+  // CodeMirror's contenteditable doesn't take React's input events: type
+  // through the editor's own view, one change per keystroke.
+  const view = () => {
+    const v = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)
+    if (!v) throw new Error('no editor')
+    return v
+  }
+  const type = (text: string) => {
+    for (const ch of text) act(() => view().dispatch({ changes: { from: view().state.doc.length, insert: ch } }))
+  }
+  const storedNotes = () => useTodoStore.getState().todos[0]?.notes ?? ''
+  const undoEntries = () => useUndoStore.getState().undoStack.length
+  const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS) })
+
+  it('keystrokes write nothing until typing stops; then one write and one undo entry', async () => {
+    await openStored('')
+    const writes = vi.spyOn(todoRepository, 'update')
+    type('Call Sam')
+    expect(writes).not.toHaveBeenCalled()
+    await settle()
+    expect(writes).toHaveBeenCalledTimes(1)
+    expect(writes).toHaveBeenCalledWith(100, { notes: 'Call Sam' }, expect.any(Date))
+    await vi.waitFor(() => expect(undoEntries()).toBe(1))
+  })
+
+  it('closing before typing stops writes what was typed', async () => {
+    await openStored('a')
+    type('bc')
+    act(() => useUIStore.getState().closeEditPopup())
+    expect(screen.queryByRole('dialog', { name: 'Edit task' })).toBeNull()
+    expect(storedNotes()).toBe('abc')
+    await vi.waitFor(async () => expect((await db.todos.get(100))?.notes).toBe('abc'))
+    expect(undoEntries()).toBe(1)
+  })
+
+  it('one Undo takes back the whole edit, and the editor shows it', async () => {
+    await openStored('start')
+    type(' and more')
+    await settle()
+    await vi.waitFor(() => expect(undoEntries()).toBe(1))
+    await act(async () => { await useUndoStore.getState().undo() })
+    expect(storedNotes()).toBe('start')
+    expect(view().state.doc.toString()).toBe('start')
+  })
+
+  it('a change made elsewhere shows while nothing typed waits', async () => {
+    await openStored('old')
+    await act(async () => { await useTodoStore.getState().update(100, { notes: 'changed elsewhere' }) })
+    expect(view().state.doc.toString()).toBe('changed elsewhere')
+    type('!')
+    await settle()
+    expect(storedNotes()).toBe('changed elsewhere!')
+  })
+
+  it('another edit writes the notes typed first, each its own undo step', async () => {
+    await openStored('n')
+    const writes = vi.spyOn(todoRepository, 'update')
+    type('otes')
+    const title = screen.getByDisplayValue('Task')
+    fireEvent.change(title, { target: { value: 'Renamed' } })
+    await act(async () => { fireEvent.blur(title) })
+    expect(writes.mock.calls.map((c) => c[1])).toEqual([{ notes: 'notes' }, { title: 'Renamed' }])
+    await vi.waitFor(() => expect(undoEntries()).toBe(2))
+    await act(async () => { await useUndoStore.getState().undo() })
+    expect(useTodoStore.getState().todos[0]).toMatchObject({ title: 'Task', notes: 'notes' })
+  })
+
+  it('create mode: the notes typed go into the new task, nothing is written before', async () => {
+    const writes = vi.spyOn(todoRepository, 'update')
+    const { onCreate } = renderCreateMode()
+    await act(async () => { await Promise.resolve() })
+    typeTitle('New one')
+    type('draft notes')
+    await settle()
+    expect(writes).not.toHaveBeenCalled()
+    clickCreate()
+    await vi.waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    expect(onCreate.mock.calls[0]![0]).toMatchObject({ title: 'New one', notes: 'draft notes' })
   })
 })

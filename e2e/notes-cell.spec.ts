@@ -94,6 +94,22 @@ test('keyboard: Enter / Space on the focused cell opens it; Esc closes keeping t
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
 })
 
+test('notes typed in one go are one edit: written on close, taken back by one Undo', async ({ page }) => {
+  await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }))
+  const cell = notesCell(taskRowByTitle(page, 'Bare task'))
+  await cell.click()
+  await popover(page).locator('.cm-content').click()
+  await page.keyboard.type('Ask Dana about the venue')
+  await page.keyboard.press('Escape')
+  await expect(popover(page)).toHaveCount(0)
+  await expect.poll(async () => (await storedTask(page, 'Bare task'))?.notes).toBe('Ask Dana about the venue')
+
+  // The focus is back on the cell (not a text field): the app's Undo.
+  await expect(cell).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect.poll(async () => (await storedTask(page, 'Bare task'))?.notes).toBeUndefined()
+})
+
 test('hover and keyboard focus preview the progress and the notes; filled cells show their glyph at rest', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }))
   const widget = wsListWidget(page, 'tab')

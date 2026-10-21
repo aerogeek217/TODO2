@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useFlashMessage } from '../../hooks/use-flash-message'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTodoStore } from '../../stores/todo-store'
-import { NotesBody, type NotesSource } from './notes/NotesBody'
+import { NotesBody } from './notes/NotesBody'
+import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { isNotesConvertOpen } from './notes/NotesConvert'
 import { TOAST_VISIBLE_MS } from '../../constants'
 import { hasModalAbove, isInLayerAbove } from '../../utils/dom-layers'
@@ -33,10 +34,11 @@ interface TaskNotePopoverProps {
  * cell / to its right edge when it would leave the viewport, and follows it
  * on scroll and resize.
  *
- * Opens with the focus in Progress. Notes save as they change; Progress saves
- * on blur, Enter and close — each as `todo-store.update` with just that
- * field, and only when it changed. A change made elsewhere shows in Progress
- * until the user types in it. Esc, Enter in Progress and an outside click
+ * Opens with the focus in Progress. Notes are one edit session at a time
+ * (`useTaskNotesSource`: written a moment after typing stops, and at blur,
+ * close, Copy and Convert); Progress saves on blur, Enter and close — each as
+ * `todo-store.update` with just that field, and only when it changed. A
+ * change made elsewhere shows in either field until the user types in it. Esc, Enter in Progress and an outside click
  * close it, keeping what was typed; a click on the cell is left to the cell's
  * toggle. On close the focus goes back to the cell, unless something else
  * took it.
@@ -48,13 +50,8 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   const progressId = useId()
   const [toast, flashToast] = useFlashMessage<string | null>(null)
 
-  const initialNotes = useMemo(() => {
-    const t = useTodoStore.getState().todos.find(x => x.id === todoId)
-    return t?.notes ?? ''
-  }, [todoId])
-
-  const draftRef = useRef<string>(initialNotes)
-  const [, setDraft] = useState<string>(initialNotes)
+  const notes = useTaskNotesSource({ todoId })
+  const flushNotes = notes.flush
 
   // Progress: the stored value shows until the user types in the field;
   // `dirtyRef` = typed since the last save (a ref, so blur, Enter and the
@@ -66,13 +63,15 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   const dirtyRef = useRef(false)
   const saveProgress = useCallback(() => {
     if (!dirtyRef.current) return
+    // The notes typed so far are their own edit, written first.
+    void flushNotes()
     dirtyRef.current = false
     const text = progressTextRef.current
     setTypedProgress(null)
     const stored = useTodoStore.getState().todos.find((t) => t.id === todoId)?.progress ?? ''
     if (text === stored) return
     void useTodoStore.getState().update(todoId, { progress: text ? text : undefined })
-  }, [progressTextRef, todoId])
+  }, [progressTextRef, todoId, flushNotes])
 
   // Whatever closes it (Esc, Enter, an outside click, the cell's toggle) keeps what was typed.
   const saveProgressRef = useLatestRef(saveProgress)
@@ -142,15 +141,6 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     return () => document.removeEventListener('keydown', onKey, true)
   }, [onClose])
 
-  const source = useMemo<NotesSource>(() => ({
-    get: () => draftRef.current,
-    set: (next) => {
-      draftRef.current = next
-      setDraft(next)
-      void useTodoStore.getState().update(todoId, { notes: next ? next : undefined })
-    },
-  }), [todoId])
-
   const handleToast = useCallback((message: string) => flashToast(message, TOAST_VISIBLE_MS), [flashToast])
 
   const onProgressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -194,7 +184,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
       </div>
       <div className={`${styles.label} ${styles.notesLabel}`}>Notes</div>
       <NotesBody
-        source={source}
+        source={notes.source}
         showToolbar
         placeholder="Add notes…"
         onConvertToast={handleToast}

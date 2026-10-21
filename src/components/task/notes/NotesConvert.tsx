@@ -126,6 +126,12 @@ export interface NotesConvertOptions {
   /** The note's text and a writer, used when the editor is gone. */
   getText: () => string
   setText: (next: string) => void
+  /**
+   * Writes the note's typed text now: before a convert starts (what was typed
+   * is its own edit) and after the convert changes the note (that change is
+   * its own edit too).
+   */
+  flush?: () => void | Promise<void>
   onToast?: (message: string) => void
 }
 
@@ -139,7 +145,7 @@ export interface NotesConvertOptions {
  * note undoes it. The task create is its own undo step (the snackbar's
  * Undo deletes the tasks and leaves the note as it is).
  */
-export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesConvertOptions) {
+export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: NotesConvertOptions) {
   const [state, setState] = useState<ConvertState | null>(null)
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -155,12 +161,13 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
     if (view) {
       const changes = compute(view.state.doc.toString())
       if (changes.length > 0) view.dispatch({ changes, userEvent: 'input.convert' })
-      return
+    } else {
+      const text = getText()
+      const changes = compute(text)
+      if (changes.length > 0) setText(applyTextChanges(text, changes))
     }
-    const text = getText()
-    const changes = compute(text)
-    if (changes.length > 0) setText(applyTextChanges(text, changes))
-  }, [viewRef, getText, setText])
+    void flush?.()
+  }, [viewRef, getText, setText, flush])
 
   /** Rewrites converted lines as `✓ <title>`; returns how many couldn't be found. */
   const markConverted = useCallback((items: readonly { line: ConvertLine; title: string }[]) => {
@@ -182,8 +189,9 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
   }, [viewRef])
 
   const openSingle = useCallback((line: ConvertLine) => {
+    void flush?.()
     setState({ kind: 'single', line, draft: draftFromText(line.body, draftContext()) })
-  }, [])
+  }, [flush])
 
   /** Alt+T: the caret line. False when it can't be converted (blank / already `✓`). */
   const convertLine = useCallback((view: EditorView): boolean => {
@@ -209,6 +217,7 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
       return
     }
     if (lines.length === 0) return
+    void flush?.()
     const ctx = draftContext()
     setState({
       kind: 'preview',
@@ -220,7 +229,7 @@ export function useNotesConvert({ viewRef, getText, setText, onToast }: NotesCon
       focusKey: null,
       busy: false,
     })
-  }, [state, viewRef, currentText, openSingle])
+  }, [state, viewRef, currentText, openSingle, flush])
 
   const editorCtx = useCallback(() => ({
     people: usePersonStore.getState().people,

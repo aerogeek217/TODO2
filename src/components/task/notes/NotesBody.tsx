@@ -14,7 +14,9 @@ import styles from './NotesBody.module.css'
 
 /**
  * Pluggable content adapter. When provided, `NotesBody` reads/writes this
- * source instead of the note-store. `flush` is awaited before copy-rich.
+ * source instead of the note-store. `flush` (write what was typed now) is
+ * awaited before copy-rich and called before and after a convert and when
+ * the focus leaves the notes.
  */
 export interface NotesSource {
   get: () => string
@@ -29,7 +31,7 @@ interface NotesBodyProps {
   /**
    * External content source (task notes, etc.). When supplied, the note-store
    * bindings are bypassed entirely — the editor reads `source.get()` and
-   * writes via `source.set()`. `source.flush` is awaited before copy-rich.
+   * writes via `source.set()` (see `NotesSource` for when `flush` runs).
    */
   source?: NotesSource
   /** Placeholder text for the editor. */
@@ -75,12 +77,19 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
     if (activeId != null) storeSetContent(activeId, next)
   }, [source, activeId, storeSetContent])
 
+  // Writes what was typed now (a source's own flush; the global note's save).
+  const flushNow = useCallback(async () => {
+    if (source) await source.flush?.()
+    else await storeFlush()
+  }, [source, storeFlush])
+
   const contentRef = useLatestRef(content)
   const handleChangeRef = useLatestRef(handleChange)
   const notesConvert = useNotesConvert({
     viewRef,
     getText: useCallback(() => contentRef.current, [contentRef]),
     setText: useCallback((next: string) => handleChangeRef.current(next), [handleChangeRef]),
+    flush: flushNow,
     onToast: useCallback((message: string) => toastRef.current?.(message), [toastRef]),
   })
   const { convertLine, convertScope } = notesConvert
@@ -121,11 +130,11 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
       // Flush any pending debounced write so the copy reflects the latest keystrokes.
       let latest: string
       if (source) {
-        if (source.flush) await source.flush()
+        await flushNow()
         latest = source.get()
       } else {
         if (activeId == null) return
-        await storeFlush()
+        await flushNow()
         latest = useNoteStore.getState().notes.get(activeId)?.content ?? ''
       }
       const ok = await copyNotesRich(latest)
@@ -133,10 +142,16 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
     } finally {
       setCopying(false)
     }
-  }, [source, activeId, storeFlush, onConvertToast])
+  }, [source, activeId, flushNow, onConvertToast])
+
+  // Leaving the notes ends the edit: a source writes what was typed.
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+    if (!source?.flush || (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) return
+    void source.flush()
+  }, [source])
 
   return (
-    <div className={styles.body}>
+    <div className={styles.body} onBlur={handleBlur}>
       {showToolbar && (
         <NotesToolbar
           viewRef={viewRef}

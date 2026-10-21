@@ -17,8 +17,8 @@ describe('editorChanges', () => {
   })
 
   it('an emptied title is not saved; cleared text fields are removed', () => {
-    expect(editorChanges({ ...base, title: '   ', notes: '', progress: '' }, { ...base, notes: 'n', progress: 'p' }))
-      .toEqual({ notes: undefined, progress: undefined })
+    expect(editorChanges({ ...base, title: '   ', progress: '' }, { ...base, progress: 'p' }))
+      .toEqual({ progress: undefined })
   })
 
   it('a due-date change rebuilds the repeat rule from the new date', () => {
