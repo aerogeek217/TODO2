@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { NewTodoItem, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
+import type { NewTodoItem, PersistedListOrder, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
@@ -8,8 +8,6 @@ import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBu
 import { defaultNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
-import { personRepository } from '../data/person-repository'
-import { tagRepository } from '../data/tag-repository'
 import { takeSafetySnapshot } from './safety-snapshot'
 import { usePersonStore } from './person-store'
 import { useTagStore } from './tag-store'
@@ -202,6 +200,35 @@ export const useTodoStore = create<TodoState>((set, get) => {
   }
 
   /**
+   * The undo step of a task just created (`row`, with `assignments`): undo
+   * deletes it, redo puts it back as it was when undone — its row, people,
+   * tags, list ranks and events read at that moment (as a delete's undo
+   * does), so a change made after the create without an undo step of its own
+   * (a manual-order move, a sync-file load) survives the round trip.
+   */
+  function registerCreated(description: string, row: PersistedTodoItem, assignments: CapturedAssignments): void {
+    const id = row.id
+    let snapshot = row
+    let captured = assignments
+    let ranks: PersistedListOrder[] = []
+    let events: TodoEvent[] = []
+    undoable(
+      description,
+      async () => {
+        await get()._restore(snapshot, captured, events)
+        await useListOrderStore.getState().restoreRows(ranks)
+      },
+      async () => {
+        const current = get().todos.find((t) => t.id === id)
+        if (current) snapshot = { ...current }
+        captured = await captureAssignments(id)
+        ranks = await listOrderRepository.getByTodos([id])
+        events = await get()._removeNoUndo(id)
+      },
+    )
+  }
+
+  /**
    * `write`, and after a failed one the tasks read back from the database —
    * the rollback put back what the store had, this makes sure it matches
    * what is stored. Outside the tracked write: the load waits for writes in
@@ -232,28 +259,25 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const now = new Date()
       const defaultStatusId = useSettingsStore.getState().defaultStatusId
       const nextFollowupAt = newTaskDefaultFollowup(now)
-      // Goes last (the repository picks the sort order in its transaction).
-      const id = await todoRepository.insert({
-        title,
-        isCompleted: false,
-        createdAt: now,
-        modifiedAt: now,
-        ...(nextFollowupAt && { nextFollowupAt }),
-        ...(defaultStatusId != null && { statusId: defaultStatusId }),
-      })
-      const todo = await todoRepository.getById(id)
-      if (todo) {
-        set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
-      }
-      // Redo puts back the same row and its `created` event, so a later
-      // undo still finds it and the trend still counts it.
-      let removedEvents: TodoEvent[] = []
-      undoable(
-        `Add "${title}"`,
-        async () => { if (todo) await get()._restore(todo, NO_ASSIGNMENTS, removedEvents) },
-        async () => { removedEvents = await get()._removeNoUndo(id) },
-      )
-      return id
+      // Goes last (the repository picks the sort order in its transaction);
+      // the row comes back from the insert itself, so nothing after it can
+      // fail once the task exists.
+      const [todo] = await todoRepository.insertManyWithAssignments([{
+        todo: {
+          title,
+          isCompleted: false,
+          createdAt: now,
+          modifiedAt: now,
+          ...(nextFollowupAt && { nextFollowupAt }),
+          ...(defaultStatusId != null && { statusId: defaultStatusId }),
+        },
+        personIds: [],
+        tagIds: [],
+      }])
+      if (!todo) throw new Error('The new task was not stored')
+      set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
+      registerCreated(`Add "${title}"`, todo, NO_ASSIGNMENTS)
+      return todo.id
     }, 'Failed to add task')
   },
 
@@ -719,43 +743,37 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return undefined
       const now = new Date()
-      const newId = await todoRepository.insert({
-        title: todo.title,
-        isCompleted: false,
-        createdAt: now,
-        modifiedAt: now,
-        dueDate: todo.dueDate,
-        nextFollowupAt: todo.nextFollowupAt,
-        notes: todo.notes,
-        progress: todo.progress,
-        statusId: todo.statusId,
-        recurrenceRule: todo.recurrenceRule,
-        ...(todo.urgent === true ? { urgent: true } : {}),
-        ...(todo.important === true ? { important: true } : {}),
-      })
-      const newTodo = await todoRepository.getById(newId)
-      if (newTodo) {
-        set({ todos: [...get().todos, newTodo], todosVersion: get().todosVersion + 1 })
+      const assignments = await captureAssignments(id)
+      // The copy, its people and its tags in one transaction.
+      const [newTodo] = await todoRepository.insertManyWithAssignments([{
+        todo: {
+          title: todo.title,
+          isCompleted: false,
+          createdAt: now,
+          modifiedAt: now,
+          dueDate: todo.dueDate,
+          nextFollowupAt: todo.nextFollowupAt,
+          notes: todo.notes,
+          progress: todo.progress,
+          statusId: todo.statusId,
+          recurrenceRule: todo.recurrenceRule,
+          ...(todo.urgent === true ? { urgent: true } : {}),
+          ...(todo.important === true ? { important: true } : {}),
+        },
+        personIds: assignments.personIds,
+        tagIds: assignments.tagIds,
+      }])
+      if (!newTodo) throw new Error('The copy was not stored')
+      set({ todos: [...get().todos, newTodo], todosVersion: get().todosVersion + 1 })
+      // Best effort: the copy exists; a failed cache reload only leaves its
+      // chips missing until the next load.
+      if (assignments.personIds.length > 0 || assignments.tagIds.length > 0) {
+        await reloadAssignments(get().todos.map((t) => t.id)).catch((e: unknown) => {
+          console.warn('[todo-store] reloading assignments after duplicating a task failed', e)
+        })
       }
-      // Copy assignments at repo level (bypasses store undo registration)
-      const { personIds, tagIds } = await captureAssignments(id)
-      for (const pid of personIds) await personRepository.assignPerson(newId, pid)
-      for (const tid of tagIds) await tagRepository.assignTag(newId, tid)
-      // Refresh assignment caches for the new task
-      const todoIds = get().todos.map(t => t.id)
-      if (personIds.length > 0) {
-        await usePersonStore.getState().loadAssignments(todoIds)
-      }
-      if (tagIds.length > 0) {
-        await useTagStore.getState().loadAssignments(todoIds)
-      }
-      let removedEvents: TodoEvent[] = []
-      undoable(
-        `Duplicate "${todo.title}"`,
-        async () => { if (newTodo) await get()._restore(newTodo, { personIds, tagIds }, removedEvents) },
-        async () => { removedEvents = await get()._removeNoUndo(newId) },
-      )
-      return newId
+      registerCreated(`Duplicate "${todo.title}"`, newTodo, assignments)
+      return newTodo.id
     }, 'Failed to duplicate task')
   },
 
