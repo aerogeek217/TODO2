@@ -232,6 +232,44 @@ function readPlacement(tabId: string): string {
 }
 
 /**
+ * Where the list's panel is (`readPlacement`), for `useSyncExternalStore`:
+ * measured again only when something may have moved it — a resize, a
+ * scroll, the cell's size; a layout change or the list coming or going
+ * makes a new store — not on every render (each keystroke in the form would
+ * force a layout). Only a placement beside the panel is kept: until the
+ * panel shows its list the lookup (no measuring) runs on every read, so the
+ * popover shows once it mounts, and the last resort below the filter line
+ * follows that line, which moves inside the cell.
+ */
+function createPlacementStore(tabId: string, cellId: string | undefined, shown: boolean) {
+  let kept: string | null = null
+  return {
+    subscribe: (notify: () => void) => {
+      const moved = () => { kept = null; notify() }
+      window.addEventListener('resize', moved)
+      window.addEventListener('scroll', moved, true)
+      // The cell holding the tab in the layout as it is now (a layout change
+      // makes a new store, so the observer follows the tab to another cell).
+      const cell = cellId != null ? document.querySelector(`[data-ws-cell="${cellId}"]`) : null
+      const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(moved) : null
+      if (ro && cell) ro.observe(cell)
+      return () => {
+        window.removeEventListener('resize', moved)
+        window.removeEventListener('scroll', moved, true)
+        ro?.disconnect()
+      }
+    },
+    getSnapshot: (): string => {
+      if (!shown) return MISSING
+      if (kept !== null) return kept
+      const now = readPlacement(tabId)
+      if (now !== MISSING && (JSON.parse(now) as Placement).mode === 'beside') kept = now
+      return now
+    },
+  }
+}
+
+/**
  * The desktop popover: 340 wide beside the list's panel (right, else left,
  * else below its filter line), its arrow at the panel's tab strip. Not
  * modal — the list stays in view, updating live; a press elsewhere in the
@@ -242,28 +280,17 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const model = useEditListModel(listDefinitionId, onClose)
   const panelElRef = useRef<HTMLDivElement | null>(null)
   const nameRef = useRef<HTMLInputElement | null>(null)
-  // Re-read whenever the layout changes (the list's tab may have moved, closed or switched).
   const working = useWorkspaceStore((s) => s.working)
-  const subscribe = useCallback((notify: () => void) => {
-    window.addEventListener('resize', notify)
-    window.addEventListener('scroll', notify, true)
-    // The cell holding the tab in the layout as it is now (a layout change
-    // re-subscribes, so the observer follows the tab to another cell).
-    const cellId = working ? findTab(working, tabId)?.panelId : undefined
-    const cell = cellId != null ? document.querySelector(`[data-ws-cell="${cellId}"]`) : null
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(notify) : null
-    if (ro && cell) ro.observe(cell)
-    return () => {
-      window.removeEventListener('resize', notify)
-      window.removeEventListener('scroll', notify, true)
-      ro?.disconnect()
-    }
-  }, [tabId, working])
   // The tab shows another list now (Change list by keyboard, an Eisenhower tab switched): this list left the screen.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
   const tab = working ? layoutTabs(working).find((t) => t.id === tabId) : undefined
   const tabShowsList = !working || (tab != null && tabListId(tab, eisenhowerListId) === listDefinitionId)
-  const snapshot = useSyncExternalStore(subscribe, () => (tabShowsList ? readPlacement(tabId) : MISSING))
+  const listExists = model.def != null && model.saved != null
+  const placementStore = useMemo(
+    () => createPlacementStore(tabId, working ? findTab(working, tabId)?.panelId : undefined, tabShowsList && listExists),
+    [tabId, working, tabShowsList, listExists],
+  )
+  const snapshot = useSyncExternalStore(placementStore.subscribe, placementStore.getSnapshot)
   const placement = useMemo<Placement | null>(() => (snapshot === MISSING ? null : JSON.parse(snapshot) as Placement), [snapshot])
 
   // The list left the screen (tab closed, switched, collapsed): nothing to preview.

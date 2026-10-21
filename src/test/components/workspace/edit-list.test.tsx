@@ -91,6 +91,21 @@ describe('Edit list', () => {
     expect(within(dialog).getByRole('button', { name: 'Save list' })).toBeEnabled()
   })
 
+  it('typing in the form measures the list’s panel no more; a resize measures it again', () => {
+    const dialog = open()
+    const cell = document.querySelector('[data-ws-cell="c1"]')!
+    let measured = 0
+    const real = cell.getBoundingClientRect.bind(cell)
+    cell.getBoundingClientRect = () => { measured++; return real() }
+    const name = within(dialog).getByLabelText('Name')
+    for (const value of ['W', 'Wa', 'Wai', 'Wait']) fireEvent.change(name, { target: { value } })
+    expect(draft()!.name).toBe('Wait')
+    expect(measured).toBe(0)
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    expect(measured).toBeGreaterThan(0)
+    expect(screen.getByRole('dialog', { name: 'Edit list Wait' })).toBeInTheDocument()
+  })
+
   it('an edit back to the saved value drops the draft (and the marks)', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
