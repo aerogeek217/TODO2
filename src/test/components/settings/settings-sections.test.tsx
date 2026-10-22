@@ -30,14 +30,15 @@ describe('Settings sections', () => {
     expect(headings).toEqual(['Import / Export', 'File storage'])
   })
 
-  it('People, statuses & tags shows Manage then Unused people & tags; the phone shows only Unused people & tags', () => {
+  it('People, statuses & tags is one part, on the phone too, where it shows only the Unused people & tags row', () => {
     expect(SETTINGS_SECTIONS.find((s) => s.id === 'entities')?.parts.map((p) => [p.label, p.mobile]))
-      .toEqual([['Manage', false], ['Unused people & tags', true]])
+      .toEqual([['People, statuses & tags', true]])
     render(<MemoryRouter><SettingsPage /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'People, statuses & tags' }))
-    const headings = Array.from(document.querySelectorAll('h3')).map((h) => h.textContent)
-    expect(headings).toEqual(['Unused people & tags'])
+    expect(document.querySelectorAll('h3')).toHaveLength(0)
     expect(screen.queryByRole('button', { name: 'Manage people…' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Find unused…' }))
+    expect(screen.getByRole('dialog', { name: 'Unused people & tags' })).toBeInTheDocument()
   })
 
   it('the phone page opens on the section named in its route state (the storage status sheet)', () => {

@@ -3,7 +3,6 @@ import type { SettingsPartId, SettingsSectionId } from '../../../stores/ui-store
 import { AppearanceSection } from './AppearanceSection'
 import { TaskDefaultsSection } from './TaskDefaultsSection'
 import { EntitiesSection } from './EntitiesSection'
-import { UnusedEntitiesSection } from './UnusedEntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
 import { EisenhowerSection } from './EisenhowerSection'
 import { FileStorageSection } from './FileStorageSection'
@@ -21,12 +20,17 @@ import {
   TasksIcon,
 } from './section-icons'
 
+/** What a section's body is told: whether it is on the phone's Settings page. */
+export interface SettingsBodyProps {
+  mobile: boolean
+}
+
 /** One part of a section: a headed block in a merged section, else the section's whole body. */
 export interface SettingsPartDef {
   /** A merged section's part id; a one-part section's own id. */
   id: SettingsPartId | SettingsSectionId
   label: string
-  Body: ComponentType
+  Body: ComponentType<SettingsBodyProps>
   /** Shown on the mobile Settings page too (the rest are desktop only). */
   mobile: boolean
 }
@@ -40,7 +44,7 @@ export interface SettingsSectionDef {
 }
 
 /** A section with one body (no part headings). */
-function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body: ComponentType, mobile: boolean): SettingsSectionDef {
+function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body: ComponentType<SettingsBodyProps>, mobile: boolean): SettingsSectionDef {
   return { id, label, Icon, parts: [{ id, label, Body, mobile }] }
 }
 
@@ -59,15 +63,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },
     ],
   },
-  {
-    id: 'entities',
-    label: 'People, statuses & tags',
-    Icon: EntitiesIcon,
-    parts: [
-      { id: 'entities-manage', label: 'Manage', Body: EntitiesSection, mobile: false },
-      { id: 'unused-entities', label: 'Unused people & tags', Body: UnusedEntitiesSection, mobile: true },
-    ],
-  },
+  // The phone shows only its Unused people & tags row (`EntitiesSection`).
+  single('entities', 'People, statuses & tags', EntitiesIcon, EntitiesSection, true),
   {
     id: 'database',
     label: 'Database',

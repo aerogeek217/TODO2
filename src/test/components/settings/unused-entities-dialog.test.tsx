@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
-import { UnusedEntitiesSection } from '../../../components/settings/sections/UnusedEntitiesSection'
+import { UnusedEntitiesDialog } from '../../../components/settings/UnusedEntitiesDialog'
 import { db } from '../../../data/database'
 import { backupScheduler } from '../../../data/backup-scheduler'
 import { emptyPredicate } from '../../../models'
@@ -45,6 +45,8 @@ const group = (name: 'People' | 'Tags') => screen.getByRole('group', { name })
 const rowNames = (name: 'People' | 'Tags') =>
   within(group(name)).queryAllByRole('listitem').map((li) => li.textContent)
 const removeButton = () => screen.getByRole('button', { name: /^Remove \d+…$/ })
+const confirmDialog = () => screen.findByRole('dialog', { name: /^Remove \d+ / })
+const onClose = vi.fn()
 
 beforeEach(async () => {
   await resetDb()
@@ -57,9 +59,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('UnusedEntitiesSection', () => {
+describe('UnusedEntitiesDialog', () => {
   it('lists the people and tags no task has, unticked, with a note when a filter names them', async () => {
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(rowNames('People')).toEqual(['CACalin a list filter', 'DEDee']))
     expect(rowNames('Tags')).toEqual(['sparein the check-in filter'])
     for (const box of screen.getAllByRole('checkbox', { name: /Cal|Dee|spare/ })) expect(box).not.toBeChecked()
@@ -71,7 +73,7 @@ describe('UnusedEntitiesSection', () => {
   })
 
   it('Ignore completed tasks also lists those only completed tasks have; turning it off drops their ticks', async () => {
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(rowNames('People')).toHaveLength(2))
     fireEvent.click(screen.getByRole('checkbox', { name: /Ignore completed tasks/ }))
     expect(rowNames('People')).toEqual(['ANAnnon 1 completed task', 'CACalin a list filter', 'DEDee'])
@@ -86,7 +88,7 @@ describe('UnusedEntitiesSection', () => {
   })
 
   it('Select all ticks every row of its group, filter-named ones included, and clears them again', async () => {
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(rowNames('People')).toHaveLength(2))
     const all = screen.getByRole('checkbox', { name: 'Select all people' })
     fireEvent.click(screen.getByRole('checkbox', { name: /Dee/ }))
@@ -102,20 +104,20 @@ describe('UnusedEntitiesSection', () => {
 
   it('says so when a group has nothing unused', async () => {
     await db.todoTags.add({ todoId: 1, tagId: 12 })
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(within(group('Tags')).getByText('No unused tags')).toBeInTheDocument())
     expect(screen.queryByRole('checkbox', { name: 'Select all tags' })).toBeNull()
   })
 
   it('Remove N… asks first with the counts (Cancel focused); Cancel keeps everything', async () => {
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(rowNames('People')).toHaveLength(2))
     fireEvent.click(screen.getByRole('checkbox', { name: /Ignore completed tasks/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all people' }))
     fireEvent.click(screen.getByRole('checkbox', { name: /old/ }))
     fireEvent.click(removeButton())
 
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await confirmDialog()
     expect(within(dialog).getByText('Remove 3 people and 1 tag?')).toBeInTheDocument()
     expect(within(dialog).getByText('They’re removed from 1 completed task.')).toBeInTheDocument()
     expect(within(dialog).getByText('1 is named in filters, which will stop matching it.')).toBeInTheDocument()
@@ -123,17 +125,18 @@ describe('UnusedEntitiesSection', () => {
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /^Remove/ })).toBeNull())
+    expect(screen.getByRole('dialog', { name: 'Unused people & tags' })).toBeInTheDocument()
     expect(await db.people.count()).toBe(4)
   })
 
   it('confirming removes the ticked ones, with Undo in the snackbar', async () => {
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(rowNames('People')).toHaveLength(2))
     fireEvent.click(screen.getByRole('checkbox', { name: /Dee/ }))
     fireEvent.click(screen.getByRole('checkbox', { name: /spare/ }))
     fireEvent.click(removeButton())
-    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(await confirmDialog()).getByRole('button', { name: 'Remove' }))
 
     await waitFor(() => expect(rowNames('People')).toEqual(['CACalin a list filter']))
     expect(within(group('Tags')).getByText('No unused tags')).toBeInTheDocument()
@@ -149,7 +152,7 @@ describe('UnusedEntitiesSection', () => {
 
   it('a task deleted meanwhile frees its people and tags', async () => {
     const { useTodoStore } = await import('../../../stores/todo-store')
-    render(<UnusedEntitiesSection />)
+    render(<UnusedEntitiesDialog onClose={onClose} />)
     await waitFor(() => expect(rowNames('People')).toHaveLength(2))
     await useTodoStore.getState().remove(1)
     await waitFor(() => expect(rowNames('People')).toEqual(['BOBob', 'CACalin a list filter', 'DEDee']))

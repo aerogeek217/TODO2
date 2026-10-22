@@ -1,5 +1,20 @@
-/* Settings › People, statuses & tags › Unused people & tags: the Ignore
- * completed tasks checkbox, then a People and a Tags group of tickable rows. */
+/* The Unused people & tags dialog: the Ignore completed tasks checkbox,
+ * then a People and a Tags group of tickable rows (they scroll; Remove N…
+ * stays below them). */
+
+.body {
+  flex: 1;
+  min-height: 0;
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
 
 .checkLine {
   display: flex;
