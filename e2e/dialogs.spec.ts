@@ -281,19 +281,22 @@ test('check-in import: Esc, focus trap and return, backdrop press', async ({ pag
 test('Customize dashboard: contract; Esc during a keyboard reorder cancels the move, not the dialog', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const dialog = page.getByRole('dialog', { name: 'Customize dashboard' })
-  const trigger = dash(page).getByRole('button', { name: 'Add list tile' })
+  // The dashboard's corner gear (shown while the pointer is over the dashboard).
+  const trigger = dash(page).getByRole('button', { name: 'Customize dashboard' })
+  const open = async () => {
+    await dash(page).locator('[data-dash-tile]').first().hover()
+    await trigger.click()
+    await expect(dialog).toBeVisible()
+  }
   await checkContract(page, {
     dialog,
-    open: async () => {
-      await trigger.click()
-      await expect(dialog).toBeVisible()
-    },
+    open,
     trigger,
     inside: dialog.getByRole('heading', { name: 'Customize dashboard' }),
-    initialFocus: dialog.getByRole('button', { name: /Add a list/ }),
+    initialFocus: dialog,
   })
 
-  await trigger.click()
+  await open()
   const grip = dialog.getByRole('button', { name: 'Move Open' })
   await grip.focus()
   await page.keyboard.press('Space')

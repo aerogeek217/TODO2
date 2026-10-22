@@ -68,8 +68,6 @@ function dashboardTabOf(layout: WorkspaceLayout | null, tabId: string): Dashboar
 
 export interface CustomizeDashboardDialogProps {
   tabId: string
-  /** Opened from "+ Add list tile": the list tiles in view, "Add a list" focused. */
-  focusListTiles?: boolean
   onClose: () => void
 }
 
@@ -81,16 +79,16 @@ export interface CustomizeDashboardDialogProps {
  * the undo). Reorder by dragging a row's grip, or from the keyboard: focus
  * the grip, Space lifts, arrows move, Space drops, Esc cancels.
  */
-export function CustomizeDashboardDialog({ tabId, focusListTiles = false, onClose }: CustomizeDashboardDialogProps) {
+export function CustomizeDashboardDialog({ tabId, onClose }: CustomizeDashboardDialogProps) {
   const tab = useWorkspaceStore((s) => dashboardTabOf(s.working, tabId))
   useEffect(() => {
     if (!tab) onClose()
   }, [tab, onClose])
   if (!tab) return null
-  return <CustomizePanel tab={tab} focusListTiles={focusListTiles} onClose={onClose} />
+  return <CustomizePanel tab={tab} onClose={onClose} />
 }
 
-function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; focusListTiles: boolean; onClose: () => void }) {
+function CustomizePanel({ tab, onClose }: { tab: DashboardTab; onClose: () => void }) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const [state, setState] = useState<CustomizeState>(() => customizeStateFrom(config))
   // The config changed (this dialog's edits, or elsewhere — a sync-file
@@ -136,11 +134,6 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
     update(next, { sections: sectionsFor(next, shownSections) })
   }
 
-  // Opened from "+ Add list tile": "Add a list" takes the focus, in view.
-  const initialFocus = focusListTiles ? addListRef : 'panel'
-  useEffect(() => {
-    if (focusListTiles) addListRef.current?.scrollIntoView?.({ block: 'nearest' })
-  }, [focusListTiles])
   // Esc during a keyboard reorder cancels the move, not the dialog.
   const draggingRef = useLatestRef(dragging)
   const escapeBelongsElsewhere = useCallback(() => draggingRef.current, [draggingRef])
@@ -166,7 +159,7 @@ function CustomizePanel({ tab, focusListTiles, onClose }: { tab: DashboardTab; f
     <DialogFrame
       onClose={onClose}
       layer="overlay"
-      initialFocus={initialFocus}
+      initialFocus="panel"
       escapeBelongsElsewhere={escapeBelongsElsewhere}
       aria-labelledby={titleId}
       className={styles.dialog}

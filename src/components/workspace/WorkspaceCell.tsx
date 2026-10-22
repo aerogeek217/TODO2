@@ -212,7 +212,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
-  const [customize, setCustomize] = useState<{ tabId: string; focusListTiles: boolean } | null>(null)
+  const [customize, setCustomize] = useState<string | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
   const activeCount = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result.countLabel : undefined
@@ -279,7 +279,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   }
 
   const dashboardActions = useDashboardMenuActions({
-    onCustomize: () => { if (menuTab) setCustomize({ tabId: menuTab.id, focusListTiles: false }) },
+    onCustomize: () => { if (menuTab) setCustomize(menuTab.id) },
     summary: menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
   })
 
@@ -290,7 +290,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
         kind: 'item' as const,
         label: 'Customize dashboard…',
         icon: <DashGlyph name="sliders" />,
-        onSelect: () => setCustomize({ tabId: active.id, focusListTiles: false }),
+        onSelect: () => setCustomize(active.id),
       },
       { kind: 'separator' as const },
     ] : []),
@@ -413,8 +413,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             key={active.id}
             tab={active}
             onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-            onAddListTile={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: true }) : undefined}
-            onCustomize={active.kind === 'dashboard' ? () => setCustomize({ tabId: active.id, focusListTiles: false }) : undefined}
+            onCustomize={active.kind === 'dashboard' ? () => setCustomize(active.id) : undefined}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} join={join} />}
           {bandHit && <BandDropZone accepts={drag?.accepts === true} join={join} />}
@@ -485,13 +484,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           onCancel={() => setGuard(null)}
         />
       )}
-      {customize && (
-        <CustomizeDashboardDialog
-          tabId={customize.tabId}
-          focusListTiles={customize.focusListTiles}
-          onClose={closeCustomize}
-        />
-      )}
+      {customize && <CustomizeDashboardDialog tabId={customize} onClose={closeCustomize} />}
     </section>
   )
 }
