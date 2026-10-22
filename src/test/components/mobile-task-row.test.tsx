@@ -116,20 +116,6 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('BO')).toBeInTheDocument()
     })
 
-    it('in a person’s group, leaves that person out of the row’s people (hiddenPersonId)', () => {
-      const people = [
-        makePerson({ id: 1, name: 'Alice', initials: 'AL' }),
-        makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
-      ]
-      const { rerender } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} hiddenPersonId={1} />)
-      expect(screen.queryByText('AL')).not.toBeInTheDocument()
-      expect(screen.getByText('BO')).toBeInTheDocument()
-      // Only the group's person: no avatars at all.
-      rerender(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people.slice(0, 1)} hiddenPersonId={1} />)
-      expect(screen.queryByText('AL')).not.toBeInTheDocument()
-      expect(screen.queryByText('BO')).not.toBeInTheDocument()
-    })
-
     it('shows overflow count for 4+ people (avatar stack shows 3)', () => {
       const people = [
         makePerson({ id: 1, initials: 'A' }),

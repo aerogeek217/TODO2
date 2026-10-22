@@ -262,21 +262,38 @@ describe('ListWidget', () => {
     expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
   })
 
-  it('groups collapse on their own; a person’s group doesn’t repeat their avatar', () => {
+  it('groups collapse on their own; a row in a person’s group shows every person, that one included', () => {
     setup(def({ grouping: 'people' }))
     const groups = Array.from(document.querySelectorAll('[data-testid="list-group-name"]')).map((g) => g.textContent)
     expect(groups).toEqual(['Alice', 'Bob'])
     const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
-    // Shared task under Alice shows Bob's avatar only.
-    const sharedRow = Array.from(aliceGroup.querySelectorAll('[data-todo-id="3"]'))[0]!
+    const aliceRow = aliceGroup.querySelector('[data-todo-id="1"] [data-row-cell="people"]')!
+    expect(aliceRow.textContent).toContain('AL')
+    const sharedRow = aliceGroup.querySelector('[data-todo-id="3"] [data-row-cell="people"]')!
+    expect(sharedRow.textContent).toContain('AL')
     expect(sharedRow.textContent).toContain('BO')
-    expect(sharedRow.textContent).not.toContain('AL')
     fireEvent.click(aliceGroup.querySelector('button[aria-expanded]')!)
     expect(aliceGroup.querySelectorAll('[data-todo-id]')).toHaveLength(0)
     expect(document.querySelector('[data-list-group="person-2"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(2)
   })
 
-  it('a row in a person’s group still has the person: its people picker shows them ticked', () => {
+  it('on a phone, a row in a person’s group shows every person, that one included', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    try {
+      setup(def({ grouping: 'people' }))
+      const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
+      expect(aliceGroup.querySelector('[data-row-cell]')).toBeNull() // the phone's rows
+      expect(aliceGroup.querySelector('[data-todo-id="1"]')!.textContent).toContain('AL')
+      const sharedRow = aliceGroup.querySelector('[data-todo-id="3"]')!
+      expect(sharedRow.textContent).toContain('AL')
+      expect(sharedRow.textContent).toContain('BO')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('a row in a person’s group: its people picker shows every person ticked', () => {
     setup(def({ grouping: 'people' }))
     const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
     const sharedRow = aliceGroup.querySelector('[data-todo-id="3"]')!

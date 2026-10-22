@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, memo, type RefObject } from 'react'
+import { useCallback, useRef, useState, memo, type RefObject } from 'react'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -21,8 +21,6 @@ import { TODO_ID_ATTR } from '../../utils/dom-contract'
 interface MobileTaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  /** A person's group: the person it is, left out of the row's people (see `TaskRow`). */
-  hiddenPersonId?: number
   isSelected?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
@@ -38,14 +36,10 @@ interface MobileTaskRowProps {
 const NO_PEOPLE: Person[] = []
 
 export const MobileTaskRow = memo(function MobileTaskRow({
-  todo, assignedPeople, hiddenPersonId, isSelected,
+  todo, assignedPeople, isSelected,
   onSelect, onOpenDetail,
 }: MobileTaskRowProps) {
   const people = assignedPeople ?? NO_PEOPLE
-  const shownPeople = useMemo(
-    () => (hiddenPersonId == null ? people : people.filter((p) => p.id !== hiddenPersonId)),
-    [people, hiddenPersonId],
-  )
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const today = startOfToday()
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
@@ -63,7 +57,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     peoplePickerClassName: styles.chipDropdown,
     // With nobody assigned there are no avatars to anchor to (Assign people… from the menu).
     fallbackPeopleAnchorRef: primaryRowRef,
-    useFallbackPeopleAnchor: shownPeople.length === 0,
+    useFallbackPeopleAnchor: people.length === 0,
   })
 
   const handleChevronTap = useCallback((e: React.MouseEvent) => {
@@ -90,7 +84,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const markers = markerSummary(todo, today, urgentRange)
 
-  const hasPeople = shownPeople.length > 0
+  const hasPeople = people.length > 0
   const hasMetadata =
     !!todo.dueDate || !!todo.nextFollowupAt ||
     hasPeople ||
@@ -193,7 +187,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
               lives on line 1 (primaryRow), so showStatus={false}. */}
           <TaskPillBar
             todo={todo}
-            people={shownPeople}
+            people={people}
             today={today}
             density="small"
             dateFormat="numeric"

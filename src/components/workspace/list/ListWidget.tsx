@@ -257,10 +257,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   const renderSectionRows = (section: Section) => {
     const target = dropTarget?.sectionKey === section.key ? dropTarget : null
-    // A person's own group doesn't repeat their chip on its rows.
-    const hiddenPersonId = groupedBy === 'people' && section.key.startsWith('person-')
-      ? Number(section.key.slice('person-'.length))
-      : undefined
     const out: React.ReactNode[] = []
     let j = 0
     const indicator = () => {
@@ -287,7 +283,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       }
       const people = assignedPeopleMap.get(todo.id)
       if (isMobile) {
-        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} hiddenPersonId={hiddenPersonId} onOpenDetail={openEditPopup} />)
+        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={openEditPopup} />)
         return
       }
       const prev = section.todos[i - 1]
@@ -297,7 +293,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           key={key}
           todo={todo}
           assignedPeople={people}
-          hiddenPersonId={hiddenPersonId}
           tabId={tab.id}
           sectionKey={section.key}
           rowKey={key}
