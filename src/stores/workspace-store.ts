@@ -449,6 +449,8 @@ function repairedOf(reads: readonly ReadLayout[]): Set<number> {
 const viewEditsDuringSave = new Set<Array<(layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout>>()
 registerModuleReset(() => { viewEditsDuringSave.clear() })
 
+/** One string per size group (a drag's frames name the same groups again). */
+const sizeGroupKey = (g: SizeGroup): string => (g.kind === 'columns' ? 'columns' : g.kind === 'cells' ? `cells:${g.columnId}` : `band:${g.edge}`)
 /** The size groups the live frames of a resize under way changed in layout `layoutId`'s working copy, saved at its end. */
 let pendingSizes: { layoutId: number; groups: SizeGroup[] } | null = null
 registerModuleReset(() => { pendingSizes = null })
@@ -583,7 +585,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     if (next !== working) {
       set({ working: next })
       if (pendingSizes?.layoutId !== working.id) pendingSizes = { layoutId: working.id, groups: [] }
-      pendingSizes.groups.push(...groupsOf(working))
+      // Once per group, not per frame of a drag.
+      const known = new Set(pendingSizes.groups.map(sizeGroupKey))
+      for (const g of groupsOf(working)) {
+        if (!known.has(sizeGroupKey(g))) { known.add(sizeGroupKey(g)); pendingSizes.groups.push(g) }
+      }
     }
     return live ? Promise.resolve() : commitSizes()
   }

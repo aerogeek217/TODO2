@@ -89,8 +89,9 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
     const r = resizeBand({ edge, startHeight: drag.startHeight, delta: e.clientY - drag.startY, max: drag.max })
     if (r.raw < BAND_MIN_PX - COLLAPSE_SLACK_PX) {
       pendingRef.current = null
+      // Back to the drag's start as a frame, so the drag's end saves only that.
+      void setBandHeight(edge, drag.storedHeight, { live: true })
       endDrag(e.currentTarget, e.pointerId)
-      setBandHeight(edge, drag.storedHeight)
       void setCellCollapsed(band.id, true)
       return
     }
