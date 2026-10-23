@@ -54,6 +54,11 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('Buy groceries')).toBeInTheDocument()
     })
 
+    it('marks its title with data-task-title, as the desktop row does', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Buy groceries' })} />)
+      expect(getRow().querySelector('[data-task-title]')).toHaveAttribute('data-task-title', 'Buy groceries')
+    })
+
     it('renders unchecked checkbox for incomplete task', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.getByRole('checkbox', { name: 'Toggle complete' })).not.toBeChecked()

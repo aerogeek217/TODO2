@@ -137,6 +137,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           type="button"
           className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
           aria-pressed={!!isSelected}
+          data-task-title={todo.title}
           onClick={handleRowTap}
         >
           {todo.title}
