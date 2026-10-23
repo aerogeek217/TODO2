@@ -25,7 +25,7 @@ function EmptyLayout() {
 
 function Column({ column }: { column: LayoutColumn }) {
   const setCellWeights = useWorkspaceStore((s) => s.setCellWeights)
-  const keepLayoutDraft = useWorkspaceStore((s) => s.keepLayoutDraft)
+  const endResize = useWorkspaceStore((s) => s.endResize)
   const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
   return (
     <div
@@ -49,7 +49,7 @@ function Column({ column }: { column: LayoutColumn }) {
                 weightB={cell.weight}
                 min={CELL_MIN_PX}
                 onResize={setCellWeights}
-                onResizeEnd={keepLayoutDraft}
+                onResizeEnd={endResize}
                 onCollapse={(id) => { void setCellCollapsed(id, true) }}
                 label="Resize cells"
               />
@@ -152,7 +152,7 @@ function DragOverlayLayer() {
  */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
   const setColumnWeights = useWorkspaceStore((s) => s.setColumnWeights)
-  const keepLayoutDraft = useWorkspaceStore((s) => s.keepLayoutDraft)
+  const endResize = useWorkspaceStore((s) => s.endResize)
   const { top, bottom } = layout
   const hasBands = top != null || bottom != null
   return (
@@ -175,7 +175,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
                       weightB={column.weight}
                       min={COLUMN_MIN_PX}
                       onResize={setColumnWeights}
-                      onResizeEnd={keepLayoutDraft}
+                      onResizeEnd={endResize}
                       label="Resize columns"
                     />
                   )}

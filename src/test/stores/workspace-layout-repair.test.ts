@@ -90,6 +90,7 @@ describe('the workspace store opens a repaired layout unsaved', () => {
     // View state stays in memory; a rename writes only the name.
     await ws().setActiveTab('a1')
     await ws().setCellCollapsed('kb', true)
+    await ws().setColumnWeights({ A: 2 })
     expect(ws().working?.columns[1]?.cells[0]?.collapsed).toBe(true)
     await ws().rename(id, 'Daily 2')
     expect(await storedRow(id)).toEqual({ ...before, name: 'Daily 2' })
@@ -104,6 +105,7 @@ describe('the workspace store opens a repaired layout unsaved', () => {
     expect(ws().isDirty).toBe(false)
     const row = await storedRow(id)
     expect(row.columns[0]?.cells[0]).toMatchObject({ weight: 1, tabs: [{ id: 'a1', kind: 'notes' }] })
+    expect(row.columns[0]?.weight).toBe(2)
     expect((await layoutRepository.get(id))?.fixes).toEqual([])
     // Saved now: view state is written again.
     await ws().setCellCollapsed('kb', false)

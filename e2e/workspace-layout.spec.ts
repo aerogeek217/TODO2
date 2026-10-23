@@ -4,6 +4,7 @@ import {
   type WsLayoutSeed,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
 
 /**
  * Workspace layout editing in a real browser: the three tab drop targets
@@ -108,7 +109,7 @@ test.describe('tab drop targets', () => {
 })
 
 test.describe('resize and collapse', () => {
-  test('dragging the column divider resizes both neighbours and respects the 280px minimum', async ({ page }) => {
+  test('dragging the column divider resizes both neighbours (saved at once, never unsaved) and respects the 280px minimum', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const divider = page.getByRole('separator', { name: 'Resize columns' })
     const before = await page.locator('[data-ws-column="colA"]').boundingBox()
@@ -119,7 +120,11 @@ test.describe('resize and collapse', () => {
     await page.mouse.move(d.x + d.width / 2 + 120, d.y + d.height / 2, { steps: 6 })
     await page.mouse.up()
     await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colA"]').boundingBox())!.width - before.width)).toBeGreaterThan(100)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    const resized = Math.round((await page.locator('[data-ws-column="colA"]').boundingBox())!.width)
+    await page.reload()
+    await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colA"]').boundingBox())!.width)).toBe(resized)
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
     // Far past the other column's minimum: it stops at 280px.
     const d2 = await divider.boundingBox()
@@ -130,7 +135,7 @@ test.describe('resize and collapse', () => {
     await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colB"]').boundingBox())!.width)).toBe(280)
   })
 
-  test('cell divider resizes; dragging past the minimum collapses the cell; collapse is not an unsaved change', async ({ page }) => {
+  test('cell divider resizes; dragging past the minimum collapses the cell; neither is an unsaved change', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -149,8 +154,6 @@ test.describe('resize and collapse', () => {
     await page.mouse.move(d.x + 200, d.y + d.height / 2 - 100, { steps: 5 })
     await page.mouse.up()
     await expect.poll(async () => Math.round(top.height - (await wsCell(page, 'a1').boundingBox())!.height)).toBeGreaterThan(80)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-    await saveButton(page).click()
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
     // Drag far up: the top cell collapses to its header.
@@ -185,6 +188,39 @@ test.describe('resize and collapse', () => {
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page))[1]?.length).toBe(2)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  })
+
+  test('with an unsaved new column, a column resize stays unsaved with it (kept over a reload); Save keeps the widths', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns] })
+    const header = wsCell(page, 'b1').locator('[data-ws-cell-header]')
+    await header.hover()
+    await header.getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menuitem', { name: 'Split right' }).click()
+    await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
+    await expect.poll(async () => (await wsShape(page)).length).toBe(3)
+    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+
+    const colA = page.locator('[data-ws-column="colA"]')
+    const before = (await box(colA)).width
+    const d = await box(page.locator('[data-ws-divider="colA|colB"]'))
+    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 - 100, y: d.y + d.height / 2 })
+    await expect.poll(async () => Math.round(before - (await box(colA)).width)).toBeGreaterThan(80)
+    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    const widths = async () => Promise.all((await page.locator('[data-ws-column]').all()).map(async (c) => Math.round((await box(c)).width)))
+    const resized = await widths()
+    // The stored layout has neither the column nor the widths yet.
+    const storedWeights = async () => ((await readStore<{ columns: Array<{ weight: number }> }>(page, 'layouts'))[0]?.columns ?? []).map((c) => c.weight)
+    expect(await storedWeights()).toEqual([1, 1])
+
+    await page.reload()
+    await expect.poll(widths).toEqual(resized)
+    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await saveButton(page).click()
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expect.poll(async () => (await storedWeights()).length).toBe(3)
+    await page.reload()
+    await expect.poll(widths).toEqual(resized)
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   })
 })
 

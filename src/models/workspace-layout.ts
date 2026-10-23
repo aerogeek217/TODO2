@@ -7,11 +7,12 @@
  * Every tab carries its own settings, split in two by how they are saved:
  *
  * - `config` — **layout config**: part of the saved layout. Changing it (like
- *   adding, moving, closing or resizing anything) makes the working copy differ
- *   from the saved layout, i.e. "unsaved changes".
+ *   adding, moving or closing anything) makes the working copy differ from
+ *   the saved layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
- *   (and a band's) `activeTabId` and `collapsed`.
+ *   (and a band's) `activeTabId` and `collapsed`, and for the sizes (a
+ *   column's or cell's `weight`, a band's `height`).
  *
  * A layout stores structure only; what a widget shows (list definitions,
  * tasks, the note) lives in its own tables.

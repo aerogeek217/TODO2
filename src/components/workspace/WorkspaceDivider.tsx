@@ -20,7 +20,7 @@ interface WorkspaceDividerProps {
   min: number
   /** New weights; `live` while dragging (each frame), then `onResizeEnd` once at the end. */
   onResize: (weightById: Record<string, number>, opts?: { live?: boolean }) => void
-  /** The drag ended (kept the result: the frames weren't). */
+  /** The drag ended (save the result: the frames weren't). */
   onResizeEnd?: () => void
   /** Cells only: dragging past a cell's minimum collapses it to its header. */
   onCollapse?: (id: string) => void
@@ -47,7 +47,7 @@ function measure(between: 'columns' | 'cells', id: string): number | null {
 /**
  * The gutter between two columns or two cells, as a resize handle: drag to
  * move it (rAF-throttled; only the two neighbours change; the frames are
- * `live` edits, kept in the browser once at the end), double-click to
+ * `live` edits, saved once at the end — sizes are view state), double-click to
  * even them out, ←/→ (↑/↓) to move it 16px. Neither neighbour goes below
  * `min`; dragging a cell well past its minimum collapses it instead.
  */
