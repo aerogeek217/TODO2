@@ -35,7 +35,8 @@ import { tokenTints } from '../../../services/nlp-token-tints'
  * - Typing on past an `@` / `#` token without picking (a space or punctuation
  *   right after it, the caret moved off it) completes it to the highlighted
  *   person / tag (`implicitAccept`, in a transaction filter); a highlighted
- *   create row leaves the text as typed — a typed space never creates.
+ *   create row, or a person / tag matched only at a word start or inside its
+ *   name, leaves the text as typed — a typed space never creates.
  *
  * The popup itself is React (`NotesNlpPopup`), reading `notesPopupField`.
  */

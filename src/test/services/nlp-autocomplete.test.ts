@@ -251,10 +251,11 @@ describe('/repeat argument', () => {
 })
 
 describe('@ and #', () => {
-  it('@ matches people by substring or exact initials; # tags by prefix', () => {
+  it('@ and # match by name anywhere (people also by exact initials)', () => {
     expect(labels(at('x @an'))).toEqual(['Anna', 'Dana Kim', 'create @an'])
     expect(labels(at('x @dk'))).toEqual(['Dana Kim', 'create @dk'])
     expect(labels(at('x #b'))).toEqual(['Backend', 'create #b'])
+    expect(labels(at('x #end'))).toEqual(['Backend', 'create #end'])
   })
 
   it('a Create row below the matches unless one is exactly the name typed (any case)', () => {
@@ -301,18 +302,54 @@ describe('@ and #', () => {
     expect(pick('Call @Marco')?.value).toBe('Call @Marco ')
   })
 
-  it('people: an exact name or initials match comes first, then names starting with the query', () => {
+  it('people: exact name, exact initials, prefix, word start, then substring; ties alphabetical', () => {
     const src = { ...sources, people: [
       { id: 1, name: 'Sal', initials: 'SA', kind: 'person' as const },
       { id: 2, name: 'Alice', initials: 'AC', kind: 'person' as const },
       { id: 3, name: 'Al', initials: 'AX', kind: 'person' as const },
+      { id: 4, name: 'Mo Alvarez', initials: 'MA', kind: 'person' as const },
     ] }
-    expect(labels(at('x @al', src))).toEqual(['Al', 'Alice', 'Sal'])
+    expect(labels(at('x @al', src))).toEqual(['Al', 'Alice', 'Mo Alvarez', 'Sal'])
     expect(labels(at('x @ali', src))).toEqual(['Alice', 'create @ali'])
-    expect(labels(at('x @a', src))).toEqual(['Alice', 'Al', 'Sal', 'create @a'])
+    // Store order (Sal first) never decides: equal ranks are alphabetical.
+    expect(labels(at('x @a', src))).toEqual(['Al', 'Alice', 'Mo Alvarez', 'Sal', 'create @a'])
+    expect(labels(at('x @ac', src))).toEqual(['Alice', 'create @ac'])
     // An exact name beats someone's initials (a person just made from the Create row).
-    const withAc = { ...sources, people: [...src.people, { id: 4, name: 'AC', initials: 'A2', kind: 'person' as const }] }
+    const withAc = { ...sources, people: [...src.people, { id: 5, name: 'AC', initials: 'A2', kind: 'person' as const }] }
     expect(labels(at('x @ac', withAc))).toEqual(['AC', 'Alice'])
+  })
+
+  it('only exact / initials / prefix rows resolve a typed name; every row marks where it matched', () => {
+    const src = { ...sources, people: [
+      { id: 1, name: 'Gary', initials: 'GA', kind: 'person' as const },
+      { id: 2, name: 'Ari Stone', initials: 'AS', kind: 'person' as const },
+      { id: 3, name: 'Mo Arden', initials: 'MO', kind: 'person' as const },
+    ] }
+    const rows = at('x @ar', src)?.rows ?? []
+    expect(rows.map((r) => (r.kind === 'entity' ? [r.item.name, r.resolves, r.match?.at] : [r.kind]))).toEqual([
+      ['Ari Stone', true, 0],
+      ['Mo Arden', false, 3],
+      ['Gary', false, 1],
+      ['create'],
+    ])
+    // An initials match marks nothing in the name.
+    const initials = at('x @mo', src)?.rows[0]
+    expect(initials?.kind === 'entity' && [initials.item.name, initials.resolves, initials.match]).toEqual(['Mo Arden', true, { at: 0, length: 2 }])
+    const byInitials = at('x @as', src)?.rows[0]
+    expect(byInitials?.kind === 'entity' && [byInitials.item.name, byInitials.resolves, byInitials.match]).toEqual(['Ari Stone', true, undefined])
+  })
+
+  it('tags rank the same way: a word start or substring is listed', () => {
+    const src = { ...sources, tags: tagItems([
+      { id: 1, name: 'build', color: '#000' }, { id: 2, name: 'ui', color: '#000' }, { id: 3, name: 'Project: Alpha', color: '#000' },
+    ]) }
+    expect(labels(at('x #ui', src))).toEqual(['ui', 'build'])
+    expect(labels(at('x #alp', src))).toEqual(['Project: Alpha', 'create #alp'])
+    // Typed without a pick, only an exact or prefix tag resolves: a new `#ui` never becomes `build`.
+    expect(matchTag('ui', src.tags)?.name).toBe('ui')
+    expect(matchTag('uil', src.tags)).toBeUndefined()
+    expect(matchTag('alp', src.tags)).toBeUndefined()
+    expect(matchTag('proj', src.tags)?.name).toBe('Project: Alpha')
   })
 })
 
@@ -444,10 +481,19 @@ describe('candidate builders', () => {
 
 describe('bestMatchCompletion — the highlighted row', () => {
   it('completes to the row at `index` (default: the first)', () => {
-    const view = at('Call @an')
+    const src = { ...sources, people: [...people, { id: 3, name: 'Andy Lee', initials: 'AL', kind: 'person' as const }] }
+    const view = at('Call @an', src)
     if (!view) throw new Error('no popup')
     expect(bestMatchCompletion('Call @an', view)).toBe('Call @Anna ')
-    expect(bestMatchCompletion('Call @an', view, 1)).toBe('Call @"Dana Kim" ')
+    expect(bestMatchCompletion('Call @an', view, 1)).toBe('Call @"Andy Lee" ')
+  })
+
+  it('a row matched only inside its name stays as typed (it needs a pick)', () => {
+    const view = at('Call @an')
+    if (!view) throw new Error('no popup')
+    expect(labels(view).slice(0, 2)).toEqual(['Anna', 'Dana Kim'])
+    expect(bestMatchCompletion('Call @an', view, 1)).toBe('Call @an')
+    expect(bestMatchCompletion('Call @kim', at('Call @kim')!)).toBe('Call @kim')
   })
 })
 
@@ -462,7 +508,12 @@ describe('implicitAccept — typing on uses the highlighted row', () => {
 
   it('a space after the token completes it to the highlighted person, the space kept', () => {
     expect(typed('Call @an', 0, 'Call @an ')).toEqual({ value: 'Call @Anna ', cursor: 11 })
-    expect(typed('Call @an', 1, 'Call @an ')).toEqual({ value: 'Call @"Dana Kim" ', cursor: 17 })
+    expect(typed('Call @da', 0, 'Call @da ')).toEqual({ value: 'Call @"Dana Kim" ', cursor: 17 })
+  })
+
+  it('nothing when the highlighted row matched only at a word start or inside the name', () => {
+    expect(typed('Call @an', 1, 'Call @an ')).toBeNull() // Dana Kim: inside the name
+    expect(typed('Call @kim', 0, 'Call @kim ')).toBeNull() // Dana Kim: a word start
   })
 
   it('punctuation does too; a tag completes the same way', () => {

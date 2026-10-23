@@ -75,7 +75,7 @@ test.describe('QuickAddBar @ mention picker', () => {
     await expect(targetOption).toHaveAttribute('aria-selected', 'true')
     await expect(popup.getByRole('option')).toHaveText([`@${TARGET_NAME}`, /Create @acme/])
 
-    // Tab picks (⏎ would add the task at once, with the same match).
+    // Tab picks (a match inside the name needs a pick: ⏎ would add `@acme` as a new person).
     await page.keyboard.press('Tab')
 
     // Picker dismisses; the name contains a space, so the token is quoted.
@@ -179,5 +179,39 @@ test.describe('QuickAddBar # popup: a tag no bare #slug can spell', () => {
     expect(task).toBeDefined()
     expect((todoTags ?? []).filter((j) => j.todoId === task?.id).map((j) => j.tagId)).toEqual([rd?.id])
     expect((tags ?? []).map((t) => t.name).sort()).toEqual(['R&D', 'rd'])
+  })
+})
+
+test.describe('QuickAddBar # popup: a match inside the name is listed, not taken unpicked', () => {
+  test('#ui lists build but a space keeps #ui, which becomes a new tag; #alp → Tab picks Project: Alpha', async ({ page }) => {
+    await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }], tags: ['build', 'Project: Alpha'] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await page.keyboard.press('Control+Space')
+    const dialog = page.getByRole('dialog', { name: 'Quick add task' })
+    const input = dialog.getByPlaceholder('New task…')
+    await input.pressSequentially('Ship #ui')
+    const popup = page.getByRole('listbox', { name: 'Tags' })
+    await expect(popup.getByRole('option')).toHaveText(['#build', /Create #ui/])
+    await expect(popup.getByRole('option', { name: '#build' })).toHaveAttribute('aria-selected', 'true')
+    await expect(popup.getByRole('option', { name: '#build' }).locator('mark')).toHaveText('ui')
+
+    // Typing on doesn't take a match inside the name.
+    await input.press('Space')
+    await expect(input).toHaveValue('Ship #ui ')
+
+    // A word start is listed too; Tab picks it.
+    await input.pressSequentially('#alp')
+    await expect(popup.getByRole('option')).toHaveText(['#Project: Alpha', /Create #alp/])
+    await input.press('Tab')
+    await expect(input).toHaveValue('Ship #ui #"Project: Alpha" ')
+
+    await input.press('Enter')
+    await expect(dialog).toHaveCount(0)
+    await expect.poll(async () => {
+      const { todos, tags, todoTags } = await readStores(page, ['todos', 'tags', 'todoTags'])
+      const task = (todos ?? []).find((t) => t.title === 'Ship')
+      const names = new Map((tags ?? []).map((t) => [t.id, t.name]))
+      return (todoTags ?? []).filter((j) => j.todoId === task?.id).map((j) => names.get(j.tagId)).sort()
+    }).toEqual(['Project: Alpha', 'ui'])
   })
 })

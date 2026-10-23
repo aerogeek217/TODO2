@@ -100,7 +100,7 @@ describe('task title autocomplete — tags', () => {
       renderPopup()
       typeTitle('#ur')
 
-      const row = screen.getByText('#urgent')
+      const row = screen.getByRole('option', { name: '#urgent' })
       fireEvent.mouseDown(row)
 
       const input = getTitleInput()

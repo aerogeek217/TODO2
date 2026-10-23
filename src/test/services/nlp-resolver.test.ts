@@ -40,6 +40,8 @@ describe('nlp-resolver', () => {
     { input: 'Task @John', personIds: [1] },           // first name
     { input: 'Task @SC', personIds: [2] },             // initials
     { input: 'Task @Sar', personIds: [2] },            // prefix
+    { input: 'Task @Connor', personIds: [], unmatched: ['Connor'] }, // a word start needs a pick
+    { input: 'Task @ike', personIds: [], unmatched: ['ike'] },       // so does a substring
     { input: 'Task @Mike @Sarah', personIds: [3, 2] }, // multiple
     { input: 'Task @Mike @Mike', personIds: [3] },     // dedupe
     { input: 'Task @Unknown', personIds: [], unmatched: ['Unknown'] },
@@ -52,14 +54,14 @@ describe('nlp-resolver', () => {
     expect(result.unmatchedPersons).toEqual(unmatched)
   })
 
-  it('a typed name resolves to the person the @ popup shows first', () => {
+  it('a typed name resolves to the person the @ popup shows first when it is an exact, initials or prefix match', () => {
     const crowd: Person[] = [
       { id: 10, name: 'Dkarl Berg', initials: 'DB' },
       { id: 11, name: 'Dana Kim', initials: 'DK' },
       { id: 12, name: 'Mikkel', initials: 'MI' },
       { id: 13, name: 'Jo Mike', initials: 'JM' },
     ]
-    for (const name of ['dk', 'mik', 'ike', 'Dana']) {
+    for (const name of ['dk', 'mik', 'Dana', 'jo']) {
       const view = computeAutocomplete(`x @${name}`, name.length + 3, {
         people: personItems(crowd), tags: [], statuses: [], commands: true, followupDefault: null, today: new Date(2026, 9, 10),
       })
@@ -68,9 +70,16 @@ describe('nlp-resolver', () => {
       expect(shown).toBeDefined()
       expect(resolveInput(parseInput(`x @${name}`), crowd).personIds).toEqual([shown])
     }
-    // Initials beat a name merely starting with them; a substring still matches.
+    // Initials beat a name merely starting with them.
     expect(resolveInput(parseInput('x @dk'), crowd).personIds).toEqual([11])
-    expect(resolveInput(parseInput('x @ike'), crowd).personIds).toEqual([13])
+    // The popup lists a substring / word-start match first, but typed alone it stays a new name.
+    for (const name of ['ike', 'kim']) {
+      const view = computeAutocomplete(`x @${name}`, name.length + 3, {
+        people: personItems(crowd), tags: [], statuses: [], commands: true, followupDefault: null, today: new Date(2026, 9, 10),
+      })
+      expect(view?.rows[0]?.kind).toBe('entity')
+      expect(resolveInput(parseInput(`x @${name}`), crowd)).toMatchObject({ personIds: [], unmatchedPersons: [name] })
+    }
   })
 
   it('passes the commands through', () => {

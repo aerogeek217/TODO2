@@ -209,11 +209,20 @@ describe('notes autocomplete — the highlighted row is what you get', () => {
 
   it('the pointer moves the highlight; typing on then uses that row', () => {
     const { view: v } = setup('- Call ')
-    type(v, '@an') // Anna, Dana Kim
+    type(v, '@') // Anna, Dana Kim
+    highlightNotesPopupRow(v, 1)
+    type(v, 'd') // Dana Kim only (a prefix)
+    type(v, ',')
+    expect(v.state.doc.toString()).toBe('- Call @"Dana Kim",')
+  })
+
+  it('a highlighted row matched only inside the name leaves the text as typed', () => {
+    const { view: v } = setup('- Call ')
+    type(v, '@an') // Anna, Dana Kim (inside the name)
     highlightNotesPopupRow(v, 1)
     expect(popup(v)?.selectedIndex).toBe(1)
     type(v, ',')
-    expect(v.state.doc.toString()).toBe('- Call @"Dana Kim",')
+    expect(v.state.doc.toString()).toBe('- Call @an,')
   })
 
   it('moving the caret off the token completes it', () => {
