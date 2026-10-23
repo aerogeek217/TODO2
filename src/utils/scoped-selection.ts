@@ -82,6 +82,24 @@ export function readScopeRows(scopeEl: ParentNode): ScopedRow[] {
   }))
 }
 
+/**
+ * `ids` in display order: by each task's first row in `rows`; tasks with no
+ * row (in a collapsed group, or a scope not rendered) follow in the
+ * order given.
+ */
+export function orderByRows(ids: readonly number[], rows: readonly ScopedRow[]): number[] {
+  const wanted = new Set(ids)
+  const out: number[] = []
+  const seen = new Set<number>()
+  for (const r of rows) {
+    if (!wanted.has(r.todoId) || seen.has(r.todoId)) continue
+    seen.add(r.todoId)
+    out.push(r.todoId)
+  }
+  for (const id of ids) if (!seen.has(id)) { seen.add(id); out.push(id) }
+  return out
+}
+
 /** The rendered element of a selection scope, if any. */
 export function findScopeElement(scope: string): HTMLElement | null {
   for (const el of document.querySelectorAll<HTMLElement>(attrSelector(SELECTION_SCOPE_ATTR))) {

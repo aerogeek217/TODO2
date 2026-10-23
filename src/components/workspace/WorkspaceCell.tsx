@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useCallback, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import {
   getActiveTab,
@@ -11,12 +11,10 @@ import {
   type WidgetKind,
 } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { copyTasksRich } from '../../services/task-copy'
+import { copyTasks } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
@@ -194,8 +192,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const statuses = useStatusStore((s) => s.statuses)
   const movePanel = useWorkspaceStore((s) => s.movePanel)
   const hasTop = useWorkspaceStore((s) => s.working?.top != null)
   const hasBottom = useWorkspaceStore((s) => s.working?.bottom != null)
@@ -226,7 +222,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
   const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
   const closeCustomize = useCallback(() => setCustomize(null), [])
-  const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
 
   const hit = drag?.hit
   const bodyHit = !band && hit?.kind === 'cell-body' && hit.cellId === cell.id ? hit : null
@@ -465,10 +460,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
                 onSelect: () => {
                   const sections = widgetResult.result.sections
                   const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
-                  void copyTasksRich(
-                    sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })),
-                    { assignedPeopleMap, statusMap },
-                  )
+                  void copyTasks(sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
                 },
               }]
             : undefined}

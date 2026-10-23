@@ -6,12 +6,21 @@
  * The helper renders what it's given: callers pre-filter (e.g. completed
  * tasks) and pre-group. A single flat list is a one-section call
  * with no label; a grouped view passes one section per heading.
+ * `copyTasks` reads the people / statuses from the stores and says
+ * `Copied N tasks`; `copySelectedTasks` is the copy shortcut's (and the
+ * palette's) copy of the selected or focused tasks, in display order.
  */
 import type { PersistedTodoItem, Person, Status } from '../models'
 import { formatDateWith, startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
 import { escapeHtml } from '../utils/html'
+import { attrSelector, ROW_TODO_ATTR } from '../utils/dom-contract'
+import { findScopeElement, orderByRows, readScopeRows } from '../utils/scoped-selection'
 import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
+import { usePersonStore } from '../stores/person-store'
+import { useStatusStore } from '../stores/status-store'
+import { useTodoStore } from '../stores/todo-store'
+import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 
 export interface CopyTaskSection {
@@ -128,4 +137,70 @@ export async function copyTasksRich(
   const ok = await writeRichClipboard(wrapClipboardHtml(buildTasksHtml(sections, ctx)), buildTasksPlain(sections, ctx))
   if (!ok) useUndoStore.getState().notify(COPY_REFUSED_NOTICE)
   return ok
+}
+
+/** `Copied 3 tasks` — what the snackbar says after a copy. */
+export function copiedNotice(count: number): string {
+  return `Copied ${count} ${count === 1 ? 'task' : 'tasks'}`
+}
+
+/** The stores' people and statuses, for a copy. */
+function storeCopyContext(): CopyTaskContext {
+  return {
+    assignedPeopleMap: usePersonStore.getState().assignedPeopleMap,
+    statusMap: new Map(useStatusStore.getState().statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
+  }
+}
+
+/**
+ * `copyTasksRich` with the stores' people and statuses, then `Copied N
+ * tasks` in the snackbar (N counts each task once). The task menu, a list
+ * group's menu, the tab menu's Copy tasks and the copy shortcut use it.
+ */
+export async function copyTasks(sections: CopyTaskSection[]): Promise<boolean> {
+  const ok = await copyTasksRich(sections, storeCopyContext())
+  if (ok) {
+    const ids = new Set(sections.flatMap((s) => s.todos.map((t) => t.id)))
+    useUndoStore.getState().notify(copiedNotice(ids.size))
+  }
+  return ok
+}
+
+/**
+ * `todos` in the order the selection's widget shows them (`scope`, read from
+ * its rendered rows); with no such widget on screen, as given.
+ */
+export function inDisplayOrder(todos: readonly PersistedTodoItem[], scope: string | null): PersistedTodoItem[] {
+  const el = scope != null ? findScopeElement(scope) : null
+  if (!el || todos.length < 2) return [...todos]
+  const byId = new Map(todos.map((t) => [t.id, t]))
+  return orderByRows(todos.map((t) => t.id), readScopeRows(el)).flatMap((id) => {
+    const todo = byId.get(id)
+    return todo ? [todo] : []
+  })
+}
+
+/**
+ * The tasks the copy shortcut copies: the selection, in its widget's
+ * display order; with nothing selected, the task of the widget row that has
+ * the focus. None when neither.
+ */
+export function tasksToCopy(): PersistedTodoItem[] {
+  const ui = useUIStore.getState()
+  const todos = useTodoStore.getState().todos
+  if (ui.selectedTodoIds.size > 0) {
+    return inDisplayOrder(todos.filter((t) => ui.selectedTodoIds.has(t.id)), ui.selectionScope)
+  }
+  const active = document.activeElement
+  const row = active instanceof Element ? active.closest(attrSelector(ROW_TODO_ATTR)) : null
+  const id = row ? Number(row.getAttribute(ROW_TODO_ATTR)) : NaN
+  const todo = todos.find((t) => t.id === id)
+  return todo ? [todo] : []
+}
+
+/** Copies the selected (or focused) tasks as one list with no heading; false when there are none. */
+export async function copySelectedTasks(): Promise<boolean> {
+  const todos = tasksToCopy()
+  if (todos.length === 0) return false
+  return copyTasks([{ todos }])
 }

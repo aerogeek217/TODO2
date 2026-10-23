@@ -6,6 +6,7 @@ import { useSettingsStore } from '../stores/settings-store'
 import { shortcutLabel } from '../utils/shortcut-bindings'
 import type { ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts'
+import { copySelectedTasks } from './task-copy'
 
 /** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
@@ -173,6 +174,8 @@ export function createCommands(
       })
     }
     commands.push(
+      // The selection, as the copy shortcut copies it (no text-selection check: the palette is the ask).
+      { id: 'bulk-copy', name: `Copy ${label}`, shortcut: keys('copy-selected'), category: 'bulk', action: () => { void copySelectedTasks() } },
       { id: 'bulk-delete', name: `Delete ${label}`, category: 'bulk', action: () => ctx.bulkRemove(ctx.getSelectedIds()) },
     )
   }

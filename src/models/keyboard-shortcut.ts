@@ -138,6 +138,10 @@ export const SHORTCUT_SPECS = {
     description: 'Delete selected task(s)', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'Delete' }),
   },
+  'copy-selected': {
+    description: 'Copy selected tasks', category: 'task', editable: true, blockedByEditPopup: true,
+    chord: one({ key: 'c', mod: true }),
+  },
 } as const satisfies Record<string, ShortcutSpec>
 
 export type ShortcutId = keyof typeof SHORTCUT_SPECS

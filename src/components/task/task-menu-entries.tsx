@@ -10,7 +10,7 @@ import {
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../utils/followup'
 import type { MenuEntry } from '../shared/MenuPopover'
-import { CheckCircleIcon, CloseIcon, FlagIcon, HashIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
+import { CheckCircleIcon, CloseIcon, CopyIcon, FlagIcon, HashIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
 import { FollowedUpIcon } from '../shared/FollowupIcons'
 import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -24,6 +24,8 @@ export interface TaskMenuHandlers {
   /** "Open" (single task only). */
   onOpen?: () => void
   onToggleComplete: () => void
+  /** "Copy" / "Copy N tasks": copies the tasks the menu acts on (`TaskMenu` fills it). */
+  onCopy?: () => void
   /** "Set due date…": opens the due date picker. */
   onSetDueDate?: () => void
   /** Follow-up submenu: sets the next follow-up to the given day. */
@@ -48,6 +50,8 @@ export interface BuildTaskMenuOpts {
   today: Date
   urgentRange: UrgentDueWithinDays
   handlers: TaskMenuHandlers
+  /** Copy's key hint: the copy shortcut's live keys. */
+  copyKbd?: string
 }
 
 const MARKER_ICON: Record<MarkerKey, React.ReactNode> = {
@@ -116,11 +120,12 @@ export function followedUpMenuEntry(
 
 /**
  * The one task menu (a row's right-click / context-menu key, long-press, search result):
- * Open · Mark complete | Set due date… · Follow-up › · Mark followed up · Assign
- * people… · Add tag… | Markers | Delete. With several tasks a `N tasks` label
- * replaces Open, Delete names the count, and the markers can be mixed.
+ * Open · Mark complete · Copy | Set due date… · Follow-up › · Mark followed up ·
+ * Assign people… · Add tag… | Markers | Delete. With several tasks a `N tasks`
+ * label replaces Open, Copy and Delete name the count, and the markers can be
+ * mixed.
  */
-export function buildTaskMenuEntries({ todo, targets, today, urgentRange, handlers }: BuildTaskMenuOpts): MenuEntry[] {
+export function buildTaskMenuEntries({ todo, targets, today, urgentRange, handlers, copyKbd }: BuildTaskMenuOpts): MenuEntry[] {
   const several = targets.length > 1
   const h = handlers
   const hasFollowup = several ? targets.some((t) => t.nextFollowupAt) : !!todo.nextFollowupAt
@@ -155,8 +160,17 @@ export function buildTaskMenuEntries({ todo, targets, today, urgentRange, handle
       kbd: 'Space',
       onSelect: h.onToggleComplete,
     },
-    { kind: 'separator' },
   )
+  if (h.onCopy) {
+    entries.push({
+      kind: 'item',
+      label: several ? `Copy ${targets.length} tasks` : 'Copy',
+      icon: <CopyIcon />,
+      kbd: copyKbd,
+      onSelect: h.onCopy,
+    })
+  }
+  entries.push({ kind: 'separator' })
   if (h.onSetDueDate) {
     entries.push({
       kind: 'item',

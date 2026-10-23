@@ -68,6 +68,16 @@ describe('shortcutRefusal', () => {
     expect(shortcutRefusal('focus-filters', chord('Mod-Shift-p'), overrides)).toMatch(/Command Palette/)
   })
 
+  it('Ctrl+C is Copy selected tasks’ keys: another binding can’t take them until it moves to other keys', () => {
+    stubPlatform('Win32')
+    expect(shortcutRefusal('undo', chord('Mod-c'), {})).toBe('Ctrl+C is already used by Copy selected tasks.')
+    expect(shortcutRefusal('copy-selected', chord('Mod-Alt-k'), {})).toBeNull()
+    // Moved away, Ctrl+C is free for another binding that doesn't fire in text fields.
+    expect(shortcutRefusal('undo', chord('Mod-c'), { 'copy-selected': chord('Mod-Alt-k') })).toBeNull()
+    // A binding that fires while typing never gets it (text fields copy with it).
+    expect(shortcutRefusal('command-palette', chord('Mod-c'), { 'copy-selected': chord('Mod-Alt-k') })).toMatch(/used in text fields \(Copy\)/)
+  })
+
   it('refuses a single key that starts a sequence, and a sequence starting with a used key', () => {
     expect(shortcutRefusal('focus-filters', chord('g'), {})).toBe('G starts G then S (Open Settings).')
     expect(shortcutRefusal('open-settings', chord('f s'), {})).toBe('F is already used by Focus filters, so a sequence can\'t start with it.')

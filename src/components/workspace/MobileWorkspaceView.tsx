@@ -20,9 +20,7 @@ import { UnsavedPrompt } from './UnsavedPrompt'
 import { DialogFrame } from '../shared/Dialog'
 import type { ListWidgetResult } from './list/ListWidget'
 import { useUnsavedListIds } from '../../hooks/use-list-draft'
-import { usePersonStore } from '../../stores/person-store'
-import { useStatusStore } from '../../stores/status-store'
-import { copyTasksRich } from '../../services/task-copy'
+import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
@@ -265,18 +263,13 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   result: ListWidgetResult | undefined
   onClose: () => void
 }) {
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const statuses = useStatusStore((s) => s.statuses)
   const rows: Array<{ label: string; run: () => void }> = [
     { label: 'Edit list…', run: () => openEditList(tabId, listDefinitionId) },
     ...(result ? [{
       label: 'Copy tasks',
       run: () => {
         const labelled = !(result.sections.length === 1 && result.sections[0]?.key === 'all')
-        void copyTasksRich(
-          result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })),
-          { assignedPeopleMap, statusMap: new Map(statuses.map((st) => [st.id!, st])) },
-        )
+        void copyTasks(result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
       },
     }] : []),
   ]
