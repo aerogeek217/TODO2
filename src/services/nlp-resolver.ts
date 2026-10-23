@@ -1,6 +1,7 @@
 import type { Person, RecurrenceType, Status, Tag } from '../models'
 import { removeSpans, type CommandProblem, type ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
+import { byName } from '../utils/sort-order'
 
 export interface ResolvedInput {
   /** The task title: the text without its recognised tokens. An unknown
@@ -98,23 +99,7 @@ export function rankByName<T extends { name: string; initials?: string }>(
     const match = q ? nameMatch(q, item.name, item.initials) : { rank: NAME_MATCH_RANK.prefix, at: 0 }
     if (match) out.push({ item, match })
   }
-  return out.sort((a, b) => a.match.rank - b.match.rank || a.item.name.localeCompare(b.item.name))
-}
-
-/**
- * The people an `@` name matches, best first (`rankByName`): the one
- * ranking the `@` popup lists.
- */
-export function rankPeople<P extends { name: string; initials?: string }>(name: string, people: readonly P[]): P[] {
-  return rankByName(name, people).map((x) => x.item)
-}
-
-/**
- * The tags a `#` name matches, best first (`rankByName`): the one ranking
- * the `#` popup lists.
- */
-export function rankTags<T extends { name: string }>(name: string, tags: readonly T[]): T[] {
-  return rankByName(name, tags).map((x) => x.item)
+  return out.sort((a, b) => a.match.rank - b.match.rank || byName(a.item, b.item))
 }
 
 /**
