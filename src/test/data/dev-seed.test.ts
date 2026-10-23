@@ -26,7 +26,6 @@ async function importSeed(seed: DevSeed): Promise<void> {
   const prepared = prepareImport(asFile(seed))
   if (!prepared.ok) throw new Error(`dev seed failed to import: ${prepared.error}`)
   expect(prepared.sourceVersion).toBe(49)
-  expect(prepared.legacy).toBeNull()
   expect(prepared.upgraded).toBe(true)
   expect(prepared.warnings).toEqual([])
   await restoreFromImportData(prepared.data)

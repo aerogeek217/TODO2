@@ -18,8 +18,6 @@ interface FileOpsState {
   /** Create Backup Now. Rejects when the backup can't be stored. */
   createBackup: () => Promise<void>
   deleteBackup: (id: number) => Promise<void>
-  /** Returns the raw snapshot data for legacy-format detection before restore. */
-  peekBackupData: (id: number) => Promise<string | null>
 
   runAudit: () => Promise<void>
   setAuditReport: (report: AuditReport | null) => void
@@ -57,11 +55,6 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => {
   deleteBackup: async (id) => {
     await backupRepository.deleteSnapshot(id)
     await get().loadBackups()
-  },
-
-  peekBackupData: async (id) => {
-    const backup = await backupRepository.getSnapshot(id)
-    return backup?.data ?? null
   },
 
   runAudit: async () => {

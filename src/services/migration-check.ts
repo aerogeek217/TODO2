@@ -3,12 +3,21 @@ import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from '../data/databas
 // Dexie multiplies version numbers by 10 for the native IDB version
 const FLOOR_IDB_VERSION = OLDEST_SUPPORTED_DB_VERSION * 10
 
-export interface UnsupportedDBInfo {
-  currentVersion: number
-  targetVersion: number
+/** The browser's database, below the floor: its schema version and the floor. */
+export interface TooOldDBInfo {
+  storedVersion: number
+  floorVersion: number
 }
 
-export async function checkUnsupportedOldDB(): Promise<UnsupportedDBInfo | null> {
+/**
+ * The browser's database when it is below the floor
+ * (`OLDEST_SUPPORTED_DB_VERSION`), else null. Read from the browser's list of
+ * databases, so it is checked before anything opens the database: this
+ * build neither reads nor writes (nor upgrades) it. Where the browser can't
+ * list its databases, the database's own open refuses it
+ * (`DatabaseTooOldError`).
+ */
+export async function checkTooOldDB(): Promise<TooOldDBInfo | null> {
   if (!indexedDB.databases) return null
 
   try {
@@ -18,8 +27,8 @@ export async function checkUnsupportedOldDB(): Promise<UnsupportedDBInfo | null>
     if (!existing?.version || existing.version >= FLOOR_IDB_VERSION) return null
 
     return {
-      currentVersion: Math.floor(existing.version / 10),
-      targetVersion: CURRENT_DB_VERSION,
+      storedVersion: Math.floor(existing.version / 10),
+      floorVersion: OLDEST_SUPPORTED_DB_VERSION,
     }
   } catch {
     return null
@@ -50,44 +59,4 @@ export async function checkTooNewDB(): Promise<TooNewDBInfo | null> {
   } catch {
     return null
   }
-}
-
-export async function exportCurrentDatabase(dexieVersion: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open('todo2', dexieVersion * 10)
-
-    request.onsuccess = () => {
-      const idb = request.result
-      const tableNames = Array.from(idb.objectStoreNames)
-
-      if (tableNames.length === 0) {
-        idb.close()
-        resolve(JSON.stringify({}, null, 2))
-        return
-      }
-
-      const tx = idb.transaction(tableNames, 'readonly')
-      const data: Record<string, unknown[]> = {}
-      let completed = 0
-
-      for (const name of tableNames) {
-        const store = tx.objectStore(name)
-        const req = store.getAll()
-        req.onsuccess = () => {
-          data[name] = req.result
-          completed++
-          if (completed === tableNames.length) {
-            idb.close()
-            resolve(JSON.stringify(data, null, 2))
-          }
-        }
-        req.onerror = () => {
-          idb.close()
-          reject(new Error(`Failed to read table ${name}`))
-        }
-      }
-    }
-
-    request.onerror = () => reject(new Error('Failed to open database for export'))
-  })
 }

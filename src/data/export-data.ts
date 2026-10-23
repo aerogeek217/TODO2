@@ -29,7 +29,7 @@ export async function readDataTables(): Promise<DataTableArrays> {
  *
  * The returned object is stamped with `__schemaVersion = CURRENT_DB_VERSION` so
  * the import path can detect older files without reaching for field-shape
- * heuristics. See `data/file-version.ts:detectUnsupportedImport`.
+ * heuristics (`data/import-pipeline.ts` `prepareImport`).
  */
 export async function buildExportData(): Promise<ExportData> {
   return {

@@ -27,11 +27,12 @@ export interface SettingRow {
 export const CURRENT_DB_VERSION = 68
 
 /**
- * Lowest database version this build will silently load. A database whose
- * on-disk version (or imported file's `__schemaVersion`) is below this floor
- * triggers a warning dialog before any restore or Dexie upgrade runs —
- * legacy translators have been removed for older shapes and proceeding may
- * permanently lose data.
+ * Lowest database version this build reads. A browser database whose
+ * on-disk version — or a file (export, backup, sync file, task archive) whose
+ * `__schemaVersion` — is below this floor, or a file with no version marker,
+ * is refused: nothing in it is read, nothing is written, and there is no way
+ * to go on anyway (the upgrades for older shapes are gone). The refusal says
+ * which build can still upgrade it (`BELOW_FLOOR_BUILD`).
  *
  * Files at or above the floor import through the permanent upgrade pipeline
  * (`data/schema-upgrades.ts` → `upgradeDataSet`), which runs the same
@@ -45,9 +46,24 @@ export const CURRENT_DB_VERSION = 68
  */
 export const OLDEST_SUPPORTED_DB_VERSION = 49
 
+/**
+ * The builds that still upgrade data below the floor — named in every
+ * below-floor refusal. Changes with the floor.
+ */
+export const BELOW_FLOOR_BUILD = 'a TODO2 build from before 2026-10-23'
+
 /** What a build says when the browser's database was written by a newer one (schema `storedVersion`). */
 export function tooNewDatabaseMessage(storedVersion: number, buildVersion: number = CURRENT_DB_VERSION): string {
   return `This browser’s TODO2 data was saved by a newer version of TODO2 (schema v${storedVersion}); this version supports up to v${buildVersion}. Nothing was read or changed. Reload the page to get the newer version.`
+}
+
+/**
+ * What a build says when the browser's database is below the floor (schema
+ * `storedVersion`; `null` when the browser can't tell — the open refused it).
+ */
+export function tooOldDatabaseMessage(storedVersion: number | null, floorVersion: number = OLDEST_SUPPORTED_DB_VERSION): string {
+  const saved = storedVersion === null ? 'an older version of TODO2' : `an older version of TODO2 (schema v${storedVersion})`
+  return `This browser’s TODO2 data was saved by ${saved}; this version reads v${floorVersion} and newer. Nothing was read or changed. To keep it, open it in ${BELOW_FLOOR_BUILD}, which upgrades it, then reload this version.`
 }
 
 /**
@@ -67,13 +83,50 @@ export class DatabaseTooNewError extends Error {
   }
 }
 
-/** The `DatabaseTooNewError` behind `error` (Dexie wraps an open failure in the errors of later calls), if any. */
-export function findDatabaseTooNew(error: unknown): DatabaseTooNewError | null {
+/**
+ * The browser's database is below the floor (`OLDEST_SUPPORTED_DB_VERSION`):
+ * opening it fails with this from inside Dexie's upgrade, so the upgrade is
+ * aborted and the database stays exactly as it was. `storedVersion` is
+ * `null`: Dexie's upgrade doesn't say which version it found.
+ */
+export class DatabaseTooOldError extends Error {
+  readonly storedVersion: number | null
+
+  constructor(storedVersion: number | null) {
+    super(tooOldDatabaseMessage(storedVersion))
+    this.name = 'DatabaseTooOldError'
+    this.storedVersion = storedVersion
+  }
+}
+
+/** The error of class `type` behind `error` (Dexie wraps an open failure in the errors of later calls), if any. */
+function findWrapped<T extends Error>(error: unknown, type: new (...args: never[]) => T): T | null {
   for (let e: unknown = error, depth = 0; e != null && depth < 5; depth++) {
-    if (e instanceof DatabaseTooNewError) return e
+    if (e instanceof type) return e
     e = (e as { inner?: unknown }).inner
   }
   return null
+}
+
+/** The `DatabaseTooNewError` behind `error`, if any. */
+export function findDatabaseTooNew(error: unknown): DatabaseTooNewError | null {
+  return findWrapped(error, DatabaseTooNewError)
+}
+
+/** The `DatabaseTooOldError` behind `error`, if any. */
+export function findDatabaseTooOld(error: unknown): DatabaseTooOldError | null {
+  return findWrapped(error, DatabaseTooOldError)
+}
+
+/**
+ * The floor version's `.upgrade()`: Dexie runs a version's upgrade only for a
+ * database older than that version, so for the floor's declaration that is
+ * exactly a database below the floor. Throwing aborts the version-change
+ * transaction — IndexedDB then undoes every store and index change of the
+ * open, and the database keeps its old version and data.
+ */
+function refuseBelowFloor(): never {
+  throw new DatabaseTooOldError(null)
 }
 
 export class Todo2Database extends Dexie {
@@ -95,11 +148,10 @@ export class Todo2Database extends Dexie {
     super('todo2')
 
     // v16 – v48: the store layouts of the versions below the supported floor
-    // (`OLDEST_SUPPORTED_DB_VERSION`, v49). Dexie needs every version that
-    // changed a store to open (and upgrade) an older database; the data
-    // upgrades those versions ran are gone, so a database older than the
-    // floor gets the migration warning first (`services/migration-check`).
-    // Each line names what the version changed, for the record.
+    // (`OLDEST_SUPPORTED_DB_VERSION`, v49). A database older than the floor
+    // is refused before anything opens it (`services/migration-check`), and
+    // its open is refused too (the floor's upgrade). Each line names what the
+    // version changed, for the record.
 
     // v16: the base schema (the oldest layout this build can open).
     this.version(16).stores({
@@ -231,35 +283,9 @@ export class Todo2Database extends Dexie {
     this.version(47).stores({})
     this.version(48).stores({})
 
-    // v49: stamp `setAt: Date` onto every fuzzy `scheduledDate`. For each
-    // fuzzy todo missing the field, look up the most recent `'scheduled'`
-    // todoEvent for that row — its timestamp is exactly when the user picked
-    // the current fuzzy value (the repository emits a `'scheduled'` event on
-    // every `scheduledDate` mutation; see `todo-repository.ts`). When no
-    // event exists (pre-v42 task untouched since v42 shipped), fall back to
-    // `todo.createdAt`. `modifiedAt` is the wrong fallback — it advances on
-    // unrelated edits (title rename, status change). Idempotent: only rows
-    // with `kind === 'fuzzy'` and missing `setAt` are rewritten.
-    this.version(49).stores({}).upgrade(async (tx) => {
-      const scheduledEvents = await tx.table('todoEvents')
-        .where('type').equals('scheduled')
-        .toArray()
-      const lastScheduledByTodo = new Map<number, string>()
-      for (const ev of scheduledEvents) {
-        const prev = lastScheduledByTodo.get(ev.todoId)
-        if (prev === undefined || ev.timestamp > prev) {
-          lastScheduledByTodo.set(ev.todoId, ev.timestamp)
-        }
-      }
-      await tx.table('todos').toCollection().modify((todo) => {
-        const sd = todo.scheduledDate
-        if (!sd || sd.kind !== 'fuzzy') return
-        if (sd.setAt) return
-        const eventTs = lastScheduledByTodo.get(todo.id)
-        const setAt = eventTs ? new Date(eventTs) : todo.createdAt
-        todo.scheduledDate = { ...sd, setAt }
-      })
-    })
+    // v49: the floor. Its upgrade runs only for a database below it, which
+    // is refused (`refuseBelowFloor`).
+    this.version(49).stores({}).upgrade(refuseBelowFloor)
 
     // v50: normalize every Date field to a real `Date`. Imports and
     // sync-file loads used to write JSON's ISO strings straight into the DB.
@@ -436,9 +462,11 @@ export class Todo2Database extends Dexie {
     // one at its own (higher) version, so the open fails here instead.
     // (`services/migration-check.checkTooNewDB` says so before the app
     // starts; this holds where the browser can't list its databases.)
+    // Measured against the highest version declared (`verno`, which equals
+    // `CURRENT_DB_VERSION` — a test asserts it).
     this.on('ready', (vipDb) => {
       const stored = Math.floor(vipDb.backendDB().version / 10)
-      if (stored > CURRENT_DB_VERSION) throw new DatabaseTooNewError(stored)
+      if (stored > vipDb.verno) throw new DatabaseTooNewError(stored)
     }, true)
   }
 }

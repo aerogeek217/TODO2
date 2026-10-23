@@ -72,4 +72,18 @@ describe('a database saved by a newer build', () => {
     expect(screen.queryByRole('button', { name: /^Settings$/ })).toBeNull()
     expect((await readRawDb()).version).toBe(NEWER * 10)
   })
+
+  it('where the browser can’t list its databases, the launch’s open refuses it and the app says so', async () => {
+    await createNewerDb(NEWER)
+    const own = Object.getOwnPropertyDescriptor(indexedDB, 'databases')
+    Object.defineProperty(indexedDB, 'databases', { value: undefined, configurable: true, writable: true })
+    try {
+      render(<App />)
+      await screen.findByRole('dialog', { name: 'Data from a newer version of TODO2' })
+    } finally {
+      if (own) Object.defineProperty(indexedDB, 'databases', own)
+      else delete (indexedDB as { databases?: unknown }).databases
+    }
+    expect((await readRawDb()).version).toBe(NEWER * 10)
+  })
 })

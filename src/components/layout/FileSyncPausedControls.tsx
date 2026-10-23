@@ -53,6 +53,13 @@ export function FileSyncPausedControls({ buttonClassName, primaryButtonClassName
                 that version saved &mdash; updating TODO2 instead keeps it.
               </div>
             )}
+            {paused.reason === 'too-old' && (
+              <div className={dialogStyles.note}>
+                The file was written by an older version of TODO2 that this one can&rsquo;t read.
+                Overwriting it discards what that version saved &mdash; the backup of it can only
+                be restored by an older TODO2 build.
+              </div>
+            )}
           </DialogBody>
           <DialogActions>
             <button className={dialogStyles.cancelButton} onClick={() => setConfirming(false)}>

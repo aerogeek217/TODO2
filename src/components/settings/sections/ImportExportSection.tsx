@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
 import { useFlashMessage } from '../../../hooks/use-flash-message'
 import type { ImportData } from '../../../data/import-validation'
-import type { UnsupportedImportInfo } from '../../../data/file-version'
-import { MigrationDialog } from '../../overlays/MigrationDialog'
+import type { PrepareImportFailure } from '../../../data/import-pipeline'
 import { buildJsonExport, exportFileTimestamp, exportImportProblem, readImportFile } from '../../../services/data-files'
 import { buildMarkdownExport } from '../../../services/markdown-export'
 import { saveLastPickerHandle } from '../../../services/file-handle-idb'
@@ -33,6 +32,11 @@ interface PendingAppend {
 /** A plain download's message stays long enough to read the file name. */
 const DOWNLOADED_MESSAGE_MS = 8000
 
+/** How long a failed import's message stays: the long ones (what's wrong, or which build still reads the file) longer. */
+function failureMessageMs(reason: PrepareImportFailure): number {
+  return reason === 'invalid' || reason === 'too-old' ? 10000 : 5000
+}
+
 export function ImportExportSection() {
   const [message, showMessage] = useFlashMessage('')
   /** Persistent: set when the last JSON export failed its re-import self-check. */
@@ -42,8 +46,7 @@ export function ImportExportSection() {
   const [pendingAppend, setPendingAppend] = useState<PendingAppend | null>(null)
   const [appendBusy, setAppendBusy] = useState(false)
   const [appendError, setAppendError] = useState<string | null>(null)
-  const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
-  useStackedLayer(pendingAppend !== null || pendingMigration !== null)
+  useStackedLayer(pendingAppend !== null)
 
   /** Runs an export; a failure says so in the result line (an export never fails silently). */
   const exporting = (run: () => Promise<void>) => async () => {
@@ -122,11 +125,7 @@ export function ImportExportSection() {
         return
       }
       if (!result.ok) {
-        showMessage(`Import failed — ${result.error}`, result.reason === 'invalid' ? 10000 : 5000)
-        return
-      }
-      if (result.legacy) {
-        setPendingMigration({ info: result.legacy, action: () => executeImport(result.data, result.warnings) })
+        showMessage(`Import failed — ${result.error}`, failureMessageMs(result.reason))
         return
       }
       await executeImport(result.data, result.warnings)
@@ -150,18 +149,11 @@ export function ImportExportSection() {
         return
       }
       if (!result.ok) {
-        showMessage(`Import failed — ${result.error}`, result.reason === 'invalid' ? 10000 : 5000)
+        showMessage(`Import failed — ${result.error}`, failureMessageMs(result.reason))
         return
       }
       if (result.data.todos.length === 0) {
         showMessage('Nothing to import — the file has no tasks.', 4000)
-        return
-      }
-      if (result.legacy) {
-        setPendingMigration({
-          info: result.legacy,
-          action: () => showAppendPicker(file.name, result.data, result.warnings),
-        })
         return
       }
       await showAppendPicker(file.name, result.data, result.warnings)
@@ -282,18 +274,6 @@ export function ImportExportSection() {
           error={appendError}
           onConfirm={(choices) => { void confirmAppendImport(choices) }}
           onCancel={() => setPendingAppend(null)}
-        />
-      )}
-      {pendingMigration && (
-        <MigrationDialog
-          mode="legacy-import"
-          info={pendingMigration.info}
-          onProceed={async () => {
-            const action = pendingMigration.action
-            setPendingMigration(null)
-            await action()
-          }}
-          onCancel={() => setPendingMigration(null)}
         />
       )}
     </div>

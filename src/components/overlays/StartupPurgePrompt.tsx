@@ -22,7 +22,7 @@ export function StartupPurgePrompt({ launchUids, onClose }: { launchUids: Readon
   const todosVersion = useTodoStore((s) => s.todosVersion)
   const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
   const fileSyncPrompt = useFileStorageStore(
-    (s) => s.pendingLegacyImport != null || s.pendingConflict != null || s.pendingFileUpgrade != null,
+    (s) => s.pendingConflict != null || s.pendingFileUpgrade != null,
   )
   const [tasks, setTasks] = useState<PersistedTodoItem[]>([])
   useEffect(() => {

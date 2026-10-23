@@ -109,6 +109,7 @@ vi.mock('../../data/database', async (importOriginal) => {
     ALL_DATA_TABLES: mockTables,
     CURRENT_DB_VERSION: actual.CURRENT_DB_VERSION,
     OLDEST_SUPPORTED_DB_VERSION: actual.OLDEST_SUPPORTED_DB_VERSION,
+    BELOW_FLOOR_BUILD: actual.BELOW_FLOOR_BUILD,
   }
 })
 const { CURRENT_DB_VERSION: CURRENT, OLDEST_SUPPORTED_DB_VERSION: FLOOR } =
@@ -645,28 +646,26 @@ describe('FileStorageService — older sync files', () => {
     expect(writable.write).not.toHaveBeenCalled()
   })
 
-  it('below-floor file: cancelling the MigrationDialog pauses (handle kept, nothing touched)', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: BELOW_FLOOR }))
-    const confirm = vi.fn().mockResolvedValue(false)
-    svc.onConfirmMigration(confirm)
+  it.each([
+    ['below the floor', fileBody({ __schemaVersion: BELOW_FLOOR }), `(schema v${BELOW_FLOOR})`],
+    ['without a version', fileBody({ __schemaVersion: undefined }), 'has no schema version'],
+  ])('a file %s is refused: paused with why, handle kept, neither side touched, nothing asked', async (_, body, why) => {
+    setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const { svc, writable } = await startWith(body)
+    const asked = vi.fn()
+    svc.onConflict(asked)
+    svc.onConfirmFileUpgrade(asked)
     await svc.initialize()
 
-    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ sourceVersion: BELOW_FLOOR, targetVersion: CURRENT }))
-    expectUntouched(writable)
+    expect(svc.status.paused?.reason).toBe('too-old')
+    expect(svc.status.paused?.message).toMatch(/^File sync paused — This file /)
+    expect(svc.status.paused?.message).toContain(why)
+    expect(svc.status.paused?.message).toContain(`this version reads v${FLOOR} and newer`)
+    expect(svc.status.paused?.message).toContain('a TODO2 build from before 2026-10-23')
+    expect(asked).not.toHaveBeenCalled()
     expect(mockClearFileHandle).not.toHaveBeenCalled()
-    expect(svc.status.paused?.reason).toBe('legacy-cancelled')
-  })
-
-  it('below-floor file: confirming loads and restamps without a second upgrade prompt', async () => {
-    const { svc, writable } = await startWith(fileBody({ __schemaVersion: BELOW_FLOOR }))
-    svc.onConfirmMigration(async () => true)
-    const ask = vi.fn()
-    svc.onConfirmFileUpgrade(ask)
-    await svc.initialize()
-
-    expect(ask).not.toHaveBeenCalled()
-    expect(mockRestoreFromImportData).toHaveBeenCalled()
-    expect(writable.write).toHaveBeenCalledTimes(1)
+    expectUntouched(writable)
+    await expectNoWriteAfterChange(writable)
   })
 })
 
@@ -693,7 +692,6 @@ describe('FileStorageService — file backup before rewrite', () => {
   }
 
   const older = fileBody({ __schemaVersion: OLDER })
-  const belowFloor = fileBody({ __schemaVersion: BELOW_FLOOR })
 
   it('confirmed upgrade: backs up the raw text before restoring and restamping', async () => {
     setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
@@ -711,21 +709,6 @@ describe('FileStorageService — file backup before rewrite', () => {
     await svc.initialize()
     expectBackupFailurePaused(svc, writable)
     await expectNoWriteAfterChange(writable)
-  })
-
-  it('below-floor confirm: backs up first; failure pauses untouched', async () => {
-    const ok = await startWith(belowFloor)
-    ok.svc.onConfirmMigration(async () => true)
-    await ok.svc.initialize()
-    expectBackupFirst(JSON.stringify(belowFloor), ok.writable)
-
-    vi.resetModules()
-    mockRestoreFromImportData.mockClear()
-    mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
-    const bad = await startWith(belowFloor)
-    bad.svc.onConfirmMigration(async () => true)
-    await bad.svc.initialize()
-    expectBackupFailurePaused(bad.svc, bad.writable)
   })
 
   it('conflict "Use file" with an older file: backs up first; failure pauses untouched', async () => {
@@ -777,6 +760,16 @@ describe('FileStorageService — file backup before rewrite', () => {
     expect(b.svc.status.paused?.reason).toBe('upgrade-cancelled')
     await b.svc.overwriteFileWithBrowser()
     expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(JSON.stringify(older), { olderVersion: true })
+  })
+
+  it('"Keep browser data" over a file below the floor keeps its copy outside the pruned pool', async () => {
+    const belowFloor = fileBody({ __schemaVersion: BELOW_FLOOR })
+    const { svc, writable } = await startWith(belowFloor)
+    await svc.initialize()
+    expect(svc.status.paused?.reason).toBe('too-old')
+    await svc.overwriteFileWithBrowser()
+    expectBackupFirst(JSON.stringify(belowFloor), writable)
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
   })
 
   it('a current-version file the import trimmed (warnings): its raw text is backed up before sync rewrites it', async () => {

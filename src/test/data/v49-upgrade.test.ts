@@ -63,7 +63,6 @@ async function importFixture(): Promise<void> {
   const raw: unknown = JSON.parse(JSON.stringify(fixture))
   const prepared = prepareImport(raw)
   if (!prepared.ok) throw new Error(`v49 fixture failed to import: ${prepared.error}`)
-  expect(prepared.legacy).toBeNull()
   expect(prepared.sourceVersion).toBe(49)
   expect(prepared.upgraded).toBe(CURRENT_DB_VERSION > 49)
   expect(prepared.warnings).toEqual([])

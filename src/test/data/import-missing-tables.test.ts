@@ -111,17 +111,18 @@ describe('a v49 file missing some of its tables', () => {
 
   it('a file without tasks or settings is still no TODO2 database: the padding never fills those two', () => {
     const files = [
-      '{}',
       JSON.stringify({ __schemaVersion: 49 }),
       JSON.stringify({ __schemaVersion: 49, settings: fixture.settings }),
       JSON.stringify({ __schemaVersion: 49, todos: fixture.todos }),
-      JSON.stringify({ __schemaVersion: 40, people: [] }),
-      JSON.stringify({ unrelated: [1, 2, 3] }),
     ]
     for (const text of files) {
       const prepared = prepareImportText(text)
       expect(prepared.ok, text).toBe(false)
       if (!prepared.ok) expect(prepared.error).toContain('missing tasks or settings')
+    }
+    // Without a version (or below the floor) it is refused before that.
+    for (const text of ['{}', JSON.stringify({ __schemaVersion: 40, people: [] }), JSON.stringify({ unrelated: [1, 2, 3] })]) {
+      expect(prepareImportText(text), text).toMatchObject({ ok: false, reason: 'too-old' })
     }
   })
 

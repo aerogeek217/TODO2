@@ -120,6 +120,7 @@ function pausedBody(reason: SyncPauseReason | null): string | null {
     return `${untouched} Retry shows the choice again; Keep browser data… overwrites the file after a backup of it.`
   }
   if (reason === 'too-new') return `${untouched} Update TODO2 to keep what that version saved, or keep this browser’s data.`
+  if (reason === 'too-old') return `${untouched} Open the file in an older TODO2 build to keep what it holds, or keep this browser’s data.`
   return untouched
 }
 

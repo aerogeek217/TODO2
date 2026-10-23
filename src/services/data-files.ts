@@ -1,12 +1,10 @@
 import { buildExportData, selfCheckExportJson } from '../data/export-data'
-import type { UnsupportedImportInfo } from '../data/file-version'
 import { prepareImportText, type PrepareImportOptions, type PrepareImportResult } from '../data/import-pipeline'
 import { MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 
 /**
  * The JSON data files the user exports and imports (Settings → Import /
- * Export, Backups, the migration prompt), over the data layer's export
- * builder and import pipeline.
+ * Export), over the data layer's export builder and import pipeline.
  */
 
 /** A full export as the file's text (`exportedAt` = `now`). */
@@ -29,10 +27,4 @@ export function exportFileTimestamp(now: Date = new Date()): string {
 export async function readImportFile(file: File, options?: PrepareImportOptions): Promise<PrepareImportResult | { ok: false; reason: 'file-too-large' }> {
   if (file.size > MAX_IMPORT_SIZE_BYTES) return { ok: false, reason: 'file-too-large' }
   return prepareImportText(await file.text(), options)
-}
-
-/** For stored text (a backup): the older-version prompt it needs before a restore, if any. */
-export function legacyImportInfo(text: string): UnsupportedImportInfo | null {
-  const prepared = prepareImportText(text)
-  return prepared.ok && prepared.legacy ? prepared.legacy : null
 }

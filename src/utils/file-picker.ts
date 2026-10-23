@@ -5,7 +5,7 @@
  * by the running browser) or `undefined`.
  *
  * The one place that casts `window` for the File System Access pickers, so
- * callers (Settings sections, `MigrationDialog`) stay cast-free.
+ * callers (Settings sections) stay cast-free.
  */
 
 export interface FilePickerAcceptType {

@@ -25,7 +25,6 @@ describe('prepareImport — version routing', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.sourceVersion).toBe(CURRENT_DB_VERSION)
-    expect(result.legacy).toBeNull()
     expect(result.upgraded).toBe(false)
     expect(result.data.todos).toHaveLength(1)
   })
@@ -39,33 +38,40 @@ describe('prepareImport — version routing', () => {
     expect(result.error).toContain(`v${CURRENT_DB_VERSION + 1}`)
   })
 
-  it('flags a below-floor file as legacy but still prepares its data', () => {
-    const result = prepareImport(file({ [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION - 1 }))
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.legacy).toEqual({
-      sourceVersion: OLDEST_SUPPORTED_DB_VERSION - 1,
-      targetVersion: CURRENT_DB_VERSION,
-      descriptions: [],
+  it.each([
+    ['one version below the floor', OLDEST_SUPPORTED_DB_VERSION - 1],
+    ['far below the floor', 10],
+  ])('refuses a file %s, naming its version and the build that still reads it', (_, version) => {
+    const result = prepareImport(file({ [SCHEMA_VERSION_KEY]: version }))
+    expect(result).toEqual({
+      ok: false,
+      reason: 'too-old',
+      error: `This file was saved by an older version of TODO2 (schema v${version}); this version reads v${OLDEST_SUPPORTED_DB_VERSION} and newer, so nothing in it was loaded. To use it, open it in a TODO2 build from before 2026-10-23, export it again there, and load that file.`,
     })
-    expect(result.data.todos).toHaveLength(1)
   })
 
-  it('flags a marker-less file as legacy with sourceVersion null', () => {
+  it.each([
+    ['no marker', undefined],
+    ['a marker that is no whole number', '68'],
+    ['a fractional marker', 68.5],
+  ])('refuses a file with %s as having no schema version', (_, marker) => {
     const raw = file()
-    delete raw[SCHEMA_VERSION_KEY]
+    if (marker === undefined) delete raw[SCHEMA_VERSION_KEY]
+    else raw[SCHEMA_VERSION_KEY] = marker
     const result = prepareImport(raw)
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.sourceVersion).toBeNull()
-    expect(result.legacy?.sourceVersion).toBeNull()
+    expect(result).toMatchObject({ ok: false, reason: 'too-old' })
+    if (result.ok) return
+    expect(result.error).toMatch(/^This file has no schema version: it was saved by an older version of TODO2, or is not a TODO2 file; /)
   })
 
-  it('does not prompt for a below-floor file that would fail validation anyway', () => {
-    const result = prepareImport(file({ [SCHEMA_VERSION_KEY]: 10, todos: [{ title: '' }] }))
-    expect(result.ok).toBe(false)
-    if (result.ok) return
-    expect(result.reason).toBe('invalid')
+  it('refuses a below-floor file before reading its tables (no validation, no record cap)', () => {
+    const result = prepareImport(file({ [SCHEMA_VERSION_KEY]: 10, todos: [{ title: '' }], people: 'nope' }))
+    expect(result).toMatchObject({ ok: false, reason: 'too-old' })
+  })
+
+  it('refuses a below-floor task archive for append too', () => {
+    const raw = file({ [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION - 1, kind: TASK_ARCHIVE_KIND })
+    expect(prepareImport(raw, { purpose: 'append' })).toMatchObject({ ok: false, reason: 'too-old' })
   })
 })
 

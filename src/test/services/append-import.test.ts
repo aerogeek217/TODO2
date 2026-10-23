@@ -313,7 +313,7 @@ describe('append import of an older-version archive', () => {
     }
     const prepared = prepareImport(raw, { purpose: 'append' })
     if (!prepared.ok) throw new Error(prepared.error)
-    expect(prepared).toMatchObject({ upgraded: true, sourceVersion: 49, kind: 'task-archive', legacy: null })
+    expect(prepared).toMatchObject({ upgraded: true, sourceVersion: 49, kind: 'task-archive' })
     const todo = prepared.data.todos[0]!
     expect(todo.uid).toMatch(/^[0-9a-f-]{36}$/)
     expect(todo.completedAt).toEqual(new Date(done))

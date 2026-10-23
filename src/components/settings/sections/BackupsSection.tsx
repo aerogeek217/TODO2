@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useFlashMessage } from '../../../hooks/use-flash-message'
 import { useFileOpsStore } from '../../../stores/file-ops-store'
-import { legacyImportInfo } from '../../../services/data-files'
-import type { UnsupportedImportInfo } from '../../../data/file-version'
-import { MigrationDialog } from '../../overlays/MigrationDialog'
 import { BYTES_PER_KB } from '../../../constants'
 import type { BackupTrigger } from '../../../models'
 import { NO_BACKUP_NOTE } from '../../../stores/safety-snapshot'
-import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
 import { restoreBackup } from '../../../services/replace-data'
 
@@ -25,11 +21,8 @@ export function BackupsSection() {
   const loadBackups = useFileOpsStore((s) => s.loadBackups)
   const createBackup = useFileOpsStore((s) => s.createBackup)
   const deleteBackup = useFileOpsStore((s) => s.deleteBackup)
-  const peekBackupData = useFileOpsStore((s) => s.peekBackupData)
   const [message, flash] = useFlashMessage<{ text: string; error?: boolean } | null>(null)
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
-  const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
-  useStackedLayer(pendingMigration !== null)
 
   useEffect(() => {
     void loadBackups()
@@ -39,23 +32,13 @@ export function BackupsSection() {
 
   const restore = async (id: number) => {
     setConfirmRestoreId(null)
-    const data = await peekBackupData(id)
-    if (!data) { showMessage('Backup not found', 3000); return }
-    const runRestore = async () => {
-      const result = await restoreBackup(id)
-      if (result.status === 'error') showMessage(`Restore failed: ${result.error}`, 3000)
-      else if (result.status === 'cancelled') showMessage('Restore cancelled — nothing changed.', 4000)
-      else if (result.noBackup) showMessage(`Restored. ${NO_BACKUP_NOTE}`, 8000)
-      else showMessage('Restored successfully! The data it replaced was backed up first.', 5000)
-    }
-    // Same pipeline as the restore itself; checked up front so a below-floor
-    // snapshot prompts first.
-    const legacy = legacyImportInfo(data)
-    if (legacy) {
-      setPendingMigration({ info: legacy, action: runRestore })
-      return
-    }
-    await runRestore()
+    // A backup below the floor (or newer than this build) is refused by the
+    // restore's import pipeline: its error says why, and nothing changes.
+    const result = await restoreBackup(id)
+    if (result.status === 'error') showMessage(`Restore failed: ${result.error}`, 10000, true)
+    else if (result.status === 'cancelled') showMessage('Restore cancelled — nothing changed.', 4000)
+    else if (result.noBackup) showMessage(`Restored. ${NO_BACKUP_NOTE}`, 8000)
+    else showMessage('Restored successfully! The data it replaced was backed up first.', 5000)
   }
 
   return (
@@ -114,19 +97,6 @@ export function BackupsSection() {
         </button>
       </div>
       {message && <div className={message.error ? styles.errorMsg : styles.successMsg} role={message.error ? 'alert' : undefined}>{message.text}</div>}
-
-      {pendingMigration && (
-        <MigrationDialog
-          mode="legacy-import"
-          info={pendingMigration.info}
-          onProceed={async () => {
-            const action = pendingMigration.action
-            setPendingMigration(null)
-            await action()
-          }}
-          onCancel={() => setPendingMigration(null)}
-        />
-      )}
     </div>
   )
 }

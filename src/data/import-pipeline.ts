@@ -1,7 +1,7 @@
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from './database'
 import { upgradeDataSet, type DataRow, type DataSet } from './schema-upgrades'
 import { MAX_IMPORT_SIZE_BYTES, MAX_RECORDS_PER_TABLE, validateImportData, type ImportData } from './import-validation'
-import { detectUnsupportedImport, SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from './file-version'
+import { SCHEMA_VERSION_KEY, tooOldFileMessage } from './file-version'
 import { isRecord } from '../utils/is-record'
 
 export type PrepareImportFailure =
@@ -9,6 +9,7 @@ export type PrepareImportFailure =
   | 'invalid-json'
   | 'not-object'
   | 'too-new'
+  | 'too-old'
   | 'upgrade-failed'
   | 'invalid'
   | 'task-archive'
@@ -42,14 +43,8 @@ export type PrepareImportResult =
       data: ImportData
       /** Non-fatal notes (e.g. dropped unrecognized setting keys). */
       warnings: string[]
-      /** The file's `__schemaVersion`, or `null` when the marker is missing. */
-      sourceVersion: number | null
-      /**
-       * Non-null when the file is below the floor (or has no marker). The
-       * caller MUST get the user's confirmation (`MigrationDialog`
-       * `mode="legacy-import"`) before restoring `data`.
-       */
-      legacy: UnsupportedImportInfo | null
+      /** The file's `__schemaVersion` (the floor or later). */
+      sourceVersion: number
       /** True when the file was older than CURRENT and went through the registry. */
       upgraded: boolean
       /** `task-archive` for a purged-task archive, else `full`. */
@@ -86,9 +81,8 @@ function readSchemaVersion(raw: Record<string, unknown>): number | null {
  *
  * 1. Reads `__schemaVersion`.
  *    - > `CURRENT_DB_VERSION` → rejected (`too-new`): a newer build wrote it.
- *    - missing / < floor → `legacy` info is returned; the data is still
- *      prepared (upgraded *as if* it were at the floor, then validated) so the
- *      caller only prompts for files that would actually load.
+ *    - missing / < floor (`OLDEST_SUPPORTED_DB_VERSION`) → rejected
+ *      (`too-old`, `tooOldFileMessage`): nothing in it is read further.
  *    - floor ≤ v < CURRENT → upgraded through `upgradeDataSet`.
  *    - = CURRENT → validated as-is.
  * 2. Validates the upgraded dataset (`validateImportData`, strict except for
@@ -125,10 +119,12 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
     }
   }
 
-  const legacy = detectUnsupportedImport(raw)
-  // Below-floor / marker-less files have no registry path; once the user
-  // confirms, treat them as floor-shaped and run every transform from there.
-  const fromVersion = legacy || sourceVersion === null ? OLDEST_SUPPORTED_DB_VERSION : sourceVersion
+  // Below the floor (or no marker): no upgrade path exists, so nothing more
+  // of the file is read.
+  if (sourceVersion === null || sourceVersion < OLDEST_SUPPORTED_DB_VERSION) {
+    return { ok: false, reason: 'too-old', error: tooOldFileMessage(sourceVersion) }
+  }
+  const fromVersion = sourceVersion
 
   // Split table arrays (the DataSet the transforms see) from everything else
   // (`__schemaVersion`, `exportedAt`, `savedAt`, and any malformed non-array
@@ -143,7 +139,7 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
     else rest[key] = value
   }
 
-  // A full file upgraded from v49 (or treated as v49-shaped) that lacks some
+  // A full file upgraded from v49 that lacks some
   // of v49's tables is read as holding them empty, as the v49 build writes
   // them: the transforms key off a table's presence (v59 turns a rail's
   // taskboard tab into a Focus list tab only when `taskboards` is there), so
@@ -195,7 +191,6 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
     data: validated.data,
     warnings: validated.warnings,
     sourceVersion,
-    legacy,
     upgraded: fromVersion < CURRENT_DB_VERSION,
     kind,
   }

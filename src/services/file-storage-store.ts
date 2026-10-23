@@ -6,7 +6,6 @@ import {
   type SyncConflictChoice,
   type FileUpgradeInfo,
 } from './file-storage'
-import type { UnsupportedImportInfo } from '../data/file-version'
 import { registerModuleReset } from '../utils/module-reset'
 
 /**
@@ -14,7 +13,6 @@ import { registerModuleReset } from '../utils/module-reset'
  * question of a kind already waiting answers the old one as cancelled first,
  * so its caller never hangs.
  */
-let legacyImportResolve: ((confirmed: boolean) => void) | null = null
 let conflictResolve: ((choice: SyncConflictChoice) => void) | null = null
 let fileUpgradeResolve: ((confirmed: boolean) => void) | null = null
 /** The launch question's answer: resolving it lets launch go on. */
@@ -25,11 +23,9 @@ let launchPermissionResolve: (() => void) | null = null
  * share one module instance (the store's state is reset separately).
  */
 export function resetFileStoragePrompts(): void {
-  legacyImportResolve?.(false)
   conflictResolve?.('cancel')
   fileUpgradeResolve?.(false)
   launchPermissionResolve?.()
-  legacyImportResolve = null
   conflictResolve = null
   fileUpgradeResolve = null
   launchPermissionResolve = null
@@ -48,7 +44,6 @@ export interface LaunchPermissionPrompt {
 interface FileStorageState extends FileStorageStatus {
   isSupported: boolean
   isLoading: boolean
-  pendingLegacyImport: UnsupportedImportInfo | null
   /** Set while the service waits for the user to pick a side (SyncConflictDialog). */
   pendingConflict: SyncConflictInfo | null
   /** Set while the service waits for consent to upgrade an older sync file. */
@@ -65,8 +60,6 @@ interface FileStorageState extends FileStorageStatus {
   reconnect: () => Promise<void>
   retry: () => Promise<void>
   overwriteFileWithBrowser: () => Promise<void>
-  confirmLegacyImport: () => void
-  cancelLegacyImport: () => void
   resolveConflict: (choice: SyncConflictChoice) => void
   resolveFileUpgrade: (confirmed: boolean) => void
   /**
@@ -85,14 +78,6 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
   // A dismissed error is forgotten once the error clears: the same failure
   // coming back later is news again.
   fileStorageService.onStatusChange((status) => set(status.error == null ? { ...status, dismissedError: null } : status))
-  // Handle legacy-import confirmation requests from the service
-  fileStorageService.onConfirmMigration((info) => {
-    return new Promise<boolean>((resolve) => {
-      legacyImportResolve?.(false)
-      legacyImportResolve = resolve
-      set({ pendingLegacyImport: info })
-    })
-  })
   fileStorageService.onConflict((info) => {
     return new Promise<SyncConflictChoice>((resolve) => {
       conflictResolve?.('cancel')
@@ -138,7 +123,6 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
     paused: null,
     isSupported: fileStorageService.isSupported,
     isLoading: false,
-    pendingLegacyImport: null,
     pendingConflict: null,
     pendingFileUpgrade: null,
     pendingLaunchPermission: null,
@@ -168,18 +152,6 @@ export const useFileStorageStore = create<FileStorageState>((set, get) => {
 
     overwriteFileWithBrowser: () =>
       withLoading(() => fileStorageService.overwriteFileWithBrowser(), 'Failed to save to file'),
-
-    confirmLegacyImport: () => {
-      legacyImportResolve?.(true)
-      legacyImportResolve = null
-      set({ pendingLegacyImport: null })
-    },
-
-    cancelLegacyImport: () => {
-      legacyImportResolve?.(false)
-      legacyImportResolve = null
-      set({ pendingLegacyImport: null })
-    },
 
     resolveConflict: (choice) => {
       conflictResolve?.(choice)

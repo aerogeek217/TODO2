@@ -26,14 +26,14 @@ import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
 import { backupScheduler } from './data/backup-scheduler'
-import { CURRENT_DB_VERSION, findDatabaseTooNew } from './data/database'
+import { CURRENT_DB_VERSION, findDatabaseTooNew, findDatabaseTooOld } from './data/database'
 import { runAppStartup } from './services/app-startup'
 import { onDataReplaced } from './services/replace-data'
 import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
-import { checkTooNewDB, checkUnsupportedOldDB } from './services/migration-check'
-import type { TooNewDBInfo, UnsupportedDBInfo } from './services/migration-check'
-import { DatabaseTooNewDialog, MigrationDialog } from './components/overlays/MigrationDialog'
+import { checkTooNewDB, checkTooOldDB } from './services/migration-check'
+import type { TooNewDBInfo, TooOldDBInfo } from './services/migration-check'
+import { DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
 import { StartupPurgePrompt } from './components/overlays/StartupPurgePrompt'
@@ -240,6 +240,8 @@ function AppShell() {
   const [initError, setInitError] = useState<string | null>(null)
   /** Launch stopped because a newer version saved the database (where the version check before it couldn't see that). */
   const [initTooNew, setInitTooNew] = useState<TooNewDBInfo | null>(null)
+  /** Launch stopped because the database is below the floor (where the version check before it couldn't see that). */
+  const [initTooOld, setInitTooOld] = useState<{ storedVersion: number | null } | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   /** uids of the completed tasks past retention at launch (for the purge prompt). */
@@ -293,6 +295,8 @@ function AppShell() {
         console.error('App initialization failed:', err)
         const tooNew = findDatabaseTooNew(err)
         if (tooNew) setInitTooNew({ storedVersion: tooNew.storedVersion, buildVersion: CURRENT_DB_VERSION })
+        const tooOld = findDatabaseTooOld(err)
+        if (tooOld) setInitTooOld({ storedVersion: tooOld.storedVersion })
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
@@ -336,6 +340,7 @@ function AppShell() {
   const quickAddKeys = useShortcutLabel('quick-add')
 
   if (initTooNew) return <DatabaseTooNewDialog info={initTooNew} />
+  if (initTooOld) return <DatabaseTooOldDialog info={initTooOld} />
 
   if (initError) {
     return (
@@ -428,14 +433,14 @@ function createAppRouter() {
 
 export default function App() {
   const [router] = useState(createAppRouter)
-  const [unsupportedDBInfo, setUnsupportedDBInfo] = useState<UnsupportedDBInfo | null>(null)
+  const [tooOldDBInfo, setTooOldDBInfo] = useState<TooOldDBInfo | null>(null)
   const [tooNewDBInfo, setTooNewDBInfo] = useState<TooNewDBInfo | null>(null)
   const [dbVersionChecked, setDbVersionChecked] = useState(false)
 
   useEffect(() => {
-    Promise.all([checkUnsupportedOldDB(), checkTooNewDB()])
-      .then(([info, tooNew]) => {
-        setUnsupportedDBInfo(info)
+    Promise.all([checkTooOldDB(), checkTooNewDB()])
+      .then(([tooOld, tooNew]) => {
+        setTooOldDBInfo(tooOld)
         setTooNewDBInfo(tooNew)
         setDbVersionChecked(true)
       })
@@ -451,12 +456,9 @@ export default function App() {
     )
   }
 
-  // Saved by a newer version: nothing here may open it.
+  // Saved by a newer version, or below the floor: nothing here may open it.
   if (tooNewDBInfo) return <DatabaseTooNewDialog info={tooNewDBInfo} />
-
-  if (unsupportedDBInfo) {
-    return <MigrationDialog mode="schema-upgrade" info={unsupportedDBInfo} onProceed={() => setUnsupportedDBInfo(null)} />
-  }
+  if (tooOldDBInfo) return <DatabaseTooOldDialog info={tooOldDBInfo} />
 
   return (
     <ErrorBoundary scope="App">
@@ -469,14 +471,10 @@ export default function App() {
 
 /**
  * Sync-file prompts raised by `fileStorageService` while it waits for the user
- * (permission at launch, below-floor file, browser/file conflict, older-file
- * upgrade). Rendered outside AppShell so they show even while startup is
- * still pending.
+ * (permission at launch, browser/file conflict, older-file upgrade). Rendered
+ * outside AppShell so they show even while startup is still pending.
  */
 function FileMigrationOverlay() {
-  const pending = useFileStorageStore((s) => s.pendingLegacyImport)
-  const confirm = useFileStorageStore((s) => s.confirmLegacyImport)
-  const cancel = useFileStorageStore((s) => s.cancelLegacyImport)
   const conflict = useFileStorageStore((s) => s.pendingConflict)
   const resolveConflict = useFileStorageStore((s) => s.resolveConflict)
   const upgrade = useFileStorageStore((s) => s.pendingFileUpgrade)
@@ -484,16 +482,6 @@ function FileMigrationOverlay() {
   const launchPermission = useFileStorageStore((s) => s.pendingLaunchPermission)
 
   if (launchPermission) return <LaunchPermissionDialog prompt={launchPermission} />
-  if (pending) {
-    return (
-      <MigrationDialog
-        mode="legacy-import"
-        info={pending}
-        onProceed={confirm}
-        onCancel={cancel}
-      />
-    )
-  }
   if (conflict) return <SyncConflictDialog info={conflict} onChoose={resolveConflict} />
   if (upgrade) {
     return (

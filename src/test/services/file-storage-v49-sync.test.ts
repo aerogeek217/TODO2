@@ -88,7 +88,7 @@ describe('v49 sync file opened by a post-v49 build (CURRENT ≥ 50)', () => {
   it('the build is past v49 and the fixture prepares as an upgrade', () => {
     expect(CURRENT_DB_VERSION).toBeGreaterThan(49)
     const prepared = prepareImportText(FILE_TEXT)
-    expect(prepared).toMatchObject({ ok: true, sourceVersion: 49, upgraded: true, legacy: null })
+    expect(prepared).toMatchObject({ ok: true, sourceVersion: 49, upgraded: true })
   })
 
   it('clean + synced browser: asks 49 → CURRENT; cancel leaves file, browser and backups untouched', async () => {
