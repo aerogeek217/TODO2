@@ -73,6 +73,14 @@ describe('copy helpers', () => {
     expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 2 tasks' })
   })
 
+  it('copyTasks with no tasks writes nothing and says nothing', async () => {
+    const { written } = stubClipboard()
+    expect(await copyTasks([{ label: 'Empty', todos: [] }])).toBe(false)
+    expect(await copyTasks([])).toBe(false)
+    expect(written).toEqual([])
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
   it('a refused copy says so instead', async () => {
     const [one] = useTodoStore.getState().todos
     expect(await copyTasks([{ todos: [one!] }])).toBe(false)

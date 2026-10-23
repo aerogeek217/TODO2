@@ -154,15 +154,16 @@ function storeCopyContext(): CopyTaskContext {
 
 /**
  * `copyTasksRich` with the stores' people and statuses, then `Copied N
- * tasks` in the snackbar (N counts each task once). The task menu, a list
- * group's menu, the tab menu's Copy tasks and the copy shortcut use it.
+ * tasks` in the snackbar (N counts each task once); with no tasks, nothing.
+ * The task menu, a list group's menu, the tab menu's Copy tasks and the
+ * copy shortcut use it.
  */
 export async function copyTasks(sections: CopyTaskSection[]): Promise<boolean> {
+  const ids = new Set(sections.flatMap((s) => s.todos.map((t) => t.id)))
+  // Nothing to copy (an empty list's Copy tasks): the clipboard keeps what it holds.
+  if (ids.size === 0) return false
   const ok = await copyTasksRich(sections, storeCopyContext())
-  if (ok) {
-    const ids = new Set(sections.flatMap((s) => s.todos.map((t) => t.id)))
-    useUndoStore.getState().notify(copiedNotice(ids.size))
-  }
+  if (ok) useUndoStore.getState().notify(copiedNotice(ids.size))
   return ok
 }
 
