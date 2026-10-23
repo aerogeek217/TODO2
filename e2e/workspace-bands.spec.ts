@@ -325,7 +325,7 @@ test.describe('panel drags', () => {
 })
 
 test.describe('band height, collapse and menus', () => {
-  test('the band divider resizes the band (unsaved); past the minimum it collapses; double-click = 160; arrows step 16px', async ({ page }) => {
+  test('the band divider resizes the band (saved at once); past the minimum it collapses; double-click = 160; arrows step 16px', async ({ page }) => {
     await seedWorkspace(page, { layouts: [withTopBand] })
     const divider = page.getByRole('separator', { name: 'Resize top band' })
     const d = await box(divider)
@@ -334,10 +334,8 @@ test.describe('band height, collapse and menus', () => {
     await page.mouse.move(d.x + 300, d.y + d.height / 2 + 80, { steps: 6 })
     await page.mouse.up()
     await expect.poll(async () => Math.round((await box(wsBand(page, 'top'))).height)).toBe(240)
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
-    await saveButton(page).click()
     await expect(saveButton(page)).toHaveAccessibleName(SAVED)
-    expect((await readStore(page, 'layouts'))[0]).toMatchObject({ top: { height: 240 } })
+    await expect.poll(async () => (await readStore(page, 'layouts'))[0]).toMatchObject({ top: { height: 240 } })
 
     await divider.dblclick()
     await expect.poll(async () => Math.round((await box(wsBand(page, 'top'))).height)).toBe(160)
@@ -347,9 +345,10 @@ test.describe('band height, collapse and menus', () => {
     await page.keyboard.press('ArrowUp')
     await page.keyboard.press('ArrowUp')
     await expect.poll(async () => Math.round((await box(wsBand(page, 'top'))).height)).toBe(144)
+    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expect.poll(async () => (await readStore(page, 'layouts'))[0]).toMatchObject({ top: { height: 144 } })
 
     // Far up: the band collapses to its header (view state: no unsaved change from the collapse).
-    await saveButton(page).click()
     const d2 = await box(divider)
     await page.mouse.move(d2.x + 300, d2.y + 3)
     await page.mouse.down()

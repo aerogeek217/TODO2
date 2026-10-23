@@ -10,6 +10,7 @@ function handlers(over: Partial<TaskMenuHandlers> = {}): TaskMenuHandlers {
   return {
     onOpen: vi.fn(),
     onToggleComplete: vi.fn(),
+    onCopy: vi.fn(),
     onSetDueDate: vi.fn(),
     onSetFollowup: vi.fn(),
     onPickFollowup: vi.fn(),
@@ -22,13 +23,14 @@ function handlers(over: Partial<TaskMenuHandlers> = {}): TaskMenuHandlers {
   }
 }
 
-function build(todo: PersistedTodoItem, opts: { targets?: PersistedTodoItem[]; h?: TaskMenuHandlers; range?: number | null } = {}) {
+function build(todo: PersistedTodoItem, opts: { targets?: PersistedTodoItem[]; h?: TaskMenuHandlers; range?: number | null; copyKbd?: string } = {}) {
   return buildTaskMenuEntries({
     todo,
     targets: opts.targets ?? [todo],
     today: TODAY,
     urgentRange: opts.range === undefined ? 3 : opts.range,
     handlers: opts.h ?? handlers(),
+    copyKbd: opts.copyKbd,
   })
 }
 
@@ -42,9 +44,9 @@ function item(entries: readonly MenuEntry[], label: string): MenuItemEntry {
 }
 
 describe('buildTaskMenuEntries — the one task menu', () => {
-  it('single task: Open · Mark complete | due · follow-up · followed up · people · tag | Markers | Delete', () => {
+  it('single task: Open · Mark complete · Copy | due · follow-up · followed up · people · tag | Markers | Delete', () => {
     expect(shape(build(makeTodo({ id: 1 })))).toEqual([
-      'Open', 'Mark complete', '--',
+      'Open', 'Mark complete', 'Copy', '--',
       'Set due date…', 'Follow-up', 'Mark followed up', 'Assign people…', 'Add tag…', '--',
       '[Priority]', 'Focus', 'Urgent', 'Important', '--',
       'Delete',
@@ -53,7 +55,7 @@ describe('buildTaskMenuEntries — the one task menu', () => {
 
   it('leaves out the items a surface has no handler for', () => {
     const entries = build(makeTodo({ id: 1 }), {
-      h: handlers({ onOpen: undefined, onSetDueDate: undefined, onAssignPeople: undefined, onAddTag: undefined, onPickFollowup: undefined }),
+      h: handlers({ onOpen: undefined, onCopy: undefined, onSetDueDate: undefined, onAssignPeople: undefined, onAddTag: undefined, onPickFollowup: undefined }),
     })
     expect(shape(entries)).toEqual([
       'Mark complete', '--', 'Follow-up', 'Mark followed up', '--',
@@ -132,13 +134,21 @@ describe('buildTaskMenuEntries — the one task menu', () => {
     expect(item(build(b, { targets: [b, c] }), 'Urgent')).toMatchObject({ checked: false, note: 'By due date' })
   })
 
-  it('several tasks: a count label replaces Open, Delete names the count, mixed markers', () => {
+  it('Copy shows the copy shortcut’s keys and runs onCopy', () => {
+    const h = handlers()
+    const copy = item(build(makeTodo({ id: 1 }), { h, copyKbd: 'Ctrl+C' }), 'Copy')
+    expect(copy.kbd).toBe('Ctrl+C')
+    copy.onSelect!()
+    expect(h.onCopy).toHaveBeenCalledOnce()
+  })
+
+  it('several tasks: a count label replaces Open, Copy and Delete name the count, mixed markers', () => {
     const h = handlers()
     const a = makeTodo({ id: 1, urgent: true, important: true })
     const b = makeTodo({ id: 2, important: true })
     const c = makeTodo({ id: 3 })
     const entries = build(a, { targets: [a, b, c], h })
-    expect(shape(entries).slice(0, 2)).toEqual(['[3 tasks]', 'Mark complete'])
+    expect(shape(entries).slice(0, 4)).toEqual(['[3 tasks]', 'Mark complete', 'Copy 3 tasks', '--'])
     expect(shape(entries).at(-1)).toBe('Delete 3 tasks')
     expect(item(entries, 'Urgent')).toMatchObject({ checked: 'mixed', note: '1 of 3' })
     expect(item(entries, 'Important')).toMatchObject({ checked: 'mixed', note: '2 of 3' })

@@ -7,7 +7,7 @@ import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { makePerson } from '../helpers'
+import { makePerson, makeTodo } from '../helpers'
 
 const alice = makePerson({ id: 1, name: 'Alice' })
 const bob = makePerson({ id: 2, name: 'Bob' })
@@ -57,6 +57,20 @@ describe('FilterSheet', () => {
       // Backdrop is the first child element in the fragment
       fireEvent.click(container.children[0]!)
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
+    })
+  })
+
+  // ── Show N tasks ──────────────────────────────────────────────────
+
+  describe('Show N tasks', () => {
+    it('ends the sheet while a filter is on; a tap closes the sheet and opens the tasks in the task dialog', () => {
+      useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Call Alice' }), makeTodo({ id: 2, title: 'Buy milk' })] })
+      renderSheet()
+      expect(screen.queryByRole('button', { name: /^Show \d+ tasks?$/ })).toBeNull()
+      act(() => useFilterStore.getState().setSearchText('alice'))
+      fireEvent.click(screen.getByRole('button', { name: 'Show 1 task' }))
+      expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
+      expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Filtered tasks', source: { kind: 'screen' } })
     })
   })
 
@@ -212,6 +226,38 @@ describe('FilterSheet', () => {
       renderSheet()
       expect(screen.queryByText('People')).not.toBeInTheDocument()
     })
+
+    const rowNames = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
+    const separatedRows = () => screen.getAllByRole('checkbox').map((c) => !!c.closest('label')?.className.includes('entityItemSeparated'))
+
+    it('the ticked rows first, a separator, then the rest; a tick with no search text moves nothing', () => {
+      usePersonStore.setState({ people: [alice, bob, makePerson({ id: 3, name: 'Cara' })] })
+      act(() => { useFilterStore.getState().setPersonIds(new Set([3])) })
+      renderSheet()
+      fireEvent.click(screen.getByText('People'))
+      expect(rowNames()).toEqual(['Cara', 'Unassigned', 'Alice', 'Bob'])
+      expect(separatedRows()).toEqual([false, true, false, false])
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bob' }))
+      expect(screen.getByRole('checkbox', { name: 'Bob' })).toBeChecked()
+      expect(rowNames()).toEqual(['Cara', 'Unassigned', 'Alice', 'Bob'])
+    })
+
+    it('a tick while searching clears the search (focus kept) and re-sorts', () => {
+      usePersonStore.setState({ people: [alice, bob, makePerson({ id: 3, name: 'Cara' })] })
+      act(() => { useFilterStore.getState().setPersonIds(new Set([3])) })
+      renderSheet()
+      fireEvent.click(screen.getByText('People'))
+      const search = screen.getByPlaceholderText('Search people...')
+      search.focus()
+      fireEvent.change(search, { target: { value: 'bo' } })
+      const bobBox = screen.getByRole('checkbox', { name: 'Bob' })
+      // A press on the row keeps the focus in the search.
+      expect(fireEvent.mouseDown(bobBox.closest('label')!)).toBe(false)
+      fireEvent.click(bobBox)
+      expect(screen.getByPlaceholderText('Search people...')).toHaveValue('')
+      expect(screen.getByPlaceholderText('Search people...')).toHaveFocus()
+      expect(rowNames()).toEqual(['Bob', 'Cara', 'Unassigned', 'Alice'])
+    })
   })
 
   // ── Tags ──────────────────────────────────────────────────────────
@@ -230,6 +276,19 @@ describe('FilterSheet', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
       expect(screen.getByText('No tags yet.')).toBeInTheDocument()
+    })
+
+    it('tags: the ticked ones first, then the rest; a tick while searching clears the search', () => {
+      seedTags()
+      act(() => { useFilterStore.getState().setTags(new Set([URGENT_ID])) })
+      renderSheet()
+      fireEvent.click(screen.getByText('Tags'))
+      const names = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
+      expect(names()).toEqual(['#urgent', '#soon'])
+      fireEvent.change(screen.getByPlaceholderText('Search tags...'), { target: { value: 'so' } })
+      fireEvent.click(screen.getByRole('checkbox', { name: '#soon' }))
+      expect(screen.getByPlaceholderText('Search tags...')).toHaveValue('')
+      expect(names()).toEqual(['#soon', '#urgent'])
     })
 
     it('renders registry tags sorted alphabetically prefixed with #', () => {

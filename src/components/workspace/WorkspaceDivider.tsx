@@ -3,6 +3,7 @@ import { evenPair, pairPercent, resizePair } from '../../utils/workspace-resize'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import styles from './WorkspaceDivider.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
+import type { ResizeOptions } from '../../stores/workspace-store'
 
 /** Keyboard step for a focused divider (px). */
 const KEY_STEP_PX = 16
@@ -19,8 +20,8 @@ interface WorkspaceDividerProps {
   /** Smallest size (px) of either neighbour. */
   min: number
   /** New weights; `live` while dragging (each frame), then `onResizeEnd` once at the end. */
-  onResize: (weightById: Record<string, number>, opts?: { live?: boolean }) => void
-  /** The drag ended (kept the result: the frames weren't). */
+  onResize: (weightById: Record<string, number>, opts?: ResizeOptions) => void
+  /** The drag ended (save the result: the frames weren't). */
   onResizeEnd?: () => void
   /** Cells only: dragging past a cell's minimum collapses it to its header. */
   onCollapse?: (id: string) => void
@@ -47,7 +48,7 @@ function measure(between: 'columns' | 'cells', id: string): number | null {
 /**
  * The gutter between two columns or two cells, as a resize handle: drag to
  * move it (rAF-throttled; only the two neighbours change; the frames are
- * `live` edits, kept in the browser once at the end), double-click to
+ * `live` edits, saved once at the end — sizes are view state), double-click to
  * even them out, ←/→ (↑/↓) to move it 16px. Neither neighbour goes below
  * `min`; dragging a cell well past its minimum collapses it instead.
  */
@@ -108,8 +109,9 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
       const collapseId = r.rawA < min - COLLAPSE_SLACK_PX ? aId : r.rawB < min - COLLAPSE_SLACK_PX ? bId : null
       if (collapseId) {
         pendingRef.current = null
+        // Back to the drag's start as a frame, so the drag's end saves only that.
+        onResize({ [aId]: drag.weightA, [bId]: drag.weightB }, { live: true })
         endDrag(e.currentTarget, e.pointerId)
-        onResize({ [aId]: drag.weightA, [bId]: drag.weightB })
         onCollapse(collapseId)
         return
       }

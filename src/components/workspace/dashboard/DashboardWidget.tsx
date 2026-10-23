@@ -88,10 +88,9 @@ function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData;
   )
 }
 
-function ListTiles({ data, onDrill, onAddListTile, style }: {
+function ListTiles({ data, onDrill, style }: {
   data: DashboardData
   onDrill?: OnDashboardDrill
-  onAddListTile?: () => void
   style?: CSSProperties
 }) {
   const hints = useListTileHints()
@@ -133,12 +132,6 @@ function ListTiles({ data, onDrill, onAddListTile, style }: {
           <div key={t.id} className={cls} data-dash-list-tile={t.id}>{content}</div>
         )
       })}
-      {onAddListTile && (
-        <button type="button" className={styles.addListTile} onClick={onAddListTile}>
-          <DashGlyph name="plus" size={12} strokeWidth={2} />
-          Add list tile
-        </button>
-      )}
     </div>
   )
 }
@@ -173,8 +166,6 @@ export interface DashboardWidgetProps {
   onResult?: (r: DashboardResult) => void
   /** Opens the tasks behind a clicked number; absent = numbers aren't clickable. */
   onDrill?: OnDashboardDrill
-  /** Opens Customize at its list tiles ("+ Add list tile"); absent = no button. */
-  onAddListTile?: () => void
   /** Opens Customize from the gear shown on hover / focus; absent = no gear. */
   onCustomize?: () => void
 }
@@ -185,7 +176,7 @@ export interface DashboardWidgetProps {
  * sections — order and visibility). Built for one cell filling the
  * workspace; below ~1100px of cell width it's one scrolling column.
  */
-export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddListTile, onCustomize }: DashboardWidgetProps) {
+export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onCustomize }: DashboardWidgetProps) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const data = useDashboardData(config)
   // A section divider's width while it is dragged: every task-row section follows it live.
@@ -228,7 +219,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
   }
 
   const wide = !isMobile && (size.width === 0 || size.width >= DASHBOARD_WIDE_MIN_PX)
-  const showLists = data.listTiles.length > 0 || onAddListTile != null
+  const showLists = data.listTiles.length > 0
   const sectionRows = packSections(config.sections.map((s) => ({ id: s.id, span: DASHBOARD_SECTIONS[s.id].defaultSpan })))
   const optionsOf = new Map(config.sections.map((s) => [s.id, s.options ?? {}]))
 
@@ -280,7 +271,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddList
           {config.tiles.map((id) => <Tile key={id} id={id} data={data} onDrill={onDrill} />)}
         </div>
       )}
-      {showLists && <ListTiles data={data} onDrill={onDrill} onAddListTile={onAddListTile} style={slot('lists')} />}
+      {showLists && <ListTiles data={data} onDrill={onDrill} style={slot('lists')} />}
       {sections}
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
     </div>

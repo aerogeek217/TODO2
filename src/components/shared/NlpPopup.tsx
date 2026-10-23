@@ -64,6 +64,13 @@ function Marked({ text, length }: { text: string; length: number }) {
   return <><mark className={styles.match}>{text.slice(0, length)}</mark>{text.slice(length)}</>
 }
 
+/** `text` with `[at, at + length)` marked (an entity row's typed text, wherever it matched). */
+function MarkedAt({ text, match }: { text: string; match?: { at: number; length: number } }) {
+  if (!match || match.length <= 0 || match.at < 0 || match.at + match.length > text.length) return <>{text}</>
+  const end = match.at + match.length
+  return <>{text.slice(0, match.at)}<mark className={styles.match}>{text.slice(match.at, end)}</mark>{text.slice(end)}</>
+}
+
 function rowKey(row: AutocompleteRow, i: number): string {
   switch (row.kind) {
     case 'entity': return `${row.item.kind}-${row.item.id}`
@@ -157,7 +164,7 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
             onContextMenu={entityMenu ? rowMenu(row) : undefined}
           >
             {row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
-            <span className={styles.name}>{view.trigger}{row.item.name}</span>
+            <span className={styles.name}>{view.trigger}<MarkedAt text={row.item.name} match={row.match} /></span>
           </button>
         )
       case 'create': {

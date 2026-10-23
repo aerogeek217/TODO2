@@ -59,15 +59,28 @@ function renderPicker(props: Partial<React.ComponentProps<typeof ChipSelector>> 
 describe('ChipSelector', () => {
   afterEach(cleanup)
 
-  it('focuses the search and lists everyone alphabetically, assigned ones checked', () => {
-    renderPicker()
+  it('focuses the search and lists the assigned ones first, a separator, then the rest — each alphabetically', () => {
+    renderPicker({ selectedIds: new Set([3, 4]) })
     expect(input()).toHaveFocus()
     expect(options().map((o) => o.textContent)).toEqual([
-      'AAidan Ross', 'AAlice Chen', 'DDana Kim', '✓PPriya Nair', 'SSam Lee',
+      '✓PPriya Nair', '✓SSam Lee', 'AAidan Ross', 'AAlice Chen', 'DDana Kim',
     ])
     expect(screen.getByRole('option', { name: 'Priya Nair' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('option', { name: 'Dana Kim' })).toHaveAttribute('aria-selected', 'false')
-    expect(activeOption()).toHaveTextContent('Aidan Ross')
+    // The separator sits above the first of the rest only.
+    expect(options().map((o) => o.className.includes('restSeparated'))).toEqual([false, false, true, false, false])
+    expect(activeOption()).toHaveTextContent('Priya Nair')
+  })
+
+  it('no separator when only one block shows; both blocks follow the search', () => {
+    renderPicker({ selectedIds: new Set([3, 4]) })
+    type('a')
+    // Priya Nair and Sam Lee are assigned; Aidan, Alice, Dana match too.
+    expect(options().map((o) => o.textContent?.replace(/⏎$/, ''))).toEqual([
+      '✓PPriya Nair', '✓SSam Lee', 'AAidan Ross', 'AAlice Chen', 'DDana Kim', '+ACreate "a"',
+    ])
+    type('dan')
+    expect(options().map((o) => o.className.includes('restSeparated'))).toEqual([false, false, false])
   })
 
   it('the search shows a × only while it has text; a click empties it, keeps the focus and the picker open', () => {
@@ -81,7 +94,7 @@ describe('ChipSelector', () => {
     expect(input()).toHaveValue('')
     expect(input()).toHaveFocus()
     expect(options()).toHaveLength(5)
-    expect(activeOption()).toHaveTextContent('Aidan Ross')
+    expect(activeOption()).toHaveTextContent('Priya Nair')
     expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
     expect(onToggle).not.toHaveBeenCalled()
@@ -109,17 +122,71 @@ describe('ChipSelector', () => {
     type('dan')
     expect(options().at(-1)).toHaveAccessibleName('Create "dan"')
     expect(activeOption()).toHaveTextContent('Aidan Ross')
+    key('ArrowUp')
+    expect(activeOption()).toHaveAccessibleName('Create "dan"')
+    key('ArrowDown')
+    expect(activeOption()).toHaveTextContent('Aidan Ross')
     key('ArrowDown')
     expect(activeOption()).toHaveTextContent('Dana Kim')
     key('Enter')
     expect(onToggle).toHaveBeenCalledWith(2)
-    key('ArrowDown')
-    expect(activeOption()).toHaveAccessibleName('Create "dan"')
-    key('ArrowDown')
-    expect(activeOption()).toHaveTextContent('Aidan Ross')
-    key('ArrowUp')
-    expect(activeOption()).toHaveAccessibleName('Create "dan"')
     expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('a pick with a query typed clears it: the whole list, re-sorted, the pick highlighted at its new place', () => {
+    function Host() {
+      const [selected, setSelected] = useState(new Set([3]))
+      const toggle = (id: number) => setSelected((prev) => {
+        const next = new Set(prev)
+        if (!next.delete(id)) next.add(id)
+        return next
+      })
+      return <ChipSelector items={people} selectedIds={selected} onToggle={toggle} avatars />
+    }
+    render(<Host />)
+    type('dan')
+    key('ArrowDown')
+    expect(activeOption()).toHaveTextContent('Dana Kim')
+    key('Enter')
+    expect(input()).toHaveValue('')
+    expect(input()).toHaveFocus()
+    expect(options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))).toEqual([
+      'Dana Kim', 'Priya Nair', 'Aidan Ross', 'Alice Chen', 'Sam Lee',
+    ])
+    expect(activeOption()).toHaveTextContent('Dana Kim')
+    // ⏎ again undoes it — and with no query nothing moves.
+    key('Enter')
+    expect(screen.getByRole('option', { name: 'Dana Kim' })).toHaveAttribute('aria-selected', 'false')
+    expect(options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))).toEqual([
+      'Dana Kim', 'Priya Nair', 'Aidan Ross', 'Alice Chen', 'Sam Lee',
+    ])
+    expect(activeOption()).toHaveTextContent('Dana Kim')
+    // A click with a query typed clears it too; the order is fixed again.
+    type('sam')
+    fireEvent.click(screen.getByRole('option', { name: 'Sam Lee' }))
+    expect(input()).toHaveValue('')
+    expect(options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))).toEqual([
+      'Priya Nair', 'Sam Lee', 'Aidan Ross', 'Alice Chen', 'Dana Kim',
+    ])
+  })
+
+  it('a tick with no query typed never moves a row', () => {
+    function Host() {
+      const [selected, setSelected] = useState(new Set<number>())
+      return (
+        <ChipSelector
+          items={people}
+          selectedIds={selected}
+          onToggle={(id) => setSelected((prev) => new Set([...prev, id]))}
+          avatars
+        />
+      )
+    }
+    render(<Host />)
+    const before = options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))
+    fireEvent.click(screen.getByRole('option', { name: 'Sam Lee' }))
+    expect(screen.getByRole('option', { name: 'Sam Lee' })).toHaveAttribute('aria-selected', 'true')
+    expect(options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))).toEqual(before)
   })
 
   it('an exact match in any case never offers create and is the active row', () => {
@@ -185,7 +252,7 @@ describe('ChipSelector', () => {
     expect(screen.getByText('No matches')).toBeInTheDocument()
   })
 
-  it('after a create the new item shows checked in alphabetical place', async () => {
+  it('after a create the new item shows checked among the assigned ones', async () => {
     function Host() {
       const [items, setItems] = useState(people)
       const [selected, setSelected] = useState(new Set<number>())
@@ -206,7 +273,7 @@ describe('ChipSelector', () => {
     type('Marco Rossi')
     key('Enter')
     const names = options().map((o) => o.textContent?.replace(/^✓?[A-Z]/, ''))
-    expect(names).toEqual(['Aidan Ross', 'Alice Chen', 'Dana Kim', 'Marco Rossi', 'Priya Nair', 'Sam Lee'])
+    expect(names).toEqual(['Marco Rossi', 'Aidan Ross', 'Alice Chen', 'Dana Kim', 'Priya Nair', 'Sam Lee'])
     expect(screen.getByRole('option', { name: 'Marco Rossi' })).toHaveAttribute('aria-selected', 'true')
   })
 })
@@ -243,12 +310,12 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
   it('Shift+F10 / the context-menu key in the search opens the highlighted option’s menu; a right-click on the field doesn’t', () => {
     renderWithMenu()
     key('ArrowDown')
-    expect(activeOption()).toHaveTextContent('Alice Chen')
+    expect(activeOption()).toHaveTextContent('Aidan Ross')
     fireEvent.contextMenu(input(), { button: 2 })
     expect(screen.queryByRole('menu')).toBeNull()
     // From the keyboard: no right button.
     fireEvent.contextMenu(input(), { button: 0 })
-    expect(screen.getByRole('menu', { name: '@Alice Chen' })).toBeInTheDocument()
+    expect(screen.getByRole('menu', { name: '@Aidan Ross' })).toBeInTheDocument()
   })
 
   it('no menu on the Create row, nor without entityMenu; a right-click in the picker never reaches its host', () => {

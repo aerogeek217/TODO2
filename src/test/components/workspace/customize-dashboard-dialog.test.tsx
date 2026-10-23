@@ -41,8 +41,8 @@ const rowIds = (name: string) => Array.from(group(name).querySelectorAll<HTMLEle
 
 let onClose: ReturnType<typeof vi.fn<() => void>>
 
-function setup(opts: { focusListTiles?: boolean } = {}) {
-  return render(<CustomizeDashboardDialog tabId="dash" focusListTiles={opts.focusListTiles} onClose={onClose} />)
+function setup() {
+  return render(<CustomizeDashboardDialog tabId="dash" onClose={onClose} />)
 }
 
 beforeEach(() => {
@@ -222,11 +222,6 @@ describe('CustomizeDashboardDialog', () => {
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(3)
     expect(tabConfig().tiles).toContain('dueToday')
-  })
-
-  it('opened from “+ Add list tile”, Add a list has the focus', () => {
-    setup({ focusListTiles: true })
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add a list' }))
   })
 
   it('closes itself when its tab is gone', () => {

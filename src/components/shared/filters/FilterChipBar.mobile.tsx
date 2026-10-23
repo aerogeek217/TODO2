@@ -14,6 +14,7 @@ import {
   type FilterChipBarProps,
 } from './FilterChipBar.shared'
 import { byName } from '../../../utils/sort-order'
+import { splitOnTop, usePickerOrder } from '../../../hooks/use-picker-order'
 
 type MobileSection = EntityKey | 'markers' | 'toggles' | 'date'
 
@@ -53,7 +54,8 @@ interface MobileEntityListProps {
   negated: boolean
   onNegatedChange: (negated: boolean) => void
   onToggle: (id: number) => void
-  noneLabel: string
+  /** The None row's name (`Unassigned`, `No status`); none for tags. */
+  noneLabel?: string
   searchPlaceholder: string
   searchText: string
   onSearchChange: (text: string) => void
@@ -63,6 +65,19 @@ interface MobileEntityListProps {
   showNoneSentinel?: boolean
 }
 
+/** A row press keeps the focus where it is (the search box). */
+function keepFocus(e: React.MouseEvent) {
+  e.preventDefault()
+}
+
+/**
+ * One entity section of the phone filter sheet: Is / Is not, a search box,
+ * then a checkbox per row — the ticked ones first (alphabetical, the None
+ * row first of its block), a separator, then the rest. The order is fixed
+ * when the section opens and whenever the search text changes
+ * (`usePickerOrder`); a tick while the search has text clears it (the whole
+ * list again, re-sorted), the focus staying in the search.
+ */
 function MobileEntityList({
   field,
   entities,
@@ -78,6 +93,60 @@ function MobileEntityList({
   showNoneSentinel = true,
 }: MobileEntityListProps) {
   const searchRef = useRef<HTMLInputElement>(null)
+  const withNone = showNoneSentinel && noneLabel !== undefined
+  const ticked = (id: number) => entityTicked(filterIds, negated, id)
+  const ids = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
+  const order = usePickerOrder(searchText, ids, ticked)
+  const q = searchText.trim().toLowerCase()
+  const matching = entities
+    .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))
+    .filter((e) => !q || e.name.toLowerCase().includes(q))
+    .toSorted(byName)
+  const { top, rest } = splitOnTop(matching, (e) => order.onTop(e.id))
+  const noneOnTop = withNone && order.onTop(0)
+  const firstRestId = top.length > 0 || noneOnTop
+    ? (withNone && !noneOnTop ? 0 : rest[0]?.id)
+    : undefined
+  const pick = (id: number) => {
+    const was = ticked(id)
+    onToggle(id)
+    if (!searchText) return
+    order.notePick(id, !was)
+    onSearchChange('')
+  }
+  const noneRow = withNone && (
+    <label key="none" className={`${sheet.entityItem} ${firstRestId === 0 ? sheet.entityItemSeparated : ''}`} onMouseDown={keepFocus}>
+      <span
+        className={sheet.entityDot}
+        style={{ background: 'var(--color-text-muted)' }}
+      />
+      <span className={`${sheet.entityName} ${sheet.entityNone}`}>{noneLabel}</span>
+      <input
+        type="checkbox"
+        className={sheet.entityCheck}
+        checked={ticked(0)}
+        onChange={() => pick(0)}
+      />
+    </label>
+  )
+  const entityRow = (e: { id: number; name: string; color?: string }) => (
+    <label key={e.id} className={`${sheet.entityItem} ${firstRestId === e.id ? sheet.entityItemSeparated : ''}`} onMouseDown={keepFocus}>
+      <span
+        className={sheet.entityDot}
+        style={{ background: e.color || 'var(--color-accent)' }}
+      />
+      <span className={sheet.entityName}>
+        {namePrefix}
+        {e.name}
+      </span>
+      <input
+        type="checkbox"
+        className={sheet.entityCheck}
+        checked={ticked(e.id)}
+        onChange={() => pick(e.id)}
+      />
+    </label>
+  )
   return (
     <div className={sheet.entityList}>
       <FilterModeToggle field={field} negated={negated} onChange={onNegatedChange} touch />
@@ -97,42 +166,10 @@ function MobileEntityList({
         />
       </ClearableField>
       {/* Each row is a real checkbox with its name as the label: a tap, Space or a screen reader ticks it. */}
-      {showNoneSentinel && (
-        <label className={sheet.entityItem}>
-          <span
-            className={sheet.entityDot}
-            style={{ background: 'var(--color-text-muted)' }}
-          />
-          <span className={`${sheet.entityName} ${sheet.entityNone}`}>{noneLabel}</span>
-          <input
-            type="checkbox"
-            className={sheet.entityCheck}
-            checked={entityTicked(filterIds, negated, 0)}
-            onChange={() => onToggle(0)}
-          />
-        </label>
-      )}
-      {entities
-        .filter((e) => !searchText || e.name.toLowerCase().includes(searchText.toLowerCase()))
-        .toSorted(byName)
-        .map((e) => (
-          <label key={e.id} className={sheet.entityItem}>
-            <span
-              className={sheet.entityDot}
-              style={{ background: e.color || 'var(--color-accent)' }}
-            />
-            <span className={sheet.entityName}>
-              {namePrefix}
-              {e.name}
-            </span>
-            <input
-              type="checkbox"
-              className={sheet.entityCheck}
-              checked={entityTicked(filterIds, negated, e.id!)}
-              onChange={() => onToggle(e.id!)}
-            />
-          </label>
-        ))}
+      {noneOnTop && noneRow}
+      {top.map(entityRow)}
+      {!noneOnTop && noneRow}
+      {rest.map(entityRow)}
     </div>
   )
 }
@@ -253,49 +290,27 @@ export function FilterChipBarMobile({
         open={openSection === 'tags'}
         onToggle={() => handleSection('tags')}
       >
-        <div className={sheet.entityList}>
-          {sortedTags.length === 0 ? (
+        {sortedTags.length === 0 ? (
+          <div className={sheet.entityList}>
             <div className={sheet.entityItem}>
               <span className={`${sheet.entityName} ${sheet.entityNone}`}>No tags yet.</span>
             </div>
-          ) : (
-            <>
-              <FilterModeToggle field="Tags" negated={negated.tags} onChange={(on) => setNegated('tags', on)} touch />
-              <input
-                className={sheet.entitySearchInput}
-                placeholder="Search tags..."
-                value={entitySearch}
-                onChange={(e) => setEntitySearch(e.target.value)}
-              />
-              {sortedTags
-                .filter(
-                  (t) =>
-                    !entitySearch || t.name.toLowerCase().includes(entitySearch.toLowerCase()),
-                )
-                .map((tag) => (
-                  <div
-                    key={tag.id}
-                    className={sheet.entityItem}
-                    onClick={() => handleTagToggle(tag.id!)}
-                  >
-                    <span
-                      className={sheet.entityDot}
-                      style={{ background: tag.color || 'var(--color-accent)' }}
-                    />
-                    <span className={sheet.entityName}>#{tag.name}</span>
-                    <input
-                      type="checkbox"
-                      className={sheet.entityCheck}
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      checked={entityTicked(tagIdsSet, negated.tags, tag.id!)}
-                      readOnly
-                    />
-                  </div>
-                ))}
-            </>
-          )}
-        </div>
+          </div>
+        ) : (
+          <MobileEntityList
+            field="Tags"
+            entities={sortedTags}
+            filterIds={tagIdsSet}
+            negated={negated.tags}
+            onNegatedChange={(on) => setNegated('tags', on)}
+            onToggle={handleTagToggle}
+            searchPlaceholder="Search tags..."
+            searchText={entitySearch}
+            onSearchChange={setEntitySearch}
+            namePrefix="#"
+            showNoneSentinel={false}
+          />
+        )}
       </AccordionSection>
 
       {/* People */}

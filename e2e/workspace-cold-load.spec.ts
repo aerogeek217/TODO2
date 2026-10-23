@@ -19,10 +19,11 @@ async function expectChipsAndGroups(page: import('@playwright/test').Page) {
   const row = cell.locator('[data-todo-id]').filter({ hasText: 'Water the plants' })
   await expect(row).toBeVisible()
   await expect(row.getByText('#home')).toBeVisible()
-  // Grouped by person: Alice's task is under Alice, not "Unassigned" (her
-  // own group doesn't repeat her avatar on the row).
+  // Grouped by person: Alice's task is under Alice, not "Unassigned", and
+  // the row shows her avatar there too.
   await expect(cell.getByTestId('list-group-name')).toHaveText(['Alice', 'Unassigned'])
   await expect(cell.locator('[data-list-group="person-1"]')).toContainText('Water the plants')
+  await expect(row.locator('[data-person-avatar="Alice"]')).toBeVisible()
 }
 
 test('cold load of / renders person and tag chips and person groups', async ({ page }) => {

@@ -112,6 +112,32 @@ describe('RuntimeFilterPicker', () => {
     expect(onChange).toHaveBeenLastCalledWith([1, 2])
   })
 
+  it('a pick with search text clears it: the focus stays in the field, every option shows again', () => {
+    usePersonStore.setState({
+      people: [
+        makePerson({ id: 1, name: 'Alice' }),
+        makePerson({ id: 2, name: 'Bob' }),
+      ],
+      assignedPeopleMap: new Map(),
+    })
+    const onChange = vi.fn()
+    const { getByLabelText, getByRole, queryByRole } = render(
+      <RuntimeFilterPicker spec={{ field: 'person' }} value={undefined} onChange={onChange} />,
+    )
+    const input = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
+    input.focus()
+    fireEvent.change(input, { target: { value: 'bo' } })
+    expect(queryByRole('button', { name: 'Alice' })).toBeNull()
+    const bob = getByRole('button', { name: 'Bob' })
+    // The press keeps the focus in the field.
+    expect(fireEvent.mouseDown(bob)).toBe(false)
+    fireEvent.click(bob)
+    expect(onChange).toHaveBeenLastCalledWith([2])
+    expect(input.value).toBe('')
+    expect(input).toHaveFocus()
+    expect(getByRole('button', { name: 'Alice' })).toBeTruthy()
+  })
+
   it('removes an id when the chip × is clicked', () => {
     usePersonStore.setState({
       people: [

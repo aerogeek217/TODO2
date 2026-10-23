@@ -5,14 +5,15 @@ import { emailPersonCheckin, type GroupPerson } from './person-group'
 import styles from './ListWidget.module.css'
 
 /**
- * A People group's header (`children`, the collapse button) plus an envelope
- * button at its end, shown on hover or keyboard focus, that opens the email
- * check-in for the person. Right-click, the context-menu key or Shift+F10 on
- * either opens the group's menu (`onOpenMenu`, at the pointer or under the
- * header).
+ * A list group's header (`children`, the collapse button). Right-click, the
+ * context-menu key or Shift+F10 on it opens the group's menu (`onOpenMenu`,
+ * at the pointer or under the header). A People group's header also has an
+ * envelope button at its end, shown on hover or keyboard focus, that opens
+ * the email check-in for the person.
  */
-export function PersonGroupHeader({ person, showAction, onOpenMenu, children }: {
-  person: GroupPerson
+export function ListGroupHeader({ person, showAction, onOpenMenu, children }: {
+  /** The People group's person; null for every other group. */
+  person: GroupPerson | null
   /** False while a row is dragged (the header shows the drop preview then). */
   showAction: boolean
   onOpenMenu: (at: { x: number; y: number }) => void
@@ -21,7 +22,7 @@ export function PersonGroupHeader({ person, showAction, onOpenMenu, children }: 
   return (
     <div
       className={styles.groupHeaderRow}
-      data-person-group={person.id}
+      data-person-group={person?.id}
       onContextMenu={(e) => {
         e.preventDefault()
         onOpenMenu({ x: e.clientX, y: e.clientY })
@@ -35,7 +36,7 @@ export function PersonGroupHeader({ person, showAction, onOpenMenu, children }: 
       }}
     >
       {children}
-      {showAction && <CheckinButton person={person} />}
+      {person && showAction && <CheckinButton person={person} />}
     </div>
   )
 }

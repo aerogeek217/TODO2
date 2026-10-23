@@ -52,7 +52,8 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
  * Selection semantics: each picked id appears as a chip with a `×`; the
  * underlying value is the chips' id list, OR-combined when the helper
  * applies it (`applyRuntimeFilter`). Empty selection is a no-op (helper
- * passes the predicate through unchanged). While anything is picked, a × at
+ * passes the predicate through unchanged). A pick while the field has search
+ * text clears the text (the focus stays in the field). While anything is picked, a × at
  * the field's end clears every pick at once (the focus stays in the field).
  */
 const NO_IDS: readonly number[] = []
@@ -134,9 +135,12 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
     extraInsideRefs: [wrapperRef],
   })
 
+  // A pick with search text clears it: the whole list shows again (the
+  // picks stay chips above, in pick order; the list keeps its order).
   const toggleOption = (id: number) => {
     if (idSet.has(id)) onChange(ids.filter((x) => x !== id))
     else onChange([...ids, id])
+    if (searchText) setSearchText('')
   }
 
   const removeChip = (id: number) => {

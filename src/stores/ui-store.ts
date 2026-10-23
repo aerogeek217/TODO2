@@ -16,13 +16,11 @@ export type SettingsSectionId =
   | 'shortcuts'
   | 'about'
 
-/** The headed parts of the merged sections (Tasks, People statuses & tags, Database). */
+/** The headed parts of the merged sections (Tasks, Database). */
 export type SettingsPartId =
   | 'task-defaults'
   | 'eisenhower'
   | 'completed'
-  | 'entities-manage'
-  | 'unused-entities'
   | 'file-storage'
   | 'backups'
   | 'import-export'
@@ -33,8 +31,6 @@ export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSect
   'task-defaults': 'tasks',
   eisenhower: 'tasks',
   completed: 'tasks',
-  'entities-manage': 'entities',
-  'unused-entities': 'entities',
   'file-storage': 'database',
   backups: 'database',
   'import-export': 'database',

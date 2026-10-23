@@ -88,7 +88,7 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * the highlighted row) once `whenCreated()` resolves. A picked Create row
  * makes the person / tag at once (`onCreate`); typing on never creates. Typing on past an `@` / `#` token without picking (a
  * space, punctuation, the caret moved off it) completes it to the
- * highlighted person / tag (`implicitAccept`).
+ * highlighted person / tag when that is an exact, initials or prefix match (`implicitAccept`).
  */
 export function useNlpAutocomplete({
   people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply, onCreate = createNlpEntity,

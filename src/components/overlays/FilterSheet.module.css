@@ -85,3 +85,23 @@
   display: flex;
   align-items: center;
 }
+
+/* Show N tasks: the foot while a filter is on */
+.showTasks {
+  width: 100%;
+  min-height: var(--touch-target-min);
+  margin-top: 12px;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.showTasks:active {
+  background: var(--color-accent-dim);
+}

@@ -13,6 +13,7 @@ import { useUIStore } from '../stores/ui-store'
 import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
+import { copyTasks, tasksToCopy } from './task-copy'
 import {
   findScopeElement,
   nextScopedSelection,
@@ -266,6 +267,20 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
     e.preventDefault()
     useUIStore.getState().showBulkConfirmation('delete', Array.from(ids))
   },
+  'copy-selected': async ({ e }) => {
+    // Text selected on the page: the browser's own copy (text fields never get here).
+    if (hasPageTextSelection()) return
+    const todos = tasksToCopy()
+    if (todos.length === 0) return
+    e.preventDefault()
+    await copyTasks([{ todos }])
+  },
+}
+
+/** Some text on the page is selected (a non-collapsed range). */
+function hasPageTextSelection(): boolean {
+  const sel = typeof window.getSelection === 'function' ? window.getSelection() : null
+  return sel != null && sel.rangeCount > 0 && !sel.isCollapsed && sel.toString() !== ''
 }
 
 /** Runs a binding's handler; one that fails says so in the snackbar instead of rejecting unseen. */

@@ -60,28 +60,31 @@ test.describe('person picker — lookup or create', () => {
     expect(await activeOptionName(page)).toContain('Create "Marco Rossi"')
     await page.keyboard.press('Enter')
 
-    // The query clears, the picker stays open with focus, the new person is checked in place.
+    // The query clears, the picker stays open with focus, the new person is checked at the top (the assigned first).
     await expect(search).toHaveValue('')
     await expect(search).toBeFocused()
     await expect(listbox.getByRole('option')).toHaveCount(3)
     await expect(listbox.getByRole('option', { name: 'Marco Rossi' })).toHaveAttribute('aria-selected', 'true')
-    await expect(listbox.getByRole('option').nth(1)).toHaveAccessibleName('Marco Rossi')
+    await expect(listbox.getByRole('option').nth(0)).toHaveAccessibleName('Marco Rossi')
     await expect.poll(() => readAssignedNames(page, 'vendor contract')).toEqual(['Marco Rossi'])
     const marco = (await readPeople(page)).find((p) => p.name === 'Marco Rossi')
     expect(marco).toMatchObject({ initials: 'MR' })
     expect(marco?.color).toBeUndefined()
 
-    // An exact match in another case offers no create; ⏎ toggles that person.
+    // An exact match in another case offers no create; ⏎ toggles that person, the query
+    // clears and the list re-sorts with him still active.
     await page.keyboard.type('MARCO ROSSI')
     await expect(listbox.getByRole('option', { name: /Create/ })).toHaveCount(0)
     await page.keyboard.press('Enter')
+    await expect(search).toHaveValue('')
     await expect(listbox.getByRole('option', { name: 'Marco Rossi' })).toHaveAttribute('aria-selected', 'false')
+    await expect(listbox.getByRole('option')).toHaveText(['DDana Kim', 'MMarco Rossi', 'PPriya Nair'])
+    expect(await activeOptionName(page)).toContain('Marco Rossi')
     await expect.poll(() => readAssignedNames(page, 'vendor contract')).toEqual([])
     expect((await readPeople(page)).filter((p) => p.name.toLowerCase() === 'marco rossi')).toHaveLength(1)
 
     // ↑/↓ wrap; ⏎ toggles the active person.
-    await page.keyboard.press('Control+A')
-    await page.keyboard.press('Backspace')
+    await page.keyboard.press('ArrowUp')
     await page.keyboard.press('ArrowUp')
     expect(await activeOptionName(page)).toContain('Priya Nair')
     await page.keyboard.press('Enter')

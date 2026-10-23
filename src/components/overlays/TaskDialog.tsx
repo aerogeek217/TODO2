@@ -3,22 +3,19 @@ import { useIsMobile } from '../../hooks/use-is-mobile'
 import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
 import { copyTasksRich } from '../../services/task-copy'
 import {
+  currentTaskDialogEnv,
   resolveTaskDialog,
+  screenTaskDialogDescription,
   taskDialogCopySections,
   taskDialogCount,
-  type TaskDialogEnv,
   type TaskDialogRowGroup,
 } from '../../services/task-dialog'
 import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
 import { useFilterStore } from '../../stores/filter-store'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useListDraftStore } from '../../stores/list-draft-store'
-import { useListOrderStore } from '../../stores/list-order-store'
 import { usePersonStore } from '../../stores/person-store'
-import { currentFilterSettings, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
+import type { FilterCriteria } from '../../utils/filter-criteria'
 import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -30,34 +27,21 @@ import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
 import { DashGlyph } from '../shared/DashGlyph'
 import { EnvelopeIcon } from '../shared/icons'
+import { TaskDialogFilterBar } from './TaskDialogFilterBar'
 import styles from './TaskDialog.module.css'
-
-/** The stores as they are now: what a source is resolved with when the dialog opens. */
-function currentEnv(): TaskDialogEnv {
-  const drafts = useListDraftStore.getState().drafts
-  const people = usePersonStore.getState()
-  const tags = useTagStore.getState()
-  return {
-    todos: useTodoStore.getState().todos,
-    today: startOfToday(),
-    weekStartsOn: useSettingsStore.getState().weekStartsOn,
-    markerSettings: currentFilterSettings(),
-    assignedPeopleMap: people.assignedPeopleMap,
-    assignedTagsMap: tags.assignedTagsMap,
-    people: people.people,
-    statuses: useStatusStore.getState().statuses,
-    listDefinitions: useListDefinitionStore.getState().listDefinitions.map((d) => drafts[d.id] ?? d),
-    screen: useFilterStore.getState().filters,
-    listRanks: useListOrderStore.getState().ranks,
-  }
-}
 
 interface Resolved {
   payload: TaskDialogPayload
+  /** The screen filter the rows were resolved under. */
+  screen: FilterCriteria
   groups: TaskDialogRowGroup[]
 }
 
-const resolve = (payload: TaskDialogPayload): Resolved => ({ payload, groups: resolveTaskDialog(payload.source, currentEnv()) })
+/** The payload's rows from the stores as they are now. */
+function resolve(payload: TaskDialogPayload): Resolved {
+  const env = currentTaskDialogEnv()
+  return { payload, screen: env.screen, groups: resolveTaskDialog(payload.source, env) }
+}
 
 /** The panel (cell or band) holding tab `tabId`, and the tab's index there. */
 function cellOfTab(layout: WorkspaceLayout, tabId: string | undefined): { cellId: string; index: number } | null {
@@ -68,12 +52,16 @@ function cellOfTab(layout: WorkspaceLayout, tabId: string | undefined): { cellId
 
 /**
  * The task dialog: the tasks behind a dashboard number or a person chip
- * (`ui-store.taskDialog`). Rows are full task rows (no drag); clicking one
- * opens the task editor on top. The rows are fixed when the dialog opens, so
- * a task completed here stays, struck through, until it closes, while the
- * counts behind update. Footer: Copy tasks, Email check-in (a person's
- * tasks: opens the check-in dialog over this one with that person ticked),
- * Open as tab (a list's dialog opened from a widget), Close.
+ * (`ui-store.taskDialog`), or the screen filter's tasks. Rows are full task
+ * rows (no drag); clicking one opens the task editor on top. The rows are
+ * fixed when the dialog opens, so a task completed here stays, struck
+ * through, until it closes, while the counts behind update. The screen
+ * filter's dialog has that filter's bar under its header (the filter
+ * itself: the workspace behind follows) and resolves its rows again on
+ * every change of the filter — fixed between changes. Footer: Copy tasks,
+ * Email check-in (a person's tasks: opens the check-in dialog over this one
+ * with that person ticked), Open as tab (a list's dialog opened from a
+ * widget), Close.
  *
  * It sits low (the editor's own layer) so the rows' menus and popovers open
  * above it; the editor stacks over it (`nested`) and takes focus. Esc closes
@@ -87,8 +75,12 @@ export function TaskDialog() {
 
 function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
-  // A new payload while open (e.g. a person chip in a row): resolve it afresh.
-  if (resolved.payload !== payload) setResolved(resolve(payload))
+  const isScreen = payload.source.kind === 'screen'
+  // The screen filter, only for its own dialog (no other re-renders on a filter change).
+  const screen = useFilterStore((s) => (isScreen ? s.filters : null))
+  // A new payload while open (e.g. a person chip in a row), or the screen
+  // filter changed under its dialog: resolve it afresh.
+  if (resolved.payload !== payload || (screen !== null && resolved.screen !== screen)) setResolved(resolve(payload))
   const { groups } = resolved
 
   const todos = useTodoStore((s) => s.todos)
@@ -180,7 +172,8 @@ function TaskDialogPanel({ payload }: { payload: TaskDialogPayload }) {
         <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
         <button type="button" className={styles.closeBtn} aria-label="Close" onClick={hide}>×</button>
       </div>
-      <p className={styles.description}>{payload.description}</p>
+      {isScreen && <TaskDialogFilterBar />}
+      <p className={styles.description}>{screen ? screenTaskDialogDescription(screen) : payload.description}</p>
       <div className={styles.body} aria-label="Tasks" role="group">
         {count === 0 && <div className={styles.empty}>No tasks</div>}
         {/* The default split: no divider here. */}

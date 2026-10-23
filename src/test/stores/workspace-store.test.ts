@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { createTab, UNSAVED_LAYOUT_ID, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { createTab, layoutBodyOf, UNSAVED_LAYOUT_ID, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -130,7 +130,7 @@ describe('structural edits and dirty state', () => {
     expect(await stored(copy!)).toMatchObject({ top, bottom })
   })
 
-  it('a band made, resized, merged into or closed is a layout change; its collapse and active tab are view state', async () => {
+  it('a band made, merged into or closed is a layout change; its height, collapse and active tab are view state', async () => {
     const [id] = await seedAndInit(twoColumns())
     ws().movePanel('kb', { kind: 'new-band', edge: 'top' })
     expect(ws().isDirty).toBe(true)
@@ -143,14 +143,12 @@ describe('structural edits and dirty state', () => {
     await db.layouts.update(id!, { top })
     await ws().load(id!)
     expect(ws().isDirty).toBe(false)
-    ws().setBandHeight('top', 220)
-    expect(ws().isDirty).toBe(true)
-    ws().setBandHeight('top', 140)
+    await ws().setBandHeight('top', 220)
     expect(ws().isDirty).toBe(false)
     await ws().setCellCollapsed('tb', true)
     await ws().setActiveTab('top2')
     expect(ws().isDirty).toBe(false)
-    expect(await stored(id!)).toMatchObject({ top: { collapsed: true, activeTabId: 'top2', height: 140 } })
+    expect(await stored(id!)).toMatchObject({ top: { collapsed: true, activeTabId: 'top2', height: 220 } })
     ws().moveTab('a1', { kind: 'band', edge: 'top' })
     expect(ws().isDirty).toBe(true)
     expect(ws().working!.top?.tabs.map((t) => t.id)).toEqual(['top1', 'top2', 'a1'])
@@ -160,16 +158,13 @@ describe('structural edits and dirty state', () => {
     expect((await stored(id!)).top).toBeUndefined()
   })
 
-  it('split / close cell / resize / tab config / change kind are layout changes', async () => {
+  it('split / close cell / tab config / change kind are layout changes', async () => {
     await seedAndInit(twoColumns())
     const cellId = ws().splitCell('kb', 'below')
     expect(cellId).not.toBeNull()
     expect(ws().isDirty).toBe(true)
     ws().closeCell(cellId!)
     expect(ws().isDirty).toBe(false)
-    ws().setColumnWeights({ A: 1.4, B: 0.6 })
-    expect(ws().isDirty).toBe(true)
-    ws().discard()
     ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true } })
     expect(ws().isDirty).toBe(true)
     ws().discard()
@@ -300,6 +295,158 @@ describe('view state written while a Save runs', () => {
     expect(row.columns[0]!.cells[0]!.activeTabId).toBe('a2')
     expect(row.columns[1]!.cells[0]!.tabs).toHaveLength(2)
     expect(ws().saved).toEqual(row)
+  })
+
+  it('a switch to a tab only the Save writes, made while it writes, is stored with it', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    const tabId = ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })!
+    await ws().setActiveTab('b1')
+    const release = holdLayoutWrites()
+    const saving = ws().save()
+    const switching = ws().setActiveTab(tabId)
+    release()
+    await Promise.all([saving, switching])
+    expect((await stored(id!)).columns[1]!.cells[0]!.activeTabId).toBe(tabId)
+    expect(ws().saved!.columns[1]!.cells[0]!.activeTabId).toBe(tabId)
+  })
+
+  it('a resize among the parts the Save writes, made while it writes, is stored with it and stays saved', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().addWidget('notes', { kind: 'column-edge', columnId: 'B', edge: 'right' })
+    const release = holdLayoutWrites()
+    const saving = ws().save()
+    const resizing = ws().setColumnWeights({ A: 2 })
+    release()
+    expect(await saving).toBe(true)
+    await resizing
+    const row = await stored(id!)
+    expect(row.columns).toHaveLength(3)
+    expect(row.columns[0]!.weight).toBe(2)
+    expect(ws().isDirty).toBe(false)
+    expect(ws().saved).toEqual(row)
+
+    vi.restoreAllMocks()
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await ws().init()
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working!.columns[0]!.weight).toBe(2)
+  })
+})
+
+describe('sizes are view state', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  /** A reload: a fresh store opening the same database and browser storage. */
+  async function reload() {
+    useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+    await ws().init()
+  }
+
+  const weights = (l: LayoutBody | null | undefined) => l?.columns.map((c) => c.weight)
+
+  it('a resize is saved at once: never unsaved, kept by Discard and a reload, nothing kept in the browser', async () => {
+    const top = { id: 'tb', height: 140, tabs: [createTab('notes', 'top1')] }
+    const [id] = await seedAndInit(twoColumns('Daily', { top }))
+    await ws().setColumnWeights({ A: 1.4, B: 0.6 })
+    await ws().setBandHeight('top', 230)
+    expect(ws().isDirty).toBe(false)
+    expect(weights(await stored(id!))).toEqual([1.4, 0.6])
+    expect((await stored(id!)).top?.height).toBe(230)
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+    await ws().discard()
+    expect(weights(ws().working)).toEqual([1.4, 0.6])
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(weights(ws().working)).toEqual([1.4, 0.6])
+    expect(ws().working!.top?.height).toBe(230)
+  })
+
+  it('the frames of a divider drag write nothing; its end saves the result once', async () => {
+    const top = { id: 'tb', height: 140, tabs: [createTab('notes', 'top1')] }
+    const [id] = await seedAndInit(twoColumns('Daily', { top }))
+    const updateView = vi.spyOn(layoutRepository, 'updateView')
+    await ws().setColumnWeights({ A: 1.2, B: 0.8 }, { live: true })
+    await ws().setColumnWeights({ A: 1.4, B: 0.6 }, { live: true })
+    await ws().setBandHeight('top', 180, { live: true })
+    expect(weights(ws().working)).toEqual([1.4, 0.6])
+    expect(ws().isDirty).toBe(false)
+    expect(updateView).not.toHaveBeenCalled()
+    expect(weights(await stored(id!))).toEqual([1, 1])
+    await ws().endResize()
+    expect(updateView).toHaveBeenCalledOnce()
+    expect(weights(await stored(id!))).toEqual([1.4, 0.6])
+    expect((await stored(id!)).top?.height).toBe(180)
+    await ws().endResize()
+    expect(updateView).toHaveBeenCalledOnce()
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(weights(ws().working)).toEqual([1.4, 0.6])
+  })
+
+  it('with an unsaved new column: the column widths stay unsaved until Save; the cells of an unchanged column save at once', async () => {
+    const [id] = await seedAndInit(twoColumns('Daily', {
+      columns: [
+        { id: 'A', weight: 1, cells: [{ id: 'ka', weight: 1, tabs: [createTab('notes', 'a1')] }, { id: 'kc', weight: 1, tabs: [createTab('notes', 'a3')] }] },
+        { id: 'B', weight: 1, cells: [{ id: 'kb', weight: 1, tabs: [createTab('eisenhower', 'b1')] }] },
+      ],
+    }))
+    ws().addWidget('notes', { kind: 'column-edge', columnId: 'B', edge: 'right' })
+    const added = weights(ws().working)!
+    await ws().setColumnWeights({ A: 2 })
+    await ws().setCellWeights({ ka: 0.3, kc: 1.7 })
+    expect(ws().isDirty).toBe(true)
+    const row = await stored(id!)
+    expect(weights(row)).toEqual([1, 1])
+    expect(row.columns[0]!.cells.map((c) => c.weight)).toEqual([0.3, 1.7])
+    // Kept for a reload with the unsaved column.
+    await reload()
+    expect(ws().isDirty).toBe(true)
+    expect(weights(ws().working)).toEqual([2, ...added.slice(1)])
+    // Discard: the column and its widths go; the cell sizes stay saved.
+    await ws().discard()
+    expect(weights(ws().working)).toEqual([1, 1])
+    expect(ws().working!.columns[0]!.cells.map((c) => c.weight)).toEqual([0.3, 1.7])
+
+    ws().addWidget('notes', { kind: 'column-edge', columnId: 'B', edge: 'right' })
+    await ws().setColumnWeights({ A: 2 })
+    expect(await ws().save()).toBe(true)
+    expect(weights(await stored(id!))).toEqual([2, ...added.slice(1)])
+    expect(ws().isDirty).toBe(false)
+  })
+
+  it('an edit that brings the structure back to the saved one brings back its sizes', async () => {
+    await seedAndInit(twoColumns())
+    const tabId = ws().addWidget('notes', { kind: 'column-edge', columnId: 'B', edge: 'right' })!
+    await ws().setColumnWeights({ B: 0.2 })
+    ws().closeTab(tabId)
+    expect(ws().isDirty).toBe(false)
+    expect(weights(ws().working)).toEqual([1, 1])
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
+  })
+
+  it('Save as: the new layout has the sizes; the layout it came from keeps the ones saved at once', async () => {
+    const [orig] = await seedAndInit(twoColumns())
+    await ws().setColumnWeights({ A: 1.4, B: 0.6 })
+    ws().addWidget('notes', { kind: 'column-edge', columnId: 'B', edge: 'right' })
+    await ws().setColumnWeights({ A: 2 })
+    const copy = await ws().saveAs('Copy')
+    expect(weights(await stored(copy!))).toEqual(weights(ws().working))
+    expect(weights(await stored(copy!))![0]).toBe(2)
+    expect(weights(await stored(orig!))).toEqual([1.4, 0.6])
+    expect(ws().isDirty).toBe(false)
+  })
+
+  it('a kept new layout (not stored yet): a resize stays in its working copy, kept for a reload', async () => {
+    await seedAndInit(twoColumns())
+    await openKeptNewLayout({ columns: [] })
+    ws().addWidget('notes', { kind: 'layout' })
+    ws().addWidget('notes', { kind: 'layout' })
+    const [a, b] = ws().working!.columns.map((c) => c.id)
+    await ws().setColumnWeights({ [a!]: 3, [b!]: 1 })
+    expect(ws().saved).toBeNull()
+    await reload()
+    expect(ws().working).toMatchObject({ id: UNSAVED_LAYOUT_ID })
+    expect(weights(ws().working)).toEqual([3, 1])
   })
 })
 
@@ -470,7 +617,8 @@ describe('unsaved changes kept for a reload', () => {
     const top = { id: 'tb', height: 140, tabs: [createTab('dashboard', 'top1')] }
     const [id] = await seedAndInit(twoColumns('Daily', { top }))
     ws().movePanel('kb', { kind: 'new-band', edge: 'bottom' })
-    ws().setBandHeight('top', 200)
+    await ws().setBandHeight('top', 200)
+    expect((await stored(id!)).top?.height).toBe(200)
     await reload()
     expect(ws().isDirty).toBe(true)
     expect(ws().working!.top?.height).toBe(200)
@@ -481,24 +629,29 @@ describe('unsaved changes kept for a reload', () => {
     await reload()
     expect(ws().working!.top).toBeUndefined()
     // Elsewhere: the stored layout's band changed under the draft.
-    await db.layouts.update(id!, { top: { ...top, height: 90 } })
+    await db.layouts.update(id!, { top: { ...top, tabs: [createTab('notes', 'top9')] } })
     await reload()
     expect(ws().isDirty).toBe(false)
-    expect(ws().working!.top?.height).toBe(90)
+    expect(ws().working!.top?.tabs.map((t) => t.id)).toEqual(['top9'])
   })
 
-  it('the frames of a divider drag (live resizes) keep nothing until its end keeps the result once', async () => {
-    await seedAndInit(twoColumns('Daily', { top: { id: 'tb', height: 140, tabs: [createTab('notes', 'top1')] } }))
-    ws().setColumnWeights({ A: 1.2, B: 0.8 }, { live: true })
-    ws().setColumnWeights({ A: 1.4, B: 0.6 }, { live: true })
-    ws().setBandHeight('top', 180, { live: true })
-    expect(ws().isDirty).toBe(true)
-    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-    ws().keepLayoutDraft()
+  it('a kept draft an older build made for a resize alone: the sizes are saved, nothing stays unsaved', async () => {
+    const top = { id: 'tb', height: 140, tabs: [createTab('notes', 'top1')] }
+    const [id] = await seedAndInit(twoColumns('Daily', { top }))
+    const base = layoutBodyOf((await stored(id!)))
+    const body: LayoutBody = {
+      ...base,
+      columns: base.columns.map((c, i) => ({ ...c, weight: i === 0 ? 1.5 : 0.5 })),
+      top: { ...top, height: 210 },
+    }
+    writeLayoutDraft({ kind: 'saved', layoutId: id!, base, body })
     await reload()
-    expect(ws().isDirty).toBe(true)
-    expect(ws().working!.columns.map((c) => c.weight)).toEqual([1.4, 0.6])
-    expect(ws().working!.top?.height).toBe(180)
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working!.columns.map((c) => c.weight)).toEqual([1.5, 0.5])
+    const row = await stored(id!)
+    expect(row.columns.map((c) => c.weight)).toEqual([1.5, 0.5])
+    expect(row.top?.height).toBe(210)
+    expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
   })
 
   it('a kept new layout with a band comes back with it', async () => {

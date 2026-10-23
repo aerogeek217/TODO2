@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
+import { useState, useRef, useCallback, useMemo, forwardRef } from 'react'
 import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
-import { SEARCH_DEBOUNCE_MS } from '../../constants'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../models'
@@ -26,6 +25,8 @@ import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { FOLD_PART, useTopBarFold } from './use-top-bar-fold'
+import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
+import { useScreenSearch } from '../../hooks/use-screen-search'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
@@ -298,10 +299,8 @@ export function TopBar() {
   const settingsKeys = useShortcutLabel('open-settings')
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
-  const setSearchText = useFilterStore((s) => s.setSearchText)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [localSearch, setLocalSearch] = useState(filters.searchText)
+  const [localSearch, handleSearchChange] = useScreenSearch()
   const [searchFocused, setSearchFocused] = useState(false)
   const miniListRef = useRef<HTMLDivElement>(null)
   // Right-click menu state is kept on TopBar (not SearchResultRow) so the
@@ -318,26 +317,6 @@ export function TopBar() {
   const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
   const assignedTagsMap = useTagStore((s) => (searching ? s.assignedTagsMap : NO_TAGS_MAP))
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-
-  const handleSearchChange = useCallback((value: string) => {
-    setLocalSearch(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setSearchText(value), SEARCH_DEBOUNCE_MS)
-  }, [setSearchText])
-
-  // A pending debounce must not outlive the bar: it would write a stale query
-  // into the global filter store after unmount (and a remounted bar would
-  // pick it up, replacing what the user typed since).
-  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
-
-  // The store's search text changed (typed here and debounced in, or
-  // cleared elsewhere): show it. Adjusted during render, not in an effect.
-  const storeSearchText = filters.searchText
-  const [shownStoreSearch, setShownStoreSearch] = useState(storeSearchText)
-  if (storeSearchText !== shownStoreSearch) {
-    setShownStoreSearch(storeSearchText)
-    setLocalSearch(storeSearchText)
-  }
 
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 
@@ -371,7 +350,8 @@ export function TopBar() {
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  const fold = useTopBarFold(barRef, tabsKey, isWorkspace)
+  // The tray gains or loses Show N tasks with the filter: measured again then.
+  const fold = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${isActive}`)
 
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -492,6 +472,7 @@ export function TopBar() {
           onClearAll={() => useFilterStore.getState().clearAll()}
           fold={fold >= 1}
         />
+        {isActive && <ShowFilteredTasksButton />}
       </div>
 
       <div className={styles.right} data-fold-part={FOLD_PART.spring}>

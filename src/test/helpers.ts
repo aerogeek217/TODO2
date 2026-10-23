@@ -81,6 +81,25 @@ export function blockedDropLines(
   return blockedPaneLines(pane, blocked.map((task) => ({ task, miss: { kind: 'urgent-date' as const } })), total, panes, ctx, ctx)
 }
 
+/**
+ * A clipboard for rich copies (`navigator.clipboard.write` + `ClipboardItem`;
+ * jsdom has neither): `written` holds the plain text of each write, in order.
+ * The shared project's file reset removes it again.
+ */
+export function stubClipboard(): { written: string[] } {
+  const written: string[] = []
+  const write = async (items: Array<{ data: Record<string, Blob> }>) => {
+    const plain = items[0]?.data['text/plain']
+    written.push(plain ? await plain.text() : '')
+  }
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { write, writeText: async () => {} } })
+  class StubClipboardItem {
+    constructor(public data: unknown) {}
+  }
+  ;(globalThis as unknown as { ClipboardItem?: unknown }).ClipboardItem = StubClipboardItem
+  return { written }
+}
+
 let makeTodoUidSeq = 0
 
 export function makeTodo(

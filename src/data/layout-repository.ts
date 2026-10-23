@@ -202,7 +202,7 @@ export const layoutRepository = {
   },
 
   /**
-   * A view-state change (`apply`: active tab, collapse, a tab's view state)
+   * A view-state change (`apply`: sizes, active tab, collapse, a tab's view state)
    * to the layout as stored, read and written in one transaction — so a
    * Save that wrote a new structure just before keeps it, and the change
    * lands on top. A row that needs the layout repair is left alone (only a

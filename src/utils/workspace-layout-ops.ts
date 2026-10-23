@@ -535,7 +535,7 @@ export function movePanel<L extends WorkspaceLayout>(layout: L, panelId: string,
   return placeTabs(without, panel.tabs, target, genId, panel.activeTabId) ?? layout
 }
 
-/** Layout structure: a band's height (px, rounded). No band there or a bad height → unchanged. */
+/** A band's height (px, rounded). No band there or a bad height → unchanged. */
 export function setBandHeight<L extends WorkspaceLayout>(layout: L, edge: BandEdge, height: number): L {
   const band = layout[edge]
   if (!band || !isPositive(height)) return layout
@@ -597,6 +597,59 @@ export function setCellWeights<L extends WorkspaceLayout>(layout: L, weightById:
     return { ...col, cells }
   })
   return changed ? withColumns(layout, columns) : layout
+}
+
+/**
+ * Sizes that resize together, as one divider moves them: the columns'
+ * weights, one column's cells' weights, or a band's height.
+ */
+export type SizeGroup =
+  | { kind: 'columns' }
+  | { kind: 'cells'; columnId: string }
+  | { kind: 'band'; edge: BandEdge }
+
+/** The size groups of the cells `cellIds` (their columns' cells), in `layout`. */
+export function cellSizeGroups(layout: LayoutBody, cellIds: Iterable<string>): SizeGroup[] {
+  const ids = new Set(cellIds)
+  return layout.columns
+    .filter((col) => col.cells.some((cell) => ids.has(cell.id)))
+    .map((col) => ({ kind: 'cells', columnId: col.id }))
+}
+
+function sameIds(a: readonly { id: string }[], b: readonly { id: string }[]): boolean {
+  return a.length === b.length && a.every((x, i) => x.id === b[i]?.id)
+}
+
+/**
+ * `target` with the sizes of `groups` (`all`: every column, cell and band
+ * size) copied from `source` — each group only where both have the same
+ * parts: the columns' weights when both have the same columns (by id, in
+ * order), a column's cells' weights when that column has the same cells in
+ * both, a band's height when both have that band. Other sizes stay. The
+ * same object when nothing changes.
+ */
+export function copySizes<L extends WorkspaceLayout>(target: L, source: LayoutBody, groups: readonly SizeGroup[] | 'all'): L {
+  const list: readonly SizeGroup[] = groups === 'all'
+    ? [{ kind: 'columns' }, ...target.columns.map((col): SizeGroup => ({ kind: 'cells', columnId: col.id })), ...BAND_EDGES.map((edge): SizeGroup => ({ kind: 'band', edge }))]
+    : groups
+  let next = target
+  for (const group of list) {
+    if (group.kind === 'band') {
+      const from = source[group.edge]
+      if (from && next[group.edge]?.id === from.id) next = setBandHeight(next, group.edge, from.height)
+    } else if (group.kind === 'columns') {
+      if (sameIds(next.columns, source.columns)) {
+        next = setColumnWeights(next, Object.fromEntries(source.columns.map((col) => [col.id, col.weight])))
+      }
+    } else {
+      const from = source.columns.find((col) => col.id === group.columnId)
+      const to = next.columns.find((col) => col.id === group.columnId)
+      if (from && to && sameIds(to.cells, from.cells)) {
+        next = setCellWeights(next, Object.fromEntries(from.cells.map((cell) => [cell.id, cell.weight])))
+      }
+    }
+  }
+  return next
 }
 
 function updatePanelStrip<L extends WorkspaceLayout>(layout: L, panelId: string, fn: (strip: PanelStrip) => PanelStrip): L {
@@ -709,45 +762,30 @@ function canonical(v: unknown): unknown {
   return v
 }
 
-/** Each weight as its share of the siblings' total, rounded (weights only matter relative to each other). */
-function shares(weights: readonly number[]): number[] {
-  const total = weights.reduce((sum, w) => sum + w, 0)
-  return weights.map((w) => (total > 0 ? Math.round((w / total) * 1e6) / 1e6 : 0))
-}
-
-/** The saved part of a band: id, height and tab config (its active tab / collapsed are view state). */
+/** The structural part of a band: id and tab config (its height, active tab and collapsed are view state). */
 function bandKey(band: LayoutBand | undefined): unknown {
   if (!band) return null
   return {
     id: band.id,
-    height: Math.round(band.height),
     tabs: band.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
   }
 }
 
 /**
- * The saved part of a layout's body: structure, relative sizes, band
- * heights and tab config, without view state (active tab, collapsed,
- * `viewState`). Weights compare as shares of their siblings, so e.g. a
- * column left with one cell keys the same whatever that cell's weight.
+ * The structural part of a layout's body — its columns, cells, bands and
+ * tabs with their config — without view state (sizes, active tab,
+ * collapsed, `viewState`).
  */
 export function layoutStructureKey(body: LayoutBody): string {
-  const { columns } = body
-  const colShares = shares(columns.map((c) => c.weight))
   return JSON.stringify({
     top: bandKey(body.top),
-    columns: columns.map((col, i) => {
-      const cellShares = shares(col.cells.map((c) => c.weight))
-      return {
-        id: col.id,
-        weight: colShares[i],
-        cells: col.cells.map((cell, j) => ({
-          id: cell.id,
-          weight: cellShares[j],
-          tabs: cell.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
-        })),
-      }
-    }),
+    columns: body.columns.map((col) => ({
+      id: col.id,
+      cells: col.cells.map((cell) => ({
+        id: cell.id,
+        tabs: cell.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
+      })),
+    })),
     bottom: bandKey(body.bottom),
   })
 }

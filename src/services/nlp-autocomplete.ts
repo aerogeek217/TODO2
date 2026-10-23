@@ -9,7 +9,7 @@ import {
   type FollowupInterval,
 } from '../utils/followup'
 import { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, parseInput, tagToken } from './natural-language-parser'
-import { rankPeople, rankTags } from './nlp-resolver'
+import { TYPED_NAME_MAX_RANK, rankByName } from './nlp-resolver'
 import {
   COMMAND_SHAPE,
   DATE_ARGUMENT_HINT,
@@ -32,10 +32,11 @@ import { byName } from '../utils/sort-order'
  * render `components/shared/NlpPopup`.
  *
  * Triggers count only at the start of the text or after whitespace:
- *  - `@` people (substring or exact initials — an exact name or initials match
- *    first, then names starting with the query);
- *  - `#` tags (prefix — the exact name first, then alphabetical);
- *    both with a Create row below the matches unless one is exactly the name;
+ *  - `@` people and `#` tags, ranked by `rankByName` (exact name, people's
+ *    exact initials, prefix, word start, substring; ties alphabetical), with a
+ *    Create row below the matches unless one is exactly the name. Only an
+ *    exact / initials / prefix row completes a token typed on or submitted
+ *    without a pick (`resolves`);
  *  - `/` slash commands (prefix on the name), then the command's argument
  *    (date suggestions / live parse / error, statuses, frequencies).
  */
@@ -71,8 +72,14 @@ export interface AutocompleteSources {
 }
 
 export type AutocompleteRow =
-  /** An existing person / tag. */
-  | { kind: 'entity'; item: AutocompleteItem }
+  /**
+   * An existing person / tag. `resolves`: an exact, initials or prefix match —
+   * typing on past the token or submitting without a pick completes it to
+   * this row; a word-start / substring match needs an explicit pick.
+   * `match`: where the typed text sits in the name (absent: initials, or
+   * nothing typed).
+   */
+  | { kind: 'entity'; item: AutocompleteItem; resolves: boolean; match?: { at: number; length: number } }
   /** Create `@name` / `#tag`: offered below the matches unless one is exactly the name; picking it creates the entity at once. */
   | { kind: 'create'; trigger: '@' | '#'; name: string }
   | { kind: 'command'; command: SlashCommandSpec; matchLength: number }
@@ -298,18 +305,18 @@ function entityView(
   sources: AutocompleteSources,
 ): AutocompleteView | null {
   const query = rawQuery.toLowerCase()
-  let items: readonly AutocompleteItem[]
-  if (trigger === '#') {
-    // Best match first — the ranking the typed tag resolves by. A leading
-    // quote (`#"R&D"` being typed) is ignored for matching.
-    const q = query.replace(/^"/, '')
-    items = q ? rankTags(q, sources.tags) : sources.tags
-  } else {
-    // A leading quote (`@"First Last"` being typed) is ignored for matching.
-    // Best match first — the ranking the typed name resolves by.
-    items = rankPeople(query.replace(/^"/, ''), sources.people)
-  }
-  const rows: AutocompleteRow[] = items.slice(0, MAX_ENTITY_ROWS).map((item) => ({ kind: 'entity', item }))
+  // Best match first (`rankByName`): exact, initials, prefix, word start,
+  // substring. A leading quote (`@"First Last"`, `#"R&D"` being typed) is
+  // ignored for matching.
+  const q = query.replace(/^"/, '').trim()
+  const ranked = rankByName(q, trigger === '#' ? sources.tags : sources.people)
+  const items = ranked.map((x) => x.item)
+  const rows: AutocompleteRow[] = ranked.slice(0, MAX_ENTITY_ROWS).map(({ item, match }) => ({
+    kind: 'entity',
+    item,
+    resolves: q.length > 0 && match.rank <= TYPED_NAME_MAX_RANK,
+    ...(q && match.at >= 0 ? { match: { at: match.at, length: q.length } } : {}),
+  }))
   // Offer to create, below the matches, unless one of them is exactly the
   // name typed — only a name the parser reads as one token (`#q4`, `@Marco`;
   // not `##` or `#a.b`), and not while a quoted `@"First Last"` is being
@@ -521,7 +528,8 @@ export function applyAutocompletePick(
  * or tag, a flag command (`/ur` → `/urgent`), or an argument suggestion
  * (`/due tom` → `tomorrow`). Unchanged when nothing was typed after the
  * trigger (or the command), when the row adds nothing (a new name to create,
- * a date that already reads), for an argument command without its argument,
+ * a date that already reads), for a person / tag matched only at a word start
+ * or inside its name (it needs a pick), for an argument command without its argument,
  * and for an unreadable or still partial argument — those stay in the title
  * as typed.
  */
@@ -530,6 +538,7 @@ export function bestMatchCompletion(value: string, view: AutocompleteView, index
   const row = view.rows[index]
   if (!row) return value
   if (row.kind === 'create' || row.kind === 'parsed' || row.kind === 'error') return value
+  if (row.kind === 'entity' && !row.resolves) return value
   if (row.kind === 'command' && takesArgument(row.command.name)) return value
   return applyAutocompletePick(value, view, row)?.value ?? value
 }
@@ -547,7 +556,8 @@ function entityToken(view: AutocompleteView, item: AutocompleteItem): string {
  * popup was open on with its view and highlighted row; `value` / `cursor`
  * the input now. Null when nothing is to be completed: another popup or the
  * same token still open (`next` visible at the same trigger), a highlighted
- * create row (the text stays as typed), nothing typed after the trigger, a
+ * create row or a person / tag matched only at a word start or inside its
+ * name (the text stays as typed), nothing typed after the trigger, a
  * quoted name still being typed (its spaces are part of it), or
  * an edit that isn't one of those two (a deletion, a paste elsewhere).
  */
@@ -563,7 +573,7 @@ export function implicitAccept(
   if (view.query.startsWith('"')) return null
   if (isVisible(next) && next.mode === view.mode && next.anchor === view.anchor) return null
   const row = view.rows[prev.index]
-  if (row?.kind !== 'entity') return null
+  if (row?.kind !== 'entity' || !row.resolves) return null
   const head = prev.value.slice(0, view.to)
   const tail = prev.value.slice(view.to)
   if (!value.startsWith(head) || !value.endsWith(tail)) return null

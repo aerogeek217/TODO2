@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextScopedSelection, rowKey, type ScopedRow, type ScopedSelectionState } from '../../utils/scoped-selection'
+import { nextScopedSelection, orderByRows, rowKey, type ScopedRow, type ScopedSelectionState } from '../../utils/scoped-selection'
 
 // Task 3 shows twice: in Alice's group and in Bob's.
 const rows: ScopedRow[] = [
@@ -43,5 +43,13 @@ describe('nextScopedSelection', () => {
 
   it('an unknown row is no selection', () => {
     expect(nextScopedSelection(none, 'w', rows, 'nope|9', 'one')).toBeNull()
+  })
+})
+
+describe('orderByRows', () => {
+  it('orders by each task’s first row; tasks with no row follow in the order given', () => {
+    expect(orderByRows([4, 9, 3, 1], rows)).toEqual([1, 3, 4, 9])
+    expect(orderByRows([2, 3], rows)).toEqual([3, 2])
+    expect(orderByRows([], rows)).toEqual([])
   })
 })

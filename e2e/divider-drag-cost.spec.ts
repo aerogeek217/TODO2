@@ -12,8 +12,8 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from 
  * drag crosses a dates tier (none within one). Nothing is written (view
  * state, kept drafts) until the release, and the release re-renders the
  * widget once but no row. The workspace's column / band dividers re-render
- * no task row either, and keep the unsaved layout in the browser once, at
- * the release — not on every frame. Render counts come from a stand-in
+ * no task row either, and save the size (view state) once, at the release
+ * — not on every frame. Render counts come from a stand-in
  * React DevTools hook (`fixtures/render-count`), so this holds on any
  * machine — no frame-rate assertions.
  */
@@ -209,9 +209,24 @@ test('dashboard: both task-row sections follow the drag without the widget or it
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })
 
-test('a column or band divider drag: no task row re-renders and the unsaved layout is kept once, at the release', async ({ page }) => {
+/** Counts the database writes to the `layouts` store from page load on. */
+async function countLayoutWrites(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __layoutWrites: number }
+    w.__layoutWrites = 0
+    const put = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore['put']>) {
+      if (this.name === 'layouts') w.__layoutWrites++
+      return put.apply(this, args)
+    }
+  })
+}
+const layoutWrites = (page: Page) => page.evaluate(() => (window as unknown as { __layoutWrites: number }).__layoutWrites)
+
+test('a column or band divider drag: no task row re-renders, nothing is written until the release, which saves the size once', async ({ page }) => {
   await installRenderCounter(page, WATCHED)
   await countStorageWrites(page)
+  await countLayoutWrites(page)
   const layout = seed({ kind: 'lens', listDefIdx: 0 })
   layout.layouts[0]!.top = { id: 'tb', height: 140, tabs: [{ id: 'topnotes', kind: 'notes' }] }
   await seedWorkspace(page, layout)
@@ -220,10 +235,11 @@ test('a column or band divider drag: no task row re-renders and the unsaved layo
   const first = widget.locator('[data-todo-id]').first()
   const titleBefore = (await box(first.locator('[data-task-title]'))).width
   const writesBefore = await storageWrites(page)
+  const dbWritesBefore = await layoutWrites(page)
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
 
-  // The column divider: the list narrows live (its titles give way), nothing kept until the release.
+  // The column divider: the list narrows live (its titles give way), nothing written until the release.
   const d = await box(page.locator('[data-ws-divider="w|rest"]'))
   const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
   await page.mouse.move(from.x, from.y)
@@ -231,10 +247,10 @@ test('a column or band divider drag: no task row re-renders and the unsaved layo
   for (let i = 1; i <= 10; i++) await page.mouse.move(from.x - 6 * i, from.y)
   await expect.poll(async () => Math.round((await box(first.locator('[data-task-title]'))).width)).toBe(Math.round(titleBefore - 60))
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
-  expect(await storageWrites(page)).toBe(writesBefore)
+  expect(await layoutWrites(page)).toBe(dbWritesBefore)
   await page.mouse.up()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
-  await expect.poll(() => storageWrites(page)).toBe(writesBefore + 1)
+  await expect.poll(() => layoutWrites(page)).toBe(dbWritesBefore + 1)
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
   // The band divider: the same.
   const b = await box(page.locator('[data-ws-band-divider="top"]'))
@@ -243,16 +259,19 @@ test('a column or band divider drag: no task row re-renders and the unsaved layo
   await page.mouse.down()
   for (let i = 1; i <= 10; i++) await page.mouse.move(bFrom.x, bFrom.y + 4 * i)
   await expect.poll(async () => Number(await page.locator('[data-ws-band-divider="top"]').getAttribute('aria-valuenow'))).toBe(180)
-  expect(await storageWrites(page)).toBe(writesBefore + 1)
+  expect(await layoutWrites(page)).toBe(dbWritesBefore + 1)
   await page.mouse.up()
-  await expect.poll(() => storageWrites(page)).toBe(writesBefore + 2)
+  await expect.poll(() => layoutWrites(page)).toBe(dbWritesBefore + 2)
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
+  // Saved, not unsaved: nothing kept in the browser.
+  expect(await storageWrites(page)).toBe(writesBefore)
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
-  // Kept: both come back after a reload, still unsaved.
+  // Both come back after a reload, saved.
   const widthAfter = (await box(page.locator('[data-ws-column="w"]'))).width
   await page.reload()
   await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
   expect(Math.round((await box(page.locator('[data-ws-column="w"]'))).width)).toBe(Math.round(widthAfter))
   await expect(page.locator('[data-ws-band-divider="top"]')).toHaveAttribute('aria-valuenow', '180')
 })

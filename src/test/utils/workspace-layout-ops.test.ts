@@ -3,7 +3,9 @@ import { BAND_DEFAULT_HEIGHT, createTab, type LayoutCell, type LayoutColumn, typ
 import {
   addTab,
   closeCell,
+  cellSizeGroups,
   closeTab,
+  copySizes,
   countListTabs,
   findPanel,
   findTab,
@@ -279,18 +281,56 @@ describe('layoutStructureEqual', () => {
     expect(layoutStructureEqual(l, { columns: reordered })).toBe(true)
   })
 
-  it('compares weights as shares of their siblings', () => {
+  it('ignores sizes (view state): column and cell weights', () => {
     const l = base()
-    expect(layoutStructureEqual(l, setColumnWeights(l, { A: 2, B: 2, C: 2 }))).toBe(true)
-    expect(layoutStructureEqual(l, setCellWeights(l, { kc: 0.25 }))).toBe(true) // only cell of its column
-    expect(layoutStructureEqual(l, setCellWeights(l, { ka: 0.25 }))).toBe(false)
+    expect(layoutStructureEqual(l, setColumnWeights(l, { A: 3 }))).toBe(true)
+    expect(layoutStructureEqual(l, setCellWeights(l, { ka: 0.25 }))).toBe(true)
   })
 
-  it('sees structure, weights and config', () => {
+  it('sees structure and config', () => {
     const l = addTab(base(), createTab('calendar', 'cal'), { kind: 'cell', cellId: 'kd' }, seqIds())
     expect(layoutStructureEqual(l, moveTab(l, 'a1', { kind: 'cell', cellId: 'ka', index: 1 }, seqIds()))).toBe(false)
-    expect(layoutStructureEqual(l, setColumnWeights(l, { A: 3 }))).toBe(false)
+    expect(layoutStructureEqual(l, splitCell(l, 'kc', 'below', seqIds()).layout)).toBe(false)
     expect(layoutStructureEqual(l, patchTabConfig(l, 'cal', 'calendar', { dateTypes: { due: true, followup: false } }))).toBe(false)
+  })
+})
+
+describe('copySizes', () => {
+  const sized = (): WorkspaceLayout => ({
+    ...setCellWeights(setColumnWeights(base(), { A: 2, B: 3, C: 4 }), { ka: 0.2, kb: 0.8 }),
+    top: { id: 'tb', height: 220, tabs: [createTab('dashboard', 'top1')] },
+  })
+
+  it('copies a group only where both layouts have the same parts', () => {
+    const target = { ...base(), top: { id: 'tb', height: 160, tabs: [createTab('dashboard', 'top1')] } }
+    const all = copySizes(target, sized(), 'all')
+    expect(all.columns.map((c) => c.weight)).toEqual([2, 3, 4])
+    expect(all.columns[0]!.cells.map((c) => c.weight)).toEqual([0.2, 0.8])
+    expect(all.top?.height).toBe(220)
+    expect(copySizes(target, sized(), [{ kind: 'columns' }]).columns[0]!.cells.map((c) => c.weight)).toEqual([1, 1])
+    expect(copySizes(target, sized(), [{ kind: 'band', edge: 'top' }]).columns).toBe(target.columns)
+
+    // A new column: the columns' weights differ in parts; each column's cells still match.
+    const wider = addTab(target, createTab('notes', 'x'), { kind: 'layout' }, seqIds())
+    const out = copySizes(wider, sized(), 'all')
+    expect(out.columns.map((c) => c.weight)).toEqual(wider.columns.map((c) => c.weight))
+    expect(out.columns[0]!.cells.map((c) => c.weight)).toEqual([0.2, 0.8])
+    // A new cell in column A: its cells keep their weights.
+    const split = splitCell(target, 'kb', 'below', seqIds()).layout
+    expect(copySizes(split, sized(), [{ kind: 'cells', columnId: 'A' }])).toBe(split)
+    // Another band at that edge (or none): its height stays.
+    const otherBand = { ...target, top: { id: 'tb2', height: 160, tabs: [createTab('notes', 'top9')] } }
+    expect(copySizes(otherBand, sized(), [{ kind: 'band', edge: 'top' }])).toBe(otherBand)
+    expect(copySizes(base(), sized(), [{ kind: 'band', edge: 'top' }])).toEqual(base())
+  })
+
+  it('returns the same layout when the sizes are already equal', () => {
+    const l = sized()
+    expect(copySizes(l, sized(), 'all')).toBe(l)
+  })
+
+  it('cellSizeGroups names the columns of the cells', () => {
+    expect(cellSizeGroups(base(), ['kb', 'ka', 'kd', 'nope'])).toEqual([{ kind: 'cells', columnId: 'A' }, { kind: 'cells', columnId: 'C' }])
   })
 })
 
@@ -380,10 +420,10 @@ describe('bands', () => {
     expect(setBandHeight(base(), 'top', 200).top).toBeUndefined()
   })
 
-  it('layoutStructureEqual sees a band added, removed, resized or its tabs changed — not its view state', () => {
+  it('layoutStructureEqual sees a band added, removed or its tabs changed — not its height or view state', () => {
     const l = withBands()
     expect(layoutStructureEqual(l, base())).toBe(false)
-    expect(layoutStructureEqual(l, setBandHeight(l, 'top', 200))).toBe(false)
+    expect(layoutStructureEqual(l, setBandHeight(l, 'top', 200))).toBe(true)
     expect(layoutStructureEqual(l, moveTab(l, 'bot1', { kind: 'band', edge: 'bottom', index: 1 }, seqIds()))).toBe(false)
     expect(layoutStructureEqual(l, patchTabConfig(l, 'bot1', 'calendar', { dateTypes: { due: false, followup: true } }))).toBe(false)
     let v = setActiveTab(l, 'bot2')

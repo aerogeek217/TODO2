@@ -332,17 +332,41 @@ describe('QuickAddBar', () => {
     })
 
     it('moving the pointer over a row highlights it; Enter then submits with that one', () => {
-      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Hannah', initials: 'HA' }] })
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Annette', initials: 'AE' }] })
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call @an')
-      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
-      fireEvent.mouseMove(option(/@Hannah/), { clientX: 40, clientY: 60 })
-      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
-      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'false')
+      expect(option(/@Anna$/)).toHaveAttribute('aria-selected', 'true')
+      fireEvent.mouseMove(option(/@Annette/), { clientX: 40, clientY: 60 })
+      expect(option(/@Annette/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/@Anna$/)).toHaveAttribute('aria-selected', 'false')
       fireEvent.keyDown(getInput(), { key: 'Enter' })
       expect(onSubmit).toHaveBeenCalledTimes(1)
       expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([3])
+    })
+
+    it('a row matched only inside the name is listed but needs a pick: Enter adds the typed name as new', () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Hannah', initials: 'HA' }] })
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @nah')
+      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/@Hannah/).querySelector('mark')?.textContent).toBe('nah') // where it matched
+      fireEvent.keyDown(getInput(), { key: 'Enter' })
+      expect(onSubmit).toHaveBeenCalledTimes(1)
+      expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved).toMatchObject({ personIds: [], unmatchedPersons: ['nah'] })
+    })
+
+    it('↓ to a row matched only inside the name, then Enter, picks it', () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Hannah', initials: 'HA' }] })
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @ann')
+      fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
+      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      fireEvent.keyDown(getInput(), { key: 'Enter' })
+      expect(getInput().value).toBe('Call @Hannah ')
+      expect(onSubmit).not.toHaveBeenCalled()
     })
 
     it('a Create row below the matches: picking it makes the person at once, and Enter adds the task with them', async () => {

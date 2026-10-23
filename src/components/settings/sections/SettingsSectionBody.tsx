@@ -5,25 +5,25 @@ import styles from './sections.module.css'
 /**
  * A Settings section's body: a one-part section's body as it is; a merged
  * section's parts (Tasks, Database) each under its own heading, in order —
- * on a phone only the parts the phone shows.
+ * on a phone only the parts the phone shows. Every body is told `mobile`.
  */
 export function SettingsSectionBody({ section, mobile }: { section: SettingsSectionDef; mobile: boolean }) {
   const parts = visibleParts(section, mobile)
   const only = section.parts.length === 1 ? parts[0] : undefined
   if (only) {
     const Body = only.Body
-    return <Body />
+    return <Body mobile={mobile} />
   }
-  return <>{parts.map((part) => <SettingsPart key={part.id} part={part} />)}</>
+  return <>{parts.map((part) => <SettingsPart key={part.id} part={part} mobile={mobile} />)}</>
 }
 
-function SettingsPart({ part }: { part: SettingsPartDef }) {
+function SettingsPart({ part, mobile }: { part: SettingsPartDef; mobile: boolean }) {
   const headingId = useId()
   const Body = part.Body
   return (
     <section className={styles.part} aria-labelledby={headingId} data-settings-part={part.id}>
       <h3 id={headingId} className={styles.partTitle}>{part.label}</h3>
-      <Body />
+      <Body mobile={mobile} />
     </section>
   )
 }

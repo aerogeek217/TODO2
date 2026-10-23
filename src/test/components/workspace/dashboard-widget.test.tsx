@@ -97,11 +97,15 @@ describe('DashboardWidget — the design sample', () => {
     expect(lastResult?.summary.plain).toBe('Open 19 · Hot 4 · Focus 3 · Urgent 8 · Overdue 2 · Follow-up due 2\nWaiting on 2')
   })
 
-  it('“+ Add list tile” shows when the host can open Customize', () => {
-    const onAdd = vi.fn()
-    render(<DndContext><DashboardWidget tab={tabWith()} onAddListTile={onAdd} /></DndContext>)
-    fireEvent.click(document.querySelector<HTMLElement>('[aria-label="List tiles"] button')!)
-    expect(onAdd).toHaveBeenCalled()
+  it('no add-a-list-tile button: no list tiles = no strip, even when the host can open Customize; tiles = tiles only', () => {
+    const { unmount } = render(<DndContext><DashboardWidget tab={tabWith()} onCustomize={vi.fn()} /></DndContext>)
+    expect(document.querySelector('[aria-label="List tiles"]')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Add list tile/ })).toBeNull()
+    unmount()
+    render(<DndContext><DashboardWidget tab={tabWith({ listTiles: [1] })} onCustomize={vi.fn()} /></DndContext>)
+    const strip = document.querySelector<HTMLElement>('[aria-label="List tiles"]')!
+    expect(strip.querySelectorAll('[data-dash-list-tile]')).toHaveLength(1)
+    expect(strip.querySelectorAll('button:not([data-dash-list-tile])')).toHaveLength(0)
   })
 
   it('the corner gear opens Customize when the host can; none without', () => {

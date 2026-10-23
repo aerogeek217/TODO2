@@ -22,7 +22,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
 import { db } from '../../../data/database'
-import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { clearFilterStore, makeTodo, resetEntityStores, stubClipboard } from '../../helpers'
 
 const alice: Person = { id: 1, name: 'Alice', initials: 'AL', color: '#c33' }
 const bob: Person = { id: 2, name: 'Bob', initials: 'BO' }
@@ -262,21 +262,38 @@ describe('ListWidget', () => {
     expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
   })
 
-  it('groups collapse on their own; a person’s group doesn’t repeat their avatar', () => {
+  it('groups collapse on their own; a row in a person’s group shows every person, that one included', () => {
     setup(def({ grouping: 'people' }))
     const groups = Array.from(document.querySelectorAll('[data-testid="list-group-name"]')).map((g) => g.textContent)
     expect(groups).toEqual(['Alice', 'Bob'])
     const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
-    // Shared task under Alice shows Bob's avatar only.
-    const sharedRow = Array.from(aliceGroup.querySelectorAll('[data-todo-id="3"]'))[0]!
+    const aliceRow = aliceGroup.querySelector('[data-todo-id="1"] [data-row-cell="people"]')!
+    expect(aliceRow.textContent).toContain('AL')
+    const sharedRow = aliceGroup.querySelector('[data-todo-id="3"] [data-row-cell="people"]')!
+    expect(sharedRow.textContent).toContain('AL')
     expect(sharedRow.textContent).toContain('BO')
-    expect(sharedRow.textContent).not.toContain('AL')
     fireEvent.click(aliceGroup.querySelector('button[aria-expanded]')!)
     expect(aliceGroup.querySelectorAll('[data-todo-id]')).toHaveLength(0)
     expect(document.querySelector('[data-list-group="person-2"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(2)
   })
 
-  it('a row in a person’s group still has the person: its people picker shows them ticked', () => {
+  it('on a phone, a row in a person’s group shows every person, that one included', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    try {
+      setup(def({ grouping: 'people' }))
+      const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
+      expect(aliceGroup.querySelector('[data-row-cell]')).toBeNull() // the phone's rows
+      expect(aliceGroup.querySelector('[data-todo-id="1"]')!.textContent).toContain('AL')
+      const sharedRow = aliceGroup.querySelector('[data-todo-id="3"]')!
+      expect(sharedRow.textContent).toContain('AL')
+      expect(sharedRow.textContent).toContain('BO')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('a row in a person’s group: its people picker shows every person ticked', () => {
     setup(def({ grouping: 'people' }))
     const aliceGroup = document.querySelector('[data-list-group="person-1"]')!
     const sharedRow = aliceGroup.querySelector('[data-todo-id="3"]')!
@@ -552,6 +569,8 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(followedUp).not.toHaveTextContent('Today')
     await act(async () => { fireEvent.click(followedUp) })
     expect(useTodoStore.getState().todos.every((t) => t.lastFollowupAt instanceof Date)).toBe(true)
+    // The write lands (and its undo snackbar shows) before the test ends, not in a later one.
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar?.description).toMatch(/^Followed up/))
     openMore()
     expect(screen.getByRole('menuitem', { name: /^Mark followed up/ })).toHaveTextContent('Today')
   })
@@ -608,6 +627,9 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
 
 describe('ListWidget People group headers: email check-in', () => {
   beforeEach(() => {
+    // No clipboard unless a test stubs one (a send then falls back to the dialog).
+    Reflect.deleteProperty(navigator, 'clipboard')
+    Reflect.deleteProperty(globalThis, 'ClipboardItem')
     useUIStore.setState({ checkinDialog: null, taskDialog: null })
     useTodoStore.setState((s) => ({ todos: [...s.todos, makeTodo({ id: 5, title: 'Nobody’s task', sortOrder: 5 })] }))
     // Its people loaded, as the store loads them: nobody.
@@ -629,11 +651,20 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(document.querySelector('[data-list-group="person-1"]')!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
   })
 
-  it('other groupings get no envelope and no menu', () => {
+  it('other groupings get no envelope; their header’s menu copies the group, headed by its name', async () => {
+    const { written } = stubClipboard()
     setup(def({ grouping: 'status' }))
     expect(screen.queryByRole('button', { name: /^Email check-in to / })).toBeNull()
-    fireEvent.contextMenu(document.querySelector('[data-list-group] button[aria-expanded]')!)
-    expect(screen.queryByRole('menu')).toBeNull()
+    const first = document.querySelector('[data-list-group] button[aria-expanded]')!
+    const name = first.querySelector('[data-testid="list-group-name"]')!.textContent!
+    fireEvent.contextMenu(first)
+    const menu = screen.getByRole('menu', { name: `${name} group` })
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)).toEqual(['Copy 4 tasks'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 4 tasks' }))
+    await vi.waitFor(() => expect(written).toEqual([
+      [`== ${name} ==`, '[ ] Alice task @Alice', '[ ] Bob task @Bob', '[ ] Shared task @Alice, @Bob', '[ ] Nobody’s task'].join('\n'),
+    ]))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 4 tasks' }))
   })
 
   it('right-click on a person’s header opens its menu; Show all opens the person’s task dialog', () => {
@@ -641,7 +672,9 @@ describe('ListWidget People group headers: email check-in', () => {
     fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
     const menu = screen.getByRole('menu', { name: 'Alice group' })
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
-      .toEqual(['Email check-in: Alice', 'Show all of Alice’s tasks'])
+      .toEqual(['Email check-in: Alice', 'Show all of Alice’s tasks', 'Copy 2 tasks'])
+    // The person's items, a separator, then Copy.
+    expect(menu.querySelector('[role="separator"]')).not.toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Show all of Alice’s tasks' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Alice', personId: 1 })
@@ -657,10 +690,39 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
   })
 
-  it('Unassigned’s header has no menu', () => {
+  it('Unassigned’s header menu holds only Copy (from the pointer or Shift+F10)', async () => {
+    const { written } = stubClipboard()
     setup(def({ grouping: 'people' }))
-    fireEvent.contextMenu(header('unassigned'))
     fireEvent.keyDown(header('unassigned'), { key: 'F10', shiftKey: true })
+    const menu = screen.getByRole('menu', { name: 'Unassigned group' })
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)).toEqual(['Copy 1 task'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 1 task' }))
+    await vi.waitFor(() => expect(written).toEqual(['== Unassigned ==\n[ ] Nobody’s task']))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 1 task' }))
+    fireEvent.contextMenu(header('unassigned'))
+    expect(screen.getByRole('menu', { name: 'Unassigned group' })).toBeInTheDocument()
+  })
+
+  it('a group menu opened from the keyboard gives the focus back to its header after Copy', async () => {
+    stubClipboard()
+    setup(def({ grouping: 'people' }))
+    header('unassigned').focus()
+    fireEvent.keyDown(header('unassigned'), { key: 'F10', shiftKey: true })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 1 task' }))
     expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(header('unassigned'))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Copied 1 task' }))
+  })
+
+  it('the task menu’s Copy N tasks copies the selection in display order, without headings', async () => {
+    const { written } = stubClipboard()
+    setup(def({ grouping: 'people' }))
+    // Bob's task, then the shared task's first row (in Alice's group, above Bob's).
+    clickTitle('person-2|2')
+    clickTitle('person-1|3', { ctrlKey: true })
+    fireEvent.contextMenu(document.querySelector('[data-row-key="person-2|2"] [data-todo-id]')!)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 2 tasks' }))
+    await vi.waitFor(() => expect(written).toEqual(['[ ] Shared task @Alice, @Bob\n[ ] Bob task @Bob']))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 2 tasks' }))
   })
 })

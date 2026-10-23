@@ -7,8 +7,8 @@ import { box, pointIn } from './fixtures/geometry'
  * (grip drag and the keyboard lift) and hiding apply behind the dialog and
  * make the layout unsaved; the Hot flyout edits the app-wide rule (the Hot
  * tile follows, the layout stays saved); Copy summary writes the clipboard;
- * "+ Add list tile" → Add a list adds a tile whose dialog opens the
- * list as a tab.
+ * the gear → Add a list adds a tile whose dialog opens the list as a
+ * tab (the dashboard itself has no add-a-list-tile button).
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -163,10 +163,10 @@ test('Customize also opens from the cell ⋯ menu and from the dashboard’s gea
   await expect(gear).toHaveCSS('opacity', '1')
 })
 
-/** The boxes of every tile, list tile, list strip control and section that intersect the gear's box. */
+/** The boxes of every tile, list tile and section that intersect the gear's box. */
 async function coveredByGear(page: Page): Promise<string[]> {
   const gear = await box(dash(page).getByRole('button', { name: 'Customize dashboard' }))
-  const targets = dash(page).locator('[data-dash-tile], [data-dash-list-tile], [data-dash-section], [aria-label="List tiles"] button')
+  const targets = dash(page).locator('[data-dash-tile], [data-dash-list-tile], [data-dash-section]')
   const boxes = await targets.evaluateAll((els) => els.map((el) => {
     const r = el.getBoundingClientRect()
     const h = el as HTMLElement
@@ -264,7 +264,7 @@ test('Copy summary writes the dashboard’s counts to the clipboard', async ({ p
   expect(html).toContain('<b>Hot</b> 2')
 })
 
-test('“+ Add list tile” → Add a list adds a tile; its dialog opens the list as a tab', async ({ page }) => {
+test('the gear → Add a list adds a tile; its dialog opens the list as a tab', async ({ page }) => {
   // The layout's lists are the ones its tabs show: Alice's list in a second column.
   await seedWorkspace(page, {
     ...SEED,
@@ -277,12 +277,14 @@ test('“+ Add list tile” → Add a list adds a tile; its dialog opens the lis
     }],
   })
   await expect(dash(page).locator('[data-dash-list-tile]')).toHaveCount(0)
+  // No list tiles: no strip, and no button to add one there.
+  await expect(dash(page).locator('[aria-label="List tiles"]')).toHaveCount(0)
+  await expect(dash(page).getByRole('button', { name: /Add list tile/ })).toHaveCount(0)
 
-  await dash(page).getByRole('button', { name: 'Add list tile' }).click()
+  await dash(page).locator('[data-dash-tile]').first().hover()
+  await dash(page).getByRole('button', { name: 'Customize dashboard' }).click()
   const dialog = customize(page)
-  const add = dialog.getByRole('button', { name: 'Add a list' })
-  await expect(add).toBeFocused()
-  await add.click()
+  await dialog.getByRole('button', { name: 'Add a list' }).click()
   const lists = page.getByRole('menu', { name: 'Lists' })
   await lists.getByRole('menuitem', { name: /Alice’s list/ }).click()
   await expect(dialog.getByRole('list', { name: 'List tiles' })).toContainText('Alice’s list')

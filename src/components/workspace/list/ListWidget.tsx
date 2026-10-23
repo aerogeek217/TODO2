@@ -40,8 +40,8 @@ import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
 import { MenuPopover } from '../../shared/MenuPopover'
-import { PersonGroupHeader } from './PersonGroupHeader'
-import { groupPerson, personGroupMenu, type GroupPerson } from './person-group'
+import { ListGroupHeader } from './ListGroupHeader'
+import { groupPerson, listGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
@@ -131,7 +131,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const widgetRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
-  const [headerMenu, setHeaderMenu] = useState<{ person: GroupPerson; at: { x: number; y: number } } | null>(null)
+  const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
 
   const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates } = useBuiltList(
     definition,
@@ -257,10 +257,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   const renderSectionRows = (section: Section) => {
     const target = dropTarget?.sectionKey === section.key ? dropTarget : null
-    // A person's own group doesn't repeat their chip on its rows.
-    const hiddenPersonId = groupedBy === 'people' && section.key.startsWith('person-')
-      ? Number(section.key.slice('person-'.length))
-      : undefined
     const out: React.ReactNode[] = []
     let j = 0
     const indicator = () => {
@@ -287,7 +283,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       }
       const people = assignedPeopleMap.get(todo.id)
       if (isMobile) {
-        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} hiddenPersonId={hiddenPersonId} onOpenDetail={openEditPopup} />)
+        out.push(<MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={openEditPopup} />)
         return
       }
       const prev = section.todos[i - 1]
@@ -297,7 +293,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           key={key}
           todo={todo}
           assignedPeople={people}
-          hiddenPersonId={hiddenPersonId}
           tabId={tab.id}
           sectionKey={section.key}
           rowKey={key}
@@ -380,15 +375,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             data-list-group={section.key}
             {...{ [LIST_SECTION_ATTR]: section.key }}
           >
-            {person ? (
-              <PersonGroupHeader
+            {isMobile ? header : (
+              <ListGroupHeader
                 person={person}
                 showAction={!drag}
-                onOpenMenu={(at) => setHeaderMenu({ person, at })}
+                onOpenMenu={(at) => setHeaderMenu({ section, person, at })}
               >
                 {header}
-              </PersonGroupHeader>
-            ) : header}
+              </ListGroupHeader>
+            )}
             {!isCollapsed && renderSectionRows(section)}
           </div>
         )
@@ -463,9 +458,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       {headerMenu && (
         <MenuPopover
           point={headerMenu.at}
-          label={`${headerMenu.person.name} group`}
+          label={`${headerMenu.section.label} group`}
           closeOnScroll
-          entries={personGroupMenu(headerMenu.person)}
+          restoreFocus
+          entries={listGroupMenu(sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section, headerMenu.person)}
           onClose={() => setHeaderMenu(null)}
         />
       )}

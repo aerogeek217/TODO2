@@ -27,6 +27,8 @@ import {
   addTab,
   closeCell,
   closeTab,
+  copySizes,
+  cellSizeGroups,
   layoutIds,
   layoutListRefs,
   layoutStructureEqual,
@@ -45,11 +47,12 @@ import {
   splitCell,
   type IdGen,
   type LayoutDropTarget,
+  type SizeGroup,
 } from '../utils/workspace-layout-ops'
 
 type Layout = PersistedWorkspaceLayout
 
-/** A resize from a divider drag: `live` = one frame of it (see `setColumnWeights`). */
+/** A resize from a divider: `live` = one frame of a drag (see `setColumnWeights`). */
 export interface ResizeOptions {
   live?: boolean
 }
@@ -58,16 +61,21 @@ export interface ResizeOptions {
  * Workspace layouts: the saved layouts plus an in-memory **working copy** of
  * the open one.
  *
- * - Structural edits (add / move / close / split / resize / band height /
- *   tab config) change
+ * - Structural edits (add / move / close / split / tab config) change
  *   only the working copy; `isDirty` says whether it differs from the saved
  *   layout. `save()` writes it, `discard()` drops it. An edited working copy
  *   is also kept in the browser (`data/draft-storage`, never the database),
  *   and the first `init()` of a page load opens it again, still unsaved —
  *   while the stored layout it was made against is unchanged.
- * - View state (active tab, collapsed cells and bands, a tab's `viewState`) is applied
- *   to the working copy **and** written straight onto the saved layout
- *   (last write wins) — it never makes the layout dirty.
+ * - View state (sizes — column and cell weights, band heights —, active
+ *   tab, collapsed cells and bands, a tab's `viewState`) is applied to the
+ *   working copy **and** written straight onto the saved layout (last write
+ *   wins) — it never makes the layout dirty, and Discard keeps it. A size
+ *   goes onto the saved layout only where the parts it sizes are the same in
+ *   both (`copySizes`): among parts the unsaved edits changed (a new column,
+ *   cell or band) it stays in the working copy, for Save to write; an edit
+ *   that brings the structure back to the saved one brings the saved sizes
+ *   back too.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
  *   unsaved changes first.
  * - `createLayout(name)` stores a new, empty layout at once and opens it.
@@ -175,16 +183,17 @@ export interface WorkspaceState {
   /** "Split right" / "Split below". Returns the new empty cell's id. */
   splitCell: (cellId: string, direction: 'right' | 'below') => string | null
   /**
-   * Batched column resize (weights by column id). `live`: one frame of a
-   * divider drag — not kept in the browser until `keepLayoutDraft` (the drag's end).
+   * View state: batched column resize (weights by column id), saved at once.
+   * `live`: one frame of a divider drag — only the working copy changes
+   * until `endResize` (the drag's end) saves the result once.
    */
-  setColumnWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => void
-  /** Batched cell resize (weights by cell id); `live` as for columns. */
-  setCellWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => void
-  /** A band's height (px): layout structure, so the layout becomes unsaved; `live` as for columns. */
-  setBandHeight: (edge: BandEdge, height: number, opts?: ResizeOptions) => void
-  /** Keeps the open layout's edits in the browser now (the end of a live resize). */
-  keepLayoutDraft: () => void
+  setColumnWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
+  /** View state: batched cell resize (weights by cell id); `live` as for columns. */
+  setCellWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
+  /** View state: a band's height (px); `live` as for columns. */
+  setBandHeight: (edge: BandEdge, height: number, opts?: ResizeOptions) => Promise<void>
+  /** The end of a live resize: saves what its frames changed (and keeps it in the browser), once. */
+  endResize: () => Promise<void>
   /**
    * Layout config of a tab (e.g. a lens tab's list, a calendar's date types).
    * A list tab's list or a dashboard's list tiles must be this layout's own
@@ -440,6 +449,12 @@ function repairedOf(reads: readonly ReadLayout[]): Set<number> {
 const viewEditsDuringSave = new Set<Array<(layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout>>()
 registerModuleReset(() => { viewEditsDuringSave.clear() })
 
+/** One string per size group (a drag's frames name the same groups again). */
+const sizeGroupKey = (g: SizeGroup): string => (g.kind === 'columns' ? 'columns' : g.kind === 'cells' ? `cells:${g.columnId}` : `band:${g.edge}`)
+/** The size groups the live frames of a resize under way changed in layout `layoutId`'s working copy, saved at its end. */
+let pendingSizes: { layoutId: number; groups: SizeGroup[] } | null = null
+registerModuleReset(() => { pendingSizes = null })
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /** Keeps (or forgets) the open layout's edits in the browser, once the workspace is open. */
   function keepDraft(): void {
@@ -485,6 +500,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         if (showsOnlyOwnLists(body, saved.id)) {
           const next = withLayoutBody(get().working ?? working, body)
           set({ working: next, isDirty: dirty(next, saved) })
+          // Sizes are view state: the draft's go onto the saved layout where
+          // its parts are the same (a draft an older build kept may hold a
+          // resize it didn't save).
+          await editView((layout) => copySizes(layout, next, 'all'))
         } else {
           useUndoStore.getState().notify(`Unsaved changes to layout “${saved.name}” were dropped: they showed another layout’s list.`)
         }
@@ -533,22 +552,61 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * Applies a structural edit to the working copy. Returns whether it
    * changed. An edit that would show a list the layout doesn't own (a tab's
    * list, a dashboard's list tile — `foreignListRefs`) is refused: nothing
-   * changes. A `live` edit (a frame of a divider drag) isn't kept in the
-   * browser yet: the drag's end keeps the result once (`keepLayoutDraft`).
+   * changes. An edit that brings the structure back to the saved layout's
+   * takes the saved sizes too (e.g. a column added and closed again leaves
+   * its neighbours as they were).
    */
-  function edit(fn: (layout: Layout, genId: IdGen) => Layout, { live = false }: ResizeOptions = {}): boolean {
+  function edit(fn: (layout: Layout, genId: IdGen) => Layout): boolean {
     const { working, saved } = get()
     if (!working) return false
-    const next = fn(working, idGenFor(working))
+    let next = fn(working, idGenFor(working))
     if (next === working) return false
-    const foreign = live ? [] : foreignListRefs(working, next, working.id)
+    const foreign = foreignListRefs(working, next, working.id)
     if (foreign.length > 0) {
       console.warn('[workspace] refused an edit showing lists of another layout:', foreign)
       return false
     }
+    if (saved && layoutStructureEqual(next, saved)) next = copySizes(next, saved, 'all')
     set({ working: next, isDirty: dirty(next, saved) })
-    if (!live) keepDraft()
+    keepDraft()
     return true
+  }
+
+  /**
+   * A resize (`fn`, changing the sizes of `groupsOf(working)`) of the
+   * working copy — never dirty: sizes aren't structure. A `live` one (a
+   * frame of a divider drag) changes only the working copy, with no write
+   * per frame: the drag's end (`commitSizes`) saves the result once.
+   */
+  function resize(fn: (layout: Layout) => Layout, groupsOf: (layout: Layout) => SizeGroup[], { live = false }: ResizeOptions = {}): Promise<void> {
+    const { working } = get()
+    if (!working) return Promise.resolve()
+    const next = fn(working)
+    if (next !== working) {
+      set({ working: next })
+      if (pendingSizes?.layoutId !== working.id) pendingSizes = { layoutId: working.id, groups: [] }
+      // Once per group, not per frame of a drag.
+      const known = new Set(pendingSizes.groups.map(sizeGroupKey))
+      for (const g of groupsOf(working)) {
+        if (!known.has(sizeGroupKey(g))) { known.add(sizeGroupKey(g)); pendingSizes.groups.push(g) }
+      }
+    }
+    return live ? Promise.resolve() : commitSizes()
+  }
+
+  /**
+   * Saves the sizes the resizes since the last call changed: onto the saved
+   * layout where its parts are the same (`copySizes`), as view state
+   * (`editView`), and the working copy kept in the browser (sizes among
+   * unsaved parts live there until Save).
+   */
+  function commitSizes(): Promise<void> {
+    const pending = pendingSizes
+    pendingSizes = null
+    const { working } = get()
+    if (!pending || working?.id !== pending.layoutId) return Promise.resolve()
+    keepDraft()
+    return editView((layout) => copySizes(layout, working, pending.groups))
   }
 
   /**
@@ -562,15 +620,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     if (!working) return
     const nextWorking = fn(working)
     const nextSaved = saved ? fn(saved) : saved
-    if (nextWorking === working && nextSaved === saved) return
+    // While a Save writes, the change goes onto the layout it writes even
+    // when the layout saved before has nothing for it to change (a tab or a
+    // size among the parts being saved).
+    const onSaved = nextSaved != null && (nextSaved !== saved || viewEditsDuringSave.size > 0)
+    if (nextWorking === working && !onSaved) return
     set({
       working: nextWorking,
       saved: nextSaved,
       ...(nextSaved && nextSaved !== saved ? { layouts: replaceLayout(layouts, nextSaved) } : {}),
     })
     keepDraft()
-    if (nextSaved && nextSaved !== saved) for (const edits of viewEditsDuringSave) edits.push(fn)
-    if (nextSaved && nextSaved !== saved && !repairedIds.has(nextSaved.id)) {
+    if (onSaved) for (const edits of viewEditsDuringSave) edits.push(fn)
+    if (nextSaved && onSaved && !repairedIds.has(nextSaved.id)) {
       // On the layout as stored, not the whole row in memory: a Save whose
       // write runs meanwhile keeps its structure. View state is a
       // convenience: a failed write keeps it for this session.
@@ -919,19 +981,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     setColumnWeights(weightById, opts) {
-      edit((layout) => setColumnWeights(layout, weightById), opts)
+      return resize((layout) => setColumnWeights(layout, weightById), () => [{ kind: 'columns' }], opts)
     },
 
     setCellWeights(weightById, opts) {
-      edit((layout) => setCellWeights(layout, weightById), opts)
+      return resize((layout) => setCellWeights(layout, weightById), (layout) => cellSizeGroups(layout, Object.keys(weightById)), opts)
     },
 
     setBandHeight(edge, height, opts) {
-      edit((layout) => setBandHeight(layout, edge, height), opts)
+      return resize((layout) => setBandHeight(layout, edge, height), () => [{ kind: 'band', edge }], opts)
     },
 
-    keepLayoutDraft() {
-      keepDraft()
+    endResize() {
+      return commitSizes()
     },
 
     patchTabConfig(tabId, kind, patch) {

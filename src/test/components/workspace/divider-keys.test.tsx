@@ -55,3 +55,30 @@ describe('workspace dividers and the arrow-key shortcuts', () => {
     expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
   })
 })
+
+describe('a cell divider dragged past a cell’s minimum', () => {
+  it('puts the sizes back as a live frame, then saves once and collapses the cell', () => {
+    const calls: string[] = []
+    const onResize = vi.fn((w: Record<string, number>, opts?: { live?: boolean }) => { calls.push(`resize ${JSON.stringify(w)} ${opts?.live ? 'live' : 'save'}`) })
+    const { container } = render(
+      <>
+        <div data-ws-cell="a" />
+        <div data-ws-cell="b" />
+        <WorkspaceDivider
+          between="cells" aId="a" bId="b" weightA={1} weightB={2} min={40} label="Resize cells"
+          onResize={onResize}
+          onResizeEnd={() => calls.push('end')}
+          onCollapse={(id) => calls.push(`collapse ${id}`)}
+        />
+      </>,
+    )
+    for (const id of ['a', 'b']) {
+      vi.spyOn(container.querySelector(`[data-ws-cell="${id}"]`)!, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 300))
+    }
+    const divider = container.querySelector<HTMLElement>('[data-ws-divider]')!
+    fireEvent.pointerDown(divider, { button: 0, pointerId: 1, clientX: 0, clientY: 300 })
+    fireEvent.pointerMove(divider, { pointerId: 1, clientX: 0, clientY: 0 })
+    // The size the drag reached is never saved: back to the drag's start first, then the one save.
+    expect(calls).toEqual(['resize {"a":1,"b":2} live', 'end', 'collapse a'])
+  })
+})

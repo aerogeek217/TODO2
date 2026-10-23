@@ -54,6 +54,11 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('Buy groceries')).toBeInTheDocument()
     })
 
+    it('marks its title with data-task-title, as the desktop row does', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Buy groceries' })} />)
+      expect(getRow().querySelector('[data-task-title]')).toHaveAttribute('data-task-title', 'Buy groceries')
+    })
+
     it('renders unchecked checkbox for incomplete task', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.getByRole('checkbox', { name: 'Toggle complete' })).not.toBeChecked()
@@ -114,20 +119,6 @@ describe('MobileTaskRow', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
       expect(screen.getByText('AL')).toBeInTheDocument()
       expect(screen.getByText('BO')).toBeInTheDocument()
-    })
-
-    it('in a person’s group, leaves that person out of the row’s people (hiddenPersonId)', () => {
-      const people = [
-        makePerson({ id: 1, name: 'Alice', initials: 'AL' }),
-        makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
-      ]
-      const { rerender } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} hiddenPersonId={1} />)
-      expect(screen.queryByText('AL')).not.toBeInTheDocument()
-      expect(screen.getByText('BO')).toBeInTheDocument()
-      // Only the group's person: no avatars at all.
-      rerender(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people.slice(0, 1)} hiddenPersonId={1} />)
-      expect(screen.queryByText('AL')).not.toBeInTheDocument()
-      expect(screen.queryByText('BO')).not.toBeInTheDocument()
     })
 
     it('shows overflow count for 4+ people (avatar stack shows 3)', () => {

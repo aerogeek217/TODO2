@@ -34,14 +34,14 @@ function measure(edge: BandEdge): { height: number; max: number } | null {
  * The gutter between a band and the column area (under the top band, above
  * the bottom band), as a resize handle for the band's height: drag to move
  * it (rAF-throttled; the columns take the rest; the frames are `live`
- * edits, kept in the browser once at the end), double-click for the
- * default height, ↑ / ↓ to move it 16px. The band stays at least
- * `BAND_MIN_PX`; dragging well past that collapses it instead. The height
- * is layout structure, so the layout becomes unsaved.
+ * edits, saved once at the end), double-click for the default height,
+ * ↑ / ↓ to move it 16px. The band stays at least `BAND_MIN_PX`; dragging
+ * well past that collapses it instead. The height is view state: saved at
+ * once, it never makes the layout unsaved.
  */
 export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
   const setBandHeight = useWorkspaceStore((s) => s.setBandHeight)
-  const keepLayoutDraft = useWorkspaceStore((s) => s.keepLayoutDraft)
+  const endResize = useWorkspaceStore((s) => s.endResize)
   const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -58,8 +58,8 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
   // Gone mid-drag: what the frames applied is kept all the same.
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
-    if (dragRef.current) keepLayoutDraft()
-  }, [keepLayoutDraft])
+    if (dragRef.current) endResize()
+  }, [endResize])
 
   const endDrag = (el: HTMLElement, pointerId: number) => {
     dragRef.current = null
@@ -69,8 +69,8 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
       cancelAnimationFrame(rafRef.current)
       flush()
     }
-    // The frames were live edits: keep the result in the browser once.
-    keepLayoutDraft()
+    // The frames were live edits: save the result once.
+    endResize()
   }
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -89,8 +89,9 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
     const r = resizeBand({ edge, startHeight: drag.startHeight, delta: e.clientY - drag.startY, max: drag.max })
     if (r.raw < BAND_MIN_PX - COLLAPSE_SLACK_PX) {
       pendingRef.current = null
+      // Back to the drag's start as a frame, so the drag's end saves only that.
+      void setBandHeight(edge, drag.storedHeight, { live: true })
       endDrag(e.currentTarget, e.pointerId)
-      setBandHeight(edge, drag.storedHeight)
       void setCellCollapsed(band.id, true)
       return
     }
