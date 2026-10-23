@@ -5,10 +5,10 @@ import { OLDEST_SUPPORTED_DB_VERSION, db, findDatabaseTooOld } from '../../data/
 
 /**
  * A browser database below the floor (`OLDEST_SUPPORTED_DB_VERSION`) is never
- * read, written or upgraded: the app says so before anything opens it, and
- * the database's own open refuses it too (where the browser can't list its
- * databases) — the refused upgrade is rolled back, so the database keeps its
- * version, stores and rows.
+ * read, written or upgraded: the app says so before anything opens it (from
+ * the browser's list of databases, or a raw open where it can't list them),
+ * and the database's own open refuses it too — the refused upgrade is rolled
+ * back, so the database keeps its version, stores and rows.
  */
 
 const OLDER = OLDEST_SUPPORTED_DB_VERSION - 1
@@ -91,12 +91,12 @@ describe('a database below the floor', () => {
     expect(await readRawDb()).toEqual(untouched)
   })
 
-  it('where the browser can’t list its databases, the launch’s open refuses it and the app says so', async () => {
+  it('where the browser can’t list its databases, the app still says so, naming the version', async () => {
     await createOlderDb(OLDER)
     await withoutDatabaseList(async () => {
       render(<App />)
       const dialog = await screen.findByRole('dialog', { name: 'Data from an older version of TODO2' })
-      expect(dialog.textContent).toContain(`this version reads v${OLDEST_SUPPORTED_DB_VERSION} and newer`)
+      expect(dialog.textContent).toContain(`(schema v${OLDER}); this version reads v${OLDEST_SUPPORTED_DB_VERSION} and newer`)
       expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
     })
     expect(await readRawDb()).toEqual(untouched)

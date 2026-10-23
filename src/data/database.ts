@@ -188,7 +188,8 @@ export class Todo2Database extends Dexie {
     // A database a newer build wrote is never read or written: Dexie opens
     // one at its own (higher) version, so the open fails here instead.
     // (`services/migration-check.checkTooNewDB` says so before the app
-    // starts; this holds where the browser can't list its databases.)
+    // starts; this holds should anything open it without that check — though
+    // only once Dexie has opened it, which may patch a store in first.)
     // Measured against the highest version declared (`verno`, which equals
     // `CURRENT_DB_VERSION` — a test asserts it).
     this.on('ready', (vipDb) => {

@@ -86,3 +86,71 @@ describe('checkTooNewDB', () => {
     expect(await checkTooNewDB()).toEqual({ storedVersion: CURRENT_DB_VERSION + 1, buildVersion: CURRENT_DB_VERSION })
   })
 })
+
+describe('a browser that can’t list its databases', () => {
+  // Without `indexedDB.databases()` (or when it throws) the checks read the
+  // version from a raw open with no version — which never upgrades, and
+  // never creates a database that isn't there.
+  const listers = {
+    missing: () => Object.defineProperty(indexedDB, 'databases', { value: undefined, configurable: true, writable: true }),
+    throwing: () => Object.defineProperty(indexedDB, 'databases', { value: () => Promise.reject(new Error('unavailable')), configurable: true, writable: true }),
+  }
+  let restoreList: (() => void) | null = null
+
+  function withoutList(kind: keyof typeof listers): void {
+    const own = Object.getOwnPropertyDescriptor(indexedDB, 'databases')
+    listers[kind]()
+    restoreList = () => {
+      if (own) Object.defineProperty(indexedDB, 'databases', own)
+      else delete (indexedDB as { databases?: unknown }).databases
+    }
+  }
+
+  afterEach(() => {
+    restoreList?.()
+    restoreList = null
+  })
+
+  async function nativeVersions(): Promise<Array<number | undefined>> {
+    return (await indexedDB.databases()).filter((d) => d.name === 'todo2').map((d) => d.version)
+  }
+
+  for (const kind of ['missing', 'throwing'] as const) {
+    it(`finds a database below the floor (list ${kind})`, async () => {
+      await createRawDb((OLDEST_SUPPORTED_DB_VERSION - 1) * 10, (db) => {
+        db.createObjectStore('orgs', { keyPath: 'id', autoIncrement: true })
+      })
+      withoutList(kind)
+      expect(await checkTooOldDB()).toEqual({ storedVersion: OLDEST_SUPPORTED_DB_VERSION - 1, floorVersion: OLDEST_SUPPORTED_DB_VERSION })
+      expect(await checkTooNewDB()).toBeNull()
+      restoreList?.()
+      expect(await nativeVersions()).toEqual([(OLDEST_SUPPORTED_DB_VERSION - 1) * 10])
+    })
+
+    it(`finds a database a newer build saved (list ${kind})`, async () => {
+      await createRawDb((CURRENT_DB_VERSION + 1) * 10 + 1, (db) => {
+        db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+      })
+      withoutList(kind)
+      expect(await checkTooNewDB()).toEqual({ storedVersion: CURRENT_DB_VERSION + 1, buildVersion: CURRENT_DB_VERSION })
+      expect(await checkTooOldDB()).toBeNull()
+    })
+
+    it(`passes a database at the current version and creates none (list ${kind})`, async () => {
+      withoutList(kind)
+      expect(await checkTooOldDB()).toBeNull()
+      expect(await checkTooNewDB()).toBeNull()
+      restoreList?.()
+      expect(await nativeVersions()).toEqual([])
+
+      await createRawDb(CURRENT_DB_VERSION * 10, (db) => {
+        db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+      })
+      withoutList(kind)
+      expect(await checkTooOldDB()).toBeNull()
+      expect(await checkTooNewDB()).toBeNull()
+      restoreList?.()
+      expect(await nativeVersions()).toEqual([CURRENT_DB_VERSION * 10])
+    })
+  }
+})

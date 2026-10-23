@@ -23,8 +23,8 @@ export interface AppStartupOptions {
  *
  * 0. the database opens — one a newer build saved or one below the floor
  *    stops launch here (`DatabaseTooNewError` / `DatabaseTooOldError`; the
- *    version check before launch usually said so already, but a browser
- *    that can't list its databases only finds out here); other open
+ *    version check before launch says so already — this is its backstop,
+ *    for when the check couldn't read the version); other open
  *    failures surface in the steps below, as they always have;
  * 1. settings (the theme, so every prompt has it);
  * 2. the sync file — its load decision, and when its handle needs
