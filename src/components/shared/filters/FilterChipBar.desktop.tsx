@@ -25,7 +25,6 @@ import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
 import { useReturnFocus } from '../use-popover-focus'
-import { useDialogLayer } from '../dialog-layer'
 import {
   narrowedPeople,
   useFilterChipBarState,
@@ -153,7 +152,7 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
  * A screen-filter button: icon + label (the value while the filter is on),
  * then a chevron — or, while on, a round × that clears just this field.
  */
-function FilterButton({ field }: { field: FieldDef }) {
+function FilterButton({ field, consumeEscape }: { field: FieldDef; consumeEscape: boolean }) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLButtonElement>(null)
@@ -163,10 +162,7 @@ function FilterButton({ field }: { field: FieldDef }) {
     setOpen(false)
     onClose?.()
   }, [onClose])
-  // In a dialog (the screen filter's task dialog), the Esc that closes the
-  // picker stops there: the next one closes the dialog.
-  const inDialog = useDialogLayer() != null
-  const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape: inDialog })
+  const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape })
   const on = field.value != null
   // No tooltip over an open picker.
   const { triggerProps, tooltip } = useTooltip(open ? null : field.tooltip, { labelLines: field.tooltipLabelLines })
@@ -248,7 +244,7 @@ function FieldPopover({ field, panelRef, position, children }: {
  * The narrow-window fold: one Filters button (with a count badge) whose menu
  * lists every screen filter; each row opens that filter's picker beside it.
  */
-function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: () => void }) {
+function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]; onClearAll: () => void; consumeEscape: boolean }) {
   const [open, setOpen] = useState(false)
   const [sub, setSub] = useState<{ key: FieldKey; x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -273,6 +269,7 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
     // A picker's list scrolling in the submenu must not close the menu.
     closeOnScroll: false,
     extraInsideRefs: [subRef],
+    consumeEscape,
   })
   const { panelRef: subPanelRef, style: subStyle } = usePopoverAnchor({
     anchor: { kind: 'point', x: sub?.x ?? 0, y: sub?.y ?? 0 },
@@ -280,6 +277,7 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
     offset: 0,
     onClose: closeSub,
     closeOnOutsideClick: false,
+    consumeEscape,
   })
   const setSubRef = useCallback((el: HTMLDivElement | null) => {
     subRef.current = el
@@ -402,7 +400,9 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
  * The top bar's screen filters: Priority, Tags, People, Dates and Status
  * buttons (folded into one Filters menu — which ends with Clear all filters —
  * when `fold` is set), then Show completed (labelled `Completed`). The top bar's funnel clears them
- * all. The pickers are the shared `FilterPanels`.
+ * all. The pickers are the shared `FilterPanels`. With `consumeEscape` (the
+ * top bar's filtered-tasks panel is open) the Esc that closes a picker or
+ * the Filters menu stops there: the next one closes the panel.
  */
 export function FilterChipBarDesktop({
   predicate,
@@ -410,6 +410,7 @@ export function FilterChipBarDesktop({
   onClearExtra,
   onClearAll,
   fold = false,
+  consumeEscape = false,
 }: FilterChipBarProps) {
   const [previewEmpty, setPreviewEmpty] = useState<EntityKey | null>(null)
   const resetDensityState = useCallback(() => setPreviewEmpty(null), [])
@@ -615,8 +616,8 @@ export function FilterChipBarDesktop({
   return (
     <>
       {fold
-        ? <FiltersMenu fields={fields} onClearAll={clearAll} />
-        : fields.map((field) => <FilterButton key={field.key} field={field} />)}
+        ? <FiltersMenu fields={fields} onClearAll={clearAll} consumeEscape={consumeEscape} />
+        : fields.map((field) => <FilterButton key={field.key} field={field} consumeEscape={consumeEscape} />)}
       <span className={styles.separator} aria-hidden="true" />
       <button
         type="button"

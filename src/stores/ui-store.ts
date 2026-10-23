@@ -128,6 +128,13 @@ interface UIState {
    * person chip. `null` = closed.
    */
   taskDialog: TaskDialogPayload | null
+  /**
+   * The top bar's filtered-tasks panel (desktop): the screen filter's tasks
+   * dropped from the filter tray, which edits them live.
+   */
+  filterPanelOpen: boolean
+  /** Counts the requests to focus the panel (each open, the palette's command while it is open). */
+  filterPanelFocusKey: number
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
   /** The filter sheet was opened from a search button: focus its search box. */
@@ -221,6 +228,12 @@ interface UIState {
    */
   showTaskDialog: (payload: TaskDialogPayload) => void
   hideTaskDialog: () => void
+  /**
+   * Opens the filtered-tasks panel and asks it for the focus (again, when
+   * it is open already). Clears the selection, as the task dialog does.
+   */
+  openFilterPanel: () => void
+  closeFilterPanel: () => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
@@ -265,6 +278,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   bulkConfirmation: null,
   confirmPrompts: [],
   taskDialog: null,
+  filterPanelOpen: false,
+  filterPanelFocusKey: 0,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   listEditor: null,
@@ -373,6 +388,19 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   hideTaskDialog() {
     set({ taskDialog: null })
+  },
+
+  openFilterPanel() {
+    set({
+      filterPanelOpen: true,
+      filterPanelFocusKey: get().filterPanelFocusKey + 1,
+      selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null,
+      selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null,
+    })
+  },
+
+  closeFilterPanel() {
+    if (get().filterPanelOpen) set({ filterPanelOpen: false })
   },
 
   toggleFilterSheet() {

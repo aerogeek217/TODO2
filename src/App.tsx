@@ -21,7 +21,7 @@ import { useShortcutLabel } from './hooks/use-shortcut-label'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
-import { currentTaskDialogEnv, screenTaskCount, screenTaskDialog } from './services/task-dialog'
+import { currentTaskDialogEnv, screenTaskCount } from './services/task-dialog'
 import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
@@ -91,7 +91,7 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
       getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
-      showScreenTasks: () => useUIStore.getState().showTaskDialog(screenTaskDialog()),
+      showScreenTasks: () => useUIStore.getState().openFilterPanel(),
       getScreenTaskCount: () => screenTaskCount(currentTaskDialogEnv()),
     }),
     [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter],
@@ -255,12 +255,17 @@ function AppShell() {
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
 
   // Reset filter sheet when viewport transitions from mobile to desktop; the
-  // Settings modal is desktop only (mobile has the Settings page).
+  // Settings modal is desktop only (mobile has the Settings page). The screen
+  // filter's tasks are the top bar's panel on desktop, a task dialog on a
+  // phone: the other one closes.
   useEffect(() => {
+    const ui = useUIStore.getState()
     if (!isMobile) {
-      useUIStore.getState().setFilterSheetOpen(false)
+      ui.setFilterSheetOpen(false)
+      if (ui.taskDialog?.source.kind === 'screen') ui.hideTaskDialog()
     } else {
-      useUIStore.getState().closeSettings()
+      ui.closeSettings()
+      ui.closeFilterPanel()
     }
   }, [isMobile])
   const settingsOpen = useUIStore((s) => s.settingsOpen)

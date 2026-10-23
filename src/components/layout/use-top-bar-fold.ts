@@ -2,11 +2,22 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 
 /**
- * How much of the top bar is folded so that it never wraps or overflows:
- * 0 = nothing; 1 = the screen-filter buttons into the Filters menu; 2 = also
- * the layout tabs into the layout picker.
+ * What of the top bar is folded so that it never wraps or overflows:
+ * `none`; `filters` = the screen-filter buttons into the Filters menu;
+ * `tabs` = the layout tabs into the layout picker, the filters kept (only
+ * while the filtered-tasks panel is open: the tray gets the room); `both`.
  */
-export type TopBarFold = 0 | 1 | 2
+export type TopBarFold = 'none' | 'filters' | 'tabs' | 'both'
+
+/** Whether the filter buttons show as the one Filters menu. */
+export function filtersFolded(fold: TopBarFold): boolean {
+  return fold === 'filters' || fold === 'both'
+}
+
+/** Whether the layout tabs show as the layout picker. */
+export function tabsFolded(fold: TopBarFold): boolean {
+  return fold === 'tabs' || fold === 'both'
+}
 
 /** What `topBarFold` decides from: widths measured in the bar, px. */
 export interface TopBarMeasure {
@@ -20,21 +31,31 @@ export interface TopBarMeasure {
   trayFolded?: number
   /** The layout tabs, when last shown, with what they showed then (`tabsKey`). */
   tabs?: { width: number; key: string }
+  /** The layout picker (the layout controls with the tabs folded), when last shown. */
+  picker?: number
 }
 
 /**
  * The least fold whose parts fit the bar. A part not measured yet (or tabs
  * showing other layouts since) counts as fitting — it is shown, measured,
  * and folded again on the next frame when it doesn't fit.
+ *
+ * Normally the filters fold first, then the layout tabs. While the
+ * filtered-tasks panel is open (`panelOpen`) the tabs always fold into the
+ * picker and the filters fold only when even that leaves them no room.
  */
-export function topBarFold(m: TopBarMeasure, tabsKey: string): TopBarFold {
-  if (m.bar <= 0) return 0
+export function topBarFold(m: TopBarMeasure, tabsKey: string, panelOpen = false): TopBarFold {
   const folded = m.trayFolded ?? 0
   const open = m.trayOpen ?? folded
+  if (panelOpen) {
+    if (m.bar <= 0) return 'tabs'
+    return m.base + open + (m.picker ?? 0) <= m.bar ? 'tabs' : 'both'
+  }
+  if (m.bar <= 0) return 'none'
   const tabs = m.tabs?.key === tabsKey ? m.tabs.width : 0
-  if (m.base + open + tabs <= m.bar) return 0
-  if (m.base + folded + tabs <= m.bar) return 1
-  return 2
+  if (m.base + open + tabs <= m.bar) return 'none'
+  if (m.base + folded + tabs <= m.bar) return 'filters'
+  return 'both'
 }
 
 /** The bar's parts, by their `data-fold-part`: the filter tray, the layout controls and the right zone (its auto margin is free space). */
@@ -64,14 +85,14 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
   return {
     bar: bar.clientWidth,
     base: Math.ceil(need - tray - layout),
-    ...(fold === 0 ? { trayOpen: tray } : { trayFolded: tray }),
-    ...(fold <= 1 ? { tabs: { width: layout, key: tabsKey } } : {}),
+    ...(filtersFolded(fold) ? { trayFolded: tray } : { trayOpen: tray }),
+    ...(tabsFolded(fold) ? { picker: layout } : { tabs: { width: layout, key: tabsKey } }),
   }
 }
 
 function sameMeasure(a: TopBarMeasure, b: TopBarMeasure): boolean {
   return a.bar === b.bar && a.base === b.base && a.trayOpen === b.trayOpen && a.trayFolded === b.trayFolded
-    && a.tabs?.width === b.tabs?.width && a.tabs?.key === b.tabs?.key
+    && a.tabs?.width === b.tabs?.width && a.tabs?.key === b.tabs?.key && a.picker === b.picker
 }
 
 /** The measure update for the bar as shown now, measured at once (the same object when nothing changed). */
@@ -85,14 +106,20 @@ function remeasure(bar: HTMLElement, shown: { fold: TopBarFold; tabsKey: string 
 
 /**
  * The top bar's fold, measured (never a breakpoint): the filters fold first,
- * then the layout tabs. `barRef` = the bar, whose children carry
+ * then the layout tabs — while the filtered-tasks panel is open
+ * (`panelOpen`), the tabs first. `barRef` = the bar, whose children carry
  * `data-fold-part`; `tabsKey` says what the tabs show (their widths depend
  * on it, not on their order); `partsKey` changes when the bar's children do.
  * Every resize of the bar or a child re-measures.
  */
-export function useTopBarFold(barRef: RefObject<HTMLElement | null>, tabsKey: string, partsKey: unknown): TopBarFold {
+export function useTopBarFold(
+  barRef: RefObject<HTMLElement | null>,
+  tabsKey: string,
+  partsKey: unknown,
+  panelOpen = false,
+): TopBarFold {
   const [measure, setMeasure] = useState<TopBarMeasure>({ bar: 0, base: 0 })
-  const fold = topBarFold(measure, tabsKey)
+  const fold = topBarFold(measure, tabsKey, panelOpen)
   const latest = useLatestRef({ fold, tabsKey })
   // Measured after each resize of the bar or one of its parts (the window,
   // a filter's value, a renamed layout, the storage pill's state); the fold

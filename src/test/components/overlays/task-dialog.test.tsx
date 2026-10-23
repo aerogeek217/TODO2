@@ -18,7 +18,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
-  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, STATUSES, TAGS,
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_TASKS, STATUSES, TAGS,
 } from '../../fixtures/dashboard-sample'
 
 const HOT: TaskDialogPayload = {
@@ -206,20 +206,21 @@ describe('TaskDialog', () => {
   })
 })
 
-describe('TaskDialog — the screen filter’s tasks', () => {
+describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
   const PRIYA_OPEN = ['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast']
-  const filterBar = () => within(dialog()!).getByRole('group', { name: 'Screen filters — apply to every widget' })
+  const bar = () => dialog()!.querySelector<HTMLElement>('[data-task-dialog-filters]')!
   const count = () => within(dialog()!).getByTestId('task-dialog-count').textContent
 
-  it('opens on the tasks the screen filter matches, with that filter’s bar under the header', () => {
+  it('opens on the tasks the screen filter matches, with the search and a Filters disclosure under the header', () => {
     useFilterStore.getState().setPersonIds(new Set([PRIYA]))
     open(screenTaskDialog())
     expect(within(dialog()!).getByRole('heading').textContent).toBe('Filtered tasks')
     expect(count()).toBe('4')
-    expect(rowTitles()).toEqual(PRIYA_OPEN)
-    expect(within(filterBar()).getByRole('button', { name: 'People filter: Priya Nair' })).toBeTruthy()
-    expect(within(filterBar()).getByRole('button', { name: 'Show completed' })).toBeTruthy()
     expect(dialog()!.textContent).toContain('Open tasks matching the screen filter.')
+    const filters = within(bar()).getByRole('button', { name: 'Filters, 1 active' })
+    expect(filters).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(filters)
+    expect(filters).toHaveAttribute('aria-expanded', 'true')
     // Footer: Copy tasks and Close only.
     expect(within(dialog()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
     expect(within(dialog()!).queryByRole('button', { name: 'Email check-in' })).toBeNull()
@@ -232,31 +233,17 @@ describe('TaskDialog — the screen filter’s tasks', () => {
     // Completed here: the row stays (struck through) — the filter didn't change.
     act(() => useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === draft.id ? { ...t, isCompleted: true } : t)) }))
     expect(rowTitles()).toEqual(PRIYA_OPEN)
-    // Show completed (in the dialog's bar): resolved again, her completed tasks join.
-    fireEvent.click(within(filterBar()).getByRole('button', { name: 'Show completed' }))
-    expect(useFilterStore.getState().filters.showCompleted).toBe(true)
+    act(() => useFilterStore.getState().setShowCompleted(true))
     expect(rowTitles()).toEqual(expect.arrayContaining([...PRIYA_OPEN, 'Team lunch booking']))
     expect(count()).toBe('5')
     expect(dialog()!.textContent).toContain('Tasks matching the screen filter, completed ones included.')
-    // Changed elsewhere (the top bar): followed too; the completed one goes now.
     act(() => useFilterStore.getState().setShowCompleted(false))
     expect(rowTitles()).toEqual(PRIYA_OPEN.filter((t) => t !== 'Draft homepage copy'))
   })
 
-  it('Clear all filters clears the screen filter; the dialog stays, now every open task', () => {
-    useFilterStore.getState().setPersonIds(new Set([PRIYA]))
-    open(screenTaskDialog())
-    fireEvent.click(within(filterBar()).getByRole('button', { name: 'Clear all filters' }))
-    expect(useFilterStore.getState().isActive).toBe(false)
-    expect(dialog()).not.toBeNull()
-    expect(count()).toBe(String(SAMPLE_OPEN_COUNT))
-    expect(within(filterBar()).getByRole('button', { name: 'Clear all filters' })).toHaveProperty('disabled', true)
-    expect(dialog()!.textContent).toContain('Every open task: no screen filter is on.')
-  })
-
   it('its search edits the screen filter’s text; Esc with text clears it, the next Esc closes', async () => {
     open(screenTaskDialog())
-    const search = within(filterBar()).getByRole('textbox', { name: 'Search tasks' })
+    const search = within(bar()).getByRole('textbox', { name: 'Search tasks' })
     fireEvent.change(search, { target: { value: 'q4 forecast' } })
     await vi.waitFor(() => expect(useFilterStore.getState().filters.searchText).toBe('q4 forecast'))
     expect(rowTitles()).toEqual(['Q4 forecast'])
@@ -283,7 +270,7 @@ describe('TaskDialog — the screen filter’s tasks', () => {
 
   it('other dialogs have no filter bar, and their rows don’t follow the screen filter', () => {
     open({ title: 'L', glyph: 'list', description: '', source: { kind: 'list', listDefinitionId: 3 } })
-    expect(within(dialog()!).queryByRole('group', { name: 'Screen filters — apply to every widget' })).toBeNull()
+    expect(dialog()!.querySelector('[data-task-dialog-filters]')).toBeNull()
     const before = rowTitles()
     act(() => useFilterStore.getState().setPersonIds(new Set([PRIYA])))
     expect(rowTitles()).toEqual(before)

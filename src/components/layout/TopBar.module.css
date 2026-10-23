@@ -1,7 +1,8 @@
 /* The app's one top bar (desktop): New task, the layout tabs (or picker) +
  * save, the screen-filter tray, then the storage pill and the Settings gear.
  * It never wraps; when it runs out of room (measured) the filters fold into
- * a menu, then the layout tabs into the picker. */
+ * a menu, then the layout tabs into the picker — while the filtered-tasks
+ * panel hangs from the tray, the tabs first. */
 
 .topBar {
   display: flex;
@@ -78,6 +79,17 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
 }
 
+/* The filtered-tasks panel hangs from it: its bottom corners squared, its
+ * border the panel's (which overlaps the bottom edge, so they share it). */
+.trayPanelOpen {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.trayPanelOpen:not(.trayActive) {
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
 .funnel {
   display: inline-flex;
   align-items: center;
@@ -141,6 +153,25 @@
 
 .showTasks:hover {
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+}
+
+/* Pressed while its panel is open. */
+.showTasksOpen,
+.showTasksOpen:hover {
+  background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
+
+/* No filter (cleared with the panel open): the neutral tray's look. */
+.trayPanelOpen:not(.trayActive) .showTasks {
+  color: var(--color-text-secondary);
+}
+
+.trayPanelOpen:not(.trayActive) .showTasksOpen {
+  background: var(--color-tint-12);
+}
+
+.trayPanelOpen:not(.trayActive) .showTasksSeparator {
+  background: var(--color-border);
 }
 
 .showTasks:focus-visible {
