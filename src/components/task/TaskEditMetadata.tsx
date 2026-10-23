@@ -36,6 +36,8 @@ interface TaskEditMetadataProps {
   followupNext: Date | undefined
   followupLast: Date | undefined
   followupNextHint?: string
+  /** Focus selects the Next field's text (create mode, while it shows the untouched default). */
+  followupNextSelectOnFocus?: boolean
   onFollowupNextChange: (next: Date | null) => void
   onFollowupLastChange: (last: Date | null) => void
   onFollowedUp: () => void
@@ -52,7 +54,7 @@ export function TaskEditMetadata({
   onTogglePerson, onToggleTag,
   onCreatePerson, onCreateTag,
   openDropdown, setOpenDropdown,
-  followupNext, followupLast, followupNextHint,
+  followupNext, followupLast, followupNextHint, followupNextSelectOnFocus = false,
   onFollowupNextChange, onFollowupLastChange, onFollowedUp, hideLastFollowup = false,
 }: TaskEditMetadataProps) {
   return (
@@ -154,6 +156,7 @@ export function TaskEditMetadata({
         next={followupNext}
         last={followupLast}
         nextHint={followupNextHint}
+        selectNextOnFocus={followupNextSelectOnFocus}
         onNextChange={onFollowupNextChange}
         onLastChange={onFollowupLastChange}
         onFollowedUp={onFollowedUp}

@@ -689,6 +689,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             followupNextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
               ? `Default · ${describeFollowupInterval(followupInterval)}`
               : undefined}
+            // The untouched default is a proposal: focus selects it, so typing replaces it.
+            followupNextSelectOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
             onFollowupNextChange={handleNextFollowupChange}
             onFollowupLastChange={handleLastFollowupChange}
             onFollowedUp={handleFollowedUp}

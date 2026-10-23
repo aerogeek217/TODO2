@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { PersistedTodoItem } from '../../../models'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER } from '../../../hooks/use-followup-input'
+import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
 import { useToday } from '../../../hooks/use-today'
 import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
 import { startOfDay } from '../../../utils/date'
@@ -61,7 +62,8 @@ function sameDay(a: Date | null, b: Date | null): boolean {
  * records; or the field, `initialFocus: 'next'`) stamps today and sets the
  * field's date — empty clears it, text that isn't a date disables it. The
  * field takes an interval or a date, or a day from the browser's date picker
- * (its calendar button); quick buttons set common intervals. ⏎ in the field
+ * (its calendar button); quick buttons set common intervals. Focusing the
+ * field (click, Tab) selects its text, so typing replaces the proposal. ⏎ in the field
  * (when it differs from now), a picked day or a quick button sets the next
  * follow-up only and closes; the field's × empties it; Esc / outside click
  * closes without change. On close, focus goes back to what had it before
@@ -80,6 +82,8 @@ export function FollowupPopover({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const input = useFollowupInput(proposal ?? undefined, 'next', today)
+  // The field holds a proposal the user usually replaces: focus selects it.
+  const selectOnFocus = useSelectAllOnFocus()
   const { panelRef, style } = usePopoverAnchor({ anchor, open: true, onClose })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
@@ -170,6 +174,7 @@ export function FollowupPopover({
           placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
           onChange={(e) => input.change(e.target.value)}
           onKeyDown={handleKeyDown}
+          {...selectOnFocus}
           aria-invalid={s.kind === 'invalid'}
           aria-describedby={`followup-now-${todo.id} followup-next-help-${todo.id}`}
           autoComplete="off"

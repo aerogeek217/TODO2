@@ -61,9 +61,10 @@ test.describe('the automatic next follow-up', () => {
     await expect(input).toHaveValue('Tue 10 Nov')
     await expect(pop.getByText('Now: Tue 10/13')).toBeVisible()
 
+    // A click selects the proposal: typing replaces it.
     await input.click()
-    await page.keyboard.press('Control+A')
     await page.keyboard.type('2w')
+    await expect(input).toHaveValue('2w')
     await expect(pop.getByText('Sat 24 Oct')).toBeVisible()
     await followedUp.click()
     await expect(pop).toBeHidden()
@@ -85,6 +86,26 @@ test.describe('the automatic next follow-up', () => {
     await expect(popover(page)).toBeHidden()
     // The proposal, set without a follow-up stamp.
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-11-10 00:00', last: null })
+  })
+
+  test('a click into the field selects it once: a second click places the caret; Tab back in selects again', async ({ page }) => {
+    await taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
+    const input = popover(page).getByRole('textbox', { name: 'Next follow-up' })
+    await input.click()
+    await expect.poll(() => input.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, 10])
+    // A second click inside: a caret at the click, nothing selected.
+    const box = (await input.boundingBox())!
+    await page.mouse.click(box.x + 6, box.y + box.height / 2)
+    await expect.poll(() => input.evaluate((el: HTMLInputElement) => el.selectionStart === el.selectionEnd)).toBe(true)
+    await page.keyboard.press('End')
+    await page.keyboard.type('x')
+    await expect(input).toHaveValue('Tue 10 Novx')
+    // Tab away (the field's ×) and back.
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Shift+Tab')
+    await expect(input).toBeFocused()
+    await page.keyboard.type('3d')
+    await expect(input).toHaveValue('3d')
   })
 
   test('the menu’s Pick a date or interval… opens on the field with the proposal selected: typing replaces it', async ({ page }) => {
@@ -148,6 +169,18 @@ test.describe('the new-task editor', () => {
     await editor.getByRole('button', { name: 'Create task' }).click()
     await expect(editor).toBeHidden()
     await expect.poll(() => followupOf(page, 'gamma')).toEqual({ next: '2026-11-10 00:00', last: null })
+
+    // A click into the untouched default selects it: typing replaces it.
+    editor = await openEditor(page, 'epsilon')
+    const field = editor.getByRole('textbox', { name: 'Next follow-up' })
+    await field.click()
+    await page.keyboard.type('2w')
+    await expect(field).toHaveValue('2w')
+    await page.keyboard.press('Tab')
+    await expect(field).toHaveValue('Sat 24 Oct')
+    await editor.getByRole('button', { name: 'Create task' }).click()
+    await expect(editor).toBeHidden()
+    await expect.poll(() => followupOf(page, 'epsilon')).toEqual({ next: '2026-10-24 00:00', last: null })
 
     editor = await openEditor(page, 'delta')
     await editor.getByRole('button', { name: 'Clear next follow-up' }).click()

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { FollowupPopover } from '../../components/shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -71,6 +71,35 @@ describe('TaskEditPopup — follow-up group', () => {
     // otherwise the store gives every new task the default.
     expect('nextFollowupAt' in partial).toBe(false)
     expect(partial.lastFollowupAt).toBeUndefined()
+  })
+
+  it('create mode: focusing Next selects the untouched default (once per click); after an edit, or in edit mode, it does not', () => {
+    renderCreate()
+    const next = nextInput()
+    fireEvent.mouseDown(next)
+    act(() => next.focus())
+    expect([next.selectionStart, next.selectionEnd]).toEqual([0, 'Tue 10 Nov'.length])
+    expect(fireEvent.mouseUp(next)).toBe(false)
+    fireEvent.mouseDown(next)
+    expect(fireEvent.mouseUp(next)).toBe(true)
+
+    // Edited: no longer the default.
+    fireEvent.change(next, { target: { value: '2w' } })
+    act(() => next.blur())
+    next.setSelectionRange(0, 0)
+    fireEvent.mouseDown(next)
+    act(() => next.focus())
+    expect(next.selectionEnd).toBe(0)
+    expect(fireEvent.mouseUp(next)).toBe(true)
+    cleanup()
+
+    renderEdit(makeTodo({ id: 7, nextFollowupAt: day(2026, 10, 13) }))
+    const stored = nextInput()
+    stored.setSelectionRange(0, 0)
+    fireEvent.mouseDown(stored)
+    act(() => stored.focus())
+    expect(stored.selectionEnd).toBe(0)
+    expect(fireEvent.mouseUp(stored)).toBe(true)
   })
 
   it('create mode while new tasks get no follow-up: Next starts empty, no default hint', async () => {

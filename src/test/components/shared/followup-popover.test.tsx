@@ -62,6 +62,29 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length])
   })
 
+  it('focusing the field selects its text — once per click; a second click places the caret (no prevented mouseup)', () => {
+    const { field } = renderPopover()
+    // A click: mousedown, focus, mouseup.
+    fireEvent.mouseDown(field)
+    act(() => field.focus())
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length])
+    // That mouseup would collapse the selection: its default is prevented.
+    expect(fireEvent.mouseUp(field)).toBe(false)
+    // A second click inside the focused field is the browser's.
+    fireEvent.mouseDown(field)
+    expect(fireEvent.mouseUp(field)).toBe(true)
+  })
+
+  it('Tab into the field selects its text too; a later click is left alone', () => {
+    const { field } = renderPopover()
+    fireEvent.change(field, { target: { value: '2w' } })
+    act(() => field.blur())
+    act(() => field.focus())
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, 2])
+    fireEvent.mouseDown(field)
+    expect(fireEvent.mouseUp(field)).toBe(true)
+  })
+
   it('with the automatic next follow-up off: the field opens empty, Now: none for a task without one; Mark followed up clears', () => {
     useSettingsStore.setState({ autoFollowup: false })
     const { field, button, onFollowedUp } = renderPopover({ todo: makeTodo({ id: 1 }) })
