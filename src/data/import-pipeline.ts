@@ -52,18 +52,6 @@ export type PrepareImportResult =
     }
   | { ok: false; reason: PrepareImportFailure; error: string }
 
-/**
- * The tables a v49 export carries — the v49 build's `ALL_DATA_TABLES`, which
- * it writes in full, empty ones included. Frozen with the transforms from
- * v49 on, which were written for that shape.
- */
-const V49_EXPORT_TABLES = [
-  'todos', 'projects', 'canvases', 'listInsets', 'people', 'settings', 'todoPeople', 'todoOrgs', 'personOrgs',
-  'orgs', 'taskboards', 'statuses', 'listDefinitions', 'notes', 'floatingCalendars', 'floatingNotes',
-  'floatingTaskboards', 'floatingHorizons', 'floatingStatus', 'floatingScoreboard', 'floatingSnoozeGraveyard',
-  'tags', 'todoTags', 'todoEvents',
-] as const
-
 function readKind(raw: Record<string, unknown>): 'full' | 'task-archive' {
   return raw.kind === TASK_ARCHIVE_KIND ? 'task-archive' : 'full'
 }
@@ -139,23 +127,9 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
     else rest[key] = value
   }
 
-  // A full file upgraded from v49 that lacks some
-  // of v49's tables is read as holding them empty, as the v49 build writes
-  // them: the transforms key off a table's presence (v59 turns a rail's
-  // taskboard tab into a Focus list tab only when `taskboards` is there), so
-  // a missing one could leave a shape no later version accepts. Never
-  // `todos` / `settings`: they are what makes a file a TODO2 database (a
-  // full restore requires both), so `{}` or the wrong file stays rejected.
-  if (kind === 'full' && fromVersion === 49) {
-    for (const table of V49_EXPORT_TABLES) {
-      if (table !== 'todos' && table !== 'settings' && !(table in tables)) tables[table] = []
-    }
-  }
-
   // The per-table record cap, checked before the transforms run (validation
   // checks it again on the upgraded tables): it bounds their work, and covers
-  // the tables they drop (e.g. a v49 file's `orgs`), which validation never
-  // sees.
+  // any table a transform drops, which validation never sees.
   for (const [key, rows] of Object.entries(tables)) {
     if (rows.length > MAX_RECORDS_PER_TABLE) {
       return {

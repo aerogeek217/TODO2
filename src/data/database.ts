@@ -4,7 +4,6 @@ import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { applySchemaUpgradeInTx } from './schema-upgrades'
 import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
 
 export interface SettingRow {
@@ -13,16 +12,13 @@ export interface SettingRow {
 }
 
 /**
- * Authoritative current Dexie schema version. Used in two places:
- *
- *   1. The final `this.version(CURRENT_DB_VERSION)` call below — bumping the
- *      schema means bumping this constant in the same edit.
- *   2. `services/migration-check.ts` reads it to decide whether to prompt the
- *      user before Dexie upgrades the on-disk IDB store. There is a vitest
- *      that asserts `db.verno === CURRENT_DB_VERSION` after open, so a future
- *      schema bump that adds `this.version(N+1)` without updating this
- *      constant will fail the test (the schema-upgrade prompt would otherwise
- *      silently regress, as it has done historically).
+ * Authoritative current Dexie schema version: the highest `this.version(N)`
+ * the database declares below — a schema step raises this constant in the
+ * same edit. Exports are stamped with it, and a database or file above it (a
+ * newer build saved it) is refused (`services/migration-check`,
+ * `DatabaseTooNewError`, `prepareImport`). A vitest asserts
+ * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
+ * without raising this constant fails the suite.
  */
 export const CURRENT_DB_VERSION = 68
 
@@ -43,8 +39,11 @@ export const CURRENT_DB_VERSION = 68
  * decision, because it stops older backups / sync files from importing.
  * Raising it also permits deleting the registry entries at or below the new
  * floor.
+ *
+ * Raised from 49 to 68 on 2026-10-23 (user-approved): the upgrades from v49
+ * to v68 were removed with it.
  */
-export const OLDEST_SUPPORTED_DB_VERSION = 49
+export const OLDEST_SUPPORTED_DB_VERSION = 68
 
 /**
  * The builds that still upgrade data below the floor — named in every
@@ -129,6 +128,27 @@ function refuseBelowFloor(): never {
   throw new DatabaseTooOldError(null)
 }
 
+/**
+ * The store layout at the floor (v68): every table and index, as the
+ * versions up to it left them. A later version's declaration lists only
+ * what it changes.
+ */
+const FLOOR_STORES = {
+  todos: '++id, isCompleted, dueDate, sortOrder, statusId, &uid',
+  people: '++id, name',
+  settings: 'key',
+  todoPeople: '++id, todoId, personId',
+  backups: '++id, createdAt, trigger',
+  statuses: '++id, sortOrder',
+  listDefinitions: '++id, sortOrder',
+  notes: '++id, modifiedAt',
+  tags: '++id, name',
+  todoTags: '++id, todoId, tagId',
+  todoEvents: '++id, todoId, type, timestamp',
+  layouts: '++id',
+  listOrders: '++id, listDefinitionId, todoId, &[listDefinitionId+todoId]',
+} as const
+
 export class Todo2Database extends Dexie {
   todos!: Table<TodoItem, number>
   people!: Table<Person, number>
@@ -147,316 +167,23 @@ export class Todo2Database extends Dexie {
   constructor() {
     super('todo2')
 
-    // v16 – v48: the store layouts of the versions below the supported floor
-    // (`OLDEST_SUPPORTED_DB_VERSION`, v49). A database older than the floor
-    // is refused before anything opens it (`services/migration-check`), and
-    // its open is refused too (the floor's upgrade). Each line names what the
-    // version changed, for the record.
+    // The floor (`OLDEST_SUPPORTED_DB_VERSION`), its whole store layout in
+    // one declaration. Dexie (4.x) needs no declaration of the versions
+    // before it: opening a database it diffs the stores it finds against the
+    // declared ones, and runs only the upgrades of versions above the
+    // database's own. So the floor's upgrade runs exactly for a database
+    // below the floor — which it refuses (`refuseBelowFloor`), rolling the
+    // open back with the database untouched.
+    this.version(OLDEST_SUPPORTED_DB_VERSION).stores(FLOOR_STORES).upgrade(refuseBelowFloor)
 
-    // v16: the base schema (the oldest layout this build can open).
-    this.version(16).stores({
-      todos: '++id, projectId, canvasId, parentId, priority, isCompleted, isStarred, dueDate, sortOrder',
-      projects: '++id, canvasId, sortOrder',
-      canvases: '++id, sortOrder',
-      people: '++id, name',
-      settings: 'key',
-      tags: '++id, name',
-      todoTags: '++id, todoId, tagId',
-      todoPeople: '++id, todoId, personId',
-      todoOrgs: '++id, todoId, orgId',
-      personOrgs: '++id, personId, orgId',
-      listInsets: '++id, canvasId',
-      orgs: '++id, name',
-      backups: '++id, createdAt, trigger',
-      savedViews: '++id, sortOrder',
-      stickyNotes: '++id, canvasId',
-    })
-    // v17: org initials (no store change).
-    this.version(17).stores({})
-    // v18: the taskboard entries table.
-    this.version(18).stores({
-      taskboardEntries: '++id, todoId, sortOrder',
-    })
-    // v19: statuses + the `statusId` index.
-    this.version(19).stores({
-      statuses: '++id, sortOrder',
-      todos: '++id, projectId, canvasId, parentId, priority, isCompleted, isStarred, dueDate, sortOrder, statusId',
-    })
-    // v20: starred / assigned folded into statuses; `isStarred` index dropped.
-    this.version(20).stores({
-      todos: '++id, projectId, canvasId, parentId, priority, isCompleted, dueDate, sortOrder, statusId',
-      statuses: '++id, sortOrder',
-      listInsets: '++id, canvasId',
-      settings: 'key',
-    })
-    // v21: priority dropped; list definitions added.
-    this.version(21).stores({
-      todos: '++id, projectId, canvasId, parentId, isCompleted, dueDate, sortOrder, statusId',
-      listInsets: '++id, canvasId',
-      listDefinitions: '++id, sortOrder',
-    })
-    // v22 – v24: list definition reshapes (no store change).
-    this.version(22).stores({})
-    this.version(23).stores({})
-    this.version(24).stores({})
-    // v25: the notes table.
-    this.version(25).stores({
-      notes: '++id, modifiedAt',
-    })
-    // v26: sticky notes merged into notes.
-    this.version(26).stores({
-      notes: '++id, modifiedAt, canvasId',
-      stickyNotes: null,
-    })
-    // v27: floating calendars.
-    this.version(27).stores({
-      floatingCalendars: '++id, canvasId',
-    })
-    // v28: floating notes.
-    this.version(28).stores({
-      floatingNotes: '++id, canvasId',
-    })
-    // v29: tags removed (v36 brought them back).
-    this.version(29).stores({
-      tags: null,
-      todoTags: null,
-    })
-    // v30: taskboards as records + floating taskboards.
-    this.version(30).stores({
-      taskboardEntries: null,
-      taskboards: '++id',
-      floatingTaskboards: '++id, canvasId, taskboardId',
-    })
-    // v31, v32: person colour dropped; calendar orientation (no store change).
-    this.version(31).stores({})
-    this.version(32).stores({})
-    // v33: one taskboard; the `taskboardId` index dropped.
-    this.version(33)
-      .stores({
-        floatingTaskboards: '++id, canvasId',
-      })
-    // v34: subtasks flattened; the `parentId` index dropped.
-    this.version(34)
-      .stores({
-        todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId',
-      })
-    // v35: inline tags on tasks (no store change).
-    this.version(35).stores({})
-    // v36: the tags and tag assignment tables again.
-    this.version(36)
-      .stores({
-        tags: '++id, name',
-        todoTags: '++id, todoId, tagId',
-      })
-    // v37: inline tags removed (no store change).
-    this.version(37)
-      .stores({})
-    // v38: floating horizons.
-    this.version(38).stores({
-      floatingHorizons: '++id, canvasId',
-    })
-    // v39: saved views folded into list definitions.
-    this.version(39)
-      .stores({
-        savedViews: null,
-      })
-    // v40, v41: project grouping; runtime filter picks as arrays (no store change).
-    this.version(40).stores({})
-    this.version(41).stores({})
-    // v42: the task history (`todoEvents`).
-    this.version(42)
-      .stores({
-        todoEvents: '++id, todoId, type, timestamp',
-      })
-    // v43 – v45: the floating status, scoreboard and snooze-graveyard widgets.
-    this.version(43).stores({
-      floatingStatus: '++id, canvasId',
-    })
-    this.version(44).stores({
-      floatingScoreboard: '++id, canvasId',
-    })
-    this.version(45).stores({
-      floatingSnoozeGraveyard: '++id, canvasId',
-    })
-    // v46 – v48: list sort / grouping and runtime filter reshapes (no store change).
-    this.version(46).stores({})
-    this.version(47).stores({})
-    this.version(48).stores({})
-
-    // v49: the floor. Its upgrade runs only for a database below it, which
-    // is refused (`refuseBelowFloor`).
-    this.version(49).stores({}).upgrade(refuseBelowFloor)
-
-    // v50: normalize every Date field to a real `Date`. Imports and
-    // sync-file loads used to write JSON's ISO strings straight into the DB.
-    // First registry-driven version — the transform (`upgrades/v50-revive-dates.ts`)
-    // also runs on imported v49 files via `prepareImport`.
-    this.version(50).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 50))
-
-    // v51: `TodoItem.uid` (stable identity, unique index) + `completedAt`
-    // (the retention purge's clock). The transform
-    // (`upgrades/v51-uid-completed-at.ts`) backfills both. IndexedDB builds
-    // the unique index before the upgrade callback runs; rows without a
-    // `uid` are simply not indexed, so creation can't fail on old rows.
-    this.version(51)
-      .stores({
-        todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId, &uid',
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 51))
-
-    // v52: remove the horizons, discipline-scoreboard and snooze-graveyard
-    // widgets. Drops their placement tables; the transform
-    // (`upgrades/v52-drop-date-stat-widgets.ts`) deletes the horizons settings
-    // rows and strips those widget tabs from `settings.canvasRails`.
-    this.version(52)
-      .stores({
-        floatingHorizons: null,
-        floatingScoreboard: null,
-        floatingSnoozeGraveyard: null,
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 52))
-
-    // v53: remove the scheduled date. No index change (`scheduledDate` was
-    // never indexed); the transform (`upgrades/v53-remove-scheduled-date.ts`)
-    // moves scheduled days into `nextFollowupAt` (or `dueDate` for recurrence
-    // anchors), rewrites list definitions / group-by settings that used the
-    // removed date fields, and drops the seeded follow-up status pointer.
-    this.version(53).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 53))
-
-    // v54: remove hide-by-status. No index change; the transform
-    // (`upgrades/v54-remove-hidden-statuses.ts`) strips `hideByDefault` from
-    // statuses and `showHiddenStatuses` from stored list predicates.
-    this.version(54).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 54))
-
-    // v55: merge orgs into people. Drops the org tables; the transform
-    // (`upgrades/v55-merge-orgs-into-people.ts`) turns each org into an
-    // `Org: <name>` person, org assignments into person assignments, and
-    // folds the org filter / group / runtime-filter values into people.
-    this.version(55)
-      .stores({
-        orgs: null,
-        todoOrgs: null,
-        personOrgs: null,
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 55))
-
-    // v56: workspace layouts (columns → cells → tabs). Adds the `layouts`
-    // table; the transform (`upgrades/v56-seed-workspace-layout.ts`) seeds a
-    // "Default" layout from the canvas rails + floating widgets and points
-    // the `activeLayoutId` setting at it.
-    this.version(56)
-      .stores({
-        layouts: '++id',
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 56))
-
-    // v57: list favorites and saved prompt picks go. No index change; the
-    // transform (`upgrades/v57-drop-list-favorites.ts`) strips `favorited`
-    // from list definitions and `viewState.runtimeFilterValue` from
-    // workspace list tabs.
-    this.version(57).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 57))
-
-    // v58: per-list manual order. Adds the `listOrders` table — one rank per
-    // (list, task) pair, unique on the pair; nothing to transform (an empty
-    // table means every task is unranked).
-    this.version(58)
-      .stores({
-        listOrders: '++id, listDefinitionId, todoId, &[listDefinitionId+todoId]',
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 58))
-
-    // v59: the taskboard becomes Focus. Drops the taskboard tables; the
-    // transform (`upgrades/v59-taskboard-to-focus.ts`) marks taskboard tasks
-    // `focus`, creates the "Focus" list with their order, and turns taskboard
-    // widgets into widgets of that list.
-    this.version(59)
-      .stores({
-        taskboards: null,
-        floatingTaskboards: null,
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 59))
-
-    // v60: projects become tags and the canvas goes. Drops the project,
-    // canvas, list-inset and floating-widget tables and the `projectId` /
-    // `canvasId` indexes (and the old `notes.canvasId` index); the
-    // transform (`upgrades/v60-projects-to-tags.ts`) turns each project into
-    // a `Project: <name>` tag on its tasks, folds project filters / grouping
-    // / sort / prompts in stored lists into tags, and removes the canvas and
-    // project settings.
-    this.version(60)
-      .stores({
-        todos: '++id, isCompleted, dueDate, sortOrder, statusId, &uid',
-        notes: '++id, modifiedAt',
-        projects: null,
-        canvases: null,
-        listInsets: null,
-        floatingCalendars: null,
-        floatingNotes: null,
-        floatingStatus: null,
-      })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, 60))
-
-    // v61: the Focus filter folds into the Markers filter. No index change
-    // (`urgent` / `important` task flags aren't indexed); the transform
-    // (`upgrades/v61-focus-filter-to-markers.ts`) rewrites stored list
-    // predicates from `focus` to `markers`.
-    this.version(61).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 61))
-
-    // v62: the Status widget is retired. No index change; the transform
-    // (`upgrades/v62-retire-status-widget.ts`) drops every `status` tab from
-    // the stored layouts (and the cells / columns that leaves empty).
-    this.version(62).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 62))
-
-    // v63: two canvas leftovers go. No index change; the transform
-    // (`upgrades/v63-app-background-and-list-pin.ts`) drops the write-only
-    // `pinnedToDashboard` from list definitions and renames the
-    // `color.<theme>.canvasBg` colour overrides to `color.<theme>.appBg`.
-    this.version(63).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 63))
-
-    // v64: date filters per date type; the list and tag caps go. No index
-    // change; the transform (`upgrades/v64-date-filters-and-caps.ts`) folds
-    // each stored list predicate's date range and has-due-date / has-follow-up
-    // filters into `dates` (a clause per date type), and drops the lists'
-    // `maxTasks` / `limitMode` and the `maxTags` setting.
-    this.version(64).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 64))
-
-    // v65: a version marker. No index or data change
-    // (`upgrades/v65-is-not-and-eisenhower-list.ts` returns its input); v65
-    // data may hold list "is not" switches, Priority No markers and
-    // Eisenhower tabs on a list or with custom panes, which an older build
-    // would drop silently, so older builds refuse it.
-    this.version(65).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 65))
-
-    // v66: the Eisenhower's panes and source become app-wide settings. No
-    // index change; the transform (`upgrades/v66-eisenhower-settings.ts`)
-    // copies the first customized Eisenhower tab's panes and the first one's
-    // list into the `eisenhowerPanes` / `eisenhowerSource` settings and
-    // removes both from every Eisenhower tab.
-    this.version(66).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 66))
-
-    // v67: layouts get an order; the Eisenhower gets its own list. No index
-    // change; the transform (`upgrades/v67-layout-order-and-eisenhower-list.ts`)
-    // numbers the layouts in the picker's old order and makes the list the
-    // Eisenhower shows (its source list in place when nothing else uses it,
-    // else a copy; a new list for all tasks) a list owned by the Eisenhower.
-    // v67 data may also hold a list's owner and filter-line switch, the
-    // Priority grouping and the new-task follow-up setting, which an older
-    // build would drop or misread, so older builds refuse it.
-    this.version(67).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 67))
-
-    // v68: every list belongs to a layout; the check-in's Which tasks is a
-    // filter. No index change; the transform
-    // (`upgrades/v68-lists-in-layouts-and-checkin-filter.ts`) gives each list
-    // without a layout the first layout that shows it (a copy for every other
-    // layout that does), puts the lists no layout shows into a new layout
-    // "Lists from upgrade", and turns the check-in scope into the check-in
-    // filter. v68 data may also hold the new-list defaults and the purge
-    // prompt's interval, which an older build would misread, so older
-    // builds refuse it.
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `68` first.
-    this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
+    // The next schema step N goes here, after the floor:
+    //
+    //   this.version(N).stores({ /* only what N adds, changes or drops (null) */ })
+    //     .upgrade((tx) => applySchemaUpgradeInTx(tx, N))
+    //
+    // with its transform registered in `SCHEMA_UPGRADES`
+    // (`schema-upgrades.ts` says what else it needs) and
+    // `CURRENT_DB_VERSION` raised to N — a test asserts `db.verno` equals it.
 
     // A database a newer build wrote is never read or written: Dexie opens
     // one at its own (higher) version, so the open fails here instead.

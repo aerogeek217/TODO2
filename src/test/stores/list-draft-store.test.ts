@@ -148,7 +148,7 @@ describe('list drafts kept for a reload', () => {
 
   it('nothing is written before the kept drafts were read back', async () => {
     const def = await addList('Team')
-    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ [def.id]: { draft: { ...def, sort: 'name' }, base: def } }))
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ [def.id]: { draft: { ...def, sort: 'name' }, base: def, schemaVersion: CURRENT_DB_VERSION } }))
     // An edit to another field before restore() must not overwrite what's kept.
     useListDraftStore.getState().edit(def.id, (d) => ({ ...d, grouping: 'people' }))
     expect(JSON.parse(localStorage.getItem('todo2-unsaved-lists')!)[def.id].draft.sort).toBe('name')
@@ -157,8 +157,7 @@ describe('list drafts kept for a reload', () => {
     expect(drafts()[def.id]).toMatchObject({ grouping: 'people', sort: 'manual' })
   })
 
-  it('a draft an older build kept comes back through the schema upgrade (date filters per type), never in the old shape', async () => {
-    // The stored list as the v64 upgrade left it: "has due date: no" became a No date clause.
+  it('a draft an older build kept without a schema version is dropped, never applied in its old shape', async () => {
     const id = await useListDefinitionStore.getState().add({ owner: { layoutId: 1 },
       name: 'Someday', membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { deadline: { match: 'unset' } } } },
     })
@@ -168,18 +167,10 @@ describe('list drafts kept for a reload', () => {
     }
     const base = { id, name: 'Someday', sortOrder: 0, sort: 'manual', grouping: 'none', maxTasks: 10, limitMode: 'hard', membership: { kind: 'custom', predicate: old } }
     const draft = { ...base, sort: 'name', membership: { kind: 'custom', predicate: { ...old, dateField: 'created', dateRangeStart: { kind: 'relative', token: 'start-of-month' } } } }
-    // Kept by the build before (no schema version on the record).
     localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ [id]: { draft, base } }))
     await reload()
-    expect(drafts()[id]).toEqual({
-      id, name: 'Someday', sortOrder: 0, sort: 'name', grouping: 'none',
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { deadline: { match: 'unset' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } } } },
-    })
-    expect(getUnsavedListIds()).toEqual([id])
-    // Kept again in the current shape, with its schema version.
-    const kept = JSON.parse(localStorage.getItem('todo2-unsaved-lists')!)[id]
-    expect(kept.schemaVersion).toBe(CURRENT_DB_VERSION)
-    expect('dateField' in kept.draft.membership.predicate).toBe(false)
+    expect(drafts()[id]).toBeUndefined()
+    expect(getUnsavedListIds()).toEqual([])
   })
 
 })

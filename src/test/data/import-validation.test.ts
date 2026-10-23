@@ -351,7 +351,7 @@ describe('validateImportData', () => {
     expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: horizonSlots, selectedHorizonDefId'])
   })
 
-  // Tags have no cap: a maxTags row (dropped by the v64 upgrade) is an unknown key now.
+  // Tags have no cap: a maxTags row (a setting of older builds) is an unknown key now.
   it('drops a maxTags row in a current file as an unrecognized setting', () => {
     const result = validateImportData(validData({
       settings: [{ key: 'maxTags', value: '20' }],
@@ -446,7 +446,7 @@ describe('validateImportData', () => {
       }
     })
 
-    it('the check-in scope of older builds is an unknown setting (the v68 upgrade turns it into the filter)', () => {
+    it('the check-in scope of older builds is an unknown setting (the check-in filter replaced it)', () => {
       const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'hot' }] }))
       if (!result.ok) throw new Error(result.error)
       expect(result.data.settings).toEqual([])

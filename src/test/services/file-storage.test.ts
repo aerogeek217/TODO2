@@ -101,19 +101,21 @@ function fireSettingWrite(key: string) {
   for (const h of mockTables.at(-1)!.hook('updating').handlers) h({ value: 'x' }, key, { key, value: 'x' })
 }
 
-// The real schema versions: files go through the real import pipeline
-// (upgrades + validation); only the tables are stand-ins.
+// Files go through the real import pipeline (upgrades + validation); only
+// the tables are stand-ins. The build simulated is the one after this one
+// (its version one above this build's, with no data change — an identity
+// step), so a file at the floor is a supported older file: the floor is
+// this build's own version, and the older-file flows below need one.
 vi.mock('../../data/database', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/database')>()
   return {
     ALL_DATA_TABLES: mockTables,
-    CURRENT_DB_VERSION: actual.CURRENT_DB_VERSION,
+    CURRENT_DB_VERSION: actual.CURRENT_DB_VERSION + 1,
     OLDEST_SUPPORTED_DB_VERSION: actual.OLDEST_SUPPORTED_DB_VERSION,
     BELOW_FLOOR_BUILD: actual.BELOW_FLOOR_BUILD,
   }
 })
-const { CURRENT_DB_VERSION: CURRENT, OLDEST_SUPPORTED_DB_VERSION: FLOOR } =
-  await vi.importActual<typeof import('../../data/database')>('../../data/database')
+const { CURRENT_DB_VERSION: CURRENT, OLDEST_SUPPORTED_DB_VERSION: FLOOR } = await import('../../data/database')
 /** A supported older file, a file below the floor, a file from a newer build. */
 const OLDER = CURRENT - 1
 const BELOW_FLOOR = FLOOR - 1

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { db } from '../../data/database'
+import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import { prepareImport, prepareImportText, TASK_ARCHIVE_KIND } from '../../data/import-pipeline'
 import type { ImportData } from '../../data/import-validation'
@@ -129,81 +129,6 @@ describe('appendImportTasks — archive from another database', () => {
     expect(events.map((e) => e.type).sort()).toEqual(['completed', 'created', 'status'])
     expect(events.find((e) => e.type === 'status')?.toValue).toBe(waiting)
   })
-
-  it('accepts an older archive with orgs: they arrive as Org: people', async () => {
-    const { json } = await archiveFromSourceDb()
-    // The same archive as a pre-merge build wrote it: one org assigned to the task.
-    const archive = JSON.parse(json) as Record<string, unknown> & { todos: Array<{ id: number }> }
-    const taskId = archive.todos[0]?.id
-    const older = {
-      ...archive,
-      __schemaVersion: 54,
-      orgs: [{ id: 1, name: 'Acme', initials: 'AC' }, { id: 2, name: 'Globex' }],
-      todoOrgs: [{ id: 1, todoId: taskId, orgId: 1 }, { id: 2, todoId: taskId, orgId: 2 }],
-    }
-
-    await resetDb()
-    const existingAcme = await db.people.add({ name: 'org: acme', initials: 'OA' }) as number
-
-    const data = prepareAppend(JSON.stringify(older))
-    expect('orgs' in data).toBe(false)
-    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])))
-
-    expect(result.created.people).toEqual(['Alice', 'Org: Globex'])
-    const globex = await db.people.where('name').equals('Org: Globex').first()
-    expect(globex).toMatchObject({ initials: 'G', color: '#f28c4e' })
-    const assigned = (await db.todoPeople.where('todoId').equals(result.todoIds[0]!).toArray()).map((r) => r.personId)
-    expect(assigned).toEqual(expect.arrayContaining([existingAcme, globex!.id]))
-    // The existing person matched by name is reused, untouched.
-    expect(await db.people.get(existingAcme)).toEqual({ id: existingAcme, name: 'org: acme', initials: 'OA' })
-  })
-
-  it('accepts an older archive with projects: they arrive as Project: tags, matched by name', async () => {
-    const { json } = await archiveFromSourceDb()
-    // The same archive as a pre-v60 build wrote it: its task in project
-    // "Work", a second task in "Errands", and a project no task uses.
-    const archive = JSON.parse(json) as Record<string, unknown> & { todos: Array<Record<string, unknown>> }
-    const task = archive.todos[0]!
-    const older = {
-      ...archive,
-      __schemaVersion: 59,
-      todos: [
-        { ...task, projectId: 5, canvasId: 1 },
-        {
-          id: 99, uid: 'archived-errand', title: 'Buy stamps', isCompleted: true, completedAt: task.completedAt,
-          createdAt: task.createdAt, modifiedAt: task.modifiedAt, sortOrder: 2, projectId: 6, canvasId: 1,
-        },
-      ],
-      projects: [
-        { id: 5, name: 'Work', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: task.createdAt, color: '#4f8cff' },
-        { id: 6, name: 'Errands', canvasId: 1, positionX: 400, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: task.createdAt, color: '#00aa00' },
-        { id: 7, name: 'Unused', canvasId: 1, positionX: 800, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: task.createdAt },
-      ],
-    }
-
-    await resetDb()
-    // The target already has the Work project's tag (another case): reused.
-    const existingWork = await db.tags.add({ name: 'project: work', color: '#123456' }) as number
-
-    const data = prepareAppend(JSON.stringify(older))
-    expect('projects' in data).toBe(false)
-    for (const t of data.todos) expect('projectId' in t || 'canvasId' in t, t.title).toBe(false)
-    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])))
-
-    expect(result.imported).toBe(2)
-    // Only the tags the imported tasks carry: no tag for the unused project.
-    expect(result.created.tags).toEqual(['urgent', 'Project: Errands'])
-    const errands = await db.tags.where('name').equals('Project: Errands').first()
-    expect(errands?.color).toBe('#00aa00')
-    expect(await db.tags.where('name').equals('Project: Unused').count()).toBe(0)
-    expect(await db.tags.get(existingWork)).toEqual({ id: existingWork, name: 'project: work', color: '#123456' })
-
-    const [shipId, stampsId] = result.todoIds
-    const tagsOf = async (todoId: number) => (await db.todoTags.where('todoId').equals(todoId).toArray()).map((r) => r.tagId)
-    const urgent = await db.tags.where('name').equals('urgent').first()
-    expect((await tagsOf(shipId!)).sort()).toEqual([urgent!.id, existingWork].sort())
-    expect(await tagsOf(stampsId!)).toEqual([errands!.id])
-  })
 })
 
 describe('appendImportTasks — person emails', () => {
@@ -230,7 +155,7 @@ describe('appendImportTasks — blank names', () => {
   it('a person / tag / status named only spaces is created as named, so every export still imports', async () => {
     const now = new Date().toISOString()
     const data = prepareAppend(JSON.stringify({
-      [SCHEMA_VERSION_KEY]: 63,
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
       kind: TASK_ARCHIVE_KIND,
       todos: [{ id: 1, uid: 'blank-1', title: 'Task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 1, statusId: 1 }],
       people: [{ id: 1, name: '   ', initials: 'X' }],
@@ -279,9 +204,7 @@ describe('appendImportTasks — duplicates in the same database', () => {
   it('a full export is accepted too and appends its todos', async () => {
     const now = new Date()
     const raw = {
-      // An older full export: its canvas goes in the upgrade.
-      [SCHEMA_VERSION_KEY]: 51,
-      canvases: [{ id: 1, name: 'X', sortOrder: 0, createdAt: now.toISOString() }],
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
       settings: [{ key: 'themeMode', value: 'dark' }],
       todos: [{ id: 7, uid: 'full-1', title: 'From full export', isCompleted: false, createdAt: now.toISOString(), modifiedAt: now.toISOString(), sortOrder: 0 }],
     }
@@ -295,34 +218,19 @@ describe('appendImportTasks — duplicates in the same database', () => {
   })
 })
 
-describe('append import of an older-version archive', () => {
-  it('a v49 archive (no uid / completedAt, string dates) upgrades through the pipeline and appends', async () => {
-    const done = '2026-07-01T10:00:00.000Z'
+describe('append import of an archive below the floor', () => {
+  it('is refused before anything is read from it: nothing appended', async () => {
+    const now = new Date().toISOString()
     const raw = {
-      [SCHEMA_VERSION_KEY]: 49,
+      [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION - 1,
       kind: TASK_ARCHIVE_KIND,
-      exportedAt: '2026-09-01T00:00:00.000Z',
-      todos: [{
-        id: 3, title: 'Legacy done', isCompleted: true, sortOrder: 1,
-        createdAt: '2026-06-01T09:00:00.000Z', modifiedAt: '2026-09-15T09:00:00.000Z',
-        scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: '2026-06-02T00:00:00.000Z' },
-      }],
-      people: [{ id: 4, name: 'Dana', initials: 'DA' }],
-      todoPeople: [{ id: 1, todoId: 3, personId: 4 }],
-      todoEvents: [{ id: 1, todoId: 3, type: 'completed', fromValue: null, toValue: null, timestamp: done }],
+      todos: [{ id: 3, uid: 'old-1', title: 'Old done', isCompleted: true, completedAt: now, createdAt: now, modifiedAt: now, sortOrder: 1 }],
     }
     const prepared = prepareImport(raw, { purpose: 'append' })
-    if (!prepared.ok) throw new Error(prepared.error)
-    expect(prepared).toMatchObject({ upgraded: true, sourceVersion: 49, kind: 'task-archive' })
-    const todo = prepared.data.todos[0]!
-    expect(todo.uid).toMatch(/^[0-9a-f-]{36}$/)
-    expect(todo.completedAt).toEqual(new Date(done))
-    expect(todo.createdAt).toBeInstanceOf(Date)
-
-    const result = await appendImportTasks(prepared.data, new Map())
-    const row = await db.todos.get(result.todoIds[0]!)
-    expect(row).toMatchObject({ title: 'Legacy done', uid: todo.uid, completedAt: new Date(done) })
-    expect(result.created.people).toEqual(['Dana'])
+    expect(prepared).toMatchObject({ ok: false, reason: 'too-old' })
+    if (prepared.ok) return
+    expect(prepared.error).toContain(`(schema v${OLDEST_SUPPORTED_DB_VERSION - 1})`)
+    expect(await db.todos.count()).toBe(0)
   })
 })
 
@@ -330,7 +238,7 @@ describe('runAppendImport', () => {
   it('snapshots, appends the tasks and refreshes the stores', async () => {
     const now = new Date()
     const raw = {
-      [SCHEMA_VERSION_KEY]: 51,
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
       kind: TASK_ARCHIVE_KIND,
       todos: [{ id: 1, uid: 'r-1', title: 'No project', isCompleted: false, createdAt: now.toISOString(), modifiedAt: now.toISOString(), sortOrder: 0 }],
       people: [{ id: 2, name: 'Eve', initials: 'EV' }],

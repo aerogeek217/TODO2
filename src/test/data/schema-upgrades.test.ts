@@ -17,8 +17,8 @@ describe('SCHEMA_UPGRADES registry', () => {
     }
   })
 
-  it('pins the floor at 49', () => {
-    expect(OLDEST_SUPPORTED_DB_VERSION).toBe(49)
+  it('pins the floor at 68', () => {
+    expect(OLDEST_SUPPORTED_DB_VERSION).toBe(68)
   })
 })
 

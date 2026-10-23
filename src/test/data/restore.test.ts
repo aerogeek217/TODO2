@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { db, ALL_DATA_TABLES } from '../../data/database'
+import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
 import { restoreFromImportData } from '../../data/restore'
+import { prepareImport } from '../../data/import-pipeline'
+import { startOfToday } from '../../utils/date'
 import type { ImportData } from '../../data/import-validation'
 
 const now = new Date()
@@ -359,5 +361,39 @@ describe('restoreFromImportData', () => {
       expect(secondJoins).toEqual(firstJoins)
       expect(secondStatusNames).toEqual(firstStatusNames)
     })
+  })
+})
+
+describe('restored tasks are visible to dueDate range queries', () => {
+  async function dueTodayIds(): Promise<number[]> {
+    const today = startOfToday()
+    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+    const rows = await db.todos.where('dueDate').between(today, tomorrow, true, false).filter((t) => !t.isCompleted).toArray()
+    return rows.map((t) => t.id as number)
+  }
+
+  async function overdueIds(): Promise<number[]> {
+    const rows = await db.todos.where('dueDate').below(startOfToday()).filter((t) => !t.isCompleted).toArray()
+    return rows.map((t) => t.id as number)
+  }
+
+  it('the JSON file’s date strings are restored as dates the index finds', async () => {
+    const created = new Date('2026-09-01T09:00:00.000Z')
+    const today = startOfToday()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const task = (id: number, uid: string, title: string, dueDate: Date, isCompleted = false) =>
+      ({ id, uid, title, isCompleted, sortOrder: id, createdAt: created, modifiedAt: created, dueDate, ...(isCompleted ? { completedAt: created } : {}) })
+    const file = JSON.parse(JSON.stringify({
+      __schemaVersion: CURRENT_DB_VERSION,
+      settings: [],
+      todos: [task(1, 'u1', 'Due today', today), task(2, 'u2', 'Overdue', yesterday), task(3, 'u3', 'Overdue but done', yesterday, true)],
+    })) as unknown
+    const prepared = prepareImport(file)
+    if (!prepared.ok) throw new Error(prepared.error)
+    await restoreFromImportData(prepared.data)
+
+    expect(await dueTodayIds()).toEqual([1])
+    expect(await overdueIds()).toEqual([2])
   })
 })

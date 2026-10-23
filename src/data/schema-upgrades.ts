@@ -1,22 +1,4 @@
 import type { Transaction } from 'dexie'
-import { upgradeV50 } from './upgrades/v50-revive-dates'
-import { upgradeV51 } from './upgrades/v51-uid-completed-at'
-import { upgradeV52 } from './upgrades/v52-drop-date-stat-widgets'
-import { upgradeV53 } from './upgrades/v53-remove-scheduled-date'
-import { upgradeV54 } from './upgrades/v54-remove-hidden-statuses'
-import { upgradeV55 } from './upgrades/v55-merge-orgs-into-people'
-import { upgradeV56 } from './upgrades/v56-seed-workspace-layout'
-import { upgradeV57 } from './upgrades/v57-drop-list-favorites'
-import { upgradeV59 } from './upgrades/v59-taskboard-to-focus'
-import { upgradeV60 } from './upgrades/v60-projects-to-tags'
-import { upgradeV61 } from './upgrades/v61-focus-filter-to-markers'
-import { upgradeV62 } from './upgrades/v62-retire-status-widget'
-import { upgradeV63 } from './upgrades/v63-app-background-and-list-pin'
-import { upgradeV64 } from './upgrades/v64-date-filters-and-caps'
-import { upgradeV65 } from './upgrades/v65-is-not-and-eisenhower-list'
-import { upgradeV66 } from './upgrades/v66-eisenhower-settings'
-import { upgradeV67 } from './upgrades/v67-layout-order-and-eisenhower-list'
-import { upgradeV68 } from './upgrades/v68-lists-in-layouts-and-checkin-filter'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -33,12 +15,27 @@ import { upgradeV68 } from './upgrades/v68-lists-in-layouts-and-checkin-filter'
  *
  * so a file written by any build at or above the floor imports into any later
  * build. This is permanent infrastructure: entries are never removed while
- * their version is ≥ the floor.
+ * their version is above the floor.
+ *
+ * ## Adding a schema step N
+ *
+ * 1. The transform: `data/upgrades/v<N>-<what>.ts` exporting `upgradeV<N>`
+ *    (contract below), registered here as `[N, upgradeV<N>]`.
+ * 2. `data/database.ts`: `this.version(N).stores({ … }).upgrade((tx) =>
+ *    applySchemaUpgradeInTx(tx, N))` after the floor's declaration (only the
+ *    stores N adds, changes or drops), and `CURRENT_DB_VERSION = N`.
+ * 3. `data/import-validation.ts`: the `check*` / `pick*` of every field the
+ *    step adds, renames or removes.
+ * 4. Tests: the transform's own (a v(N-1) dataset in, the vN one out —
+ *    idempotent, tolerant of missing tables and malformed rows), the
+ *    export → restore round trip, and a "v(N-1) reader refuses vN" test
+ *    (a file, the browser database and kept drafts stamped N are refused by
+ *    a build at N-1).
  *
  * ## Transform contract
  *
- * - **Whole-dataset, not per-row**: later transforms are cross-table (orgs →
- *   people, taskboard → focus + list order).
+ * - **Whole-dataset, not per-row**: a transform may be cross-table (fold one
+ *   table into another, or make rows of a new one from several).
  * - **Pure + immutable**: never mutate the input. Return a new array for every
  *   table you change; return the *same array reference* for tables you leave
  *   alone (the Dexie side only rewrites tables whose reference changed).
@@ -68,30 +65,11 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * Registry of data transforms keyed by the target schema version. A version
  * with no entry is an identity step (index-only bumps, empty-table additions).
  *
- * v49 is the floor; its own Dexie upgrade (fuzzy `setAt` backfill) predates
- * this pipeline, so the first entry is v50. Each transform lives in
+ * Only versions above the floor (`OLDEST_SUPPORTED_DB_VERSION`) have entries;
+ * none yet — the floor is the current version. Each transform lives in
  * `data/upgrades/v<N>-*.ts`.
  */
-export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
-  [50, upgradeV50],
-  [51, upgradeV51],
-  [52, upgradeV52],
-  [53, upgradeV53],
-  [54, upgradeV54],
-  [55, upgradeV55],
-  [56, upgradeV56],
-  [57, upgradeV57],
-  [59, upgradeV59],
-  [60, upgradeV60],
-  [61, upgradeV61],
-  [62, upgradeV62],
-  [63, upgradeV63],
-  [64, upgradeV64],
-  [65, upgradeV65],
-  [66, upgradeV66],
-  [67, upgradeV67],
-  [68, upgradeV68],
-])
+export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>()
 
 /**
  * Applies the registry transforms for `fromVersion + 1 … toVersion` in order.

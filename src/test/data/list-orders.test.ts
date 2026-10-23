@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import Dexie from 'dexie'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { CURRENT_DB_VERSION, db } from '../../data/database'
 import { prepareImport } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
@@ -7,37 +6,7 @@ import { listOrderRepository } from '../../data/list-order-repository'
 import { layoutRepository } from '../../data/layout-repository'
 import { todoRepository } from '../../data'
 import { auditData, cleanupIssues } from '../../data/audit'
-import { resetDb, v57StoreSpecs } from '../helpers'
-
-/** The live-DB path: a v57 database opened by the current build. */
-describe('v58 Dexie upgrade', () => {
-  afterEach(async () => {
-    await resetDb()
-  })
-
-  it('adds an empty listOrders table and keeps every other row', async () => {
-    db.close()
-    await Dexie.delete(db.name)
-    const v57 = new Dexie(db.name)
-    v57.version(57).stores(v57StoreSpecs())
-    await v57.open()
-    const now = new Date('2026-10-01T09:00:00.000Z')
-    await v57.table('todos').add({ id: 1, uid: 'u1', title: 'A', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 })
-    await v57.table('listDefinitions').add({
-      id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: {} },
-    })
-    v57.close()
-
-    await db.open()
-    expect(db.verno).toBe(CURRENT_DB_VERSION)
-    expect(await db.listOrders.count()).toBe(0)
-    expect(await db.todos.count()).toBe(1)
-    // Plus the Focus list v59 adds.
-    // v59 adds the Focus list, v67 the Eisenhower's.
-    expect((await db.listDefinitions.orderBy('id').toArray()).map((d) => d.name)).toEqual(['L', 'Focus', 'Eisenhower'])
-  })
-})
+import { resetDb } from '../helpers'
 
 describe('listOrders import validation', () => {
   const base = { todos: [], settings: [] }
@@ -69,8 +38,8 @@ describe('listOrders import validation', () => {
     if (!result.ok) expect(result.error).toContain('duplicate list + task pair')
   })
 
-  it('a v57 file imports with no ranks', () => {
-    const prepared = prepareImport({ __schemaVersion: 57, ...base })
+  it('a current file without listOrders imports with no ranks', () => {
+    const prepared = prepareImport({ __schemaVersion: CURRENT_DB_VERSION, ...base })
     expect(prepared.ok).toBe(true)
     if (prepared.ok) expect(prepared.data.listOrders).toEqual([])
   })
