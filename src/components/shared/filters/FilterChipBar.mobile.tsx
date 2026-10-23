@@ -97,9 +97,10 @@ function MobileEntityList({
   const ticked = (id: number) => entityTicked(filterIds, negated, id)
   const ids = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   const order = usePickerOrder(searchText, ids, ticked)
+  const q = searchText.trim().toLowerCase()
   const matching = entities
     .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))
-    .filter((e) => !searchText || e.name.toLowerCase().includes(searchText.toLowerCase()))
+    .filter((e) => !q || e.name.toLowerCase().includes(q))
     .toSorted(byName)
   const { top, rest } = splitOnTop(matching, (e) => order.onTop(e.id))
   const noneOnTop = withNone && order.onTop(0)

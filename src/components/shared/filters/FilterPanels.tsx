@@ -322,7 +322,7 @@ export function EntityDropdownItems({
   const refocusRef = useRef<number | null>(null)
   const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   const order = usePickerOrder(searchText, allIds, isChecked)
-  const q = searchText.toLowerCase()
+  const q = searchText.trim().toLowerCase()
   const showNone = withNone && (!q || 'none'.includes(q))
   const matching = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
     .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))

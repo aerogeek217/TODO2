@@ -228,3 +228,13 @@ describe('EntityDropdownItems — ticked rows on top', () => {
     expect(names()).toEqual(['@Alice Chen', '@Ben Ortiz', 'None', '@Cara Diaz'])
   })
 })
+
+describe('EntityDropdownItems — search', () => {
+  it('ignores spaces around the search text, as the row picker does', () => {
+    render(
+      <EntityDropdownItems searchText=" ben " entities={people} isChecked={() => false} onToggle={vi.fn()} namePrefix="@" />,
+    )
+    expect(screen.getByText('@Ben Ortiz')).toBeInTheDocument()
+    expect(screen.queryByText('@Alice Chen')).toBeNull()
+  })
+})
