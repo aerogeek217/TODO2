@@ -460,6 +460,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           point={headerMenu.at}
           label={`${headerMenu.section.label} group`}
           closeOnScroll
+          restoreFocus
           entries={listGroupMenu(sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section, headerMenu.person)}
           onClose={() => setHeaderMenu(null)}
         />

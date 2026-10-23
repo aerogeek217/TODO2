@@ -703,6 +703,17 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(screen.getByRole('menu', { name: 'Unassigned group' })).toBeInTheDocument()
   })
 
+  it('a group menu opened from the keyboard gives the focus back to its header after Copy', async () => {
+    stubClipboard()
+    setup(def({ grouping: 'people' }))
+    header('unassigned').focus()
+    fireEvent.keyDown(header('unassigned'), { key: 'F10', shiftKey: true })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 1 task' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(header('unassigned'))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Copied 1 task' }))
+  })
+
   it('the task menu’s Copy N tasks copies the selection in display order, without headings', async () => {
     const { written } = stubClipboard()
     setup(def({ grouping: 'people' }))
