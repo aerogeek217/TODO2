@@ -26,6 +26,8 @@ import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filt
 import { useTooltip } from '../use-tooltip'
 import { useReturnFocus } from '../use-popover-focus'
 import {
+  FOLD_HIDDEN_ATTR,
+  FOLD_VARIANT_ATTR,
   narrowedPeople,
   useFilterChipBarState,
   type EntityKey,
@@ -400,7 +402,8 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
  * The top bar's screen filters: Priority, Tags, People, Dates and Status
  * buttons (folded into one Filters menu — which ends with Clear all filters —
  * when `fold` is set), then Show completed (labelled `Completed`). The top bar's funnel clears them
- * all. The pickers are the shared `FilterPanels`. With `consumeEscape` (the
+ * all. The pickers are the shared `FilterPanels`. With `measureFold` the fold
+ * not shown is laid out too, hidden and inert, for the top bar's measure. With `consumeEscape` (the
  * top bar's filtered-tasks panel is open) the Esc that closes a picker or
  * the Filters menu stops there: the next one closes the panel.
  */
@@ -410,6 +413,7 @@ export function FilterChipBarDesktop({
   onClearExtra,
   onClearAll,
   fold = false,
+  measureFold = false,
   consumeEscape = false,
 }: FilterChipBarProps) {
   const [previewEmpty, setPreviewEmpty] = useState<EntityKey | null>(null)
@@ -613,11 +617,26 @@ export function FilterChipBarDesktop({
   // Buttons and the folded menu in display order (Priority, Tags, People, Dates, Status).
   fields.sort((a, b) => FILTER_FIELD_ORDER.indexOf(a.key) - FILTER_FIELD_ORDER.indexOf(b.key))
 
+  const variant = (folded: boolean) => (folded
+    ? <FiltersMenu fields={fields} onClearAll={clearAll} consumeEscape={consumeEscape} />
+    : fields.map((field) => <FilterButton key={field.key} field={field} consumeEscape={consumeEscape} />))
+
   return (
     <>
-      {fold
-        ? <FiltersMenu fields={fields} onClearAll={clearAll} consumeEscape={consumeEscape} />
-        : fields.map((field) => <FilterButton key={field.key} field={field} consumeEscape={consumeEscape} />)}
+      {measureFold
+        ? <span className={styles.foldShown} {...{ [FOLD_VARIANT_ATTR]: fold ? 'folded' : 'open' }}>{variant(fold)}</span>
+        : variant(fold)}
+      {measureFold && (
+        // The other fold, for its width only: never seen, never reached.
+        <span
+          className={styles.foldHidden}
+          aria-hidden="true"
+          inert
+          {...{ [FOLD_VARIANT_ATTR]: fold ? 'open' : 'folded', [FOLD_HIDDEN_ATTR]: '' }}
+        >
+          {variant(!fold)}
+        </span>
+      )}
       <span className={styles.separator} aria-hidden="true" />
       <button
         type="button"

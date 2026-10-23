@@ -33,9 +33,22 @@ export interface FilterChipBarProps {
   onClearAll?: () => void
   /** Desktop: fold the filter buttons into one Filters menu (narrow windows). */
   fold?: boolean
+  /**
+   * Desktop: also lay out the fold not shown, hidden and inert, so a host
+   * that folds by measure (the top bar) knows both widths at all times. The
+   * buttons / the menu then sit in a `FOLD_VARIANT_ATTR` wrapper each, the
+   * hidden one marked `FOLD_HIDDEN_ATTR`.
+   */
+  measureFold?: boolean
   /** Desktop: the Esc that closes a picker (or the Filters menu) stops there, so nothing behind also takes it. */
   consumeEscape?: boolean
 }
+
+/** A `measureFold` filter bar's wrapper around its filter buttons (`open`) or its Filters menu (`folded`). */
+export const FOLD_VARIANT_ATTR = 'data-fold-variant'
+export type FoldVariant = 'open' | 'folded'
+/** On the wrapper of the fold not shown (laid out only to be measured: its box's width). */
+export const FOLD_HIDDEN_ATTR = 'data-fold-hidden'
 
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,

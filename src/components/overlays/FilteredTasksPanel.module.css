@@ -1,17 +1,18 @@
 /* The top bar's filtered-tasks panel: dropped from the filter tray and
  * joined to it (the tray's surface and border, the corners under the tray
- * squared), over a scrim that dims the workspace below the top bar. The
+ * squared), over a scrim that dims and blurs the workspace below the top
+ * bar (a modal's scrim, from the top bar's bottom edge down). The
  * inner parts are the task dialog's (`TaskDialog.module.css`). Pickers and
  * menus opened from the tray or the rows sit above it (later portals on the
  * same tier, or higher tiers); the task editor's dialog above everything. */
 
 .scrim {
+  composes: blurScrim from '../shared/Dialog.module.css';
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: var(--z-overlay);
-  background: var(--color-overlay);
 }
 
 .panel {

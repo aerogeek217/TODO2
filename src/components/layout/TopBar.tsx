@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, forwardRef } from 'react'
+import { useState, useRef, useCallback, useMemo, forwardRef, useLayoutEffect } from 'react'
 import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
 import { useFilterStore } from '../../stores/filter-store'
@@ -30,6 +30,7 @@ import { useScreenSearch } from '../../hooks/use-screen-search'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
+import { trayExpansion, type TrayExpansion } from './tray-expansion'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
@@ -353,15 +354,45 @@ export function TopBar() {
   const settingsOpen = useUIStore((s) => s.settingsOpen)
   // The bar never wraps or overflows: measured, the filter buttons fold into
   // one Filters menu first, then the layout tabs into the layout picker
-  // (search narrows in CSS) — while the panel is open, the tabs first.
+  // (search narrows in CSS). The filtered-tasks panel changes none of it.
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
   // Show N tasks shows while a filter is on or the panel is open (it stays
   // the panel's toggle when Clear all empties the filter).
   const showTasksButton = isActive || panelOpen
-  // The tray gains or loses Show N tasks: measured again then.
-  const fold = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}`, panelOpen)
+  // While the panel is open over folded filters, the tray expands in place
+  // to show every filter button: lifted out of the bar (a slot of its folded
+  // width keeps its place, so nothing else moves), from its left edge
+  // rightwards over the free space and the right zone — slid left only as
+  // far as the window needs. When even the window can't hold it, it stays
+  // folded. Placed before paint, again on every change of the bar's widths.
+  // The right zone it reaches into hides under it (no part of the storage
+  // pill peeking out beside it).
+  const [placed, setPlaced] = useState<(TrayExpansion & { top: number; coversRight: boolean }) | null>(null)
+  const slotRef = useRef<HTMLDivElement>(null)
+  const rightRef = useRef<HTMLDivElement>(null)
+  // The tray gains or loses Show N tasks, or is lifted out: measured again then.
+  const { fold, trayOpen, trayFolded } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
+  const expandable = panelOpen && filtersFolded(fold) && trayOpen !== undefined
+  const expansion = expandable ? placed : null
+  useLayoutEffect(() => {
+    if (!expandable || trayOpen === undefined) return
+    const place = () => {
+      // The slot while expanded, else the tray itself: the place in the bar.
+      const anchor = slotRef.current ?? trayRef.current
+      if (!anchor) return
+      const box = anchor.getBoundingClientRect()
+      const at = trayExpansion(box.left, trayOpen, window.innerWidth)
+      const rightZone = rightRef.current?.getBoundingClientRect().left ?? Infinity
+      const next = at && { ...at, top: box.top, coversRight: at.left + at.width > rightZone }
+      setPlaced((prev) => (prev?.left === next?.left && prev?.top === next?.top && prev?.width === next?.width
+        && prev?.coversRight === next?.coversRight ? prev : next))
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [expandable, trayOpen, trayFolded, tabsKey])
 
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -415,10 +446,15 @@ export function TopBar() {
           </div>
         )}
 
+        {expansion && (
+          <div ref={slotRef} className={styles.traySlot} style={{ width: trayFolded }} data-fold-part={FOLD_PART.traySlot} aria-hidden="true" />
+        )}
         <div
           ref={trayRef}
-          className={`${styles.tray} ${isActive ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''}`}
+          className={`${styles.tray} ${isActive ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''} ${expansion ? styles.trayExpanded : ''}`}
+          style={expansion ? { left: expansion.left, top: expansion.top } : undefined}
           data-fold-part={FOLD_PART.tray}
+          data-expanded={expansion ? '' : undefined}
           role="group"
           aria-label="Screen filters — apply to every widget"
           {...{ [FILTER_ROW_ATTR]: '' }}
@@ -502,13 +538,18 @@ export function TopBar() {
             predicate={filterPredicate}
             onChange={handleFilterChange}
             onClearAll={() => useFilterStore.getState().clearAll()}
-            fold={filtersFolded(fold)}
+            fold={filtersFolded(fold) && !expansion}
+            measureFold
             consumeEscape={panelOpen}
           />
           {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}
         </div>
 
-        <div className={styles.right} data-fold-part={FOLD_PART.spring}>
+        <div
+          ref={rightRef}
+          className={`${styles.right} ${expansion?.coversRight ? styles.rightCovered : ''}`}
+          data-fold-part={FOLD_PART.spring}
+        >
           <StoragePill />
           <button
             type="button"
@@ -537,7 +578,7 @@ export function TopBar() {
           />
         )}
       </header>
-      {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} />}
+      {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} trayLeft={expansion?.left} />}
     </>
   )
 }

@@ -117,6 +117,25 @@
   color: var(--color-text-primary);
 }
 
+/* The top bar measures both folds (`measureFold`): the shown one is laid out
+ * as if unwrapped; the other off to the side, unseen, at its natural width,
+ * with the tray's gap between its buttons. */
+.foldShown {
+  display: contents;
+}
+
+.foldHidden {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  width: max-content;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .separator {
   width: 1px;
   height: 16px;
