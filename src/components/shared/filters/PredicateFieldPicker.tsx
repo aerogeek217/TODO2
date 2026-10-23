@@ -166,6 +166,7 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
           withNone={withNone}
           entityMenu={field === 'people' ? 'person' : field === 'tags' ? 'tag' : undefined}
           onShowTasks={onClose}
+          onSearchClear={() => setSearchText('')}
         />
       )}
     </SelectionPanelBody>

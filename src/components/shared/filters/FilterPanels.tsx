@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { MARKER_KEYS, type MarkerKey, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
@@ -10,6 +10,7 @@ import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, isHotFilter, mar
 import markerStyles from './MarkersPanel.module.css'
 import { byName } from '../../../utils/sort-order'
 import { shortcutScope } from '../../../utils/dom-contract'
+import { splitOnTop, usePickerOrder } from '../../../hooks/use-picker-order'
 
 /**
  * Bodies of the filter pickers, shared by the top bar's filter buttons
@@ -275,6 +276,8 @@ interface EntityDropdownItemsProps {
   onShowTasks?: () => void
   /** The list's name (`People`, `Tags`, `Status`). */
   label?: string
+  /** Empties the search box above (a pick while it has text clears it). */
+  onSearchClear?: () => void
 }
 
 /** A press on a row keeps the focus where it is (the picker's search box), as the people / tag pickers do. */
@@ -286,8 +289,14 @@ function keepFocus(e: MouseEvent) {
 const ROW_SELECTOR = '[role="option"]'
 
 /**
- * Checkable entity rows (plus a leading "None" row, id 0), filtered by
- * `searchText`: a multi-select listbox with one tab stop — ↑ / ↓ / Home / End
+ * Checkable entity rows (plus a "None" row, id 0), filtered by `searchText`:
+ * the ticked rows first, then the rest (a separator between) — each block
+ * alphabetical, None first in its block. The order is fixed when the picker
+ * opens and whenever the search text changes (`usePickerOrder`), so a tick
+ * with the text unchanged never moves a row. A pick while the search has
+ * text clears it (`onSearchClear`): the whole list shows again, re-sorted,
+ * the focus staying where it was (the search box, or the picked row at its
+ * new place). A multi-select listbox with one tab stop — ↑ / ↓ / Home / End
  * move between the rows (↑ on the first goes back to a search box above),
  * Space or Enter ticks the focused one, Shift+F10 / the context-menu key
  * opens a person's / tag's menu under it.
@@ -303,16 +312,50 @@ export function EntityDropdownItems({
   entityMenu,
   onShowTasks,
   label,
+  onSearchClear,
 }: EntityDropdownItemsProps) {
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null)
   // The row that takes the tab stop, by id (0 = None), so it survives the search narrowing.
   const [activeId, setActiveId] = useState<number | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  /** A row picked from the keyboard while the search cleared: it keeps the focus at its new place. */
+  const refocusRef = useRef<number | null>(null)
+  const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
+  const order = usePickerOrder(searchText, allIds, isChecked)
   const q = searchText.toLowerCase()
   const showNone = withNone && (!q || 'none'.includes(q))
-  const filtered = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
+  const matching = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
+    .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))
     .toSorted(byName)
-  const rowIds = [...(showNone ? [0] : []), ...filtered.flatMap((e) => (e.id == null ? [] : [e.id]))]
+  const { top, rest } = splitOnTop(matching, (e) => order.onTop(e.id))
+  const noneOnTop = showNone && order.onTop(0)
+  const topIds = [...(noneOnTop ? [0] : []), ...top.map((e) => e.id)]
+  const restIds = [...(showNone && !noneOnTop ? [0] : []), ...rest.map((e) => e.id)]
+  const rowIds = [...topIds, ...restIds]
+  const firstRest = topIds.length > 0 ? restIds[0] : undefined
   const tabStop = activeId != null && rowIds.includes(activeId) ? activeId : rowIds[0]
+  const byId = new Map(matching.map((e) => [e.id, e]))
+
+  useLayoutEffect(() => {
+    const id = refocusRef.current
+    if (id == null) return
+    refocusRef.current = null
+    const row = listRef.current?.querySelector<HTMLElement>(`[data-entity-id="${id}"]`)
+    if (row && document.activeElement !== row) row.focus()
+  })
+
+  /** Ticks / unticks row `id`; with search text the search clears and the order is fixed again. */
+  const pick = (id: number) => {
+    const was = isChecked(id)
+    setActiveId(id)
+    onToggle(id)
+    if (!searchText || !onSearchClear) return
+    order.notePick(id, !was)
+    if (document.activeElement instanceof HTMLElement && document.activeElement.dataset.entityId === String(id)) {
+      refocusRef.current = id
+    }
+    onSearchClear()
+  }
 
   const onRowContextMenu = (id: number | undefined) => (e: MouseEvent) => {
     e.preventDefault()
@@ -337,7 +380,7 @@ export function EntityDropdownItems({
     else if (e.key === 'ArrowUp') { if (at === 0) focusSearchAbove(e.currentTarget); else focusRow(at - 1) }
     else if (e.key === 'Home') focusRow(0)
     else if (e.key === 'End') focusRow(rows.length - 1)
-    else if (e.key === ' ' || e.key === 'Enter') onToggle(id)
+    else if (e.key === ' ' || e.key === 'Enter') pick(id)
     else return
     // The list's keys go no further (Space and Enter are task shortcuts too).
     e.preventDefault()
@@ -350,8 +393,8 @@ export function EntityDropdownItems({
       aria-selected={isChecked(id)}
       tabIndex={id === tabStop ? 0 : -1}
       data-entity-id={id}
-      className={picker.dropdownItem}
-      onClick={() => { setActiveId(id); onToggle(id) }}
+      className={`${picker.dropdownItem} ${id === firstRest ? picker.dropdownItemSeparated : ''}`}
+      onClick={() => pick(id)}
       onMouseDown={keepFocus}
       onFocus={() => setActiveId(id)}
       onContextMenu={menuable ? onRowContextMenu(id) : undefined}
@@ -363,24 +406,27 @@ export function EntityDropdownItems({
   return (
     <>
       {rowIds.length > 0 && (
-        <div role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
-          {showNone && row(0, <span className={picker.noneLabel}>None</span>, !!entityMenu)}
-          {filtered.map((entity) => entity.id != null && row(entity.id, (
-            <>
-              {entity.icon ? (
-                <span className={picker.dotIcon} style={{ color: entity.color }} aria-hidden="true">
-                  <StatusIcon icon={entity.icon} filled />
-                </span>
-              ) : showDot && entity.color ? (
-                <span className={picker.dot} style={{ background: entity.color }} aria-hidden="true" />
-              ) : null}
-              {namePrefix}
-              {entity.name}
-            </>
-          ), !!entityMenu))}
+        <div ref={listRef} role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
+          {rowIds.map((id) => {
+            if (id === 0) return row(0, <span className={picker.noneLabel}>None</span>, !!entityMenu)
+            const entity = byId.get(id)
+            return entity && row(id, (
+              <>
+                {entity.icon ? (
+                  <span className={picker.dotIcon} style={{ color: entity.color }} aria-hidden="true">
+                    <StatusIcon icon={entity.icon} filled />
+                  </span>
+                ) : showDot && entity.color ? (
+                  <span className={picker.dot} style={{ background: entity.color }} aria-hidden="true" />
+                ) : null}
+                {namePrefix}
+                {entity.name}
+              </>
+            ), !!entityMenu)
+          })}
         </div>
       )}
-      {q && !showNone && filtered.length === 0 && (
+      {q && !showNone && matching.length === 0 && (
         <div className={picker.dropdownEmpty}>No matches</div>
       )}
       {menu && entityMenu && (

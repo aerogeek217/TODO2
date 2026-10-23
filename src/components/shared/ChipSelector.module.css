@@ -136,13 +136,15 @@
   font-weight: 600;
 }
 
-/* A separator above Create when there are matches. */
-.createSeparated {
+/* A separator above Create when there are matches, and between the assigned items and the rest. */
+.createSeparated,
+.restSeparated {
   position: relative;
   margin-top: 5px;
 }
 
-.createSeparated::before {
+.createSeparated::before,
+.restSeparated::before {
   content: '';
   position: absolute;
   left: 0;

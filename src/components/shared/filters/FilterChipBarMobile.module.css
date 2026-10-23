@@ -147,6 +147,21 @@
   background: var(--color-tint-5);
 }
 
+/* The first unticked row under the ticked ones: a separator above it. */
+.entityItemSeparated {
+  position: relative;
+  margin-top: 5px;
+}
+
+.entityItemSeparated::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
 .entityDot {
   width: 10px;
   height: 10px;

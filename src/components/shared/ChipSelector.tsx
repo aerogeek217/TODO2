@@ -5,6 +5,7 @@ import { byName } from '../../utils/sort-order'
 import { useUndoStore } from '../../stores/undo-store'
 import { PickerEntityMenu } from './EntityMenu'
 import { ClearableField } from './ClearableField'
+import { splitOnTop, usePickerOrder } from '../../hooks/use-picker-order'
 
 export interface ChipItem {
   id: number
@@ -39,6 +40,10 @@ interface ChipSelectorProps {
 
 type Row = { kind: 'item'; item: ChipItem } | { kind: 'create'; name: string }
 
+/** What a row stands for across re-sorts: the item's id, or the Create row. */
+type RowKey = number | 'create'
+const rowKey = (row: Row): RowKey => (row.kind === 'item' ? row.item.id : 'create')
+
 function avatarLetter(item: Pick<ChipItem, 'name' | 'initials'>): string {
   return (item.initials || item.name).trim().charAt(0).toUpperCase()
 }
@@ -59,9 +64,15 @@ function Highlighted({ name, query }: { name: string; query: string }) {
 }
 
 /**
- * Lookup-or-create picker: a search input over an alphabetical list with a
- * check per assigned item, and a `Create "<query>"` row when nothing matches
+ * Lookup-or-create picker: a search input over a list with a check per
+ * assigned item — the assigned items first (alphabetical), a separator, then
+ * the rest (alphabetical) — and a `Create "<query>"` row when nothing matches
  * the query exactly. Matching is a case-insensitive substring of the name.
+ * The order is fixed on open and whenever the query changes
+ * (`usePickerOrder`): a tick with the query unchanged never moves a row.
+ * A pick (click, ⏎) with a query typed clears the query — the whole list
+ * shows again, re-sorted, the picked row still highlighted (⏎ again undoes
+ * it) and the focus kept in the search.
  * Keyboard: ↑/↓ move the active row (wrapping), ⏎ toggles it (or creates),
  * Tab — while a query is typed — accepts it: assigns it (never unassigns a
  * ticked one) or creates the Create row's, then clears the query (no query:
@@ -75,8 +86,8 @@ export function ChipSelector({
   items, selectedIds, onToggle, onCreate, placeholder = 'Search...', onClose, avatars, entityMenu,
 }: ChipSelectorProps) {
   const [query, setQuery] = useState('')
-  /** Explicitly chosen active row; `null` = the default for the query. */
-  const [activeChoice, setActiveChoice] = useState<number | null>(null)
+  /** Explicitly chosen active row, by what it stands for; `null` = the default for the query. */
+  const [activeChoice, setActiveChoice] = useState<RowKey | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -109,10 +120,13 @@ export function ChipSelector({
   }, [])
 
   const lowerQuery = query.toLowerCase().trim()
+  const order = usePickerOrder(query, items.map((item) => item.id), (id) => selectedIds.has(id))
   const sorted = [...items].sort(byName)
-  const filtered = lowerQuery
+  const matching = lowerQuery
     ? sorted.filter(item => item.name.toLowerCase().includes(lowerQuery))
     : sorted
+  const { top, rest } = splitOnTop(matching, (item) => order.onTop(item.id))
+  const filtered = [...top, ...rest]
 
   const exactIndex = filtered.findIndex(item => item.name.trim().toLowerCase() === lowerQuery)
   const showCreate = !!onCreate && lowerQuery.length > 0 && exactIndex < 0
@@ -121,8 +135,11 @@ export function ChipSelector({
   if (showCreate) rows.push({ kind: 'create', name: query.trim() })
 
   const defaultActive = exactIndex >= 0 ? exactIndex : 0
-  const active = rows.length === 0 ? -1 : Math.min(activeChoice ?? defaultActive, rows.length - 1)
+  const chosen = activeChoice === null ? -1 : rows.findIndex((row) => rowKey(row) === activeChoice)
+  const active = rows.length === 0 ? -1 : Math.min(chosen >= 0 ? chosen : defaultActive, rows.length - 1)
   const optionId = (index: number) => `${listId}-opt-${index}`
+  /** The selected block sits above a separator: before the first of the rest. */
+  const separatorBefore = top.length > 0 && rest.length > 0 ? top.length : -1
 
   useEffect(() => {
     if (active < 0) return
@@ -141,16 +158,29 @@ export function ChipSelector({
     })
   }
 
+  /**
+   * Sets item `id` to `selected` (a toggle when that changes it). With a query
+   * typed the query clears — the order is fixed again with `id` as picked —
+   * and the row stays highlighted wherever it lands.
+   */
+  const pick = (id: number, selected: boolean) => {
+    if (selected !== selectedIds.has(id)) onToggle(id)
+    if (query === '') return
+    order.notePick(id, selected)
+    setQuery('')
+    setActiveChoice(id)
+  }
+
   const activate = (row: Row | undefined) => {
     if (!row) return
-    if (row.kind === 'item') onToggle(row.item.id)
+    if (row.kind === 'item') pick(row.item.id, !selectedIds.has(row.item.id))
     else create(row.name)
   }
 
   const openMenu = (index: number, x: number, y: number) => {
     const row = rows[index]
     if (!entityMenu || row?.kind !== 'item') return
-    setActiveChoice(index)
+    setActiveChoice(row.item.id)
     setMenu({ id: row.item.id, x, y })
   }
 
@@ -170,7 +200,8 @@ export function ChipSelector({
       e.preventDefault()
       if (rows.length === 0) return
       const step = e.key === 'ArrowDown' ? 1 : -1
-      setActiveChoice((Math.max(active, 0) + step + rows.length) % rows.length)
+      const next = rows[(Math.max(active, 0) + step + rows.length) % rows.length]
+      if (next) setActiveChoice(rowKey(next))
     } else if (e.key === 'Enter') {
       e.preventDefault()
       activate(rows[active])
@@ -185,9 +216,7 @@ export function ChipSelector({
         create(row.name)
         return
       }
-      if (!selectedIds.has(row.item.id)) onToggle(row.item.id)
-      setQuery('')
-      setActiveChoice(null)
+      pick(row.item.id, true)
     } else if (e.key === 'Escape' && onClose) {
       e.preventDefault()
       onClose()
@@ -237,7 +266,7 @@ export function ChipSelector({
             'data-active': isActive ? '' : undefined,
             role: 'option',
             onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
-            onMouseMove: () => { if (!isActive) setActiveChoice(index) },
+            onMouseMove: () => { if (!isActive) setActiveChoice(rowKey(row)) },
             onClick: (e: React.MouseEvent) => { e.stopPropagation(); activate(row) },
             onContextMenu: (e: React.MouseEvent) => {
               e.preventDefault()
@@ -271,7 +300,7 @@ export function ChipSelector({
               key={item.id}
               {...common}
               aria-selected={selected}
-              className={`${styles.item} ${isActive ? styles.active : ''}`}
+              className={`${styles.item} ${index === separatorBefore ? styles.restSeparated : ''} ${isActive ? styles.active : ''}`}
             >
               <span className={styles.check} aria-hidden="true">{selected ? '✓' : ''}</span>
               {avatars && (

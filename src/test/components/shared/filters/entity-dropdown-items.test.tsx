@@ -69,8 +69,8 @@ describe('EntityDropdownItems — a person’s / tag’s menu on its rows', () =
 })
 
 describe('EntityDropdownItems — the keyboard', () => {
-  function KeyboardPicker({ onToggle }: { onToggle: (id: number) => void }) {
-    const [checked, setChecked] = useState<Set<number>>(new Set())
+  function KeyboardPicker({ onToggle, initial = [] }: { onToggle: (id: number) => void; initial?: number[] }) {
+    const [checked, setChecked] = useState<Set<number>>(() => new Set(initial))
     const [text, setText] = useState('')
     return (
       <SelectionPanelBody
@@ -91,6 +91,7 @@ describe('EntityDropdownItems — the keyboard', () => {
           }}
           namePrefix="@"
           entityMenu="person"
+          onSearchClear={() => setText('')}
         />
       </SelectionPanelBody>
     )
@@ -145,5 +146,85 @@ describe('EntityDropdownItems — the keyboard', () => {
     ben.focus()
     fireEvent.contextMenu(ben, { button: 0 })
     expect(screen.getByRole('menu', { name: '@Ben Ortiz' })).toBeInTheDocument()
+  })
+})
+
+describe('EntityDropdownItems — ticked rows on top', () => {
+  const names = () => screen.getAllByRole('option').map((o) => o.textContent)
+  const separated = () => screen.getAllByRole('option').map((o) => o.className.includes('dropdownItemSeparated'))
+  const search = () => screen.getByPlaceholderText('Search...')
+  const more = [...people, { id: 3, name: 'Cara Diaz', initials: 'CD' }]
+
+  function Picker({ initial }: { initial: number[] }) {
+    const [checked, setChecked] = useState<Set<number>>(() => new Set(initial))
+    const [text, setText] = useState('')
+    return (
+      <SelectionPanelBody
+        allSelected={false}
+        noneSelected={checked.size === 0}
+        onSelectAll={() => {}}
+        onDeselectAll={() => {}}
+        search={{ text, setText, onEscape: () => {} }}
+      >
+        <EntityDropdownItems
+          searchText={text}
+          entities={more}
+          label="People"
+          isChecked={(id) => checked.has(id)}
+          onToggle={(id) => setChecked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })}
+          namePrefix="@"
+          onSearchClear={() => setText('')}
+        />
+      </SelectionPanelBody>
+    )
+  }
+
+  it('the ticked rows first (alphabetical), a separator, then the rest — None first of its block', () => {
+    render(<Picker initial={[3, 1]} />)
+    expect(names()).toEqual(['@Alice Chen', '@Cara Diaz', 'None', '@Ben Ortiz'])
+    expect(separated()).toEqual([false, false, true, false])
+    cleanup()
+    render(<Picker initial={[0, 2]} />)
+    expect(names()).toEqual(['None', '@Ben Ortiz', '@Alice Chen', '@Cara Diaz'])
+    cleanup()
+    // Nothing ticked: one block, no separator.
+    render(<Picker initial={[]} />)
+    expect(names()).toEqual(['None', '@Alice Chen', '@Ben Ortiz', '@Cara Diaz'])
+    expect(separated()).toEqual([false, false, false, false])
+  })
+
+  it('a tick with no search text never moves a row', () => {
+    render(<Picker initial={[]} />)
+    fireEvent.click(screen.getByRole('option', { name: '@Cara Diaz' }))
+    expect(screen.getByRole('option', { name: '@Cara Diaz' })).toHaveAttribute('aria-selected', 'true')
+    expect(names()).toEqual(['None', '@Alice Chen', '@Ben Ortiz', '@Cara Diaz'])
+  })
+
+  it('a click with search text ticks, clears the search (focus kept) and re-sorts', () => {
+    render(<Picker initial={[]} />)
+    search().focus()
+    fireEvent.change(search(), { target: { value: 'car' } })
+    expect(names()).toEqual(['@Cara Diaz'])
+    fireEvent.click(screen.getByRole('option', { name: '@Cara Diaz' }))
+    expect(search()).toHaveValue('')
+    expect(search()).toHaveFocus()
+    expect(names()).toEqual(['@Cara Diaz', 'None', '@Alice Chen', '@Ben Ortiz'])
+  })
+
+  it('Space on a row with search text: the search clears and the focus follows the row to its new place', () => {
+    render(<Picker initial={[1]} />)
+    search().focus()
+    fireEvent.change(search(), { target: { value: 'ben' } })
+    fireEvent.keyDown(search(), { key: 'ArrowDown' })
+    const ben = screen.getByRole('option', { name: '@Ben Ortiz' })
+    expect(ben).toHaveFocus()
+    fireEvent.keyDown(ben, { key: ' ' })
+    expect(search()).toHaveValue('')
+    expect(names()).toEqual(['@Alice Chen', '@Ben Ortiz', 'None', '@Cara Diaz'])
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveFocus()
+    // Space again unticks it; no text, so nothing moves.
+    fireEvent.keyDown(document.activeElement!, { key: ' ' })
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
+    expect(names()).toEqual(['@Alice Chen', '@Ben Ortiz', 'None', '@Cara Diaz'])
   })
 })

@@ -44,8 +44,11 @@ type FieldPanel =
       noneSelected: boolean
       onSelectAll: () => void
       onDeselectAll: () => void
-      /** `closeAll` closes every filter popover (a person's / tag's Show tasks). */
-      items: (searchText: string, closeAll: () => void) => ReactNode
+      /**
+       * `closeAll` closes every filter popover (a person's / tag's Show tasks);
+       * `clearSearch` empties the search box (a pick clears it).
+       */
+      items: (searchText: string, closeAll: () => void, clearSearch: () => void) => ReactNode
       /** Below the items (the People picker's Email check-in action); `closeAll` closes every filter popover. */
       footer?: (closeAll: () => void) => ReactNode
     }
@@ -106,7 +109,7 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
         search={{ text: searchText, setText: setSearchText, onEscape: onDone }}
         searchInputRef={searchRef}
       >
-        {panel.items(searchText, onCloseAll)}
+        {panel.items(searchText, onCloseAll, () => setSearchText(''))}
       </SelectionPanelBody>
       {panel.footer?.(onCloseAll)}
     </>
@@ -472,13 +475,14 @@ export function FilterChipBarDesktop({
         noneSelected: h.noneSelected,
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
-        items: (searchText, closeAll) => (
+        items: (searchText, closeAll, clearSearch) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={people}
             label="People"
             isChecked={h.isChecked}
             onToggle={h.onToggle}
+            onSearchClear={clearSearch}
             namePrefix="@"
             showDot={false}
             entityMenu="person"
@@ -514,13 +518,14 @@ export function FilterChipBarDesktop({
         noneSelected: h.noneSelected,
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
-        items: (searchText, closeAll) => (
+        items: (searchText, closeAll, clearSearch) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={sortedTags}
             label="Tags"
             isChecked={h.isChecked}
             onToggle={h.onToggle}
+            onSearchClear={clearSearch}
             namePrefix="#"
             withNone={false}
             entityMenu="tag"
@@ -572,13 +577,14 @@ export function FilterChipBarDesktop({
         noneSelected: h.noneSelected,
         onSelectAll: h.onSelectAll,
         onDeselectAll: h.onDeselectAll,
-        items: (searchText) => (
+        items: (searchText, _closeAll, clearSearch) => (
           <EntityDropdownItems
             searchText={searchText}
             entities={statuses}
             label="Status"
             isChecked={h.isChecked}
             onToggle={h.onToggle}
+            onSearchClear={clearSearch}
           />
         ),
       },
