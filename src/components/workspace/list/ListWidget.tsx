@@ -40,8 +40,8 @@ import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
 import { MenuPopover } from '../../shared/MenuPopover'
-import { PersonGroupHeader } from './PersonGroupHeader'
-import { groupPerson, personGroupMenu, type GroupPerson } from './person-group'
+import { ListGroupHeader } from './ListGroupHeader'
+import { groupPerson, listGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
@@ -131,7 +131,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const widgetRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
-  const [headerMenu, setHeaderMenu] = useState<{ person: GroupPerson; at: { x: number; y: number } } | null>(null)
+  const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
 
   const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates } = useBuiltList(
     definition,
@@ -375,15 +375,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             data-list-group={section.key}
             {...{ [LIST_SECTION_ATTR]: section.key }}
           >
-            {person ? (
-              <PersonGroupHeader
+            {isMobile ? header : (
+              <ListGroupHeader
                 person={person}
                 showAction={!drag}
-                onOpenMenu={(at) => setHeaderMenu({ person, at })}
+                onOpenMenu={(at) => setHeaderMenu({ section, person, at })}
               >
                 {header}
-              </PersonGroupHeader>
-            ) : header}
+              </ListGroupHeader>
+            )}
             {!isCollapsed && renderSectionRows(section)}
           </div>
         )
@@ -458,9 +458,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       {headerMenu && (
         <MenuPopover
           point={headerMenu.at}
-          label={`${headerMenu.person.name} group`}
+          label={`${headerMenu.section.label} group`}
           closeOnScroll
-          entries={personGroupMenu(headerMenu.person)}
+          entries={listGroupMenu(sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section, headerMenu.person)}
           onClose={() => setHeaderMenu(null)}
         />
       )}

@@ -2,8 +2,9 @@ import type { TodoGroupBy } from '../../../models/todo-sort-group'
 import type { Section } from '../../../services/list-sections'
 import { sendPersonCheckin } from '../../../services/checkin-email/person-checkin'
 import { personTaskDialog } from '../../../services/task-dialog'
+import { copyTasks } from '../../../services/task-copy'
 import { useUIStore } from '../../../stores/ui-store'
-import { AtIcon, EnvelopeIcon } from '../../shared/icons'
+import { AtIcon, CopyIcon, EnvelopeIcon } from '../../shared/icons'
 import type { MenuEntry } from '../../shared/MenuPopover'
 
 /** The person a People group stands for. */
@@ -37,4 +38,19 @@ export function personGroupMenu(person: GroupPerson): MenuEntry[] {
       onSelect: () => useUIStore.getState().showTaskDialog(personTaskDialog(person)),
     },
   ]
+}
+
+/**
+ * A list group header's menu: `Copy N tasks` — the group's tasks as one list
+ * headed by the group's name — after a People group's own two items.
+ */
+export function listGroupMenu(section: Section, person: GroupPerson | null): MenuEntry[] {
+  const n = section.todos.length
+  const copy: MenuEntry = {
+    kind: 'item',
+    label: `Copy ${n} ${n === 1 ? 'task' : 'tasks'}`,
+    icon: <CopyIcon />,
+    onSelect: () => { void copyTasks([{ label: section.label, todos: [...section.todos] }]) },
+  }
+  return person ? [...personGroupMenu(person), { kind: 'separator' }, copy] : [copy]
 }

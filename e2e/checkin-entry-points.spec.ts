@@ -230,7 +230,7 @@ test('C: the header menu opens at the pointer or under the header, inside the wi
   expect(vw - at.x).toBeLessThan(120)
   await page.mouse.click(at.x, at.y, { button: 'right' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in: Bob Stone', 'Show all of Bob Stone’s tasks'])
+  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in: Bob Stone', 'Show all of Bob Stone’s tasks', 'Copy 2 tasks'])
   await expect(menu.getByRole('menuitem').first()).toBeFocused()
   const m = (await menu.boundingBox())!
   expect(m.x + m.width).toBeLessThanOrEqual(vw)
