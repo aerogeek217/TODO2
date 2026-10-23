@@ -1,8 +1,8 @@
 /* The app's one top bar (desktop): New task, the layout tabs (or picker) +
  * save, the screen-filter tray, then the storage pill and the Settings gear.
  * It never wraps; when it runs out of room (measured) the filters fold into
- * a menu, then the layout tabs into the picker — while the filtered-tasks
- * panel hangs from the tray, the tabs first. */
+ * a menu, then the layout tabs into the picker. The filtered-tasks panel
+ * changes none of that: over folded filters the tray expands in place. */
 
 .topBar {
   display: flex;
@@ -77,6 +77,24 @@
 .trayActive {
   background: color-mix(in srgb, var(--color-danger) 7%, var(--color-surface));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
+}
+
+/* While the filtered-tasks panel is open over folded filters: lifted out of
+ * the bar to show every filter button, over the bar's free space and the
+ * right zone (its slot keeps its place in the bar), above everything in it. */
+.trayExpanded {
+  position: fixed;
+  z-index: var(--z-above);
+  width: max-content;
+  margin-left: 0;
+}
+
+/* Where the tray sits in the bar while it is lifted out: its folded width. */
+.traySlot {
+  height: 32px;
+  margin-left: 10px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* The filtered-tasks panel hangs from it: its bottom corners squared, its
@@ -246,6 +264,11 @@
   gap: 6px;
   margin-left: auto;
   flex-shrink: 0;
+}
+
+/* Under the expanded tray: hidden, so nothing of it shows beside the tray. */
+.rightCovered {
+  visibility: hidden;
 }
 
 .gear {
