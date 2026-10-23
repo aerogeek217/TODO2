@@ -20,10 +20,10 @@ main.tsx                  → mounts App
 ├── styles/tokens.css     → design tokens (dark / light via `[data-theme]` — the only place a rule forks per theme) + global base rules, incl. the one reduced-motion rule
 ├── views/                → WorkspacePage (`/`: opens the workspace store, loads the tasks and entities, owns the workspace DndContext, guards unsaved changes) · SettingsPage (phone)
 ├── components/
-│   ├── layout/           → TopBar (New task, layout tabs, screen filters, search, Show N tasks, StoragePill, gear; the measured fold), StoragePill + sync-status (every sync / backup warning), the phone's SyncStatusButton and BottomTabBar
+│   ├── layout/           → TopBar (New task, layout tabs, screen filters, search, Show N tasks — the filtered-tasks panel's toggle —, StoragePill, gear; the measured fold), StoragePill + sync-status (every sync / backup warning), the phone's SyncStatusButton and BottomTabBar
 │   ├── workspace/        → WorkspaceView (top band · columns of cells · bottom band, dividers, tab / panel drags), WorkspaceCell + CellTabStrip, LayoutControls, UnsavedPrompt, MobileWorkspaceView; the widgets: list/ (ListWidget, Edit list), calendar/, eisenhower/, dashboard/, NotesWidget
 │   ├── task/             → TaskRow (desktop grid row) / MobileTaskRow, TaskMenu, TaskEditPopup, TaskNotePopover, notes/ (CodeMirror notes editor, notes → tasks), dnd/
-│   ├── overlays/         → CommandPalette, QuickAddBar, TaskDialog (+ the screen filter's bar for its filtered tasks), dialogs (sync conflict / upgrade / launch permission, purge, append import, bulk confirm, confirm prompts), UndoSnackbar, FilterSheet (phone)
+│   ├── overlays/         → CommandPalette, QuickAddBar, TaskDialog + TaskDialogContent (+ the phone's screen-filter bar for its filtered tasks), FilteredTasksPanel (desktop: the screen filter's tasks dropped from the top bar's tray, over a scrim), dialogs (sync conflict / upgrade / launch permission, purge, append import, bulk confirm, confirm prompts), UndoSnackbar, FilterSheet (phone)
 │   ├── checkin/          → CheckinDialog (email check-ins), CheckinImportDialog (paste a reply)
 │   ├── settings/         → SettingsModal + sections/, the entity editors (people / statuses / tags / theme colours), shortcut list / editor
 │   └── shared/           → DialogFrame, MenuPopover, Tooltip, pickers (ChipSelector, AnchoredPicker), filters/ (filter chips and panels), followup/, EntityMenu, icons
