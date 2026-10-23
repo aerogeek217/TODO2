@@ -5,7 +5,7 @@ import { useFilterStore } from '../stores/filter-store'
 /**
  * A search field over the screen filter's search text: what it shows (the
  * typed text at once) and the setter, which writes the store after a
- * debounce. The store's text changing elsewhere (cleared, typed in another
+ * debounce (a clear at once). The store's text changing elsewhere (cleared, typed in another
  * field) shows here.
  */
 export function useScreenSearch(): [text: string, setText: (value: string) => void] {
@@ -16,6 +16,11 @@ export function useScreenSearch(): [text: string, setText: (value: string) => vo
   const setText = useCallback((value: string) => {
     setLocalText(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = null
+    // A clear (Esc, ×, emptied field) writes at once: the field may unmount
+    // straight after (Esc again closes the task dialog), and a dropped clear
+    // would leave every widget filtered by text no field shows.
+    if (value === '') { useFilterStore.getState().setSearchText(''); return }
     debounceRef.current = setTimeout(() => useFilterStore.getState().setSearchText(value), SEARCH_DEBOUNCE_MS)
   }, [])
 
