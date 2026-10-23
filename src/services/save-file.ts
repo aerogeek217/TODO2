@@ -33,8 +33,8 @@ export type SaveTextFileResult = 'saved' | 'downloaded' | 'cancelled'
  * missing or the picker fails for any reason other than the user cancelling
  * (the failure is logged; a write that failed part-way is aborted first, so
  * the chosen file keeps what it had). The result says which happened: only `saved` is
- * a file the app knows was written. Shared by Settings → Export, the
- * task-archive "Export & delete" flow and the migration dialog's backup.
+ * a file the app knows was written. Shared by Settings → Export and the
+ * task-archive "Export & delete" flow.
  */
 export async function saveTextFile(opts: SaveTextFileOptions): Promise<SaveTextFileResult> {
   const showSaveFilePicker = getSaveFilePicker()
