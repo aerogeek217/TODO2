@@ -9,18 +9,7 @@
  */
 
 /**
- * Lenient: a parseable string becomes a `Date`; anything else (a `Date`,
- * `undefined`, a malformed value) is returned unchanged. For schema-upgrade
- * transforms, which run before validation and must pass bad rows through.
- */
-export function reviveDate(v: unknown): unknown {
-  if (typeof v !== 'string') return v
-  const ms = Date.parse(v)
-  return Number.isNaN(ms) ? v : new Date(ms)
-}
-
-/**
- * Strict: for values already validated as date-like (`Date` or parseable
+ * For values already validated as date-like (`Date` or parseable
  * string — see `isDateLike` in `import-validation.ts`). A `Date` is returned
  * as-is. Throws on anything else: reaching that is a validator/picker drift
  * bug, not bad input.

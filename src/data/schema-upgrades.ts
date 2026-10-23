@@ -20,7 +20,8 @@ import type { Transaction } from 'dexie'
  * ## Adding a schema step N
  *
  * 1. The transform: `data/upgrades/v<N>-<what>.ts` exporting `upgradeV<N>`
- *    (contract below), registered here as `[N, upgradeV<N>]`.
+ *    (contract below), imported here and registered as an entry
+ *    `[N, upgradeV<N>]` of `SCHEMA_UPGRADES`' `new Map(...)`.
  * 2. `data/database.ts`: `this.version(N).stores({ … }).upgrade((tx) =>
  *    applySchemaUpgradeInTx(tx, N))` after the floor's declaration (only the
  *    stores N adds, changes or drops), and `CURRENT_DB_VERSION = N`.
@@ -31,6 +32,8 @@ import type { Transaction } from 'dexie'
  *    export → restore round trip, and a "v(N-1) reader refuses vN" test
  *    (a file, the browser database and kept drafts stamped N are refused by
  *    a build at N-1).
+ * 5. The dev seed (`scripts/dev-seed.ts`): `DEV_SEED_SCHEMA_VERSION = N` and
+ *    its rows in the vN shape (`dev-seed.test` pins it to `CURRENT_DB_VERSION`).
  *
  * ## Transform contract
  *
@@ -52,6 +55,9 @@ import type { Transaction } from 'dexie'
  *   be a no-op (live DBs and files can be partially upgraded by older code).
  * - A table key that is present in the input but absent from the output is
  *   treated as emptied (the Dexie side clears it).
+ * - **Dates in either form**: on import, Date fields are still the file's ISO
+ *   strings (validation revives them after the pipeline); on the Dexie side
+ *   they are `Date`s. Compare or copy them so both work.
  */
 
 export type DataRow = Record<string, unknown>
