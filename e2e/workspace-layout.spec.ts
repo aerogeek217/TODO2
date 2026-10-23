@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  drag, dragTab, expectOpenLayout, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, wsCell, wsShape, wsTab,
+  drag, dragTab, expectOpenLayout, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
   type WsLayoutSeed,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
@@ -263,7 +263,8 @@ test.describe('saved layouts', () => {
 
   test('the folded picker: the layouts (the open one checked, Edited while unsaved) and its actions', async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 800 })
-    await seedWorkspace(page, { layouts: [twoColumns, second] })
+    // A third layout, so the tabs fold even with the tray shrunk.
+    await seedWorkspace(page, withSpareLayouts({ layouts: [twoColumns, second] }, 1))
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
     await page.getByTestId('layout-picker').click()

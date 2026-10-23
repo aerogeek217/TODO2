@@ -118,8 +118,8 @@
 }
 
 /* The top bar measures both folds (`measureFold`): the shown one is laid out
- * as if unwrapped; the other off to the side, unseen, at its natural width,
- * with the tray's gap between its buttons. */
+ * as if unwrapped; each fold also off to the side, unseen, at its natural
+ * width (no value cut), with the tray's gap between its buttons. */
 .foldShown {
   display: contents;
 }

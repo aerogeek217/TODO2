@@ -24,7 +24,7 @@ import { useTooltip } from '../shared/use-tooltip'
 import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
-import { filtersFolded, FOLD_PART, tabsFolded, useTopBarFold } from './use-top-bar-fold'
+import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, traySqueeze, useTopBarFold } from './use-top-bar-fold'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { useScreenSearch } from '../../hooks/use-screen-search'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
@@ -352,9 +352,10 @@ export function TopBar() {
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
   const settingsOpen = useUIStore((s) => s.settingsOpen)
-  // The bar never wraps or overflows: measured, the filter buttons fold into
-  // one Filters menu first, then the layout tabs into the layout picker
-  // (search narrows in CSS). The filtered-tasks panel changes none of it.
+  // The bar never wraps or overflows: measured, the tray shrinks first (the
+  // search narrows, then long filter values are cut), then the filter
+  // buttons fold into one Filters menu, then the layout tabs into the layout
+  // picker. The filtered-tasks panel changes none of it.
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
@@ -364,18 +365,21 @@ export function TopBar() {
   // While the panel is open over folded filters, the tray expands in place
   // to show every filter button: lifted out of the bar (a slot of its folded
   // width keeps its place, so nothing else moves), from its left edge
-  // rightwards over the free space and the right zone — slid left only as
-  // far as the window needs. When even the window can't hold it, it stays
-  // folded. Placed before paint, again on every change of the bar's widths.
+  // rightwards over the free space and the right zone — shrunk, then slid
+  // left only as far as the window needs. When even the window can't hold it
+  // shrunk, it stays folded. Placed before paint, again on every change of
+  // the bar's widths.
   // The right zone it reaches into hides under it (no part of the storage
   // pill peeking out beside it).
   const [placed, setPlaced] = useState<(TrayExpansion & { top: number; coversRight: boolean }) | null>(null)
   const slotRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   // The tray gains or loses Show N tasks, or is lifted out: measured again then.
-  const { fold, trayOpen, trayFolded } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
+  const { fold, squeeze: barSqueeze, trayOpen, trayOpenMin, trayFolded, values } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
   const expandable = panelOpen && filtersFolded(fold) && trayOpen !== undefined
   const expansion = expandable ? placed : null
+  // The expanded tray shrinks to its own width; in the bar, to the bar's room.
+  const squeeze = expansion && trayOpen !== undefined ? traySqueeze(trayOpen, expansion.width, values) : barSqueeze
   useLayoutEffect(() => {
     if (!expandable || trayOpen === undefined) return
     const place = () => {
@@ -383,7 +387,7 @@ export function TopBar() {
       const anchor = slotRef.current ?? trayRef.current
       if (!anchor) return
       const box = anchor.getBoundingClientRect()
-      const at = trayExpansion(box.left, trayOpen, window.innerWidth)
+      const at = trayExpansion(box.left, trayOpen, window.innerWidth, trayOpenMin)
       const rightZone = rightRef.current?.getBoundingClientRect().left ?? Infinity
       const next = at && { ...at, top: box.top, coversRight: at.left + at.width > rightZone }
       setPlaced((prev) => (prev?.left === next?.left && prev?.top === next?.top && prev?.width === next?.width
@@ -392,7 +396,7 @@ export function TopBar() {
     place()
     window.addEventListener('resize', place)
     return () => window.removeEventListener('resize', place)
-  }, [expandable, trayOpen, trayFolded, tabsKey])
+  }, [expandable, trayOpen, trayOpenMin, trayFolded, tabsKey])
 
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -462,7 +466,7 @@ export function TopBar() {
           onKeyDown={panelOpen ? (e) => tabAcross(e, trayRef.current, panelRef.current) : undefined}
         >
           <ClearFiltersButton active={isActive} />
-          <div className={styles.searchWrapper}>
+          <div className={styles.searchWrapper} style={{ width: squeeze?.search ?? SEARCH_WIDTH }} {...{ [FOLD_SEARCH_ATTR]: '' }}>
             <span className={styles.searchIcon}><SearchIcon size={14} /></span>
             <input
               ref={searchInputRef}
@@ -540,6 +544,7 @@ export function TopBar() {
             onClearAll={() => useFilterStore.getState().clearAll()}
             fold={filtersFolded(fold) && !expansion}
             measureFold
+            valueWidths={squeeze?.values}
             consumeEscape={panelOpen}
           />
           {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}

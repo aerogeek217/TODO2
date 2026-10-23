@@ -1,15 +1,20 @@
 import { afterEach, describe, it, expect } from 'vitest'
-import { filtersFolded, measureTopBar, tabsFolded, topBarFold, type TopBarMeasure } from '../../../components/layout/use-top-bar-fold'
+import {
+  filtersFolded, measureTopBar, SEARCH_MIN_WIDTH, SEARCH_WIDTH, tabsFolded, topBarFold, trayRoom, traySqueeze, VALUE_MIN_WIDTH,
+  type TopBarMeasure,
+} from '../../../components/layout/use-top-bar-fold'
 import { trayExpansion } from '../../../components/layout/tray-expansion'
 
 /**
- * The top bar's fold from measured widths: the least fold that fits — the
- * filters fold before the layout tabs; a part not measured yet (or tabs
+ * The top bar's fold from measured widths: the least fold that fits with
+ * the tray shrunk as far as it goes (the search narrowed, long values cut) —
+ * the filters fold before the layout tabs; a part not measured yet (or tabs
  * showing other layouts since) counts as fitting until it is measured. The
- * tray's two widths are both measured every time (the filter bar lays out
- * the fold it doesn't show, hidden), so neither goes stale. The
- * filtered-tasks panel has no say in the fold: over folded filters the tray
- * expands in place instead (`trayExpansion`).
+ * tray's widths are all measured every time (the filter bar lays out both
+ * folds hidden at their natural widths), so none goes stale and none
+ * depends on what is shown or shrunk. The filtered-tasks panel has no say in
+ * the fold: over folded filters the tray expands in place instead
+ * (`trayExpansion`).
  */
 
 const m = (extra: Partial<TopBarMeasure>): TopBarMeasure => ({
@@ -41,10 +46,57 @@ describe('topBarFold', () => {
     expect(topBarFold(m({ bar: 650 }), 'renamed')).toBe('filters')
   })
 
+  it('decides from the shrunk widths: what fits shrunk doesn’t fold', () => {
+    const shrinks = m({ trayOpenMin: 400, trayFoldedMin: 210 })
+    expect(topBarFold({ ...shrinks, bar: 850 }, 'k')).toBe('none')
+    expect(topBarFold({ ...shrinks, bar: 849 }, 'k')).toBe('filters')
+    expect(topBarFold({ ...shrinks, bar: 660 }, 'k')).toBe('filters')
+    expect(topBarFold({ ...shrinks, bar: 659 }, 'k')).toBe('both')
+  })
+
   it('which parts each fold folds', () => {
     expect((['none', 'filters', 'both'] as const).map((f) => [filtersFolded(f), tabsFolded(f)])).toEqual([
       [false, false], [true, false], [true, true],
     ])
+  })
+})
+
+describe('trayRoom', () => {
+  it('the bar less the base and the layout tabs — or the picker once they fold', () => {
+    expect(trayRoom(m({ picker: 90 }), 'none')).toBe(1000 - 200 - 250)
+    expect(trayRoom(m({ picker: 90 }), 'filters')).toBe(1000 - 200 - 250)
+    expect(trayRoom(m({ picker: 90 }), 'both')).toBe(1000 - 200 - 90)
+    expect(trayRoom({ bar: 0, base: 0 }, 'none')).toBeNull()
+  })
+})
+
+describe('traySqueeze', () => {
+  const values = [{ key: 'people', width: 120 }, { key: 'tags', width: 90 }, { key: 'status', width: 40 }]
+  const searchSlack = SEARCH_WIDTH - SEARCH_MIN_WIDTH
+
+  it('nothing while the tray fits', () => {
+    expect(traySqueeze(800, 800, values)).toBeNull()
+    expect(traySqueeze(800, 900, values)).toBeNull()
+  })
+
+  it('the search narrows first, values untouched', () => {
+    expect(traySqueeze(800, 760, values)).toEqual({ search: SEARCH_WIDTH - 40, values: {} })
+    expect(traySqueeze(800, 800 - searchSlack, values)).toEqual({ search: SEARCH_MIN_WIDTH, values: {} })
+  })
+
+  it('then the longest values are cut, evenly from the top', () => {
+    // 20 more: the longest alone, 120 → 100.
+    expect(traySqueeze(800, 800 - searchSlack - 20, values)).toEqual({ search: SEARCH_MIN_WIDTH, values: { people: 100 } })
+    // 40 more: both long ones, to 85 (35 + 5).
+    expect(traySqueeze(800, 800 - searchSlack - 40, values)).toEqual({ search: SEARCH_MIN_WIDTH, values: { people: 85, tags: 85 } })
+  })
+
+  it('never below the least width; a value shorter than it is never cut', () => {
+    expect(traySqueeze(800, 100, values)).toEqual({ search: SEARCH_MIN_WIDTH, values: { people: VALUE_MIN_WIDTH, tags: VALUE_MIN_WIDTH } })
+  })
+
+  it('the folded tray (no values) narrows only its search', () => {
+    expect(traySqueeze(500, 300)).toEqual({ search: SEARCH_MIN_WIDTH, values: {} })
   })
 })
 
@@ -68,17 +120,29 @@ describe('measureTopBar', () => {
     return e
   }
 
+  /** A hidden fold: laid out off to the side at its natural width. */
+  function hiddenFold(variant: 'open' | 'folded', width: number, ...children: HTMLElement[]) {
+    const fold = box(el('span', { 'data-fold-variant': variant, 'data-fold-hidden': '' }, ...children), 0, width)
+    fold.style.position = 'fixed'
+    return fold
+  }
+
   /**
    * A bar 1200 wide: New task (28), the layout tabs (300), the tray (at 400)
-   * with the Filters menu shown (80 wide) and the five buttons hidden (420),
-   * the right zone (120).
+   * with the funnel (24), the search (200 — or narrowed to `search`) and the
+   * Filters menu shown (80 wide); hidden, the five buttons (420, a People
+   * value 99.4 wide among them) and the menu (80); the right zone (120).
    */
-  function bar(opts: { lifted?: boolean } = {}) {
-    const shown = el('span', { 'data-fold-variant': 'folded' }, box(el('button'), 500, 80))
+  function bar(opts: { lifted?: boolean; search?: number } = {}) {
+    const search = opts.search ?? 200
+    const left = opts.lifted ? 150 : 400
+    const shown = el('span', { 'data-fold-variant': 'folded' }, box(el('button'), left + 28 + search, 80))
     shown.style.display = 'contents'
-    const hidden = box(el('span', { 'data-fold-variant': 'open', 'data-fold-hidden': '' }), 0, 420)
-    hidden.style.position = 'fixed'
-    const tray = box(el('div', { 'data-fold-part': 'tray' }, box(el('button'), 404, 24), shown, hidden), opts.lifted ? 150 : 400, 260)
+    const open = hiddenFold('open', 420, box(el('span', { 'data-fold-value': 'people' }), 0, 99.4))
+    const tray = box(el('div', { 'data-fold-part': 'tray' },
+      box(el('button'), left + 4, 24),
+      box(el('div', { 'data-fold-search': '' }), left + 28, search),
+      shown, open, hiddenFold('folded', 80)), left, 28 + search + 80)
     tray.style.marginLeft = '10px'
     if (opts.lifted) tray.style.position = 'fixed'
     const parts = [
@@ -100,10 +164,25 @@ describe('measureTopBar', () => {
 
   it('measures the tray with its buttons and with the Filters menu at once, whichever shows', () => {
     const measured = measureTopBar(bar(), 'filters', 'k')
-    // The tray less the shown menu (260 − 80) plus each fold's width.
-    expect(measured).toMatchObject({ trayFolded: 260, trayOpen: 600 })
+    // The tray less the shown menu (308 − 80) plus each fold's width.
+    expect(measured).toMatchObject({ trayFolded: 308, trayOpen: 648, values: [{ key: 'people', width: 100 }] })
+    // Shrunk: the search at its least; the open one's value too.
+    expect(measured).toMatchObject({
+      trayFoldedMin: 308 - (SEARCH_WIDTH - SEARCH_MIN_WIDTH),
+      trayOpenMin: 648 - (SEARCH_WIDTH - SEARCH_MIN_WIDTH) - (100 - VALUE_MIN_WIDTH),
+    })
     // Padding 16, New task 28, the layout tabs' place, the tray's gap + margin, the right zone + gap.
     expect(measured).toMatchObject({ bar: 1200, base: 16 + 28 + 4 + 4 + 10 + 120 + 4, tabs: { width: 300, key: 'k' } })
+  })
+
+  it('a narrowed search measures at its natural width: shrinking changes no measure', () => {
+    expect(measureTopBar(bar({ search: 130 }), 'filters', 'k')).toEqual(measureTopBar(bar(), 'filters', 'k'))
+  })
+
+  it('with the tabs folded, the picker’s width', () => {
+    const measured = measureTopBar(bar(), 'both', 'k')
+    expect(measured).toMatchObject({ picker: 300 })
+    expect(measured.tabs).toBeUndefined()
   })
 
   it('while the tray is lifted out its slot keeps its place in the bar: the base and widths don’t change', () => {
@@ -126,5 +205,16 @@ describe('trayExpansion', () => {
   it('never past the left gutter; too wide for the window less its gutters, none (the filters stay folded)', () => {
     expect(trayExpansion(345, 968, 1000)).toEqual({ left: 16, width: 968 })
     expect(trayExpansion(345, 969, 1000)).toBeNull()
+  })
+
+  it('shrunk before it slides: from its own left up to the gutter, down to its least width', () => {
+    expect(trayExpansion(345, 900, 1200, 800)).toEqual({ left: 345, width: 839 })
+    expect(trayExpansion(345, 900, 1161, 800)).toEqual({ left: 345, width: 800 })
+    // Shrunk all the way, then slid.
+    expect(trayExpansion(345, 900, 1000, 800)).toEqual({ left: 184, width: 800 })
+    expect(trayExpansion(345, 900, 832, 800)).toEqual({ left: 16, width: 800 })
+    expect(trayExpansion(345, 900, 831, 800)).toBeNull()
+    // Room for all of it: natural.
+    expect(trayExpansion(345, 900, 1600, 800)).toEqual({ left: 345, width: 900 })
   })
 })
