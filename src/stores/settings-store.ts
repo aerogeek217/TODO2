@@ -78,10 +78,15 @@ interface SettingsState {
   seededAssignedStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
-  /** Next follow-up for new tasks and after "Mark followed up" = today + this. */
+  /** Next follow-up for new tasks and after "Mark followed up" = today + this (while `autoFollowup` is on). */
   followupDefaultInterval: FollowupInterval
-  /** Whether new tasks get a next follow-up (today + `followupDefaultInterval`). */
-  newTaskFollowup: boolean
+  /**
+   * "Set a next follow-up automatically": new tasks and "Mark followed up"
+   * set it to today + `followupDefaultInterval`; off, new tasks get none and
+   * Mark followed up clears it ({@link autoNextFollowup}). Stored under
+   * `SETTING_KEYS.newTaskFollowup`.
+   */
+  autoFollowup: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
@@ -130,8 +135,8 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
-  /** Whether new tasks get a next follow-up; shown at once, put back when the save fails. */
-  setNewTaskFollowup: (on: boolean) => Promise<void>
+  /** "Set a next follow-up automatically"; shown at once, put back when the save fails. */
+  setAutoFollowup: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
@@ -309,7 +314,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
-  newTaskFollowup: true,
+  autoFollowup: true,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
@@ -338,7 +343,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
-      let newTaskFollowup = true
+      let autoFollowup = true
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
@@ -375,7 +380,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
         } else if (row.key === SETTING_KEYS.newTaskFollowup) {
-          newTaskFollowup = row.value !== 'false'
+          autoFollowup = row.value !== 'false'
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
           const parsed = parseUrgentDueWithinDays(row.value)
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
@@ -409,7 +414,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (!sortHasDirection(newListSort)) newListSortDirection = 'asc'
       set({
         colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
-        followupDefaultInterval, newTaskFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
+        followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt,
         shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
@@ -510,17 +515,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 
-  setNewTaskFollowup(on: boolean) {
+  setAutoFollowup(on: boolean) {
     return trackWrite(async () => {
-      const prev = get().newTaskFollowup
-      set({ newTaskFollowup: on })
+      const prev = get().autoFollowup
+      set({ autoFollowup: on })
       try {
         // Stored only when off: absent = on.
         if (on) await settingsRepository.delete(SETTING_KEYS.newTaskFollowup)
         else await settingsRepository.put(SETTING_KEYS.newTaskFollowup, 'false')
       } catch (e) {
-        console.error('Failed to save whether new tasks get a follow-up:', e)
-        set({ newTaskFollowup: prev })
+        console.error('Failed to save whether a next follow-up is set automatically:', e)
+        set({ autoFollowup: prev })
       }
     })
   },
@@ -864,27 +869,35 @@ export function currentFilterSettings(): FilterSettings {
   return { urgentRange: urgentDueWithinDays, hotRule, weekStartsOn }
 }
 
+/** The two settings the automatic next follow-up is read from. */
+export type AutoFollowupSettings = Pick<SettingsState, 'autoFollowup' | 'followupDefaultInterval'>
+
 /**
- * The next follow-up a task gets when it is created (or followed up) at
- * `now`: the day `now` falls on + the Settings default interval.
+ * The interval the automatic next follow-up is set by, or `null` while it is
+ * off (a selector: `useSettingsStore(autoFollowupInterval)`).
  */
-export function defaultNextFollowup(now: Date): Date {
-  return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
+export function autoFollowupInterval(s: AutoFollowupSettings): FollowupInterval | null {
+  return s.autoFollowup ? s.followupDefaultInterval : null
 }
 
 /**
- * The interval a new task's default follow-up is set by, or `null` while
- * new tasks get none (a selector: `useSettingsStore(newTaskFollowupInterval)`).
+ * The one rule for the next follow-up set automatically at `now` — by "Mark
+ * followed up" (every path to it: the task menu, the bulk bar, the follow-up
+ * popover's proposal, the editor, a check-in sent or its reply applied) and
+ * for a new task that names none: the day `now` falls on + the Settings
+ * interval while "Set a next follow-up automatically" is on, else none
+ * (`null` — Mark followed up then clears the next follow-up). `s` defaults
+ * to the store's current settings; a component passes the ones it subscribes to.
  */
-export function newTaskFollowupInterval(s: Pick<SettingsState, 'newTaskFollowup' | 'followupDefaultInterval'>): FollowupInterval | null {
-  return s.newTaskFollowup ? s.followupDefaultInterval : null
+export function autoNextFollowup(now: Date, s: AutoFollowupSettings = useSettingsStore.getState()): Date | null {
+  const interval = autoFollowupInterval(s)
+  return interval ? addFollowupInterval(now, interval) : null
 }
 
 /**
- * The next follow-up a new task gets when it says nothing about one: today
- * + the default interval while "New tasks get a follow-up date" is on, else
- * none (`undefined`).
+ * The next follow-up a new task gets when it says nothing about one
+ * ({@link autoNextFollowup}, as `undefined` when none).
  */
 export function newTaskDefaultFollowup(now: Date): Date | undefined {
-  return useSettingsStore.getState().newTaskFollowup ? defaultNextFollowup(now) : undefined
+  return autoNextFollowup(now) ?? undefined
 }

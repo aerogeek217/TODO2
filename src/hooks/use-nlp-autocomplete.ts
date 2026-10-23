@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useLatestRef } from './use-latest-ref'
 import { registerModuleReset } from '../utils/module-reset'
-import { newTaskFollowupInterval, useSettingsStore } from '../stores/settings-store'
+import { autoFollowupInterval, useSettingsStore } from '../stores/settings-store'
 import { useUndoStore } from '../stores/undo-store'
 import { createNlpEntity } from '../services/nlp-create'
 import {
@@ -96,7 +96,7 @@ export function useNlpAutocomplete({
   const [state, setState] = useState<AutocompleteState>(initialState)
   /** The text the popup was last computed for (re-read when the candidates change). */
   const lastInputRef = useRef<{ value: string; cursor: number; input: TextInput | null } | null>(null)
-  const followupDefault = useSettingsStore(newTaskFollowupInterval)
+  const followupDefault = useSettingsStore(autoFollowupInterval)
   const onApplyRef = useLatestRef(onApply)
   const onCreateRef = useLatestRef(onCreate)
   const stateRef = useLatestRef(state)

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { FollowupPopover } from '../../components/shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useTodoStore } from '../../stores/todo-store'
 import { makeTodo } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
 
@@ -73,7 +74,7 @@ describe('TaskEditPopup — follow-up group', () => {
   })
 
   it('create mode while new tasks get no follow-up: Next starts empty, no default hint', async () => {
-    useSettingsStore.setState({ newTaskFollowup: false })
+    useSettingsStore.setState({ autoFollowup: false })
     const { onCreate } = renderCreate()
     expect(nextInput().value).toBe('')
     expect(screen.queryByText('Default · 1 month')).toBeNull()
@@ -115,6 +116,22 @@ describe('TaskEditPopup — follow-up group', () => {
     const partial = onCreate.mock.calls[0]![0]
     expect(partial.lastFollowupAt).toEqual(NOW)
     expect(partial.nextFollowupAt).toEqual(day(2026, 11, 10))
+  })
+
+  it('create mode with the automatic next follow-up off: Mark followed up stamps last = now and leaves no next', async () => {
+    useSettingsStore.setState({ autoFollowup: false })
+    const { onCreate } = renderCreate()
+    fireEvent.change(nextInput(), { target: { value: '2w' } })
+    fireEvent.blur(nextInput())
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    expect(nextInput().value).toBe('')
+    fireEvent.click(screen.getByText('Create task'))
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    const partial = onCreate.mock.calls[0]![0]
+    expect(partial.lastFollowupAt).toEqual(NOW)
+    // Key present: none, not "the default".
+    expect('nextFollowupAt' in partial).toBe(true)
+    expect(partial.nextFollowupAt).toBeUndefined()
   })
 
   it('edit mode: Next edits apply immediately; invalid input keeps the old value; Esc reverts', () => {
@@ -183,6 +200,25 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onUpdate.mock.calls[0]![0].lastFollowupAt).toEqual(day(2026, 9, 13))
     fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
     expect(onFollowedUp).toHaveBeenCalledTimes(1)
+  })
+
+  it('edit mode: Mark followed up from the editor shows its result in Next and Last at once (on: today + 1 month; off: cleared)', async () => {
+    const id = await useTodoStore.getState().add('Edited')
+    await useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 10, 13) })
+    const Editor = () => {
+      const todo = useTodoStore((s) => s.todos.find((t) => t.id === id))!
+      return <TaskEditPopup {...baseProps} mode="edit" todo={todo} onUpdate={vi.fn()} onToggleComplete={vi.fn()} onDelete={vi.fn()} />
+    }
+    render(<Editor />)
+    expect(nextInput().value).toBe('Tue 13 Oct')
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    await waitFor(() => expect(nextInput().value).toBe('Tue 10 Nov'))
+    expect(lastInput().value).toBe('Sat 10 Oct')
+
+    useSettingsStore.setState({ autoFollowup: false })
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    await waitFor(() => expect(nextInput().value).toBe(''))
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)!.nextFollowupAt).toBeUndefined()
   })
 
   it('edit mode: Mark followed up is dimmed when the task was already followed up today', () => {

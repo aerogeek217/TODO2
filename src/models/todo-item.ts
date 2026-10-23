@@ -28,10 +28,11 @@ export interface TodoItem {
    */
   lastFollowupAt?: Date
   /**
-   * When to follow up next — a calendar day stored at local midnight. New
-   * tasks get today + the Settings default interval (`followupDefaultInterval`);
-   * "Mark followed up" moves it on by the same interval. Optional: clearing it
-   * leaves the task with no follow-up.
+   * When to follow up next — a calendar day stored at local midnight. While
+   * Settings' "Set a next follow-up automatically" is on, new tasks get today +
+   * the default interval (`followupDefaultInterval`) and "Mark followed up"
+   * moves it there; off, new tasks get none and Mark followed up clears it.
+   * Optional: clearing it leaves the task with no follow-up.
    */
   nextFollowupAt?: Date
   recurrenceRule?: RecurrenceRule

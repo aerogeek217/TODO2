@@ -903,7 +903,7 @@ describe('QuickAddBar — chip ×', () => {
   })
 
   it('new tasks without a follow-up (Settings): no default chip; a typed one shows, its × removes it', () => {
-    useSettingsStore.setState({ newTaskFollowup: false })
+    useSettingsStore.setState({ autoFollowup: false })
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     const input = typeAt('Vendor call')
     expect(chipTexts()).toEqual([])

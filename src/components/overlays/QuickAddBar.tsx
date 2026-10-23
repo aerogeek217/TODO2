@@ -54,14 +54,14 @@ import { personItems, statusItems, tagItems } from '../../services/nlp-autocompl
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { usePopoverAnchor, type PopoverAnchor } from '../../hooks/use-popover-anchor'
 import { usePersonStore } from '../../stores/person-store'
-import { useSettingsStore } from '../../stores/settings-store'
+import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput, type CommandProblem } from '../../services/natural-language-parser'
 import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
 import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-commands'
 import { tokenTints, type TintSpan } from '../../services/nlp-token-tints'
-import { addFollowupInterval, formatFollowupDate, formatFollowupDay } from '../../utils/followup'
+import { formatFollowupDate, formatFollowupDay } from '../../utils/followup'
 import { startOfToday } from '../../utils/date'
 import { MARKER_LABELS } from '../../utils/markers'
 import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
@@ -468,7 +468,7 @@ export function QuickAddBar({
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
-  const newTaskFollowup = useSettingsStore((s) => s.newTaskFollowup)
+  const autoFollowup = useSettingsStore((s) => s.autoFollowup)
 
   const internalRun = useMemo(
     () => runParse(raw, people, statuses),
@@ -739,7 +739,7 @@ export function QuickAddBar({
   if (!open) return null
 
   const today = startOfToday()
-  const defaultFollowup = newTaskFollowup ? addFollowupInterval(today, followupInterval) : null
+  const defaultFollowup = autoNextFollowup(today, { autoFollowup, followupDefaultInterval: followupInterval })
 
   return (
     <>

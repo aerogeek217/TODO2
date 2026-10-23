@@ -161,7 +161,7 @@ export async function sendPreparedCheckin(
     const message = checkinSentMessage(person.name, result, prepared.taskIds.length)
     const detail = statusInSnackbar ? checkinSentStatus(person.name, prepared.email.to, result, sentAt) : undefined
     // Sending counts as a follow-up on every task in the email.
-    useTodoStore.getState().markFollowedUp(prepared.taskIds, message, detail).catch(() => {
+    useTodoStore.getState().markFollowedUp(prepared.taskIds, { description: message, detail }).catch(() => {
       useUndoStore.getState().notify(`Check-in for ${person.name} ${result}, but the follow-up couldn’t be recorded.`)
     })
   }

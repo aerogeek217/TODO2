@@ -19,6 +19,8 @@ import { parseCheckinReply, type CheckinReplyInput } from '../../services/checki
 import { advanceRecurring } from '../../utils/recurrence'
 import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { autoFollowupInterval, useSettingsStore } from '../../stores/settings-store'
+import { describeFollowupInterval } from '../../utils/followup'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
@@ -362,6 +364,11 @@ function ReplyChanges({ reply, notAssigned, selected, onToggle, recordFollowup, 
   followupId: string
 }) {
   const { diff, orphanUpdates } = reply
+  // What Mark followed up does to the next follow-up, by Settings' rule.
+  const autoInterval = useSettingsStore(autoFollowupInterval)
+  const followupHint = autoInterval
+    ? `Last follow-up → today; Next follow-up → today + ${describeFollowupInterval(autoInterval)}`
+    : 'Last follow-up → today; Next follow-up cleared'
   const shown = diff.tasks.filter((t) => t.changes.length > 0 || t.completedSinceSent)
   const unchanged = diff.tasks.filter((t) => t.changes.length === 0 && !t.completedSinceSent)
 
@@ -408,7 +415,7 @@ function ReplyChanges({ reply, notAssigned, selected, onToggle, recordFollowup, 
           <span>
             Record a follow-up on these tasks{' '}
             <span className={styles.followupHint}>
-              (Last follow-up → today; Next follow-up moves by your default interval, the same as “Mark followed up”)
+              ({followupHint}, the same as “Mark followed up”)
             </span>
           </span>
         </label>
