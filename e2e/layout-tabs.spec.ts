@@ -205,7 +205,8 @@ async function barState(page: Page) {
       height: r.height,
       overflows: bar.scrollWidth > bar.clientWidth || parts.some((p) => p.right > r.right + 0.5 || p.bottom > r.bottom + 0.5 || p.top < r.top - 0.5),
       overlap,
-      filtersFolded: document.querySelector('[aria-label="People filter"]') == null,
+      // Not the fold laid out hidden for the bar's measure.
+      filtersFolded: Array.from(document.querySelectorAll('[aria-label="People filter"]')).every((el) => el.closest('[data-fold-hidden]')),
       tabsFolded: document.querySelector('[data-testid="layout-picker"]') != null,
     }
   })

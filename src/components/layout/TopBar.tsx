@@ -503,6 +503,7 @@ export function TopBar() {
             onChange={handleFilterChange}
             onClearAll={() => useFilterStore.getState().clearAll()}
             fold={filtersFolded(fold)}
+            measureFold
             consumeEscape={panelOpen}
           />
           {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}

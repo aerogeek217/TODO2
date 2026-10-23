@@ -1,5 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { attrSelector } from '../../utils/dom-contract'
+import { FOLD_HIDDEN_ATTR, FOLD_VARIANT_ATTR, type FoldVariant } from '../shared/filters/FilterChipBar.shared'
 
 /**
  * What of the top bar is folded so that it never wraps or overflows:
@@ -25,9 +27,9 @@ export interface TopBarMeasure {
   bar: number
   /** What every fold needs besides the filter tray and the layout controls (padding, gaps, New task, the right zone). */
   base: number
-  /** The tray with its filter buttons, when last shown so. */
+  /** The tray with its filter buttons. */
   trayOpen?: number
-  /** The tray with the Filters menu, when last shown so. */
+  /** The tray with the Filters menu. */
   trayFolded?: number
   /** The layout tabs, when last shown, with what they showed then (`tabsKey`). */
   tabs?: { width: number; key: string }
@@ -61,31 +63,88 @@ export function topBarFold(m: TopBarMeasure, tabsKey: string, panelOpen = false)
 /** The bar's parts, by their `data-fold-part`: the filter tray, the layout controls and the right zone (its auto margin is free space). */
 export const FOLD_PART = { tray: 'tray', layout: 'layout', spring: 'spring' } as const
 
-/** The bar as shown at `fold`: its width, the base, and the shown variants' widths. */
+/** A box's width; for a `display: contents` one (no box), its children's span. */
+function variantWidth(el: HTMLElement): number {
+  if (el.hasAttribute(FOLD_HIDDEN_ATTR)) return el.getBoundingClientRect().width
+  let left = Infinity
+  let right = -Infinity
+  for (const child of Array.from(el.children)) {
+    const r = child.getBoundingClientRect()
+    left = Math.min(left, r.left)
+    right = Math.max(right, r.right)
+  }
+  return right > left ? right - left : 0
+}
+
+/**
+ * The tray's width as its content needs it: the tray may be squeezed (its
+ * box narrower, its fixed-width parts running past its edge — `scrollWidth`
+ * misses a few px of that), so its padding plus the span of what is laid
+ * out in it (a `display: contents` wrapper's children; not the hidden fold).
+ */
+function trayContentWidth(tray: HTMLElement): number {
+  let left = Infinity
+  let right = -Infinity
+  const visit = (parent: Element) => {
+    for (const child of Array.from(parent.children)) {
+      if (!(child instanceof HTMLElement) || child.hasAttribute(FOLD_HIDDEN_ATTR)) continue
+      const display = getComputedStyle(child).display
+      if (display === 'contents') { visit(child); continue }
+      if (display === 'none') continue
+      const r = child.getBoundingClientRect()
+      left = Math.min(left, r.left)
+      right = Math.max(right, r.right)
+    }
+  }
+  visit(tray)
+  const cs = getComputedStyle(tray)
+  const padding = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
+  return right > left ? Math.max(tray.offsetWidth, right - left + padding) : tray.offsetWidth
+}
+
+/**
+ * The tray's width with its filter buttons and with the Filters menu, both
+ * measured now: the filter bar lays out the fold it doesn't show too,
+ * hidden (`FilterChipBar`'s `measureFold`), so the width of the one not
+ * shown never goes stale (a filter set or cleared, Show N tasks come or
+ * gone). Without both variants, only the shown one (`shownFolded`).
+ */
+function measureTray(tray: HTMLElement, shownFolded: boolean): Pick<TopBarMeasure, 'trayOpen' | 'trayFolded'> {
+  const content = trayContentWidth(tray)
+  const variant = (v: FoldVariant) => tray.querySelector<HTMLElement>(attrSelector(FOLD_VARIANT_ATTR, v))
+  const open = variant('open')
+  const folded = variant('folded')
+  if (!open || !folded) return shownFolded ? { trayFolded: content } : { trayOpen: content }
+  const shown = open.hasAttribute(FOLD_HIDDEN_ATTR) ? folded : open
+  const rest = content - variantWidth(shown)
+  return { trayOpen: Math.ceil(rest + variantWidth(open)), trayFolded: Math.ceil(rest + variantWidth(folded)) }
+}
+
+/** The bar as shown at `fold`: its width, the base, the tray's widths and the shown layout controls' width. */
 export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: string): TopBarMeasure {
   const cs = getComputedStyle(bar)
   const gap = parseFloat(cs.columnGap) || 0
   let need = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0)
-  let tray = 0
   let layout = 0
   let shown = 0
+  let tray: HTMLElement | null = null
   for (const child of Array.from(bar.children)) {
     if (!(child instanceof HTMLElement)) continue
     const ccs = getComputedStyle(child)
     if (ccs.display === 'none' || ccs.position === 'absolute' || ccs.position === 'fixed') continue
     const part = child.dataset.foldPart
-    // The tray may shrink: its content's width, not its box's.
-    const width = part === FOLD_PART.tray ? Math.max(child.scrollWidth, child.offsetWidth) : child.offsetWidth
     const margins = part === FOLD_PART.spring ? 0 : (parseFloat(ccs.marginLeft) || 0) + (parseFloat(ccs.marginRight) || 0)
+    // The tray's own width is what each fold decides; its place (gap, margins) is the base's.
+    const width = part === FOLD_PART.tray ? 0 : child.offsetWidth
     need += width + margins + (shown > 0 ? gap : 0)
     shown++
-    if (part === FOLD_PART.tray) tray = width
+    if (part === FOLD_PART.tray) tray = child
     else if (part === FOLD_PART.layout) layout = width
   }
   return {
     bar: bar.clientWidth,
-    base: Math.ceil(need - tray - layout),
-    ...(filtersFolded(fold) ? { trayFolded: tray } : { trayOpen: tray }),
+    base: Math.ceil(need - layout),
+    ...(tray ? measureTray(tray, filtersFolded(fold)) : {}),
     ...(tabsFolded(fold) ? { picker: layout } : { tabs: { width: layout, key: tabsKey } }),
   }
 }
@@ -132,7 +191,7 @@ export function useTopBarFold(
     const observer = new ResizeObserver(() => setMeasure(remeasure(bar, latest.current)))
     observer.observe(bar)
     // The parts and what is in them: a part that shrinks (the tray) keeps
-    // its box while its content changes.
+    // its box while its content changes; the filter bar's hidden fold.
     for (const child of Array.from(bar.children)) {
       observer.observe(child)
       for (const inner of Array.from(child.children)) observer.observe(inner)

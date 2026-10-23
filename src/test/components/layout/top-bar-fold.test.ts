@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { filtersFolded, tabsFolded, topBarFold, type TopBarMeasure } from '../../../components/layout/use-top-bar-fold'
+import { afterEach, describe, it, expect } from 'vitest'
+import { filtersFolded, measureTopBar, tabsFolded, topBarFold, type TopBarMeasure } from '../../../components/layout/use-top-bar-fold'
 
 /**
  * The top bar's fold from measured widths: the least fold that fits — the
@@ -60,5 +60,61 @@ describe('topBarFold', () => {
     expect((['none', 'filters', 'tabs', 'both'] as const).map((f) => [filtersFolded(f), tabsFolded(f)])).toEqual([
       [false, false], [true, false], [false, true], [true, true],
     ])
+  })
+})
+
+describe('measureTopBar', () => {
+  afterEach(() => {
+    document.body.replaceChildren()
+  })
+
+  /** Pins a box's geometry (JSDOM lays nothing out). */
+  function box(el: HTMLElement, left: number, width: number) {
+    el.getBoundingClientRect = () => ({ left, right: left + width, width, top: 0, bottom: 32, height: 32, x: left, y: 0, toJSON: () => ({}) })
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, value: width })
+    Object.defineProperty(el, 'scrollWidth', { configurable: true, value: width })
+    return el
+  }
+
+  function el(tag: string, attrs: Record<string, string> = {}, ...children: HTMLElement[]) {
+    const e = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v)
+    e.append(...children)
+    return e
+  }
+
+  /**
+   * A bar 1200 wide: New task (28), the layout tabs (300), the tray (at 400)
+   * with the Filters menu shown (80 wide) and the five buttons hidden (420),
+   * the right zone (120).
+   */
+  function bar() {
+    const shown = el('span', { 'data-fold-variant': 'folded' }, box(el('button'), 500, 80))
+    shown.style.display = 'contents'
+    const hidden = box(el('span', { 'data-fold-variant': 'open', 'data-fold-hidden': '' }), 0, 420)
+    hidden.style.position = 'fixed'
+    const tray = box(el('div', { 'data-fold-part': 'tray' }, box(el('button'), 404, 24), shown, hidden), 400, 260)
+    tray.style.marginLeft = '10px'
+    const parts = [
+      box(el('button'), 8, 28),
+      box(el('div', { 'data-fold-part': 'layout' }), 40, 300),
+      tray,
+      box(el('div', { 'data-fold-part': 'spring' }), 1072, 120),
+    ]
+    const header = el('header', {}, ...parts)
+    header.style.paddingLeft = '8px'
+    header.style.paddingRight = '8px'
+    header.style.columnGap = '4px'
+    Object.defineProperty(header, 'clientWidth', { configurable: true, value: 1200 })
+    document.body.append(header)
+    return header
+  }
+
+  it('measures the tray with its buttons and with the Filters menu at once, whichever shows', () => {
+    const measured = measureTopBar(bar(), 'filters', 'k')
+    // The tray less the shown menu (260 − 80) plus each fold's width.
+    expect(measured).toMatchObject({ trayFolded: 260, trayOpen: 600 })
+    // Padding 16, New task 28, the layout tabs' place, the tray's gap + margin, the right zone + gap.
+    expect(measured).toMatchObject({ bar: 1200, base: 16 + 28 + 4 + 4 + 10 + 120 + 4, tabs: { width: 300, key: 'k' } })
   })
 })

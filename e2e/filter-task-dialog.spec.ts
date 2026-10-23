@@ -269,6 +269,21 @@ test.describe('desktop', () => {
     })
   }
 
+  test('a filter set and cleared: the filters fold, then unfold again', async ({ page }) => {
+    await page.setViewportSize({ width: 1350, height: 800 })
+    await seedWorkspace(page, withSpareLayouts(SEED, 1))
+    const folded = tray(page).getByRole('button', { name: /^Filters/ })
+    const status = tray(page).getByRole('button', { name: 'Status filter', exact: true })
+    await expect(status).toBeVisible()
+    await expect(folded).toHaveCount(0)
+    await filterToAnn(page)
+    await expect(folded).toBeVisible()
+    await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
+    await expect(status).toBeVisible()
+    await expect(folded).toHaveCount(0)
+    await expect.poll(() => fit(page)).toEqual(ONE_LINE)
+  })
+
   test('without a filter Show N tasks isn’t there and the room comes back', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await tray(page).getByRole('button', { name: 'Show completed' }).click()

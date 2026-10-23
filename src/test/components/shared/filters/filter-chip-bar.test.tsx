@@ -86,6 +86,36 @@ describe('FilterChipBar — primitive', () => {
         .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
     })
 
+    it('measureFold: the fold not shown is laid out too — hidden, inert, out of the accessibility tree', () => {
+      const active: TodoPredicate = { ...emptyPredicate(), personIds: [1] }
+      const { container, rerender } = render(<FilterChipBar predicate={active} onChange={() => {}} measureFold />)
+      const variants = () => [...container.querySelectorAll<HTMLElement>('[data-fold-variant]')]
+        .map((el) => ({ variant: el.dataset.foldVariant, hidden: el.hasAttribute('data-fold-hidden'), inert: el.hasAttribute('inert'), ariaHidden: el.getAttribute('aria-hidden') }))
+      expect(variants()).toEqual([
+        { variant: 'open', hidden: false, inert: false, ariaHidden: null },
+        { variant: 'folded', hidden: true, inert: true, ariaHidden: 'true' },
+      ])
+      // Only the shown fold is reachable.
+      expect(screen.getByRole('button', { name: 'People filter: Alice' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull()
+
+      rerender(<FilterChipBar predicate={active} onChange={() => {}} measureFold fold />)
+      expect(variants()).toEqual([
+        { variant: 'folded', hidden: false, inert: false, ariaHidden: null },
+        { variant: 'open', hidden: true, inert: true, ariaHidden: 'true' },
+      ])
+      expect(screen.getByRole('button', { name: 'Filters, 1 active' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'People filter: Alice' })).toBeNull()
+      // The hidden buttons carry the same labels (their width is the open tray's).
+      expect(container.querySelector('[data-fold-hidden]')).toHaveTextContent('Alice')
+    })
+
+    it('without measureFold: only the shown fold, unwrapped', () => {
+      const { container } = render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} fold />)
+      expect(container.querySelector('[data-fold-variant]')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'People filter' })).toBeNull()
+    })
+
     it('folded: the Filters menu lists the same order', () => {
       render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} fold />)
       fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
