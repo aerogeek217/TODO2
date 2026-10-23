@@ -4,7 +4,8 @@ import type { DashGlyphName } from '../utils/dash-glyphs'
 /**
  * What the task dialog shows (`ui-store.taskDialog`): a payload says what
  * to list and in words what was counted; `services/task-dialog` resolves
- * its source to rows when the dialog opens.
+ * its source to rows when the dialog opens (a `screen` source also when the
+ * screen filter changes).
  */
 
 /** One heading of a grouped source: its tasks in display order. */
@@ -28,6 +29,12 @@ export type TaskDialogSource =
    * as in a List widget), with the list's own sort and grouping.
    */
   | { kind: 'list'; listDefinitionId: number }
+  /**
+   * The tasks the screen filter matches (open ones, completed too while its
+   * Show completed is on), sorted and grouped by Settings' new-list
+   * defaults. Resolved again whenever the screen filter changes.
+   */
+  | { kind: 'screen' }
 
 export interface TaskDialogPayload {
   title: string

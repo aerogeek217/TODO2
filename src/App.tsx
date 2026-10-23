@@ -21,6 +21,7 @@ import { useShortcutLabel } from './hooks/use-shortcut-label'
 import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
+import { currentTaskDialogEnv, screenTaskCount, screenTaskDialog } from './services/task-dialog'
 import type { ShortcutCallbacks } from './services/keyboard-shortcuts'
 import { openTaskCounts } from './services/checkin-email/recipients'
 import { currentCheckinTaskCounts, sendPersonCheckin } from './services/checkin-email/person-checkin'
@@ -90,6 +91,8 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       getPeople: () => people,
       getOpenTaskCounts: () => openTaskCounts(todos, assignedPeopleMap),
       getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
+      showScreenTasks: () => useUIStore.getState().showTaskDialog(screenTaskDialog()),
+      getScreenTaskCount: () => screenTaskCount(currentTaskDialogEnv()),
     }),
     [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter],
   )

@@ -5,6 +5,8 @@ import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-cri
 import type { TodoPredicate } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
+import { useScreenTaskCount } from '../../hooks/use-screen-task-count'
+import { screenTaskDialog, showTasksLabel } from '../../services/task-dialog'
 import styles from './FilterSheet.module.css'
 
 export function FilterSheet() {
@@ -12,6 +14,7 @@ export function FilterSheet() {
   const focusSearch = useUIStore((s) => s.filterSheetFocusSearch)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
   const filters = useFilterStore((s) => s.filters)
+  const isActive = useFilterStore((s) => s.isActive)
   const setSearchText = useFilterStore((s) => s.setSearchText)
   const location = useLocation()
 
@@ -77,8 +80,31 @@ export function FilterSheet() {
             onClearExtra={closeSheet}
             onClearAll={() => useFilterStore.getState().clearAll()}
           />
+          {isActive && <ShowTasksButton onShow={closeSheet} />}
         </div>
       </div>
     </>
+  )
+}
+
+/**
+ * The sheet's foot while a filter is on, as the top bar's tray end: how many
+ * tasks the filter matches; a tap closes the sheet and opens them in the
+ * task dialog (whose filter bar edits this filter).
+ */
+function ShowTasksButton({ onShow }: { onShow: () => void }) {
+  const count = useScreenTaskCount()
+  return (
+    <button
+      type="button"
+      className={styles.showTasks}
+      onClick={() => {
+        onShow()
+        useUIStore.getState().showTaskDialog(screenTaskDialog())
+      }}
+      data-show-filtered-tasks=""
+    >
+      {showTasksLabel(count)}
+    </button>
   )
 }

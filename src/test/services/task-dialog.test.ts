@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem } from '../../models'
+import { emptyPredicate, type PersistedTodoItem } from '../../models'
+import type { PersistedListDefinition } from '../../models/list-definition'
 import {
   eisenhowerQuadrantDialog,
   eisenhowerSummaryDialog,
@@ -10,6 +11,10 @@ import {
   tagSectionDialog,
   tagsSectionDialog,
   resolveTaskDialog,
+  screenTaskCount,
+  screenTaskDialog,
+  screenTaskDialogDescription,
+  showTasksLabel,
   taskDialogCopySections,
   taskDialogCount,
   type TaskDialogEnv,
@@ -20,8 +25,9 @@ import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
-  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
 } from '../fixtures/dashboard-sample'
+import { useFilterStore } from '../../stores/filter-store'
 
 function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
   return {
@@ -36,6 +42,7 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     listDefinitions: SAMPLE_LISTS,
     screen: { ...emptyFilterCriteria },
     listRanks: new Map(),
+    newListView: { sort: 'manual', sortDirection: 'asc', grouping: 'none' },
     ...over,
   }
 }
@@ -99,6 +106,66 @@ describe('resolveTaskDialog', () => {
 
   it('list: a deleted list has no rows', () => {
     expect(resolveTaskDialog({ kind: 'list', listDefinitionId: 99 }, env())).toEqual([])
+  })
+})
+
+describe('resolveTaskDialog — the screen filter’s tasks', () => {
+  const SCREEN: TaskDialogSource = { kind: 'screen' }
+  const priya = { ...emptyFilterCriteria, personIds: new Set([PRIYA]) }
+
+  it('no filter: every open task, flat, in sortOrder (the Manual default without a manual order)', () => {
+    const groups = resolveTaskDialog(SCREEN, env())
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.label).toBeNull()
+    const ids = groups[0]?.todoIds ?? []
+    expect(ids).toHaveLength(SAMPLE_OPEN_COUNT)
+    const sortOrders = ids.map((id) => byId.get(id)!.sortOrder)
+    expect(sortOrders).toEqual([...sortOrders].sort((a, b) => a - b))
+    expect(ids.every((id) => !byId.get(id)!.isCompleted)).toBe(true)
+  })
+
+  it('the screen filter narrows it; its Show completed adds the completed ones', () => {
+    const [open] = resolveTaskDialog(SCREEN, env({ screen: priya }))
+    expect(titles(open?.todoIds ?? [])).toEqual(['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast'])
+    const [all] = resolveTaskDialog(SCREEN, env({ screen: { ...priya, showCompleted: true } }))
+    expect(titles(all?.todoIds ?? [])).toContain('Team lunch booking')
+    expect(all?.todoIds).toHaveLength(5)
+  })
+
+  it('sorted and grouped by Settings’ new-list defaults (direction included), as such a list shows them', () => {
+    const view = { sort: 'deadline', sortDirection: 'desc', grouping: 'status' } as const
+    const groups = resolveTaskDialog(SCREEN, env({ screen: priya, newListView: view }))
+    expect(groups.length).toBeGreaterThan(1)
+    expect(groups.every((g) => g.label != null)).toBe(true)
+    const everyOpenTask: PersistedListDefinition = {
+      id: 50, name: 'All', sortOrder: 0, owner: { layoutId: 1 },
+      membership: { kind: 'custom', predicate: emptyPredicate() },
+      sort: view.sort, sortDirection: view.sortDirection, grouping: view.grouping,
+    }
+    expect(groups).toEqual(resolveTaskDialog({ kind: 'list', listDefinitionId: 50 }, env({ screen: priya, listDefinitions: [everyOpenTask] })))
+  })
+
+  it('screenTaskCount: how many rows the dialog lists', () => {
+    for (const screen of [emptyFilterCriteria, priya, { ...priya, showCompleted: true }, { ...emptyFilterCriteria, showCompleted: true }]) {
+      expect(screenTaskCount(env({ screen }))).toBe(taskDialogCount(resolveTaskDialog(SCREEN, env({ screen }))))
+    }
+    expect(screenTaskCount(env())).toBe(SAMPLE_OPEN_COUNT)
+  })
+
+  it('its payload, the description for the filter as it is, the button’s label', () => {
+    useFilterStore.getState().setPersonIds(new Set([PRIYA]))
+    expect(screenTaskDialog()).toEqual({
+      title: 'Filtered tasks',
+      glyph: 'filter',
+      description: 'Open tasks matching the screen filter. A change here applies to every widget.',
+      source: { kind: 'screen' },
+    })
+    expect(screenTaskDialogDescription({ ...priya, showCompleted: true }))
+      .toBe('Tasks matching the screen filter, completed ones included. A change here applies to every widget.')
+    expect(screenTaskDialogDescription(emptyFilterCriteria))
+      .toBe('Every open task: no screen filter is on. A filter set here applies to every widget.')
+    expect(showTasksLabel(1)).toBe('Show 1 task')
+    expect(showTasksLabel(12)).toBe('Show 12 tasks')
   })
 })
 

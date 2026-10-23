@@ -39,6 +39,10 @@ export interface CommandContext {
   setShowCompleted: (show: boolean) => void
   getShowCompleted: () => boolean
   setDateRange: (start: Date | null, end: Date | null) => void
+  /** Opens the task dialog on the tasks the screen filter matches (its filter bar edits that filter). */
+  showScreenTasks?: () => void
+  /** How many tasks that dialog would list (open ones, completed too under Show completed). */
+  getScreenTaskCount?: () => number
   /** Lazy todo getter (for task search — only called when palette has a query) */
   getTodos: () => PersistedTodoItem[]
   /** Open a task (from a palette task search hit) */
@@ -64,6 +68,7 @@ export interface CommandContext {
 }
 
 const openTasksLabel = (n: number) => `${n} open ${n === 1 ? 'task' : 'tasks'}`
+const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
 
 /**
  * `Email check-in: <person>` for each person with at least one open task, by
@@ -125,6 +130,18 @@ export function createCommands(
       ctx.setDateRange(null, yesterday)
     }},
   ]
+  // Always offered: with no filter on, it lists every open task.
+  const showScreenTasks = ctx.showScreenTasks
+  if (showScreenTasks) {
+    const n = ctx.getScreenTaskCount?.()
+    commands.push({
+      id: 'filter-show-tasks',
+      name: 'Show Tasks Matching the Filter',
+      ...(n != null ? { hint: tasksLabel(n) } : {}),
+      category: 'filter',
+      action: showScreenTasks,
+    })
+  }
 
   // Email
   const openCheckinDialog = ctx.openCheckinDialog

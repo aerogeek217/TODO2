@@ -24,6 +24,8 @@ export const DASH_GLYPH = {
   plus: 'M8 3v10M3 8h10',
   sliders: 'M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7M11 3v3M5 10v3',
   copy: 'M6.5 5.5h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1zM10.5 3.5v-.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h.5',
+  /** The screen filter's funnel (the top bar's `FunnelIcon`). */
+  filter: 'M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z',
 } as const
 
 export type DashGlyphName = keyof typeof DASH_GLYPH

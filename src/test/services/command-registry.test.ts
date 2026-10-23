@@ -285,6 +285,18 @@ describe('createCommands — no dynamic commands', () => {
 
 // ─── Email check-in commands ─────────────────────────────────────────────────
 
+describe('createCommands — the screen filter’s tasks', () => {
+  it('offered when the app can show them, with their count as the hint', () => {
+    expect(createCommands(makeContext()).some((c) => c.id === 'filter-show-tasks')).toBe(false)
+    const showScreenTasks = vi.fn()
+    const cmd = createCommands(makeContext({ showScreenTasks, getScreenTaskCount: () => 1 })).find((c) => c.id === 'filter-show-tasks')!
+    expect(cmd).toMatchObject({ name: 'Show Tasks Matching the Filter', hint: '1 task', category: 'filter' })
+    cmd.action()
+    expect(showScreenTasks).toHaveBeenCalledOnce()
+    expect(createCommands(makeContext({ showScreenTasks, getScreenTaskCount: () => 7 })).find((c) => c.id === 'filter-show-tasks')?.hint).toBe('7 tasks')
+  })
+})
+
 describe('createCommands — email check-ins', () => {
   const people = [
     { id: 1, name: 'Zoe Park', initials: 'ZP', email: 'zoe@example.com' },

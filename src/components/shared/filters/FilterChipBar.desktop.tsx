@@ -25,6 +25,7 @@ import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
 import { useReturnFocus } from '../use-popover-focus'
+import { useDialogLayer } from '../dialog-layer'
 import {
   narrowedPeople,
   useFilterChipBarState,
@@ -162,7 +163,10 @@ function FilterButton({ field }: { field: FieldDef }) {
     setOpen(false)
     onClose?.()
   }, [onClose])
-  const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close })
+  // In a dialog (the screen filter's task dialog), the Esc that closes the
+  // picker stops there: the next one closes the dialog.
+  const inDialog = useDialogLayer() != null
+  const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape: inDialog })
   const on = field.value != null
   // No tooltip over an open picker.
   const { triggerProps, tooltip } = useTooltip(open ? null : field.tooltip, { labelLines: field.tooltipLabelLines })

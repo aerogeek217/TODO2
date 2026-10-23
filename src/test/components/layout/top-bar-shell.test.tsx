@@ -9,6 +9,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useFileStorageStore } from '../../../services/file-storage-store'
+import { makeTodo } from '../../helpers'
 
 function renderBar() {
   return render(
@@ -77,5 +78,29 @@ describe('TopBar — app shell', () => {
     expect(useFilterStore.getState().isActive).toBe(false)
     expect(useFilterStore.getState().filters.personIds).toBeNull()
     expect(funnel).toBeDisabled()
+  })
+
+  it('Show N tasks ends the tray while a filter is on: the tasks it matches; a click opens them in the task dialog', () => {
+    useTodoStore.setState({ todos: [
+      makeTodo({ id: 1, title: 'Alpha' }),
+      makeTodo({ id: 2, title: 'Alpha done', isCompleted: true }),
+      makeTodo({ id: 3, title: 'Beta' }),
+    ] })
+    renderBar()
+    const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
+    expect(within(tray).queryByRole('button', { name: /^Show \d+ tasks?$/ })).toBeNull()
+    act(() => useFilterStore.getState().setSearchText('alpha'))
+    // Open ones only…
+    expect(within(tray).getByRole('button', { name: 'Show 1 task' })).toBeTruthy()
+    // …completed too under Show completed; a task write updates it.
+    act(() => useFilterStore.getState().setShowCompleted(true))
+    expect(within(tray).getByRole('button', { name: 'Show 2 tasks' })).toBeTruthy()
+    act(() => useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 4, title: 'Alpha two' })] }))
+    const button = within(tray).getByRole('button', { name: 'Show 3 tasks' })
+    expect(tray.lastElementChild).toBe(button)
+    fireEvent.click(button)
+    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Filtered tasks', source: { kind: 'screen' } })
+    act(() => useFilterStore.getState().clearAll())
+    expect(within(tray).queryByRole('button', { name: /^Show \d+ tasks?$/ })).toBeNull()
   })
 })
