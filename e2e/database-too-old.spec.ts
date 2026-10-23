@@ -5,7 +5,9 @@ import { DB_NAME } from './fixtures/db'
  * A browser database saved below the schema floor is refused at startup:
  * the app shows "Data from an older version of TODO2" (Reload only) and
  * neither opens nor changes the database — its version, stores and rows
- * stay as they were, through a reload too.
+ * stay as they were, through a reload too. Also where the browser can't list
+ * its databases, and in the database's own open (the backstop: its refused
+ * upgrade is rolled back by the real engine).
  */
 
 /** Native IndexedDB version of a schema-v67 database (Dexie stores schema × 10). */
@@ -79,5 +81,36 @@ test('a database below the schema floor is refused at startup and left untouched
   await dialog.getByRole('button', { name: 'Reload' }).click()
   await reloaded
   await expect(page.getByRole('dialog', { name: 'Data from an older version of TODO2' })).toContainText('schema v67')
+  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+})
+
+test('where the browser can’t list its databases, it is still refused, naming the version, and left untouched', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(IDBFactory.prototype, 'databases', { value: undefined, configurable: true })
+  })
+  await page.goto('/favicon.svg')
+  await createRawDatabase(page, V67_NATIVE)
+
+  await page.goto('/')
+  const dialog = page.getByRole('dialog', { name: 'Data from an older version of TODO2' })
+  await expect(dialog).toContainText('schema v67')
+  await expect(dialog.getByRole('button')).toHaveText(['Reload'])
+  await expect(page.locator('[data-ws-area]')).toHaveCount(0)
+  expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
+})
+
+test('the database’s own open refuses a database below the floor and the engine rolls it back', async ({ page }) => {
+  await page.goto('/favicon.svg')
+  await createRawDatabase(page, V67_NATIVE)
+
+  // The app's database module, opened straight — no version check first.
+  const refused = await page.evaluate(async () => {
+    const path = '/src/data/database.ts'
+    const mod = (await import(/* @vite-ignore */ path)) as typeof import('../src/data/database')
+    const error = await mod.db.open().then(() => null, (e: unknown) => e)
+    mod.db.close()
+    return mod.findDatabaseTooOld(error) !== null
+  })
+  expect(refused).toBe(true)
   expect(await rawDatabase(page)).toEqual({ version: V67_NATIVE, stores: { orgs: 1, todos: 1 } })
 })
