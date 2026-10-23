@@ -13,6 +13,8 @@ export const TODO_ID_ATTR = 'data-todo-id'
 export const SEARCH_INPUT_ATTR = 'data-search-input'
 /** The top bar's filter tray: its first button is where Focus Filters lands. */
 export const FILTER_ROW_ATTR = 'data-filter-row'
+/** The tray's Show N tasks (the filtered-tasks panel's toggle): where the focus goes back when the panel closes. */
+export const SHOW_FILTERED_TASKS_ATTR = 'data-show-filtered-tasks'
 /** A widget that owns a row selection (list, Eisenhower, dashboard): its scope, the tab id. */
 export const SELECTION_SCOPE_ATTR = 'data-selection-scope'
 /** A list widget row: its occurrence key within the scope. */

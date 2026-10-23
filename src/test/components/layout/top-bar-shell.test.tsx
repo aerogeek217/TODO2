@@ -80,7 +80,7 @@ describe('TopBar — app shell', () => {
     expect(funnel).toBeDisabled()
   })
 
-  it('Show N tasks ends the tray while a filter is on: the tasks it matches; a click opens them in the task dialog', () => {
+  it('Show N tasks ends the tray while a filter is on: the tasks it matches; a click opens the filtered-tasks panel', () => {
     useTodoStore.setState({ todos: [
       makeTodo({ id: 1, title: 'Alpha' }),
       makeTodo({ id: 2, title: 'Alpha done', isCompleted: true }),
@@ -98,9 +98,17 @@ describe('TopBar — app shell', () => {
     act(() => useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 4, title: 'Alpha two' })] }))
     const button = within(tray).getByRole('button', { name: 'Show 3 tasks' })
     expect(tray.lastElementChild).toBe(button)
+    expect(button).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(button)
-    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Filtered tasks', source: { kind: 'screen' } })
+    expect(useUIStore.getState().filterPanelOpen).toBe(true)
+    expect(useUIStore.getState().taskDialog).toBeNull()
+    expect(button).toHaveAttribute('aria-expanded', 'true')
+    // Cleared with the panel open: the button stays (the panel's toggle), now every open task.
     act(() => useFilterStore.getState().clearAll())
+    expect(within(tray).getByRole('button', { name: 'Show 3 tasks' })).toBe(button)
+    fireEvent.click(button)
+    expect(useUIStore.getState().filterPanelOpen).toBe(false)
+    // Closed with no filter: it goes.
     expect(within(tray).queryByRole('button', { name: /^Show \d+ tasks?$/ })).toBeNull()
   })
 })

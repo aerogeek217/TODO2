@@ -39,7 +39,7 @@ describe('AppCommandPalette', () => {
     expect(screen.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toHaveTextContent('1 open task')
   })
 
-  it('Show Tasks Matching the Filter: always offered, counts the tasks, opens them in the task dialog', () => {
+  it('Show Tasks Matching the Filter: always offered, counts the tasks, opens the top bar’s filtered-tasks panel', () => {
     useTodoStore.setState({ todos: [
       makeTodo({ id: 1, title: 'Report' }),
       makeTodo({ id: 2, title: 'Review' }),
@@ -58,6 +58,6 @@ describe('AppCommandPalette', () => {
     const option = screen.getByRole('option', { name: /Show Tasks Matching the Filter/ })
     expect(option).toHaveTextContent('1 task')
     fireEvent.click(option)
-    expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Filtered tasks', source: { kind: 'screen' } })
+    expect(useUIStore.getState()).toMatchObject({ filterPanelOpen: true, filterPanelFocusKey: 1, taskDialog: null })
   })
 })

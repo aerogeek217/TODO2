@@ -33,6 +33,8 @@ export interface FilterChipBarProps {
   onClearAll?: () => void
   /** Desktop: fold the filter buttons into one Filters menu (narrow windows). */
   fold?: boolean
+  /** Desktop: the Esc that closes a picker (or the Filters menu) stops there, so nothing behind also takes it. */
+  consumeEscape?: boolean
 }
 
 export const DEFAULT_PREDICATE: TodoPredicate = {

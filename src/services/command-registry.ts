@@ -39,9 +39,9 @@ export interface CommandContext {
   setShowCompleted: (show: boolean) => void
   getShowCompleted: () => boolean
   setDateRange: (start: Date | null, end: Date | null) => void
-  /** Opens the task dialog on the tasks the screen filter matches (its filter bar edits that filter). */
+  /** Opens (or focuses) the top bar's panel of the tasks the screen filter matches (its tray edits that filter). */
   showScreenTasks?: () => void
-  /** How many tasks that dialog would list (open ones, completed too under Show completed). */
+  /** How many tasks that panel would list (open ones, completed too under Show completed). */
   getScreenTaskCount?: () => number
   /** Lazy todo getter (for task search — only called when palette has a query) */
   getTodos: () => PersistedTodoItem[]

@@ -24,10 +24,12 @@ import { useTooltip } from '../shared/use-tooltip'
 import { useShortcutLabel } from '../../hooks/use-shortcut-label'
 import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
-import { FOLD_PART, useTopBarFold } from './use-top-bar-fold'
+import { filtersFolded, FOLD_PART, tabsFolded, useTopBarFold } from './use-top-bar-fold'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { useScreenSearch } from '../../hooks/use-screen-search'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
+import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
+import { tabAcross } from '../../utils/focusables'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
@@ -309,9 +311,14 @@ export function TopBar() {
   const [searchContextMenu, setSearchContextMenu] = useState<
     { todoId: number; x: number; y: number } | null
   >(null)
+  // The filtered-tasks panel: while it is open its rows are the search's
+  // results (no dropdown), and the tray is its filter editor.
+  const panelOpen = useUIStore((s) => s.filterPanelOpen)
+  const trayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   // The tasks and their people / tags only while the search dropdown (or a
   // result's menu) can show: otherwise a task write doesn't render the bar.
-  const searching = (localSearch.length > 0 && searchFocused) || searchContextMenu !== null
+  const searching = !panelOpen && ((localSearch.length > 0 && searchFocused) || searchContextMenu !== null)
   const todos = useTodoStore((s) => (searching ? s.todos : NO_TODOS))
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
@@ -339,19 +346,22 @@ export function TopBar() {
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
     : 0
-  const showMiniList = searchFocused && localSearch.length > 0 && !!miniListGroups && totalMatchCount > 0
+  const showMiniList = !panelOpen && searchFocused && localSearch.length > 0 && !!miniListGroups && totalMatchCount > 0
 
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
   const settingsOpen = useUIStore((s) => s.settingsOpen)
   // The bar never wraps or overflows: measured, the filter buttons fold into
   // one Filters menu first, then the layout tabs into the layout picker
-  // (search narrows in CSS).
+  // (search narrows in CSS) — while the panel is open, the tabs first.
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  // The tray gains or loses Show N tasks with the filter: measured again then.
-  const fold = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${isActive}`)
+  // Show N tasks shows while a filter is on or the panel is open (it stays
+  // the panel's toggle when Clear all empties the filter).
+  const showTasksButton = isActive || panelOpen
+  // The tray gains or loses Show N tasks: measured again then.
+  const fold = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}`, panelOpen)
 
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -375,135 +385,159 @@ export function TopBar() {
   }, [searchContextMenu, todos])
 
   return (
-    <header ref={barRef} className={styles.topBar} data-fold={fold}>
-      <button
-        type="button"
-        className={styles.newTask}
-        onClick={() => useUIStore.getState().openQuickAdd()}
-        aria-label="New task"
-        title={`New task (${quickAddKeys})`}
+    <>
+      <header
+        ref={barRef}
+        className={styles.topBar}
+        data-fold={fold}
+        // A press on the bar outside the tray closes the panel first; the
+        // press then does its own thing. (In the page, not in a layer the
+        // bar's controls portaled out: a picker, a menu.)
+        onMouseDownCapture={(e) => {
+          const target = e.target as Node
+          if (panelOpen && e.currentTarget.contains(target) && !trayRef.current?.contains(target)) {
+            useUIStore.getState().closeFilterPanel()
+          }
+        }}
       >
-        <PlusIcon size={14} strokeWidth={2} />
-      </button>
-      {isWorkspace && (
-        <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
-          <LayoutControls mode={fold === 2 || manyLayouts ? 'menu' : 'tabs'} />
-        </div>
-      )}
-
-      <div
-        className={`${styles.tray} ${isActive ? styles.trayActive : ''}`}
-        data-fold-part={FOLD_PART.tray}
-        role="group"
-        aria-label="Screen filters — apply to every widget"
-        {...{ [FILTER_ROW_ATTR]: '' }}
-        data-filtered={isActive || undefined}
-      >
-        <ClearFiltersButton active={isActive} />
-        <div className={styles.searchWrapper}>
-          <span className={styles.searchIcon}><SearchIcon size={14} /></span>
-          <input
-            ref={searchInputRef}
-            className={styles.searchInput}
-            type="text"
-            placeholder="Search…"
-            aria-label="Search tasks"
-            value={localSearch}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            aria-controls="search-results"
-            aria-expanded={showMiniList}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={(e) => {
-              if (miniListRef.current?.contains(e.relatedTarget as Node)) return
-              // Right-click on a search row opens a context menu that autoFocuses
-              // its first item; preserve the listbox so the menu's actions can
-              // still target the row.
-              if (searchContextMenu) return
-              setSearchFocused(false)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                handleSearchChange('')
-                setSearchFocused(false)
-                searchInputRef.current?.blur()
-              } else if (e.key === 'ArrowDown' && showMiniList) {
-                e.preventDefault()
-                const first = miniListRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
-                first?.focus()
-              }
-            }}
-            {...{ [SEARCH_INPUT_ATTR]: '' }}
-          />
-          {localSearch && (
-            // Like `ClearableField`'s ×, a mouse target only (it acts on
-            // mousedown); from the keyboard, Esc in the field clears it.
-            <button
-              type="button"
-              className={styles.searchClear}
-              aria-label="Clear search"
-              tabIndex={-1}
-              onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
-            >
-              <CloseIcon size={8} />
-            </button>
-          )}
-          {showMiniList && miniListGroups && (
-            <SearchResultsGroups
-              ref={miniListRef}
-              groups={miniListGroups}
-              query={localSearch}
-              pillCtx={searchPillCtx}
-              searchInputRef={searchInputRef}
-              onOpen={handleOpenTodo}
-              onOpenContextMenu={handleOpenSearchContextMenu}
-              onBlur={(e) => {
-                if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
-                  if (searchContextMenu) return
-                  setSearchFocused(false)
-                }
-              }}
-            />
-          )}
-        </div>
-
-        <FilterChipBar
-          predicate={filterPredicate}
-          onChange={handleFilterChange}
-          onClearAll={() => useFilterStore.getState().clearAll()}
-          fold={fold >= 1}
-        />
-        {isActive && <ShowFilteredTasksButton />}
-      </div>
-
-      <div className={styles.right} data-fold-part={FOLD_PART.spring}>
-        <StoragePill />
         <button
           type="button"
-          className={`${styles.gear} ${settingsOpen ? styles.gearOpen : ''}`}
-          onClick={() => useUIStore.getState().openSettings()}
-          aria-label="Settings"
-          title={`Settings (${settingsKeys})`}
+          className={styles.newTask}
+          onClick={() => useUIStore.getState().openQuickAdd()}
+          aria-label="New task"
+          title={`New task (${quickAddKeys})`}
         >
-          <GearIcon />
+          <PlusIcon size={14} strokeWidth={2} />
         </button>
-      </div>
+        {isWorkspace && (
+          <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
+            <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />
+          </div>
+        )}
 
-      {searchContextMenu && menuTodo && (
-        <SearchResultContextMenu
-          x={searchContextMenu.x}
-          y={searchContextMenu.y}
-          todo={menuTodo}
-          onOpen={handleOpenTodo}
-          onClose={() => {
-            setSearchContextMenu(null)
-            // Match the prior onAction-closes-listbox UX: any path that closes
-            // the context menu (action click, outside click, Esc) also drops
-            // the search dropdown so the user is back to the unfocused state.
-            setSearchFocused(false)
-          }}
-        />
-      )}
+        <div
+          ref={trayRef}
+          className={`${styles.tray} ${isActive ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''}`}
+          data-fold-part={FOLD_PART.tray}
+          role="group"
+          aria-label="Screen filters — apply to every widget"
+          {...{ [FILTER_ROW_ATTR]: '' }}
+          data-filtered={isActive || undefined}
+          onKeyDown={panelOpen ? (e) => tabAcross(e, trayRef.current, panelRef.current) : undefined}
+        >
+          <ClearFiltersButton active={isActive} />
+          <div className={styles.searchWrapper}>
+            <span className={styles.searchIcon}><SearchIcon size={14} /></span>
+            <input
+              ref={searchInputRef}
+              className={styles.searchInput}
+              type="text"
+              placeholder="Search…"
+              aria-label="Search tasks"
+              value={localSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              aria-controls="search-results"
+              aria-expanded={showMiniList}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={(e) => {
+                if (miniListRef.current?.contains(e.relatedTarget as Node)) return
+                // Right-click on a search row opens a context menu that autoFocuses
+                // its first item; preserve the listbox so the menu's actions can
+                // still target the row.
+                if (searchContextMenu) return
+                setSearchFocused(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && panelOpen) {
+                  // Over the panel: the text first (stays here), then the panel.
+                  if (localSearch !== '') {
+                    e.preventDefault()
+                    handleSearchChange('')
+                  }
+                } else if (e.key === 'Escape') {
+                  handleSearchChange('')
+                  setSearchFocused(false)
+                  searchInputRef.current?.blur()
+                } else if (e.key === 'ArrowDown' && showMiniList) {
+                  e.preventDefault()
+                  const first = miniListRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
+                  first?.focus()
+                }
+              }}
+              {...{ [SEARCH_INPUT_ATTR]: '' }}
+            />
+            {localSearch && (
+              // Like `ClearableField`'s ×, a mouse target only (it acts on
+              // mousedown); from the keyboard, Esc in the field clears it.
+              <button
+                type="button"
+                className={styles.searchClear}
+                aria-label="Clear search"
+                tabIndex={-1}
+                onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
+              >
+                <CloseIcon size={8} />
+              </button>
+            )}
+            {showMiniList && miniListGroups && (
+              <SearchResultsGroups
+                ref={miniListRef}
+                groups={miniListGroups}
+                query={localSearch}
+                pillCtx={searchPillCtx}
+                searchInputRef={searchInputRef}
+                onOpen={handleOpenTodo}
+                onOpenContextMenu={handleOpenSearchContextMenu}
+                onBlur={(e) => {
+                  if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
+                    if (searchContextMenu) return
+                    setSearchFocused(false)
+                  }
+                }}
+              />
+            )}
+          </div>
 
-    </header>
+          <FilterChipBar
+            predicate={filterPredicate}
+            onChange={handleFilterChange}
+            onClearAll={() => useFilterStore.getState().clearAll()}
+            fold={filtersFolded(fold)}
+            consumeEscape={panelOpen}
+          />
+          {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}
+        </div>
+
+        <div className={styles.right} data-fold-part={FOLD_PART.spring}>
+          <StoragePill />
+          <button
+            type="button"
+            className={`${styles.gear} ${settingsOpen ? styles.gearOpen : ''}`}
+            onClick={() => useUIStore.getState().openSettings()}
+            aria-label="Settings"
+            title={`Settings (${settingsKeys})`}
+          >
+            <GearIcon />
+          </button>
+        </div>
+
+        {searchContextMenu && menuTodo && (
+          <SearchResultContextMenu
+            x={searchContextMenu.x}
+            y={searchContextMenu.y}
+            todo={menuTodo}
+            onOpen={handleOpenTodo}
+            onClose={() => {
+              setSearchContextMenu(null)
+              // Match the prior onAction-closes-listbox UX: any path that closes
+              // the context menu (action click, outside click, Esc) also drops
+              // the search dropdown so the user is back to the unfocused state.
+              setSearchFocused(false)
+            }}
+          />
+        )}
+      </header>
+      {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} />}
+    </>
   )
 }

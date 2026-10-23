@@ -1,62 +1,19 @@
-/* The screen filter's task dialog's filter bar: the top bar's tray (its
- * look, red while a filter is on), wrapping onto a second line when the
- * buttons don't fit the dialog. */
+/* The screen filter's task dialog's filter bar on a phone: the search, then
+ * a Filters disclosure holding the filter sheet's sections. */
 
 .bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 2px;
-  padding: 3px 4px 3px 3px;
-  border-radius: 8px;
-  background: var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-border-muted);
-  transition: background var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.barActive {
-  background: color-mix(in srgb, var(--color-danger) 7%, var(--color-surface));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
-}
-
-.funnel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0 0 0 2px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-.funnel:disabled {
-  cursor: default;
-}
-
-.barActive .funnel {
-  color: var(--color-danger);
-  cursor: pointer;
-}
-
-.barActive .funnel:hover {
-  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
-}
-
-.funnel:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+  gap: 8px;
 }
 
 .searchWrapper {
   position: relative;
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
 .searchIcon {
@@ -68,15 +25,16 @@
 }
 
 .searchInput {
-  width: 170px;
-  height: 26px;
+  width: 100%;
+  height: 34px;
+  box-sizing: border-box;
   padding: 0 28px 0 29px;
   border: none;
   border-radius: var(--radius-md);
   background: var(--color-search-bg);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: 16px;
   font-family: inherit;
   outline: none;
 }
@@ -109,28 +67,7 @@
   color: var(--color-text-primary);
 }
 
-/* ═══ Phone ═══ */
-
-.mobile {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.mobileSearch {
-  flex: 1 1 140px;
-  min-width: 0;
-}
-
-.mobileSearch .searchInput {
-  width: 100%;
-  height: 34px;
-  box-sizing: border-box;
-  font-size: 16px;
-}
-
-.mobileToggle {
+.toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -146,12 +83,12 @@
   flex-shrink: 0;
 }
 
-.mobileToggleActive {
+.toggleActive {
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   color: var(--color-danger-text);
 }
 
-.mobileCount {
+.count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -165,17 +102,17 @@
   font-weight: var(--font-weight-bold);
 }
 
-.mobileChevron {
+.chevron {
   display: inline-block;
   transition: transform var(--transition-fast);
 }
 
-.mobileChevronOpen {
+.chevronOpen {
   transform: rotate(90deg);
 }
 
 /* The sheet's sections, scrolling on their own so the rows stay in view. */
-.mobileSections {
+.sections {
   flex: 1 0 100%;
   max-height: 45vh;
   overflow-y: auto;
