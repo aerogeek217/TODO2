@@ -569,6 +569,8 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(followedUp).not.toHaveTextContent('Today')
     await act(async () => { fireEvent.click(followedUp) })
     expect(useTodoStore.getState().todos.every((t) => t.lastFollowupAt instanceof Date)).toBe(true)
+    // The write lands (and its undo snackbar shows) before the test ends, not in a later one.
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar?.description).toMatch(/^Followed up/))
     openMore()
     expect(screen.getByRole('menuitem', { name: /^Mark followed up/ })).toHaveTextContent('Today')
   })
@@ -662,6 +664,7 @@ describe('ListWidget People group headers: email check-in', () => {
     await vi.waitFor(() => expect(written).toEqual([
       [`== ${name} ==`, '[ ] Alice task @Alice', '[ ] Bob task @Bob', '[ ] Shared task @Alice, @Bob', '[ ] Nobody’s task'].join('\n'),
     ]))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 4 tasks' }))
   })
 
   it('right-click on a person’s header opens its menu; Show all opens the person’s task dialog', () => {
@@ -695,6 +698,7 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)).toEqual(['Copy 1 task'])
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 1 task' }))
     await vi.waitFor(() => expect(written).toEqual(['== Unassigned ==\n[ ] Nobody’s task']))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 1 task' }))
     fireEvent.contextMenu(header('unassigned'))
     expect(screen.getByRole('menu', { name: 'Unassigned group' })).toBeInTheDocument()
   })
@@ -708,5 +712,6 @@ describe('ListWidget People group headers: email check-in', () => {
     fireEvent.contextMenu(document.querySelector('[data-row-key="person-2|2"] [data-todo-id]')!)
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 2 tasks' }))
     await vi.waitFor(() => expect(written).toEqual(['[ ] Shared task @Alice, @Bob\n[ ] Bob task @Bob']))
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 2 tasks' }))
   })
 })
