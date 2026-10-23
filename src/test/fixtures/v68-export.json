@@ -1,0 +1,776 @@
+{
+  "__schemaVersion": 68,
+  "todos": [
+    {
+      "id": 1,
+      "uid": "ecbde895-1551-877b-adb4-ec78e4b14fc3",
+      "title": "Send quarterly report",
+      "isCompleted": false,
+      "createdAt": "2026-09-02T10:00:00.000Z",
+      "modifiedAt": "2026-09-11T09:30:00.000Z",
+      "sortOrder": 0,
+      "notes": "Include **charts**",
+      "progress": "draft done",
+      "dueDate": "2026-10-16T00:00:00.000Z",
+      "nextFollowupAt": "2026-10-11T05:00:00.000Z",
+      "recurrenceRule": {
+        "type": "weekly"
+      },
+      "focus": true,
+      "statusId": 2
+    },
+    {
+      "id": 2,
+      "uid": "3cd56fc1-13e4-8aa6-9dd5-57676682037f",
+      "title": "Book dentist",
+      "isCompleted": false,
+      "createdAt": "2026-09-03T11:00:00.000Z",
+      "modifiedAt": "2026-09-10T09:30:00.000Z",
+      "sortOrder": 1,
+      "dueDate": "2026-10-31T00:00:00.000Z",
+      "nextFollowupAt": "2026-09-20T05:00:00.000Z",
+      "recurrenceRule": {
+        "type": "monthly",
+        "originalDayOfMonth": 31
+      }
+    },
+    {
+      "id": 3,
+      "uid": "a542ac75-e32e-8318-b5b0-f9a3ff1b9deb",
+      "title": "Vendor contract review",
+      "isCompleted": false,
+      "createdAt": "2026-09-04T12:00:00.000Z",
+      "modifiedAt": "2026-09-04T12:00:00.000Z",
+      "sortOrder": 2,
+      "statusId": 1
+    },
+    {
+      "id": 4,
+      "uid": "add940ac-a48c-8533-b95c-4f3766009a64",
+      "title": "Renew passport",
+      "isCompleted": true,
+      "completedAt": "2026-09-12T09:30:00.000Z",
+      "createdAt": "2026-09-05T13:00:00.000Z",
+      "modifiedAt": "2026-09-12T09:30:00.000Z",
+      "sortOrder": 3,
+      "nextFollowupAt": "2026-10-31T05:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "uid": "f7b286d3-f37f-8382-a871-4cfb256b7a7f",
+      "title": "Call Ann about #urgent offsite",
+      "isCompleted": false,
+      "createdAt": "2026-09-06T14:00:00.000Z",
+      "modifiedAt": "2026-09-14T09:30:00.000Z",
+      "sortOrder": 4
+    },
+    {
+      "id": 6,
+      "uid": "22793b8c-6d63-81b4-a471-3ab73c9b547a",
+      "title": "Chase Globex invoice",
+      "isCompleted": false,
+      "createdAt": "2026-09-07T15:00:00.000Z",
+      "modifiedAt": "2026-09-07T15:00:00.000Z",
+      "sortOrder": 5,
+      "nextFollowupAt": "2026-10-08T05:00:00.000Z",
+      "focus": true,
+      "statusId": 2
+    }
+  ],
+  "people": [
+    {
+      "id": 1,
+      "name": "Ann Lee",
+      "initials": "AL",
+      "color": "#e05050"
+    },
+    {
+      "id": 2,
+      "name": "Bob Stone",
+      "initials": "BS"
+    },
+    {
+      "id": 3,
+      "name": "Cat Ng",
+      "initials": "CN"
+    },
+    {
+      "id": 4,
+      "name": "Org: Acme",
+      "initials": "AC",
+      "color": "#f28c4e"
+    },
+    {
+      "id": 5,
+      "name": "Org: Globex",
+      "initials": "G",
+      "color": "#f28c4e"
+    }
+  ],
+  "settings": [
+    {
+      "key": "color.dark.accent",
+      "value": "#4f8cff"
+    },
+    {
+      "key": "color.light.accent",
+      "value": "#1a5fd0"
+    },
+    {
+      "key": "completedRetentionDays",
+      "value": "30"
+    },
+    {
+      "key": "defaultStatusId",
+      "value": "3"
+    },
+    {
+      "key": "quickStatusId",
+      "value": "2"
+    },
+    {
+      "key": "seededAssignedStatusId",
+      "value": "1"
+    },
+    {
+      "key": "themeMode",
+      "value": "dark"
+    },
+    {
+      "key": "weekStartsOn",
+      "value": "1"
+    },
+    {
+      "key": "activeLayoutId",
+      "value": "1"
+    },
+    {
+      "key": "eisenhowerSource",
+      "value": "list:6"
+    }
+  ],
+  "todoPeople": [
+    {
+      "id": 1,
+      "todoId": 1,
+      "personId": 1
+    },
+    {
+      "id": 2,
+      "todoId": 3,
+      "personId": 2
+    },
+    {
+      "id": 3,
+      "todoId": 5,
+      "personId": 1
+    },
+    {
+      "id": 4,
+      "todoId": 3,
+      "personId": 5
+    },
+    {
+      "id": 5,
+      "todoId": 6,
+      "personId": 4
+    }
+  ],
+  "statuses": [
+    {
+      "id": 1,
+      "name": "Assigned",
+      "color": "#8a8a8a",
+      "sortOrder": 0,
+      "icon": "person"
+    },
+    {
+      "id": 2,
+      "name": "Follow-up",
+      "color": "#e0a030",
+      "sortOrder": 1,
+      "icon": "message-bubble"
+    },
+    {
+      "id": 3,
+      "name": "Waiting",
+      "color": "#a070e0",
+      "sortOrder": 2
+    }
+  ],
+  "listDefinitions": [
+    {
+      "id": 1,
+      "name": "This week",
+      "sortOrder": 0,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "personIds": null,
+          "statusIds": null,
+          "searchText": "",
+          "dates": {
+            "deadline": {
+              "match": "range",
+              "start": {
+                "kind": "relative",
+                "token": "start-of-week"
+              },
+              "end": {
+                "kind": "relative",
+                "token": "end-of-week"
+              }
+            }
+          },
+          "tags": null
+        }
+      },
+      "sort": "deadline",
+      "grouping": "none",
+      "owner": {
+        "layoutId": 2
+      }
+    },
+    {
+      "id": 2,
+      "name": "Someday",
+      "sortOrder": 1,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "personIds": null,
+          "statusIds": null,
+          "searchText": "",
+          "dates": {
+            "deadline": {
+              "match": "unset"
+            }
+          },
+          "tags": null
+        }
+      },
+      "sort": "manual",
+      "grouping": "none",
+      "owner": {
+        "layoutId": 1
+      }
+    },
+    {
+      "id": 3,
+      "name": "By person",
+      "sortOrder": 2,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": true,
+          "personIds": null,
+          "statusIds": [
+            2,
+            3
+          ],
+          "searchText": "",
+          "dates": {},
+          "tags": [
+            2
+          ]
+        }
+      },
+      "sort": "deadline",
+      "grouping": "people",
+      "runtimeFilter": {
+        "field": "person",
+        "label": "Who"
+      },
+      "owner": {
+        "layoutId": 1
+      }
+    },
+    {
+      "id": 4,
+      "name": "Acme next 30 days",
+      "sortOrder": 3,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "personIds": [
+            1,
+            0,
+            4
+          ],
+          "statusIds": null,
+          "searchText": "invoice",
+          "dates": {
+            "deadline": {
+              "match": "range",
+              "start": {
+                "kind": "fixed",
+                "iso": "2026-10-01T00:00:00.000Z"
+              },
+              "end": {
+                "kind": "offset",
+                "days": 30
+              }
+            }
+          },
+          "tags": [
+            3
+          ]
+        }
+      },
+      "sort": "name",
+      "grouping": "tag",
+      "runtimeFilter": {
+        "field": "tag"
+      },
+      "owner": {
+        "layoutId": 2
+      }
+    },
+    {
+      "id": 5,
+      "name": "Focus",
+      "sortOrder": 4,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "personIds": null,
+          "statusIds": null,
+          "searchText": "",
+          "dates": {},
+          "markers": {
+            "focus": true
+          },
+          "tags": null
+        }
+      },
+      "sort": "manual",
+      "grouping": "none",
+      "owner": {
+        "layoutId": 1
+      }
+    },
+    {
+      "id": 6,
+      "name": "Eisenhower",
+      "sortOrder": 5,
+      "membership": {
+        "kind": "custom",
+        "predicate": {
+          "showCompleted": false,
+          "personIds": null,
+          "statusIds": null,
+          "searchText": "",
+          "dates": {},
+          "markers": null,
+          "tags": null
+        }
+      },
+      "sort": "manual",
+      "grouping": "none",
+      "owner": {
+        "eisenhower": true
+      }
+    }
+  ],
+  "notes": [
+    {
+      "id": 1,
+      "content": "# Inbox\n\n- remember the thing",
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "modifiedAt": "2026-09-15T08:00:00.000Z"
+    }
+  ],
+  "tags": [
+    {
+      "id": 1,
+      "name": "urgent",
+      "color": "#ff3b30"
+    },
+    {
+      "id": 2,
+      "name": "Q4",
+      "color": "#34c759"
+    },
+    {
+      "id": 3,
+      "name": "Project: Work",
+      "color": "#4f8cff"
+    },
+    {
+      "id": 4,
+      "name": "Project: Home",
+      "color": "#537FE7"
+    }
+  ],
+  "todoTags": [
+    {
+      "id": 1,
+      "todoId": 5,
+      "tagId": 1
+    },
+    {
+      "id": 2,
+      "todoId": 1,
+      "tagId": 2
+    },
+    {
+      "id": 3,
+      "todoId": 1,
+      "tagId": 3
+    },
+    {
+      "id": 4,
+      "todoId": 2,
+      "tagId": 4
+    },
+    {
+      "id": 5,
+      "todoId": 3,
+      "tagId": 3
+    },
+    {
+      "id": 6,
+      "todoId": 4,
+      "tagId": 4
+    },
+    {
+      "id": 7,
+      "todoId": 6,
+      "tagId": 3
+    }
+  ],
+  "todoEvents": [
+    {
+      "id": 1,
+      "todoId": 1,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-02T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "todoId": 2,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-03T11:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "todoId": 3,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-04T12:00:00.000Z"
+    },
+    {
+      "id": 4,
+      "todoId": 4,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-05T13:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "todoId": 5,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-06T14:00:00.000Z"
+    },
+    {
+      "id": 6,
+      "todoId": 6,
+      "type": "created",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-07T15:00:00.000Z"
+    },
+    {
+      "id": 7,
+      "todoId": 2,
+      "type": "scheduled",
+      "fromValue": "fuzzy:this-week",
+      "toValue": "fuzzy:next-week",
+      "timestamp": "2026-09-10T09:30:00.000Z"
+    },
+    {
+      "id": 8,
+      "todoId": 1,
+      "type": "deadline",
+      "fromValue": "2026-10-15T00:00:00.000Z",
+      "toValue": "2026-10-16T00:00:00.000Z",
+      "timestamp": "2026-09-11T09:30:00.000Z"
+    },
+    {
+      "id": 9,
+      "todoId": 1,
+      "type": "status",
+      "fromValue": 3,
+      "toValue": 2,
+      "timestamp": "2026-09-11T09:30:00.000Z"
+    },
+    {
+      "id": 10,
+      "todoId": 4,
+      "type": "completed",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-12T09:30:00.000Z"
+    },
+    {
+      "id": 11,
+      "todoId": 5,
+      "type": "completed",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-13T09:30:00.000Z"
+    },
+    {
+      "id": 12,
+      "todoId": 5,
+      "type": "reopened",
+      "fromValue": null,
+      "toValue": null,
+      "timestamp": "2026-09-14T09:30:00.000Z"
+    }
+  ],
+  "layouts": [
+    {
+      "id": 1,
+      "name": "Default",
+      "sortOrder": 0,
+      "columns": [
+        {
+          "id": "col-1",
+          "weight": 1,
+          "cells": [
+            {
+              "id": "s-lens",
+              "weight": 2,
+              "tabs": [
+                {
+                  "id": "t-lens",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 3
+                  }
+                },
+                {
+                  "id": "t-notes",
+                  "kind": "notes",
+                  "config": {}
+                }
+              ],
+              "activeTabId": "t-lens"
+            },
+            {
+              "id": "s-cal",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "t-cal",
+                  "kind": "calendar",
+                  "config": {
+                    "dateTypes": {
+                      "due": true,
+                      "followup": false
+                    }
+                  },
+                  "viewState": {
+                    "view": "week",
+                    "offset": 1
+                  }
+                }
+              ],
+              "activeTabId": "t-cal"
+            }
+          ]
+        },
+        {
+          "id": "col-3",
+          "weight": 1,
+          "cells": [
+            {
+              "id": "s-tb",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "t-tb",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 5
+                  }
+                }
+              ],
+              "activeTabId": "t-tb"
+            }
+          ]
+        },
+        {
+          "id": "col-4",
+          "weight": 1,
+          "cells": [
+            {
+              "id": "cell-floatingCalendars-1",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-floatingCalendars-1",
+                  "kind": "calendar",
+                  "config": {
+                    "dateTypes": {
+                      "due": true,
+                      "followup": false
+                    }
+                  },
+                  "viewState": {
+                    "view": "week",
+                    "offset": -1
+                  }
+                }
+              ],
+              "activeTabId": "tab-floatingCalendars-1"
+            },
+            {
+              "id": "cell-floatingNotes-1",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-floatingNotes-1",
+                  "kind": "notes",
+                  "config": {}
+                }
+              ],
+              "activeTabId": "tab-floatingNotes-1"
+            },
+            {
+              "id": "cell-floatingCalendars-2",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-floatingCalendars-2",
+                  "kind": "calendar",
+                  "config": {
+                    "dateTypes": {
+                      "due": true,
+                      "followup": false
+                    }
+                  },
+                  "viewState": {
+                    "view": "week",
+                    "offset": 0
+                  }
+                }
+              ],
+              "activeTabId": "tab-floatingCalendars-2"
+            },
+            {
+              "id": "cell-floatingTaskboards-1",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-floatingTaskboards-1",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 5
+                  }
+                }
+              ],
+              "activeTabId": "tab-floatingTaskboards-1",
+              "collapsed": true
+            },
+            {
+              "id": "cell-listInsets-1",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-listInsets-1",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 3
+                  }
+                }
+              ],
+              "activeTabId": "tab-listInsets-1"
+            },
+            {
+              "id": "cell-listInsets-2",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-listInsets-2",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 2
+                  }
+                }
+              ],
+              "activeTabId": "tab-listInsets-2",
+              "collapsed": true
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "modifiedAt": "2026-09-01T09:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "name": "Lists from upgrade",
+      "sortOrder": 1,
+      "columns": [
+        {
+          "id": "col-1",
+          "weight": 1,
+          "cells": [
+            {
+              "id": "cell-1",
+              "weight": 1,
+              "tabs": [
+                {
+                  "id": "tab-1",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 1
+                  }
+                },
+                {
+                  "id": "tab-2",
+                  "kind": "lens",
+                  "config": {
+                    "listDefinitionId": 4
+                  }
+                }
+              ],
+              "activeTabId": "tab-1"
+            }
+          ]
+        }
+      ],
+      "createdAt": "2026-09-01T09:00:00.000Z",
+      "modifiedAt": "2026-09-01T09:00:00.000Z"
+    }
+  ],
+  "listOrders": [
+    {
+      "id": 1,
+      "listDefinitionId": 5,
+      "todoId": 6,
+      "rank": 1
+    },
+    {
+      "id": 2,
+      "listDefinitionId": 5,
+      "todoId": 1,
+      "rank": 2
+    }
+  ],
+  "exportedAt": "2026-10-23T09:00:00.000Z"
+}

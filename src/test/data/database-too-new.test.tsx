@@ -6,9 +6,10 @@ import { CURRENT_DB_VERSION, db, findDatabaseTooNew } from '../../data/database'
 /**
  * A browser database saved by a newer build (its version above
  * `CURRENT_DB_VERSION`) is never read or written: the app says so before
- * anything opens it, and the database's own open refuses it too (where the
- * browser can't list its databases). Dexie on its own would open it at its
- * version and this build would read data it doesn't understand.
+ * anything opens it (from the browser's list of databases, or a raw open
+ * where it can't list them), and the database's own open refuses it too.
+ * Dexie on its own would open it at its version and this build would read
+ * data it doesn't understand.
  */
 
 const NEWER = CURRENT_DB_VERSION + 1
@@ -28,18 +29,31 @@ async function createNewerDb(version: number): Promise<void> {
   })
 }
 
-/** The raw database's version and tasks, read without Dexie. */
-function readRawDb(): Promise<{ version: number; todos: unknown[] }> {
+/** The raw database's version, stores and tasks, read without Dexie. */
+function readRawDb(): Promise<{ version: number; stores: string[]; todos: unknown[] }> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open('todo2')
     req.onsuccess = () => {
       const idb = req.result
+      const stores = Array.from(idb.objectStoreNames).sort()
       const get = idb.transaction('todos', 'readonly').objectStore('todos').getAll()
-      get.onsuccess = () => { idb.close(); resolve({ version: idb.version, todos: get.result }) }
+      get.onsuccess = () => { idb.close(); resolve({ version: idb.version, stores, todos: get.result }) }
       get.onerror = () => { idb.close(); reject(get.error) }
     }
     req.onerror = () => reject(req.error)
   })
+}
+
+/** Runs `fn` with `indexedDB.databases` gone, as in a browser that can't list its databases. */
+async function withoutDatabaseList(fn: () => Promise<void>): Promise<void> {
+  const own = Object.getOwnPropertyDescriptor(indexedDB, 'databases')
+  Object.defineProperty(indexedDB, 'databases', { value: undefined, configurable: true, writable: true })
+  try {
+    await fn()
+  } finally {
+    if (own) Object.defineProperty(indexedDB, 'databases', own)
+    else delete (indexedDB as { databases?: unknown }).databases
+  }
 }
 
 afterEach(async () => {
@@ -58,7 +72,7 @@ describe('a database saved by a newer build', () => {
     expect(findDatabaseTooNew(read)).not.toBeNull()
     const write = await db.settings.put({ key: 'themeMode', value: 'light' }).then(() => null, (e: unknown) => e)
     expect(findDatabaseTooNew(write)).not.toBeNull()
-    expect(await readRawDb()).toEqual({ version: NEWER * 10, todos: [expect.objectContaining({ title: 'From the future' })] })
+    expect(await readRawDb()).toMatchObject({ version: NEWER * 10, todos: [expect.objectContaining({ title: 'From the future' })] })
   })
 
   it('the app says so instead of starting, with Reload as the only way on', async () => {
@@ -71,5 +85,35 @@ describe('a database saved by a newer build', () => {
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Settings$/ })).toBeNull()
     expect((await readRawDb()).version).toBe(NEWER * 10)
+  })
+
+  it('where the browser can’t list its databases, the app still says so, naming the version', async () => {
+    await createNewerDb(NEWER)
+    await withoutDatabaseList(async () => {
+      render(<App />)
+      const dialog = await screen.findByRole('dialog', { name: 'Data from a newer version of TODO2' })
+      expect(dialog.textContent).toContain(`(schema v${NEWER})`)
+    })
+    expect((await readRawDb()).version).toBe(NEWER * 10)
+  })
+
+  it('one missing a store this build declares is not patched, where the browser can’t list its databases', async () => {
+    // A newer build dropped a table: Dexie's open would add it back (a schema
+    // patch at a raised native version) before its refusal.
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open('todo2', NEWER * 10)
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore('todos', { keyPath: 'id', autoIncrement: true }).add({ title: 'From the future' })
+      }
+      req.onsuccess = () => { req.result.close(); resolve() }
+      req.onerror = () => reject(req.error)
+    })
+    await withoutDatabaseList(async () => {
+      render(<App />)
+      await screen.findByRole('dialog', { name: 'Data from a newer version of TODO2' })
+    })
+    const raw = await readRawDb()
+    expect(raw.version).toBe(NEWER * 10)
+    expect(raw.stores).toEqual(['todos'])
   })
 })

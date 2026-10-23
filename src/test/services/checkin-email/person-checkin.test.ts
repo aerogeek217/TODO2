@@ -12,7 +12,7 @@ import {
 } from '../../../services/checkin-email/person-checkin'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { usePersonStore } from '../../../stores/person-store'
-import { useSettingsStore } from '../../../stores/settings-store'
+import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -123,6 +123,22 @@ describe('sendPersonCheckin', () => {
     await useUndoStore.getState().undo()
     expect(followedUp()).toEqual([])
     expect((await db.todos.get(1))?.lastFollowupAt).toBeUndefined()
+  })
+
+  it('the follow-up a send records uses Mark followed up’s rule: today + the interval, or cleared while the automatic next follow-up is off', async () => {
+    await sendPersonCheckin(1)
+    await vi.waitFor(() => expect(followedUp()).toEqual([1, 2]))
+    const nextOf = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt
+    expect(nextOf(1)).toEqual(autoNextFollowup(NOW))
+    expect(nextOf(1)).not.toBeNull()
+    await useUndoStore.getState().undo()
+
+    useSettingsStore.setState({ autoFollowup: false })
+    await sendPersonCheckin(1)
+    await vi.waitFor(() => expect(followedUp()).toEqual([1, 2]))
+    expect(nextOf(1)).toBeUndefined()
+    expect(nextOf(2)).toBeUndefined()
+    expect((await db.todos.get(1))?.nextFollowupAt).toBeUndefined()
   })
 
   it('starts the clipboard write synchronously, inside the click', () => {

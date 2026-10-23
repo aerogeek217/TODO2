@@ -17,21 +17,23 @@ beforeEach(async () => {
 afterEach(cleanup)
 
 describe('TaskDefaultsSection — follow-up', () => {
-  it('the switch above the interval: on by default; off is stored, on removes the row', async () => {
+  it('Set a next follow-up automatically, above the interval: on by default, its help says both uses; off is stored, on removes the row', async () => {
     render(<TaskDefaultsSection />)
-    const sw = screen.getByRole('switch', { name: 'New tasks get a follow-up date' })
+    const sw = screen.getByRole('switch', { name: 'Set a next follow-up automatically' })
     expect(sw).toHaveAttribute('aria-checked', 'true')
     const interval = screen.getByRole('textbox', { name: 'Follow-up interval' })
     expect(sw.compareDocumentPosition(interval) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText(/“Mark followed up” sets the next follow-up this far ahead, and so does creating a task/)).toBeInTheDocument()
+    expect(screen.getByText('New tasks and Mark followed up set it to today + the interval. Off: new tasks get none, and Mark followed up clears it.')).toBeInTheDocument()
+    expect(screen.getByText(/^How far ahead new tasks and “Mark followed up” set the next follow-up\./)).toBeInTheDocument()
     fireEvent.click(sw)
-    await waitFor(() => expect(useSettingsStore.getState().newTaskFollowup).toBe(false))
+    await waitFor(() => expect(useSettingsStore.getState().autoFollowup).toBe(false))
     expect((await db.settings.get('newTaskFollowup'))!.value).toBe('false')
     expect(sw).toHaveAttribute('aria-checked', 'false')
-    // The interval still drives Mark followed up.
-    expect(screen.queryByText(/and so does creating a task/)).toBeNull()
+    // Off, the interval waits for the switch.
+    expect(screen.getByText(/^Used while Set a next follow-up automatically is on\./)).toBeInTheDocument()
+    expect(screen.queryByText(/^How far ahead/)).toBeNull()
     fireEvent.click(sw)
-    await waitFor(() => expect(useSettingsStore.getState().newTaskFollowup).toBe(true))
+    await waitFor(() => expect(useSettingsStore.getState().autoFollowup).toBe(true))
     await waitFor(async () => expect(await db.settings.get('newTaskFollowup')).toBeUndefined())
   })
 })

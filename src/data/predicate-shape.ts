@@ -67,7 +67,7 @@ function readAnchor(v: unknown): DateAnchor | undefined {
 /**
  * A range end: `null` (open) or an anchor; `undefined` when malformed. The
  * legacy ISO-string form counts as a `fixed` anchor (a 2026-04 build wrote
- * it into stored lists, and the v64 upgrade carries it over as it was).
+ * it into stored lists, where it may still be).
  */
 function readRangeEnd(v: unknown): DateAnchor | null | undefined {
   if (v === undefined || v === null) return null

@@ -168,7 +168,7 @@ describe('create a task — next follow-up', () => {
   })
 
   it('new tasks get no follow-up while the setting is off; a typed /followup still sets one', async () => {
-    useSettingsStore.setState({ newTaskFollowup: false })
+    useSettingsStore.setState({ autoFollowup: false })
     for (const make of [() => viaQuickAdd('Plain'), () => viaDrafts('Plain'), () => viaEditor({ title: 'Plain' })]) {
       const { todo } = await make()
       expect(todo.nextFollowupAt).toBeUndefined()

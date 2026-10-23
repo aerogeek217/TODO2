@@ -154,6 +154,21 @@ describe('applyCheckinUpdates', () => {
     expect((await row(3)).lastFollowupAt).toEqual(NOW)
   })
 
+  it('"Record a follow-up" uses Mark followed up’s rule: today + the interval, or cleared while the automatic next follow-up is off', async () => {
+    const diff = fixtureDiff()
+    await applyCheckinUpdates(selectedCheckinUpdates(diff, defaultCheckinSelection(diff)), { recordFollowup: true, personName: 'Marcus Chen' })
+    expect((await row(1)).nextFollowupAt).toEqual(new Date(2026, 10, 13))
+    await useUndoStore.getState().undo()
+
+    useSettingsStore.setState({ autoFollowup: false })
+    await applyCheckinUpdates(selectedCheckinUpdates(diff, defaultCheckinSelection(diff)), { recordFollowup: true, personName: 'Marcus Chen' })
+    for (const id of [1, 2, 3]) {
+      expect((await row(id)).lastFollowupAt).toEqual(NOW)
+      expect((await row(id)).nextFollowupAt).toBeUndefined()
+    }
+    expect((await row(4)).nextFollowupAt).toEqual(new Date(2026, 10, 1))
+  })
+
   it('without "Record a follow-up", follow-up dates stay as they were', async () => {
     const diff = fixtureDiff()
     await applyCheckinUpdates(selectedCheckinUpdates(diff, defaultCheckinSelection(diff)), { recordFollowup: false, personName: 'Marcus Chen' })

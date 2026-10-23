@@ -9,15 +9,15 @@ import { SettingRow } from './sections/SettingRow'
 import styles from './sections/sections.module.css'
 
 /**
- * Settings → Task defaults: whether new tasks get a next follow-up, and the
- * follow-up interval (`1m`, `2w`, `10d`, `1y`). "Mark followed up" sets the
- * next follow-up to today + the interval, and so does creating a task while
- * the switch is on. The interval commits on Enter / blur; invalid text
- * reverts.
+ * Settings → Task defaults: "Set a next follow-up automatically" and the
+ * follow-up interval (`1m`, `2w`, `10d`, `1y`). While the switch is on, new
+ * tasks and "Mark followed up" set the next follow-up to today + the
+ * interval; off, new tasks get none and Mark followed up clears it. The
+ * interval commits on Enter / blur; invalid text reverts.
  */
 export function FollowupIntervalSetting() {
-  const newTaskFollowup = useSettingsStore((s) => s.newTaskFollowup)
-  const setNewTaskFollowup = useSettingsStore((s) => s.setNewTaskFollowup)
+  const autoFollowup = useSettingsStore((s) => s.autoFollowup)
+  const setAutoFollowup = useSettingsStore((s) => s.setAutoFollowup)
   const interval = useSettingsStore((s) => s.followupDefaultInterval)
   const setInterval = useSettingsStore((s) => s.setFollowupDefaultInterval)
   const stored = formatFollowupInterval(interval)
@@ -43,23 +43,23 @@ export function FollowupIntervalSetting() {
   return (
     <>
       <SettingRow
-        label="New tasks get a follow-up date"
-        help="Off: a new task has no follow-up unless you give it one (/followup in Quick Add)."
+        label="Set a next follow-up automatically"
+        help="New tasks and Mark followed up set it to today + the interval. Off: new tasks get none, and Mark followed up clears it."
       >
         <button
           type="button"
           role="switch"
-          aria-checked={newTaskFollowup}
-          aria-label="New tasks get a follow-up date"
-          className={`${styles.switch} ${newTaskFollowup ? styles.switchOn : ''}`}
-          onClick={() => void setNewTaskFollowup(!newTaskFollowup)}
+          aria-checked={autoFollowup}
+          aria-label="Set a next follow-up automatically"
+          className={`${styles.switch} ${autoFollowup ? styles.switchOn : ''}`}
+          onClick={() => void setAutoFollowup(!autoFollowup)}
         />
       </SettingRow>
       <SettingRow
         label="Follow-up interval"
-        help={newTaskFollowup
-          ? '“Mark followed up” sets the next follow-up this far ahead, and so does creating a task. Use d, w, m or y — e.g. 10d, 2w, 1m.'
-          : '“Mark followed up” sets the next follow-up this far ahead. Use d, w, m or y — e.g. 10d, 2w, 1m.'}
+        help={autoFollowup
+          ? 'How far ahead new tasks and “Mark followed up” set the next follow-up. Use d, w, m or y — e.g. 10d, 2w, 1m.'
+          : 'Used while Set a next follow-up automatically is on. Use d, w, m or y — e.g. 10d, 2w, 1m.'}
       >
         <input
           type="text"

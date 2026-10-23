@@ -10,7 +10,7 @@ import { backupScheduler } from '../data/backup-scheduler'
 import { NO_BACKUP_NOTE } from '../stores/safety-snapshot'
 import { replaceData, withDataReplaceHold } from './replace-data'
 import { useUndoStore } from '../stores/undo-store'
-import { SCHEMA_VERSION_KEY, type UnsupportedImportInfo } from '../data/file-version'
+import { SCHEMA_VERSION_KEY } from '../data/file-version'
 import {
   readFileSyncState, writeFileSyncState, clearFileSyncState, fileContentId,
 } from './file-sync-state'
@@ -25,11 +25,10 @@ import { SYNC_NEUTRAL_SETTING_KEYS } from '../data/setting-keys'
  * browser dirty so they surface in the next conflict check.
  */
 export type SyncPauseReason =
-  | PrepareImportFailure   // too-large / invalid-json / not-object / too-new / upgrade-failed / invalid
+  | PrepareImportFailure   // too-large / invalid-json / not-object / too-new / too-old / upgrade-failed / invalid
   | 'read-error'
   | 'conflict-cancelled'
   | 'upgrade-cancelled'
-  | 'legacy-cancelled'
   | 'backup-failed'
   | 'write-failed'
 
@@ -86,7 +85,6 @@ export interface LaunchPermissionInfo {
 }
 
 type StatusListener = (status: FileStorageStatus) => void
-type MigrationConfirmHandler = (info: UnsupportedImportInfo) => Promise<boolean>
 type ConflictHandler = (info: SyncConflictInfo) => Promise<SyncConflictChoice>
 type FileUpgradeHandler = (info: FileUpgradeInfo) => Promise<boolean>
 /** Resolves once the user answered (access granted and the file loaded, or launch goes on without it). */
@@ -109,8 +107,10 @@ const PAUSED_PREFIX = 'File sync paused'
 
 function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
   switch (reason) {
-    case 'too-new': return `${PAUSED_PREFIX} — ${error}`
-    case 'upgrade-failed': return `${PAUSED_PREFIX} — ${error}`
+    case 'too-new':
+    case 'too-old':
+    case 'upgrade-failed':
+      return `${PAUSED_PREFIX} — ${error}`
     default: return `${PAUSED_PREFIX} — the file could not be read: ${error}`
   }
 }
@@ -231,8 +231,9 @@ function errorDetail(e: unknown): string {
  * Load (startup / Grant Access / attach / Retry) reads and prepares the file
  * WITHOUT touching anything, then:
  *
- * - any failure (unreadable, invalid, too new, upgrade failed) → paused;
- * - below the floor → `MigrationDialog` (cancel → paused);
+ * - any failure (unreadable, invalid, too new, below the floor or without a
+ *   version, upgrade failed) → paused: neither side is read into the other
+ *   or written;
  * - browser clean and synced with some version of this file → load the file
  *   (multi-machine case), asking first if it needs a schema upgrade;
  * - browser has unsynced changes and the file is the one it last synced
@@ -268,7 +269,6 @@ class FileStorageService {
   /** When the written text was last run back through the import, and what that said. */
   private lastLoadBackCheck: { at: number; problem: string | null } | null = null
   private statusListeners = new Set<StatusListener>()
-  private migrationConfirmHandler: MigrationConfirmHandler | null = null
   private conflictHandler: ConflictHandler | null = null
   private fileUpgradeHandler: FileUpgradeHandler | null = null
   private launchPermissionHandler: LaunchPermissionHandler | null = null
@@ -303,30 +303,23 @@ class FileStorageService {
   }
 
   /**
-   * The one answer to "load a file below the supported version?" — a
-   * question has one asker, so a later handler replaces an earlier one.
-   * Returns the removal, which does nothing once replaced. Without a
-   * handler the answer is `false` (stay paused).
+   * The one answer to a conflict — a question has one asker, so a later
+   * handler replaces an earlier one. Returns the removal, which does nothing
+   * once replaced. Without a handler it resolves to `'cancel'` (stay paused).
    */
-  onConfirmMigration(handler: MigrationConfirmHandler): () => void {
-    this.migrationConfirmHandler = handler
-    return () => { if (this.migrationConfirmHandler === handler) this.migrationConfirmHandler = null }
-  }
-
-  /** As `onConfirmMigration`, for a conflict; without a handler it resolves to `'cancel'` (stay paused). */
   onConflict(handler: ConflictHandler): () => void {
     this.conflictHandler = handler
     return () => { if (this.conflictHandler === handler) this.conflictHandler = null }
   }
 
-  /** As `onConfirmMigration`, for an upgrade prompt; without a handler it resolves to `false` (stay paused). */
+  /** As `onConflict`, for an upgrade prompt; without a handler it resolves to `false` (stay paused). */
   onConfirmFileUpgrade(handler: FileUpgradeHandler): () => void {
     this.fileUpgradeHandler = handler
     return () => { if (this.fileUpgradeHandler === handler) this.fileUpgradeHandler = null }
   }
 
   /**
-   * As `onConfirmMigration`, for the launch question asked when the stored
+   * As `onConflict`, for the launch question asked when the stored
    * file handle needs permission: `initialize` waits until it resolves.
    * Without a handler `initialize` goes on at once, permission still needed.
    */
@@ -685,17 +678,6 @@ class FileStorageService {
     const raw = parsed as Record<string, unknown>
     const fileId = fileContentId(raw, lastModified)
 
-    if (prepared.legacy) {
-      const confirmed = this.migrationConfirmHandler
-        ? await this.migrationConfirmHandler(prepared.legacy)
-        : false
-      if (gen !== this.loadGen) return
-      if (!confirmed) {
-        this.pause('legacy-cancelled', `${PAUSED_PREFIX} — the file is in an older format that needs your confirmation to load.`)
-        return
-      }
-    }
-
     // Note text typed just before is saved first, so the comparison below
     // sees it (it is a browser change the file doesn't have) and any backup
     // holds it; note saves then wait until the decision is carried out — a
@@ -748,7 +730,7 @@ class FileStorageService {
     if (gen !== this.loadGen) return
 
     if (browserAhead) {
-      if (prepared.upgraded && !prepared.legacy && !(await this.confirmFileUpgrade(gen, handle, prepared))) return
+      if (prepared.upgraded && !(await this.confirmFileUpgrade(gen, handle, prepared))) return
       await this.keepBrowserData(text, prepared.upgraded)
       return
     }
@@ -783,12 +765,12 @@ class FileStorageService {
       }
       // choice === 'file' — falls through to the load below (the dialog
       // already told the user an older file is saved back in this format).
-    } else if (prepared.upgraded && !prepared.legacy) {
+    } else if (prepared.upgraded) {
       if (!(await this.confirmFileUpgrade(gen, handle, prepared))) return
     }
 
     // Every path that rewrites the file at a newer schema (confirmed upgrade,
-    // below-floor confirm, conflict "Keep <file>" with an older file) lands
+    // conflict "Keep <file>" with an older file) lands
     // here: back up the raw text BEFORE anything changes on either side.
     if (prepared.upgraded && !(await this.backupFileText(text, true))) return
     // A current-version file the import trimmed (parts dropped with a
@@ -826,7 +808,7 @@ class FileStorageService {
     const ok = this.fileUpgradeHandler
       ? await this.fileUpgradeHandler({
         fileName: handle.name,
-        fromVersion: prepared.sourceVersion ?? CURRENT_DB_VERSION,
+        fromVersion: prepared.sourceVersion,
         toVersion: CURRENT_DB_VERSION,
       })
       : false

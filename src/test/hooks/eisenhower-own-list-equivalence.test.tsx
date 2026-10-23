@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { upgradeV67 } from '../../data/upgrades/v67-layout-order-and-eisenhower-list'
+import { db } from '../../data/database'
+import { listDefinitionRepository } from '../../data/list-definition-repository'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import type { Person, Status } from '../../models'
 import { useEisenhowerSource } from '../../hooks/use-eisenhower-source'
@@ -20,13 +21,14 @@ import { startOfDay } from '../../utils/date'
 import { emptyFilterCriteria, makeTodo, statsPaneContext } from '../helpers'
 
 /**
- * The upgrade gives an Eisenhower that showed all tasks a new list with no
- * filter as its own. That list must show exactly the tasks "All tasks"
- * showed — open and completed, under any screen filter — in the Eisenhower
- * widget and in the dashboard's Eisenhower section. The list is taken from
- * the transform itself, so a change to what it makes is checked here too.
+ * Data without the Eisenhower's own list gets a new list with no filter as
+ * its own (`ensureEisenhowerList`). That list must show exactly the tasks
+ * "All tasks" showed — open and completed, under any screen filter — in the
+ * Eisenhower widget and in the dashboard's Eisenhower section. The list is
+ * the one the repository makes, so a change to what it makes is checked
+ * here too.
  */
-const madeList = upgradeV67({ listDefinitions: [], settings: [] }).listDefinitions![0] as unknown as PersistedListDefinition
+let madeList: PersistedListDefinition
 
 const today = startOfDay(new Date())
 const inDays = (n: number) => new Date(today.getTime() + n * 86_400_000)
@@ -55,7 +57,9 @@ const SCREENS: Array<[string, Partial<FilterCriteria>]> = [
   ['a due date', { dates: { deadline: { match: 'set' } } }],
 ]
 
-beforeEach(() => {
+beforeEach(async () => {
+  const id = await listDefinitionRepository.ensureEisenhowerList()
+  madeList = (await db.listDefinitions.get(id)) as PersistedListDefinition
   useTodoStore.setState({ todos })
   usePersonStore.setState({ people: [ann], assignedPeopleMap })
   useStatusStore.setState({ statuses: [waiting] })
@@ -65,7 +69,7 @@ beforeEach(() => {
 const ids = (tasks: readonly { id: number }[]) => tasks.map((t) => t.id).sort((a, b) => a - b)
 
 describe('the Eisenhower’s new list (no filter) shows what All tasks showed', () => {
-  it('the list the upgrade makes has no filter but Show completed off', () => {
+  it('the list made for the Eisenhower has no filter but Show completed off', () => {
     expect(madeList.membership.predicate).toEqual({
       showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null,
     })

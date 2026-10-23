@@ -108,6 +108,15 @@ describe('CheckinImportDialog — reading a paste', () => {
     expect(applyButton()).toHaveProperty('disabled', false)
   })
 
+  it('Record a follow-up says what Mark followed up does to the next follow-up: today + the interval, or cleared while that is off', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const label = () => within(dialog()).getByRole('checkbox', { name: /Record a follow-up/ }).closest('label')!
+    expect(label().textContent).toContain('(Last follow-up → today; Next follow-up → today + 1 month, the same as “Mark followed up”)')
+    act(() => useSettingsStore.setState({ autoFollowup: false }))
+    expect(label().textContent).toContain('(Last follow-up → today; Next follow-up cleared, the same as “Mark followed up”)')
+  })
+
   it('the Apply count follows the ticks', () => {
     open()
     paste({ html: fixture('.html'), plain: fixture('.txt') })

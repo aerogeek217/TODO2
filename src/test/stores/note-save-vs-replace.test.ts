@@ -3,7 +3,7 @@
 // and the imported note is what stays. Each test holds the save's database
 // write, starts the replace, then lets the save finish.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { db } from '../../data/database'
+import { CURRENT_DB_VERSION, db } from '../../data/database'
 import { noteRepository } from '../../data'
 import { backupRepository } from '../../data/backup-repository'
 import { buildExportData } from '../../data/export-data'
@@ -268,7 +268,7 @@ describe('note text typed just before an append import (its save not run yet)', 
     await typedJustBefore('typed just before the append')
     const now = new Date().toISOString()
     const prepared = prepareImport({
-      [SCHEMA_VERSION_KEY]: 51,
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
       kind: 'task-archive',
       todos: [{ id: 1, uid: 'a-1', title: 'Archived', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
     }, { purpose: 'append' })

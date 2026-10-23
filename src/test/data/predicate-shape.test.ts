@@ -215,7 +215,7 @@ describe('checkPredicateShape', () => {
     expect(checkPredicateShape({ ...emptyPredicate(), ...patch })).toBe(field)
   })
 
-  it('a predicate in the old single-range shape (no `dates`) is rejected: only the v64 upgrade reads it', () => {
+  it('a predicate in the old single-range shape (no `dates`) is rejected', () => {
     const old = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dateField: 'deadline', dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: true }
     expect(checkPredicateShape(old)).toBe('dates')
   })

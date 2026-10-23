@@ -1,5 +1,4 @@
 import { useMemo, useRef, useState } from 'react'
-import type { PersistedTodoItem } from '../../../models'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../../utils/person'
@@ -13,6 +12,7 @@ import { FollowupPopover } from '../../shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useToday } from '../../../hooks/use-today'
 import { isFollowedUpToday } from '../../../utils/followup'
+import { startOfDay } from '../../../utils/date'
 import { followedUpMenuEntry, markerMenuEntries } from '../../task/task-menu-entries'
 import { MenuPopover } from '../../shared/MenuPopover'
 import { AtIcon, CheckIcon, CloseIcon, HashIcon, MoreIcon, TrashIcon } from '../../shared/icons'
@@ -66,11 +66,15 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
   const today = useToday()
   const sharedPeople = useMemo(() => sharedIds(assignedPeopleMap, ids), [assignedPeopleMap, ids])
   const sharedTags = useMemo(() => sharedIds(assignedTagsMap, ids), [assignedTagsMap, ids])
-  // The follow-up popover edits "the selection": it starts empty.
-  const followupSeed = useMemo<PersistedTodoItem | undefined>(
-    () => (selectedTodos[0] ? { ...selectedTodos[0], nextFollowupAt: undefined } : undefined),
-    [selectedTodos],
-  )
+  // The follow-up popover edits "the selection": its `Now:` is the tasks'
+  // shared next follow-up (none when none has one), or mixed.
+  const followupNow = useMemo<Date | null | 'mixed'>(() => {
+    const days = new Set(selectedTodos.map((t) => (t.nextFollowupAt ? startOfDay(t.nextFollowupAt).getTime() : null)))
+    if (days.size > 1) return 'mixed'
+    const [day] = days
+    return day == null ? null : new Date(day)
+  }, [selectedTodos])
+  const followupSeed = selectedTodos[0]
 
   const close = () => setOpen(null)
   const toggle = (picker: Exclude<OpenPicker, null>) => setOpen((cur) => (cur === picker ? null : picker))
@@ -189,7 +193,8 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
           anchor={{ kind: 'ref', ref: followupRef }}
           onClose={close}
           onSetNext={(d) => { void useTodoStore.getState().bulkSetFollowup(list, d) }}
-          onFollowedUp={() => { void useTodoStore.getState().markFollowedUp(list) }}
+          onFollowedUp={(next) => { void useTodoStore.getState().markFollowedUp(list, { next }) }}
+          current={followupNow}
           followedUpToday={selectedTodos.length > 0 && selectedTodos.every((t) => isFollowedUpToday(t, today))}
         />
       )}

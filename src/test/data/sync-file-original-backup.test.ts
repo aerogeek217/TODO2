@@ -9,7 +9,7 @@ import { resetDb } from '../helpers'
 // copy of a file that by then is a current-version dump. Its own pool keeps
 // the newest five (one per schema upgrade of the file).
 
-const V49_TEXT = '{"__schemaVersion":49,"todos":[],"settings":[]}'
+const OLDER_TEXT = '{"__schemaVersion":67,"todos":[],"settings":[]}'
 const current = (n: number) => `{"__schemaVersion":63,"todos":[],"settings":[],"n":${n}}`
 
 async function byTrigger(): Promise<Record<string, string[]>> {
@@ -24,10 +24,10 @@ beforeEach(async () => {
 
 describe('the raw copy of an older sync file', () => {
   it('outlives any number of later sync-file backups', async () => {
-    await backupScheduler.snapshotFileBeforeOverwrite(V49_TEXT, { olderVersion: true })
+    await backupScheduler.snapshotFileBeforeOverwrite(OLDER_TEXT, { olderVersion: true })
     for (let n = 0; n < BACKUPS_KEPT['sync-file'] + 3; n++) await backupScheduler.snapshotFileBeforeOverwrite(current(n))
     const kept = await byTrigger()
-    expect(kept['sync-file-original']).toEqual([V49_TEXT])
+    expect(kept['sync-file-original']).toEqual([OLDER_TEXT])
     expect(kept['sync-file']).toHaveLength(BACKUPS_KEPT['sync-file'])
   })
 
@@ -40,9 +40,9 @@ describe('the raw copy of an older sync file', () => {
   })
 
   it('is stored once per text (a retried upgrade adds no second copy)', async () => {
-    await backupScheduler.snapshotFileBeforeOverwrite(V49_TEXT, { olderVersion: true })
-    await backupScheduler.snapshotFileBeforeOverwrite(V49_TEXT, { olderVersion: true })
-    expect((await byTrigger())['sync-file-original']).toEqual([V49_TEXT])
+    await backupScheduler.snapshotFileBeforeOverwrite(OLDER_TEXT, { olderVersion: true })
+    await backupScheduler.snapshotFileBeforeOverwrite(OLDER_TEXT, { olderVersion: true })
+    expect((await byTrigger())['sync-file-original']).toEqual([OLDER_TEXT])
   })
 
   it('a current-version file goes to the pruned pool as before', async () => {

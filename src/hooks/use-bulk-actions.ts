@@ -68,8 +68,9 @@ export function useBulkActions() {
     void useTodoStore.getState().bulkSetImportant(getTargetIds(todoId), on)
   }, [])
 
-  const markFollowedUp = useCallback((todoId: number) => {
-    useTodoStore.getState().markFollowedUp(getTargetIds(todoId))
+  /** "Mark followed up" on the task (or the selection it's part of): `next` as given (`null` = none), else the automatic rule. */
+  const markFollowedUp = useCallback((todoId: number, next?: Date | null) => {
+    void useTodoStore.getState().markFollowedUp(getTargetIds(todoId), next === undefined ? undefined : { next })
   }, [])
 
   const setStatus = useCallback((todoId: number, statusId: number | undefined) => {

@@ -21,11 +21,25 @@
   font-size: var(--font-size-task);
 }
 
+/* "Next follow-up" and, at the right, what the task has now (`Now: Tue 10/27`). */
+.fieldLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: -4px;
+}
+
 .fieldLabel {
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-  margin-bottom: -4px;
+}
+
+.fieldNow {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* ═══ Input (shared by popover + editor) ═══ */
@@ -209,9 +223,11 @@
   filter: brightness(1.08);
 }
 
-.followedUpHint {
-  opacity: 0.6;
-  font-weight: var(--font-weight-semibold);
+/* The Next field holds text that isn't a date: nothing to record it with. */
+.followedUpPrimary:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: none;
 }
 
 .followedUpSecondary {

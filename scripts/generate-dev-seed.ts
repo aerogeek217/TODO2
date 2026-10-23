@@ -1,21 +1,22 @@
 /**
- * Writes the dev seed — a realistic, production-shaped v49 export — for
+ * Writes the dev seed — a realistic export in the current schema — for
  * manual testing in the dev server.
  *
- *   npm run seed:dev                          → dev-data/seed-v49.json
+ *   npm run seed:dev                          → dev-data/seed-v<schema>.json
  *   npm run seed:dev -- --out some/file.json  → custom path
  *   npm run seed:dev -- --date 2026-11-02     → as if run on that day
  *
- * Then: dev server (`npm run dev`) → Settings → Import JSON → pick the file.
+ * Then: dev server (`npm run dev`) → Settings → Import / Export → Import
+ * JSON → pick the file.
  * Importing replaces the whole database of that browser origin.
  *
  * Dates are relative to the run day; same-day runs write identical files.
- * What the seed contains and which upgrade steps it exercises: see the
- * header of `scripts/dev-seed.ts`. `dev-data/` is gitignored.
+ * What the seed contains: see the header of `scripts/dev-seed.ts`.
+ * `dev-data/` is gitignored.
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { generateDevSeed } from './dev-seed.ts'
+import { DEV_SEED_SCHEMA_VERSION, generateDevSeed } from './dev-seed.ts'
 
 function argValue(name: string): string | undefined {
   const i = process.argv.indexOf(name)
@@ -30,16 +31,17 @@ function runDay(): Date {
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
 }
 
-const out = resolve(argValue('--out') ?? 'dev-data/seed-v49.json')
+const out = resolve(argValue('--out') ?? `dev-data/seed-v${DEV_SEED_SCHEMA_VERSION}.json`)
 const seed = generateDevSeed(runDay())
 mkdirSync(dirname(out), { recursive: true })
 writeFileSync(out, `${JSON.stringify(seed, null, 2)}\n`)
 
-const completed = seed.todos.filter((t) => t.isCompleted === true).length
+const completed = seed.todos.filter((t) => t.isCompleted).length
+const projectTags = seed.tags.filter((t) => t.name.startsWith('Project: ')).length
 console.log(
   `Wrote ${out}\n` +
   `  v${seed.__schemaVersion} export: ${seed.todos.length} tasks (${completed} completed), ` +
-  `${seed.projects.length} projects, ${seed.people.length} people, ${seed.orgs.length} orgs, ` +
-  `${seed.tags.length} tags, ${seed.listDefinitions.length} lists, ${seed.todoEvents.length} events\n` +
-  '  Load it via Settings → Import JSON in the dev server.',
+  `${seed.people.length} people, ${seed.tags.length} tags (${projectTags} projects), ` +
+  `${seed.listDefinitions.length} lists, ${seed.layouts.length} layouts, ${seed.todoEvents.length} events\n` +
+  '  Load it via Settings → Import / Export → Import JSON in the dev server.',
 )

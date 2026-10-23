@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER, type FollowupInputState } from '../../../hooks/use-followup-input'
+import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
 import { useToday } from '../../../hooks/use-today'
 import { addFollowupInterval, formatFollowupDate, relativeDayPhrase, QUICK_FOLLOWUP_INTERVALS } from '../../../utils/followup'
 import { startOfDay } from '../../../utils/date'
@@ -16,6 +17,8 @@ interface FollowupEditorGroupProps {
   onFollowedUp: () => void
   /** Replaces the Next hint while the input shows the stored value (create mode: `Default · 1 month`). */
   nextHint?: string
+  /** Focus (click, Tab) selects the Next field's text — create mode, while it shows the untouched default. */
+  selectNextOnFocus?: boolean
   /** Hides the Last row and the Mark followed up button (a draft task has no history). */
   hideLast?: boolean
   /** Row / label classes from the host editor so the group lines up with its other rows. */
@@ -48,13 +51,14 @@ function HelpText({ state, today, fallback, fallbackClass }: {
  * keeps the old value until fixed.
  */
 export function FollowupEditorGroup({
-  next, last, onNextChange, onLastChange, onFollowedUp, nextHint,
+  next, last, onNextChange, onLastChange, onFollowedUp, nextHint, selectNextOnFocus = false,
   hideLast = false, rowClassName, labelClassName,
 }: FollowupEditorGroupProps) {
   const today = useToday()
   const nextInput = useFollowupInput(next, 'next', today)
   const lastInput = useFollowupInput(last, 'last', today)
   const skipCommitRef = useRef(false)
+  const selectNext = useSelectAllOnFocus(selectNextOnFocus)
 
   const commit = (input: typeof nextInput, onChange: (d: Date | null) => void) => {
     if (skipCommitRef.current) {
@@ -102,7 +106,9 @@ export function FollowupEditorGroup({
             value={nextInput.text}
             placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
             onChange={(e) => { skipCommitRef.current = false; nextInput.change(e.target.value) }}
-            onFocus={() => { skipCommitRef.current = false }}
+            onMouseDown={selectNext.onMouseDown}
+            onMouseUp={selectNext.onMouseUp}
+            onFocus={(e) => { skipCommitRef.current = false; selectNext.onFocus(e) }}
             onBlur={() => commit(nextInput, onNextChange)}
             onKeyDown={keyHandler(nextInput)}
             aria-label="Next follow-up"

@@ -60,10 +60,10 @@ test('an unsaved layout change survives a reload, still unsaved; Discard then fo
 test('an unsaved new layout an older build kept still opens, after the saved tabs; its Save asks a name', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   // An older build's New layout wasn't stored until saved: it kept the
-  // unsaved layout in the browser (schema v66).
+  // unsaved layout in the browser (stamped v68, the oldest version read).
   const tab = createTab('notes', 'keptNotes')
   await page.evaluate((columns) => {
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'Untitled layout', columns, listNames: {}, schemaVersion: 66 }))
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'Untitled layout', columns, listNames: {}, schemaVersion: 68 }))
   }, [{ id: 'kc', weight: 1, cells: [{ id: 'kk', weight: 1, activeTabId: tab.id, tabs: [tab] }] }])
   await page.reload()
   await expectOpenLayout(page, 'Untitled layout')

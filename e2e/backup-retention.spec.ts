@@ -38,7 +38,8 @@ test('a startup backup is taken, and manual and sync-file backups outlive full p
 
   // Twelve automatic and twelve pre-op backups, all older than the manual
   // backup and the sync file's backup: under one shared pool of ten, those
-  // two would be the first to go.
+  // two would be the first to go. The sync file's backup is from below the
+  // schema floor (v49): it is listed and kept like any other backup.
   const at = (daysAgo: number, minutes = 0) => new Date(Date.now() - daysAgo * DAY + minutes * 60_000).toISOString()
   const row = (trigger: string, createdAt: string, data = snapshot): BackupRow => ({ trigger, createdAt, sizeBytes: data.length, data })
   await replaceBackups(page, [
@@ -61,7 +62,16 @@ test('a startup backup is taken, and manual and sync-file backups outlive full p
   // snapshot and keeps the newest ten of those; the manual backup stays.
   const settings = await gotoSettingsDeepLink(page)
   await openSettings(page, 'Backups')
-  await expect(settings.locator('[data-trigger="sync-file"]')).toContainText('sync file')
+  const syncBackup = settings.locator('[data-trigger="sync-file"]')
+  await expect(syncBackup).toContainText('sync file')
+
+  // Restoring the below-floor backup is refused before anything is replaced:
+  // no pre-op snapshot, the backups unchanged.
+  await syncBackup.getByRole('button', { name: 'Restore' }).click()
+  await syncBackup.getByRole('button', { name: 'Confirm' }).click()
+  await expect(settings.getByRole('alert')).toContainText('Restore failed: This file was saved by an older version of TODO2 (schema v49)')
+  expect(countByTrigger(await dbBackups(page))).toEqual({ manual: 1, 'sync-file': 1, auto: 10, 'pre-destructive': 12 })
+
   const manual = settings.locator('[data-trigger="manual"]')
   await manual.getByRole('button', { name: 'Restore' }).click()
   await manual.getByRole('button', { name: 'Confirm' }).click()

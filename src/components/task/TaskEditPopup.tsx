@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, TodoChanges, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
 import { DEFAULT_STATUS_ICON } from '../../models'
-import { useSettingsStore } from '../../stores/settings-store'
+import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { addFollowupInterval, describeFollowupInterval } from '../../utils/followup'
+import { describeFollowupInterval } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -103,8 +103,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
-  // Read once, like the other create-mode seeds: whether a new task gets a default follow-up.
-  const [newTaskFollowup] = useState(() => useSettingsStore.getState().newTaskFollowup)
+  // Read once, like the other create-mode seeds: whether a new task gets the automatic next follow-up.
+  const [autoFollowup] = useState(() => useSettingsStore.getState().autoFollowup)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
 
   // Compute filter defaults once for create mode (views with filter UI only).
@@ -179,7 +179,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [draftNextFollowup, setDraftNextFollowup] = useState<Date | undefined>(() => {
     if (mode !== 'create') return undefined
     if (seededFollowup) return seed ? (seed.nextFollowupAt ?? undefined) : quickAddSeed?.resolved.nextFollowupAt
-    return newTaskFollowup ? addFollowupInterval(new Date(), followupInterval) : undefined
+    return autoNextFollowup(new Date(), { autoFollowup, followupDefaultInterval: followupInterval }) ?? undefined
   })
   const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
   // Create mode: marker drafts, seeded from a Markers filter and Quick Add's
@@ -385,7 +385,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
     const now = new Date()
     setDraftLastFollowup(now)
-    setDraftNextFollowup(addFollowupInterval(now, followupInterval))
+    // The rule Mark followed up always applies (none while it is off).
+    setDraftNextFollowup(autoNextFollowup(now) ?? undefined)
     setNextFollowupIsDefault(false)
   }
 
@@ -688,6 +689,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             followupNextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
               ? `Default · ${describeFollowupInterval(followupInterval)}`
               : undefined}
+            // The untouched default is a proposal: focus selects it, so typing replaces it.
+            followupNextSelectOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
             onFollowupNextChange={handleNextFollowupChange}
             onFollowupLastChange={handleLastFollowupChange}
             onFollowedUp={handleFollowedUp}

@@ -5,7 +5,7 @@ import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
 import { advanceRecurring } from '../utils/recurrence'
 import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
-import { defaultNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
+import { autoNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
 import { takeSafetySnapshot } from './safety-snapshot'
@@ -28,6 +28,16 @@ export interface MarkerFlagChange {
   urgent?: boolean
   important?: boolean
   focus?: boolean
+}
+
+/** `markFollowedUp`'s options. */
+export interface MarkFollowedUpOptions {
+  /** The next follow-up to set (`null` = none); omitted = the automatic rule (`autoNextFollowup`). */
+  next?: Date | null
+  /** The undo entry's name (default `Followed up · next follow-up …`). */
+  description?: string
+  /** The undo snackbar's second line. */
+  detail?: string
 }
 
 /**
@@ -113,13 +123,16 @@ interface TodoState {
   /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
   bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
-   * "Mark followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
-   * Settings default interval`, on every task in `ids`. One undo step with
-   * the undo snackbar — `description` names it (default `Followed up · next
-   * follow-up …`), `detail` is the snackbar's second line. The timestamps
-   * are resolved once and shared by the store and the DB write.
+   * "Mark followed up": `lastFollowupAt = now` and `nextFollowupAt` = the
+   * option's `next` when given (a date, or `null` = none — the follow-up
+   * popover's field), else the automatic rule (`autoNextFollowup`: today + the
+   * Settings interval, or none while that is off), on every task in `ids`.
+   * One undo step with the undo snackbar — `description` names it (default
+   * `Followed up · next follow-up …`), `detail` is the snackbar's second
+   * line. The timestamps are resolved once and shared by the store and the
+   * DB write.
    */
-  markFollowedUp: (ids: number[], description?: string, detail?: string) => Promise<void>
+  markFollowedUp: (ids: number[], options?: MarkFollowedUpOptions) => Promise<void>
   /**
    * Deletes `ids` as one undo step (with the snackbar). More than
    * `BULK_DELETE_SNAPSHOT_MIN` tasks are backed up first; if that backup
@@ -671,19 +684,20 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'dueDate', undefined, label, get, set, { showSnackbar: true })
   },
 
-  async markFollowedUp(ids: number[], description?: string, detail?: string) {
+  async markFollowedUp(ids: number[], options: MarkFollowedUpOptions = {}) {
     const targets = get().todos.filter((t) => ids.includes(t.id))
     if (targets.length === 0) return
+    const { description, detail } = options
     const now = new Date()
-    const next = defaultNextFollowup(now)
-    const changes = { lastFollowupAt: now, nextFollowupAt: next }
+    const next = options.next !== undefined ? options.next : autoNextFollowup(now)
+    const changes = { lastFollowupAt: now, nextFollowupAt: next ?? undefined }
     const prev = new Map(targets.map((t) => [t.id, {
       lastFollowupAt: t.lastFollowupAt,
       nextFollowupAt: t.nextFollowupAt,
       modifiedAt: t.modifiedAt,
     }]))
     const targetIds = targets.map((t) => t.id)
-    const name = description ?? `Followed up · next follow-up ${formatFollowupDate(next, now)}`
+    const name = description ?? (next ? `Followed up · next follow-up ${formatFollowupDate(next, now)}` : 'Followed up · no next follow-up')
     return optimistic(
       () => set({
         todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changes, modifiedAt: now } : t)),
@@ -699,7 +713,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           return {
             ...t,
             ...(t.lastFollowupAt?.getTime() === now.getTime() ? { lastFollowupAt: p.lastFollowupAt } : {}),
-            ...(t.nextFollowupAt?.getTime() === next.getTime() ? { nextFollowupAt: p.nextFollowupAt } : {}),
+            ...(t.nextFollowupAt?.getTime() === next?.getTime() ? { nextFollowupAt: p.nextFollowupAt } : {}),
             ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}),
           }
         }),
@@ -708,7 +722,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
       {
         description: name,
         detail,
-        redo: () => get().markFollowedUp(targetIds, description, detail),
+        // The same next follow-up when it was given; else the rule again, from the redo's now.
+        redo: () => get().markFollowedUp(targetIds, options),
         undo: async () => {
           const undoNow = new Date()
           await todoRepository.bulkUpdate(targetIds.map((todoId) => {

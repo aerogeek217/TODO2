@@ -9,9 +9,9 @@ afterEach(() => cleanup())
 const info: SyncConflictInfo = {
   fileName: 'todo2-data.json',
   reason: 'browser-changes',
-  browser: { taskCount: 12, schemaVersion: 49, unsyncedSince: '2026-10-02T09:00:00.000Z' },
+  browser: { taskCount: 12, schemaVersion: 69, unsyncedSince: '2026-10-02T09:00:00.000Z' },
   file: {
-    taskCount: 10, schemaVersion: 48, savedAt: '2026-10-01T10:00:00.000Z',
+    taskCount: 10, schemaVersion: 68, savedAt: '2026-10-01T10:00:00.000Z',
     lastModified: '2026-10-01T10:00:00.000Z', changedSinceLastSync: true,
   },
 }
@@ -24,7 +24,7 @@ describe('SyncConflictDialog', () => {
     const sides = screen.getByTestId('sync-conflict-sides')
     expect(sides).toHaveTextContent('12 tasks')
     expect(sides).toHaveTextContent('10 tasks')
-    expect(sides).toHaveTextContent('Schema v48 (older format)')
+    expect(sides).toHaveTextContent('Schema v68 (older format)')
     expect(screen.getByRole('dialog')).toHaveTextContent('the file was also changed elsewhere')
     expect(screen.getByRole('dialog')).toHaveTextContent('Nothing has changed yet')
 
@@ -68,8 +68,8 @@ describe('FileUpgradeDialog', () => {
   it('confirms or cancels', () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()
-    render(<FileUpgradeDialog info={{ fileName: 'f.json', fromVersion: 49, toVersion: 50 }} onConfirm={onConfirm} onCancel={onCancel} />)
-    expect(screen.getByRole('dialog')).toHaveTextContent('schema v49')
+    render(<FileUpgradeDialog info={{ fileName: 'f.json', fromVersion: 68, toVersion: 69 }} onConfirm={onConfirm} onCancel={onCancel} />)
+    expect(screen.getByRole('dialog')).toHaveTextContent('schema v68')
     expect(screen.getByRole('dialog')).toHaveTextContent('A copy of the file as it is now is saved first')
     fireEvent.click(screen.getByRole('button', { name: 'Upgrade file' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel (pause sync)' }))

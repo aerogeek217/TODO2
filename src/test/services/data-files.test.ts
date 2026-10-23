@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildJsonExport, exportFileTimestamp, exportImportProblem, legacyImportInfo, readImportFile } from '../../services/data-files'
+import { buildJsonExport, exportFileTimestamp, exportImportProblem, readImportFile } from '../../services/data-files'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { MAX_IMPORT_SIZE_BYTES } from '../../data/import-validation'
@@ -39,10 +39,10 @@ describe('data files', () => {
     expect(read).toBe(false)
   })
 
-  it('says when stored text needs the older-version prompt', () => {
-    expect(legacyImportInfo(fileText(CURRENT_DB_VERSION))).toBeNull()
-    expect(legacyImportInfo(fileText(OLDEST_SUPPORTED_DB_VERSION - 1))?.sourceVersion).toBe(OLDEST_SUPPORTED_DB_VERSION - 1)
-    expect(legacyImportInfo('not json')).toBeNull()
+  it('refuses an import file below the floor (Import JSON and Import tasks alike)', async () => {
+    const old = new File([fileText(OLDEST_SUPPORTED_DB_VERSION - 1)], 'old.json')
+    expect(await readImportFile(old)).toMatchObject({ ok: false, reason: 'too-old' })
+    expect(await readImportFile(old, { purpose: 'append' })).toMatchObject({ ok: false, reason: 'too-old' })
   })
 })
 

@@ -28,11 +28,8 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
 /**
  * Parse a JSON string, run it through the unified import pipeline
  * (`prepareImport`: version check → schema upgrade → validation), and restore
- * all data tables. Returns an error string on failure.
- *
- * Does not prompt for below-floor files — callers that may see one (backup
- * restore in Settings) check `prepareImportText(...).legacy` and confirm via
- * `MigrationDialog` first.
+ * all data tables. Returns an error string on failure — also for a file
+ * below the floor or newer than this build, which restores nothing.
  */
 export async function parseAndRestore(jsonString: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = prepareImportText(jsonString)

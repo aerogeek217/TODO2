@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom'
 import type { PersistedTodoItem } from '../../../models'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER } from '../../../hooks/use-followup-input'
+import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
 import { useToday } from '../../../hooks/use-today'
-import { useSettingsStore } from '../../../stores/settings-store'
+import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
+import { startOfDay } from '../../../utils/date'
 import {
   addFollowupInterval,
   formatFollowupDate,
@@ -23,15 +25,21 @@ interface FollowupPopoverProps {
   todo: PersistedTodoItem
   anchor: PopoverAnchor
   onClose: () => void
-  /** Set (or with `null`, clear) the next follow-up. */
+  /** Set (or with `null`, clear) the next follow-up — nothing else. */
   onSetNext: (date: Date | null) => void
-  /** "Mark followed up": last = now, next = today + the default interval. */
-  onFollowedUp: () => void
+  /** "Mark followed up": last = now, next = `next` — the Next field's date (`null` = none). */
+  onFollowedUp: (next: Date | null) => void
   /**
    * Already followed up today (dims "Mark followed up"). Defaults to `todo`'s own
    * last follow-up; the bulk bar passes "every selected task".
    */
   followedUpToday?: boolean
+  /**
+   * The next follow-up there is now — the `Now:` hint, and what ⏎ compares
+   * the field with. Defaults to `todo`'s own; the bulk bar passes the
+   * selection's (`'mixed'` when the tasks differ).
+   */
+  current?: Date | null | 'mixed'
   /**
    * What has focus on open: `followedUp` (default — ⏎ records a follow-up
    * today) or `next` (the Next follow-up field, its value selected — opened
@@ -40,25 +48,42 @@ interface FollowupPopoverProps {
   initialFocus?: 'followedUp' | 'next'
 }
 
+/** Same day, or both none. */
+function sameDay(a: Date | null, b: Date | null): boolean {
+  return (a ? startOfDay(a).getTime() : null) === (b ? startOfDay(b).getTime() : null)
+}
+
 /**
  * Small popover for a task's follow-up, opened from the row's follow-up pill,
- * its empty-slot flag, the row menu or the bulk bar. It opens with focus on
- * "Mark followed up" (⏎ or a click stamps the task today), or on the Next
- * follow-up field (`initialFocus: 'next'`). Next follow-up takes an interval
- * or a date, or a day from the browser's date picker (the field's calendar
- * button); quick buttons set common intervals. ⏎ in the field (valid input),
- * a picked day or a quick button applies and closes; Esc / outside click closes
- * without change. On close, focus goes back to what had it before (the
- * trigger) unless something else took it.
+ * its empty-slot flag, the row menu or the bulk bar. The Next follow-up field
+ * opens on what "Mark followed up" will set (Settings' automatic next
+ * follow-up: today + the interval, or empty while that is off); the label's
+ * `Now:` says what the task has. Mark followed up (focused on open, so ⏎
+ * records; or the field, `initialFocus: 'next'`) stamps today and sets the
+ * field's date — empty clears it, text that isn't a date disables it. The
+ * field takes an interval or a date, or a day from the browser's date picker
+ * (its calendar button); quick buttons set common intervals. Focusing the
+ * field (click, Tab) selects its text, so typing replaces the proposal. ⏎ in the field
+ * (when it differs from now), a picked day or a quick button sets the next
+ * follow-up only and closes; the field's × empties it; Esc / outside click
+ * closes without change. On close, focus goes back to what had it before
+ * (the trigger) unless something else took it.
  */
-export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday, initialFocus = 'followedUp' }: FollowupPopoverProps) {
+export function FollowupPopover({
+  todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday, current: currentProp, initialFocus = 'followedUp',
+}: FollowupPopoverProps) {
   const today = useToday()
-  const interval = useSettingsStore((s) => s.followupDefaultInterval)
+  const autoFollowup = useSettingsStore((s) => s.autoFollowup)
+  const followupDefaultInterval = useSettingsStore((s) => s.followupDefaultInterval)
+  // What Mark followed up sets unless the field is edited: the field starts on it.
+  const proposal = autoNextFollowup(today, { autoFollowup, followupDefaultInterval })
   const inputRef = useRef<HTMLInputElement>(null)
   const followedUpRef = useRef<HTMLButtonElement>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
-  const input = useFollowupInput(todo.nextFollowupAt, 'next', today)
+  const input = useFollowupInput(proposal ?? undefined, 'next', today)
+  // The field holds a proposal the user usually replaces: focus selects it.
+  const selectOnFocus = useSelectAllOnFocus()
   const { panelRef, style } = usePopoverAnchor({ anchor, open: true, onClose })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
@@ -96,24 +121,29 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
     onClose()
   }, [onSetNext, onClose])
 
+  const s = input.state
+  // The field's date: the proposal while untouched, null when empty.
+  const fieldDate: Date | null | 'invalid' =
+    s.kind === 'unchanged' ? proposal : s.kind === 'empty' ? null : s.kind === 'valid' ? s.date : 'invalid'
+  const current = currentProp !== undefined ? currentProp : (todo.nextFollowupAt ?? null)
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
-    const s = input.state
-    if (s.kind === 'valid') apply(s.date)
-    else if (s.kind === 'empty') apply(null)
-    else if (s.kind === 'unchanged') onClose()
+    if (fieldDate === 'invalid') return
+    // Sets the next follow-up only; a field that says what there is now just closes.
+    if (current === 'mixed' || !sameDay(fieldDate, current)) apply(fieldDate)
+    else onClose()
   }
 
-  // The next follow-up "Mark followed up" sets, as `Next: Tue 11/10` (the colon
-  // keeps it from reading as "next Tuesday").
-  const nextAfterFollowup = formatWeekdayNumeric(addFollowupInterval(today, interval))
   const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
-    `Record a follow-up today\nNext follow-up: ${nextAfterFollowup}`,
+    fieldDate === null
+      ? 'Record a follow-up today and clear the next follow-up'
+      : 'Record a follow-up today and set the next follow-up to the date above',
   )
   // Only highlight "Mark followed up" when it would record something new.
   const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
-  const s = input.state
+  const nowText = current === 'mixed' ? 'mixed' : current ? formatWeekdayNumeric(current) : 'none'
 
   return createPortal(
     <div
@@ -131,7 +161,10 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
       onKeyDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
     >
-      <label className={styles.fieldLabel} htmlFor={`followup-next-${todo.id}`}>Next follow-up</label>
+      <div className={styles.fieldLabelRow}>
+        <label className={styles.fieldLabel} htmlFor={`followup-next-${todo.id}`}>Next follow-up</label>
+        <span className={styles.fieldNow} id={`followup-now-${todo.id}`} data-followup-now="">Now: {nowText}</span>
+      </div>
       <div className={`${styles.inputWrap} ${s.kind === 'invalid' ? styles.inputWrapError : ''}`}>
         <input
           id={`followup-next-${todo.id}`}
@@ -141,8 +174,9 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
           placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
           onChange={(e) => input.change(e.target.value)}
           onKeyDown={handleKeyDown}
+          {...selectOnFocus}
           aria-invalid={s.kind === 'invalid'}
-          aria-describedby={`followup-next-help-${todo.id}`}
+          aria-describedby={`followup-now-${todo.id} followup-next-help-${todo.id}`}
           autoComplete="off"
           spellCheck={false}
         />
@@ -153,14 +187,21 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
           <button
             type="button"
             className={styles.inputClear}
-            aria-label="Clear follow-up"
-            title="Clear follow-up"
-            onClick={() => apply(null)}
+            aria-label="Clear next follow-up"
+            title="Clear the date"
+            onClick={() => {
+              input.change('')
+              inputRef.current?.focus()
+            }}
           >
             &times;
           </button>
         )}
-        <FollowupDateButton label="Pick next follow-up date" value={todo.nextFollowupAt} onPick={apply} />
+        <FollowupDateButton
+          label="Pick next follow-up date"
+          value={fieldDate instanceof Date ? fieldDate : undefined}
+          onPick={apply}
+        />
       </div>
       <div id={`followup-next-help-${todo.id}`} className={styles.help} aria-live="polite">
         {s.kind === 'valid' && (
@@ -189,13 +230,17 @@ export function FollowupPopover({ todo, anchor, onClose, onSetNext, onFollowedUp
         ref={followedUpRef}
         type="button"
         className={`${styles.followedUpPrimary} ${doneToday ? styles.followedUpDone : ''}`}
+        disabled={fieldDate === 'invalid'}
         {...followedUpTipProps}
-        onClick={() => { onFollowedUp(); onClose() }}
+        onClick={() => {
+          if (fieldDate === 'invalid') return
+          onFollowedUp(fieldDate)
+          onClose()
+        }}
         data-done-today={doneToday ? 'true' : undefined}
       >
         <FollowedUpIcon />
-        Mark followed up{' '}
-        <span className={styles.followedUpHint}>· Next: {nextAfterFollowup}</span>
+        Mark followed up
       </button>
       {followedUpTip}
     </div>,

@@ -16,6 +16,7 @@ import { useUndoStore } from '../../../stores/undo-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
+import { addFollowupInterval } from '../../../utils/followup'
 import { SHORTCUT_HANDLERS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
 import { createCommands, type CommandContext } from '../../../services/command-registry'
 import type { PersistedListDefinition } from '../../../models/list-definition'
@@ -471,6 +472,39 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(next(2)).toEqual(new Date(2026, 10, 20))
     expect(next(3)).toBeUndefined()
     await vi.waitFor(async () => expect((await db.todos.get(2))?.nextFollowupAt).toEqual(new Date(2026, 10, 20)))
+  })
+
+  it('the bulk bar’s follow-up popover: Now: says the selection’s (shared or mixed); Mark followed up sets the field’s date on every task', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, nextFollowupAt: new Date(2026, 9, 27) }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2, nextFollowupAt: new Date(2026, 9, 27) }),
+        makeTodo({ id: 3, title: 'Cy task', sortOrder: 3 }),
+      ],
+    })
+    await db.todos.bulkPut(useTodoStore.getState().todos)
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    const bar = () => within(screen.getByTestId('list-bulk-bar'))
+    fireEvent.click(bar().getByRole('button', { name: 'Set follow-up' }))
+    let popover = screen.getByRole('dialog', { name: 'Follow-up' })
+    expect(within(popover).getByText('Now: Tue 10/27')).toBeInTheDocument()
+    fireEvent.click(bar().getByRole('button', { name: 'Set follow-up' }))
+
+    clickTitle('all|3', { shiftKey: true })
+    fireEvent.click(bar().getByRole('button', { name: 'Set follow-up' }))
+    popover = screen.getByRole('dialog', { name: 'Follow-up' })
+    expect(within(popover).getByText('Now: mixed')).toBeInTheDocument()
+    fireEvent.change(within(popover).getByRole('textbox', { name: 'Next follow-up' }), { target: { value: '2w' } })
+    await act(async () => { fireEvent.click(within(popover).getByRole('button', { name: 'Mark followed up' })) })
+    const t = (id: number) => useTodoStore.getState().todos.find((x) => x.id === id)!
+    const twoWeeks = addFollowupInterval(new Date(), { count: 2, unit: 'w' })
+    for (const id of [1, 2, 3]) {
+      expect(t(id).nextFollowupAt).toEqual(twoWeeks)
+      expect(t(id).lastFollowupAt).toBeInstanceOf(Date)
+    }
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar?.description).toMatch(/^Followed up · next follow-up/))
   })
 
   /** Opens the bulk bar's ⋯ More menu. */

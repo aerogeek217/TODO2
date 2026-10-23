@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { db } from '../../data/database'
+import { CURRENT_DB_VERSION, db } from '../../data/database'
 import { backupScheduler } from '../../data/backup-scheduler'
 import { takeSafetySnapshot } from '../../stores/safety-snapshot'
 import { runAppendImport } from '../../services/append-import'
@@ -217,7 +217,7 @@ describe('append import', () => {
   function archive() {
     const now = new Date().toISOString()
     const prepared = prepareImport({
-      [SCHEMA_VERSION_KEY]: 51,
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
       kind: 'task-archive',
       todos: [{ id: 1, uid: 'a-1', title: 'Archived', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
     }, { purpose: 'append' })

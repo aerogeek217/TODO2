@@ -2,7 +2,7 @@ import type { PersistedListDefinition } from '../models/list-definition'
 import { LAYOUT_NAME_MAX, layoutBodyOf, type LayoutBody } from '../models/workspace-layout'
 import { registerModuleReset } from '../utils/module-reset'
 import { isRecord } from '../utils/is-record'
-import { CURRENT_DB_VERSION } from './database'
+import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from './database'
 import { rowFixes, sanitizeRow, validateRow } from './import-validation'
 import { pickLayoutBody } from './layout-shape'
 import { upgradeDataSet, type DataRow } from './schema-upgrades'
@@ -20,7 +20,8 @@ import { upgradeDataSet, type DataRow } from './schema-upgrades'
  * Each record also carries the schema version it was written in: a record
  * an older build kept is read through the schema upgrades (as a file of that
  * version would be) before any check, so a draft is never applied in an old
- * shape; one a newer build kept is dropped.
+ * shape; one a newer build kept, one below the floor
+ * (`OLDEST_SUPPORTED_DB_VERSION`) or one without a version is dropped.
  */
 
 const LAYOUT_KEY = 'todo2-unsaved-layout'
@@ -48,13 +49,9 @@ export interface ListDraftRecord {
   base: PersistedListDefinition
 }
 
-/** The schema version of a record kept without one: the first build that kept drafts. */
-const FIRST_DRAFT_VERSION = 63
-
 /** The schema version a record was written in, or `null` when this build can't read it. */
 function versionOf(v: unknown): number | null {
-  if (v === undefined) return FIRST_DRAFT_VERSION
-  return typeof v === 'number' && Number.isInteger(v) && v >= FIRST_DRAFT_VERSION && v <= CURRENT_DB_VERSION ? v : null
+  return typeof v === 'number' && Number.isInteger(v) && v >= OLDEST_SUPPORTED_DB_VERSION && v <= CURRENT_DB_VERSION ? v : null
 }
 
 /** `rows` of `table` upgraded from schema `from` to the current one; `null` when that fails or loses a row. */

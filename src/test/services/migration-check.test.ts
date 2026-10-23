@@ -1,6 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { checkTooNewDB, checkUnsupportedOldDB, exportCurrentDatabase } from '../../services/migration-check'
-import { detectUnsupportedImport, SCHEMA_VERSION_KEY } from '../../data/file-version'
+import { checkTooNewDB, checkTooOldDB } from '../../services/migration-check'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 
 function createRawDb(version: number, setup?: (db: IDBDatabase) => void): Promise<void> {
@@ -35,47 +34,39 @@ describe('schema-upgrade source-of-truth', () => {
   })
 })
 
-describe('checkUnsupportedOldDB', () => {
+describe('checkTooOldDB', () => {
   it('returns null when no database exists', async () => {
-    expect(await checkUnsupportedOldDB()).toBeNull()
+    expect(await checkTooOldDB()).toBeNull()
   })
 
   it('returns null when the on-disk db is at the floor', async () => {
     await createRawDb(OLDEST_SUPPORTED_DB_VERSION * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
-    expect(await checkUnsupportedOldDB()).toBeNull()
+    expect(await checkTooOldDB()).toBeNull()
   })
 
   it('returns null when the on-disk db is at the current version', async () => {
     await createRawDb(CURRENT_DB_VERSION * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
-    expect(await checkUnsupportedOldDB()).toBeNull()
+    expect(await checkTooOldDB()).toBeNull()
   })
 
-  it('returns info when the on-disk db is one version below the floor', async () => {
+  it('returns the versions when the on-disk db is one version below the floor', async () => {
     const oldVersion = OLDEST_SUPPORTED_DB_VERSION - 1
     await createRawDb(oldVersion * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
-
-    const result = await checkUnsupportedOldDB()
-    expect(result).not.toBeNull()
-    expect(result!.currentVersion).toBe(oldVersion)
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(await checkTooOldDB()).toEqual({ storedVersion: oldVersion, floorVersion: OLDEST_SUPPORTED_DB_VERSION })
   })
 
-  it('returns info for a much older database', async () => {
+  it('returns the versions for a much older database', async () => {
     // Dexie v16 = IDB v160 (the original base schema)
     await createRawDb(160, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
-
-    const result = await checkUnsupportedOldDB()
-    expect(result).not.toBeNull()
-    expect(result!.currentVersion).toBe(16)
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(await checkTooOldDB()).toEqual({ storedVersion: 16, floorVersion: OLDEST_SUPPORTED_DB_VERSION })
   })
 })
 
@@ -96,84 +87,70 @@ describe('checkTooNewDB', () => {
   })
 })
 
-describe('exportCurrentDatabase', () => {
-  it('exports all table data as JSON', async () => {
-    await createRawDb(190, (db) => {
-      const store = db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
-      store.add({ title: 'Test Task', priority: 0 })
+describe('a browser that can’t list its databases', () => {
+  // Without `indexedDB.databases()` (or when it throws) the checks read the
+  // version from a raw open with no version — which never upgrades, and
+  // never creates a database that isn't there.
+  const listers = {
+    missing: () => Object.defineProperty(indexedDB, 'databases', { value: undefined, configurable: true, writable: true }),
+    throwing: () => Object.defineProperty(indexedDB, 'databases', { value: () => Promise.reject(new Error('unavailable')), configurable: true, writable: true }),
+  }
+  let restoreList: (() => void) | null = null
+
+  function withoutList(kind: keyof typeof listers): void {
+    const own = Object.getOwnPropertyDescriptor(indexedDB, 'databases')
+    listers[kind]()
+    restoreList = () => {
+      if (own) Object.defineProperty(indexedDB, 'databases', own)
+      else delete (indexedDB as { databases?: unknown }).databases
+    }
+  }
+
+  afterEach(() => {
+    restoreList?.()
+    restoreList = null
+  })
+
+  async function nativeVersions(): Promise<Array<number | undefined>> {
+    return (await indexedDB.databases()).filter((d) => d.name === 'todo2').map((d) => d.version)
+  }
+
+  for (const kind of ['missing', 'throwing'] as const) {
+    it(`finds a database below the floor (list ${kind})`, async () => {
+      await createRawDb((OLDEST_SUPPORTED_DB_VERSION - 1) * 10, (db) => {
+        db.createObjectStore('orgs', { keyPath: 'id', autoIncrement: true })
+      })
+      withoutList(kind)
+      expect(await checkTooOldDB()).toEqual({ storedVersion: OLDEST_SUPPORTED_DB_VERSION - 1, floorVersion: OLDEST_SUPPORTED_DB_VERSION })
+      expect(await checkTooNewDB()).toBeNull()
+      restoreList?.()
+      expect(await nativeVersions()).toEqual([(OLDEST_SUPPORTED_DB_VERSION - 1) * 10])
     })
 
-    const json = await exportCurrentDatabase(19)
-    const data = JSON.parse(json)
-    expect(data.todos).toHaveLength(1)
-    expect(data.todos[0].title).toBe('Test Task')
-  })
-
-  it('exports multiple tables', async () => {
-    await createRawDb(190, (db) => {
-      const todos = db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
-      todos.add({ title: 'Task 1' })
-      const projects = db.createObjectStore('projects', { keyPath: 'id', autoIncrement: true })
-      projects.add({ name: 'Project 1' })
+    it(`finds a database a newer build saved (list ${kind})`, async () => {
+      await createRawDb((CURRENT_DB_VERSION + 1) * 10 + 1, (db) => {
+        db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+      })
+      withoutList(kind)
+      expect(await checkTooNewDB()).toEqual({ storedVersion: CURRENT_DB_VERSION + 1, buildVersion: CURRENT_DB_VERSION })
+      expect(await checkTooOldDB()).toBeNull()
     })
 
-    const json = await exportCurrentDatabase(19)
-    const data = JSON.parse(json)
-    expect(data.todos).toHaveLength(1)
-    expect(data.projects).toHaveLength(1)
-  })
+    it(`passes a database at the current version and creates none (list ${kind})`, async () => {
+      withoutList(kind)
+      expect(await checkTooOldDB()).toBeNull()
+      expect(await checkTooNewDB()).toBeNull()
+      restoreList?.()
+      expect(await nativeVersions()).toEqual([])
 
-  it('returns empty object for database with no tables', async () => {
-    await createRawDb(10)
-
-    const json = await exportCurrentDatabase(1)
-    expect(JSON.parse(json)).toEqual({})
-  })
-})
-
-describe('detectUnsupportedImport', () => {
-  it('returns null for non-object input', () => {
-    expect(detectUnsupportedImport(null)).toBeNull()
-    expect(detectUnsupportedImport('string')).toBeNull()
-  })
-
-  it('returns null when the embedded marker is at the floor', () => {
-    expect(
-      detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION, todos: [] }),
-    ).toBeNull()
-  })
-
-  it('returns null when the embedded marker is at the current version', () => {
-    expect(
-      detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION, todos: [] }),
-    ).toBeNull()
-  })
-
-  it('returns null for a future version (too-new is rejected by prepareImport, not here)', () => {
-    expect(
-      detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION + 1, todos: [] }),
-    ).toBeNull()
-  })
-
-  it('flags an embedded marker one version below the floor', () => {
-    const result = detectUnsupportedImport({
-      [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION - 1,
-      todos: [],
+      await createRawDb(CURRENT_DB_VERSION * 10, (db) => {
+        db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+      })
+      withoutList(kind)
+      expect(await checkTooOldDB()).toBeNull()
+      expect(await checkTooNewDB()).toBeNull()
+      restoreList?.()
+      expect(await nativeVersions()).toEqual([CURRENT_DB_VERSION * 10])
     })
-    expect(result).not.toBeNull()
-    expect(result!.sourceVersion).toBe(OLDEST_SUPPORTED_DB_VERSION - 1)
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
-    expect(result!.descriptions).toEqual([])
-  })
-
-  // Marker-less files always trigger the warning — we can't tell which version
-  // they came from, so we surface the "earlier format" message and let the
-  // user decide whether to proceed.
-  it('flags marker-less files with sourceVersion null and empty descriptions', () => {
-    const result = detectUnsupportedImport({ todos: [{ title: 'Task' }], listInsets: [] })
-    expect(result).not.toBeNull()
-    expect(result!.sourceVersion).toBeNull()
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
-    expect(result!.descriptions).toEqual([])
-  })
+  }
 })

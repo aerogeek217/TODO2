@@ -1,14 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { generateDevSeed, DEV_SEED_IDS, type DevSeed } from '../../../scripts/dev-seed'
+import { generateDevSeed, DEV_SEED_IDS, DEV_SEED_SCHEMA_VERSION, type DevSeed } from '../../../scripts/dev-seed'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
 import { prepareImport } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
+import { auditData } from '../../data/audit'
+import { readCheckinFilterSetting } from '../../data/checkin-filter-shape'
+import { readPanesSetting } from '../../data/eisenhower-shape'
+import { isEisenhowerOwner, ownerLayoutId } from '../../models/list-definition'
 import { resetDb } from '../helpers'
 
 /**
  * The dev seed (`npm run seed:dev`, `scripts/dev-seed.ts`) is what manual
- * testing imports into the dev server. This keeps it importable: it must run
- * the full v49 → current pipeline with no validation errors or warnings.
+ * testing imports into the dev server. This keeps it importable: it is an
+ * export in the current schema that imports with no validation errors or
+ * warnings and leaves nothing for the audit to clean up.
  */
 
 const TODAY = new Date(2026, 9, 11) // a Sunday
@@ -25,15 +30,14 @@ function asFile(seed: DevSeed): unknown {
 async function importSeed(seed: DevSeed): Promise<void> {
   const prepared = prepareImport(asFile(seed))
   if (!prepared.ok) throw new Error(`dev seed failed to import: ${prepared.error}`)
-  expect(prepared.sourceVersion).toBe(49)
-  expect(prepared.legacy).toBeNull()
-  expect(prepared.upgraded).toBe(true)
+  expect(prepared.sourceVersion).toBe(CURRENT_DB_VERSION)
+  expect(prepared.upgraded).toBe(false)
   expect(prepared.warnings).toEqual([])
   await restoreFromImportData(prepared.data)
 }
 
-function rows(seed: DevSeed, table: string): Record<string, unknown>[] {
-  return (seed as unknown as Record<string, Record<string, unknown>[]>)[table] ?? []
+function setting(seed: DevSeed, key: string): string | undefined {
+  return seed.settings.find((s) => s.key === key)?.value
 }
 
 beforeEach(async () => {
@@ -48,196 +52,115 @@ describe('dev seed generator', () => {
     expect(JSON.stringify(seedFor(new Date(2026, 9, 12)))).not.toBe(morning)
   })
 
-  it('is a realistic v49 export covering the upgrade paths', () => {
+  it('is written in the current schema', () => {
+    expect(DEV_SEED_SCHEMA_VERSION).toBe(CURRENT_DB_VERSION)
+    expect(seedFor().__schemaVersion).toBe(CURRENT_DB_VERSION)
+  })
+
+  it('is a realistic export', () => {
     const seed = seedFor()
-    expect(seed.__schemaVersion).toBe(49)
     expect(seed.todos.length).toBeGreaterThanOrEqual(140)
-    expect(seed.people).toHaveLength(12)
-    expect(seed.orgs.length).toBeGreaterThanOrEqual(3)
-    expect(seed.personOrgs.length).toBeGreaterThan(0)
-    expect(seed.todoOrgs.length).toBeGreaterThan(0)
-    expect(seed.projects).toHaveLength(5)
-    expect(seed.tags).toHaveLength(10)
-    expect(seed.statuses.filter((s) => s.hideByDefault === true).length).toBeGreaterThanOrEqual(2)
-    for (const kind of ['floatingHorizons', 'floatingScoreboard', 'floatingSnoozeGraveyard']) {
-      expect(rows(seed, kind).length, kind).toBeGreaterThan(0)
-    }
+    expect(new Set(seed.todos.map((t) => t.uid)).size).toBe(seed.todos.length)
+    expect(seed.people).toHaveLength(16)
+    expect(seed.people.filter((p) => p.name.startsWith('Org: '))).toHaveLength(4)
+    const withEmail = seed.people.filter((p) => p.email !== undefined)
+    expect(withEmail.length).toBeGreaterThanOrEqual(8)
+    expect(withEmail.length).toBeLessThan(seed.people.length)
+    expect(seed.tags.filter((t) => t.name.startsWith('Project: '))).toHaveLength(5)
+    expect(seed.statuses).toHaveLength(4)
 
     const todayMs = TODAY.getTime()
-    const due = seed.todos.filter((t) => typeof t.dueDate === 'string').map((t) => Date.parse(t.dueDate as string))
-    expect(due.some((ms) => ms < todayMs), 'overdue').toBe(true)
-    expect(due.some((ms) => ms === todayMs), 'due today').toBe(true)
-    const sched = seed.todos.map((t) => t.scheduledDate as { kind?: string } | undefined)
-    expect(sched.some((s) => s?.kind === 'date')).toBe(true)
-    expect(sched.some((s) => s?.kind === 'fuzzy')).toBe(true)
-    expect(seed.todos.some((t) => t.recurrenceRule && !t.dueDate && (t.scheduledDate as { kind?: string })?.kind === 'date'),
-      'recurring task anchored only on a scheduled date').toBe(true)
+    const ms = (iso: string | undefined) => (iso === undefined ? undefined : Date.parse(iso))
+    const open = seed.todos.filter((t) => !t.isCompleted)
+    const due = open.map((t) => ms(t.dueDate)).filter((v) => v !== undefined)
+    expect(due.some((v) => v < todayMs), 'overdue').toBe(true)
+    expect(due.some((v) => v === todayMs), 'due today').toBe(true)
+    const next = open.map((t) => ms(t.nextFollowupAt)).filter((v) => v !== undefined)
+    expect(next.some((v) => v < todayMs), 'overdue follow-up').toBe(true)
+    expect(next.some((v) => v === todayMs), 'follow-up today').toBe(true)
+    const exportedMs = Date.parse(seed.exportedAt)
+    const last = seed.todos.map((t) => ms(t.lastFollowupAt)).filter((v) => v !== undefined)
+    expect(last.length).toBeGreaterThan(0)
+    for (const v of last) expect(v).toBeLessThanOrEqual(exportedMs)
+    for (const flag of ['focus', 'urgent', 'important'] as const) {
+      expect(open.some((t) => t[flag] === true), flag).toBe(true)
+    }
+    // A recurring task advances from its due date.
+    for (const t of seed.todos.filter((x) => x.recurrenceRule)) expect(t.dueDate, t.title).toBeDefined()
+    for (const t of seed.todos) expect(t.isCompleted === (t.completedAt !== undefined), t.title).toBe(true)
 
     const retentionMs = 30 * 86_400_000
-    const completedEvents = seed.todoEvents.filter((e) => e.type === 'completed').map((e) => Date.parse(e.timestamp as string))
-    expect(completedEvents.some((ms) => todayMs - ms > retentionMs), 'old completions').toBe(true)
-    expect(completedEvents.some((ms) => todayMs - ms < retentionMs), 'recent completions').toBe(true)
+    const completed = seed.todos.flatMap((t) => (t.completedAt ? [Date.parse(t.completedAt)] : []))
+    expect(completed.some((v) => todayMs - v > retentionMs), 'old completions').toBe(true)
+    expect(completed.some((v) => todayMs - v < retentionMs), 'recent completions').toBe(true)
 
     // Every event belongs to an existing task and never predates it.
-    const created = new Map(seed.todos.map((t) => [t.id, Date.parse(t.createdAt as string)]))
+    const created = new Map(seed.todos.map((t) => [t.id, Date.parse(t.createdAt)]))
     for (const e of seed.todoEvents) {
       const c = created.get(e.todoId)
       expect(c, `event ${String(e.id)} todo`).toBeDefined()
-      expect(Date.parse(e.timestamp as string), `event ${String(e.id)} time`).toBeGreaterThanOrEqual(c!)
+      expect(Date.parse(e.timestamp), `event ${String(e.id)} time`).toBeGreaterThanOrEqual(c!)
     }
+  })
+
+  it('gives every list an owner: a layout that shows it, or the Eisenhower', () => {
+    const seed = seedFor()
+    const shown = new Map(seed.layouts.map((l) => [l.id, new Set(
+      [...l.columns.flatMap((c) => c.cells), ...(l.top ? [l.top] : []), ...(l.bottom ? [l.bottom] : [])]
+        .flatMap((p) => p.tabs.flatMap((t) => (t.kind === 'lens' && t.config.listDefinitionId !== undefined ? [t.config.listDefinitionId] : []))),
+    )]))
+    for (const def of seed.listDefinitions) {
+      if (isEisenhowerOwner(def.owner)) continue
+      const layoutId = ownerLayoutId(def)
+      expect(layoutId, def.name).toBeDefined()
+      expect(shown.get(layoutId)?.has(def.id!), `${def.name} shown by its layout`).toBe(true)
+    }
+    const eisenhower = seed.listDefinitions.filter((d) => isEisenhowerOwner(d.owner))
+    expect(eisenhower.map((d) => d.id)).toEqual([DEV_SEED_IDS.lists.eisenhower])
+    expect(setting(seed, 'eisenhowerSource')).toBe(`list:${DEV_SEED_IDS.lists.eisenhower}`)
+    expect(setting(seed, 'activeLayoutId')).toBe(String(DEV_SEED_IDS.layouts.default))
+    expect(seed.layouts.some((l) => l.top) && seed.layouts.some((l) => l.bottom), 'bands').toBe(true)
+    const kinds = new Set(seed.layouts.flatMap((l) => [...l.columns.flatMap((c) => c.cells), ...(l.top ? [l.top] : []), ...(l.bottom ? [l.bottom] : [])])
+      .flatMap((p) => p.tabs.map((t) => t.kind)))
+    expect([...kinds].sort()).toEqual(['calendar', 'dashboard', 'eisenhower', 'lens', 'notes'])
+  })
+
+  it('stores a check-in filter and Eisenhower panes the app reads unchanged', () => {
+    const seed = seedFor()
+    const checkin = readCheckinFilterSetting(setting(seed, 'checkinTaskFilter')!)
+    expect(checkin.fixes).toEqual([])
+    expect(checkin.filter.statusIds).toEqual([DEV_SEED_IDS.statuses.parked])
+    expect(checkin.filter.negate).toEqual({ statusIds: true })
+    const panes = readPanesSetting(setting(seed, 'eisenhowerPanes')!)
+    expect(panes.fixes).toEqual([])
+    expect(panes.panes).toEqual({ delegate: { name: 'Hand off' } })
   })
 })
 
 describe('dev seed → prepareImport → restore', () => {
-  it('upgrades to the current schema and restores every table', async () => {
+  it('restores every table whole', async () => {
     const seed = seedFor()
     await importSeed(seed)
     expect(db.verno).toBe(CURRENT_DB_VERSION)
-
-    const count = (table: string) => rows(seed, table).length
-    const expected: Record<string, number> = {
-      todos: count('todos'),
-      // v55: each org becomes a person; org assignments become person assignments.
-      people: count('people') + count('orgs'),
-      todoPeople: count('todoPeople') + count('todoOrgs'),
-      // v52 drops the two horizons rows, v53 the follow-up pointer and the scheduled color;
-      // v53 adds an explicit quickStatusId, v56 activeLayoutId; v60 drops the five
-      // canvas / project settings; v67 adds eisenhowerSource.
-      settings: count('settings') - 4 + 2 - 5 + 1,
-      statuses: count('statuses'),
-      // v59 adds the Focus list, v67 the Eisenhower's.
-      listDefinitions: count('listDefinitions') + 2,
-      notes: 1,
-      // v60: each project becomes a tag; each task in a project is tagged with it.
-      tags: count('tags') + count('projects'),
-      todoTags: count('todoTags') + rows(seed, 'todos').filter((t) => t.projectId !== undefined).length,
-      todoEvents: count('todoEvents'),
-      // v56 seeds the Default layout; v68 adds "Lists from upgrade" for the lists it doesn't show.
-      layouts: 2,
-      // v59: the Focus list is ordered like the taskboard was.
-      listOrders: rows(seed, 'taskboards').flatMap((b) => b.entries as unknown[]).length,
-    }
     for (const table of ALL_DATA_TABLES) {
-      expect(await table.count(), `${table.name} count`).toBe(expected[table.name])
+      const rows = (seed as unknown as Record<string, unknown[]>)[table.name] ?? []
+      expect(await table.count(), `${table.name} count`).toBe(rows.length)
     }
   })
 
-  it('applies the per-version transforms to the seed data', async () => {
-    const seed = seedFor()
-    await importSeed(seed)
-    const todos = await db.todos.toArray()
-    const byTitle = (title: string) => {
-      const t = todos.find((x) => x.title === title)
-      if (!t) throw new Error(`missing ${title}`)
-      return t
-    }
-
-    // v51: uids everywhere; completedAt on every completed task.
-    expect(new Set(todos.map((t) => t.uid)).size).toBe(todos.length)
-    for (const t of todos) expect(t.isCompleted ? t.completedAt instanceof Date : !('completedAt' in t), `todo ${t.id}`).toBe(true)
-    // No completed event → completedAt falls back to modifiedAt.
-    const legacy = byTitle('Fix the broken link in the onboarding doc')
-    expect(legacy.completedAt).toEqual(legacy.modifiedAt)
-    expect(byTitle('Fix the CSV import edge case they reported').isCompleted).toBe(false)
-
-    // v53: no scheduled dates; the scheduled-only recurring task is anchored on a due date.
-    for (const t of todos) expect('scheduledDate' in t, `todo ${t.id}`).toBe(false)
-    const metrics = byTitle('Weekly metrics email')
-    expect(metrics.dueDate).toEqual(new Date(2026, 9, 12))
-    expect(metrics.nextFollowupAt).toBeUndefined()
-    // An aged fuzzy "this month" (picked last month) is an overdue follow-up.
-    expect(byTitle('Clean up the shared drive').nextFollowupAt!.getTime()).toBeLessThan(TODAY.getTime())
-    expect((await db.settings.get('quickStatusId'))?.value).toBe(String(DEV_SEED_IDS.statuses.followup))
-
-    // v54: hide-by-status gone.
-    for (const s of await db.statuses.toArray()) expect('hideByDefault' in s, s.name).toBe(false)
-
-    // v55: orgs are people; org runtime prompts are person prompts.
-    const people = await db.people.toArray()
-    expect(people.filter((p) => p.name.startsWith('Org: ')).map((p) => p.name).sort())
-      .toEqual(seed.orgs.map((o) => `Org: ${String(o.name)}`).sort())
-    const lists = await db.listDefinitions.toArray()
-    expect(lists.find((l) => l.name === 'By client')?.runtimeFilter).toEqual({ field: 'person', label: 'Client' })
-
-    // v60: projects are Project: tags; project grouping is tag grouping; the
-    // project filter folds into the tag filter (the "no project" pick is dropped).
-    for (const t of todos) expect('projectId' in t || 'canvasId' in t, `todo ${t.id}`).toBe(false)
-    const tags = await db.tags.toArray()
-    const projectTag = new Map(rows(seed, 'projects').map((p) => {
-      const tag = tags.find((x) => x.name === `Project: ${String(p.name)}`)
-      expect(tag, String(p.name)).toMatchObject({ color: p.color })
-      return [p.id as number, tag!.id!]
-    }))
-    const todoTags = await db.todoTags.toArray()
-    for (const t of rows(seed, 'todos')) {
-      if (t.projectId === undefined) continue
-      const tagId = projectTag.get(t.projectId as number)
-      expect(todoTags.some((r) => r.todoId === t.id && r.tagId === tagId), `todo ${String(t.id)} project tag`).toBe(true)
-    }
-    expect(lists.find((l) => l.name === 'Overdue & due soon')?.grouping).toBe('tag')
-    const northwind = lists.find((l) => l.name === 'Northwind')!
-    expect('projectIds' in northwind.membership.predicate).toBe(false)
-    expect(northwind.membership.predicate.tags).toEqual([projectTag.get(3)])
-
-    // v63: no list keeps the pin; the canvas background colours are the app background's.
-    for (const l of lists) expect('pinnedToDashboard' in l, l.name).toBe(false)
-    const colours = Object.fromEntries((await db.settings.toArray()).filter((s) => s.key.startsWith('color.')).map((s) => [s.key, s.value]))
-    expect(colours).toEqual({ 'color.dark.accent': '#4f8cff', 'color.dark.appBg': '#111110', 'color.light.appBg': '#f5f4f2' })
-
-    // v64: date filters per date type; no list keeps a cap.
-    for (const l of lists) expect('maxTasks' in l || 'limitMode' in l, l.name).toBe(false)
-    const datesOf = (name: string) => lists.find((l) => l.name === name)!.membership.predicate.dates
-    // Due within 7 days + has a due date = the range alone.
-    expect(datesOf('Overdue & due soon')).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 7 } } })
-    expect(datesOf('Someday')).toEqual({ deadline: { match: 'unset' } })
-    // The effective-date range (v53: the due date) keeps "include no date".
-    expect(datesOf('Northwind')).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: expect.any(String) as string }, end: null, includeNoDate: true } })
-    expect(datesOf('Tasks for…')).toEqual({})
+  it('leaves nothing for the audit', async () => {
+    await importSeed(seedFor())
+    const report = await auditData()
+    expect(report.issues.map((i) => `${i.table}: ${i.description}`)).toEqual([])
   })
 
-  it('turns the taskboard into in-focus tasks in the Focus list, in board order', async () => {
+  it('keeps the Focus list in its manual order', async () => {
     const seed = seedFor()
     await importSeed(seed)
-    const boardIds = rows(seed, 'taskboards').flatMap((b) => (b.entries as Array<{ todoId: number }>).map((e) => e.todoId))
-    expect(boardIds.length).toBeGreaterThan(0)
-    const todos = await db.todos.toArray()
-    expect(todos.filter((t) => t.focus).map((t) => t.id ?? 0).sort((a, b) => a - b)).toEqual([...boardIds].sort((a, b) => a - b))
-    const focus = (await db.listDefinitions.toArray()).find((l) => l.name === 'Focus')!
-    expect(focus).toMatchObject({ sort: 'manual', grouping: 'none' })
-    expect(focus.membership.predicate.markers).toEqual({ focus: true })
-    const ranks = (await db.listOrders.where('listDefinitionId').equals(focus.id!).toArray()).sort((a, b) => a.rank - b.rank)
-    expect(ranks.map((r) => r.todoId)).toEqual(boardIds)
-    // The rail taskboard tab shows the Focus list now.
-    const layout = (await db.layouts.toArray())[0]!
-    const boardCell = layout.columns.flatMap((c) => c.cells).find((c) => c.id === 's-board')!
-    expect(boardCell.tabs[0]).toEqual({ id: 't-board', kind: 'lens', config: { listDefinitionId: focus.id } })
-  })
-
-  it('produces the Default workspace layout from the rails and floating widgets', async () => {
-    const seed = seedFor()
-    await importSeed(seed)
-    // (v68 adds "Lists from upgrade" for the lists the Default layout doesn't show.)
-    const layouts = (await db.layouts.toArray()).filter((l) => l.name !== 'Lists from upgrade')
-    expect(layouts).toHaveLength(1)
-    expect(layouts[0]!.name).toBe('Default')
-    expect((await db.settings.get('activeLayoutId'))?.value).toBe(String(layouts[0]!.id))
-
-    const columns = layouts[0]!.columns
-    // Left rail, bottom rail, right rail, then one column of every surviving
-    // float. v62 dropped the status tabs: the bottom rail's status-only cell
-    // and the floating status widget are gone.
-    expect(columns.map((c) => c.cells.map((cell) => cell.id))).toEqual([
-      ['s-focus', 's-cal'],
-      ['s-client'],
-      ['s-board'],
-      expect.any(Array),
-    ])
-    const floats = rows(seed, 'listInsets').length + rows(seed, 'floatingCalendars').length
-      + rows(seed, 'floatingNotes').length + rows(seed, 'floatingTaskboards').length
-    expect(rows(seed, 'floatingStatus').length).toBeGreaterThan(0)
-    expect(columns[3]!.cells).toHaveLength(floats)
-    // Removed kinds are gone from every cell.
-    const kinds = columns.flatMap((c) => c.cells.flatMap((cell) => cell.tabs.map((t) => t.kind)))
-    for (const removed of ['horizons', 'scoreboard', 'snoozeGraveyard', 'status']) expect(kinds).not.toContain(removed)
+    const focusIds = (await db.todos.toArray()).filter((t) => t.focus).map((t) => t.id)
+    const ranks = (await db.listOrders.where('listDefinitionId').equals(DEV_SEED_IDS.lists.focus).toArray())
+      .sort((a, b) => a.rank - b.rank)
+    expect(ranks.map((r) => r.todoId).sort((a, b) => a - b)).toEqual([...focusIds].sort((a, b) => (a ?? 0) - (b ?? 0)))
+    expect(ranks).toHaveLength(6)
   })
 })

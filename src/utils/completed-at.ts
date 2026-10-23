@@ -29,7 +29,7 @@ export function resolveCompletedAt(
 /**
  * Whether a completed todo is past the retention cutoff. Keys on
  * `completedAt`; `modifiedAt` is only a fallback for a completed row that
- * somehow lacks it (the v51 upgrade backfills every completed task).
+ * somehow lacks it (every completed task is stored with one).
  */
 export function isExpiredCompleted(
   todo: Pick<TodoItem, 'isCompleted' | 'completedAt' | 'modifiedAt'>,

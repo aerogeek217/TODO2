@@ -4,13 +4,12 @@ import type { EditorView } from '@codemirror/view'
 import type { TodoItem } from '../../../models'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useSettingsStore } from '../../../stores/settings-store'
+import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { getFilterDefaults } from '../../../utils/filter-defaults'
-import { addFollowupInterval } from '../../../utils/followup'
 import { startOfToday } from '../../../utils/date'
 import {
   applyTextChanges,
@@ -151,7 +150,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
-  const newTaskFollowup = useSettingsStore((s) => s.newTaskFollowup)
+  const autoFollowup = useSettingsStore((s) => s.autoFollowup)
 
   const currentText = useCallback(() => viewRef.current?.state.doc.toString() ?? getText(), [viewRef, getText])
 
@@ -329,7 +328,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
       <>
         <NotesConvertPreview
           rows={state.rows}
-          lookups={{ people, tags, statuses, today, defaultFollowup: newTaskFollowup ? addFollowupInterval(today, followupInterval) : null }}
+          lookups={{ people, tags, statuses, today, defaultFollowup: autoNextFollowup(today, { autoFollowup, followupDefaultInterval: followupInterval }) }}
           noteName={state.noteName}
           fromSelection={state.fromSelection}
           leftOut={state.leftOut}

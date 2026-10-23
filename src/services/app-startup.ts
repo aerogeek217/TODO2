@@ -4,6 +4,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { backupScheduler } from '../data/backup-scheduler'
+import { db, findDatabaseTooNew, findDatabaseTooOld } from '../data/database'
 import { useFileStorageStore } from './file-storage-store'
 import { expiredCompletedUids } from './purge-completed'
 
@@ -20,6 +21,11 @@ export interface AppStartupOptions {
 /**
  * The launch sequence, in order:
  *
+ * 0. the database opens — one a newer build saved or one below the floor
+ *    stops launch here (`DatabaseTooNewError` / `DatabaseTooOldError`; the
+ *    version check before launch says so already — this is its backstop,
+ *    for when the check couldn't read the version); other open
+ *    failures surface in the steps below, as they always have;
  * 1. settings (the theme, so every prompt has it);
  * 2. the sync file — its load decision, and when its handle needs
  *    permission the launch question: this waits for the user's answer, so
@@ -35,6 +41,9 @@ export interface AppStartupOptions {
  * Rejects when a step fails (the database can't be opened).
  */
 export async function runAppStartup({ onPurgeCheck }: AppStartupOptions = {}): Promise<AppStartupResult> {
+  await db.open().catch((err: unknown) => {
+    if (findDatabaseTooNew(err) || findDatabaseTooOld(err)) throw err
+  })
   await useSettingsStore.getState().load()
   await useFileStorageStore.getState().initialize()
   await navigator.storage?.persist?.().catch(() => false)
