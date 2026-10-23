@@ -86,28 +86,68 @@ describe('FilterChipBar — primitive', () => {
         .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
     })
 
-    it('measureFold: the fold not shown is laid out too — hidden, inert, out of the accessibility tree', () => {
+    it('measureFold: both folds are laid out too — hidden, inert, out of the accessibility tree', () => {
       const active: TodoPredicate = { ...emptyPredicate(), personIds: [1] }
-      const { container, rerender } = render(<FilterChipBar predicate={active} onChange={() => {}} measureFold />)
+      const { container, rerender } = render(<FilterChipBar predicate={active} onChange={() => {}} measureFold valueWidths={{ people: 30 }} />)
       const variants = () => [...container.querySelectorAll<HTMLElement>('[data-fold-variant]')]
         .map((el) => ({ variant: el.dataset.foldVariant, hidden: el.hasAttribute('data-fold-hidden'), inert: el.hasAttribute('inert'), ariaHidden: el.getAttribute('aria-hidden') }))
-      expect(variants()).toEqual([
-        { variant: 'open', hidden: false, inert: false, ariaHidden: null },
+      const hiddenFolds = [
+        { variant: 'open', hidden: true, inert: true, ariaHidden: 'true' },
         { variant: 'folded', hidden: true, inert: true, ariaHidden: 'true' },
-      ])
+      ]
+      expect(variants()).toEqual([{ variant: 'open', hidden: false, inert: false, ariaHidden: null }, ...hiddenFolds])
       // Only the shown fold is reachable.
       expect(screen.getByRole('button', { name: 'People filter: Alice' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull()
+      // The value is marked for the measure, cut only where shown (the hidden open fold keeps its natural width).
+      const values = [...container.querySelectorAll<HTMLElement>('[data-fold-value]')]
+      expect(values.map((el) => [el.dataset.foldValue, el.style.maxWidth, !!el.closest('[data-fold-hidden]')])).toEqual([
+        ['people', '30px', false], ['people', '', true],
+      ])
 
       rerender(<FilterChipBar predicate={active} onChange={() => {}} measureFold fold />)
-      expect(variants()).toEqual([
-        { variant: 'folded', hidden: false, inert: false, ariaHidden: null },
-        { variant: 'open', hidden: true, inert: true, ariaHidden: 'true' },
-      ])
+      expect(variants()).toEqual([{ variant: 'folded', hidden: false, inert: false, ariaHidden: null }, ...hiddenFolds])
       expect(screen.getByRole('button', { name: 'Filters, 1 active' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'People filter: Alice' })).toBeNull()
       // The hidden buttons carry the same labels (their width is the open tray's).
-      expect(container.querySelector('[data-fold-hidden]')).toHaveTextContent('Alice')
+      expect(container.querySelector('[data-fold-variant="open"][data-fold-hidden]')).toHaveTextContent('Alice')
+    })
+
+    it('valueWidths: a cut value keeps its whole text in its name and shows it in a tooltip', () => {
+      vi.useFakeTimers()
+      try {
+        const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], statusIds: [1] }
+        render(<FilterChipBar predicate={active} onChange={() => {}} valueWidths={{ people: 40 }} />)
+        const people = screen.getByRole('button', { name: 'People filter: Alice' })
+        expect(people.querySelector('[data-fold-value]')).toHaveStyle({ maxWidth: '40px' })
+        fireEvent.pointerEnter(people, { pointerType: 'mouse' })
+        act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+        expect(screen.getByRole('tooltip')).toHaveTextContent('People: Alice')
+        fireEvent.pointerLeave(people)
+        // A value not cut: no tooltip.
+        const status = screen.getByRole('button', { name: 'Status filter: Active' })
+        expect(status.querySelector('[data-fold-value]')?.getAttribute('style')).toBeNull()
+        fireEvent.pointerEnter(status, { pointerType: 'mouse' })
+        act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+        expect(screen.queryByRole('tooltip')).toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('valueWidths: a cut value whose tooltip already spells it out keeps that tooltip', () => {
+      vi.useFakeTimers()
+      try {
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true, important: false } }} onChange={() => {}} valueWidths={{ markers: 40 }} />)
+        const button = screen.getByRole('button', { name: 'Priority filter: Urgent, not Important' })
+        fireEvent.pointerEnter(button, { pointerType: 'mouse' })
+        act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+        const tip = screen.getByRole('tooltip').textContent ?? ''
+        expect(tip).toContain('Hides tasks that are Important')
+        expect(tip.split('Urgent, not Important')).toHaveLength(2)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('without measureFold: only the shown fold, unwrapped', () => {

@@ -34,12 +34,19 @@ export interface FilterChipBarProps {
   /** Desktop: fold the filter buttons into one Filters menu (narrow windows). */
   fold?: boolean
   /**
-   * Desktop: also lay out the fold not shown, hidden and inert, so a host
-   * that folds by measure (the top bar) knows both widths at all times. The
-   * buttons / the menu then sit in a `FOLD_VARIANT_ATTR` wrapper each, the
-   * hidden one marked `FOLD_HIDDEN_ATTR`.
+   * Desktop: also lay out both folds hidden and inert, at their natural
+   * widths (no `valueWidths`), so a host that folds by measure (the top bar)
+   * knows both widths and each value's at all times. The shown buttons / menu
+   * and each hidden fold sit in a `FOLD_VARIANT_ATTR` wrapper, the hidden
+   * ones marked `FOLD_HIDDEN_ATTR`.
    */
   measureFold?: boolean
+  /**
+   * Desktop: the widths (px) some filter values are cut to with an ellipsis,
+   * by field (`people`, `tags`, …) — a host short of room (the top bar).
+   * A cut value's button shows the whole value in its tooltip.
+   */
+  valueWidths?: Readonly<Partial<Record<string, number>>>
   /** Desktop: the Esc that closes a picker (or the Filters menu) stops there, so nothing behind also takes it. */
   consumeEscape?: boolean
 }
@@ -47,8 +54,10 @@ export interface FilterChipBarProps {
 /** A `measureFold` filter bar's wrapper around its filter buttons (`open`) or its Filters menu (`folded`). */
 export const FOLD_VARIANT_ATTR = 'data-fold-variant'
 export type FoldVariant = 'open' | 'folded'
-/** On the wrapper of the fold not shown (laid out only to be measured: its box's width). */
+/** On the wrappers of the folds laid out only to be measured (their boxes' widths). */
 export const FOLD_HIDDEN_ATTR = 'data-fold-hidden'
+/** On a filter button's value text while the filter is on: the field (`people`, …). */
+export const FOLD_VALUE_ATTR = 'data-fold-value'
 
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,

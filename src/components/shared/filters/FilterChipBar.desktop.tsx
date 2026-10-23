@@ -27,6 +27,7 @@ import { useTooltip } from '../use-tooltip'
 import { useReturnFocus } from '../use-popover-focus'
 import {
   FOLD_HIDDEN_ATTR,
+  FOLD_VALUE_ATTR,
   FOLD_VARIANT_ATTR,
   narrowedPeople,
   useFilterChipBarState,
@@ -153,8 +154,11 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
 /**
  * A screen-filter button: icon + label (the value while the filter is on),
  * then a chevron — or, while on, a round × that clears just this field.
+ * `valueWidth` cuts the value to that width (ellipsis); the tooltip then
+ * shows it whole (`People: Aisha Rahman`), unless the field has its own
+ * tooltip, which already spells it out.
  */
-function FilterButton({ field, consumeEscape }: { field: FieldDef; consumeEscape: boolean }) {
+function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; consumeEscape: boolean; valueWidth?: number }) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLButtonElement>(null)
@@ -166,8 +170,12 @@ function FilterButton({ field, consumeEscape }: { field: FieldDef; consumeEscape
   }, [onClose])
   const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape })
   const on = field.value != null
-  // No tooltip over an open picker.
-  const { triggerProps, tooltip } = useTooltip(open ? null : field.tooltip, { labelLines: field.tooltipLabelLines })
+  const cut = on && valueWidth != null
+  // No tooltip over an open picker. A field's own tooltip starts with its whole value already.
+  const { triggerProps, tooltip } = useTooltip(
+    open ? null : (field.tooltip ?? (cut ? `${field.label}: ${field.value}` : null)),
+    { labelLines: field.tooltip ? field.tooltipLabelLines : undefined },
+  )
 
   return (
     <div
@@ -187,7 +195,13 @@ function FilterButton({ field, consumeEscape }: { field: FieldDef; consumeEscape
         }}
       >
         <span className={styles.icon}>{field.icon}</span>
-        <span className={`${styles.filterLabel} ${field.wide ? styles.filterLabelWide : ''}`}>{field.value ?? field.label}</span>
+        <span
+          className={`${styles.filterLabel} ${field.wide ? styles.filterLabelWide : ''}`}
+          style={cut ? { maxWidth: valueWidth } : undefined}
+          {...(on ? { [FOLD_VALUE_ATTR]: field.key } : {})}
+        >
+          {field.value ?? field.label}
+        </span>
         {!on && <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}><ChevronDownIcon /></span>}
       </button>
       {tooltip}
@@ -402,8 +416,9 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
  * The top bar's screen filters: Priority, Tags, People, Dates and Status
  * buttons (folded into one Filters menu — which ends with Clear all filters —
  * when `fold` is set), then Show completed (labelled `Completed`). The top bar's funnel clears them
- * all. The pickers are the shared `FilterPanels`. With `measureFold` the fold
- * not shown is laid out too, hidden and inert, for the top bar's measure. With `consumeEscape` (the
+ * all. The pickers are the shared `FilterPanels`. With `measureFold` both
+ * folds are laid out too, hidden and inert, at their natural widths, for the
+ * top bar's measure; `valueWidths` cuts the shown values. With `consumeEscape` (the
  * top bar's filtered-tasks panel is open) the Esc that closes a picker or
  * the Filters menu stops there: the next one closes the panel.
  */
@@ -414,6 +429,7 @@ export function FilterChipBarDesktop({
   onClearAll,
   fold = false,
   measureFold = false,
+  valueWidths,
   consumeEscape = false,
 }: FilterChipBarProps) {
   const [previewEmpty, setPreviewEmpty] = useState<EntityKey | null>(null)
@@ -617,26 +633,27 @@ export function FilterChipBarDesktop({
   // Buttons and the folded menu in display order (Priority, Tags, People, Dates, Status).
   fields.sort((a, b) => FILTER_FIELD_ORDER.indexOf(a.key) - FILTER_FIELD_ORDER.indexOf(b.key))
 
-  const variant = (folded: boolean) => (folded
+  const variant = (folded: boolean, widths?: FilterChipBarProps['valueWidths']) => (folded
     ? <FiltersMenu fields={fields} onClearAll={clearAll} consumeEscape={consumeEscape} />
-    : fields.map((field) => <FilterButton key={field.key} field={field} consumeEscape={consumeEscape} />))
+    : fields.map((field) => <FilterButton key={field.key} field={field} consumeEscape={consumeEscape} valueWidth={widths?.[field.key]} />))
 
   return (
     <>
       {measureFold
-        ? <span className={styles.foldShown} {...{ [FOLD_VARIANT_ATTR]: fold ? 'folded' : 'open' }}>{variant(fold)}</span>
-        : variant(fold)}
-      {measureFold && (
-        // The other fold, for its width only: never seen, never reached.
+        ? <span className={styles.foldShown} {...{ [FOLD_VARIANT_ATTR]: fold ? 'folded' : 'open' }}>{variant(fold, valueWidths)}</span>
+        : variant(fold, valueWidths)}
+      {measureFold && ([false, true] as const).map((folded) => (
+        // Each fold at its natural width, for the measure only: never seen, never reached.
         <span
+          key={folded ? 'folded' : 'open'}
           className={styles.foldHidden}
           aria-hidden="true"
           inert
-          {...{ [FOLD_VARIANT_ATTR]: fold ? 'open' : 'folded', [FOLD_HIDDEN_ATTR]: '' }}
+          {...{ [FOLD_VARIANT_ATTR]: folded ? 'folded' : 'open', [FOLD_HIDDEN_ATTR]: '' }}
         >
-          {variant(!fold)}
+          {variant(folded)}
         </span>
-      )}
+      ))}
       <span className={styles.separator} aria-hidden="true" />
       <button
         type="button"

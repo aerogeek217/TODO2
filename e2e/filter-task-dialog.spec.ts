@@ -10,7 +10,7 @@ import { rowTitles } from './fixtures/seed'
  * the rows and the workspace behind follows). Opening it changes nothing in
  * the bar's layout: over folded filters the tray expands in place to show
  * every filter button (rightwards over the free space and the right zone,
- * slid left only as far as the window needs). A scrim dims and blurs the
+ * shrunk, then slid left only as far as the window needs). A scrim dims and blurs the
  * workspace and a press on it closes the panel. On a phone the Filters
  * sheet ends with the button and the task dialog's Filters edit the filter.
  */
@@ -153,6 +153,7 @@ test.describe('desktop', () => {
   })
 
   test('over folded filters the tray expands in place, rightwards over the right zone; closing folds them back — every time', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
     // Closed: the layouts as tabs, the filters folded to fit beside them.
@@ -189,7 +190,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter changed in the expanded tray: on close the bar folds as it would for the new filter', async ({ page }) => {
-    await page.setViewportSize({ width: 1350, height: 800 })
+    await page.setViewportSize({ width: 1230, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     // No filter: every button fits beside the tabs.
     await expectEveryFilterButton(page)
@@ -225,7 +226,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter set and cleared without the panel: the filters fold, then unfold again', async ({ page }) => {
-    await page.setViewportSize({ width: 1350, height: 800 })
+    await page.setViewportSize({ width: 1230, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await expectEveryFilterButton(page)
     const none = await bar(page)
@@ -367,7 +368,7 @@ test.describe('desktop', () => {
     await expect(tray(page).getByRole('button', { name: 'Show 4 tasks' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  test('where the expanded tray would cross the window’s right gutter it slides left by just that much, over the layout tabs', async ({ page }) => {
+  test('where the expanded tray would cross the window’s right gutter it shrinks, then slides left by just what still crosses, over the layout tabs', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
@@ -377,7 +378,9 @@ test.describe('desktop', () => {
     await expect(panel(page)).toBeVisible()
     await expectEveryFilterButton(page)
     const open = await bar(page)
-    // Its right edge on the gutter, its left moved by the overflow only; nothing else moved.
+    // Shrunk first (the search as narrow as it goes), then its right edge on
+    // the gutter, its left moved by the overflow only; nothing else moved.
+    expect(await header(page).locator('[data-fold-search]').evaluate((el) => el.getBoundingClientRect().width)).toBe(110)
     expect(open.trayRight).toBe(1000 - 16)
     expect(open.trayLeft).toBeLessThan(closed.trayLeft)
     expect(open).toMatchObject({ fold: closed.fold, springLeft: closed.springLeft, tabs: closed.tabs })

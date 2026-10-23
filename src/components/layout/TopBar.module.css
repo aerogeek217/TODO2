@@ -1,7 +1,8 @@
 /* The app's one top bar (desktop): New task, the layout tabs (or picker) +
  * save, the screen-filter tray, then the storage pill and the Settings gear.
- * It never wraps; when it runs out of room (measured) the filters fold into
- * a menu, then the layout tabs into the picker. The filtered-tasks panel
+ * It never wraps; when it runs out of room (measured) the tray shrinks (the
+ * search, then long filter values), then the filters fold into a menu, then
+ * the layout tabs into the picker. The filtered-tasks panel
  * changes none of that: over folded filters the tray expands in place. */
 
 .topBar {
@@ -214,8 +215,9 @@
   pointer-events: none;
 }
 
+/* Its width is the wrapper's: set by the top bar (narrowed while short of room). */
 .searchInput {
-  width: 200px;
+  width: 100%;
   height: 26px;
   padding: 0 28px 0 29px;
   border: none;
@@ -294,20 +296,6 @@
 .gearOpen:hover {
   background: var(--color-tint-12);
   color: var(--color-text-primary);
-}
-
-/* ═══ Narrower windows (the bar never wraps) ═══ */
-
-@media (max-width: 1279px) {
-  .searchInput {
-    width: 180px;
-  }
-}
-
-@media (max-width: 1023px) {
-  .searchInput {
-    width: 140px;
-  }
 }
 
 /* ═══ Search Mini-List ═══ */
