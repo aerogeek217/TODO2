@@ -650,7 +650,7 @@ describe('FileStorageService — older sync files', () => {
 
   it.each([
     ['below the floor', fileBody({ __schemaVersion: BELOW_FLOOR }), `(schema v${BELOW_FLOOR})`],
-    ['without a version', fileBody({ __schemaVersion: undefined }), 'has no schema version'],
+    ['without a version', fileBody({ __schemaVersion: undefined }), 'has no valid schema version'],
   ])('a file %s is refused: paused with why, handle kept, neither side touched, nothing asked', async (_, body, why) => {
     setSyncState({ fileSavedAt: EARLIER_SYNC, dirtySince: '2026-10-02T09:00:00.000Z' })
     const { svc, writable } = await startWith(body)
@@ -663,7 +663,7 @@ describe('FileStorageService — older sync files', () => {
     expect(svc.status.paused?.message).toMatch(/^File sync paused — This file /)
     expect(svc.status.paused?.message).toContain(why)
     expect(svc.status.paused?.message).toContain(`this version reads v${FLOOR} and newer`)
-    expect(svc.status.paused?.message).toContain('a TODO2 build from before 2026-10-23')
+    expect(svc.status.paused?.message).toContain('the last TODO2 build from before 2026-10-23')
     expect(asked).not.toHaveBeenCalled()
     expect(mockClearFileHandle).not.toHaveBeenCalled()
     expectUntouched(writable)

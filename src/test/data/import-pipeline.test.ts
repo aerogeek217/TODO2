@@ -46,7 +46,7 @@ describe('prepareImport — version routing', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'too-old',
-      error: `This file was saved by an older version of TODO2 (schema v${version}); this version reads v${OLDEST_SUPPORTED_DB_VERSION} and newer, so nothing in it was loaded. To use it, open it in a TODO2 build from before 2026-10-23, export it again there, and load that file.`,
+      error: `This file was saved by an older version of TODO2 (schema v${version}); this version reads v${OLDEST_SUPPORTED_DB_VERSION} and newer, so nothing in it was loaded. To use it, open it in the last TODO2 build from before 2026-10-23, export it again there, and load that file.`,
     })
   })
 
@@ -54,14 +54,15 @@ describe('prepareImport — version routing', () => {
     ['no marker', undefined],
     ['a marker that is no whole number', '68'],
     ['a fractional marker', 68.5],
-  ])('refuses a file with %s as having no schema version', (_, marker) => {
+  ])('refuses a file with %s as having no valid schema version', (_, marker) => {
     const raw = file()
     if (marker === undefined) delete raw[SCHEMA_VERSION_KEY]
     else raw[SCHEMA_VERSION_KEY] = marker
     const result = prepareImport(raw)
     expect(result).toMatchObject({ ok: false, reason: 'too-old' })
     if (result.ok) return
-    expect(result.error).toMatch(/^This file has no schema version: it was saved by an older version of TODO2, or is not a TODO2 file; /)
+    expect(result.error).toMatch(/^This file has no valid schema version: it was saved by an older version of TODO2, or is not a TODO2 file; /)
+    expect(result.error).toContain('If it is a TODO2 file, open it in the last TODO2 build from before 2026-10-23')
   })
 
   it('refuses a below-floor file before reading its tables (no validation, no record cap)', () => {

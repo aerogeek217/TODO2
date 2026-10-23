@@ -46,10 +46,12 @@ export const CURRENT_DB_VERSION = 68
 export const OLDEST_SUPPORTED_DB_VERSION = 68
 
 /**
- * The builds that still upgrade data below the floor — named in every
- * below-floor refusal. Changes with the floor.
+ * The build that still upgrades data below the floor (the last one before
+ * the floor was raised; an earlier build would re-export it at its own, still
+ * too old, version) — named in every below-floor refusal. Changes with the
+ * floor.
  */
-export const BELOW_FLOOR_BUILD = 'a TODO2 build from before 2026-10-23'
+export const BELOW_FLOOR_BUILD = 'the last TODO2 build from before 2026-10-23'
 
 /** What a build says when the browser's database was written by a newer one (schema `storedVersion`). */
 export function tooNewDatabaseMessage(storedVersion: number, buildVersion: number = CURRENT_DB_VERSION): string {

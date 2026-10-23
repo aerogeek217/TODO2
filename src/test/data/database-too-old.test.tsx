@@ -84,7 +84,7 @@ describe('a database below the floor', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Data from an older version of TODO2' })
     expect(dialog.textContent).toContain(`(schema v${OLDER}); this version reads v${OLDEST_SUPPORTED_DB_VERSION} and newer`)
     expect(dialog.textContent).toContain('Nothing was read or changed.')
-    expect(dialog.textContent).toContain('a TODO2 build from before 2026-10-23')
+    expect(dialog.textContent).toContain('the last TODO2 build from before 2026-10-23')
     expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Settings$/ })).toBeNull()
