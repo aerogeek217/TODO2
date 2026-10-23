@@ -107,9 +107,10 @@ const PAUSED_PREFIX = 'File sync paused'
 
 function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
   switch (reason) {
-    case 'too-new': return `${PAUSED_PREFIX} — ${error}`
-    case 'too-old': return `${PAUSED_PREFIX} — ${error}`
-    case 'upgrade-failed': return `${PAUSED_PREFIX} — ${error}`
+    case 'too-new':
+    case 'too-old':
+    case 'upgrade-failed':
+      return `${PAUSED_PREFIX} — ${error}`
     default: return `${PAUSED_PREFIX} — the file could not be read: ${error}`
   }
 }

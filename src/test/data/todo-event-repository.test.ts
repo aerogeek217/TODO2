@@ -133,8 +133,6 @@ describe('encode helpers', () => {
   })
 })
 
-// `runV42Migration` backfill is covered in `v42-migration.test.ts`.
-
 describe('todoEventRepository — since / onChange', () => {
   it('since returns events at or after `from`, optionally of some types only', async () => {
     await db.todoEvents.bulkAdd([
