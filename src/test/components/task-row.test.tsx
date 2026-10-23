@@ -427,7 +427,11 @@ describe('TaskRow', () => {
       expect(followup).toHaveAttribute('data-followup', 'upcoming')
       expect(followup.textContent).toBe('04/20')
       fireEvent.click(followup)
-      expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
+      const popover = screen.getByRole('dialog', { name: 'Follow-up' })
+      // Its Mark followed up hands the row's action the field's date (here: cleared → none).
+      fireEvent.click(within(popover).getByRole('button', { name: 'Clear next follow-up' }))
+      fireEvent.click(within(popover).getByRole('button', { name: 'Mark followed up' }))
+      expect(mockBulk.markFollowedUp).toHaveBeenCalledWith(1, null)
     })
 
     it('a late follow-up is the filled, late flag; today’s is filled', () => {

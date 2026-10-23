@@ -156,7 +156,7 @@ export function useTaskRowPickers({
           anchor={{ kind: 'ref', ref: followupAnchorRef }}
           onClose={closeFollowup}
           onSetNext={(d) => bulk.setFollowup(todo.id, d)}
-          onFollowedUp={() => bulk.markFollowedUp(todo.id)}
+          onFollowedUp={(next) => bulk.markFollowedUp(todo.id, next)}
           initialFocus={followupFocus}
         />
       )}

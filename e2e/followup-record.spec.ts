@@ -4,7 +4,8 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 /**
  * Recording a follow-up from a row means "I followed up today": every way
  * to record one stamps the last follow-up now and moves the next one to
- * today + the default interval (1 month) — never the planned date. Covers
+ * today + the default interval (1 month — Settings' automatic next follow-up
+ * is on; `followup-default.spec` covers it off) — never the planned date. Covers
  * the row's follow-up pill (planned and late), the empty-slot flag, the
  * task menu, the bulk bar's ⋯ More and its follow-up popover, a dashboard
  * Needs follow-up row and the phone row. (There is no keyboard shortcut for
