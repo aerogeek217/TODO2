@@ -47,6 +47,7 @@ import {
   setCellCollapsed,
   setCellWeights,
   setColumnWeights,
+  setLayoutActiveColumn,
   setLayoutHue,
   setLayoutLens,
   splitCell,
@@ -218,6 +219,8 @@ export interface WorkspaceState {
   patchTabViewState: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabViewStateOf<K>>) => Promise<void>
   /** View state: the open layout's lens (`null` = No lens), saved at once. */
   setLens: (lensId: string | null) => Promise<void>
+  /** View state: the page (a column's or band's id) the phone shows of the open layout (`null` = the first), saved at once. */
+  setActiveColumn: (pageId: string | null) => Promise<void>
   /**
    * View state: the lens of each layout of `layoutIds` (the open one, an
    * unsaved new one by `UNSAVED_LAYOUT_ID`, or any other stored layout),
@@ -1038,6 +1041,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     setLens(lensId) {
       return editView((layout) => setLayoutLens(layout, lensId))
+    },
+
+    setActiveColumn(pageId) {
+      return editView((layout) => setLayoutActiveColumn(layout, pageId))
     },
 
     async setLayoutsLens(layoutIds, lensId) {

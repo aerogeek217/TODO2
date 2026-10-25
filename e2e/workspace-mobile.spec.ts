@@ -147,10 +147,11 @@ test('the ⋯ menu collapses a cell; tapping its tab expands it', async ({ page 
   await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
 })
 
-test('the layout sheet switches layouts and starts at the first column', async ({ page }) => {
+test('the layout sheet switches layouts; each layout opens on the column it was left on (view state, across a reload)', async ({ page }) => {
   await seed(page)
+  const { page: width } = await pagerState(page)
   await columnName(page, 'Waiting on').tap()
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBeGreaterThan(0)
+  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
 
   await page.getByTestId('layout-picker').tap()
   const sheet = page.getByRole('dialog', { name: 'Layouts' })
@@ -161,10 +162,22 @@ test('the layout sheet switches layouts and starts at the first column', async (
   await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Daily')
   await expect(columnName(page, 'Notes')).toHaveAttribute('aria-selected', 'true')
 
+  // Back: the column it was left on.
   await page.getByTestId('layout-picker').tap()
   await page.getByRole('dialog', { name: 'Layouts' }).getByRole('button', { name: 'Weekly review' }).tap()
-  await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'true')
+  await expect(columnName(page, 'Waiting on')).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
+
+  // And after a reload; never an unsaved change. The first column again: the key goes.
+  await page.reload()
+  await expect(columnName(page, 'Waiting on')).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
+  await columnName(page, 'Today').tap()
   await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(0)
+  await page.reload()
+  await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'true')
+  await page.getByTestId('layout-picker').tap()
+  await expect(page.getByRole('dialog', { name: 'Layouts' }).getByText('Edited')).toHaveCount(0)
 })
 
 test('the layout sheet is a bottom sheet on the dialog frame: focus on the open layout, kept inside, Esc closes, focus back', async ({ page }) => {

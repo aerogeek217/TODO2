@@ -56,7 +56,8 @@ export const LAYOUT_PART_LIMIT = 1000
 
 type Obj = Record<string, unknown>
 
-function isId(v: unknown): v is string {
+/** A layout part's id (a column, band, cell or tab) as stored. */
+export function isId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
 }
 

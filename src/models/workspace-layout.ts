@@ -251,6 +251,12 @@ export interface WorkspaceLayout {
    */
   lensId?: string
   /**
+   * View state (a phone): the page the phone workspace last showed — a
+   * column's or a band's id; absent, or an id the layout no longer has,
+   * = the first page.
+   */
+  activeColumnId?: string
+  /**
    * The layout's hue (D19): its active tab, its cell headers and the focus
    * ring inside it take it; absent = the app accent. Set in the Rename
    * dialog and saved at once, as the name is.

@@ -701,6 +701,15 @@ export function setLayoutLens<L extends WorkspaceLayout>(layout: L, lensId: stri
   return next
 }
 
+/** View state: the page the phone shows (`null` = the first; the key goes). The same layout when unchanged. */
+export function setLayoutActiveColumn<L extends WorkspaceLayout>(layout: L, pageId: string | null): L {
+  if ((layout.activeColumnId ?? null) === pageId) return layout
+  const next = { ...layout }
+  if (pageId == null) delete next.activeColumnId
+  else next.activeColumnId = pageId
+  return next
+}
+
 /** The layout's hue (`null` = none, the app accent; the key goes). The same layout when unchanged. */
 export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: HueName | null): L {
   if ((layout.hue ?? null) === hue) return layout

@@ -236,6 +236,22 @@ describe('view state', () => {
     expect(ws().working && 'lensId' in ws().working!).toBe(false)
   })
 
+  it('the phone’s page is view state: stored at once, never dirty, kept by Discard; the first page removes the key', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().setActiveColumn('B')
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working?.activeColumnId).toBe('B')
+    expect(ws().layouts.find((l) => l.id === id)?.activeColumnId).toBe('B')
+    expect((await stored(id!)).activeColumnId).toBe('B')
+    expect((await stored(id!)).modifiedAt).toEqual(ws().saved?.modifiedAt)
+    ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
+    await ws().discard()
+    expect(ws().working?.activeColumnId).toBe('B')
+    await ws().setActiveColumn(null)
+    expect('activeColumnId' in (await stored(id!))).toBe(false)
+    expect(ws().working && 'activeColumnId' in ws().working!).toBe(false)
+  })
+
   it('Save as copies the lens pick; a new layout starts with No lens', async () => {
     await seedAndInit(twoColumns())
     await ws().setLens('lens-a')

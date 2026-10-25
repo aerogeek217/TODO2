@@ -520,15 +520,18 @@ function PageName({ page, index, active, setRef, onPick }: {
  * viewport wide each, swiped with native scrolling and mandatory scroll
  * snap. The strip above names them (bands with a band glyph); its underline
  * follows the scroll position, and tapping a name scrolls to that page.
+ * It opens on the layout's `activeColumnId` (view state, while that page
+ * is still there; else the first) and saves the page it settles on.
  */
-function ColumnPager({ pages, hue }: { pages: readonly PagerPage[]; hue?: HueName }) {
+function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hue?: HueName; activeId?: string }) {
   const pagerRef = useRef<HTMLDivElement | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLSpanElement | null>(null)
   const itemEls = useRef<(HTMLButtonElement | null)[]>([])
   const frame = useRef<number | null>(null)
-  const activeRef = useRef(0)
-  const [active, setActive] = useState(0)
+  const [initial] = useState(() => Math.max(0, pages.findIndex((p) => p.id === activeId)))
+  const activeRef = useRef(initial)
+  const [active, setActive] = useState(initial)
   const count = pages.length
 
   const sync = useCallback(() => {
@@ -558,6 +561,18 @@ function ColumnPager({ pages, hue }: { pages: readonly PagerPage[]; hue?: HueNam
   }, [sync])
 
   useEffect(() => () => { if (frame.current != null) cancelAnimationFrame(frame.current) }, [])
+
+  // Open on the remembered page, before the first paint and the underline's placing.
+  useLayoutEffect(() => {
+    const pager = pagerRef.current
+    if (pager && initial > 0) pager.scrollLeft = pageOffset(initial, pager.clientWidth, PAGER_GAP_PX)
+  }, [initial])
+
+  // The page shown is view state: saved as it changes (the first page is the default, no key).
+  const shownId = active === 0 ? null : (pages[active]?.id ?? null)
+  useEffect(() => {
+    if (shownId !== (activeId ?? null)) void useWorkspaceStore.getState().setActiveColumn(shownId)
+  }, [shownId, activeId])
 
   // Place the underline before paint, and again when the pager or names resize
   // (rotation, renamed tabs). A resize keeps the current column in view.
@@ -669,8 +684,8 @@ export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayou
           <p className={styles.emptyHint}>Or choose a saved layout from the picker above.</p>
         </div>
       ) : (
-        // Remount per layout so a switch starts at the first column.
-        <ColumnPager key={layout.id ?? 'layout'} pages={pages} hue={layout.hue} />
+        // Remount per layout so a switch starts on that layout's remembered column.
+        <ColumnPager key={layout.id ?? 'layout'} pages={pages} hue={layout.hue} activeId={layout.activeColumnId} />
       )}
     </div>
   )
