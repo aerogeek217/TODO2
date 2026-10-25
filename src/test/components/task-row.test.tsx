@@ -158,6 +158,42 @@ describe('TaskRow', () => {
     })
   })
 
+  describe('stale fade', () => {
+    const day = (d: number) => new Date(2026, 3, d)
+    it('an open task untouched for the Settings threshold (30 days) is marked stale; a fresh, completed or opted-out one not', () => {
+      const { container, unmount } = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 17) })} />)
+      expect(container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
+      unmount()
+      const fresh = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 18) })} />)
+      expect(fresh.container.querySelector('[data-todo-id]')).not.toHaveAttribute('data-stale')
+      fresh.unmount()
+      const done = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: day(1), isCompleted: true })} />)
+      expect(done.container.querySelector('[data-todo-id]')).not.toHaveAttribute('data-stale')
+      done.unmount()
+      useSettingsStore.setState({ staleAfterDays: 0 })
+      const off = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2025, 0, 1) })} />)
+      expect(off.container.querySelector('[data-todo-id]')).not.toHaveAttribute('data-stale')
+      off.unmount()
+      useSettingsStore.setState({ staleAfterDays: 7 })
+      const week = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: day(9) })} />)
+      expect(week.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
+    })
+
+    it('a stale row\u2019s title tooltip opens even when the title fits, with the last-edited line', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Short', modifiedAt: new Date(2026, 2, 5, 14) })} />)
+      fireEvent.pointerEnter(screen.getByText('Short'))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('ShortLast edited 42 days ago \u00b7 Mar 5, 2026')
+    })
+
+    it('a fresh row\u2019s title tooltip stays closed while the title fits', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Short' })} />)
+      fireEvent.pointerEnter(screen.getByText('Short'))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    })
+  })
+
   describe('every column always there', () => {
     it('renders one cell per column in order, filled or empty', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)

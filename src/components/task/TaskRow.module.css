@@ -69,6 +69,17 @@
   opacity: 0.4;
 }
 
+/* Stale (untouched for the Settings threshold): faded until the row is hovered, focused or has a picker open. */
+.row[data-stale] {
+  opacity: 0.55;
+}
+
+.row[data-stale]:hover,
+.row[data-stale]:focus-within,
+.row[data-stale].rowDropdownOpen {
+  opacity: 1;
+}
+
 /*
  * Ghost: row is filtered out by an active filter on this surface. Chips/pill
  * bar are removed by the surface itself; the row is dimmed here so it reads

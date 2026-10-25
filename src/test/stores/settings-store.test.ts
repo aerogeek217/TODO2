@@ -294,6 +294,30 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
   })
 
+  it('the stale threshold: 30 days by default (no row), 0–365 kept (0 = off), anything else ignored; junk on load reads as 30', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().staleAfterDays).toBe(30)
+    useUndoStore.getState().clear()
+
+    await useSettingsStore.getState().setStaleAfterDays(0)
+    expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '0' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Don’t fade untouched tasks')
+    await useSettingsStore.getState().setStaleAfterDays(45)
+    expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '45' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Fade tasks untouched for 45 days')
+    for (const bad of [-1, 366, 2.5, Number.NaN]) await useSettingsStore.getState().setStaleAfterDays(bad)
+    expect(useSettingsStore.getState().staleAfterDays).toBe(45)
+    await useSettingsStore.getState().setStaleAfterDays(30)
+    expect(await db.settings.get('staleAfterDays')).toBeUndefined()
+
+    await db.settings.put({ key: 'staleAfterDays', value: '14' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().staleAfterDays).toBe(14)
+    await db.settings.put({ key: 'staleAfterDays', value: 'soon' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().staleAfterDays).toBe(30)
+  })
+
   it('new-list sort / grouping and the purge interval: each change is one undo step with the snackbar; undo / redo save', async () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()

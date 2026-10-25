@@ -10,6 +10,7 @@ import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatHotRule, parseHotRule } from '../utils/hot'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { isCheckinOpenMethod } from '../utils/checkin-settings'
+import { parseStaleAfterDays } from '../utils/stale'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
@@ -394,6 +395,11 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === SETTING_KEYS.purgePromptLastAt) {
     return isDateLike(v.value) ? true : 'value (purgePromptLastAt must be a date)'
+  }
+  if (v.key === SETTING_KEYS.staleAfterDays) {
+    return parseStaleAfterDays(v.value as string) !== undefined
+      ? true
+      : 'value (staleAfterDays must be a day count 0–365)'
   }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'

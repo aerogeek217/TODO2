@@ -14,6 +14,7 @@ import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { MarkerDots } from '../shared/MarkerDots'
 import { markerSummary } from '../../utils/markers'
 import { isHot } from '../../utils/hot'
+import { isStale } from '../../utils/stale'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
 import styles from './MobileTaskRow.module.css'
@@ -86,6 +87,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const markers = markerSummary(todo, today, urgentRange)
   const hotRule = useSettingsStore((s) => s.hotRule)
   const hot = isHot(todo, hotRule, today, urgentRange)
+  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  const stale = isStale(todo, today, staleAfterDays)
 
   const hasPeople = people.length > 0
   const hasMetadata =
@@ -113,6 +116,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     <div
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${isSelected ? styles.selected : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
+      data-stale={stale || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       // A tap anywhere selects; the keyboard's way is the title button (the row holds controls of its own).
       onClick={handleRowTap}

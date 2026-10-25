@@ -46,6 +46,7 @@ import {
   parsePurgePromptIntervalDays,
 } from '../utils/completed-at'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
+import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -108,6 +109,8 @@ interface SettingsState {
   purgePromptIntervalDays: number
   /** When that launch prompt last showed; `null` = never. */
   purgePromptLastAt: Date | null
+  /** "Fade tasks untouched for": days without a change after which an open task's row is drawn faded; 0 = off. */
+  staleAfterDays: number
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
   /**
@@ -160,6 +163,8 @@ interface SettingsState {
   setPurgePromptIntervalDays: (days: number) => Promise<void>
   /** Records that the purge prompt showed at `at` (an internal stamp: no undo step, no notice). */
   setPurgePromptLastAt: (at: Date) => Promise<void>
+  /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
+  setStaleAfterDays: (days: number) => Promise<void>
   /**
    * Gives `id` new keys. Resolves the reason when they are refused (a
    * reserved key, or another binding's — nothing is written), else null.
@@ -324,6 +329,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   newListGroup: 'none' as TodoGroupBy,
   purgePromptIntervalDays: DEFAULT_PURGE_PROMPT_INTERVAL_DAYS,
   purgePromptLastAt: null,
+  staleAfterDays: DEFAULT_STALE_AFTER_DAYS,
   shortcutOverrides: {},
   eisenhowerPanes: NO_PANES,
   eisenhowerListId: null,
@@ -353,6 +359,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let newListGroup: TodoGroupBy = 'none'
       let purgePromptIntervalDays = DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
       let purgePromptLastAt: Date | null = null
+      let staleAfterDays = DEFAULT_STALE_AFTER_DAYS
       let shortcutOverrides: ShortcutOverrides = {}
       let eisenhowerPanes: EisenhowerPanes = NO_PANES
       let eisenhowerListId: number | null = null
@@ -401,6 +408,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.purgePromptLastAt) {
           const at = new Date(row.value)
           purgePromptLastAt = Number.isNaN(at.getTime()) ? null : at
+        } else if (row.key === SETTING_KEYS.staleAfterDays) {
+          staleAfterDays = parseStaleAfterDays(row.value) ?? DEFAULT_STALE_AFTER_DAYS
         } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
           shortcutOverrides = readShortcutOverrides(row.value).overrides
         } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
@@ -415,7 +424,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({
         colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
         followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
-        newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt,
+        newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
         shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
       applyThemeMode(themeMode)
@@ -616,6 +625,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       () => writePurgePromptInterval(days),
       () => writePurgePromptInterval(before),
       'Couldn’t save how often to ask about old completed tasks.',
+    )
+  },
+
+  async setStaleAfterDays(days: number) {
+    if (!isStaleAfterDays(days)) return
+    const before = get().staleAfterDays
+    if (before === days) return
+    await recordSettingWrite(
+      days === 0 ? 'Don’t fade untouched tasks' : `Fade tasks untouched for ${days === 1 ? 'a day' : `${days} days`}`,
+      () => writeStaleAfterDays(days),
+      () => writeStaleAfterDays(before),
+      'Couldn’t save when to fade untouched tasks.',
     )
   },
 
@@ -857,6 +878,14 @@ function writePurgePromptInterval(days: number): Promise<boolean> {
     if (days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS) await settingsRepository.delete(SETTING_KEYS.purgePromptIntervalDays)
     else await settingsRepository.put(SETTING_KEYS.purgePromptIntervalDays, String(days))
   }, 'the purge prompt interval')
+}
+
+/** The stale threshold; the row goes at the default (30 days). */
+function writeStaleAfterDays(days: number): Promise<boolean> {
+  return writeSetting({ staleAfterDays: days }, async () => {
+    if (days === DEFAULT_STALE_AFTER_DAYS) await settingsRepository.delete(SETTING_KEYS.staleAfterDays)
+    else await settingsRepository.put(SETTING_KEYS.staleAfterDays, String(days))
+  }, 'the stale threshold')
 }
 
 /**

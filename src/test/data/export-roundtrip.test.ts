@@ -89,6 +89,7 @@ function buildSeed(): Seed {
       { key: 'newListGroup', value: 'tag' },
       { key: 'purgePromptIntervalDays', value: '14' },
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
+      { key: 'staleAfterDays', value: '45' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },

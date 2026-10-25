@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
@@ -19,6 +20,7 @@ import {
   sortOrderWords,
 } from '../../../utils/list-options'
 import { TODO_SORT_DIRECTIONS, isTodoGroupBy, isTodoSortBy, sortHasDirection } from '../../../models/todo-sort-group'
+import { STALE_AFTER_MAX_DAYS, isStaleAfterDays } from '../../../utils/stale'
 import { SettingRow } from './SettingRow'
 import styles from './sections.module.css'
 
@@ -30,7 +32,8 @@ function urgentChoiceLabel(range: UrgentDueWithinDays): string {
 /**
  * Defaults for new tasks: status, whether they get a next follow-up and the
  * follow-up interval, when a due date makes a task urgent, which tasks are
- * hot, the first day of the week, and how new lists sort and group.
+ * hot, when an untouched task's row fades, the first day of the week, and
+ * how new lists sort and group.
  */
 export function TaskDefaultsSection() {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
@@ -88,6 +91,7 @@ export function TaskDefaultsSection() {
       >
         <HotRuleEditor />
       </SettingRow>
+      <StaleAfterDaysSetting />
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">
         <select
           className={styles.select}
@@ -101,6 +105,68 @@ export function TaskDefaultsSection() {
       </SettingRow>
       <NewListDefaults />
     </div>
+  )
+}
+
+/**
+ * "Fade tasks untouched for": the days without a change after which an open
+ * task's row is drawn faded (0 = never). A whole number, committed on Enter
+ * / blur; anything else reverts. Each change is one undo step.
+ */
+function StaleAfterDaysSetting() {
+  const days = useSettingsStore((s) => s.staleAfterDays)
+  const setDays = useSettingsStore((s) => s.setStaleAfterDays)
+  const stored = String(days)
+  const [draft, setDraft] = useState(stored)
+  const [syncedFrom, setSyncedFrom] = useState(stored)
+  if (stored !== syncedFrom) {
+    setSyncedFrom(stored)
+    setDraft(stored)
+  }
+  const parsed = /^\d+$/.test(draft.trim()) ? Number(draft.trim()) : Number.NaN
+  const valid = isStaleAfterDays(parsed)
+
+  const commit = () => {
+    if (!valid) {
+      setDraft(stored)
+      return
+    }
+    setDraft(String(parsed))
+    if (parsed !== days) void setDays(parsed)
+  }
+
+  return (
+    <SettingRow
+      label="Fade tasks untouched for"
+      help="An open task nobody has changed for this many days is drawn faded in lists; hovering it brings it back. 0 turns the fade off."
+    >
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={STALE_AFTER_MAX_DAYS}
+        step={1}
+        className={styles.input}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          // Esc reverts a changed draft and stays in Settings; with nothing
+          // to revert it reaches the modal, which closes.
+          if (e.key === 'Escape' && draft !== stored) {
+            e.preventDefault()
+            e.stopPropagation()
+            setDraft(stored)
+          }
+        }}
+        aria-label="Fade tasks untouched for (days)"
+        aria-invalid={!valid}
+        style={{ width: 64, textAlign: 'right' }}
+        autoComplete="off"
+      />
+      <span className={styles.muted}>{parsed === 0 ? 'days (off)' : parsed === 1 ? 'day' : 'days'}</span>
+    </SettingRow>
   )
 }
 

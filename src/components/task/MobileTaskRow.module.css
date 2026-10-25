@@ -41,6 +41,11 @@
   opacity: 0.5;
 }
 
+/* Stale (untouched for the Settings threshold): faded. */
+.row[data-stale] {
+  opacity: 0.55;
+}
+
 /* Line 1: primary row */
 .primaryRow {
   display: flex;

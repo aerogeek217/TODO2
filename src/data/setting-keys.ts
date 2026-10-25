@@ -83,6 +83,11 @@ export const SETTING_KEYS = {
   purgePromptIntervalDays: 'purgePromptIntervalDays',
   /** When the launch prompt about deleting old completed tasks last showed (an ISO date-time). Absent = never. */
   purgePromptLastAt: 'purgePromptLastAt',
+  /**
+   * "Fade tasks untouched for": days without a change after which an open
+   * task's row is drawn faded — a whole number 0–365, `0` = off. Absent = 30.
+   */
+  staleAfterDays: 'staleAfterDays',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
