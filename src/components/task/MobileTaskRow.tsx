@@ -13,6 +13,7 @@ import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { MarkerDots } from '../shared/MarkerDots'
 import { markerSummary } from '../../utils/markers'
+import { isHot } from '../../utils/hot'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
 import styles from './MobileTaskRow.module.css'
@@ -83,6 +84,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const quickStatusId = useSettingsStore((s) => s.quickStatusId)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const markers = markerSummary(todo, today, urgentRange)
+  const hotRule = useSettingsStore((s) => s.hotRule)
+  const hot = isHot(todo, hotRule, today, urgentRange)
 
   const hasPeople = people.length > 0
   const hasMetadata =
@@ -135,9 +138,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
         <button
           type="button"
-          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           aria-pressed={!!isSelected}
           data-task-title={todo.title}
+          data-hot={hot || undefined}
           onClick={handleRowTap}
         >
           {todo.title}

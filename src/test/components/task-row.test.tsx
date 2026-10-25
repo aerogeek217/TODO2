@@ -132,6 +132,32 @@ describe('TaskRow', () => {
     })
   })
 
+  describe('hot title', () => {
+    it('a hot task (the Settings rule) has its title marked hot; a completed or non-hot one not', () => {
+      const title = () => screen.getByText('Task 1')
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, urgent: true, important: true })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+      unmount()
+      const focus = render(<TaskRow todo={makeTodo({ id: 1, focus: true })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+      focus.unmount()
+      // Urgent by its due date counts (the default range: 3 days).
+      const soon = render(<TaskRow todo={makeTodo({ id: 1, important: true, dueDate: new Date(2026, 3, 17) })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+      soon.unmount()
+      const one = render(<TaskRow todo={makeTodo({ id: 1, urgent: true })} />)
+      expect(title()).not.toHaveAttribute('data-hot')
+      one.unmount()
+      const done = render(<TaskRow todo={makeTodo({ id: 1, focus: true, isCompleted: true })} />)
+      expect(title()).not.toHaveAttribute('data-hot')
+      done.unmount()
+      // The rule from Settings.
+      useSettingsStore.setState({ hotRule: [{ important: true }] })
+      render(<TaskRow todo={makeTodo({ id: 1, important: true })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+    })
+  })
+
   describe('every column always there', () => {
     it('renders one cell per column in order, filled or empty', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)

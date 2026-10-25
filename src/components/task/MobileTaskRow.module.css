@@ -123,6 +123,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* A hot task (the Settings Hot rule): the title semibold. */
+.hot {
+  font-weight: var(--font-weight-semibold);
+}
+
 .completedTitle {
   text-decoration: line-through;
   color: var(--color-text-completed);
