@@ -767,3 +767,56 @@ describe('ListWidget People group headers: email check-in', () => {
     await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 2 tasks' }))
   })
 })
+
+describe('ListWidget — a completed row leaves (D19)', () => {
+  const complete = (id: number) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
+  })
+  const leavingOf = (title: string) => document.querySelector(`[data-task-title="${title}"]`)?.closest('[data-leaving]')?.getAttribute('data-leaving') ?? null
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('stays in place, completed, for 500 ms, folds for 180 ms, then drops out of a list hiding completed tasks', () => {
+    vi.useFakeTimers()
+    setup(def())
+    complete(2)
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(leavingOf('Bob task')).toBe('stay')
+    expect(screen.getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(leavingOf('Bob task')).toBe('fold')
+    act(() => { vi.advanceTimersByTime(180) })
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+  })
+
+  it('reopened while it lingers, it simply stays', () => {
+    vi.useFakeTimers()
+    setup(def())
+    complete(2)
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 2 ? { ...t, isCompleted: false, completedAt: undefined } : t)) })
+    })
+    expect(leavingOf('Bob task')).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+  })
+
+  it('in a list that shows completed tasks nothing folds', () => {
+    vi.useFakeTimers()
+    setup(def({}, { showCompleted: true }))
+    complete(2)
+    expect(leavingOf('Bob task')).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles()).toContain('Bob task')
+  })
+
+  it('under reduced motion the row leaves at once', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    setup(def())
+    complete(2)
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+  })
+})
