@@ -47,7 +47,7 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     danger: '#d94a43',
     warning: '#d08a12',
     star: '#826600',
-    deadline: '#b838c0',
+    deadline: '#a32cab',
   },
 }
 

@@ -418,8 +418,9 @@
   --color-tooltip-muted: #a8a39d;
   --shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.25);
 
-  /* Overdue */
-  --color-overdue: #b838c0;
+  /* Overdue: D0's light overdue, as the solid fill below — 4.5:1 on every
+     surface, a hovered row and its own tint included. */
+  --color-overdue: #a32cab;
   --color-overdue-bg: rgba(184, 56, 192, 0.08);
   --color-overdue-bg-strong: rgba(163, 44, 171, 0.16);
 
@@ -445,8 +446,8 @@
   --cal-late-due: color-mix(in srgb, var(--color-overdue) 66%, black);
   --cal-late-followup: color-mix(in srgb, var(--color-followup) 88%, black);
 
-  /* Due-date chip colors */
-  --color-deadline: #b838c0;
+  /* Due-date chip colors (the overdue colour) */
+  --color-deadline: #a32cab;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
 
   /* Text */

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { contrast, resolveColor, sourceFiles, themeTokens, type ThemeName } from './css-source'
+import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
+import { contrast, resolveColor, sourceFiles, themeTokens, type Rgb, type ThemeName } from './css-source'
 
 /** WCAG AA for normal-size text. */
 const AA_TEXT = 4.5
@@ -63,6 +64,35 @@ describe('the warm light theme (D19) keeps D0’s contrast', () => {
     for (const bg of SURFACES) {
       expect(ratio(theme, '--color-accent', bg), `accent on ${bg}`).toBeGreaterThanOrEqual(AA_GRAPHIC)
     }
+  })
+})
+
+describe('overdue / deadline text reads wherever it sits', () => {
+  // The surfaces, the cell header's foot, and what a hovered row lies on.
+  const UNDER = ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg', '--cell-header-shade']
+
+  it.each(THEMES)('%s: --color-overdue and --color-deadline at 4.5:1', (theme) => {
+    for (const fg of ['--color-overdue', '--color-deadline']) {
+      for (const bg of UNDER) {
+        expect(ratio(theme, fg, bg), `${fg} on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
+      }
+    }
+  })
+
+  it('light: on a hovered row (5% black over the surface) and on its own tint over surface-high', () => {
+    const tokens = themeTokens('light')
+    const at = (name: string) => resolveColor(tokens.get(name)!, tokens)
+    const over = (fg: Rgb, p: number, bg: Rgb) => bg.map((c, i) => fg[i]! * p + c * (1 - p)) as Rgb
+    const overdue = at('--color-overdue')
+    for (const surface of ['--color-surface', '--color-surface-high']) {
+      expect(contrast(overdue, over([0, 0, 0], 0.05, at(surface))), `hovered on ${surface}`).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+    expect(contrast(overdue, over([184, 56, 192], 0.08, at('--color-surface-high'))), 'on --color-overdue-bg').toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  it('the editable deadline default is the stylesheet’s', () => {
+    expect(DEFAULT_THEMED_COLORS.light.deadline).toBe(themeTokens('light').get('--color-deadline'))
+    expect(DEFAULT_THEMED_COLORS.dark.deadline).toBe(themeTokens('dark').get('--color-deadline'))
   })
 })
 
