@@ -29,7 +29,9 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   lens: (
     <>
       <path d="M6 4h7.5M6 8h7.5M6 12h7.5" />
-      <path d="M2.5 4h.01M2.5 8h.01M2.5 12h.01" strokeWidth={2.2} />
+      <circle cx="2.75" cy="4" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="2.75" cy="8" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="2.75" cy="12" r=".9" fill="currentColor" stroke="none" />
     </>
   ),
   calendar: (
@@ -97,9 +99,20 @@ export function ChevronLeftIcon({ size = 12 }: { size?: number }) {
 /** Two arrows chasing round: a recurring task. */
 export function RepeatIcon({ size = 10 }: { size?: number }) {
   return (
-    <Svg size={size} strokeWidth={1.8}>
+    <Svg size={size}>
       <path d="M12.5 6.5A4.5 4.5 0 0 0 4.2 5M3.5 9.5A4.5 4.5 0 0 0 11.8 11" />
       <path d="M4 2.5V5h2.5M12 13.5V11H9.5" />
+    </Svg>
+  )
+}
+
+/** A page with a folded corner and two lines: a task's progress / notes. */
+export function NotesIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M3.5 2h6l3 3v9h-9z" />
+      <path d="M9.5 2v3h3" />
+      <path d="M5.5 8.5h5M5.5 11h3.5" />
     </Svg>
   )
 }

@@ -34,7 +34,7 @@ function plural(n: number, one: string, many: string): string {
 
 function PencilIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M10.5 2.5l3 3L6 13H3v-3l7.5-7.5z" />
     </svg>
   )
