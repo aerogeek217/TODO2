@@ -66,6 +66,16 @@ describe('the warm light theme (D19) keeps D0’s contrast', () => {
   })
 })
 
+describe('the layout hues (D19) stand out like the accent', () => {
+  it.each(THEMES)('%s: each hue at 3:1 on every surface (the tab underline, the focus ring)', (theme) => {
+    for (const hue of ['teal', 'violet', 'blue', 'green', 'amber', 'rose']) {
+      for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg']) {
+        expect(ratio(theme, `--hue-${hue}`, bg), `${hue} on ${bg}`).toBeGreaterThanOrEqual(AA_GRAPHIC)
+      }
+    }
+  })
+})
+
 describe('the calendar heat map (D18) reads on every step', () => {
   const STEPS = (hue: 'due' | 'followup') => [1, 2, 3].map((n) => `--cal-heat-${hue}-${n}`)
 

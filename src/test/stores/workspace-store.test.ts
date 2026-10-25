@@ -529,6 +529,20 @@ describe('saved layouts', () => {
     expect(await ws().rename(id!, '')).toBe(false)
   })
 
+  it('rename with a hue stores both at once, never dirty; null clears the hue; no hue leaves it', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    expect(await ws().rename(id!, 'Morning', 'violet')).toBe(true)
+    expect(ws()).toMatchObject({ isDirty: false })
+    expect(ws().working).toMatchObject({ name: 'Morning', hue: 'violet' })
+    expect(ws().layouts.find((l) => l.id === id)?.hue).toBe('violet')
+    expect(await stored(id!)).toMatchObject({ name: 'Morning', hue: 'violet' })
+    expect(await ws().rename(id!, 'Evening')).toBe(true)
+    expect((await stored(id!)).hue).toBe('violet')
+    expect(await ws().rename(id!, 'Evening', null)).toBe(true)
+    expect('hue' in (await stored(id!))).toBe(false)
+    expect(ws().working!.hue).toBeUndefined()
+  })
+
   it('createLayout stores an empty layout under its name, after the others, and opens it', async () => {
     const [a] = await seedAndInit(twoColumns('A'), twoColumns('B'))
     ws().closeTab('b1')

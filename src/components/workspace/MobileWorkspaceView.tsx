@@ -3,6 +3,7 @@ import {
   getActiveTab,
   type BandEdge,
   type EisenhowerTab,
+  type HueName,
   type LayoutBand,
   type LayoutColumn,
   type LayoutPanel,
@@ -24,7 +25,7 @@ import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
+import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, HuedLayoutIcon, MoreIcon } from '../shared/icons'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePickedLens } from '../../stores/screen-filter'
 import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
@@ -112,7 +113,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
                 aria-current={current ? 'true' : undefined}
                 onClick={() => pick(l.id, l.name)}
               >
-                <span className={styles.sheetGlyph}><LayoutIcon /></span>
+                <span className={styles.sheetGlyph}><HuedLayoutIcon hue={l.hue} /></span>
                 <span className={styles.sheetName}>{l.name}</span>
                 {current && isDirty && <span className={styles.sheetNote}>Edited</span>}
                 {current && <span className={styles.sheetCheck}><CheckIcon /></span>}
@@ -149,7 +150,7 @@ const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
  * the storage status (`status`, shown only while a warning is active) and
  * search (opens the filter sheet).
  */
-function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
+function MobileTopBar({ name, hue, status }: { name: string; hue?: HueName; status?: ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   return (
     <header className={styles.topBar}>
@@ -162,7 +163,7 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
         data-testid="layout-picker"
         onClick={() => setSheetOpen(true)}
       >
-        <span className={styles.pickerGlyph}><LayoutIcon /></span>
+        <span className={styles.pickerGlyph}><HuedLayoutIcon hue={hue} /></span>
         <span className={styles.pickerName}>{name}</span>
         <ChevronDownIcon />
       </button>
@@ -646,7 +647,7 @@ export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayou
   const pages = pagesOf(layout)
   return (
     <div className={styles.root} data-ws-mobile>
-      <MobileTopBar name={layout.name} status={status} />
+      <MobileTopBar name={layout.name} hue={layout.hue} status={status} />
       {pages.length === 0 ? (
         <div className={styles.emptyLayout} data-ws-area>
           <p className={styles.emptyLayoutTitle}>This layout is empty</p>

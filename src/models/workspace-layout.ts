@@ -250,6 +250,21 @@ export interface WorkspaceLayout {
    * absent = No lens. An id no lens has (any more) reads as No lens.
    */
   lensId?: string
+  /**
+   * The layout's hue (D19): its active tab, its cell headers and the focus
+   * ring inside it take it; absent = the app accent. Set in the Rename
+   * dialog and saved at once, as the name is.
+   */
+  hue?: HueName
+}
+
+/** The six layout hues (D19), each a token pair (`--hue-<name>`, dark and light). */
+export const HUE_NAMES = ['teal', 'violet', 'blue', 'green', 'amber', 'rose'] as const
+
+export type HueName = (typeof HUE_NAMES)[number]
+
+export function isHueName(v: unknown): v is HueName {
+  return typeof v === 'string' && (HUE_NAMES as readonly string[]).includes(v)
 }
 
 export type PersistedWorkspaceLayout = WorkspaceLayout & { id: number }

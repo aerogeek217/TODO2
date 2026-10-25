@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { WidgetKind } from '../../models/workspace-layout'
+import type { HueName, WidgetKind } from '../../models/workspace-layout'
+import { hueColor } from '../../utils/layout-hue'
 
 /**
  * Inline stroke icons for the workspace chrome: 16×16 viewBox, stroke 1.6,
@@ -69,6 +70,13 @@ export function LayoutIcon({ size = 14 }: { size?: number }) {
       <path d="M6.5 2.5v11M10 2.5v11" />
     </Svg>
   )
+}
+
+/** The layout glyph in the layout's hue (D19); none = the surrounding colour. */
+export function HuedLayoutIcon({ hue, size = 14 }: { hue?: HueName; size?: number }) {
+  return hue
+    ? <span style={{ display: 'inline-flex', color: hueColor(hue) }}><LayoutIcon size={size} /></span>
+    : <LayoutIcon size={size} />
 }
 
 export function SaveIcon({ size = 14 }: { size?: number }) {

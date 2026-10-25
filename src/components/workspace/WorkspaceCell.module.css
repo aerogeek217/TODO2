@@ -21,7 +21,9 @@
   height: var(--cell-header-height);
   flex-shrink: 0;
   padding: 0 4px;
-  background: linear-gradient(var(--color-header-bg), var(--cell-header-shade));
+  background:
+    linear-gradient(var(--cell-header-tint, transparent), var(--cell-header-tint, transparent)),
+    linear-gradient(var(--color-header-bg), var(--cell-header-shade));
   border-bottom: 1px solid var(--color-border-muted);
   position: relative;
 }

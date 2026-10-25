@@ -88,13 +88,6 @@
   --transition-medium: 200ms ease;
   --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 
-  /* Focus ring (D19): the global `:focus-visible` rule below. The inset
-     variant is for an element a scroller would clip (tabs, menu rows, row
-     cells): the same 2px ring drawn inside its edge. */
-  --focus-ring-color: var(--color-accent);
-  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
-  --focus-ring-inset: inset 0 0 0 2px var(--focus-ring-color);
-
   /* The phone breakpoint is 640px. CSS @media queries cannot read custom
      properties, so the literal is written in each `@media (max-width:
      640px)` rule and in `hooks/use-is-mobile.ts` MOBILE_QUERY — change them
@@ -115,6 +108,20 @@
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+}
+
+/*
+ * Focus ring (D19): the global `:focus-visible` rule below. The inset variant
+ * is for an element a scroller would clip (tabs, menu rows): the same 2px
+ * ring drawn inside its edge. Inside a layout with a hue (`data-layout-hue`,
+ * `--layout-hue`, set by the workspace) the ring takes the hue, so these are
+ * declared again there.
+ */
+:root,
+[data-layout-hue] {
+  --focus-ring-color: var(--layout-hue, var(--color-accent));
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
+  --focus-ring-inset: inset 0 0 0 2px var(--focus-ring-color);
 }
 
 /* ═══════════════════════════════════════════
@@ -165,6 +172,15 @@
   --color-marker-focus: var(--color-accent);
   /* A hot row's ember: the danger colour at this strength at its left edge. */
   --ember-strength: 11%;
+
+  /* Layout hues (D19, a layout's `hue`): its active tab, cell headers and
+     focus ring. Each ≥ 3:1 on every surface. */
+  --hue-teal: #7ec4bc;
+  --hue-violet: #a78bfa;
+  --hue-blue: #5b8def;
+  --hue-green: #4fb286;
+  --hue-amber: #e9a23b;
+  --hue-rose: #e07a9a;
 
   /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
   --eis-do-bg: rgba(238, 125, 119, 0.075);
@@ -352,6 +368,14 @@
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
   --ember-strength: 7%;
+
+  /* Layout hues: the light twins, each ≥ 3:1 on every light surface. */
+  --hue-teal: #2f9a8f;
+  --hue-violet: #7c5cd6;
+  --hue-blue: #3f73d9;
+  --hue-green: #2f8a5e;
+  --hue-amber: #a86a12;
+  --hue-rose: #c0517a;
 
   /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
   --eis-do-bg: rgba(196, 60, 53, 0.06);

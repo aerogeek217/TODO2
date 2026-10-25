@@ -8,7 +8,7 @@ import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { LayoutTabs } from './LayoutTabs'
 import { UnsavedPrompt } from './UnsavedPrompt'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, LayoutIcon, PencilIcon, PlusIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, HuedLayoutIcon, PencilIcon, PlusIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
@@ -74,6 +74,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     else if (isDirty) void store().save()
   }
   const nameOf = (id: LayoutRef) => (id == null ? name : layouts.find((l) => l.id === id)?.name ?? '')
+  const hueOf = (id: LayoutRef) => (id == null ? working.hue : layouts.find((l) => l.id === id)?.hue) ?? null
   const indexOf = (id: number) => layouts.findIndex((l) => l.id === id)
   const canDelete = (id: LayoutRef) => id == null || layouts.length > 1
 
@@ -89,7 +90,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     ...layouts.map((l): MenuEntry => ({
       kind: 'item',
       label: l.name,
-      icon: <LayoutIcon />,
+      icon: <HuedLayoutIcon hue={l.hue} />,
       radio: true,
       checked: l.id === activeLayoutId,
       note: l.id === activeLayoutId && isDirty ? 'Edited' : undefined,
@@ -97,7 +98,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       onSelect: () => switchTo(l.id, l.name),
     })),
     // A kept new layout, until it's saved.
-    ...(isNew ? [{ kind: 'item' as const, label: name, icon: <LayoutIcon />, radio: true, checked: true, note: 'New' }] : []),
+    ...(isNew ? [{ kind: 'item' as const, label: name, icon: <HuedLayoutIcon hue={working.hue} />, radio: true, checked: true, note: 'New' }] : []),
     { kind: 'separator' },
     { kind: 'item', label: 'New layout…', icon: <PlusIcon />, onSelect: () => setPending({ kind: 'new-name' }) },
     ...openLayoutEntries,
@@ -169,7 +170,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           onClick={() => setMenuOpen((o) => !o)}
           data-testid="layout-picker"
         >
-          <span className={styles.glyph}><LayoutIcon /></span>
+          <span className={styles.glyph}><HuedLayoutIcon hue={working.hue} /></span>
           <span className={styles.name}>{name}</span>
           <ChevronDownIcon />
         </button>
@@ -262,7 +263,8 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           title="Rename layout"
           confirmLabel="Rename"
           initialName={pending.name}
-          onConfirm={(n) => { close(); void store().rename(pending.id ?? UNSAVED_LAYOUT_ID, n) }}
+          initialHue={hueOf(pending.id)}
+          onConfirm={(n, hue) => { close(); void store().rename(pending.id ?? UNSAVED_LAYOUT_ID, n, hue) }}
           onCancel={close}
         />
       )}

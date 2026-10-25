@@ -13,6 +13,14 @@
   box-sizing: border-box;
 }
 
+/* A layout with a hue (D19): every cell header takes 7 % of it; on the
+   tinted header a tab's label steps up to the secondary text (the muted
+   one would fall under 4.5:1). */
+.area:not([data-layout-hue='none']) {
+  --cell-header-tint: color-mix(in srgb, var(--layout-hue) 7%, transparent);
+  --cell-tab-text: var(--color-text-secondary);
+}
+
 /* The grain (D19): turbulence screened over the app background, under the
    cells (they paint after it); dark theme only (`--grain-display`). */
 .grain {

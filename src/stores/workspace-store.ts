@@ -17,12 +17,14 @@ import {
   layoutBodyOf,
   withLayoutBody,
   type BandEdge,
+  type HueName,
   type LayoutBody,
   type PersistedWorkspaceLayout,
   type TabConfigOf,
   type TabSeed,
   type TabViewStateOf,
   type WidgetKind,
+  type WorkspaceLayout,
 } from '../models/workspace-layout'
 import {
   addTab,
@@ -45,6 +47,7 @@ import {
   setCellCollapsed,
   setCellWeights,
   setColumnWeights,
+  setLayoutHue,
   setLayoutLens,
   splitCell,
   type IdGen,
@@ -149,9 +152,11 @@ export interface WorkspaceState {
   discard: () => Promise<void>
   /**
    * Renames a layout (not a layout change: never dirty). Empty name → `false`.
-   * A kept new layout not saved yet (`UNSAVED_LAYOUT_ID`) is renamed in memory.
+   * With `hue`, sets its hue in the same write (`null` = none; D19 — the
+   * Rename dialog's swatches). A kept new layout not saved yet
+   * (`UNSAVED_LAYOUT_ID`) is renamed in memory.
    */
-  rename: (id: number, name: string) => Promise<boolean>
+  rename: (id: number, name: string, hue?: HueName | null) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with
@@ -879,33 +884,38 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       await pruneOwnedLists(saved.id, saved)
     },
 
-    async rename(id, name) {
+    async rename(id, name, hue) {
       const clean = cleanName(name)
       if (!clean) return false
+      const renamed = <L extends WorkspaceLayout>(layout: L): L => {
+        const next = { ...layout, name: clean }
+        return hue === undefined ? next : setLayoutHue(next, hue)
+      }
       const current = get().working
       if (id === UNSAVED_LAYOUT_ID) {
         if (!current || get().saved) return false
-        set({ working: { ...current, name: clean } })
+        set({ working: renamed(current) })
         keepDraft()
         return true
       }
       const read = await layoutRepository.get(id)
       if (!read) return false
-      // Only the name: a layout repaired when read keeps its stored row.
-      // Renamed on screen once the write has landed.
+      // Only the name (and the hue): a layout repaired when read keeps its
+      // stored row. Renamed on screen once the write has landed.
       try {
-        await layoutRepository.rename(id, clean)
+        await layoutRepository.rename(id, clean, hue)
       } catch (err) {
         reportWriteFailure(`Couldn't rename layout "${read.layout.name}".`, err)
         return false
       }
       const { working, saved, layouts } = get()
-      const nextSaved: Layout = saved?.id === id ? { ...saved, name: clean } : { ...read.layout, name: clean }
+      const nextSaved: Layout = renamed(saved?.id === id ? saved : read.layout)
       set({
         layouts: replaceLayout(layouts, nextSaved),
         ...(saved?.id === id ? { saved: nextSaved } : {}),
-        ...(working?.id === id ? { working: { ...get().working ?? working, name: clean } } : {}),
+        ...(working?.id === id ? { working: renamed(get().working ?? working) } : {}),
       })
+      if (working?.id === id) keepDraft()
       return true
     },
 

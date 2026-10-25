@@ -113,10 +113,12 @@
   color: var(--color-text-secondary);
 }
 
+/* The open layout's tab glows softly in its hue (D19; `--layout-hue`, set
+   per tab: the layout's hue or the accent). */
 .tabActive,
 .tabActive:hover {
   background: var(--color-surface);
-  box-shadow: 0 0 0 1px var(--color-border-muted);
+  box-shadow: 0 0 0 1px var(--color-border-muted), 0 0 18px color-mix(in srgb, var(--layout-hue) 35%, transparent);
   color: var(--color-text-primary);
   cursor: default;
 }
@@ -127,7 +129,7 @@
 }
 
 .tabActive:focus-visible {
-  box-shadow: 0 0 0 1px var(--color-border-muted), var(--focus-ring-inset);
+  box-shadow: 0 0 0 1px var(--color-border-muted), 0 0 18px color-mix(in srgb, var(--layout-hue) 35%, transparent), var(--focus-ring-inset);
 }
 
 .tabActive::before {
@@ -138,7 +140,8 @@
   right: 10px;
   height: 2px;
   border-radius: 0 0 2px 2px;
-  background: var(--color-accent);
+  background: var(--layout-hue);
+  box-shadow: 0 0 10px var(--layout-hue);
 }
 
 .tabIcon {
@@ -147,7 +150,7 @@
 }
 
 .tabActive .tabIcon {
-  color: var(--color-accent-text);
+  color: var(--layout-hue);
 }
 
 .tabName {

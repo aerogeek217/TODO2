@@ -4,6 +4,7 @@ import {
   DEFAULT_WEIGHT,
   tabListId,
   type BandEdge,
+  type HueName,
   type LayoutBand,
   type LayoutBody,
   type LayoutCell,
@@ -697,6 +698,15 @@ export function setLayoutLens<L extends WorkspaceLayout>(layout: L, lensId: stri
   const next = { ...layout }
   if (lensId == null) delete next.lensId
   else next.lensId = lensId
+  return next
+}
+
+/** The layout's hue (`null` = none, the app accent; the key goes). The same layout when unchanged. */
+export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: HueName | null): L {
+  if ((layout.hue ?? null) === hue) return layout
+  const next = { ...layout }
+  if (hue == null) delete next.hue
+  else next.hue = hue
   return next
 }
 
