@@ -70,6 +70,11 @@ export interface WorkspaceSeed {
    * no filter) and its custom panes.
    */
   eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
+  /**
+   * Lenses (the `lenses` settings row, the presets marked seeded so none are
+   * added): each predicate merged over the empty one.
+   */
+  lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   tags?: string[]
@@ -318,6 +323,11 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
+    }
+    if (seed.lenses) {
+      const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
+      tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
+      tx.objectStore('settings').put({ key: 'lensPresetsSeeded', value: 'true' })
     }
     await done
     idb.close()
