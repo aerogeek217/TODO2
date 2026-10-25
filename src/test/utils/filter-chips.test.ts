@@ -190,6 +190,14 @@ describe('describeAnchor / describeRange', () => {
     expect(describeRange({ kind: 'relative', token: 'start-of-week' }, { kind: 'relative', token: 'end-of-week' })).toBe('start of week – end of week')
     expect(describeRange(null, null)).toBe('')
   })
+
+  it('words one day alone, and up to yesterday as before today (the search tokens\' ranges)', () => {
+    expect(describeRange({ kind: 'relative', token: 'today' }, { kind: 'relative', token: 'today' })).toBe('today')
+    const oct30 = { kind: 'fixed', iso: new Date(2026, 9, 30).toISOString() } as const
+    expect(describeRange(oct30, oct30)).toBe('Oct 30')
+    expect(describeRange(null, { kind: 'relative', token: 'yesterday' })).toBe('before today')
+    expect(describeRange({ kind: 'offset', days: -7 }, { kind: 'relative', token: 'yesterday' })).toBe('7 days ago – yesterday')
+  })
 })
 
 describe('clearChipField', () => {

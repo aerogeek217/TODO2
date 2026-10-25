@@ -27,8 +27,10 @@ import { collapseWhitespace } from '../../utils/text'
 import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, traySqueeze, useTopBarFold } from './use-top-bar-fold'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { LensControl } from '../shared/filters/LensControl'
-import { usePickedLens } from '../../stores/screen-filter'
-import { useScreenSearch } from '../../hooks/use-screen-search'
+import { usePickedLens, useScreenFilter } from '../../stores/screen-filter'
+import { matchesFilterWithLookups } from '../../utils/filter-match'
+import { useSearchBox } from '../../hooks/use-search-box'
+import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
@@ -305,7 +307,9 @@ export function TopBar() {
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [localSearch, handleSearchChange] = useScreenSearch()
+  // The box: its tokens become the tray's chips, its words the text search.
+  const box = useSearchBox({ inputRef: searchInputRef })
+  const searchWords = box.words
   const [searchFocused, setSearchFocused] = useState(false)
   const miniListRef = useRef<HTMLDivElement>(null)
   // Right-click menu state is kept on TopBar (not SearchResultRow) so the
@@ -321,7 +325,7 @@ export function TopBar() {
   const panelRef = useRef<HTMLDivElement>(null)
   // The tasks and their people / tags only while the search dropdown (or a
   // result's menu) can show: otherwise a task write doesn't render the bar.
-  const searching = !panelOpen && ((localSearch.length > 0 && searchFocused) || searchContextMenu !== null)
+  const searching = !panelOpen && ((searchWords.length > 0 && searchFocused) || searchContextMenu !== null)
   const todos = useTodoStore((s) => (searching ? s.todos : NO_TODOS))
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
@@ -340,16 +344,25 @@ export function TopBar() {
     statusesById,
   }), [assignedPeopleMap, statusesById])
 
+  // The dropdown lists the words' matches among the tasks the chips and the
+  // lens keep (completed ones too, last, as before the chips).
+  const screenFilter = useScreenFilter()
+  const filterSettings = useFilterSettings()
   const miniListGroups = useMemo(() => {
-    if (!localSearch || !searchFocused) return null
+    if (!searchWords || !searchFocused) return null
     const lookups = { assignedPeopleMap, assignedTagsMap, statusesById }
-    return groupTodosByTextMatch(todos, localSearch, (t) => textMatchContextFor(t, lookups))
-  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById])
+    const narrowing = { ...screenFilter.filters, searchText: '', showCompleted: true }
+    const today = startOfToday()
+    const kept = screenFilter.active
+      ? todos.filter((t) => matchesFilterWithLookups(narrowing, t, lookups, today, filterSettings))
+      : todos
+    return groupTodosByTextMatch(kept, searchWords, (t) => textMatchContextFor(t, lookups))
+  }, [searchWords, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById, screenFilter.filters, screenFilter.active, filterSettings])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
     : 0
-  const showMiniList = !panelOpen && searchFocused && localSearch.length > 0 && !!miniListGroups && totalMatchCount > 0
+  const showMiniList = !panelOpen && searchFocused && searchWords.length > 0 && !!miniListGroups && totalMatchCount > 0
 
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
@@ -402,12 +415,13 @@ export function TopBar() {
     return () => window.removeEventListener('resize', place)
   }, [expandable, trayOpen, trayOpenMin, trayFolded, tabsKey])
 
+  const clearSearch = box.clear
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
-    handleSearchChange('')
+    clearSearch()
     setSearchFocused(false)
     searchInputRef.current?.blur()
-  }, [openEditPopup, handleSearchChange])
+  }, [openEditPopup, clearSearch])
 
   const handleOpenSearchContextMenu = useCallback((todo: PersistedTodoItem, x: number, y: number) => {
     setSearchContextMenu({ todoId: todo.id, x, y })
@@ -478,8 +492,8 @@ export function TopBar() {
               type="text"
               placeholder="Search…"
               aria-label="Search tasks"
-              value={localSearch}
-              onChange={(e) => handleSearchChange(e.target.value)}
+              value={box.text}
+              onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
               aria-controls="search-results"
               aria-expanded={showMiniList}
               onFocus={() => setSearchFocused(true)}
@@ -492,14 +506,20 @@ export function TopBar() {
                 setSearchFocused(false)
               }}
               onKeyDown={(e) => {
+                // ⏎ makes every token a chip; Backspace in the empty box takes the last one back.
+                if (box.onKeyDown(e)) {
+                  e.preventDefault()
+                  return
+                }
                 if (e.key === 'Escape' && panelOpen) {
                   // Over the panel: the text first (stays here), then the panel.
-                  if (localSearch !== '') {
+                  if (box.text !== '') {
                     e.preventDefault()
-                    handleSearchChange('')
+                    box.clear()
                   }
                 } else if (e.key === 'Escape') {
-                  handleSearchChange('')
+                  // The box only: the chips stay.
+                  box.clear()
                   setSearchFocused(false)
                   searchInputRef.current?.blur()
                 } else if (e.key === 'ArrowDown' && showMiniList) {
@@ -510,7 +530,7 @@ export function TopBar() {
               }}
               {...{ [SEARCH_INPUT_ATTR]: '' }}
             />
-            {localSearch && (
+            {box.text && (
               // Like `ClearableField`'s ×, a mouse target only (it acts on
               // mousedown); from the keyboard, Esc in the field clears it.
               <button
@@ -518,7 +538,7 @@ export function TopBar() {
                 className={styles.searchClear}
                 aria-label="Clear search"
                 tabIndex={-1}
-                onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
+                onMouseDown={(e) => { e.preventDefault(); box.clear(); searchInputRef.current?.focus() }}
               >
                 <CloseIcon size={8} />
               </button>
@@ -527,7 +547,7 @@ export function TopBar() {
               <SearchResultsGroups
                 ref={miniListRef}
                 groups={miniListGroups}
-                query={localSearch}
+                query={searchWords}
                 pillCtx={searchPillCtx}
                 searchInputRef={searchInputRef}
                 onOpen={handleOpenTodo}
