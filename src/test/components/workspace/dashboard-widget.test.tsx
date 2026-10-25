@@ -222,7 +222,7 @@ describe('DashboardWidget — config', () => {
     expect(Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)).toEqual(['hot', 'trend', 'people'])
     // 5 + 5 fit a row and the row's last stretches to 7; People (4) starts a row alone.
     expect(['hot', 'trend', 'people'].map((id) => section(id)!.style.gridColumn)).toEqual(['span 5', 'span 7', 'span 12'])
-    expect(widget().style.gridTemplateRows).toBe('auto minmax(0, 1fr) 272px')
+    expect(widget().style.gridTemplateRows).toBe('auto minmax(200px, 1fr) 272px')
   })
 
   it('list tiles: count shown of total; prompted and deleted lists are skipped', () => {

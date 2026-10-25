@@ -33,10 +33,10 @@ describe('packSections', () => {
     expect(spans(packSections([{ id: 'a', span: 20 }, { id: 'b', span: 0 }]))).toEqual([['a:12'], ['b:12']])
   })
 
-  it('row tracks: one row shares the height; with more, the last is the 272px band', () => {
+  it('row tracks: one row shares the height (at least 200px); with more, the last is the 272px band', () => {
     expect(sectionRowTracks(0)).toEqual([])
-    expect(sectionRowTracks(1)).toEqual(['minmax(0, 1fr)'])
-    expect(sectionRowTracks(3)).toEqual(['minmax(0, 1fr)', 'minmax(0, 1fr)', '272px'])
+    expect(sectionRowTracks(1)).toEqual(['minmax(200px, 1fr)'])
+    expect(sectionRowTracks(3)).toEqual(['minmax(200px, 1fr)', 'minmax(200px, 1fr)', '272px'])
   })
 })
 

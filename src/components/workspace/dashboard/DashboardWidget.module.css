@@ -10,12 +10,17 @@
   background: var(--color-surface);
 }
 
+/* In a cell too short for its rows (a band), the grid scrolls: no row is
+   squeezed below its content (the tiles) or its minimum (the sections). */
 .grid {
   display: grid;
   gap: 12px;
   padding: 12px;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
 }
 
 .narrow {
@@ -43,7 +48,6 @@
   grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-auto-rows: 100px;
   gap: 12px;
-  min-height: 0;
 }
 
 .narrow .tiles {
