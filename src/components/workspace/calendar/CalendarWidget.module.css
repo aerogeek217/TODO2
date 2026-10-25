@@ -265,16 +265,19 @@
 
 /* A day's fill (`--heat-fill`) by its step; step 0 keeps the day's own fill. */
 .heatDay[data-heat='1'],
+.compactHeat[data-heat='1'],
 .heatSwatch[data-heat='1'] {
   --heat-fill: var(--heat-1);
 }
 
 .heatDay[data-heat='2'],
+.compactHeat[data-heat='2'],
 .heatSwatch[data-heat='2'] {
   --heat-fill: var(--heat-2);
 }
 
 .heatDay[data-heat='3'],
+.compactHeat[data-heat='3'],
 .heatSwatch[data-heat='3'] {
   --heat-fill: var(--heat-3);
 }
@@ -303,17 +306,21 @@ button.heatDay {
 }
 
 .heatDay[data-heat='2'] .heatCount,
-.heatDay[data-heat='3'] .heatCount {
+.heatDay[data-heat='3'] .heatCount,
+.compactHeat[data-heat='2'] .compactCount,
+.compactHeat[data-heat='3'] .compactCount {
   color: var(--color-text-primary);
 }
 
 /* A past day still open: its number in the late colour (in place of the wash). */
 .heatDay[data-late='due'] .dayNumber,
+.compactHeat[data-late='due'] .compactNumber,
 .heatLegendLate[data-late='due'] {
   color: var(--color-overdue);
 }
 
 .heatDay[data-late='followup'] .dayNumber,
+.compactHeat[data-late='followup'] .compactNumber,
 .heatLegendLate[data-late='followup'] {
   color: var(--color-followup);
 }
@@ -492,7 +499,7 @@ button.heatDay {
   padding: 4px 0 0;
   border: none;
   border-radius: var(--radius-md);
-  background-color: var(--cal-day-fill);
+  background-color: var(--heat-fill, var(--cal-day-fill));
   color: var(--color-text-secondary);
   font-family: inherit;
   font-size: var(--font-size-meta);
@@ -501,11 +508,19 @@ button.heatDay {
 }
 
 .compactDay.dayOutside {
-  background-color: transparent;
+  background-color: var(--heat-fill, transparent);
 }
 
 .compactNumber {
   line-height: 18px;
+}
+
+.compactCount {
+  height: 12px;
+  font-size: 10px;
+  line-height: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
 }
 
 .compactSelected {

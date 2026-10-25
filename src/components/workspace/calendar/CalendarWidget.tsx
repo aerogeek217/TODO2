@@ -476,11 +476,13 @@ function WeekColumn({ day, entries, ctx }: { day: Date; entries: CalendarEntry[]
 
 // ── Compact month ────────────────────────────────────────────────────────
 
-function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
+/** A compact-month day: up to three dots (titles on), or the heat tint with the count under the number. */
+function CompactDay({ day, month, entries, selected, titles, ctx, onSelect }: {
   day: Date
   month: number
   entries: CalendarEntry[]
   selected: boolean
+  titles: boolean
   ctx: DayContext
   onSelect: (day: Date) => void
 }) {
@@ -488,6 +490,7 @@ function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
   const isToday = day.getTime() === ctx.today.getTime()
   const outside = day.getMonth() !== month
   const count = entries.length
+  const heat = titles ? null : dayHeat(entries, day, ctx.today)
   return (
     <button
       ref={setNodeRef}
@@ -495,7 +498,7 @@ function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
       className={dayClasses(styles.compactDay, ctx, highlighted, [
         outside && styles.dayOutside,
         selected && styles.compactSelected,
-        washClass(entries, day, ctx.today),
+        heat ? styles.compactHeat : washClass(entries, day, ctx.today),
       ])}
       aria-pressed={selected}
       aria-label={`${dayLabel(day)}, ${count} ${count === 1 ? 'task' : 'tasks'}`}
@@ -503,12 +506,18 @@ function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
       data-today={isToday ? 'true' : undefined}
       data-outside={outside ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
+      data-heat={heat?.step}
+      data-late={heat?.late ?? undefined}
       onClick={() => onSelect(day)}
     >
       <span className={isToday ? styles.todayPill : styles.compactNumber}>{day.getDate()}</span>
-      <span className={styles.dots} aria-hidden="true">
-        {dayDots(entries).map((d, i) => <span key={i} className={styles.dot} data-dot={d} />)}
-      </span>
+      {heat ? (
+        <span className={styles.compactCount} aria-hidden="true">{count > 0 ? count : ''}</span>
+      ) : (
+        <span className={styles.dots} aria-hidden="true">
+          {dayDots(entries).map((d, i) => <span key={i} className={styles.dot} data-dot={d} />)}
+        </span>
+      )}
     </button>
   )
 }
@@ -726,6 +735,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
                 month={month}
                 entries={entriesByDay.get(dayKey(day)) ?? []}
                 selected={day.getTime() === selectedDay.getTime()}
+                titles={titles}
                 ctx={ctx}
                 onSelect={(d) => setSelectedMs(d.getTime())}
               />

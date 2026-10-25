@@ -219,6 +219,31 @@ describe('CalendarWidget heat map (titles off)', () => {
     expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
   })
 
+  it('on a phone the compact month: the tint under the number and the count in place of the dots', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    try {
+      setup(heatTab())
+      expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-mode', 'compact')
+      expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
+      expect(document.querySelectorAll('[data-dot]')).toHaveLength(0)
+      expect(dayCell(day(12))).toHaveAttribute('data-heat', '1')
+      expect(dayCell(day(12))).toHaveAttribute('data-late', 'due')
+      expect(dayCell(day(12))!.className).not.toMatch(/washDue/)
+      expect(dayCell(day(12))!.textContent).toBe('122')
+      expect(dayCell(day(13))!.textContent).toBe('13')
+      // The day list is unchanged.
+      fireEvent.click(dayCell(day(16))!)
+      expect(within(document.querySelector('[data-cal-day-list]')!).getByText('Both dates')).toBeInTheDocument()
+      cleanup()
+      setup(calendarTab())
+      expect(dayCell(day(12))!.querySelectorAll('[data-dot]')).toHaveLength(2)
+      expect(dayCell(day(12))).not.toHaveAttribute('data-heat')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
   it('Titles (off by default) switches the month to bars and back: view state, never unsaved', async () => {
     setup(heatTab())
     const toggle = screen.getByRole('button', { name: 'Titles' })
