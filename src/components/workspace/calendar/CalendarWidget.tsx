@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import {
   clampCalendarOffset,
@@ -37,6 +37,7 @@ import {
   convertCalendarOffset,
   dayLabel,
   monthCellFit,
+  MONTH_ROW_MIN,
   dayOverflow,
   weekRowsFit,
   weekdayLabels,
@@ -339,17 +340,42 @@ function MonthGrid({ days, month, entriesByDay, ctx, weekStartsOn, titles, onMor
   onMore: (day: Date, cell: HTMLElement) => void
   moreDayMs: number | null
 }) {
-  const [gridRef, gridSize] = useElementSize()
+  const [sizeRef, gridSize] = useElementSize()
+  const gridEl = useRef<HTMLDivElement | null>(null)
+  const gridRef = useCallback((el: HTMLDivElement | null) => {
+    gridEl.current = el
+    sizeRef(el)
+  }, [sizeRef])
   const rows = Math.ceil(days.length / 7)
-  const cellHeight = gridSize.height > 0 ? (gridSize.height - MONTH_GRID_PAD - MONTH_GRID_GAP * (rows - 1)) / rows : 0
-  const fit = monthCellFit(cellHeight)
+  const minRow = titles ? MONTH_ROW_MIN.titles : MONTH_ROW_MIN.heat
+  const shared = gridSize.height > 0 ? (gridSize.height - MONTH_GRID_PAD - MONTH_GRID_GAP * (rows - 1)) / rows : 0
+  // Too short for the rows at their least: they keep it and the grid scrolls.
+  const scrolls = shared > 0 && shared < minRow
+  const fit = monthCellFit(shared > 0 ? Math.max(shared, minRow) : 0)
   const lateDay = titles ? null : latestLateDay(days, month, (d) => entriesByDay.get(dayKey(d)) ?? [], ctx.today)
+  // A scrolling month opens on today's week (when it shows today).
+  const firstDayMs = days[0]?.getTime()
+  useLayoutEffect(() => {
+    const grid = gridEl.current
+    if (!scrolls || !grid) return
+    const today = grid.querySelector<HTMLElement>('[data-today="true"]')
+    if (!today) { grid.scrollTop = 0; return }
+    const top = today.getBoundingClientRect().top - grid.getBoundingClientRect().top + grid.scrollTop
+    grid.scrollTop = top - (grid.clientHeight - today.offsetHeight) / 2
+  }, [scrolls, firstDayMs, titles])
   return (
     <>
       <div className={styles.weekdays} aria-hidden="true">
         {weekdayLabels(weekStartsOn).map((w) => <span key={w}>{w}</span>)}
       </div>
-      <div ref={gridRef} className={styles.monthGrid} data-cal-grid="month" data-heat-map={titles ? undefined : 'true'}>
+      <div
+        ref={gridRef}
+        className={styles.monthGrid}
+        style={{ gridTemplateRows: `repeat(${rows}, minmax(${minRow}px, 1fr))` }}
+        data-cal-grid="month"
+        data-heat-map={titles ? undefined : 'true'}
+        data-scrolls={scrolls ? 'true' : undefined}
+      >
         {days.map((day) => titles ? (
           <MonthDay
             key={day.getTime()}

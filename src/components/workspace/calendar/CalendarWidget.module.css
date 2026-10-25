@@ -194,14 +194,18 @@
   text-align: center;
 }
 
+/* Rows share the height down to their least (`MONTH_ROW_MIN`, set inline);
+   below it the grid scrolls. */
 .monthGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-template-rows: repeat(6, minmax(0, 1fr));
   gap: 2px;
   padding: 0 6px 6px;
   flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
 }
 
 .monthDay {

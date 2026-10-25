@@ -95,3 +95,33 @@ test('titles off: the month is a heat map; Titles brings the bars back and survi
   await calendar(page).getByRole('button', { name: 'Titles' }).click()
   await expect(await day(page, 2)).toHaveAttribute('data-heat', '3')
 })
+
+test('a short cell: the month rows keep their least height, the grid scrolls and opens on today', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    layouts: [{
+      name: 'Main',
+      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'notes', kind: 'notes' }] }] }],
+      bottom: { id: 'band', height: 160, tabs: [{ id: 'calTab', kind: 'calendar' }] },
+    }],
+  })
+  const grid = calendar(page).locator('[data-cal-grid="month"]')
+  await expect(grid).toHaveAttribute('data-scrolls', 'true')
+  const geometry = () => grid.evaluate((g) => {
+    const box = g.getBoundingClientRect()
+    const today = g.querySelector('[data-today="true"]')!.getBoundingClientRect()
+    const heights = Array.from(g.children, (c) => c.getBoundingClientRect().height)
+    return { scrollable: g.scrollHeight > g.clientHeight, least: Math.min(...heights), todayTop: today.top - box.top, todayBottom: today.bottom - box.top, height: box.height }
+  })
+  const heat = await geometry()
+  expect(heat.scrollable).toBe(true)
+  expect(heat.least).toBeGreaterThanOrEqual(22)
+  // Today's week is in view.
+  expect(heat.todayTop).toBeGreaterThanOrEqual(0)
+  expect(heat.todayBottom).toBeLessThanOrEqual(heat.height)
+
+  // Titles on: the number and one `+N more` slot.
+  await calendar(page).getByRole('button', { name: 'Titles' }).click()
+  await expect(grid).not.toHaveAttribute('data-heat-map', 'true')
+  expect((await geometry()).least).toBeGreaterThanOrEqual(41)
+})
