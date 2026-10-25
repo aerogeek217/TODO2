@@ -90,6 +90,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
       if (view?.offset !== undefined && !isFiniteNum(view.offset)) return `${path}.viewState.offset`
+      if (view?.titles !== undefined && typeof view.titles !== 'boolean') return `${path}.viewState.titles`
       return true
     }
     case 'eisenhower': {
@@ -296,6 +297,8 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           else if (view.view !== undefined) fix('settings')
           if (isFiniteNum(view.offset)) viewState.offset = clampCalendarOffset(view.offset)
           else if (view.offset !== undefined) fix('settings')
+          if (typeof view.titles === 'boolean') viewState.titles = view.titles
+          else if (view.titles !== undefined) fix('settings')
           if (Object.keys(viewState).length > 0) calendar.viewState = viewState
         }
         return calendar

@@ -45,7 +45,7 @@ import { dayHeat, heatHue, heatLegendLabel, heatSummary, latestLateDay, HEAT_LEG
 import { dayKey } from '../../../utils/date'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
-import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TodayIcon, WidgetKindIcon } from '../../shared/icons'
+import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TitlesIcon, TodayIcon, WidgetKindIcon } from '../../shared/icons'
 import { CalendarEntryButton, type CalendarEntrySize } from './CalendarEntryButton'
 import { CalendarDayPopover } from './CalendarDayPopover'
 import {
@@ -556,6 +556,24 @@ function TypeToggle({ type, types, iconOnly, onToggle }: {
   )
 }
 
+/** Month view: a bar per entry with its title (on) or the heat map (off, the default). */
+function TitlesToggle({ on, iconOnly, onToggle }: { on: boolean; iconOnly: boolean; onToggle: () => void }) {
+  const tip = on ? 'Show the month as a heat map' : 'Show task titles in the month'
+  return (
+    <button
+      type="button"
+      className={`${styles.typeToggle} ${styles.titlesToggle} ${iconOnly ? styles.typeToggleIcon : ''}`}
+      aria-pressed={on}
+      aria-label={iconOnly ? 'Titles' : undefined}
+      title={iconOnly ? `${tip} (Titles)` : tip}
+      onClick={onToggle}
+    >
+      <TitlesIcon size={12} />
+      {!iconOnly && <span>Titles</span>}
+    </button>
+  )
+}
+
 // ── Widget ───────────────────────────────────────────────────────────────
 
 interface MoreState {
@@ -652,6 +670,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
     setMore(null)
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'calendar', { view, offset: clampCalendarOffset(next) })
   }, [tab.id, view])
+
+  const toggleTitles = useCallback(() => {
+    void useWorkspaceStore.getState().patchTabViewState(tab.id, 'calendar', { titles: titles ? undefined : true })
+  }, [tab.id, titles])
 
   const toggleType = useCallback((type: CalendarDateType) => {
     const next = toggleCalendarDateType(dateTypes, type)
@@ -791,6 +813,9 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
               />
             ))}
           </div>
+        )}
+        {!isMobile && view === 'month' && (
+          <TitlesToggle on={titles} iconOnly={width < CALENDAR_BREAKPOINTS.toggleLabels} onToggle={toggleTitles} />
         )}
         <div className={styles.segmented} role="group" aria-label="Calendar view">
           {(['month', 'week'] as const).map((v) => (

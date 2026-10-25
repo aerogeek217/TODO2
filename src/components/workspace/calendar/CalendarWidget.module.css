@@ -123,6 +123,17 @@
   box-shadow: none;
 }
 
+.titlesToggle {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.titlesToggle[aria-pressed='true'] {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent-text);
+  box-shadow: none;
+}
+
 .segmented {
   display: inline-flex;
   height: 24px;

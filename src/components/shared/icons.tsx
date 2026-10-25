@@ -104,6 +104,11 @@ export function RepeatIcon({ size = 10 }: { size?: number }) {
   )
 }
 
+/** Lines of text: show titles. */
+export function TitlesIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M3 4.5h10M3 8h10M3 11.5h6" /></Svg>
+}
+
 /** A ring with a dot: jump to today. */
 export function TodayIcon({ size = 14 }: { size?: number }) {
   return (

@@ -13,6 +13,8 @@ export interface WsTabSeed {
   /** Calendar tabs: view state. */
   view?: 'month' | 'week'
   offset?: number
+  /** Calendar tabs: the month shows titled bars (view state; default off = the heat map). */
+  titles?: boolean
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
@@ -259,6 +261,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       if (tab.kind === 'calendar') {
         if (tab.dateTypes) config.dateTypes = tab.dateTypes
         if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
+        if (tab.titles != null) out.viewState = { ...(out.viewState as object | undefined), titles: tab.titles }
       }
       if (tab.kind === 'dashboard' && tab.dashboard) {
         const d = tab.dashboard

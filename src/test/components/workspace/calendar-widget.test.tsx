@@ -213,9 +213,25 @@ describe('CalendarWidget heat map (titles off)', () => {
     expect(document.querySelector('[data-cal-legend]')!.textContent).toMatch(/^Follow-ups:/)
   })
 
-  it('the week keeps its bars', async () => {
+  it('the week keeps its bars and has no Titles toggle', () => {
     setup(heatTab({ viewState: { view: 'week' } }))
     expect(within(dayCell(day(16))!).getByText('Both dates')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
+  })
+
+  it('Titles (off by default) switches the month to bars and back: view state, never unsaved', async () => {
+    setup(heatTab())
+    const toggle = screen.getByRole('button', { name: 'Titles' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await act(async () => { fireEvent.click(toggle) })
+    expect(workingTab().viewState).toEqual({ titles: true })
+    expect(screen.getByRole('button', { name: 'Titles' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(dayCell(day(16))!).getByText('Both dates')).toBeInTheDocument()
+    expect(document.querySelector('[data-cal-legend]')).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Titles' })) })
+    expect(workingTab().viewState).toEqual({})
+    expect(dayCell(day(16))).toHaveAttribute('data-heat', '1')
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 })
 
