@@ -186,7 +186,7 @@ describe('TaskDefaultsSection — new lists', () => {
     render(<TaskDefaultsSection />)
     const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
     expect(sort).toHaveValue('manual')
-    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created'])
+    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Modified'])
     expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
 
     fireEvent.change(sort, { target: { value: 'deadline' } })

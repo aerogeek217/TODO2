@@ -62,7 +62,7 @@ describe('<ListEditorBody>', () => {
   it('offers the list choices, plus a stored sort no longer offered', () => {
     render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
     openChoices('Sort by')
-    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
+    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Modified', 'Status'])
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')

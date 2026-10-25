@@ -454,6 +454,14 @@ describe('listSortComparator', () => {
     expect([a, b, c].sort(listSortComparator('created')).map((t) => t.id)).toEqual([2, 3, 1])
   })
 
+  it('sorts modified longest untouched first, regardless of manual order; ties by sortOrder', () => {
+    const a = makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 20), sortOrder: 1 })
+    const b = makeTodo({ id: 2, modifiedAt: new Date(2026, 0, 5), sortOrder: 3 })
+    const c = makeTodo({ id: 3, modifiedAt: new Date(2026, 0, 12, 9), sortOrder: 2 })
+    const d = makeTodo({ id: 4, modifiedAt: new Date(2026, 0, 12, 9), sortOrder: 0 })
+    expect([a, b, c, d].sort(listSortComparator('modified')).map((t) => t.id)).toEqual([2, 4, 3, 1])
+  })
+
   it('breaks created ties with sortOrder', () => {
     const d = new Date(2026, 0, 20)
     const a = makeTodo({ id: 1, createdAt: d, sortOrder: 10 })
@@ -529,6 +537,16 @@ describe('listSortComparator — descending', () => {
       makeTodo({ id: 3, createdAt: new Date(t), sortOrder: 2 }),
     ]
     expect(ids(todos, 'created')).toEqual([3, 2, 1])
+  })
+
+  it('reverses modified (recently changed first); same times keep manual order', () => {
+    const t = new Date(2026, 0, 12)
+    const todos = [
+      makeTodo({ id: 1, modifiedAt: new Date(2026, 0, 5), sortOrder: 1 }),
+      makeTodo({ id: 2, modifiedAt: t, sortOrder: 9 }),
+      makeTodo({ id: 3, modifiedAt: new Date(t), sortOrder: 2 }),
+    ]
+    expect(ids(todos, 'modified')).toEqual([3, 2, 1])
   })
 
   it('reverses the priority rank only: ties still by due date (undated last), then manual order', () => {

@@ -829,7 +829,7 @@ describe('validateImportData', () => {
         listDefinitions: [
           { ...list(1, 'Down', {}), sort: 'deadline', sortDirection: 'desc' },
           { ...list(2, 'Up', {}), sort: 'name', sortDirection: 'asc' },
-          { ...list(3, 'Plain', {}), sort: 'created' },
+          { ...list(3, 'Plain', {}), sort: 'modified' },
           { ...list(4, 'Sideways', {}), sort: 'name', sortDirection: 'sideways' },
           { ...list(5, 'Null', {}), sort: 'name', sortDirection: null },
         ],

@@ -80,6 +80,8 @@ export interface ListSortContext {
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
  * - `created` — oldest first by `createdAt`, ties by `sortOrder`.
+ * - `modified` — longest untouched first by `modifiedAt` (any edit moves it,
+ *   a reorder or a bulk edit too), ties by `sortOrder`.
  * - `priority` — Focus, then Urgent + Important, Urgent, Important, none
  *   (`priorityRank`; Urgent includes due soon); ties by due date (undated
  *   last), then manual order.
@@ -108,6 +110,8 @@ export function listSortComparator(
       return compareTodosByDate(sortBy, sign < 0)
     case 'created':
       return (a, b) => (sign * (a.createdAt.getTime() - b.createdAt.getTime())) || bySortOrder(a, b)
+    case 'modified':
+      return (a, b) => (sign * (a.modifiedAt.getTime() - b.modifiedAt.getTime())) || bySortOrder(a, b)
     case 'manual':
     case 'people':
     case 'status':
