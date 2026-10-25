@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { RuntimeFilterSpec } from '../../../models/list-definition'
 import { usePersonStore } from '../../../stores/person-store'
@@ -32,6 +32,8 @@ interface RuntimeFilterPickerProps {
    * decide whether to normalize empty → undefined.
    */
   onChange: (value: number[]) => void
+  /** The field's input, for an outside "Pick …" action to focus. */
+  inputRef?: RefObject<HTMLInputElement | null>
 }
 
 function defaultLabel(spec: RuntimeFilterSpec): string {
@@ -58,7 +60,7 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
  */
 const NO_IDS: readonly number[] = []
 
-export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPickerProps) {
+export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInputRef }: RuntimeFilterPickerProps) {
   const people = usePersonStore((s) => s.people)
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.tags)
@@ -105,7 +107,8 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const fieldRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const ownInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = outerInputRef ?? ownInputRef
 
   const label = defaultLabel(spec)
   const lowerLabel = label.toLowerCase()

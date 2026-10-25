@@ -7,18 +7,19 @@ import { EmptyColumnArea, WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider } from './WorkspaceDivider'
 import { BandDivider } from './BandDivider'
 import { AddWidgetButtons } from './AddWidgetFlow'
+import { EmptyState } from '../shared/EmptyState'
 import { useWorkspaceDrag } from './workspace-drag'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
   return (
     <div className={styles.emptyLayout}>
-      <p className={styles.emptyTitle}>This layout is empty</p>
-      <p className={styles.emptyHint}>Pick a widget to start the first column.</p>
-      <div className={styles.tiles}>
-        <AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={styles.tile} iconClassName={styles.tileIcon} iconSize={16} />
-      </div>
-      <p className={styles.emptyHint}>Or open another layout from the top bar.</p>
+      <EmptyState illustration="layout" title="This layout is empty" text="Pick a widget to start the first column.">
+        <div className={styles.tiles}>
+          <AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={styles.tile} iconClassName={styles.tileIcon} iconSize={16} />
+        </div>
+        <p className={styles.emptyHint}>Or open another layout from the top bar.</p>
+      </EmptyState>
     </div>
   )
 }

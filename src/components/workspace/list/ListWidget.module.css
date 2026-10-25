@@ -439,25 +439,6 @@
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 
-
-.smallButton {
-  height: 22px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.smallButton:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
 /* Add task: in the accent, its + on a filled accent tile like the top
  * bar's New task. */
 .addTask {
@@ -497,34 +478,6 @@
 .addTask:hover .addTaskIcon,
 .addTask:active .addTaskIcon {
   background: var(--color-accent-dim);
-}
-
-/* ── Empty states (text only) ───────────────────────────────────────── */
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 24px 16px;
-  text-align: center;
-}
-
-.emptyTitle {
-  font-size: var(--font-size-task);
-  color: var(--color-text-secondary);
-}
-
-.emptyHint {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  line-height: 1.4;
-}
-
-.emptyAction {
-  composes: smallButton;
-  height: 24px;
-  margin-top: 4px;
 }
 
 /* ── Touch (mobile) ─────────────────────────────────────────────────────── */

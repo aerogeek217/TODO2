@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
-import type { PersistedListDefinition } from '../../../models/list-definition'
+import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
@@ -32,6 +32,7 @@ import {
 import { dispatchCrossGroupMutation } from '../../../services/cross-group-mutation'
 import type { ListRowDragSource, ListRowDropTarget } from '../../../utils/list-row-drop'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
+import { EmptyState } from '../../shared/EmptyState'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -76,6 +77,9 @@ interface ListWidgetProps {
 
 const EMPTY_SECTIONS: readonly Section[] = []
 
+/** The runtime-filter prompt's one action: into the picker's field. */
+const RUNTIME_PICK_ACTION: Record<RuntimeFilterField, string> = { person: 'Pick someone', status: 'Pick a status', tag: 'Pick a tag' }
+
 /** Tasks in the sections, each once. */
 function uniqueCount(sections: readonly Section[]): number {
   const ids = new Set<number>()
@@ -93,7 +97,7 @@ export function ListWidget({ tab, onResult }: ListWidgetProps) {
   const listId = tab.config.listDefinitionId
   const definition = useEffectiveListDefinition(listId)
   if (listId == null || !definition) {
-    return <div className={styles.empty}><span className={styles.emptyHint}>{listId == null ? 'No list configured' : 'This list was deleted'}</span></div>
+    return <EmptyState illustration="list" title={listId == null ? 'No list configured' : 'This list was deleted'} />
   }
   return <ListWidgetBody tab={tab} definition={definition} onResult={onResult} />
 }
@@ -132,6 +136,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const today = useToday()
   const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const runtimeInputRef = useRef<HTMLInputElement>(null)
   // The drag hook reads the scroller through `scrollRef`; the edge fades track it.
   const setScrollEl = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el
@@ -331,24 +336,28 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   if (runtimeFilterPending) {
     body = (
       <EmptyState
+        illustration={definition.runtimeFilter?.field === 'person' ? 'person' : 'list'}
         title={`Pick a ${promptLabel.toLowerCase()} to show this list`}
-        hint={`Type in the ${promptLabel} field above. The pick is temporary and isn’t saved.`}
+        text={`Type in the ${promptLabel} field above. The pick is temporary and isn’t saved.`}
+        action={{ label: RUNTIME_PICK_ACTION[definition.runtimeFilter?.field ?? 'person'], onClick: () => runtimeInputRef.current?.focus() }}
       />
     )
   } else if (total === 0) {
     if (baseCount > 0) {
       body = (
         <EmptyState
+          illustration="list"
           title="No tasks match"
-          hint={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by ${screenHiderText(screenChips.length > 0, lens)}.`}
+          text={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by ${screenHiderText(screenChips.length > 0, lens)}.`}
           action={screenUnhideAction(screenChips.length)}
         />
       )
     } else if (hasNarrowingFilters(predicate)) {
       body = (
         <EmptyState
+          illustration="list"
           title="No tasks match"
-          hint={describeFilters(listChips)}
+          text={describeFilters(listChips)}
           action={{
             label: 'Edit filters',
             onClick: () => openEditList(tab.id, definition.id),
@@ -356,7 +365,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         />
       )
     } else {
-      body = <EmptyState title="No tasks in this list" />
+      body = <EmptyState illustration="list" title="No tasks in this list" />
     }
   } else {
     const sourceLabel = drag ? sections.find((s) => s.key === drag.source.sectionKey)?.label : undefined
@@ -432,6 +441,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     >
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
+          inputRef={runtimeInputRef}
           spec={definition.runtimeFilter}
           value={picks}
           onChange={(ids) => setPicks(tab.id, ids)}
@@ -510,22 +520,4 @@ function rowLook(drag: ListRowDragState | null, key: string, manual: boolean): L
   if (!reordering) return 'origin'
   // Manual order: the row's slot stays where it is until the pointer picks another spot.
   return target && target.index !== source.index ? 'gone' : 'slot'
-}
-
-function EmptyState({ title, hint, action }: {
-  title: string
-  hint?: string
-  action?: { label: string; onClick: () => void }
-}) {
-  return (
-    <div className={styles.empty}>
-      <span className={styles.emptyTitle}>{title}</span>
-      {hint && <span className={styles.emptyHint}>{hint}</span>}
-      {action && (
-        <button type="button" className={styles.emptyAction} onClick={action.onClick}>
-          {action.label}
-        </button>
-      )}
-    </div>
-  )
 }

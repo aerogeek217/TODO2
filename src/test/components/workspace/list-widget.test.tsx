@@ -324,6 +324,13 @@ describe('ListWidget', () => {
     expect(result()?.countLabel).toBe('2')
   })
 
+  it('the pick-a-value state’s one action puts the focus in the prompt’s field', () => {
+    setup(def({ runtimeFilter: { field: 'person' } }))
+    expect(document.querySelector('[data-empty-state="person"]')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Pick someone' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Filter tasks by person'))
+  })
+
   it('picking values in the prompt picker filters the list, several picks OR-combined', () => {
     usePersonStore.setState({
       people: [alice, bob],

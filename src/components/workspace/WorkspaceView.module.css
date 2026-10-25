@@ -72,12 +72,6 @@
   padding: 24px 16px;
 }
 
-.emptyTitle {
-  margin: 0 0 6px;
-  font-size: var(--font-size-body);
-  color: var(--color-text-secondary);
-}
-
 .emptyHint {
   margin: 0;
   font-size: var(--font-size-meta);
@@ -89,7 +83,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  margin: 14px 0;
+  margin: 8px 0;
 }
 
 .tile {
