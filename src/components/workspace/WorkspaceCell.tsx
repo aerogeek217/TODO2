@@ -50,6 +50,7 @@ import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eise
 import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
+import { trackScrollEdges } from '../../utils/scroll-edges'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -400,6 +401,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       </div>
       {!collapsed && active && (
         <div
+          ref={trackScrollEdges}
           className={styles.body}
           role="tabpanel"
           aria-labelledby={`ws-tab-${active.id}`}

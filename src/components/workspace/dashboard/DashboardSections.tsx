@@ -36,6 +36,7 @@ import { SECTION_META, type DashboardSectionMeta } from './section-meta'
 import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import styles from './DashboardWidget.module.css'
+import { trackScrollEdges } from '../../../utils/scroll-edges'
 
 /** What every section is rendered with. */
 export interface DashboardSectionProps {
@@ -199,7 +200,7 @@ export function HotSection({ data, rows, onDrill, style }: DashboardSectionProps
       onCount={onDrill ? () => onDrill(tileDrill('hot', data)) : undefined}
       sub={hotRuleInWords(data.ctx.hotRule)}
     >
-      <div className={styles.panelBody}>
+      <div ref={trackScrollEdges} className={styles.panelBody}>
         {ids.length === 0
           ? <Empty title="Nothing hot" hint="Tasks matching the Hot setting show here." />
           : <RowsGrid kit={rows}><TaskRows sectionKey="hot" ids={ids} data={data} kit={rows} /></RowsGrid>}
@@ -234,7 +235,7 @@ export function FollowupSection({ data, options, rows, onDrill, style }: Dashboa
       }) : undefined}
       sub={`Late, today and the next ${lookAhead} days`}
     >
-      <div className={styles.panelBody}>
+      <div ref={trackScrollEdges} className={styles.panelBody}>
         {groups.length === 0 ? (
           <Empty
             title="Nothing needs follow-up"
@@ -458,7 +459,7 @@ export function StatusSection({ data, onDrill, style }: DashboardSectionProps) {
               <span key={e.id ?? 'none'} style={{ flex: `${e.count} 1 0`, background: e.color }} />
             ))}
           </div>
-          <div className={styles.panelBody}>
+          <div ref={trackScrollEdges} className={styles.panelBody}>
             {entries.map((e) => (
               <Clickable
                 key={e.id ?? 'none'}
@@ -513,7 +514,7 @@ export function PeopleSection({ data, options, onDrill, style }: DashboardSectio
           <div className={`${styles.peopleGrid} ${styles.peopleHead}`}>
             <span>Person</span><span>Open</span><span /><span className={styles.num}>Hot</span><span className={styles.num}>Follow-up</span>
           </div>
-          <div className={styles.panelBody}>
+          <div ref={trackScrollEdges} className={styles.panelBody}>
             {all.map(({ key, person, stats }) => {
               const name = person ? person.name : 'Unassigned'
               const open = stats.ids.length
@@ -595,7 +596,7 @@ export function TagsSection({ data, options, onDrill, style }: DashboardSectionP
           <div className={`${styles.tagsGrid} ${styles.peopleHead}`}>
             <span>Tag</span><span>Open</span><span className={styles.tagsBarCol} /><span className={styles.num}>Hot</span><span className={styles.num}>Follow-up</span>
           </div>
-          <div className={styles.panelBody}>
+          <div ref={trackScrollEdges} className={styles.panelBody}>
             {all.map(({ key, tag, stats, totalOpen }) => {
               const name = tag ? `#${tag.name}` : 'No tag'
               const open = stats.ids.length
@@ -650,7 +651,7 @@ export function StaleSection({ data, rows, onDrill, style }: DashboardSectionPro
       onCount={onDrill ? () => onDrill(staleTasksDialog(ids, days)) : undefined}
       sub={staleSubLine(days, shown.oldestDays)}
     >
-      <div className={styles.panelBody}>
+      <div ref={trackScrollEdges} className={styles.panelBody}>
         {ids.length === 0
           ? <Empty title="Nothing stale" hint={`Every open task changed in the last ${days} days.`} />
           : <RowsGrid kit={rows}><TaskRows sectionKey="stale" ids={ids} data={data} kit={rows} /></RowsGrid>}
@@ -674,7 +675,7 @@ export function RecentSection({ data, rows, onDrill, style }: DashboardSectionPr
       onCount={onDrill ? () => onDrill(recentlyCompletedDialog(ids, days)) : undefined}
       sub={`Last ${days} days`}
     >
-      <div className={styles.panelBody}>
+      <div ref={trackScrollEdges} className={styles.panelBody}>
         {ids.length === 0
           ? <Empty title="Nothing completed" hint={`Tasks completed in the last ${days} days show here.`} />
           : <RowsGrid kit={rows}><TaskRows sectionKey="recent" ids={ids} data={data} kit={rows} /></RowsGrid>}

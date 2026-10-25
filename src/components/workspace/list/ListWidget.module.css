@@ -18,6 +18,11 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
+/* A grouped list's header sticks at the top: the top fade starts under it. */
+.scroll:has(.groupHeaderRow) {
+  --scroll-fade-inset: var(--list-group-header-height);
+}
+
 /* ── Body ───────────────────────────────────────────────────────────────── */
 
 .body {

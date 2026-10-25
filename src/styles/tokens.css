@@ -527,6 +527,34 @@ input {
   font-family: inherit;
 }
 
+/*
+ * Scroll-edge fades (D19, `utils/scroll-edges`): a scrolling body fades its
+ * first 18px / last 22px while there is more content that way. A body with
+ * a sticky header sets `--scroll-fade-inset` to its height, so the rows fade
+ * as they slide under it and the header itself stays solid.
+ */
+[data-can-scroll-up],
+[data-can-scroll-down] {
+  --scroll-fade-top: #000;
+  --scroll-fade-bottom: #000;
+  mask-image: linear-gradient(
+    to bottom,
+    #000 var(--scroll-fade-inset, 0px),
+    var(--scroll-fade-top) var(--scroll-fade-inset, 0px),
+    #000 calc(var(--scroll-fade-inset, 0px) + 18px),
+    #000 calc(100% - 22px),
+    var(--scroll-fade-bottom) 100%
+  );
+}
+
+[data-can-scroll-up] {
+  --scroll-fade-top: transparent;
+}
+
+[data-can-scroll-down] {
+  --scroll-fade-bottom: transparent;
+}
+
 /* A native drop-down's open list can't show a select's translucent fill, so
  * every option sits on the opaque surface colour with the primary text. */
 select option,

@@ -64,6 +64,7 @@ import { openEditList } from '../widget-hooks'
 import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../../hooks/use-eisenhower-source'
 import { openEisenhowerSettings } from './eisenhower-settings-link'
 import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
+import { trackScrollEdges } from '../../../utils/scroll-edges'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -343,7 +344,7 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
         </span>
       </div>
       {showBody && (
-        <div className={styles.body}>
+        <div ref={trackScrollEdges} className={styles.body}>
           {rows.length > 0 ? (ctx.isMobile ? rows : (
             <TaskRowGrid
               detailsWidth={ctx.detailsWidth}

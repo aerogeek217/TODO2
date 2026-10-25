@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition } from '../../../models/list-definition'
@@ -57,6 +57,7 @@ import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
+import { trackScrollEdges } from '../../../utils/scroll-edges'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -131,6 +132,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const today = useToday()
   const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
+  // The drag hook reads the scroller through `scrollRef`; the edge fades track it.
+  const setScrollEl = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el
+    const stop = trackScrollEdges(el)
+    return () => {
+      scrollRef.current = null
+      stop?.()
+    }
+  }, [])
   const widgetRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
@@ -428,7 +438,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         />
       )}
       <ListFilterRow tabId={tab.id} definition={definition} />
-      <div ref={scrollRef} className={styles.scroll}>
+      <div ref={setScrollEl} className={styles.scroll}>
         {body}
       </div>
       {canAddTask && (

@@ -6,6 +6,7 @@ import type { CalendarEntry } from '../../../services/calendar-entries'
 import { dayLabel } from '../../../utils/calendar-grid'
 import { CloseIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
+import { trackScrollEdges } from '../../../utils/scroll-edges'
 
 interface CalendarDayPopoverProps {
   day: Date
@@ -55,7 +56,7 @@ export function CalendarDayPopover({ day, at, entries, renderEntry, onClose }: C
           <CloseIcon size={10} />
         </button>
       </div>
-      <div className={styles.dayPopoverEntries}>
+      <div ref={trackScrollEdges} className={styles.dayPopoverEntries}>
         {entries.map((e) => renderEntry(e))}
       </div>
     </div>,
