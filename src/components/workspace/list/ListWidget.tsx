@@ -63,6 +63,8 @@ export interface ListWidgetResult {
   countLabel: string
   /** The sections shown, for Copy tasks. */
   sections: readonly Section[]
+  /** The list shows group headers (Collapse all / Expand all groups apply). */
+  grouped?: boolean
 }
 
 interface ListWidgetProps {
@@ -144,11 +146,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const total = list?.todos.length ?? 0
   const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
 
-  const onResultRef = useLatestRef(onResult)
-  useEffect(() => {
-    onResultRef.current?.({ countLabel, sections: sections })
-  }, [countLabel, sections, onResultRef])
-
   const predicate = definition.membership.predicate
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
 
@@ -166,6 +163,11 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const grouped = groupedBy !== 'none'
   const manual = definition.sort === 'manual'
   const collapsedKeys = useMemo(() => new Set(collapsed ?? []), [collapsed])
+
+  const onResultRef = useLatestRef(onResult)
+  useEffect(() => {
+    onResultRef.current?.({ countLabel, sections: sections, grouped })
+  }, [countLabel, sections, grouped, onResultRef])
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(

@@ -29,6 +29,16 @@ describe('list widget state of closed tabs', () => {
     expect(useListWidgetStore.getState().collapsed).toEqual({ 'other-layout-tab': ['b'], 'open-tab': ['today'] })
   })
 
+  it('setCollapsed collapses exactly the given groups of a tab; an empty list expands them all (the row goes)', () => {
+    useListWidgetStore.setState({ collapsed: { 'tab-a': ['x'] } })
+    useListWidgetStore.getState().setCollapsed('tab-b', ['p1', 'p2', 'unassigned'])
+    expect(useListWidgetStore.getState().collapsed).toEqual({ 'tab-a': ['x'], 'tab-b': ['p1', 'p2', 'unassigned'] })
+    useListWidgetStore.getState().toggleGroup('tab-b', 'p1')
+    expect(useListWidgetStore.getState().collapsed['tab-b']).toEqual(['p2', 'unassigned'])
+    useListWidgetStore.getState().setCollapsed('tab-b', [])
+    expect(useListWidgetStore.getState().collapsed).toEqual({ 'tab-a': ['x'] })
+  })
+
   it('drops nothing before the workspace is open', () => {
     useListWidgetStore.setState({ picks: { 'tab-a': [1] } })
     useListWidgetStore.getState().setPicks('tab-b', [2])

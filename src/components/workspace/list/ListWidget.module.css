@@ -50,9 +50,18 @@
   background: var(--color-surface-hover);
 }
 
-/* A People group: the header keeps its full width; the envelope sits over its end. */
+/*
+ * The header row sticks to the top of the scrolling body while its group
+ * scrolls under it (the surface fill with a hairline below; above the rows,
+ * under the drop line). A People group's header keeps its full width; the
+ * envelope sits over its end.
+ */
 .groupHeaderRow {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-above-2);
+  background: var(--color-surface);
+  box-shadow: 0 1px 0 var(--color-border-muted);
 }
 
 .groupHeaderWithAction {

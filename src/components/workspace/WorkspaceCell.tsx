@@ -14,6 +14,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasks } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { CellTabStrip } from './CellTabStrip'
@@ -454,15 +455,30 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
-            ? [{
-                label: 'Copy tasks',
-                icon: '⧉',
-                onSelect: () => {
-                  const sections = widgetResult.result.sections
-                  const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
-                  void copyTasks(sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
+            ? [
+                {
+                  label: 'Copy tasks',
+                  icon: '⧉',
+                  onSelect: () => {
+                    const sections = widgetResult.result.sections
+                    const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
+                    void copyTasks(sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
+                  },
                 },
-              }]
+                // A grouped list: fold or unfold every group (the collapse set is per tab, never saved).
+                ...(widgetResult.result.grouped ? [
+                  {
+                    label: 'Collapse all groups',
+                    icon: <ChevronUpIcon />,
+                    onSelect: () => useListWidgetStore.getState().setCollapsed(menuTab.id, widgetResult.result.sections.map((sec) => sec.key)),
+                  },
+                  {
+                    label: 'Expand all groups',
+                    icon: <ChevronDownIcon size={14} />,
+                    onSelect: () => useListWidgetStore.getState().setCollapsed(menuTab.id, []),
+                  },
+                ] : []),
+              ]
             : undefined}
           onClose={() => setTabMenu(null)}
         />
