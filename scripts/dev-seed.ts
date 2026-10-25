@@ -499,7 +499,7 @@ export const DEV_SEED_IDS = {
   statuses: Object.fromEntries(Object.keys(STATUSES).map((k, i) => [k, i + 1])) as Record<StatusKey, number>,
   lists: {
     thisWeek: 1, nextWeek: 2, restOfMonth: 3, later: 4, someday: 5,
-    dueSoon: 6, followupsThisWeek: 7, northwind: 8, tasksFor: 9, byClient: 10,
+    dueSoon: 6, followupsThisWeek: 7, northwind: 8, tasksFor: 9, byPerson: 10,
     focus: 11, hot: 12, recentlyAdded: 13, eisenhower: 14,
   },
   layouts: { default: 1, planning: 2 },
@@ -777,10 +777,10 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       dates: { deadline: range({ kind: 'fixed', iso: iso(day(-60)) }, null, true) },
     }), 'deadline', 'people', plan),
     list(L.tasksFor, 'Tasks for…', filter({ statusIds: [IDS.statuses.assigned, IDS.statuses.followup, IDS.statuses.waiting] }),
-      'deadline', 'status', def, { runtimeFilter: { field: 'person', label: 'Who' } }),
-    list(L.byClient, 'By client', filter({
+      'deadline', 'status', def, { runtimeFilter: { field: 'person' } }),
+    list(L.byPerson, 'By person', filter({
       personIds: [IDS.people.elena, IDS.people.david, 0], tags: [IDS.tags.customer, IDS.tags.urgent],
-    }), 'people', 'people', def, { runtimeFilter: { field: 'person', label: 'Client' } }),
+    }), 'people', 'people', def, { runtimeFilter: { field: 'person' } }),
     list(L.focus, 'Focus', filter({ markers: { focus: true } }), 'manual', 'none', def),
     list(L.hot, 'Hot', filter({ markers: 'hot' }), 'priority', 'none', plan),
     list(L.recentlyAdded, 'Recently added', filter({
@@ -812,7 +812,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')], { weight: 2 }),
           cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
         ], 1.4),
-        column('col-client', [cell('cell-client', [lens('tab-client', L.byClient)])]),
+        column('col-person', [cell('cell-person', [lens('tab-person', L.byPerson)])]),
         column('col-board', [
           cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }]),
           cell('cell-soon', [lens('tab-soon', L.dueSoon)], { collapsed: true }),
