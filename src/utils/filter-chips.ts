@@ -3,7 +3,7 @@ import type { DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
-import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
+import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
 import { hasMarkers, MARKERS_LABEL, markersTooltip, markersValue } from './markers'
 
 /** The filter fields a chip stands for. */
@@ -82,7 +82,13 @@ function negatedTooltip(field: NegatableField, names: readonly string[]): string
   switch (field) {
     case 'statusIds': return `Status: not ${orList(names)}\nHides tasks with ${names.length === 1 ? 'that status' : 'any of these statuses'}`
     case 'personIds': return `People: not ${orList(names)}\nHides tasks assigned to ${names.length === 1 ? 'them' : 'any of them'}`
-    case 'tags': return `Tags: not ${orList(names)}\nHides tasks with ${names.length === 1 ? 'that tag' : 'any of these tags'}; untagged tasks stay`
+    case 'tags': {
+      // No tags ticked: untagged tasks go too.
+      const tags = names.filter((n) => n !== NO_TAGS_LABEL)
+      if (tags.length === names.length) return `Tags: not ${orList(names)}\nHides tasks with ${names.length === 1 ? 'that tag' : 'any of these tags'}; untagged tasks stay`
+      if (tags.length === 0) return `Tags: has a tag\nHides untagged tasks`
+      return `Tags: not ${orList(names)}\nHides untagged tasks and tasks with ${tags.length === 1 ? 'that tag' : 'any of these tags'}`
+    }
   }
 }
 
@@ -212,12 +218,15 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
   const idChip = (field: 'tags' | 'people' | 'status', key: NegatableField, label: string, ids: Iterable<number>, nameOf: (id: number) => string | undefined, zeroName: string, prefix = ''): FilterChip => {
     const value = namesValue(ids, nameOf, zeroName, prefix)
     if (!isNegated(c, key)) return { field, label, value }
-    return { field, label, value: `not ${value}`, negated: true, tooltip: negatedTooltip(key, allNames(ids, nameOf, zeroName, prefix)) }
+    const tooltip = negatedTooltip(key, allNames(ids, nameOf, zeroName, prefix))
+    // "Tags is not No tags" alone reads the way round it means.
+    if (field === 'tags' && [...ids].every((id) => id === 0)) return { field, label, value: 'has a tag', negated: true, tooltip }
+    return { field, label, value: `not ${value}`, negated: true, tooltip }
   }
-  if (c.tags != null) chips.push(idChip('tags', 'tags', 'Tags', c.tags, namesById(names.tags), 'Untagged', '#'))
-  if (c.personIds != null) chips.push(idChip('people', 'personIds', 'People', c.personIds, namesById(names.people), 'Unassigned'))
+  if (c.tags != null) chips.push(idChip('tags', 'tags', 'Tags', c.tags, namesById(names.tags), NO_TAGS_LABEL, '#'))
+  if (c.personIds != null) chips.push(idChip('people', 'personIds', 'People', c.personIds, namesById(names.people), UNASSIGNED_LABEL))
   chips.push(...dateChips(c.dates))
-  if (c.statusIds != null) chips.push(idChip('status', 'statusIds', 'Status', c.statusIds, namesById(names.statuses), 'No status'))
+  if (c.statusIds != null) chips.push(idChip('status', 'statusIds', 'Status', c.statusIds, namesById(names.statuses), NO_STATUS_LABEL))
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
   if (includeCompleted && c.showCompleted) chips.push({ field: 'completed', label: 'Completed', value: 'Completed shown' })

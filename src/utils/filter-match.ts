@@ -63,8 +63,10 @@ export function matchesFilter(
   }
   const tags = filters.tags
   if (tags !== null) {
-    // Is: one of the ticked tags (untagged fails). Is not: none of them (untagged passes).
-    const tagMatch = (assignedTagIds ?? []).some((id) => tags.has(id))
+    // 0 = no tags. Is: one of the ticked tags (or untagged when No tags is
+    // ticked). Is not: none of them (untagged passes unless No tags is ticked).
+    const assigned = assignedTagIds ?? []
+    const tagMatch = assigned.some((id) => tags.has(id)) || (assigned.length === 0 && tags.has(0))
     if (tagMatch === (negate?.tags === true)) return false
   }
 

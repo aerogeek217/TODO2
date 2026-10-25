@@ -284,11 +284,11 @@ describe('FilterSheet', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
       const names = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
-      expect(names()).toEqual(['#urgent', '#soon'])
+      expect(names()).toEqual(['#urgent', 'No tags', '#soon'])
       fireEvent.change(screen.getByPlaceholderText('Search tags...'), { target: { value: 'so' } })
       fireEvent.click(screen.getByRole('checkbox', { name: '#soon' }))
       expect(screen.getByPlaceholderText('Search tags...')).toHaveValue('')
-      expect(names()).toEqual(['#soon', '#urgent'])
+      expect(names()).toEqual(['#soon', '#urgent', 'No tags'])
     })
 
     it('renders registry tags sorted alphabetically prefixed with #', () => {

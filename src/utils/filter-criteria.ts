@@ -39,10 +39,11 @@ export interface FilterCriteria {
   markers: MarkersFilter | null
   /**
    * null = no filter; Set of tag ids (into the `tags` registry) — todo must
-   * have at least one assigned tag in the set (OR semantics). An empty Set
-   * matches zero todos; a todo with no tag assignments is excluded whenever
-   * this clause is non-null and non-empty. With `negate.tags`: only tasks
-   * with none of these tags (untagged passes).
+   * have at least one assigned tag in the set (OR semantics; 0 = no tags, which
+   * an untagged todo matches). An empty Set matches zero todos; a todo with no
+   * tag assignments is excluded whenever this clause is non-null, non-empty
+   * and without 0. With `negate.tags`: only tasks with none of these tags
+   * (untagged passes unless 0 is in the set).
    */
   tags: Set<number> | null
   /** The "is not" switches of people / status / tags (`utils/filter-negation`); absent = every field "is". */

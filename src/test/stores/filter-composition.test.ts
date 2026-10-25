@@ -226,3 +226,23 @@ describe('the lens under the screen filter', () => {
     expect(countActiveFilters(lensOf({ searchText: 'x' }))).toBe(1)
   })
 })
+
+describe('the No tags sentinel (tag id 0)', () => {
+  // Tasks 4 and 6 have no tags; 6 is completed.
+  it('Tags is No tags: untagged tasks; with a tag ticked too, either', () => {
+    expect(ids(crit({ tags: new Set([0]) }), none())).toEqual([4])
+    expect(ids(crit({ tags: new Set([0, 2]) }), none())).toEqual([2, 3, 4])
+    expect(ids(crit({ tags: new Set([0]), showCompleted: true }), none())).toEqual([4, 6])
+  })
+
+  it('Tags is not No tags: tagged tasks only ("has a tag"); with a tag ticked too, tagged and without it', () => {
+    expect(ids(crit({ tags: new Set([0]), negate: { tags: true } }), none())).toEqual([1, 2, 3])
+    expect(ids(crit({ tags: new Set([0, 2]), negate: { tags: true } }), none())).toEqual([1])
+    // Without the sentinel, "is not" keeps untagged tasks as before.
+    expect(ids(crit({ tags: new Set([2]), negate: { tags: true } }), none())).toEqual([1, 4])
+  })
+
+  it('composes like any clause: a list of untagged tasks under a screen filter on people', () => {
+    expect(evaluatorIds(crit({ personIds: new Set([0]) }), crit({ tags: new Set([0]) }))).toEqual([4])
+  })
+})

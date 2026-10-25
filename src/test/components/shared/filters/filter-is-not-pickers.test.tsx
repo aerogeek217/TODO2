@@ -154,3 +154,24 @@ describe('a list’s People picker', () => {
     expect(updates.at(-1)?.personIds).toBeNull()
   })
 })
+
+describe('the Tags pickers’ No tags row', () => {
+  it('the top bar: No tags is a row like People’s None; Is not No tags reads “has a tag”', () => {
+    const updates: TodoPredicate[] = []
+    render(<TopBar initial={emptyPredicate()} updates={updates} />)
+    fireEvent.click(screen.getByRole('button', { name: /^Tags filter/ }))
+    fireEvent.click(screen.getByRole('option', { name: 'No tags' }))
+    expect(updates.at(-1)).toMatchObject({ tags: [0] })
+    choose('Tags', 'Is not')
+    expect(updates.at(-1)).toMatchObject({ tags: [0], negate: { tags: true } })
+    expect(screen.getByRole('button', { name: /^Tags filter: has a tag/ })).toBeInTheDocument()
+  })
+
+  it('a list’s Tags picker offers it too, and a search for “no” finds it', () => {
+    const updates: TodoPredicate[] = []
+    render(<ListPicker field="tags" initial={emptyPredicate()} updates={updates} adding />)
+    fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: 'no' } })
+    fireEvent.click(screen.getByRole('option', { name: 'No tags' }))
+    expect(updates.at(-1)).toMatchObject({ tags: [0] })
+  })
+})

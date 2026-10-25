@@ -8,6 +8,7 @@ import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
 import { FilterModeToggle, MarkerConditionToggle } from './FilterPanels'
 import { entityTicked, entityToggle } from '../../../utils/filter-negation'
+import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
 import {
   useFilterChipBarState,
   type EntityKey,
@@ -54,15 +55,13 @@ interface MobileEntityListProps {
   negated: boolean
   onNegatedChange: (negated: boolean) => void
   onToggle: (id: number) => void
-  /** The None row's name (`Unassigned`, `No status`); none for tags. */
+  /** The None row's name (`Unassigned`, `No status`, `No tags`); without one, no None row. */
   noneLabel?: string
   searchPlaceholder: string
   searchText: string
   onSearchChange: (text: string) => void
   /** Display name prefix (e.g. "@" for people, "#" for tags). */
   namePrefix?: string
-  /** When `false`, the "Unassigned" sentinel row is hidden (used for tags). */
-  showNoneSentinel?: boolean
 }
 
 /** A row press keeps the focus where it is (the search box). */
@@ -90,10 +89,9 @@ function MobileEntityList({
   searchText,
   onSearchChange,
   namePrefix,
-  showNoneSentinel = true,
 }: MobileEntityListProps) {
   const searchRef = useRef<HTMLInputElement>(null)
-  const withNone = showNoneSentinel && noneLabel !== undefined
+  const withNone = noneLabel !== undefined
   const ticked = (id: number) => entityTicked(filterIds, negated, id)
   const ids = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   const order = usePickerOrder(searchText, ids, ticked)
@@ -308,7 +306,7 @@ export function FilterChipBarMobile({
             searchText={entitySearch}
             onSearchChange={setEntitySearch}
             namePrefix="#"
-            showNoneSentinel={false}
+            noneLabel={NO_TAGS_LABEL}
           />
         )}
       </AccordionSection>
