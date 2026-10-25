@@ -103,7 +103,7 @@ function LensMenu({ lenses, lensId, anchorRef, onClose }: {
       onSelect: () => pick(l.id),
     })),
     { kind: 'separator' },
-    { kind: 'item', label: 'Edit lenses…', icon: <GearIcon size={14} />, onSelect: () => useUIStore.getState().openSettings('tasks') },
+    { kind: 'item', label: 'Edit lenses…', icon: <GearIcon size={14} />, onSelect: () => useUIStore.getState().openSettings('lenses') },
     { kind: 'note', text: 'The pick is this layout’s. The glasses switch the lens off and on without changing it. Filters set in the bar apply on top.' },
   ], [lenses, lensId, counts, names])
   return <MenuPopover anchorRef={anchorRef} placement="bottom-start" width={300} label="Lens for this layout" entries={entries} onClose={onClose} />

@@ -19,6 +19,7 @@ export type SettingsSectionId =
 /** The headed parts of the merged sections (Tasks, Database). */
 export type SettingsPartId =
   | 'task-defaults'
+  | 'lenses'
   | 'eisenhower'
   | 'completed'
   | 'file-storage'
@@ -29,6 +30,7 @@ export type SettingsPartId =
 /** The section each part sits in. */
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
   'task-defaults': 'tasks',
+  lenses: 'tasks',
   eisenhower: 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
