@@ -14,6 +14,7 @@ import { scrollBehavior } from '../utils/motion'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { copyTasks, tasksToCopy } from './task-copy'
+import { cycleLens, toggleLensLift } from './lenses'
 import {
   findScopeElement,
   nextScopedSelection,
@@ -274,6 +275,14 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
     if (todos.length === 0) return
     e.preventDefault()
     await copyTasks([{ todos }])
+  },
+  'cycle-lens': ({ e }) => {
+    e.preventDefault()
+    cycleLens()
+  },
+  'lift-lens': ({ e }) => {
+    e.preventDefault()
+    toggleLensLift()
   },
 }
 

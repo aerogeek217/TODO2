@@ -39,6 +39,34 @@ export function lensHideCounts(env: Omit<ScreenCountEnv, 'screen'>, lenses: read
   return { open: open.length, hides }
 }
 
+/**
+ * The keyboard's Cycle lens: the open layout's next lens in Settings' order
+ * (after the last, No lens; from No lens, the first), its lens back on. With
+ * no lens defined the snackbar says where to make one.
+ */
+export function cycleLens(): void {
+  const lenses = useSettingsStore.getState().lenses
+  if (lenses.length === 0) {
+    useUndoStore.getState().notify('No lenses yet — add one in Settings › Tasks › Lenses.')
+    return
+  }
+  const current = findLens(lenses, useWorkspaceStore.getState().working?.lensId)
+  const at = current ? lenses.indexOf(current) : -1
+  const next = lenses[at + 1] ?? null
+  useUIStore.getState().setLensLifted(false)
+  void useWorkspaceStore.getState().setLens(next?.id ?? null)
+}
+
+/** The keyboard's Lift lens: the open layout's lens lifted for now, or put back; without one the snackbar says so. */
+export function toggleLensLift(): void {
+  if (!findLens(useSettingsStore.getState().lenses, useWorkspaceStore.getState().working?.lensId)) {
+    useUndoStore.getState().notify('This layout has no lens to lift.')
+    return
+  }
+  const ui = useUIStore.getState()
+  ui.setLensLifted(!ui.lensLifted)
+}
+
 /** The names of the layouts that picked lens `id` (the open one as edited). */
 export function lensUserNames(id: string): string[] {
   const { layouts, working } = useWorkspaceStore.getState()

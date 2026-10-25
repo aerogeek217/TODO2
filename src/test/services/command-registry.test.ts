@@ -297,6 +297,16 @@ describe('createCommands — the screen filter’s tasks', () => {
   })
 })
 
+describe('createCommands — the lens', () => {
+  it('Cycle Lens and Lift Lens are always offered: no key hint until the user binds keys', () => {
+    const commands = createCommands(makeContext())
+    expect(commands.find((c) => c.id === 'lens-cycle')).toMatchObject({ name: 'Cycle Lens', category: 'filter', shortcut: '' })
+    expect(commands.find((c) => c.id === 'lens-lift')).toMatchObject({ name: 'Lift Lens / Put It Back', category: 'filter', shortcut: '' })
+    const bound = createCommands(makeContext(), { 'cycle-lens': [{ key: 'l', alt: true, shift: true }] })
+    expect(bound.find((c) => c.id === 'lens-cycle')?.shortcut).not.toBe('')
+  })
+})
+
 describe('createCommands — email check-ins', () => {
   const people = [
     { id: 1, name: 'Zoe Park', initials: 'ZP', email: 'zoe@example.com' },

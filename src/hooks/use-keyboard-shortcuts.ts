@@ -55,7 +55,9 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
         pendingChordRef.current = null
         if (!isInput) {
           const seq = SHORTCUT_IDS.find((id) => {
-            const [first, second] = bindings[id]
+            const keys = bindings[id]
+            if (!keys) return false
+            const [first, second] = keys
             return second !== undefined && first.key === pending.key && sequenceKeyMatchesEvent(e, second)
           })
           if (seq) {
@@ -71,7 +73,9 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
       // 2. Single-combo lookup. Bindings opt in to firing in inputs via
       //    `allowInInput`; without that flag a focused input short-circuits.
       const single: ShortcutId | undefined = SHORTCUT_IDS.find((id) => {
-        const [only, second] = bindings[id]
+        const keys = bindings[id]
+        if (!keys) return false
+        const [only, second] = keys
         return second === undefined && comboMatchesEvent(e, only)
       })
       if (single) {
@@ -89,7 +93,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
       //    sequence, is taken.
       if (!isInput && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const k = e.key.toLowerCase()
-        if (SHORTCUT_IDS.some((id) => bindings[id].length === 2 && bindings[id][0].key === k)) {
+        if (SHORTCUT_IDS.some((id) => bindings[id]?.length === 2 && bindings[id][0].key === k)) {
           if (!ownsLetterKeys(target) && !ownsLetterKeys(active)) e.preventDefault()
           pendingChordRef.current = { key: k, timestamp: Date.now() }
         }

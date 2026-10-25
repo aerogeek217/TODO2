@@ -5,6 +5,7 @@ import {
   readShortcutOverrides,
   resolveBindings,
   shortcutLabel,
+  shortcutListSections,
   shortcutRefusal,
   withShortcut,
 } from '../../utils/shortcut-bindings'
@@ -28,10 +29,30 @@ describe('the shortcut table', () => {
   it('has no clashing defaults', () => {
     expect(readShortcutOverrides('{}').dropped).toEqual([])
     for (const id of SHORTCUT_IDS) {
-      if (!shortcutSpec(id).editable) continue
+      const chord = shortcutSpec(id).chord
+      if (!shortcutSpec(id).editable || !chord) continue
       // Each editable default passes the rules against the other defaults.
-      expect(shortcutRefusal(id, shortcutSpec(id).chord, {}), id).toBeNull()
+      expect(shortcutRefusal(id, chord, {}), id).toBeNull()
     }
+  })
+
+  it('the lens actions have no keys until the user sets some: no label, “Not set” in the lists, no clash', () => {
+    const bindings = resolveBindings({})
+    expect(bindings['cycle-lens']).toBeNull()
+    expect(bindings['lift-lens']).toBeNull()
+    expect(shortcutLabel('cycle-lens', {})).toBe('')
+    const rows = shortcutListSections({}).flatMap((s) => s.rows)
+    expect(rows.find((r) => r.id === 'cycle-lens')).toMatchObject({ label: 'Not set', editable: true, changed: false })
+    // Set: the keys show and count as changed; back to none drops the override.
+    const chord = [{ key: 'l', alt: true, shift: true }] as const
+    expect(shortcutRefusal('cycle-lens', chord, {})).toBeNull()
+    const set = withShortcut({}, 'cycle-lens', chord)
+    expect(shortcutLabel('cycle-lens', set)).not.toBe('')
+    expect(shortcutListSections(set).flatMap((s) => s.rows).find((r) => r.id === 'cycle-lens')?.changed).toBe(true)
+    expect(withShortcut(set, 'cycle-lens', null)).toEqual({})
+    expect(readShortcutOverrides(formatShortcutOverrides(set))).toEqual({ overrides: set, dropped: [] })
+    // Another binding may take keys an unset one would have: nothing to clash with.
+    expect(shortcutRefusal('focus-filters', [{ key: 'f' }], {})).toBeNull()
   })
 })
 

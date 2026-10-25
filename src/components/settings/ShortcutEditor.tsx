@@ -138,6 +138,8 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
   const prompt = recording?.pending
     ? `${comboLabel(recording.pending)} … then a second key, or Enter for ${comboLabel(recording.pending)} alone`
     : 'Press the new keys'
+  const byDefault = shortcutSpec(id).chord
+  const defaultKeys = byDefault ? chordLabel(byDefault) : 'no keys'
 
   return (
     <div className={`${styles.row} ${isRecording ? styles.rowRecording : ''}`} data-shortcut-id={id}>
@@ -169,8 +171,8 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
               <button
                 type="button"
                 className={styles.action}
-                aria-label={`Reset ${row.description} to ${chordLabel(shortcutSpec(id).chord)}`}
-                title={`Back to ${chordLabel(shortcutSpec(id).chord)}`}
+                aria-label={`Reset ${row.description} to ${defaultKeys}`}
+                title={`Back to ${defaultKeys}`}
                 onClick={() => void resetShortcut(id)}
               >
                 Reset
