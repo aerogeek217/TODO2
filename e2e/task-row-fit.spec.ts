@@ -60,7 +60,16 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
       widths.add(Math.round(box.width))
       const name = `${row.dataset.todoId}@${Math.round(box.width)}`
       if (row.scrollWidth > row.clientWidth + 1) problems.push(`${name}: scrolls ${row.scrollWidth}`)
+      // An element clipped by a box inside the row (the title's ellipsis box
+      // clips its text) is that box's to fit: the box itself is checked.
+      const clippedInside = (el: HTMLElement) => {
+        for (let p = el.parentElement; p && p !== row; p = p.parentElement) {
+          if (getComputedStyle(p).overflowX !== 'visible') return true
+        }
+        return false
+      }
       for (const el of Array.from(row.querySelectorAll<HTMLElement>('*'))) {
+        if (clippedInside(el)) continue
         const b = el.getBoundingClientRect()
         if (b.width > 0 && b.right > box.right + 0.5 && getComputedStyle(el).position !== 'absolute') {
           problems.push(`${name}: ${el.getAttribute('aria-label') ?? el.className} ends at ${Math.round(b.right - box.left)}`)

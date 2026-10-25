@@ -62,12 +62,12 @@ test('titles off: the month is a heat map; Titles brings the bars back and survi
   expect(await bg(quiet)).toBe(await resolved(page, 'backgroundColor', 'var(--cal-heat-due-1)'))
   await expect(calendar(page).locator('[data-cal-legend]')).toContainText('Due and follow-ups')
 
-  // Yesterday is still open: its number in the overdue colour (when it's on the grid).
+  // Yesterday is still open: its number in the late colour (`--cal-late-due`, 4.5:1 on every step) (when it's on the grid).
   const late = await day(page, -1)
   if (await late.count()) {
     await expect(late).toHaveAttribute('data-late', 'due')
     const number = late.locator('div').first()
-    expect(await number.evaluate((el) => getComputedStyle(el).color)).toBe(await resolved(page, 'color', 'var(--color-overdue)'))
+    expect(await number.evaluate((el) => getComputedStyle(el).color)).toBe(await resolved(page, 'color', 'var(--cal-late-due)'))
   }
 
   // Hover names the count; a click opens the day with its tasks.
