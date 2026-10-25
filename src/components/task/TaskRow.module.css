@@ -314,7 +314,12 @@
   outline: 2px solid var(--color-accent);
 }
 
-/* People: overlapping 16px avatars ringed in the row background, then "+N". */
+/*
+ * People: overlapping 16px avatars ringed in the row background, then "+N".
+ * Monochrome at rest (the colour budget); the person's colour
+ * (`--avatar-color`) comes back on the placeholder trigger set: row hover,
+ * focus within, a picker open.
+ */
 .avatars {
   position: relative;
   display: inline-flex;
@@ -332,14 +337,23 @@
   margin-left: -4px;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--color-surface);
-  color: var(--color-text-on-accent);
+  background: var(--color-surface-bright);
+  color: var(--color-text-secondary);
   font-size: 8px;
   font-weight: 700;
   line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .avatar:first-child {
   margin-left: 0;
+}
+
+.row:hover .avatar,
+.row:focus-within .avatar,
+.rowDropdownOpen .avatar {
+  background: var(--avatar-color);
+  color: var(--color-text-on-accent);
 }
 
 /* "+N" on the avatar's corner when it doesn't fit beside it. */
@@ -364,7 +378,7 @@
   color: var(--color-text-muted);
 }
 
-/* Tags: coloured text, no border or fill; the last shown may ellipsize. */
+/* Tags: muted text (the tag's colour stays in the picker), no border or fill; the last shown may ellipsize. */
 .tag {
   flex-shrink: 0;
   line-height: 16px;
@@ -463,11 +477,7 @@
   color: var(--color-text-primary);
 }
 
-/* Follow-up: upcoming outlined and muted, today filled, late filled and glowing; the date in the flag's colour. */
-.followup[data-followup="upcoming"] {
-  color: color-mix(in srgb, var(--color-followup) 55%, var(--color-text-muted));
-}
-
+/* Follow-up: upcoming plain muted (its flag outlined), today and late in the follow-up colour, late glowing. */
 .followup[data-followup="today"],
 .followup[data-followup="late"] {
   color: var(--color-followup);
@@ -477,10 +487,19 @@
   filter: drop-shadow(0 0 3px var(--color-followup-glow));
 }
 
-/* Status: the icon in its colour; empty = a dot placeholder. */
+/*
+ * Status: the icon muted at rest, in its colour (`--status-color`) on the
+ * placeholder trigger set; empty = a dot placeholder.
+ */
 .status {
   font-size: 14px;
   line-height: 0;
+}
+
+.row:hover .status,
+.row:focus-within .status,
+.rowDropdownOpen .status {
+  color: var(--status-color, var(--color-text-muted));
 }
 
 .statusDot {

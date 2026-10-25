@@ -100,10 +100,11 @@
   transform: rotate(-90deg);
 }
 
+/* The group's colour lives in the 6px swatch alone (the colour budget); the name is plain secondary text. */
 .swatch {
   flex-shrink: 0;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
 }
 
@@ -112,11 +113,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-text-secondary);
 }
 
 .groupCount {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Rows: selection, cursor, drag (row states) ──────────────────────── */

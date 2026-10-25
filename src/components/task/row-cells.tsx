@@ -1,4 +1,4 @@
-import { useMemo, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useMemo, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { type PersistedTodoItem, type Person, type Status, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -181,7 +181,8 @@ export function PeopleCell({ people, anchorRef, open, onToggle, onPersonContextM
               <span
                 key={p.id}
                 className={styles.avatar}
-                style={{ background: p.color || NEUTRAL_PERSON_COLOR }}
+                // Monochrome at rest; the person's colour while the row is hovered / focused / has a picker open.
+                style={{ '--avatar-color': p.color || NEUTRAL_PERSON_COLOR } as CSSProperties}
                 data-person-avatar={p.name}
                 onContextMenu={onPersonContextMenu ? (e) => onPersonContextMenu(e, p) : undefined}
               >
@@ -235,7 +236,6 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
             <span
               key={t.id}
               className={`${styles.tag} ${i === shown.length - 1 ? styles.tagLast : ''}`}
-              style={t.color ? { color: t.color } : undefined}
               data-tag-name={t.name}
               onContextMenu={onTagContextMenu ? (e) => onTagContextMenu(e, t) : undefined}
             >
@@ -438,7 +438,8 @@ export function StatusCell({ status, anchorRef, open, onToggle }: {
       ref={anchorRef}
       type="button"
       className={`${styles.cell} ${styles.cellCenter} ${styles.status} ${open ? styles.cellOpen : ''}`}
-      style={status ? { color: status.color } : undefined}
+      // Muted at rest; the status's colour while the row is hovered / focused / has a picker open.
+      style={status ? { '--status-color': status.color } as CSSProperties : undefined}
       aria-label={status ? `Status: ${status.name}` : 'Set status'}
       aria-haspopup="menu"
       aria-expanded={open}

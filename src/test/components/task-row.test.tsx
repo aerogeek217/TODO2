@@ -571,7 +571,7 @@ describe('TaskRow', () => {
   })
 
   describe('tags column', () => {
-    it('coloured #name text, whole tags while they fit, then +N; the cell names them all', () => {
+    it('muted #name text (no inline colour), whole tags while they fit, then +N; the cell names them all', () => {
       const tags = [
         { id: 1, name: 'alpha', color: '#ff0000' },
         { id: 2, name: 'beta-release-notes', color: '#222' },
@@ -579,7 +579,7 @@ describe('TaskRow', () => {
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
       const cell = screen.getByRole('button', { name: 'Tags: alpha, beta-release-notes' })
-      expect(within(cell).getByText('#alpha')).toHaveStyle({ color: '#ff0000' })
+      expect(within(cell).getByText('#alpha').getAttribute('style')).toBeNull()
       expect(within(cell).queryByText('#beta-release-notes')).toBeNull()
       expect(within(cell).getByText('+1')).toBeInTheDocument()
     })

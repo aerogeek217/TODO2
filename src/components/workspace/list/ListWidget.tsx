@@ -361,7 +361,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           >
             <span className={styles.groupChevron}><ChevronDownIcon /></span>
             <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
-            <span className={styles.groupName} style={{ color: section.accentColor ?? 'var(--color-text-secondary)' }} data-testid="list-group-name">{section.label}</span>
+            <span className={styles.groupName} data-testid="list-group-name">{section.label}</span>
             <span className={styles.groupCount}>{section.todos.length}</span>
             {crossTarget && sourceLabel != null && (
               <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
