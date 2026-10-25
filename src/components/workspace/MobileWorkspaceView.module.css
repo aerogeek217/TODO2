@@ -162,8 +162,7 @@
 }
 
 .stripItem:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -4px;
+  box-shadow: var(--focus-ring-inset);
   border-radius: var(--radius-md);
 }
 

@@ -113,17 +113,21 @@
   color: var(--color-text-secondary);
 }
 
-.tab:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 .tabActive,
 .tabActive:hover {
   background: var(--color-surface);
   box-shadow: 0 0 0 1px var(--color-border-muted);
   color: var(--color-text-primary);
   cursor: default;
+}
+
+/* The ring inside the tab: the bar's bottom edge would cut it off outside. */
+.tab:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+}
+
+.tabActive:focus-visible {
+  box-shadow: 0 0 0 1px var(--color-border-muted), var(--focus-ring-inset);
 }
 
 .tabActive::before {
@@ -191,9 +195,3 @@
   color: var(--color-text-primary);
 }
 
-.add:focus-visible,
-.picker:focus-visible,
-.save:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}

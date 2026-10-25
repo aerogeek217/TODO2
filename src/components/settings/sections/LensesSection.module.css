@@ -53,12 +53,6 @@
   background: var(--color-tint-4);
 }
 
-.headButton:focus-visible,
-.link:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 .name {
   flex: none;
   font-weight: var(--font-weight-semibold);
@@ -112,11 +106,6 @@
   font-family: inherit;
   font-size: 13px;
   font-weight: var(--font-weight-semibold);
-}
-
-.nameInput:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -1px;
 }
 
 .editor {

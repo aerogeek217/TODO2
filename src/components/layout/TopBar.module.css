@@ -44,12 +44,6 @@
   transform: scale(0.98);
 }
 
-.newTask:focus-visible,
-.gear:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 /* ═══ Layout controls (tabs, or the picker once folded) ═══ */
 
 .layoutSlot {
@@ -137,11 +131,6 @@
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
 }
 
-.funnel:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 /* ═══ The counter (61 of 109): the tray's end while a filter or the lens hides tasks ═══ */
 
 /* After the lens control, before the chips. */
@@ -225,11 +214,6 @@
 
 .trayPanelOpen:not(.trayActive) .showTasksSeparator {
   background: var(--color-border);
-}
-
-.showTasks:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
 }
 
 /* ═══ Search input ═══ */

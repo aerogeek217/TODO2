@@ -89,7 +89,7 @@
 /* The surface's rounded accent border is the focus ring; no square ring of
  * the input's own inside it. */
 .titleInput:focus-visible {
-  outline: none;
+  box-shadow: none;
 }
 
 .titleInput::placeholder {

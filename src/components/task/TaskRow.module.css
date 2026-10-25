@@ -106,11 +106,6 @@
   border-color: var(--color-text-secondary);
 }
 
-.checkbox:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .checkbox:checked {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -204,6 +199,7 @@
   font-family: inherit;
   padding: 0;
   outline: none;
+  box-shadow: none;
   min-width: 0;
 }
 
@@ -256,11 +252,6 @@
   color: var(--color-text-secondary);
 }
 
-.cell:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 .cellCenter {
   justify-content: center;
   padding: 0;
@@ -310,7 +301,7 @@
   right: -2px;
   top: 0;
   bottom: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .gutter:hover::before,
@@ -322,12 +313,13 @@
   background: transparent;
 }
 
+/* The focus ring goes round the hit area (4px radius), not the 5px dot column. */
 .gutter:focus-visible {
-  outline: none;
+  box-shadow: none;
 }
 
 .gutter:focus-visible::before {
-  outline: 2px solid var(--color-accent);
+  box-shadow: var(--focus-ring);
 }
 
 /*
@@ -593,6 +585,7 @@
   cursor: col-resize;
   touch-action: none;
   outline: none;
+  box-shadow: none;
 }
 
 .dividerLine {

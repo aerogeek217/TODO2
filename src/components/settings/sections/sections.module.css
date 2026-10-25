@@ -70,11 +70,6 @@
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
-.button:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -102,6 +97,10 @@
   background: transparent;
   color: var(--color-danger);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
+}
+
+.buttonDanger:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent), var(--focus-ring);
 }
 
 .buttonDanger:hover:not(:disabled) {
@@ -386,11 +385,6 @@
 .auditRowClickable:focus-visible {
   border-color: var(--color-border);
   background: var(--color-surface);
-}
-
-.auditRowClickable:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 .auditViewHint {

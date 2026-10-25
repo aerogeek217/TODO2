@@ -136,6 +136,7 @@
 .row {
   position: relative;
   outline: none;
+  box-shadow: none;
 }
 
 /* Consecutive selected rows share one fill; the run's ends are rounded. */

@@ -88,6 +88,13 @@
   --transition-medium: 200ms ease;
   --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 
+  /* Focus ring (D19): the global `:focus-visible` rule below. The inset
+     variant is for an element a scroller would clip (tabs, menu rows, row
+     cells): the same 2px ring drawn inside its edge. */
+  --focus-ring-color: var(--color-accent);
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
+  --focus-ring-inset: inset 0 0 0 2px var(--focus-ring-color);
+
   /* The phone breakpoint is 640px. CSS @media queries cannot read custom
      properties, so the literal is written in each `@media (max-width:
      640px)` rule and in `hooks/use-is-mobile.ts` MOBILE_QUERY — change them
@@ -492,12 +499,25 @@ button {
   cursor: pointer;
 }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+/*
+ * One focus ring (D19): a 2px gap in the surface colour, then 2px of the
+ * accent, drawn as a box-shadow so it follows the element's own rounded
+ * corners. In a layer so any component box-shadow wins: an element with its
+ * own shadow adds the ring layers in its `:focus-visible` rule
+ * (`box-shadow: <its own>, var(--focus-ring)`), one inside a clipping
+ * scroller uses `--focus-ring-inset`, and one that marks focus its own way
+ * sets `box-shadow: none`.
+ */
+@layer focus-ring {
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* A container that takes focus to hold it (a dialog, a list box) shows none. */
+  :is([role="dialog"], [role="listbox"])[tabindex="-1"]:focus-visible {
+    box-shadow: none;
+  }
 }
 
 input {

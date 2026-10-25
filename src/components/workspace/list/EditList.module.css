@@ -67,7 +67,6 @@
 .close:focus-visible {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
-  outline: none;
 }
 
 .body {
@@ -139,11 +138,6 @@
 .footerButton:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-.footerButton:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 /* ── Phone: half sheet ── */

@@ -69,11 +69,14 @@ button.tile {
   cursor: pointer;
 }
 
-button.tile:hover,
-button.tile:focus-visible {
-  outline: none;
+button.tile:hover {
   background: var(--color-surface-hover);
   box-shadow: inset 0 0 0 1px var(--color-accent-dim);
+}
+
+button.tile:focus-visible {
+  background: var(--color-surface-hover);
+  box-shadow: var(--focus-ring);
 }
 
 .tileLabel {
@@ -188,11 +191,14 @@ button.listTile {
   cursor: pointer;
 }
 
-button.listTile:hover,
-button.listTile:focus-visible {
-  outline: none;
+button.listTile:hover {
   background: var(--color-surface-hover);
   box-shadow: inset 0 0 0 1px var(--color-accent-dim);
+}
+
+button.listTile:focus-visible {
+  background: var(--color-surface-hover);
+  box-shadow: var(--focus-ring);
 }
 
 .listGlyph {
@@ -289,7 +295,6 @@ button.listTile:focus-visible {
 
 .panelCountBtn:hover,
 .panelCountBtn:focus-visible {
-  outline: none;
   background: var(--color-surface-hover);
   color: var(--color-accent-text);
 }
@@ -521,7 +526,6 @@ button.trendStat {
 
 button.trendStat:hover,
 button.trendStat:focus-visible {
-  outline: none;
   background: var(--color-surface-hover);
 }
 
@@ -825,10 +829,12 @@ button.quadrant {
   cursor: pointer;
 }
 
-button.quadrant:hover,
-button.quadrant:focus-visible {
-  outline: none;
+button.quadrant:hover {
   box-shadow: inset 0 0 0 1px var(--color-accent-dim);
+}
+
+button.quadrant:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .quadrantName {
@@ -896,6 +902,10 @@ button.quadrant:focus-visible {
 .widget:hover .customizeGear,
 .customizeGear:focus-visible {
   opacity: 1;
+}
+
+.customizeGear:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-dropdown), var(--focus-ring);
 }
 
 .customizeGear:hover {

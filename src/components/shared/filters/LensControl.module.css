@@ -94,9 +94,3 @@ button.toggle:hover {
   color: var(--color-text-muted);
   text-decoration: line-through;
 }
-
-.toggle:focus-visible,
-.name:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
