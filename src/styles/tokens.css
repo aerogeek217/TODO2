@@ -146,6 +146,10 @@
      an `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
      colour editor shows the actual rendered colour. */
   --color-header-bg: #1f2120;
+  /* The cell header's one-step gradient ends here (D19). */
+  --cell-header-shade: color-mix(in srgb, var(--color-header-bg) 92%, black);
+  /* The workspace grain (D19): dark only. */
+  --grain-display: block;
   /* The top bar's search field, recessed into the app background. */
   --color-search-bg: var(--color-inset);
   /* The notes editor's page (task notes and the global note). */
@@ -328,6 +332,8 @@
   --color-border-muted: rgba(0, 0, 0, 0.06);
   /* Solid background for the workspace cell headers (tab strips). */
   --color-header-bg: #f7fbfa;
+  --cell-header-shade: color-mix(in srgb, var(--color-header-bg) 97%, black);
+  --grain-display: none;
   --color-search-bg: var(--color-surface-high);
   --color-notes-bg: var(--color-surface);
   /* The system I-beam follows the OS pointer scheme, not `color-scheme`: a

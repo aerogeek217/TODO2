@@ -145,6 +145,19 @@ function DragOverlayLayer() {
   )
 }
 
+/** The workspace grain: fractal noise, desaturated, screened faintly over the app background (dark only). */
+function Grain() {
+  return (
+    <svg className={styles.grain} aria-hidden="true" focusable="false">
+      <filter id="ws-grain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves={2} stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#ws-grain)" />
+    </svg>
+  )
+}
+
 /**
  * The open layout, filling the page: the top band, the column area (columns
  * of cells with resize dividers; it alone scrolls sideways when the columns
@@ -157,6 +170,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
   const hasBands = top != null || bottom != null
   return (
     <div className={styles.area} data-ws-area>
+      <Grain />
       {top && <Band edge="top" band={top} />}
       {top && <BandGutter edge="top" band={top} />}
       <div className={styles.columnArea} data-ws-columns>

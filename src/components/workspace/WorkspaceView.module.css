@@ -7,9 +7,23 @@
   min-width: 0;
   height: 100%;
   padding: var(--workspace-gutter) 0;
+  position: relative;
   background: var(--color-app-bg);
   overflow: hidden;
   box-sizing: border-box;
+}
+
+/* The grain (D19): turbulence screened over the app background, under the
+   cells (they paint after it); dark theme only (`--grain-display`). */
+.grain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: var(--grain-display);
+  opacity: 0.035;
+  mix-blend-mode: screen;
+  pointer-events: none;
 }
 
 /* Bands span the visible workspace and never scroll sideways. */
