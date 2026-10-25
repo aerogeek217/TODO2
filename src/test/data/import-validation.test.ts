@@ -446,6 +446,24 @@ describe('validateImportData', () => {
       }
     })
 
+    it('the lenses are read leniently: an unreadable lens goes, completed tasks go off, with a warning', () => {
+      const good = { id: 'lens-a', name: 'Fresh', predicate: { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } } }
+      const value = JSON.stringify([good, { id: 'lens-a', name: 'Again', predicate: emptyPredicate() }, { name: 'No id', predicate: emptyPredicate() }, { id: 'lens-b', name: '  Spaced  ', predicate: { ...emptyPredicate(), showCompleted: true } }])
+      const result = validateImportData(validData({ settings: [{ key: 'lenses', value }, { key: 'lensPresetsSeeded', value: 'true' }] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(JSON.parse(result.data.settings[0]!.value)).toEqual([good, { id: 'lens-b', name: 'Spaced', predicate: emptyPredicate() }])
+      expect(result.data.settings[1]).toEqual({ key: 'lensPresetsSeeded', value: 'true' })
+      expect(result.warnings).toEqual([expect.stringContaining('lenses (2 lenses dropped, lens fixed)')])
+      for (const bad of ['nope', '{}', 'x'.repeat(1_000_001)]) {
+        const read = validateImportData(validData({ settings: [{ key: 'lenses', value: bad }] }))
+        if (!read.ok) throw new Error(read.error)
+        expect(JSON.parse(read.data.settings[0]!.value)).toEqual([])
+        expect(read.warnings).toHaveLength(1)
+      }
+      expect(validateImportData(validData({ settings: [{ key: 'lensPresetsSeeded', value: 'yes' }] })))
+        .toEqual({ ok: false, error: expect.stringContaining('lensPresetsSeeded must be true') })
+    })
+
     it('the check-in scope of older builds is an unknown setting (the check-in filter replaced it)', () => {
       const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'hot' }] }))
       if (!result.ok) throw new Error(result.error)

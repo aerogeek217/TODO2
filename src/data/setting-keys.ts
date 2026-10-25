@@ -90,6 +90,17 @@ export const SETTING_KEYS = {
   staleAfterDays: 'staleAfterDays',
   /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
   rowDensity: 'rowDensity',
+  /**
+   * The lenses (named screen filters, picked per layout): JSON array of
+   * `{ id, name, predicate }`, the predicate a list predicate with
+   * completed tasks off (`data/lens-shape`). Absent = none.
+   */
+  lenses: 'lenses',
+  /**
+   * The preset lenses were seeded (the first open of Settings › Lenses):
+   * `true`. Absent = not yet; nothing seeds them again once set.
+   */
+  lensPresetsSeeded: 'lensPresetsSeeded',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

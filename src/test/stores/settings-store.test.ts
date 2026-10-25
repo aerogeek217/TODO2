@@ -318,6 +318,59 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().staleAfterDays).toBe(30)
   })
 
+  it('the lenses: none by default (no row); add, rename, change, duplicate — each one undo step — and read back on load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().lenses).toEqual([])
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+
+    const id = await s().addLens('  Fresh ')
+    expect(id).not.toBeNull()
+    expect(s().lenses).toEqual([{ id, name: 'Fresh', predicate: emptyPredicate() }])
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('New lens “Fresh”')
+    expect(await s().addLens('   ')).toBeNull()
+
+    expect(await s().renameLens(id!, 'Recent')).toBe(true)
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Renamed lens “Fresh” to “Recent”')
+    await s().setLensPredicate(id!, { ...emptyPredicate(), showCompleted: true, personIds: [0], negate: { personIds: true } })
+    expect(s().lenses[0]!.predicate).toEqual({ ...emptyPredicate(), personIds: [0], negate: { personIds: true } })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Changed lens “Recent”')
+    const copy = await s().duplicateLens(id!)
+    expect(s().lenses.map((l) => [l.id, l.name])).toEqual([[id, 'Recent'], [copy, 'Recent 2']])
+    expect(useUndoStore.getState().undoStack).toHaveLength(4)
+
+    useSettingsStore.setState({ lenses: [] })
+    await s().load()
+    expect(s().lenses.map((l) => l.name)).toEqual(['Recent', 'Recent 2'])
+
+    await useUndoStore.getState().undo()
+    expect(s().lenses.map((l) => l.name)).toEqual(['Recent'])
+    await s().setLenses([], 'Deleted lens “Recent”')
+    expect(await db.settings.get('lenses')).toBeUndefined()
+  })
+
+  it('the preset lenses are seeded once, after the lenses there are, without an undo step', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+    await s().addLens('Fresh')
+    useUndoStore.getState().clear()
+
+    await s().seedLensPresets(null)
+    expect(s().lenses.map((l) => l.name)).toEqual(['Fresh', 'This month', 'Has a person', 'Fresh 2'])
+    expect(new Set(s().lenses.map((l) => l.id)).size).toBe(4)
+    expect(s().lensPresetsSeeded).toBe(true)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(await db.settings.get('lensPresetsSeeded')).toEqual({ key: 'lensPresetsSeeded', value: 'true' })
+
+    await s().setLenses([], 'Deleted every lens')
+    await s().seedLensPresets(3)
+    expect(s().lenses).toEqual([])
+    useSettingsStore.setState({ lensPresetsSeeded: false })
+    await s().load()
+    expect(s().lensPresetsSeeded).toBe(true)
+  })
+
   it('the row density: compact by default (no row); comfortable stored, compact removes the row; junk ignored on load', async () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().rowDensity).toBe('compact')

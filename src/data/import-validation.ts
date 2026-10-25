@@ -18,6 +18,7 @@ import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
+import { formatLensesSetting, readLensesSetting } from './lens-shape'
 import { isValidEmail, normalizeEmail } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -341,6 +342,10 @@ function checkSetting(v: unknown): CheckResult {
   // (`readCheckinFilterSetting`; `settingFixes` names what it drops). Its id
   // lists have no limit of their own (the whole value has one).
   if (v.key === SETTING_KEYS.checkinTaskFilter) return true
+  // The lenses: any text, read leniently as the Eisenhower panes are
+  // (`readLensesSetting`; `settingFixes` names what it drops). Their
+  // filters' id lists have no limit of their own (the whole value has one).
+  if (v.key === SETTING_KEYS.lenses) return true
   if ((v.value as string).length > SETTING_VALUE_MAX_LEN) return 'value'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
@@ -404,6 +409,9 @@ function checkSetting(v: unknown): CheckResult {
     return parseStaleAfterDays(v.value as string) !== undefined
       ? true
       : 'value (staleAfterDays must be a day count 0–365)'
+  }
+  if (v.key === SETTING_KEYS.lensPresetsSeeded) {
+    return v.value === 'true' ? true : 'value (lensPresetsSeeded must be true)'
   }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
@@ -539,6 +547,10 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Stored rebuilt: known filter parts only, no people, completed tasks off.
     return { key, value: formatCheckinFilterSetting(readCheckinFilterSetting(value).filter) } satisfies AllFields<SettingRow>
   }
+  if (key === SETTING_KEYS.lenses) {
+    // Stored rebuilt: the readable lenses, their known filter parts, completed tasks off.
+    return { key, value: formatLensesSetting(readLensesSetting(value).lenses) } satisfies AllFields<SettingRow>
+  }
   // The Hot rule is stored normalized (duplicate lines collapsed).
   const hotRule = key === SETTING_KEYS.hotRule ? parseHotRule(value) : undefined
   return { key, value: hotRule ? formatHotRule(hotRule) : value } satisfies AllFields<SettingRow>
@@ -550,6 +562,7 @@ function settingFixes(row: Raw): string[] {
   if (row.key === SETTING_KEYS.keyboardShortcuts) return readShortcutOverrides(row.value).dropped
   if (row.key === SETTING_KEYS.eisenhowerPanes) return readPanesSetting(row.value).fixes
   if (row.key === SETTING_KEYS.checkinTaskFilter) return readCheckinFilterSetting(row.value).fixes
+  if (row.key === SETTING_KEYS.lenses) return readLensesSetting(row.value).fixes
   return []
 }
 
@@ -557,6 +570,7 @@ function settingFixes(row: Raw): string[] {
 function settingLabel(row: Raw): string {
   if (row.key === SETTING_KEYS.eisenhowerPanes) return 'Eisenhower panes'
   if (row.key === SETTING_KEYS.checkinTaskFilter) return 'check-in filter'
+  if (row.key === SETTING_KEYS.lenses) return 'lenses'
   return 'keyboard shortcuts'
 }
 

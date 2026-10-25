@@ -48,6 +48,9 @@ import {
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
 import { DEFAULT_ROW_DENSITY, isRowDensity, type RowDensity } from '../utils/row-density'
+import { cleanLensName, findLens, lensPredicate, newLensId, presetLenses, uniqueLensName, type Lens } from '../utils/lens'
+import { formatLensesSetting, readLensesSetting } from '../data/lens-shape'
+import type { TodoPredicate } from '../models/filter-predicate'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -116,6 +119,10 @@ interface SettingsState {
   staleAfterDays: number
   /** Row density of the desktop task rows (`utils/row-density`). */
   rowDensity: RowDensity
+  /** The lenses (named screen filters, picked per layout — `utils/lens`), in Settings' order. */
+  lenses: readonly Lens[]
+  /** The preset lenses were seeded once (`seedLensPresets`); nothing seeds them again. */
+  lensPresetsSeeded: boolean
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
   /**
@@ -172,6 +179,32 @@ interface SettingsState {
   setStaleAfterDays: (days: number) => Promise<void>
   /** The row density (an unknown value is ignored); stored only when not `compact`. */
   setRowDensity: (density: RowDensity) => Promise<void>
+  /**
+   * Shows and saves the lenses (normalised: completed tasks off; a lens
+   * without a usable name, or with an id an earlier one has, dropped) as one
+   * undo step named `description`, with the undo snackbar. Resolves whether
+   * they are saved (a failed save adds no step, puts the lenses back and
+   * says so; the same lenses again write nothing).
+   */
+  setLenses: (lenses: readonly Lens[], description: string) => Promise<boolean>
+  /**
+   * Adds a lens named `name` (made unique) keeping `predicate` (default:
+   * every task) after the others; resolves its id, or null (a blank name, a
+   * failed save).
+   */
+  addLens: (name: string, predicate?: TodoPredicate) => Promise<string | null>
+  /** Renames a lens; a blank name or an unknown id changes nothing (false). */
+  renameLens: (id: string, name: string) => Promise<boolean>
+  /** What a lens keeps; an unknown id or the same filter changes nothing. */
+  setLensPredicate: (id: string, predicate: TodoPredicate) => Promise<void>
+  /** Copies a lens right after it (`<name> 2`); resolves the copy's id, or null. */
+  duplicateLens: (id: string) => Promise<string | null>
+  /**
+   * Seeds the preset lenses once (`utils/lens.presetLenses`; Not waiting
+   * only with `waitingId`) after any lenses there are, and records that it
+   * did — no undo step. Does nothing once seeded.
+   */
+  seedLensPresets: (waitingId: number | null) => Promise<void>
   /**
    * Gives `id` new keys. Resolves the reason when they are refused (a
    * reserved key, or another binding's — nothing is written), else null.
@@ -338,6 +371,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   purgePromptLastAt: null,
   staleAfterDays: DEFAULT_STALE_AFTER_DAYS,
   rowDensity: DEFAULT_ROW_DENSITY,
+  lenses: [],
+  lensPresetsSeeded: false,
   shortcutOverrides: {},
   eisenhowerPanes: NO_PANES,
   eisenhowerListId: null,
@@ -369,6 +404,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let purgePromptLastAt: Date | null = null
       let staleAfterDays = DEFAULT_STALE_AFTER_DAYS
       let rowDensity: RowDensity = DEFAULT_ROW_DENSITY
+      let lenses: readonly Lens[] = []
+      let lensPresetsSeeded = false
       let shortcutOverrides: ShortcutOverrides = {}
       let eisenhowerPanes: EisenhowerPanes = NO_PANES
       let eisenhowerListId: number | null = null
@@ -421,6 +458,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           staleAfterDays = parseStaleAfterDays(row.value) ?? DEFAULT_STALE_AFTER_DAYS
         } else if (row.key === SETTING_KEYS.rowDensity) {
           if (isRowDensity(row.value)) rowDensity = row.value
+        } else if (row.key === SETTING_KEYS.lenses) {
+          lenses = readLensesSetting(row.value).lenses
+        } else if (row.key === SETTING_KEYS.lensPresetsSeeded) {
+          lensPresetsSeeded = row.value === 'true'
         } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
           shortcutOverrides = readShortcutOverrides(row.value).overrides
         } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
@@ -436,7 +477,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
         followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
-        rowDensity, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
+        rowDensity, lenses, lensPresetsSeeded, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
@@ -663,6 +704,79 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     )
   },
 
+  async setLenses(lenses: readonly Lens[], description: string) {
+    const next = normalizeLenses(lenses)
+    const before = get().lenses
+    if (formatLensesSetting(before) === formatLensesSetting(next)) return true
+    return recordSettingWrite(
+      description,
+      () => writeLenses(next),
+      () => writeLenses(before),
+      'Couldn’t save the lenses.',
+    )
+  },
+
+  async addLens(name: string, predicate?: TodoPredicate) {
+    const clean = cleanLensName(name)
+    if (!clean) return null
+    const lenses = get().lenses
+    const lens: Lens = { id: newLensId(lenses), name: uniqueLensName(lenses, clean), predicate: lensPredicate(predicate ?? emptyPredicate()) }
+    return (await get().setLenses([...lenses, lens], `New lens “${lens.name}”`)) ? lens.id : null
+  },
+
+  async renameLens(id: string, name: string) {
+    const clean = cleanLensName(name)
+    const lens = findLens(get().lenses, id)
+    if (!clean || !lens) return false
+    if (clean === lens.name) return true
+    return get().setLenses(
+      get().lenses.map((l) => (l.id === id ? { ...l, name: clean } : l)),
+      `Renamed lens “${lens.name}” to “${clean}”`,
+    )
+  },
+
+  async setLensPredicate(id: string, predicate: TodoPredicate) {
+    const lens = findLens(get().lenses, id)
+    if (!lens) return
+    await get().setLenses(
+      get().lenses.map((l) => (l.id === id ? { ...l, predicate } : l)),
+      `Changed lens “${lens.name}”`,
+    )
+  },
+
+  async duplicateLens(id: string) {
+    const lenses = get().lenses
+    const at = lenses.findIndex((l) => l.id === id)
+    const lens = lenses[at]
+    if (!lens) return null
+    const copy: Lens = { id: newLensId(lenses), name: uniqueLensName(lenses, lens.name), predicate: lens.predicate }
+    const next = [...lenses.slice(0, at + 1), copy, ...lenses.slice(at + 1)]
+    return (await get().setLenses(next, `Duplicated lens “${lens.name}”`)) ? copy.id : null
+  },
+
+  seedLensPresets(waitingId: number | null) {
+    return trackWrite(async () => {
+      if (get().lensPresetsSeeded) return
+      const lenses = get().lenses
+      const ids: Lens[] = [...lenses]
+      const presets = presetLenses(waitingId, () => {
+        const id = newLensId(ids)
+        ids.push({ id, name: '', predicate: emptyPredicate() })
+        return id
+      })
+      const next = [...lenses, ...presets.map((p) => ({ ...p, name: uniqueLensName(lenses, p.name) }))]
+      set({ lenses: next, lensPresetsSeeded: true })
+      try {
+        await settingsRepository.put(SETTING_KEYS.lenses, formatLensesSetting(next))
+        await settingsRepository.put(SETTING_KEYS.lensPresetsSeeded, 'true')
+      } catch (e) {
+        // Kept on screen for this session; the next open of Settings › Lenses tries again.
+        console.error('Failed to seed the preset lenses:', e)
+        set({ lensPresetsSeeded: false })
+      }
+    })
+  },
+
   setPurgePromptLastAt(at: Date) {
     return trackWrite(async () => {
       if (Number.isNaN(at.getTime())) return
@@ -835,22 +949,23 @@ function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {
  * these are changed, takes no Ctrl+Z): `write` shows and saves it, `revert`
  * puts the value before it back. A failed save adds no step and says so
  * (the snackbar's notice); its undo / redo rejects when its write fails, so
- * the undo store keeps the entry and says so.
+ * the undo store keeps the entry and says so. Resolves whether it was saved.
  */
 async function recordSettingWrite(
   description: string,
   write: () => Promise<boolean>,
   revert: () => Promise<boolean>,
   failure: string,
-): Promise<void> {
+): Promise<boolean> {
   if (!(await write())) {
     useUndoStore.getState().notify(failure)
-    return
+    return false
   }
   const must = async (run: () => Promise<boolean>) => {
     if (!(await run())) throw new Error('The setting could not be saved')
   }
   undoable(description, () => must(write), () => must(revert), true)
+  return true
 }
 
 /**
@@ -909,6 +1024,27 @@ function writeRowDensity(density: RowDensity): Promise<boolean> {
     if (density === DEFAULT_ROW_DENSITY) await settingsRepository.delete(SETTING_KEYS.rowDensity)
     else await settingsRepository.put(SETTING_KEYS.rowDensity, density)
   }, 'the row density')
+}
+
+/** The lenses as kept: completed tasks off; a lens without a usable name, or with an id an earlier one has, dropped. */
+function normalizeLenses(lenses: readonly Lens[]): Lens[] {
+  const ids = new Set<string>()
+  const out: Lens[] = []
+  for (const lens of lenses) {
+    const name = cleanLensName(lens.name)
+    if (!name || ids.has(lens.id)) continue
+    ids.add(lens.id)
+    out.push({ id: lens.id, name, predicate: lensPredicate(lens.predicate) })
+  }
+  return out
+}
+
+/** The lenses; the row goes when none is left. */
+function writeLenses(lenses: readonly Lens[]): Promise<boolean> {
+  return writeSetting({ lenses }, async () => {
+    if (lenses.length === 0) await settingsRepository.delete(SETTING_KEYS.lenses)
+    else await settingsRepository.put(SETTING_KEYS.lenses, formatLensesSetting(lenses))
+  }, 'the lenses')
 }
 
 /** The stale threshold; the row goes at the default (30 days). */

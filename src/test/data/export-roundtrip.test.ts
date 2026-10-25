@@ -10,6 +10,7 @@ import { buildExportData } from '../../data/export-data'
 import { NEGATABLE_FIELDS, type TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
+import { formatLensesSetting } from '../../data/lens-shape'
 import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
 
@@ -91,6 +92,8 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
+      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: 'hot', negate: { statusIds: true } } }]) },
+      { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },
