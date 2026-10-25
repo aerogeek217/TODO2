@@ -25,6 +25,11 @@ import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
+import { useFilterStore } from '../../stores/filter-store'
+import { usePickedLens } from '../../stores/screen-filter'
+import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
+import { screenTaskDialog } from '../../services/task-dialog'
+import { shownOfTotalText } from '../shared/filters/lens-text'
 import styles from './MobileWorkspaceView.module.css'
 
 /** Gap between columns in the pager (px). */
@@ -163,6 +168,7 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
       </button>
       <div className={styles.topBarEnd}>
         {status}
+        <ShownOfTotalPill />
         <button
           type="button"
           className={styles.iconButton}
@@ -174,6 +180,35 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
       </div>
       {sheetOpen && <LayoutSheet onClose={() => setSheetOpen(false)} />}
     </header>
+  )
+}
+
+/**
+ * The phone top bar's `61 of 109` (D15): what the screen filter's chips and
+ * the layout's lens keep of every open task, while a chip is on or the
+ * layout has a lens; a tap lists them in the task dialog (whose filter bar
+ * edits the chips). Its own component, so only it renders for a task write.
+ */
+function ShownOfTotalPill() {
+  const chipsOn = useFilterStore((s) => s.isActive)
+  const lensPicked = usePickedLens() != null
+  if (!chipsOn && !lensPicked) return null
+  return <ShownOfTotalCount chipsOn={chipsOn} />
+}
+
+function ShownOfTotalCount({ chipsOn }: { chipsOn: boolean }) {
+  const { shown, total } = useScreenTaskCounts()
+  const showCompleted = useFilterStore((s) => s.filters.showCompleted)
+  return (
+    <button
+      type="button"
+      className={`${styles.shownPill} ${chipsOn ? styles.shownPillFiltered : ''}`}
+      aria-label={`${shownOfTotalText(shown, total, showCompleted)}. Show them`}
+      data-testid="shown-of-total"
+      onClick={() => useUIStore.getState().showTaskDialog(screenTaskDialog())}
+    >
+      <b>{shown}</b> of {total}
+    </button>
   )
 }
 
