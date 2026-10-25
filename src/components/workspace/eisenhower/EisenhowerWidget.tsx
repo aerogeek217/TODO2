@@ -550,7 +550,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
             onOpenMenu={!isMobile ? (at) => setPaneMenu({ q: pane.id, ...at }) : undefined}
           />
         ))}
-        {listHidesAll && !drag && (
+        {listHidesAll && (
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
             <span className={styles.noteHint}>
@@ -561,7 +561,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
             </button>
           </div>
         )}
-        {screenHidesAll && !drag && (
+        {screenHidesAll && (
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
             <span className={styles.noteHint}>

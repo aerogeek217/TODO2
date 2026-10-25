@@ -141,6 +141,14 @@ test('the top-bar filter narrows the widget', async ({ page }) => {
 
   await page.getByPlaceholder('Search…').fill('zzz')
   await expect(widget(page).getByRole('status')).toContainText('All 7 open tasks are hidden by the screen filter.')
+  // The note sits under the panes, over no pane's header.
+  await expect(widget(page)).toHaveAttribute('data-layout', 'grid')
+  const covered = await widget(page).evaluate((root) => {
+    const note = root.querySelector('[role="status"]')!.getBoundingClientRect()
+    return Array.from(root.querySelectorAll('[data-eis-quadrant] > :first-child'), (h) => h.getBoundingClientRect())
+      .filter((h) => h.bottom > note.top && h.top < note.bottom && h.right > note.left && h.left < note.right).length
+  })
+  expect(covered).toBe(0)
   await widget(page).getByRole('button', { name: 'Clear screen filter' }).click()
   await expect(widget(page).locator('[data-row-key]')).toHaveCount(7)
 })
