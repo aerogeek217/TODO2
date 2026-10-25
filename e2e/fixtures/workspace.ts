@@ -57,6 +57,8 @@ export interface WsLayoutSeed {
   /** The full-width band above / below the columns. */
   top?: WsBandSeed
   bottom?: WsBandSeed
+  /** The layout's hue (D19). */
+  hue?: 'teal' | 'violet' | 'blue' | 'green' | 'amber' | 'rose'
 }
 
 /** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
@@ -298,7 +300,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
           tabs: band.tabs.map(buildTab),
         }
       }
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, createdAt: now, modifiedAt: now })
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
       firstId ??= id
       layoutIds.push(id)
     }

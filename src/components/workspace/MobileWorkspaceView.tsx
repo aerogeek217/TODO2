@@ -13,6 +13,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
 import { scrollBehavior } from '../../utils/motion'
+import { hueColor } from '../../utils/layout-hue'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -520,7 +521,7 @@ function PageName({ page, index, active, setRef, onPick }: {
  * snap. The strip above names them (bands with a band glyph); its underline
  * follows the scroll position, and tapping a name scrolls to that page.
  */
-function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
+function ColumnPager({ pages, hue }: { pages: readonly PagerPage[]; hue?: HueName }) {
   const pagerRef = useRef<HTMLDivElement | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLSpanElement | null>(null)
@@ -611,7 +612,15 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
 
   return (
     <>
-      <div ref={stripRef} className={styles.strip} role="tablist" aria-label="Columns" onKeyDown={onStripKeyDown}>
+      <div
+        ref={stripRef}
+        className={styles.strip}
+        role="tablist"
+        aria-label="Columns"
+        onKeyDown={onStripKeyDown}
+        data-layout-hue={hue ?? 'none'}
+        style={{ '--layout-hue': hueColor(hue) } as CSSProperties}
+      >
         {pages.map((page, i) => (
           <PageName
             key={page.id}
@@ -627,7 +636,9 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
       <div
         ref={pagerRef}
         className={styles.pager}
-        style={{ '--ws-pager-gap': `${PAGER_GAP_PX}px` } as CSSProperties}
+        // The layout's hue (D19), as the desktop workspace: the cell headers' tint and the focus ring.
+        style={{ '--ws-pager-gap': `${PAGER_GAP_PX}px`, '--layout-hue': hueColor(hue) } as CSSProperties}
+        data-layout-hue={hue ?? 'none'}
         onScroll={onScroll}
         data-ws-area
         data-ws-pager
@@ -659,7 +670,7 @@ export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayou
         </div>
       ) : (
         // Remount per layout so a switch starts at the first column.
-        <ColumnPager key={layout.id ?? 'layout'} pages={pages} />
+        <ColumnPager key={layout.id ?? 'layout'} pages={pages} hue={layout.hue} />
       )}
     </div>
   )
