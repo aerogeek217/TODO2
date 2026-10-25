@@ -252,14 +252,15 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
 // ── Dates ───────────────────────────────────────────────────────────────────
 
 /**
- * The dates cell: the due date (a clock — the repeat glyph for a repeating
- * task — then `MM/DD`) and the next follow-up (the flag, then `MM/DD`), two
- * parts with their own click target, picker, tooltip and colours. The
- * details width (capped by the list's) sets which dates show beside their
- * icons (`TaskRowColumns.datesTier`; the follow-up's date goes first, then
- * the due date's — the tooltip still has them); the cell re-renders only when
- * that changes, so a divider drag renders it only as it crosses a tier. An absent date is
- * its icon as the placeholder. A part showing its date gets a clear × over
+ * The dates cell: the due date and the next follow-up as `MM/DD`, two parts
+ * with their own click target, picker, tooltip and colours. A set date shows
+ * its text alone (no clock or flag beside it; a repeating task's due date
+ * keeps the repeat glyph before it); an absent date is its icon as the
+ * placeholder. The details width (capped by the list's) sets which dates
+ * show (`TaskRowColumns.datesTier`; the follow-up's date goes first, then
+ * the due date's — a dropped date shows as its icon, the tooltip still has
+ * it); the cell re-renders only when that changes, so a divider drag renders
+ * it only as it crosses a tier. A part showing its date gets a clear × over
  * its right end on hover.
  */
 export function DatesCell({
@@ -337,12 +338,14 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const style = due && !past
     ? ({ '--date-intensity': dateIntensity(daysUntil(due, today)) } as CSSProperties)
     : undefined
-  const icon = todo.recurrenceRule ? <RepeatIcon size={12} /> : <ClockIcon />
+  const repeats = todo.recurrenceRule != null
+  // The date alone; the repeat glyph (smaller, with the padding given up) stays before a repeating task's date.
+  const dateOnly = due && showDate
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${showDate ? '' : styles.cellCenter} ${styles.due} ${past ? styles.duePast : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
         style={style}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
@@ -351,10 +354,14 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
         {...triggerProps}
       >
         {due ? (
-          <>
-            {icon}
-            {showDate && <span className={styles.dateText}>{formatDateNumeric(due)}</span>}
-          </>
+          showDate ? (
+            <>
+              {repeats && <RepeatIcon size={10} />}
+              <span className={styles.dateText}>{formatDateNumeric(due)}</span>
+            </>
+          ) : (
+            repeats ? <RepeatIcon size={12} /> : <ClockIcon />
+          )
         ) : (
           <Placeholder><ClockIcon /></Placeholder>
         )}
@@ -404,10 +411,9 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
         {...triggerProps}
       >
         {next ? (
-          <>
-            <FollowupFlagIcon filled={state !== 'upcoming'} />
-            {showDate && <span className={styles.dateText}>{formatDateNumeric(next)}</span>}
-          </>
+          showDate
+            ? <span className={styles.dateText}>{formatDateNumeric(next)}</span>
+            : <FollowupFlagIcon filled={state !== 'upcoming'} />
         ) : (
           <Placeholder><FollowupFlagIcon /></Placeholder>
         )}

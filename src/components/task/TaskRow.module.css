@@ -379,9 +379,10 @@
 }
 
 /*
- * Dates: the due part (clock + MM/DD) and the follow-up part (flag + MM/DD)
- * side by side, each part its own button with its own width (set inline per
- * tier); a narrow list shows a part as its icon alone.
+ * Dates: the due part and the follow-up part (each its `MM/DD` alone) side
+ * by side, each part its own button with its own width (set inline per
+ * tier); a narrow list shows a part as its icon alone, as an absent date's
+ * placeholder is.
  */
 .datesCell {
   display: flex;
@@ -398,10 +399,17 @@
 .datePartButton {
   flex: 1;
   gap: 3px;
+  padding: 0 6px;
 }
 
 .dateText {
   min-width: 0;
+}
+
+/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 34 = 46). */
+.dueRepeat {
+  gap: 2px;
+  padding: 0;
 }
 
 /* Due: text colour only — due soon toward the deadline colour by proximity, overdue bold; the clock follows it. */

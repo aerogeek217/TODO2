@@ -75,15 +75,16 @@ describe('TaskRow', () => {
       expect(due).toHaveTextContent('04/20')
     })
 
-    it('the date follows a clock; a repeating task shows the repeat glyph in its place', () => {
+    it('a set date is its text alone (no clock); a repeating task keeps the repeat glyph before it', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
       const once = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
-      expect(once.querySelectorAll('svg')).toHaveLength(1)
-      expect(once.querySelector('circle')).not.toBeNull()
+      expect(once).toHaveTextContent('04/20')
+      expect(once.querySelectorAll('svg')).toHaveLength(0)
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
       const repeating = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
       expect(repeating).toHaveTextContent('04/20')
+      expect(repeating.querySelectorAll('svg')).toHaveLength(1)
       expect(repeating.querySelector('circle')).toBeNull()
     })
 
@@ -552,13 +553,13 @@ describe('TaskRow', () => {
     it('coloured #name text, whole tags while they fit, then +N; the cell names them all', () => {
       const tags = [
         { id: 1, name: 'alpha', color: '#ff0000' },
-        { id: 2, name: 'beta', color: '#222' },
+        { id: 2, name: 'beta-release-notes', color: '#222' },
       ]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
-      const cell = screen.getByRole('button', { name: 'Tags: alpha, beta' })
+      const cell = screen.getByRole('button', { name: 'Tags: alpha, beta-release-notes' })
       expect(within(cell).getByText('#alpha')).toHaveStyle({ color: '#ff0000' })
-      expect(within(cell).queryByText('#beta')).toBeNull()
+      expect(within(cell).queryByText('#beta-release-notes')).toBeNull()
       expect(within(cell).getByText('+1')).toBeInTheDocument()
     })
 

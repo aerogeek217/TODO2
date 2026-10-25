@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DATES_TIERS,
   datesParts,
+  REPEAT_DATE_PART,
   DEFAULT_DETAILS_WIDTH,
   peopleFit,
   tagsFit,
@@ -15,30 +16,30 @@ function titleWidth(width: number, laidOut: number): number {
 }
 
 describe('taskRowColumns', () => {
-  it('splits the default details width in a 540px list: people 53, tags 79, the dates 112, title 176', () => {
+  it('splits the default details width in a 540px list: people 60, tags 90, the dates 94, title 176', () => {
     const cols = taskRowColumns(528)
     expect(cols.details).toBe(DEFAULT_DETAILS_WIDTH)
     expect(cols.laidOut).toBe(DEFAULT_DETAILS_WIDTH)
-    expect([cols.people, cols.tags, cols.dates, cols.datesTier]).toEqual([53, 79, 112, 'both'])
+    expect([cols.people, cols.tags, cols.dates, cols.datesTier]).toEqual([60, 90, 94, 'both'])
     // Status is the last track (the task menu is right-click / Shift+F10 only).
-    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 53px 79px 112px 20px')
+    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 90px 94px 20px')
     expect(titleWidth(528, cols.laidOut)).toBe(176)
   })
 
   it('people take 40% of F, within 22 … 64; tags the rest', () => {
-    // F = D − 148 fixed − 20 gaps
-    expect(taskRowColumns(2000, 168 + 56)).toMatchObject({ people: 22, tags: 34 })
-    expect(taskRowColumns(2000, 168 + 100)).toMatchObject({ people: 40, tags: 60 })
-    expect(taskRowColumns(2000, 168 + 300)).toMatchObject({ people: 64, tags: 236 })
+    // F = D − 130 fixed (notes 16, the dates 94, status 20) − 20 gaps
+    expect(taskRowColumns(2000, 150 + 56)).toMatchObject({ people: 22, tags: 34 })
+    expect(taskRowColumns(2000, 150 + 100)).toMatchObject({ people: 40, tags: 60 })
+    expect(taskRowColumns(2000, 150 + 300)).toMatchObject({ people: 64, tags: 236 })
   })
 
   it('below the split minimum the dates give way first — the follow-up date, then the due date — then tags, then people', () => {
     // F = D − fixed (16 + dates + 20) − 20 gaps; each tier holds while F ≥ 56.
-    expect(taskRowColumns(2000, 224)).toMatchObject({ datesTier: 'both', dates: 112, people: 22, tags: 34 })
-    const due = taskRowColumns(2000, 223)
-    expect(due).toMatchObject({ datesTier: 'due', dates: 75, people: 37, tags: 55 })
-    expect(taskRowColumns(2000, 187)).toMatchObject({ datesTier: 'due', people: 22, tags: 34 })
-    expect(taskRowColumns(2000, 186)).toMatchObject({ datesTier: 'icons', dates: 38, people: 37, tags: 55 })
+    expect(taskRowColumns(2000, 206)).toMatchObject({ datesTier: 'both', dates: 94, people: 22, tags: 34 })
+    const due = taskRowColumns(2000, 205)
+    expect(due).toMatchObject({ datesTier: 'due', dates: 66, people: 33, tags: 50 })
+    expect(taskRowColumns(2000, 178)).toMatchObject({ datesTier: 'due', people: 22, tags: 34 })
+    expect(taskRowColumns(2000, 177)).toMatchObject({ datesTier: 'icons', dates: 38, people: 33, tags: 50 })
     expect(taskRowColumns(2000, 150)).toMatchObject({ datesTier: 'icons', people: 22, tags: 34 })
     // Then tags go (people take their gap), then people.
     const noTags = taskRowColumns(2000, 149)
@@ -68,10 +69,10 @@ describe('taskRowColumns', () => {
 
   it('the list width caps the details, and so the dates: the follow-up date goes first, then the due date', () => {
     // Both dates while people and tags keep their split at the widest details.
-    expect(taskRowColumns(356)).toMatchObject({ datesTier: 'both', dates: 112 })
-    expect(taskRowColumns(355)).toMatchObject({ datesTier: 'due', dates: 75 })
-    expect(taskRowColumns(319)).toMatchObject({ datesTier: 'due', dates: 75 })
-    expect(taskRowColumns(318)).toMatchObject({ datesTier: 'icons', dates: 38 })
+    expect(taskRowColumns(338)).toMatchObject({ datesTier: 'both', dates: 94 })
+    expect(taskRowColumns(337)).toMatchObject({ datesTier: 'due', dates: 66 })
+    expect(taskRowColumns(310)).toMatchObject({ datesTier: 'due', dates: 66 })
+    expect(taskRowColumns(309)).toMatchObject({ datesTier: 'icons', dates: 38 })
     // A wider stored width can't widen them past what the list gives.
     expect(taskRowColumns(308, 4000).datesTier).toBe('icons')
     // In a wide list the details width sets them.
@@ -102,7 +103,11 @@ describe('datesParts', () => {
       const p = datesParts(tier)
       expect(p.due + p.gap + p.followup).toBe(DATES_TIERS[tier])
     }
-    expect(datesParts('due')).toMatchObject({ due: 55, followup: 18 })
+    expect(datesParts('both')).toMatchObject({ due: 46, followup: 46 })
+    expect(datesParts('due')).toMatchObject({ due: 46, followup: 18 })
+    // A set date is its text alone (6 + 34 + 6); the repeat glyph before a repeating task's date would be 58.
+    expect(DATES_TIERS).toEqual({ both: 94, due: 66, icons: 38 })
+    expect(REPEAT_DATE_PART).toBe(58)
   })
 })
 

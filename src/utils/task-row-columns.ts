@@ -22,17 +22,30 @@
  * px: measured in the app font (34; the system fallbacks are narrower).
  */
 const DATE_TEXT = 34
-/** A date part's icon (1em of the meta font), px. */
+/** A date part's icon (1em of the meta font), px — the placeholder, or the repeat glyph before a repeating task's date. */
 const DATE_ICON = 12
-/** A date part's padding (each side) and the gap between its icon and its date, px. */
-const DATE_PAD = 3
+/** The padding each side of a part's date, px. */
+const DATE_TEXT_PAD = 6
 /** The gap between the due part and the follow-up part, px. */
 const DATE_PARTS_GAP = 2
 
-/** One date part's width: an icon alone, or the icon and its `MM/DD`. */
+/**
+ * One date part's width: the `MM/DD` text alone (6 + 34 + 6 = 46 — a set
+ * date shows no clock / flag beside it), or an icon alone (the absent-date
+ * placeholder, the icon-only tier). A repeating task's due part draws the
+ * repeat glyph before its date and takes `REPEAT_DATE_PART` instead.
+ */
 function datePart(withDate: boolean): number {
-  return withDate ? DATE_PAD + DATE_ICON + DATE_PAD + DATE_TEXT + DATE_PAD : 18
+  return withDate ? DATE_TEXT_PAD + DATE_TEXT + DATE_TEXT_PAD : 18
 }
+
+/**
+ * A repeating task's due part with its date at its natural width: the
+ * repeat glyph, the gap and the date (58). The tracks are the same for every
+ * row of a list, so the part keeps `datePart(true)` (46): its glyph is drawn
+ * smaller (10px) in the padding's room (`.dueRepeat`).
+ */
+export const REPEAT_DATE_PART = datePart(true) + DATE_ICON
 
 /** Which dates the dates track shows beside their icons. */
 export type DatesTier = 'both' | 'due' | 'icons'
