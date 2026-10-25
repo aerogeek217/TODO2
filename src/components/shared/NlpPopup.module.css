@@ -73,6 +73,8 @@
 .icon[data-command="due"] { color: var(--color-overdue); }
 .icon[data-command="followup"] { color: var(--color-followup); }
 .icon[data-command="repeat"] { color: var(--color-accent-text); }
+/* The search box's `/hot` (the Hot rule's colour, as the filter panels'). */
+.icon[data-command="hot"] { color: var(--color-danger); }
 
 .dot {
   width: 8px;

@@ -93,6 +93,8 @@ export type AutocompleteRow =
     note?: string
     status?: AutocompleteItem
     separator?: boolean
+    /** A command of the search box's own (`/hot`, a status by its name): drawn as a command row — its glyph, the detail as its description. */
+    command?: 'hot' | 'status'
   }
   /** What the typed date argument reads as. */
   | { kind: 'parsed'; insert: string; date: Date; label: string; relative: string }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { NlpPopup } from '../../../components/shared/NlpPopup'
 import { computeAutocomplete, personItems, tagItems, type AutocompleteItem } from '../../../services/nlp-autocomplete'
+import { searchAutocomplete } from '../../../services/search-tokens'
 import { useNlpAutocomplete } from '../../../hooks/use-nlp-autocomplete'
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -123,5 +124,23 @@ describe('useNlpAutocomplete — the open popup follows its candidates', () => {
     for (const text of ['@a', '@an', '@and']) act(() => { result.current.handleInputChange(text, text.length, input) })
     expect(result.current.state.view).not.toBeNull()
     expect(getContext).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('NlpPopup — the search box’s own commands (D16)', () => {
+  const STATUS: AutocompleteItem = { id: 3, name: 'Waiting', color: '#a78bfa', icon: 'clock', kind: 'status' }
+
+  it('/hot draws the Hot flame and /waiting its status glyph, each with the detail as a command’s description', () => {
+    const view = searchAutocomplete('/', 1, { people: [], tags: [], statuses: [STATUS], commands: true, followupDefault: null, today: new Date(2026, 9, 10) })
+    if (!view) throw new Error('no popup')
+    render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
+    const hot = screen.getByRole('option', { name: /\/hot/ })
+    expect(hot.querySelector('[data-command="hot"] svg')).not.toBeNull()
+    const waiting = screen.getByRole('option', { name: /\/waiting/ })
+    expect(waiting.querySelector('svg')).not.toBeNull()
+    // The detail sits where a command's description does (`/focus`'s "Add to Focus").
+    const focusDetail = within(screen.getByRole('option', { name: /\/focus/ })).getByText('Add to Focus')
+    expect(within(hot).getByText('Hot tasks').className).toBe(focusDetail.className)
+    expect(within(waiting).getByText('Status').className).toBe(focusDetail.className)
   })
 })

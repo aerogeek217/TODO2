@@ -309,10 +309,10 @@ export function searchAutocomplete(value: string, cursor: number, sources: Autoc
   const anchor = (slash.index ?? 0) + (slash[1]?.length ?? 0)
   const matchLength = q ? q.length + 1 : 0
   const extra: AutocompleteRow[] = [
-    ...('hot'.startsWith(q) ? [{ kind: 'value' as const, insert: '/hot', label: '/hot', matchLength, detail: 'Hot tasks' }] : []),
+    ...('hot'.startsWith(q) ? [{ kind: 'value' as const, insert: '/hot', label: '/hot', matchLength, detail: 'Hot tasks', command: 'hot' as const }] : []),
     ...sources.statuses
       .filter((s: AutocompleteItem) => isStatusCommand(s.name) && s.name.toLowerCase().startsWith(q))
-      .map((s) => ({ kind: 'value' as const, insert: `/${s.name.toLowerCase()}`, label: `/${s.name.toLowerCase()}`, matchLength, detail: 'Status', status: s })),
+      .map((s) => ({ kind: 'value' as const, insert: `/${s.name.toLowerCase()}`, label: `/${s.name.toLowerCase()}`, matchLength, detail: 'Status', status: s, command: 'status' as const })),
   ]
   const commands = (view?.rows ?? []).filter((r) => r.kind !== 'command' || !NOT_IN_SEARCH.has(r.command.name))
   const rows = [...commands, ...extra]
