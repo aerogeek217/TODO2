@@ -217,14 +217,19 @@ export interface WorkspaceState {
   setCellCollapsed: (panelId: string, collapsed: boolean) => Promise<void>
   /** View state of a tab (e.g. a calendar's view / offset). */
   patchTabViewState: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabViewStateOf<K>>) => Promise<void>
-  /** View state: the open layout's lens (`null` = No lens), saved at once. */
-  setLens: (lensId: string | null) => Promise<void>
+  /**
+   * Layout config: the open layout's lens (`null` = No lens) — an unsaved
+   * change until Save, like any edit (kept for a reload, reverted by
+   * Discard). Returns whether it changed.
+   */
+  setLens: (lensId: string | null) => boolean
   /** View state: the page (a column's or band's id) the phone shows of the open layout (`null` = the first), saved at once. */
   setActiveColumn: (pageId: string | null) => Promise<void>
   /**
-   * View state: the lens of each layout of `layoutIds` (the open one, an
-   * unsaved new one by `UNSAVED_LAYOUT_ID`, or any other stored layout),
-   * saved at once — e.g. a deleted lens's layouts going to No lens.
+   * The lens of each layout of `layoutIds` (the open one, an unsaved new one
+   * by `UNSAVED_LAYOUT_ID`, or any other stored layout), written at once —
+   * on the open layout's working copy and saved layout both, so nothing is
+   * left unsaved by it — e.g. a deleted lens's layouts going to No lens.
    */
   setLayoutsLens: (layoutIds: readonly number[], lensId: string | null) => Promise<void>
 }
@@ -1040,7 +1045,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     setLens(lensId) {
-      return editView((layout) => setLayoutLens(layout, lensId))
+      return edit((layout) => setLayoutLens(layout, lensId))
     },
 
     setActiveColumn(pageId) {
@@ -1051,9 +1056,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const ids = new Set(layoutIds)
       const fn = (layout: Layout) => setLayoutLens(layout, lensId)
       const { working, repairedIds } = get()
-      // The open layout (saved or new) as any view change; the others in the list and as stored.
+      // The open layout (saved or new): its working copy and saved layout
+      // both, as a view change would — then nothing is unsaved for it (an
+      // unsaved pick of the lens now cleared on both is no edit any more).
       const openId = working?.id
-      if (openId != null && ids.has(openId)) await editView(fn)
+      if (openId != null && ids.has(openId)) {
+        await editView(fn)
+        const { working: w, saved } = get()
+        if (w) set({ isDirty: dirty(w, saved) })
+      }
       const others = get().layouts.filter((l) => ids.has(l.id) && l.id !== openId)
       if (others.length === 0) return
       set({ layouts: get().layouts.map((l) => (ids.has(l.id) && l.id !== openId ? fn(l) : l)) })

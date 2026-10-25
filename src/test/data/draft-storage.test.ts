@@ -54,6 +54,22 @@ describe('draft storage', () => {
     expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom } })
   })
 
+  it('keeps the lens pick of a layout draft and of its base; a pick that is no lens id is no draft', () => {
+    const record = { kind: 'saved', layoutId: 2, base: { columns: other, lensId: 'lens-a' }, body: { columns, lensId: 'lens-b' } } as const
+    writeLayoutDraft(record)
+    const stored = JSON.parse(localStorage.getItem('todo2-unsaved-layout')!)
+    expect(stored.lensId).toBe('lens-b')
+    expect(stored.baseLensId).toBe('lens-a')
+    expect(readLayoutDraft()).toEqual(record)
+    writeLayoutDraft({ kind: 'new', name: 'N', body: { columns, lensId: 'lens-b' } })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns, lensId: 'lens-b' } })
+    // A record kept before the lens was part of the body reads as one with No lens.
+    writeLayoutDraft(savedDraft)
+    expect(readLayoutDraft()).toEqual(savedDraft)
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ ...stored, lensId: 7 }))
+    expect(readLayoutDraft()).toBeNull()
+  })
+
   it('a current draft whose Eisenhower tab holds a config key (it has none) is no draft', () => {
     const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } }] }] }]
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad, schemaVersion: CURRENT_DB_VERSION }))

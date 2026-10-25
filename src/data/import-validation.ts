@@ -309,7 +309,8 @@ function checkLayout(v: unknown): CheckResult {
  * A layout's lens pick as stored: a lens id's shape (whether a lens has it
  * is read where the pick is used — an id no lens has is No lens).
  */
-function isLensId(v: unknown): v is string {
+/** A layout's lens pick as stored: a lens id (a short string); `data/draft-storage` reads one too. */
+export function isLensId(v: unknown): v is string {
   return isStr(v, LENS_ID_MAX)
 }
 

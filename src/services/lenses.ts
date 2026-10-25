@@ -54,7 +54,7 @@ export function cycleLens(): void {
   const at = current ? lenses.indexOf(current) : -1
   const next = lenses[at + 1] ?? null
   useUIStore.getState().setLensLifted(false)
-  void useWorkspaceStore.getState().setLens(next?.id ?? null)
+  useWorkspaceStore.getState().setLens(next?.id ?? null)
 }
 
 /** The keyboard's Lift lens: the open layout's lens lifted for now, or put back; without one the snackbar says so. */

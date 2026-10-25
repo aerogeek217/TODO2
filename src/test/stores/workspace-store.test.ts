@@ -221,19 +221,33 @@ describe('view state', () => {
     expect((await stored(id!)).columns[1]!.cells[0]!.tabs[0]!.viewState).toEqual({})
   })
 
-  it('the lens pick is view state: stored at once, never dirty, kept by Discard; No lens removes the key', async () => {
+  it('the lens pick is a layout edit: unsaved until Save, reverted by Discard; No lens removes the key', async () => {
     const [id] = await seedAndInit(twoColumns())
-    await ws().setLens('lens-a')
-    expect(ws().isDirty).toBe(false)
+    expect(ws().setLens('lens-a')).toBe(true)
+    expect(ws().isDirty).toBe(true)
     expect(ws().working?.lensId).toBe('lens-a')
-    expect(ws().layouts.find((l) => l.id === id)?.lensId).toBe('lens-a')
+    expect(ws().layouts.find((l) => l.id === id)?.lensId).toBeUndefined()
+    expect((await stored(id!)).lensId).toBeUndefined()
+    expect(ws().setLens('lens-a')).toBe(false)
+    await ws().discard()
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working?.lensId).toBeUndefined()
+
+    ws().setLens('lens-a')
+    expect(await ws().save()).toBe(true)
+    expect(ws().isDirty).toBe(false)
     expect((await stored(id!)).lensId).toBe('lens-a')
+    expect(ws().layouts.find((l) => l.id === id)?.lensId).toBe('lens-a')
+    // Other edits discarded keep the saved pick.
     ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
     await ws().discard()
     expect(ws().working?.lensId).toBe('lens-a')
-    await ws().setLens(null)
-    expect('lensId' in (await stored(id!))).toBe(false)
+
+    ws().setLens(null)
+    expect(ws().isDirty).toBe(true)
     expect(ws().working && 'lensId' in ws().working!).toBe(false)
+    await ws().save()
+    expect('lensId' in (await stored(id!))).toBe(false)
   })
 
   it('the phone’s page is view state: stored at once, never dirty, kept by Discard; the first page removes the key', async () => {
@@ -252,9 +266,9 @@ describe('view state', () => {
     expect(ws().working && 'activeColumnId' in ws().working!).toBe(false)
   })
 
-  it('Save as copies the lens pick; a new layout starts with No lens', async () => {
+  it('Save as copies the lens pick (unsaved or not); a new layout starts with No lens', async () => {
     await seedAndInit(twoColumns())
-    await ws().setLens('lens-a')
+    ws().setLens('lens-a')
     const copy = await ws().saveAs('Copy')
     expect((await stored(copy!)).lensId).toBe('lens-a')
     const fresh = await ws().createLayout('Fresh')
@@ -273,6 +287,13 @@ describe('view state', () => {
     expect((await stored(a!)).lensId).toBeUndefined()
     await ws().load(b!)
     expect(ws().working?.lensId).toBe('lens-b')
+    // The open layout's unsaved pick of a lens now cleared: both copies go to No lens, nothing left unsaved.
+    ws().setLens('lens-c')
+    expect(ws().isDirty).toBe(true)
+    await ws().setLayoutsLens([b!], null)
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working?.lensId).toBeUndefined()
+    expect((await stored(b!)).lensId).toBeUndefined()
   })
 
   it('with unsaved changes: view state still reaches the stored layout, structure does not', async () => {
@@ -701,6 +722,20 @@ describe('unsaved changes kept for a reload', () => {
     await reload()
     expect(ws().isDirty).toBe(false)
     expect(ws().working!.top?.tabs.map((t) => t.id)).toEqual(['top9'])
+  })
+
+  it('an unsaved lens pick comes back after a reload, still unsaved; a lens changed in the stored layout drops the draft', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().setLens('lens-a')
+    await reload()
+    expect(ws().isDirty).toBe(true)
+    expect(ws().working?.lensId).toBe('lens-a')
+    expect((await stored(id!)).lensId).toBeUndefined()
+    // Elsewhere: the stored layout's lens changed under the draft.
+    await db.layouts.update(id!, { lensId: 'lens-b' })
+    await reload()
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working?.lensId).toBe('lens-b')
   })
 
   it('a kept draft an older build made for a resize alone: the sizes are saved, nothing stays unsaved', async () => {

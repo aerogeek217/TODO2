@@ -7,8 +7,9 @@
  * Every tab carries its own settings, split in two by how they are saved:
  *
  * - `config` — **layout config**: part of the saved layout. Changing it (like
- *   adding, moving or closing anything) makes the working copy differ from
- *   the saved layout, i.e. "unsaved changes".
+ *   adding, moving or closing anything, or picking the layout's lens —
+ *   `lensId`, part of the body) makes the working copy differ from the saved
+ *   layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
  *   (and a band's) `activeTabId` and `collapsed`, and for the sizes (a
@@ -199,23 +200,28 @@ export interface LayoutBand {
 /** A panel: a cell or a band — what holds a tab strip. */
 export type LayoutPanel = LayoutCell | LayoutBand
 
-/** The parts of a layout the workspace draws: its columns and bands. */
+/**
+ * The parts of a layout that Save writes and an edit can leave unsaved: its
+ * columns and bands, and the lens it picked (`lensId`; absent = No lens).
+ */
 export interface LayoutBody {
   columns: LayoutColumn[]
   top?: LayoutBand
   bottom?: LayoutBand
+  lensId?: string
 }
 
-/** A layout's body (`columns` and the bands it has; absent bands stay absent). */
+/** A layout's body (`columns`, the bands it has and its lens pick; absent ones stay absent). */
 export function layoutBodyOf(layout: LayoutBody): LayoutBody {
   return {
     columns: layout.columns,
     ...(layout.top ? { top: layout.top } : {}),
     ...(layout.bottom ? { bottom: layout.bottom } : {}),
+    ...(layout.lensId ? { lensId: layout.lensId } : {}),
   }
 }
 
-/** `layout` with its body replaced by `body` (a band `body` lacks goes). */
+/** `layout` with its body replaced by `body` (a band or the lens `body` lacks goes). */
 export function withLayoutBody<L extends LayoutBody>(layout: L, body: LayoutBody): L {
   const next = { ...layout, columns: body.columns }
   for (const edge of BAND_EDGES) {
@@ -223,6 +229,8 @@ export function withLayoutBody<L extends LayoutBody>(layout: L, body: LayoutBody
     if (band) next[edge] = band
     else delete next[edge]
   }
+  if (body.lensId) next.lensId = body.lensId
+  else delete next.lensId
   return next
 }
 
@@ -246,8 +254,10 @@ export interface WorkspaceLayout {
   /** Last time the layout was opened; picks the next layout after a delete. */
   lastUsedAt?: Date
   /**
-   * View state: the lens picked for the layout (`utils/lens`, a lens's id);
-   * absent = No lens. An id no lens has (any more) reads as No lens.
+   * Layout config (part of the body): the lens picked for the layout
+   * (`utils/lens`, a lens's id); absent = No lens. Picking one is an unsaved
+   * change until Save, like any edit. An id no lens has (any more) reads as
+   * No lens.
    */
   lensId?: string
   /**

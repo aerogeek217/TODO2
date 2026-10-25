@@ -111,7 +111,7 @@ describe('the keyboard actions', () => {
     expect(useUIStore.getState().lensLifted).toBe(true)
     toggleLensLift()
     expect(useUIStore.getState().lensLifted).toBe(false)
-    await useWorkspaceStore.getState().setLens(null)
+    useWorkspaceStore.getState().setLens(null)
     toggleLensLift()
     expect(useUIStore.getState().lensLifted).toBe(false)
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'This layout has no lens to lift.' })

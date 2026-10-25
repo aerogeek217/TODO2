@@ -29,10 +29,13 @@ test('a hued layout keeps its hue and its lens across a reload; the focus ring i
   await seedWorkspace(page, SEED)
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'none')
 
-  // The lens, picked for the layout (view state).
+  // The lens, picked for the layout (a layout edit) and saved.
   await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
   await page.getByRole('menu', { name: 'Lens for this layout' }).getByRole('menuitemradio', { name: /^Plans/ }).click()
   await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Plan the launch'])
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await page.getByTestId('layout-save').click()
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
   // The hue, with the name, in Rename.
   const menu = await openLayoutTabMenu(page, 'Main')
