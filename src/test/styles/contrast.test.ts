@@ -143,3 +143,15 @@ describe('no hard-coded white in component styles', () => {
     expect(offenders).toEqual([])
   })
 })
+
+/** A custom accent (Settings › Appearance, an inline --color-accent) must tint with its own colour. */
+describe('the accent tints follow the accent', () => {
+  it.each(THEMES)('%s: every --color-accent-* alpha tint is mixed from --color-accent', (theme) => {
+    const tokens = themeTokens(theme)
+    const tints = [...tokens.entries()].filter(([name]) => /^--color-accent-(bg|glow|focus|shadow)/.test(name))
+    expect(tints.length).toBeGreaterThanOrEqual(8)
+    for (const [name, value] of tints) {
+      expect(value, name).toMatch(/^color-mix\(in srgb, var\(--color-accent\) [\d.]+%, transparent\)$/)
+    }
+  })
+})

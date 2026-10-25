@@ -267,16 +267,17 @@
   --color-text-completed: #4a4743;
   --color-text-on-accent: #111110;
 
-  /* Accent alpha */
-  --color-accent-bg-subtle: rgba(126, 196, 188, 0.05);
-  --color-accent-bg-light: rgba(126, 196, 188, 0.08);
-  --color-accent-bg-medium: rgba(126, 196, 188, 0.12);
-  --color-accent-bg: rgba(126, 196, 188, 0.18);
+  /* Accent alpha: mixed from the accent, so a custom accent (Settings ›
+     Appearance) tints with its own colour. */
+  --color-accent-bg-subtle: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  --color-accent-bg-light: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  --color-accent-bg-medium: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --color-accent-bg: color-mix(in srgb, var(--color-accent) 18%, transparent);
   --color-accent-alpha: var(--color-accent-bg-medium);
-  --color-accent-glow: rgba(126, 196, 188, 0.3);
-  --color-accent-focus: rgba(126, 196, 188, 0.4);
-  --color-accent-shadow: rgba(126, 196, 188, 0.2);
-  --color-accent-shadow-subtle: rgba(126, 196, 188, 0.15);
+  --color-accent-glow: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --color-accent-focus: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  --color-accent-shadow: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 15%, transparent);
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.4);
@@ -459,16 +460,17 @@
   --color-text-completed: #c4c0bb;
   --color-text-on-accent: #ffffff;
 
-  /* Accent alpha */
-  --color-accent-bg-subtle: rgba(47, 154, 143, 0.04);
-  --color-accent-bg-light: rgba(47, 154, 143, 0.06);
-  --color-accent-bg-medium: rgba(47, 154, 143, 0.10);
-  --color-accent-bg: rgba(47, 154, 143, 0.18);
+  /* Accent alpha: mixed from the accent, so a custom accent (Settings ›
+     Appearance) tints with its own colour. */
+  --color-accent-bg-subtle: color-mix(in srgb, var(--color-accent) 4%, transparent);
+  --color-accent-bg-light: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  --color-accent-bg-medium: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --color-accent-bg: color-mix(in srgb, var(--color-accent) 18%, transparent);
   --color-accent-alpha: var(--color-accent-bg-medium);
-  --color-accent-glow: rgba(47, 154, 143, 0.2);
-  --color-accent-focus: rgba(47, 154, 143, 0.3);
-  --color-accent-shadow: rgba(47, 154, 143, 0.15);
-  --color-accent-shadow-subtle: rgba(47, 154, 143, 0.1);
+  --color-accent-glow: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --color-accent-focus: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --color-accent-shadow: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 10%, transparent);
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.25);
