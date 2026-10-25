@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
-import { composeScreenFilter, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
+import { composeScreenFilter, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
 import { createScreenComposedEvaluator, matchesComposedFilter } from '../../utils/filter-match'
 import { emptyPredicate } from '../../models'
 import type { TodoNameLookups } from '../../utils/filter'
@@ -194,5 +194,35 @@ describe('composeScreenFilter', () => {
       // A completed task with nothing assigned is dropped by a person filter on either side.
       expect(ids(crit({ showCompleted: true }), crit({ personIds: new Set([1]) }))).toEqual([1, 3, 5])
     })
+  })
+})
+
+describe('the lens under the screen filter', () => {
+  const lensOf = (patch: Partial<FilterCriteria>): FilterCriteria => crit({ lens: crit(patch) })
+
+  it('a task must pass the lens and the chips, each with its own switches, even on the same field', () => {
+    // Lens: Status is not Waiting. Chips: Status is Waiting → nothing.
+    expect(ids({ ...lensOf({ statusIds: new Set([2]), negate: { statusIds: true } }), statusIds: new Set([2]) }, none())).toEqual([])
+    // Lens: People is not Unassigned. Chips: Alice.
+    expect(ids({ ...lensOf({ personIds: new Set([0]), negate: { personIds: true } }), personIds: new Set([1]) }, none())).toEqual([1, 3])
+    // Lens alone, composed with a list's own filter (tags: home).
+    expect(ids(lensOf({ personIds: new Set([0]), negate: { personIds: true } }), crit({ tags: new Set([2]) }))).toEqual([2, 3])
+    expect(evaluatorIds(lensOf({ personIds: new Set([2]) }), crit({ tags: new Set([1]) }))).toEqual([3])
+  })
+
+  it('never decides completion: the chips’ or the list’s Show completed does', () => {
+    const lens = { personIds: new Set([1]), showCompleted: false }
+    expect(ids(lensOf(lens), none())).toEqual([1, 3])
+    expect(ids({ ...lensOf(lens), showCompleted: true }, none())).toEqual([1, 3, 5])
+    expect(ids(lensOf(lens), crit({ showCompleted: true }))).toEqual([1, 3, 5])
+  })
+
+  it('a lens’s text clause matches names, as the chips’ does', () => {
+    expect(ids(lensOf({ searchText: 'home' }), none())).toEqual([2, 3])
+  })
+
+  it('counts as one more screen filter control on the composed filter', () => {
+    expect(countActiveFilters(none())).toBe(0)
+    expect(countActiveFilters(lensOf({ searchText: 'x' }))).toBe(1)
   })
 })

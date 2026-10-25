@@ -12,6 +12,8 @@ import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
+import { useAppliedLens } from '../../../stores/screen-filter'
+import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { countActiveFilters } from '../../../utils/filter-criteria'
 import type { FilterChipNames } from '../../../utils/filter-chips'
 import { usePersonStore } from '../../../stores/person-store'
@@ -423,7 +425,8 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
   const paneCtx = usePaneContext()
   const names = useChipNames()
-  const screen = useFilterStore((s) => s.filters)
+  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
+  const lens = useAppliedLens()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -492,7 +495,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
   // is in the list), else the screen filter.
   const listHidesAll = list != null && shown.length === 0 && openTotal === 0 && list.appOpen > 0 && list.narrows
   const screenHidesAll = shown.length === 0 && openTotal > 0
-  const filterCount = countActiveFilters(screen)
+  const unhide = screenUnhideAction(chipCount)
   const ctx: RowContext = {
     tabId: tab.id, isMobile, drag, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
     detailsWidth: tab.viewState?.detailsWidth,
@@ -561,10 +564,10 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
           <div className={styles.notePanel} role="status">
             <span className={styles.noteTitle}>No tasks match</span>
             <span className={styles.noteHint}>
-              All {openTotal} open {tasksAre(openTotal, list?.narrows ? ` in “${list.title}”` : '')} hidden by the screen filter.
+              All {openTotal} open {tasksAre(openTotal, list?.narrows ? ` in “${list.title}”` : '')} hidden by {screenHiderText(chipCount > 0, lens)}.
             </span>
-            <button type="button" className={styles.noteAction} onClick={() => useFilterStore.getState().clearAll()}>
-              {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
+            <button type="button" className={styles.noteAction} onClick={unhide.onClick}>
+              {unhide.label}
             </button>
           </div>
         )}

@@ -47,6 +47,13 @@ export interface FilterCriteria {
   tags: Set<number> | null
   /** The "is not" switches of people / status / tags (`utils/filter-negation`); absent = every field "is". */
   negate?: FilterNegation
+  /**
+   * The screen filter only: the open layout's lens (`utils/lens.withLens`),
+   * a stage a task must pass as well — its own clauses and "is not"
+   * switches, ANDed under these. It never decides completion (its
+   * `showCompleted` is ignored: these do). Absent = no lens, or lifted.
+   */
+  lens?: FilterCriteria
 }
 
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
@@ -57,7 +64,8 @@ export function fixedAnchor(d: Date): DateAnchor {
 /**
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
- * search.
+ * search — and the lens, when the filter carries one (the composed screen
+ * filter; the top bar's chips alone never do).
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -69,6 +77,7 @@ export function countActiveFilters(f: FilterCriteria): number {
     hasMarkers(f.markers),
     f.showCompleted,
     f.searchText !== '',
+    f.lens != null,
   ].filter(Boolean).length
 }
 

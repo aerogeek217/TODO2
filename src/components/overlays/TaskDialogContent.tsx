@@ -12,6 +12,9 @@ import {
 } from '../../services/task-dialog'
 import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
 import { useFilterStore } from '../../stores/filter-store'
+import { useAppliedLens } from '../../stores/screen-filter'
+import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
+import { withLens, type Lens } from '../../utils/lens'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -74,8 +77,11 @@ export interface TaskDialogContentProps {
 export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
   const isScreen = payload.source.kind === 'screen'
-  // The screen filter, only for its own tasks (no other re-renders on a filter change).
-  const screen = useFilterStore((s) => (isScreen ? s.filters : null))
+  // The screen filter (the chips with the lens), only for its own tasks (no
+  // other re-renders on a chip change).
+  const chips = useFilterStore((s) => (isScreen ? s.filters : null))
+  const lens = useAppliedLens()
+  const screen = chips && withLens(chips, lens)
   // A new payload while open (e.g. a person chip in a row), or the screen
   // filter changed under its tasks: resolve it afresh.
   if (resolved.payload !== payload || (screen !== null && resolved.screen !== screen)) setResolved(resolve(payload))
@@ -158,7 +164,9 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
         <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>×</button>
       </div>
       {filterBar}
-      <p className={styles.description}>{screen ? screenTaskDialogDescription(screen) : payload.description}</p>
+      {chips
+        ? <ScreenDescription chips={chips} lens={lens} />
+        : <p className={styles.description}>{payload.description}</p>}
       <div className={styles.body} aria-label="Tasks" role="group">
         {count === 0 && <div className={styles.empty}>No tasks</div>}
         {/* The default split: no divider here. */}
@@ -203,6 +211,15 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
       </div>
     </>
   )
+}
+
+/**
+ * The screen filter's tasks in words, kept current: with a lens, what it and
+ * the chips keep (its own component: only it counts the tasks on a write).
+ */
+function ScreenDescription({ chips, lens }: { chips: FilterCriteria; lens: Lens | undefined }) {
+  const counts = useScreenTaskCounts()
+  return <p className={styles.description}>{screenTaskDialogDescription(chips, lens && { name: lens.name, counts })}</p>
 }
 
 function CopyIcon() {

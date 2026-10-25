@@ -16,6 +16,8 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
+import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
+import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { countActiveFilters } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -475,9 +477,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const screen = useFilterStore((s) => s.filters)
+  const { filters: screen, active: screenActive } = useScreenFilter()
+  const lens = useAppliedLens()
+  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
   const markerSettings = useFilterSettings()
-  const screenActive = useFilterStore((s) => s.isActive)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const pending = useContext(PendingCalendarDropContext)
   const drag = useTaskDrag()
@@ -633,7 +636,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const noTypes = !dateTypes.due && !dateTypes.followup
   // With no date type shown the note stays up during a drag: it says why the days take no drop.
   const showEmpty = noTypes || (entryCount === 0 && !drag)
-  const filterCount = countActiveFilters(screen)
+  const unhide = screenUnhideAction(chipCount)
 
   return (
     <div
@@ -713,10 +716,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
               <div className={styles.emptyNote} data-testid="calendar-empty" data-empty="filtered">
                 <div className={styles.emptyLine1}>No tasks match</div>
                 <div className={styles.emptyLine2}>
-                  {hiddenCount} {hiddenCount === 1 ? 'task' : 'tasks'} {view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`} {hiddenCount === 1 ? 'is' : 'are'} hidden by the screen filter.
+                  {hiddenCount} {hiddenCount === 1 ? 'task' : 'tasks'} {view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`} {hiddenCount === 1 ? 'is' : 'are'} hidden by {screenHiderText(chipCount > 0, lens)}.
                 </div>
-                <button type="button" className={styles.emptyAction} onClick={() => useFilterStore.getState().clearAll()}>
-                  {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
+                <button type="button" className={styles.emptyAction} onClick={unhide.onClick}>
+                  {unhide.label}
                 </button>
               </div>
             ) : (

@@ -5,7 +5,7 @@ import { useBuiltList } from './use-built-list'
 import { useFilterSettings } from './use-filter-settings'
 import { useEffectiveListDefinition } from './use-list-draft'
 import { useToday } from './use-today'
-import { useFilterStore } from '../stores/filter-store'
+import { useScreenFilter } from '../stores/screen-filter'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { usePersonStore } from '../stores/person-store'
@@ -62,8 +62,7 @@ export function useEisenhowerSource(): EisenhowerSource {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const screen = useFilterStore((s) => s.filters)
-  const screenActive = useFilterStore((s) => s.isActive)
+  const { filters: screen, active: screenActive } = useScreenFilter()
   const settings = useFilterSettings()
 
   // Only its members matter (its prompt — a temporary pick —, group and

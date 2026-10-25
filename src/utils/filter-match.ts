@@ -32,6 +32,10 @@ export function matchesFilter(
   settings: FilterSettings,
 ): boolean {
   if (todo.isCompleted && !filters.showCompleted) return false
+  // The lens: its own clauses under these; completion is decided above.
+  if (filters.lens && !matchesFilter({ ...filters.lens, showCompleted: true }, todo, assignedPersonIds, today, searchCtx, assignedTagIds, settings)) {
+    return false
+  }
 
   const negate = filters.negate
   if (filters.statusIds !== null) {
@@ -118,7 +122,7 @@ export function matchesFilterWithLookups(
 ): boolean {
   const personIds = (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.id!)
   const tagIds = (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.id!)
-  const searchCtx = filters.searchText ? textMatchContextFor(todo, lookups) : undefined
+  const searchCtx = filters.searchText || filters.lens?.searchText ? textMatchContextFor(todo, lookups) : undefined
   return matchesFilter(filters, todo, personIds, today, searchCtx, tagIds, settings)
 }
 

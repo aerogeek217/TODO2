@@ -8,6 +8,7 @@ import { undoable } from './undoable'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListDraftStore } from './list-draft-store'
 import { useListOrderStore } from './list-order-store'
+import { useUIStore } from './ui-store'
 import { registerModuleReset } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
@@ -1045,4 +1046,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         })))
     },
   }
+})
+
+// A lens lifted for now comes back with a layout switch.
+useWorkspaceStore.subscribe((s, prev) => {
+  if (s.activeLayoutId !== prev.activeLayoutId) useUIStore.getState().setLensLifted(false)
 })

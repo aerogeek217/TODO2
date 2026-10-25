@@ -1,7 +1,9 @@
 import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
 import type { Status } from '../models'
 import type { WorkspaceLayout } from '../models/workspace-layout'
+import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { withNormalizedNegation } from './filter-negation'
+import { registerModuleReset } from './module-reset'
 
 /**
  * Lenses: named, saved screen filters, defined once (Settings › Tasks ›
@@ -40,6 +42,24 @@ export function cleanLensName(name: string): string | null {
 /** `p` as a lens keeps it: completed tasks off, its "is not" switches normalised. */
 export function lensPredicate(p: TodoPredicate): TodoPredicate {
   return withNormalizedNegation({ ...p, showCompleted: false })
+}
+
+/** The last `withLens` call, so every caller with the same inputs gets the same object (stores compare by reference). */
+let lastComposed: { screen: FilterCriteria; lens: Lens | undefined; out: FilterCriteria } | null = null
+registerModuleReset(() => { lastComposed = null })
+
+/**
+ * The screen filter as every widget applies it: the top bar's chips
+ * (`screen`) with `lens` (the open layout's, unless lifted) under them as
+ * `FilterCriteria.lens`. No lens = `screen` itself. The same inputs give
+ * the same object.
+ */
+export function withLens(screen: FilterCriteria, lens: Lens | undefined): FilterCriteria {
+  if (!lens) return screen
+  if (lastComposed && lastComposed.screen === screen && lastComposed.lens === lens) return lastComposed.out
+  const out: FilterCriteria = { ...screen, lens: predicateToCriteria(lens.predicate) }
+  lastComposed = { screen, lens, out }
+  return out
 }
 
 /** An id no lens of `lenses` has. */

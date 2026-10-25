@@ -5,7 +5,8 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useFilterStore } from '../../../stores/filter-store'
+import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
+import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -120,8 +121,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
   const toggleGroup = useListWidgetStore((s) => s.toggleGroup)
-  const screen = useFilterStore((s) => s.filters)
-  const screenActive = useFilterStore((s) => s.isActive)
+  const { filters: screen, active: screenActive } = useScreenFilter()
+  const lens = useAppliedLens()
   const screenChips = useScreenChips()
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -329,8 +330,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       body = (
         <EmptyState
           title="No tasks match"
-          hint={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by the screen filter.`}
-          action={{ label: screenChips.length === 1 ? 'Clear screen filter' : 'Clear screen filters', onClick: () => useFilterStore.getState().clearAll() }}
+          hint={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by ${screenHiderText(screenChips.length > 0, lens)}.`}
+          action={screenUnhideAction(screenChips.length)}
         />
       )
     } else if (hasNarrowingFilters(predicate)) {

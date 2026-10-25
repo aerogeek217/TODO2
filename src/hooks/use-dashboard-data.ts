@@ -27,7 +27,7 @@ import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/st
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { usePaneContext } from './use-pane-context'
-import { useFilterStore } from '../stores/filter-store'
+import { useScreenFilter } from '../stores/screen-filter'
 import { countActiveFilters } from '../utils/filter-criteria'
 import { hasNarrowingFilters } from '../utils/filter-chips'
 import { applyFilter } from '../utils/filter-match'
@@ -101,7 +101,7 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const screen = useFilterStore((s) => s.filters)
+  const screen = useScreenFilter().filters
   const markerSettings = useFilterSettings()
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
