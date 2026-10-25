@@ -88,6 +88,8 @@ export const SETTING_KEYS = {
    * task's row is drawn faded — a whole number 0–365, `0` = off. Absent = 30.
    */
   staleAfterDays: 'staleAfterDays',
+  /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
+  rowDensity: 'rowDensity',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

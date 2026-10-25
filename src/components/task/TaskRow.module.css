@@ -533,6 +533,44 @@
   }
 }
 
+/* ── Comfortable density (Settings › Appearance; the row list's `data-density`) ── */
+
+/*
+ * The title wraps to two lines (18px each, then an ellipsis); the row grows
+ * to fit, at least 44px, and its cells sit on the first line.
+ */
+[data-density="comfortable"] .row {
+  align-items: start;
+  min-height: 44px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+[data-density="comfortable"] .title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 18px;
+}
+
+[data-density="comfortable"] .titleInput {
+  height: 18px;
+  line-height: 18px;
+}
+
+[data-density="comfortable"] .checkbox,
+[data-density="comfortable"] .gutter,
+[data-density="comfortable"] .cell {
+  height: 18px;
+}
+
+[data-density="comfortable"] .checkbox {
+  width: 18px;
+}
+
 /* ── The row list and its divider ──────────────────────────────────────── */
 
 .grid {

@@ -318,6 +318,27 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().staleAfterDays).toBe(30)
   })
 
+  it('the row density: compact by default (no row); comfortable stored, compact removes the row; junk ignored on load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDensity).toBe('compact')
+    useUndoStore.getState().clear()
+
+    await useSettingsStore.getState().setRowDensity('comfortable')
+    expect(await db.settings.get('rowDensity')).toEqual({ key: 'rowDensity', value: 'comfortable' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Comfortable rows')
+    await useSettingsStore.getState().setRowDensity('cosy' as never)
+    expect(useSettingsStore.getState().rowDensity).toBe('comfortable')
+    await useSettingsStore.getState().setRowDensity('compact')
+    expect(await db.settings.get('rowDensity')).toBeUndefined()
+
+    await db.settings.put({ key: 'rowDensity', value: 'comfortable' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDensity).toBe('comfortable')
+    await db.settings.put({ key: 'rowDensity', value: 'roomy' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDensity).toBe('compact')
+  })
+
   it('new-list sort / grouping and the purge interval: each change is one undo step with the snackbar; undo / redo save', async () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()

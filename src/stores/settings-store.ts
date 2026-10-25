@@ -47,6 +47,7 @@ import {
 } from '../utils/completed-at'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
+import { DEFAULT_ROW_DENSITY, isRowDensity, type RowDensity } from '../utils/row-density'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -67,6 +68,8 @@ import { undoable } from './undoable'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
+
+export type { RowDensity } from '../utils/row-density'
 
 export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
@@ -111,6 +114,8 @@ interface SettingsState {
   purgePromptLastAt: Date | null
   /** "Fade tasks untouched for": days without a change after which an open task's row is drawn faded; 0 = off. */
   staleAfterDays: number
+  /** Row density of the desktop task rows (`utils/row-density`). */
+  rowDensity: RowDensity
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
   /**
@@ -165,6 +170,8 @@ interface SettingsState {
   setPurgePromptLastAt: (at: Date) => Promise<void>
   /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
+  /** The row density (an unknown value is ignored); stored only when not `compact`. */
+  setRowDensity: (density: RowDensity) => Promise<void>
   /**
    * Gives `id` new keys. Resolves the reason when they are refused (a
    * reserved key, or another binding's — nothing is written), else null.
@@ -330,6 +337,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   purgePromptIntervalDays: DEFAULT_PURGE_PROMPT_INTERVAL_DAYS,
   purgePromptLastAt: null,
   staleAfterDays: DEFAULT_STALE_AFTER_DAYS,
+  rowDensity: DEFAULT_ROW_DENSITY,
   shortcutOverrides: {},
   eisenhowerPanes: NO_PANES,
   eisenhowerListId: null,
@@ -360,6 +368,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let purgePromptIntervalDays = DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
       let purgePromptLastAt: Date | null = null
       let staleAfterDays = DEFAULT_STALE_AFTER_DAYS
+      let rowDensity: RowDensity = DEFAULT_ROW_DENSITY
       let shortcutOverrides: ShortcutOverrides = {}
       let eisenhowerPanes: EisenhowerPanes = NO_PANES
       let eisenhowerListId: number | null = null
@@ -410,6 +419,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           purgePromptLastAt = Number.isNaN(at.getTime()) ? null : at
         } else if (row.key === SETTING_KEYS.staleAfterDays) {
           staleAfterDays = parseStaleAfterDays(row.value) ?? DEFAULT_STALE_AFTER_DAYS
+        } else if (row.key === SETTING_KEYS.rowDensity) {
+          if (isRowDensity(row.value)) rowDensity = row.value
         } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
           shortcutOverrides = readShortcutOverrides(row.value).overrides
         } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
@@ -425,7 +436,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
         followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
-        shortcutOverrides, eisenhowerPanes, eisenhowerListId,
+        rowDensity, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
@@ -637,6 +648,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       () => writeStaleAfterDays(days),
       () => writeStaleAfterDays(before),
       'Couldn’t save when to fade untouched tasks.',
+    )
+  },
+
+  async setRowDensity(density: RowDensity) {
+    if (!isRowDensity(density)) return
+    const before = get().rowDensity
+    if (before === density) return
+    await recordSettingWrite(
+      density === 'comfortable' ? 'Comfortable rows' : 'Compact rows',
+      () => writeRowDensity(density),
+      () => writeRowDensity(before),
+      'Couldn’t save the row density.',
     )
   },
 
@@ -878,6 +901,14 @@ function writePurgePromptInterval(days: number): Promise<boolean> {
     if (days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS) await settingsRepository.delete(SETTING_KEYS.purgePromptIntervalDays)
     else await settingsRepository.put(SETTING_KEYS.purgePromptIntervalDays, String(days))
   }, 'the purge prompt interval')
+}
+
+/** The row density; the row goes at the default (compact). */
+function writeRowDensity(density: RowDensity): Promise<boolean> {
+  return writeSetting({ rowDensity: density }, async () => {
+    if (density === DEFAULT_ROW_DENSITY) await settingsRepository.delete(SETTING_KEYS.rowDensity)
+    else await settingsRepository.put(SETTING_KEYS.rowDensity, density)
+  }, 'the row density')
 }
 
 /** The stale threshold; the row goes at the default (30 days). */

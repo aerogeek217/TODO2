@@ -90,6 +90,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptIntervalDays', value: '14' },
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
+      { key: 'rowDensity', value: 'comfortable' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },

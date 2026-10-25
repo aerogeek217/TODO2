@@ -466,6 +466,7 @@ describe('validateImportData', () => {
         ['newListGroup', 'tag'], ['purgePromptIntervalDays', '1'], ['purgePromptIntervalDays', '365'],
         ['purgePromptLastAt', '2026-10-20T08:00:00.000Z'],
         ['staleAfterDays', '0'], ['staleAfterDays', '30'], ['staleAfterDays', '365'],
+        ['rowDensity', 'comfortable'], ['rowDensity', 'compact'],
       ]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result.ok, `${key}=${value}`).toBe(true)
@@ -487,6 +488,7 @@ describe('validateImportData', () => {
         ['staleAfterDays', '-1', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '07', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '', 'staleAfterDays must be a day count 0–365'],
+        ['rowDensity', 'cosy', 'rowDensity must be comfortable or compact'],
       ] as const) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result, `${key}=${value}`).toEqual({ ok: false, error: expect.stringContaining(message) })

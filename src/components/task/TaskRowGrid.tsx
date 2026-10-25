@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { taskRowColumns, TASK_ROW } from '../../utils/task-row-columns'
+import { useSettingsStore } from '../../stores/settings-store'
 import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
@@ -41,11 +42,14 @@ interface TaskRowGridProps {
  * only the dates cells); the rest is layout. With
  * `onDetailsWidthChange` it draws the draggable divider between the titles
  * and the details, spanning the rows; the width is written on release only.
+ * Carries the Settings row density (`data-density`): comfortable rows let
+ * the title wrap to two lines.
  */
 export function TaskRowGrid({
   detailsWidth, onDetailsWidthChange, liveDetailsWidth, className, style, children,
 }: TaskRowGridProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const density = useSettingsStore((s) => s.rowDensity)
   const [box, setBox] = useState<{ width: number; padRight: number }>({ width: 0, padRight: 0 })
   /** The width while a divider is dragged (not stored yet): the tab's shared one, or this list's own. */
   const [ownLive] = useState(() => createValueStore<number | null>(null))
@@ -165,7 +169,7 @@ export function TaskRowGrid({
 
   return (
     <TaskRowColumnsContext.Provider value={columns}>
-      <div ref={ref} className={`${styles.grid} ${className ?? ''}`} style={style} data-task-row-grid="">
+      <div ref={ref} className={`${styles.grid} ${className ?? ''}`} style={style} data-task-row-grid="" data-density={density}>
         {children}
         {divider}
       </div>
