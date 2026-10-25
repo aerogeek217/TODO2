@@ -85,8 +85,14 @@ describe('computeTiles', () => {
     const tiles = computeTiles(tasks, ctx)
     expect(tiles.dueNext7.ids).toEqual([2, 3])
     expect(tiles.dueToday).toEqual({ ids: [2], upcoming: 1 })
-    expect(tiles.followupDue).toMatchObject({ ids: [1, 2], late: 1, today: 1, upcoming: 1 })
+    expect(tiles.followupDue).toMatchObject({ ids: [1, 2], late: 1, today: 1, upcoming: 1, next: day(6) })
     expect(tiles.noFollowup.ids).toEqual([])
+  })
+
+  it('the next follow-up: the soonest after today, however far; none without one', () => {
+    const tasks = [30, 9, 0, -2].map((n, i) => makeTodo({ id: i + 1, nextFollowupAt: day(n) }))
+    expect(computeTiles(tasks, ctx).followupDue.next).toEqual(day(9))
+    expect(computeTiles(tasks.slice(2), ctx).followupDue.next).toBeNull()
   })
 
   it('days are calendar days: a due time late in the day still counts for that day', () => {

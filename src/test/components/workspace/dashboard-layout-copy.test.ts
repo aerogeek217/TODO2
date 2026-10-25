@@ -59,13 +59,27 @@ describe('dashboard copy', () => {
     const ctx = { today: SAMPLE_CTX.today, trendNet: 0, trendRange: '4w' as const }
     expect(tileSubLine('open', tiles, ctx)).toBe('No change in the last 4 weeks')
     expect(tileSubLine('open', tiles, { ...ctx, trendNet: null })).toBe('')
-    expect(tileSubLine('hot', tiles, ctx)).toBe('Nothing hot right now')
+    expect(tileSubLine('hot', tiles, ctx)).toBe('None right now')
     expect(tileSubLine('urgent', tiles, ctx)).toBe('Nothing urgent')
     expect(tileSubLine('overdue', tiles, ctx)).toBe('Nothing overdue')
     expect(tileSubLine('followupDue', tiles, ctx)).toBe('Nothing due')
     expect(tileSubLine('focus', tiles, ctx)).toBe('None due today')
     expect(tileSubLine('dueToday', tiles, ctx)).toBe('None in the next 7 days')
     expect(tileSubLine('dueNext7', tiles, ctx)).toBe('')
+  })
+
+  it('Follow-up due at 0 names the next one, however far', () => {
+    const today = SAMPLE_CTX.today
+    const at = (n: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + n)
+    const ctx = { today, trendNet: 0, trendRange: '4w' as const }
+    const tiles = computeTiles([makeTodo({ id: 1, nextFollowupAt: at(12) }), makeTodo({ id: 2, nextFollowupAt: at(2) })], SAMPLE_CTX)
+    const d = at(2)
+    const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]
+    const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+    expect(tileSubLine('followupDue', tiles, ctx)).toBe(`Next one ${weekday} ${mmdd}`)
+    // Due today with more this week still says so.
+    const busy = computeTiles([makeTodo({ id: 1, nextFollowupAt: at(0) }), makeTodo({ id: 2, nextFollowupAt: at(2) })], SAMPLE_CTX)
+    expect(tileSubLine('followupDue', busy, ctx)).toBe('1 more in the next 7 days')
   })
 
   it('day and bar labels', () => {
