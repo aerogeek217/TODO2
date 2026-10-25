@@ -20,6 +20,11 @@ export function appliedLensOf(lenses: readonly Lens[], lensId: string | undefine
   return lifted ? undefined : findLens(lenses, lensId)
 }
 
+/** The open layout's lens as picked, lifted or not. */
+export function currentPickedLens(): Lens | undefined {
+  return findLens(useSettingsStore.getState().lenses, useWorkspaceStore.getState().working?.lensId)
+}
+
 /** The open layout's lens as it applies now (`appliedLensOf`). */
 export function currentAppliedLens(): Lens | undefined {
   return appliedLensOf(
@@ -34,12 +39,18 @@ export function currentScreenFilter(): FilterCriteria {
   return withLens(useFilterStore.getState().filters, currentAppliedLens())
 }
 
-/** The open layout's lens as it applies now, kept current. */
-export function useAppliedLens(): Lens | undefined {
+/** The open layout's lens as picked — lifted or not — kept current; none when it has none (or one deleted since). */
+export function usePickedLens(): Lens | undefined {
   const lenses = useSettingsStore((s) => s.lenses)
   const lensId = useWorkspaceStore((s) => s.working?.lensId)
+  return findLens(lenses, lensId)
+}
+
+/** The open layout's lens as it applies now, kept current. */
+export function useAppliedLens(): Lens | undefined {
+  const picked = usePickedLens()
   const lifted = useUIStore((s) => s.lensLifted)
-  return appliedLensOf(lenses, lensId, lifted)
+  return lifted ? undefined : picked
 }
 
 /** What a widget filters by: the screen filter with the lens, and whether anything narrows (chips or a lens). */

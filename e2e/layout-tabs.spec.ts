@@ -220,7 +220,7 @@ test('the fold, measured: the filters fold first (once the tray is shrunk), then
     layouts: [layout('Main', 'm'), layout('Weekly planning', 's'), layout('Projects review', 't'), layout('Inbox', 'i')],
   })
   // Folded parts per width: [filters, tabs] — the filters fold first.
-  const expected: Array<[number, [boolean, boolean]]> = [[1600, [false, false]], [1280, [true, false]], [1024, [true, false]], [860, [true, true]]]
+  const expected: Array<[number, [boolean, boolean]]> = [[1600, [false, false]], [1280, [true, false]], [1130, [true, false]], [860, [true, true]]]
   for (const [width, folded] of expected) {
     await page.setViewportSize({ width, height: 800 })
     await expect.poll(async () => {

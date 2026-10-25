@@ -142,7 +142,16 @@
   outline-offset: -2px;
 }
 
-/* ═══ Show N tasks: the tray's end while a filter is on ═══ */
+/* ═══ The counter (61 of 109): the tray's end while a filter or the lens hides tasks ═══ */
+
+/* After the lens control, before the chips. */
+.lensSeparator {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--color-border-muted);
+  flex-shrink: 0;
+}
 
 .showTasksSeparator {
   width: 1px;
@@ -155,6 +164,7 @@
 .showTasks {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 26px;
   padding: 0 8px;
   border: none;
@@ -163,11 +173,18 @@
   color: var(--color-danger-text);
   font-family: inherit;
   font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+.showTasksShown {
+  font-weight: var(--font-weight-semibold);
+}
+
+.showTasksOf {
+  color: color-mix(in srgb, var(--color-danger-text) 70%, var(--color-text-muted));
 }
 
 .showTasks:hover {
@@ -180,13 +197,30 @@
   background: color-mix(in srgb, var(--color-danger) 20%, transparent);
 }
 
-/* No filter (cleared with the panel open): the neutral tray's look. */
-.trayPanelOpen:not(.trayActive) .showTasks {
+/* No chip on (the lens alone, or cleared with the panel open): the neutral tray's look. */
+.tray:not(.trayActive) .showTasks {
   color: var(--color-text-secondary);
 }
 
-.trayPanelOpen:not(.trayActive) .showTasksOpen {
+.tray:not(.trayActive) .showTasksShown {
+  color: var(--color-text-primary);
+}
+
+.tray:not(.trayActive) .showTasksOf {
+  color: var(--color-text-muted);
+}
+
+.tray:not(.trayActive) .showTasks:hover {
+  background: var(--color-tint-6);
+}
+
+.tray:not(.trayActive) .showTasksOpen,
+.tray:not(.trayActive) .showTasksOpen:hover {
   background: var(--color-tint-12);
+}
+
+.tray:not(.trayActive) .showTasksSeparator {
+  background: var(--color-border-muted);
 }
 
 .trayPanelOpen:not(.trayActive) .showTasksSeparator {

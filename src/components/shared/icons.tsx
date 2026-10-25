@@ -225,6 +225,18 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
 }
 
+/** Glasses: a lens (a layout's saved screen filter); `slashed` = lifted for now. */
+export function GlassesIcon({ size = 16, slashed = false }: { size?: number; slashed?: boolean }) {
+  return (
+    <Svg size={size}>
+      <circle cx="4.5" cy="10" r="3" />
+      <circle cx="11.5" cy="10" r="3" />
+      <path d="M7.5 10h1M1.5 9.5 3.5 4h2M14.5 9.5 12.5 4h-2" />
+      {slashed && <path d="M2.5 14 13.5 3" />}
+    </Svg>
+  )
+}
+
 /** Sort lines: a list's group · sort. */
 export function SortIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3" /></Svg>

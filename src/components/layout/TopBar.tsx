@@ -26,6 +26,8 @@ import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, traySqueeze, useTopBarFold } from './use-top-bar-fold'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
+import { LensControl } from '../shared/filters/LensControl'
+import { usePickedLens } from '../../stores/screen-filter'
 import { useScreenSearch } from '../../hooks/use-screen-search'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
@@ -359,9 +361,11 @@ export function TopBar() {
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  // Show N tasks shows while a filter is on or the panel is open (it stays
-  // the panel's toggle when Clear all empties the filter).
-  const showTasksButton = isActive || panelOpen
+  // The counter shows while a chip is on or the layout has a lens (lifted
+  // too: 109 of 109), or the panel is open (it stays the panel's toggle when
+  // Clear all empties the filter).
+  const lensPicked = usePickedLens() != null
+  const showTasksButton = isActive || lensPicked || panelOpen
   // While the panel is open over folded filters, the tray expands in place
   // to show every filter button: lifted out of the bar (a slot of its folded
   // width keeps its place, so nothing else moves), from its left edge
@@ -538,6 +542,12 @@ export function TopBar() {
             )}
           </div>
 
+          {isWorkspace && (
+            <>
+              <LensControl />
+              <span className={styles.lensSeparator} aria-hidden="true" />
+            </>
+          )}
           <FilterChipBar
             predicate={filterPredicate}
             onChange={handleFilterChange}

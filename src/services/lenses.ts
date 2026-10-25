@@ -1,4 +1,8 @@
-import { findLens, layoutNamesText, layoutsUsingLens } from '../utils/lens'
+import { findLens, layoutNamesText, layoutsUsingLens, type Lens } from '../utils/lens'
+import { predicateToCriteria } from '../utils/filter-criteria'
+import { matchesFilterWithLookups } from '../utils/filter-match'
+import type { TodoNameLookups } from '../utils/filter'
+import type { ScreenCountEnv } from './task-dialog'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
@@ -9,6 +13,31 @@ import { useWorkspaceStore } from '../stores/workspace-store'
  * Lens actions that reach past the settings row: deleting a lens takes it
  * off the layouts that picked it.
  */
+
+/** What the lens picker shows beside each choice: the open tasks, and how many of them each lens hides. */
+export interface LensHideCounts {
+  open: number
+  hides: ReadonlyMap<string, number>
+}
+
+/** How many open tasks each of `lenses` hides right now (`LensHideCounts`), whatever the chips. */
+export function lensHideCounts(env: Omit<ScreenCountEnv, 'screen'>, lenses: readonly Lens[]): LensHideCounts {
+  const lookups: TodoNameLookups = {
+    assignedPeopleMap: env.assignedPeopleMap,
+    assignedTagsMap: env.assignedTagsMap,
+    statusesById: new Map(env.statuses.map((s) => [s.id!, s])),
+  }
+  const settings = { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
+  const open = env.todos.filter((t) => !t.isCompleted)
+  const hides = new Map<string, number>()
+  for (const lens of lenses) {
+    const keeps = predicateToCriteria(lens.predicate)
+    let n = 0
+    for (const t of open) if (!matchesFilterWithLookups(keeps, t, lookups, env.today, settings)) n++
+    hides.set(lens.id, n)
+  }
+  return { open: open.length, hides }
+}
 
 /** The names of the layouts that picked lens `id` (the open one as edited). */
 export function lensUserNames(id: string): string[] {
