@@ -180,6 +180,14 @@ describe('TopBar search tokens: tints, the popup, the note (D16)', () => {
     expect(input().value).toBe('')
   })
 
+  it('a paste with a token and a half-typed @ai: the chip, and the popup on @ai', () => {
+    renderBar()
+    type('overdue @ai')
+    expect(input().value).toBe('@ai')
+    expect(f().dates.deadline).toBeDefined()
+    expect(popup()).not.toBeNull()
+  })
+
   it('Esc on the popup keeps @ai as words', () => {
     renderBar()
     type('@ai')

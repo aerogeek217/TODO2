@@ -127,8 +127,9 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
     const next = changingRef.current
     changingRef.current = null
     const box = commit(next.value, next.caret)
-    if (box.taken.length > 0) dismiss()
-  }, [handleInputChange, commit, dismiss])
+    // Tokens taken from under the popup (a paste ending in `@ai`): it reads the box anew.
+    if (box.taken.length > 0) handleInputChange(box.text, box.caret, input)
+  }, [handleInputChange, commit])
 
   /** The caret may have moved (a click, ←/→, Home / End): the popup follows it into / out of a token. */
   const onCaretMove = useCallback((input: HTMLInputElement) => {
