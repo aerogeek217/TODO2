@@ -44,6 +44,7 @@ import {
   setCellCollapsed,
   setCellWeights,
   setColumnWeights,
+  setLayoutLens,
   splitCell,
   type IdGen,
   type LayoutDropTarget,
@@ -209,6 +210,14 @@ export interface WorkspaceState {
   setCellCollapsed: (panelId: string, collapsed: boolean) => Promise<void>
   /** View state of a tab (e.g. a calendar's view / offset). */
   patchTabViewState: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabViewStateOf<K>>) => Promise<void>
+  /** View state: the open layout's lens (`null` = No lens), saved at once. */
+  setLens: (lensId: string | null) => Promise<void>
+  /**
+   * View state: the lens of each layout of `layoutIds` (the open one, an
+   * unsaved new one by `UNSAVED_LAYOUT_ID`, or any other stored layout),
+   * saved at once — e.g. a deleted lens's layouts going to No lens.
+   */
+  setLayoutsLens: (layoutIds: readonly number[], lensId: string | null) => Promise<void>
 }
 
 function randomId(): string {
@@ -1014,6 +1023,26 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     patchTabViewState(tabId, kind, patch) {
       return editView((layout) => patchTabViewState(layout, tabId, kind, patch))
+    },
+
+    setLens(lensId) {
+      return editView((layout) => setLayoutLens(layout, lensId))
+    },
+
+    async setLayoutsLens(layoutIds, lensId) {
+      const ids = new Set(layoutIds)
+      const fn = (layout: Layout) => setLayoutLens(layout, lensId)
+      const { working, repairedIds } = get()
+      // The open layout (saved or new) as any view change; the others in the list and as stored.
+      const openId = working?.id
+      if (openId != null && ids.has(openId)) await editView(fn)
+      const others = get().layouts.filter((l) => ids.has(l.id) && l.id !== openId)
+      if (others.length === 0) return
+      set({ layouts: get().layouts.map((l) => (ids.has(l.id) && l.id !== openId ? fn(l) : l)) })
+      await Promise.all(others.filter((l) => !repairedIds.has(l.id)).map((l) =>
+        layoutRepository.updateView(l.id, fn).catch((err: unknown) => {
+          console.warn('[workspace] saving the view state failed', err)
+        })))
     },
   }
 })

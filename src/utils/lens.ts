@@ -1,5 +1,6 @@
 import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
 import type { Status } from '../models'
+import type { WorkspaceLayout } from '../models/workspace-layout'
 import { withNormalizedNegation } from './filter-negation'
 
 /**
@@ -53,6 +54,26 @@ export function newLensId(lenses: readonly Lens[]): string {
 /** The lens `id` names, or `undefined` (none picked, or a lens deleted since). */
 export function findLens(lenses: readonly Lens[], id: string | null | undefined): Lens | undefined {
   return id == null ? undefined : lenses.find((l) => l.id === id)
+}
+
+/**
+ * The layouts that picked lens `id`, in `layouts`' order — the open layout
+ * as edited (`open`, which may be an unsaved new one) instead of its stored
+ * copy.
+ */
+export function layoutsUsingLens<L extends Pick<WorkspaceLayout, 'name' | 'lensId'> & { id: number }>(
+  layouts: readonly L[],
+  open: L | null,
+  id: string,
+): L[] {
+  const all = open && !layouts.some((l) => l.id === open.id) ? [...layouts, open] : layouts
+  return all.map((l) => (open && l.id === open.id ? open : l)).filter((l) => l.lensId === id)
+}
+
+/** Layout names as a sentence's list: `Default`, `Default and Planning`, `A, B and C`. */
+export function layoutNamesText(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 }
 
 /** `name`, or `name 2`, `name 3`, … — the first no lens of `lenses` has (a duplicate's name). */

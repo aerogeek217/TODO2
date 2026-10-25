@@ -138,7 +138,7 @@ function buildSeed(): Seed {
       { id: 1, name: 'Empty', sortOrder: 1, columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
       {
         id: 2, name: 'Daily', sortOrder: 0,
-        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'),
+        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), lensId: 'lens-a',
         columns: [
           {
             id: 'c1', weight: 1.5, cells: [

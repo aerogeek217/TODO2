@@ -240,6 +240,11 @@ export interface WorkspaceLayout {
   modifiedAt: Date
   /** Last time the layout was opened; picks the next layout after a delete. */
   lastUsedAt?: Date
+  /**
+   * View state: the lens picked for the layout (`utils/lens`, a lens's id);
+   * absent = No lens. An id no lens has (any more) reads as No lens.
+   */
+  lensId?: string
 }
 
 export type PersistedWorkspaceLayout = WorkspaceLayout & { id: number }

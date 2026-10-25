@@ -17,6 +17,7 @@ function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}
 const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['blank name', layoutRow([], { name: '  ' }), 'name'],
   ['bad date', layoutRow([], { modifiedAt: 'nope' }), 'modifiedAt'],
+  ['lens pick not an id', layoutRow([], { lensId: 7 }), 'lensId'],
   ['columns not an array', layoutRow({}), 'columns'],
   ['column without cells', layoutRow([{ id: 'c', weight: 1, cells: [] }]), 'columns[0].cells'],
   ['zero weight', layoutRow([{ id: 'c', weight: 0, cells: [] }]), 'columns[0].weight'],
@@ -109,7 +110,7 @@ describe('layouts row validation', () => {
         { id: 'k2', weight: 0.5, tabs: [] },
       ] },
     ]
-    expect(validateRow('layouts', layoutRow(columns, { lastUsedAt: DATE }))).toBe(true)
+    expect(validateRow('layouts', layoutRow(columns, { lastUsedAt: DATE, lensId: 'lens-a' }))).toBe(true)
     expect(validateRow('layouts', layoutRow([]))).toBe(true)
   })
 
@@ -324,7 +325,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
   })
 
   it('a valid layout has nothing to fix, and its repair is the import pick', () => {
-    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, ...BANDS })
+    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, lensId: 'lens-a', ...BANDS })
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })

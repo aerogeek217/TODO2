@@ -691,6 +691,15 @@ export function setActiveTab<L extends WorkspaceLayout>(layout: L, tabId: string
   return updatePanelStrip(layout, loc.panelId, (s) => (s.activeTabId === tabId ? s : { ...s, activeTabId: tabId }))
 }
 
+/** View state: the layout's lens (`null` = No lens; the key goes). The same layout when unchanged. */
+export function setLayoutLens<L extends WorkspaceLayout>(layout: L, lensId: string | null): L {
+  if ((layout.lensId ?? null) === lensId) return layout
+  const next = { ...layout }
+  if (lensId == null) delete next.lensId
+  else next.lensId = lensId
+  return next
+}
+
 /**
  * Replaces a tab in place (e.g. "Change widget"). `next.id` must be the same
  * id or one unused in the layout; the cell's active tab follows it.
