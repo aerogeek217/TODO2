@@ -1,4 +1,5 @@
 import { flushSync } from 'react-dom'
+import { prefersReducedMotion } from '../../utils/motion'
 
 /**
  * Runs a workspace change inside a View Transition (D19): a layout switch, a
@@ -11,9 +12,8 @@ import { flushSync } from 'react-dom'
  * picture is taken once it has settled and React has rendered it.
  */
 export function withViewTransition(update: () => unknown): void {
-  const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   // Feature-detected: older engines (and JSDOM) have no `startViewTransition`.
-  if (typeof (document as Partial<Document>).startViewTransition !== 'function' || reduced) {
+  if (typeof (document as Partial<Document>).startViewTransition !== 'function' || prefersReducedMotion()) {
     void update()
     return
   }

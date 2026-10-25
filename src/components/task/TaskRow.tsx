@@ -187,15 +187,21 @@ export const TaskRow = memo(function TaskRow({
         ? <MarkerGutterStatic todo={todo} today={today} />
         : <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
-      <input
-        type="checkbox"
-        className={styles.checkbox}
-        checked={todo.isCompleted}
-        onChange={handleToggleComplete}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-        data-row-cell="checkbox"
-      />
+      <span className={styles.checkWrap}>
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={todo.isCompleted}
+          onChange={handleToggleComplete}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+          data-row-cell="checkbox"
+        />
+        {/* The check, drawn over the box: it draws itself when the task is completed (D19). */}
+        <svg className={styles.checkMark} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
+        </svg>
+      </span>
 
       {isEditing ? (
         <input
@@ -227,7 +233,7 @@ export const TaskRow = memo(function TaskRow({
             }
           }}
         >
-          {todo.title}
+          <span className={styles.titleText} data-title-text="">{todo.title}</span>
           {titleTip}
         </span>
       )}

@@ -191,7 +191,8 @@ test('Stale and Recently completed rows are task rows: select, drag out, reopen'
   // A recently completed row shows as completed; reopening it takes it out of the section.
   const recent = section(page, 'recent')
   const done = recent.locator('[data-row-todo]').filter({ hasText: 'Ship release notes' })
-  await expect(done.locator('span[data-task-title="Ship release notes"]')).toHaveCSS('text-decoration-line', 'line-through')
+  // Struck through: the strike (D19) fills the title's text.
+  await expect(done.locator('span[data-task-title="Ship release notes"] [data-title-text]')).toHaveCSS('background-size', '100% 1.5px')
   await done.getByRole('checkbox', { name: 'Mark incomplete' }).click()
   await expect(sectionCount(page, 'recent')).toHaveText('1')
   await expect(recent.locator('[data-row-todo]').filter({ hasText: 'Ship release notes' })).toHaveCount(0)

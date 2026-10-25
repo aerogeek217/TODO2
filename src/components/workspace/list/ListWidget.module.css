@@ -144,6 +144,30 @@
   box-shadow: none;
 }
 
+/*
+ * A row just completed in a list that hides completed tasks (D19): after a
+ * beat it folds to nothing (`FOLD_MS`, 180 ms), then drops out. Never under
+ * reduced motion (it leaves at once).
+ */
+.row.rowFolding {
+  display: grid;
+  grid-template-rows: 1fr;
+  pointer-events: none;
+  animation: rowFold 180ms ease-in forwards;
+}
+
+.row.rowFolding > [data-todo-id] {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes rowFold {
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
 /* Consecutive selected rows share one fill; the run's ends are rounded. */
 .rowSelected {
   background: var(--color-accent-bg-medium);

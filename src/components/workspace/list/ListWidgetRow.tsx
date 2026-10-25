@@ -4,6 +4,7 @@ import { TaskRow } from '../../task/TaskRow'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { taskDragId } from '../../../utils/task-dnd'
 import styles from './ListWidget.module.css'
+import type { LeavingPhase } from '../../../hooks/use-leaving-rows'
 import { ROW_KEY_ATTR, ROW_TODO_ATTR } from '../../../utils/dom-contract'
 
 /** Drag data of a list widget row (merged into the task drag payload). */
@@ -45,6 +46,8 @@ interface ListWidgetRowProps {
   /** The keyboard cursor sits on this row. */
   cursor: boolean
   look: ListRowDragLook
+  /** Just completed in a list that hides completed tasks: it lingers, then folds away (D19). */
+  leaving?: LeavingPhase
   onSelect: (rowKey: string, todoId: number, mods: ListRowSelectMods) => void
   onOpenDetail: (todoId: number) => void
 }
@@ -56,7 +59,7 @@ interface ListWidgetRowProps {
  */
 export const ListWidgetRow = memo(function ListWidgetRow({
   todo, assignedPeople, tabId, sectionKey, rowKey,
-  selected, selFirst, selLast, cursor, look, onSelect, onOpenDetail,
+  selected, selFirst, selLast, cursor, look, leaving, onSelect, onOpenDetail,
 }: ListWidgetRowProps) {
   const handleSelect = useCallback(
     (todoId: number, mods: ListRowSelectMods) => onSelect(rowKey, todoId, mods),
@@ -71,6 +74,7 @@ export const ListWidgetRow = memo(function ListWidgetRow({
     cursor ? styles.rowCursor : '',
     look === 'gone' ? styles.rowGone : '',
     look === 'origin' || look === 'dim' ? styles.rowFaded : '',
+    leaving === 'fold' ? styles.rowFolding : '',
   ].filter(Boolean).join(' ')
 
   return (
@@ -83,6 +87,7 @@ export const ListWidgetRow = memo(function ListWidgetRow({
           data-drag-id={taskDragId('list-widget', todo.id, { scope: tabId, sectionKey })}
           data-selected={selected ? 'true' : undefined}
           data-cursor={cursor ? 'true' : undefined}
+          data-leaving={leaving}
           {...attributes}
           {...listeners}
           // Shift / Ctrl-click selects rows; don't let it select text too.

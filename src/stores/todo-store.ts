@@ -433,6 +433,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
         // advance a recurring task, or re-complete with a fresh time).
         redo: () => writeCompletion(id, completed, completedAt),
         undo: () => writeCompletion(id, todo.isCompleted, todo.completedAt),
+        // Every completion offers its undo (D19: the row may fold out of
+        // its list); reopening a task stays quiet.
+        showSnackbar: completed,
       },
     )
   },

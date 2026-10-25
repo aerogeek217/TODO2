@@ -126,16 +126,33 @@
   100% { transform: scale(1); }
 }
 
-.checkbox:checked::after {
-  content: '✓';
+/* The checkbox and its check (D19): an inline SVG over the box whose stroke
+   draws itself (dashoffset 1 → 0, 160 ms) when the box is ticked, with the
+   pop; unticked, it is gone at once. */
+.checkWrap {
+  position: relative;
+  display: flex;
+}
+
+.checkMark {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 10px;
-  font-weight: bold;
-  color: var(--color-text-on-accent);
-  line-height: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--color-text-on-accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  pointer-events: none;
+}
+
+.checkbox:checked + .checkMark {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 160ms ease-out;
+  animation: checkPop 0.2s ease;
 }
 
 .statusMenu {
@@ -193,9 +210,19 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* The strike (D19): a line under the text's middle that sweeps across it
+   (220 ms) when the task is completed; at once when it loads completed. */
+.titleText {
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 58% / 0 1.5px;
+}
+
 .title.completedTitle {
-  text-decoration: line-through;
   color: var(--color-text-completed);
+}
+
+.completedTitle .titleText {
+  background-size: 100% 1.5px;
+  transition: background-size 220ms ease-out;
 }
 
 .titleInput {

@@ -4,6 +4,8 @@ import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
+import { useLeavingRows } from '../../../hooks/use-leaving-rows'
+import { useTodoStore } from '../../../stores/todo-store'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
@@ -152,10 +154,21 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
 
-  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates } = useBuiltList(
+  // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
+  const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
+  const leaving = useLeavingRows((id) => shownIdsRef.current.has(id))
+  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept } = useBuiltList(
     definition,
     picks,
     screenActive ? screen : undefined,
+    isMobile ? undefined : leaving,
+  )
+  useEffect(() => { shownIdsRef.current = new Set(list?.todos.map((t) => t.id)) })
+  // A kept row is built as it was (open); it shows as it is now (completed).
+  const allTodos = useTodoStore((s) => s.todos)
+  const keptTodos = useMemo(
+    () => (kept.size > 0 ? new Map(allTodos.filter((t) => kept.has(t.id)).map((t) => [t.id, t])) : null),
+    [kept, allTodos],
   )
 
   const sections = list?.sections ?? EMPTY_SECTIONS
@@ -294,7 +307,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         )
       }
     }
-    section.todos.forEach((todo, i) => {
+    section.todos.forEach((built, i) => {
+      const todo = keptTodos?.get(built.id) ?? built
       const key = rowKey(section.key, todo.id)
       if (drag?.source.key !== key) {
         if (target?.index === j) indicator()
@@ -320,6 +334,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           selLast={!(next && selectedIds.has(next.id))}
           cursor={cursorKey === key}
           look={rowLook(drag, key, manual)}
+          leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id) : undefined}
           onSelect={onRowSelect}
           onOpenDetail={openEditPopup}
         />,

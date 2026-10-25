@@ -134,7 +134,7 @@ describe('TaskRow', () => {
 
   describe('hot title', () => {
     it('a hot task (the Settings rule) has its title marked hot; a completed or non-hot one not', () => {
-      const title = () => screen.getByText('Task 1')
+      const title = () => screen.getByText('Task 1').closest('[data-task-title]')
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, urgent: true, important: true })} />)
       expect(title()).toHaveAttribute('data-hot', 'true')
       unmount()

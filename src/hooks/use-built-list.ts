@@ -39,10 +39,16 @@ export interface BuiltList {
    * open tasks against. Computed on call.
    */
   countOpenBase: () => number
+  /**
+   * Of the `leaving` tasks, the ones kept in place (as they were before they
+   * were completed) because the list would otherwise drop them now.
+   */
+  kept: ReadonlySet<number>
 }
 
 const NO_CANDIDATES = (): PersistedTodoItem[] => []
 const NO_COUNT = (): number => 0
+const NO_IDS: ReadonlySet<number> = new Set()
 
 const NO_BUILT: BuiltList = {
   list: null,
@@ -51,6 +57,7 @@ const NO_BUILT: BuiltList = {
   mergedPredicate: null,
   orderCandidates: NO_CANDIDATES,
   countOpenBase: NO_COUNT,
+  kept: NO_IDS,
 }
 
 /**
@@ -62,11 +69,17 @@ const NO_BUILT: BuiltList = {
  *
  * `runtimeFilterValue` undefined on a list with a prompt = nothing picked
  * yet; an empty array = no narrowing.
+ *
+ * `leaving` (D19, `useLeavingRows`): tasks just completed that this list
+ * showed. Where the list would drop one now, it is built as it was before
+ * the completion (open), so its row keeps its place until it has folded
+ * away; `kept` names those.
  */
 export function useBuiltList(
   definition: PersistedListDefinition | undefined,
   runtimeFilterValue: number[] | undefined,
   screenFilter?: FilterCriteria,
+  leaving?: ReadonlyMap<number, unknown>,
 ): BuiltList {
   const statuses = useStatusStore((s) => s.statuses)
   const todos = useTodoStore((s) => s.todos)
@@ -109,7 +122,7 @@ export function useBuiltList(
     }
     const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
     const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today, markerSettings) : listOnly
-    const list = buildList(definition, todos, {
+    const build = (from: readonly PersistedTodoItem[]) => buildList(definition, from, {
       today,
       weekStartsOn,
       evalPredicate,
@@ -122,6 +135,16 @@ export function useBuiltList(
       urgentRange: markerSettings.urgentRange,
       hotRule: markerSettings.hotRule,
     })
+    let list = build(todos)
+    let kept: ReadonlySet<number> = NO_IDS
+    if (leaving && leaving.size > 0) {
+      const shown = new Set(list.todos.map((t) => t.id))
+      const dropped = new Set([...leaving.keys()].filter((id) => !shown.has(id)))
+      if (dropped.size > 0) {
+        list = build(todos.map((t) => (dropped.has(t.id) && t.isCompleted ? { ...t, isCompleted: false, completedAt: undefined } : t)))
+        kept = dropped
+      }
+    }
     const baseCount = screenFilter && mergedPredicate
       ? countMatching(todos, (t) => listOnly(mergedPredicate, t))
       : list.todos.length
@@ -131,10 +154,10 @@ export function useBuiltList(
       return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
     }
     const countOpenBase = () => (mergedPredicate ? countMatching(todos, (t) => !t.isCompleted && listOnly(mergedPredicate, t)) : 0)
-    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase }
+    return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase, kept }
   }, [
     definition, todos, people, assignedPeopleMap,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving,
   ])
 }
 
