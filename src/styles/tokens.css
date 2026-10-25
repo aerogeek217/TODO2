@@ -86,7 +86,9 @@
   /* Transitions */
   --transition-fast: 120ms ease;
   --transition-medium: 200ms ease;
-  --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --spring-duration: 220ms;
+  --spring-easing: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --transition-spring: var(--spring-duration) var(--spring-easing);
 
   /* The phone breakpoint is 640px. CSS @media queries cannot read custom
      properties, so the literal is written in each `@media (max-width:
@@ -603,6 +605,18 @@ select optgroup {
   color: var(--color-text-primary);
 }
 
+/*
+ * View transitions (D19, `shared/view-transition`): a layout switch, a tab
+ * change, a group collapse — named cells and groups slide and resize, the
+ * rest crossfades, on the spring curve.
+ */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--spring-duration);
+  animation-timing-function: var(--spring-easing);
+}
+
 /* Reduced motion: every animation and transition finishes at once (1 ms, so
  * `animationend` / `transitionend` still fire) and a spinner turns once. An
  * animation that times something the user reads (the recent-task pill)
@@ -616,5 +630,12 @@ select optgroup {
     transition-duration: 1ms !important;
     transition-delay: 0s !important;
     scroll-behavior: auto !important;
+  }
+
+  /* No view transition runs (the helper checks too): a plain swap. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

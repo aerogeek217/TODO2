@@ -51,6 +51,7 @@ import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
 import { trackScrollEdges } from '../../utils/scroll-edges'
+import { transitionName, withViewTransition } from '../shared/view-transition'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -335,7 +336,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   return (
     <section
       className={`${styles.cell} ${collapsed ? styles.collapsed : ''} ${isDragSource ? styles.dragSource : ''}`}
-      style={style}
+      style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
       data-ws-band={band}
       aria-label={`${activeTitle} ${noun}`}
@@ -350,8 +351,10 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           activeCount={activeCount}
           ghosts={ghosts}
           onActivate={(tabId) => {
-            void setActiveTab(tabId)
-            if (collapsed) void setCellCollapsed(cell.id, false)
+            withViewTransition(() => {
+              void setActiveTab(tabId)
+              if (collapsed) void setCellCollapsed(cell.id, false)
+            })
           }}
           onClose={closeTabGuarded}
           onOpenTabMenu={(tabId, p) => setTabMenu({ tabId, ...p })}

@@ -59,6 +59,7 @@ import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { transitionName, withViewTransition } from '../../shared/view-transition'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -379,7 +380,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             type="button"
             className={`${styles.groupHeader} ${person && !drag ? styles.groupHeaderWithAction : ''}`}
             aria-expanded={!isCollapsed}
-            onClick={() => toggleGroup(tab.id, section.key)}
+            onClick={() => withViewTransition(() => toggleGroup(tab.id, section.key))}
           >
             <span className={styles.groupChevron}><ChevronDownIcon /></span>
             <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
@@ -395,6 +396,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             key={section.key}
             className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
             data-list-group={section.key}
+            style={isMobile ? undefined : { viewTransitionName: transitionName('ws-group', tab.id, section.key) }}
             {...{ [LIST_SECTION_ATTR]: section.key }}
           >
             {isMobile ? header : (

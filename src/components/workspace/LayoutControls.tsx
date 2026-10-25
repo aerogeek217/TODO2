@@ -10,6 +10,7 @@ import { LayoutTabs } from './LayoutTabs'
 import { UnsavedPrompt } from './UnsavedPrompt'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, HuedLayoutIcon, PencilIcon, PlusIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
+import { withViewTransition } from '../shared/view-transition'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
 export type LayoutControlsMode = 'tabs' | 'menu'
@@ -65,7 +66,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const switchTo = (id: number, targetName: string) => {
     if (id === activeLayoutId) return
     if (unsaved) setPending({ kind: 'switch', id, name: targetName })
-    else void store().load(id)
+    else withViewTransition(() => store().load(id))
   }
   const create = (layoutName: string) => { void store().createLayout(layoutName) }
   // A kept new layout's Save asks for its name (Save as, under it).
@@ -214,7 +215,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           layoutLead={`You’re switching to “${pending.name}”.`}
           layout={isDirty}
           listIds={unsavedLists}
-          onDone={() => { close(); void store().load(pending.id) }}
+          onDone={() => { close(); withViewTransition(() => store().load(pending.id)) }}
           onCancel={close}
         />
       )}

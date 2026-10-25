@@ -32,6 +32,7 @@ import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
 import { screenTaskDialog } from '../../services/task-dialog'
 import { shownOfTotalText } from '../shared/filters/lens-text'
 import styles from './MobileWorkspaceView.module.css'
+import { withViewTransition } from '../shared/view-transition'
 
 /** Gap between columns in the pager (px). */
 const PAGER_GAP_PX = 8
@@ -82,7 +83,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
     if (id === activeLayoutId) { onClose(); return }
     // Unsaved changes can only come from a wider screen in this session; still never lose them silently.
     if (useWorkspaceStore.getState().isDirty || unsavedLists.length > 0) { setPending({ id, name }); return }
-    void useWorkspaceStore.getState().load(id)
+    withViewTransition(() => useWorkspaceStore.getState().load(id))
     onClose()
   }
 
@@ -133,7 +134,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
             const { id } = pending
             setPending(null)
             onClose()
-            void useWorkspaceStore.getState().load(id)
+            withViewTransition(() => useWorkspaceStore.getState().load(id))
           }}
           onCancel={() => setPending(null)}
         />
@@ -388,8 +389,10 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
             if (tab?.kind === 'eisenhower') setEisenhowerSheet(tabId)
           }}
           onActivate={(tabId) => {
-            void setActiveTab(tabId)
-            if (collapsed) void setCellCollapsed(cell.id, false)
+            withViewTransition(() => {
+              void setActiveTab(tabId)
+              if (collapsed) void setCellCollapsed(cell.id, false)
+            })
           }}
         />
         {collapsed ? (
