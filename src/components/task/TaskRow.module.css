@@ -42,6 +42,14 @@
   background: transparent;
 }
 
+/*
+ * Ember (D19): a hot task (P1's flag on its title) glows faintly from the
+ * left edge. Before the hover and synced-hover fills, which paint over it.
+ */
+.row:has(> [data-hot]) {
+  background: radial-gradient(60px 28px at 0 50%, color-mix(in srgb, var(--color-danger) var(--ember-strength), transparent), transparent);
+}
+
 .row:active {
   cursor: grabbing;
 }

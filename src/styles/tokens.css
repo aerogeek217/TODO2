@@ -159,6 +159,8 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* A hot row's ember: the danger colour at this strength at its left edge. */
+  --ember-strength: 11%;
 
   /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
   --eis-do-bg: rgba(238, 125, 119, 0.075);
@@ -338,6 +340,7 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  --ember-strength: 7%;
 
   /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
   --eis-do-bg: rgba(196, 60, 53, 0.06);
