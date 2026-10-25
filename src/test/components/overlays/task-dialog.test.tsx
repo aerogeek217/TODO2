@@ -255,6 +255,42 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
     expect(useUIStore.getState().taskDialog).toBeNull()
   })
 
+  it('its search takes tokens (D16): @name makes a People chip, the words stay the text search', async () => {
+    open(screenTaskDialog())
+    const search = within(bar()).getByRole('textbox', { name: 'Search tasks' }) as HTMLInputElement
+    const type = (value: string) => fireEvent.change(search, { target: { value, selectionStart: value.length, selectionEnd: value.length } })
+    act(() => search.focus())
+    type('forecast @pri')
+    // The popup under the bar, inside the dialog.
+    const popup = bar().querySelector<HTMLElement>('[data-nlp-popup]')
+    expect(popup).not.toBeNull()
+    fireEvent.mouseDown(within(popup!).getByRole('option', { name: '@Priya Nair' }), { button: 0 })
+    expect(useFilterStore.getState().filters.personIds).toEqual(new Set([PRIYA]))
+    expect(search.value).toBe('forecast ')
+    await vi.waitFor(() => expect(useFilterStore.getState().filters.searchText).toBe('forecast'))
+    expect(rowTitles()).toEqual(['Q4 forecast'])
+    expect(within(bar()).getByRole('button', { name: 'Filters, 1 active' })).toBeTruthy()
+    // An unknown name stays words, with a note.
+    type('forecast @nobody ')
+    expect(within(bar()).getByRole('status')).toHaveTextContent('No person named nobody — searching the words instead')
+    // Backspace in the empty box takes the last chip back as its token.
+    type('')
+    fireEvent.keyDown(search, { key: 'Backspace' })
+    expect(search.value).toBe('@"Priya Nair"')
+    expect(useFilterStore.getState().filters.personIds).toBeNull()
+  })
+
+  it('Esc on the popup closes the popup only, not the dialog', () => {
+    open(screenTaskDialog())
+    const search = within(bar()).getByRole('textbox', { name: 'Search tasks' }) as HTMLInputElement
+    act(() => search.focus())
+    fireEvent.change(search, { target: { value: '@pri', selectionStart: 4, selectionEnd: 4 } })
+    expect(bar().querySelector('[data-nlp-popup]')).not.toBeNull()
+    fireEvent.keyDown(search, { key: 'Escape' })
+    expect(bar().querySelector('[data-nlp-popup]')).toBeNull()
+    expect(useUIStore.getState().taskDialog).not.toBeNull()
+  })
+
   it('sorted and grouped by Settings’ new-list defaults', () => {
     useSettingsStore.setState({ newListSort: 'name', newListSortDirection: 'asc', newListGroup: 'status' })
     useFilterStore.getState().setPersonIds(new Set([PRIYA]))

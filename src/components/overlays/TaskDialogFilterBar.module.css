@@ -117,3 +117,54 @@
   max-height: 45vh;
   overflow-y: auto;
 }
+
+/* The input's own text is transparent: its mirror (the token tints) lies
+ * over it in the same font and padding. */
+.searchInput {
+  color: transparent;
+  caret-color: var(--color-text-primary);
+}
+
+.searchInput::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.searchMirror {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 28px 0 29px;
+  font-size: 16px;
+  font-family: inherit;
+  white-space: pre;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+/* The `@ # /` popup under the bar's first line: full width, finger-sized rows. */
+.popup {
+  flex: 1 0 100%;
+  width: auto;
+  max-width: none;
+}
+
+.popup [role="option"] {
+  min-height: 44px;
+}
+
+/* A name the search matched nobody to. */
+.searchNote {
+  flex: 1 0 100%;
+  margin: 0 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.searchNote b {
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
