@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useMemo, forwardRef, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useMemo, forwardRef, useLayoutEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
 import { useFilterStore } from '../../stores/filter-store'
@@ -29,7 +30,10 @@ import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { LensControl } from '../shared/filters/LensControl'
 import { usePickedLens, useScreenFilter } from '../../stores/screen-filter'
 import { matchesFilterWithLookups } from '../../utils/filter-match'
-import { useSearchBox } from '../../hooks/use-search-box'
+import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
+import { useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
+import { NlpPopup } from '../shared/NlpPopup'
+import { TintedText } from '../shared/TintedText'
 import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
@@ -45,6 +49,8 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   tag: 'Tags',
 }
 const MAX_GROUP_PREVIEW = 5
+/** Keys that move the search box's caret (the `@ # /` popup follows it). */
+const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End'])
 
 /**
  * The most layouts shown as tabs: more than a bar can hold anyway, so past
@@ -218,12 +224,14 @@ const NO_TAGS_MAP = new Map<number, Tag[]>()
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
   query: string
+  /** The box's note for a name matching nobody, above the results. */
+  note?: ReactNode
   pillCtx: SearchResultPillContext
   searchInputRef: React.RefObject<HTMLInputElement | null>
   onOpen: (todoId: number) => void
   onBlur: (e: React.FocusEvent<HTMLDivElement>) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
-}>(function SearchResultsGroups({ groups, query, pillCtx, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
+}>(function SearchResultsGroups({ groups, query, note, pillCtx, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
   // "Show all" expansions belong to the query they were made under; a new
   // query starts collapsed. Derived from the stored query instead of reset in
   // an effect.
@@ -264,6 +272,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
       tabIndex={-1}
       onBlur={onBlur}
     >
+      {note}
       {SEARCH_FIELD_ORDER.map(field => {
         const items = groups[field]
         if (items.length === 0) return null
@@ -362,7 +371,33 @@ export function TopBar() {
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
     : 0
-  const showMiniList = !panelOpen && searchFocused && searchWords.length > 0 && !!miniListGroups && totalMatchCount > 0
+  // The `@ # /` popup under the box (Quick Add's): the results wait while it shows.
+  const popupOpen = box.ac.state.visible && box.ac.state.view !== null
+  const dismissPopup = box.ac.dismiss
+  const popup = useNlpPopupAnchor(searchInputRef, box.ac.state)
+  const showMiniList = !panelOpen && !popupOpen && searchFocused && searchWords.length > 0 && !!miniListGroups && totalMatchCount > 0
+  // A name the search matched nobody to: a line under the box, while it has the focus.
+  const unmatchedNotes = searchFocused && !popupOpen && box.unmatched.length > 0
+    ? (
+      <div className={styles.searchNote} role="status">
+        {box.unmatched.map((n) => {
+          const note = unmatchedNote(n)
+          return (
+            <div key={`${n.kind}-${n.start}`}>
+              {note.lead}<b>{note.name}</b>{note.rest} · <span className={styles.searchNoteHint}>{note.hint}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+    : null
+
+  // Keep the tint mirror scrolled with the input's text.
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  const syncMirror = useCallback(() => {
+    if (mirrorRef.current && searchInputRef.current) mirrorRef.current.scrollLeft = searchInputRef.current.scrollLeft
+  }, [])
+  useLayoutEffect(() => { syncMirror() }, [box.text, syncMirror])
 
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
@@ -493,11 +528,18 @@ export function TopBar() {
               placeholder="Search…"
               aria-label="Search tasks"
               value={box.text}
-              onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+              onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}
+              onSelect={syncMirror}
+              onMouseUp={(e) => box.onCaretMove(e.currentTarget)}
+              onKeyUp={(e) => {
+                if (CARET_KEYS.has(e.key)) box.onCaretMove(e.currentTarget)
+              }}
+              onScroll={syncMirror}
               aria-controls="search-results"
-              aria-expanded={showMiniList}
+              aria-expanded={showMiniList || popupOpen}
               onFocus={() => setSearchFocused(true)}
               onBlur={(e) => {
+                dismissPopup()
                 if (miniListRef.current?.contains(e.relatedTarget as Node)) return
                 // Right-click on a search row opens a context menu that autoFocuses
                 // its first item; preserve the listbox so the menu's actions can
@@ -506,9 +548,11 @@ export function TopBar() {
                 setSearchFocused(false)
               }}
               onKeyDown={(e) => {
-                // ⏎ makes every token a chip; Backspace in the empty box takes the last one back.
+                // The `@ # /` popup's keys; ⏎ makes every token a chip;
+                // Backspace in the empty box takes the last one back.
                 if (box.onKeyDown(e)) {
                   e.preventDefault()
+                  e.stopPropagation()
                   return
                 }
                 if (e.key === 'Escape' && panelOpen) {
@@ -528,8 +572,13 @@ export function TopBar() {
                   first?.focus()
                 }
               }}
+              spellCheck={false}
               {...{ [SEARCH_INPUT_ATTR]: '' }}
             />
+            {/* The box's text with its token tints, over the input's transparent text. */}
+            <div ref={mirrorRef} className={styles.searchMirror} aria-hidden="true" data-testid="search-mirror">
+              <TintedText text={box.text} spans={box.tints} />
+            </div>
             {box.text && (
               // Like `ClearableField`'s ×, a mouse target only (it acts on
               // mousedown); from the keyboard, Esc in the field clears it.
@@ -543,11 +592,12 @@ export function TopBar() {
                 <CloseIcon size={8} />
               </button>
             )}
-            {showMiniList && miniListGroups && (
+            {showMiniList && miniListGroups ? (
               <SearchResultsGroups
                 ref={miniListRef}
                 groups={miniListGroups}
                 query={searchWords}
+                note={unmatchedNotes}
                 pillCtx={searchPillCtx}
                 searchInputRef={searchInputRef}
                 onOpen={handleOpenTodo}
@@ -559,6 +609,8 @@ export function TopBar() {
                   }
                 }}
               />
+            ) : unmatchedNotes && (
+              <div className={styles.searchNotePopover}>{unmatchedNotes}</div>
             )}
           </div>
 
@@ -614,6 +666,19 @@ export function TopBar() {
         )}
       </header>
       {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} trayLeft={expansion?.left} />}
+      {popupOpen && box.ac.state.view && createPortal(
+        <NlpPopup
+          view={box.ac.state.view}
+          selectedIndex={box.ac.state.selectedIndex}
+          onPick={(row) => box.ac.select(row, searchInputRef.current)}
+          onHighlight={box.ac.highlight}
+          popupRef={popup.setPopupEl}
+          className={styles.nlpPopup}
+          style={popup.style}
+          entityMenu={{ keyTarget: () => searchInputRef.current }}
+        />,
+        document.body,
+      )}
     </>
   )
 }

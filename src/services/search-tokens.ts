@@ -73,9 +73,6 @@ export interface SearchParse {
   errors: { start: number; end: number }[]
 }
 
-/** A token kept as words (Esc on its popup): where it starts, as typed. */
-export interface KeptToken { start: number; raw: string }
-
 const FOLLOWUP_WORDS = new Set(['followup', 'follow-up'])
 const MAX_PHRASE_WORDS = 4
 
@@ -113,9 +110,9 @@ function statusArgument(raw: string): string {
 
 /**
  * The tokens and kept names of `text`. `kept`: `@` / `#` tokens Esc kept as
- * words (matched by where they start and their text).
+ * words (on their popup), as typed (`@ai`), wherever they are.
  */
-export function parseSearch(text: string, sources: SearchSources, kept: readonly KeptToken[] = []): SearchParse {
+export function parseSearch(text: string, sources: SearchSources, kept: readonly string[] = []): SearchParse {
   const { people, tags, statuses, today } = sources
   const parsed = parseInput(text, today)
   const tokens: SearchToken[] = []
@@ -131,7 +128,7 @@ export function parseSearch(text: string, sources: SearchSources, kept: readonly
     else errors.push({ start: span.start, end: span.end })
   }
   const name = (t: ParsedToken, kind: 'person' | 'tag') => {
-    const isKept = kept.some((k) => k.start === t.start && k.raw === t.raw)
+    const isKept = kept.includes(t.raw)
     const id = isKept ? undefined : (kind === 'person' ? matchPerson(t.value, people) : matchTag(t.value, tags))?.id
     if (id !== undefined) push(t, { field: kind === 'person' ? 'personIds' : 'tags', id })
     else names.push({ kind, name: t.value, start: t.start, end: t.end, unmatched: !isKept, complete: complete(t.end) })

@@ -136,3 +136,81 @@ describe('TopBar search tokens (D16)', () => {
     expect(f().searchText).toBe('nobody report')
   })
 })
+
+describe('TopBar search tokens: tints, the popup, the note (D16)', () => {
+  beforeEach(() => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Report' })] })
+    usePersonStore.setState({
+      people: [makePerson({ id: 1, name: 'Aisha Rahman' }), makePerson({ id: 2, name: 'Kai Nakamura' })],
+      assignedPeopleMap: new Map(),
+    })
+    useStatusStore.setState({ statuses: [] })
+    useTagStore.setState({ tags: [northwind], assignedTagsMap: new Map() })
+  })
+
+  afterEach(cleanup)
+
+  const popup = () => document.querySelector<HTMLElement>('[data-nlp-popup]')
+  const mirror = () => screen.getByTestId('search-mirror')
+
+  it('@ai opens the people popup under the box, without a Create row', () => {
+    renderBar()
+    type('@ai')
+    const list = popup()
+    expect(list).not.toBeNull()
+    expect(within(list!).getAllByRole('option').map((o) => o.textContent)).toEqual(['@Aisha Rahman', '@Kai Nakamura'])
+    expect(within(list!).queryByText(/Create/)).toBeNull()
+    expect(mirror().querySelector('[data-tint="chip"]')?.textContent).toBe('@ai')
+  })
+
+  it('⏎ on the popup makes the highlighted person the People chip', () => {
+    renderBar()
+    type('@ai')
+    fireEvent.keyDown(input(), { key: 'Enter' })
+    expect(f().personIds).toEqual(new Set([1]))
+    expect(input().value).toBe('')
+    expect(popup()).toBeNull()
+  })
+
+  it('a space after @ai completes it to the highlighted person', () => {
+    renderBar()
+    type('@ai')
+    type('@ai ')
+    expect(f().personIds).toEqual(new Set([1]))
+    expect(input().value).toBe('')
+  })
+
+  it('Esc on the popup keeps @ai as words', () => {
+    renderBar()
+    type('@ai')
+    fireEvent.keyDown(input(), { key: 'Escape' })
+    expect(popup()).toBeNull()
+    expect(input().value).toBe('@ai')
+    type('@ai x')
+    expect(f().personIds).toBeNull()
+    expect(input().value).toBe('@ai x')
+  })
+
+  it('an unknown @name: the "new" ring and the one-line note', () => {
+    renderBar()
+    type('@nobody report')
+    expect(mirror().querySelector('[data-tint="new"]')?.textContent).toBe('@nobody')
+    expect(screen.getByRole('status')).toHaveTextContent('No person named nobody — searching the words instead · Tab to the People chip to pick someone')
+  })
+
+  it('tokens tint by what they set', () => {
+    renderBar()
+    type('budget overdue')
+    expect(mirror().querySelector('[data-tint="due"]')?.textContent).toBe('overdue')
+  })
+
+  it('Backspace puts an @ chip back with its popup', () => {
+    renderBar()
+    type('@aisha ')
+    expect(f().personIds).toEqual(new Set([1]))
+    fireEvent.keyDown(input(), { key: 'Backspace' })
+    expect(input().value).toBe('@aisha')
+    expect(f().personIds).toBeNull()
+    expect(popup()).not.toBeNull()
+  })
+})

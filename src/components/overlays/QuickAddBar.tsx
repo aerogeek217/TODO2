@@ -52,7 +52,7 @@ import {
 } from '../../services/nlp-chip-edit'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { usePopoverAnchor, type PopoverAnchor } from '../../hooks/use-popover-anchor'
+import { useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
 import { usePersonStore } from '../../stores/person-store'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -60,7 +60,8 @@ import { useTagStore } from '../../stores/tag-store'
 import { parseInput, type CommandProblem } from '../../services/natural-language-parser'
 import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
 import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-commands'
-import { tokenTints, type TintSpan } from '../../services/nlp-token-tints'
+import { tokenTints } from '../../services/nlp-token-tints'
+import { TintedText } from '../shared/TintedText'
 import { formatFollowupDate, formatFollowupDay } from '../../utils/followup'
 import { startOfToday } from '../../utils/date'
 import { MARKER_LABELS } from '../../utils/markers'
@@ -74,9 +75,6 @@ import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
-
-const POPUP_GAP_PX = 4
-const POPUP_WIDTH_PX = 280
 
 /** Each marker chip's tint (`data-tint`). */
 const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'accent', urgent: 'urgent', important: 'followup' }
@@ -340,21 +338,6 @@ function problemLine(p: CommandProblem): { label: string; explain: string; error
   }
 }
 
-/** The field's text with tinted token spans (the mirror behind the input). */
-function TintedText({ text, spans }: { text: string; spans: TintSpan[] }) {
-  const out: React.ReactNode[] = []
-  let at = 0
-  for (const s of spans) {
-    if (s.start < at || s.end > text.length) continue
-    if (s.start > at) out.push(text.slice(at, s.start))
-    out.push(<span key={s.start} className={styles.tint} data-tint={s.tint}>{text.slice(s.start, s.end)}</span>)
-    at = s.end
-  }
-  out.push(text.slice(at))
-  // A trailing space would collapse; keep the mirror as wide as the input text.
-  return <>{out}{'​'}</>
-}
-
 // ─── Pipeline ─────────────────────────────────────────────────────
 
 const EMPTY_PARSED: ParsedTokens = {
@@ -417,26 +400,6 @@ function runParse(
     input: parsedInput,
   }
 }
-
-/**
- * The autocomplete popup's anchor: the input's box from the caret column to
- * its right edge, in the viewport. `usePopoverAnchor` puts the popup below it
- * at the caret, above it when it would clip the bottom edge, and ends it at
- * the input's right edge when it would clip the right one. Null until the
- * input is mounted.
- */
-function measurePopupAnchor(input: HTMLInputElement | null, caretLeft: number): PopupAnchorRect | null {
-  if (!input) return null
-  const r = input.getBoundingClientRect()
-  return { left: r.left + caretLeft, top: r.top, right: r.right, bottom: r.bottom }
-}
-
-interface PopupAnchorRect { left: number; top: number; right: number; bottom: number }
-
-const sameRect = (a: PopupAnchorRect | null, b: PopupAnchorRect | null) =>
-  a === b || (!!a && !!b && a.left === b.left && a.top === b.top && a.right === b.right && a.bottom === b.bottom)
-
-const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 // ─── Component ────────────────────────────────────────────────────
 
@@ -577,13 +540,8 @@ export function QuickAddBar({
   }, [])
   useLayoutEffect(() => { syncMirror() }, [raw, syncMirror])
 
-  // Popup placement — `usePopoverAnchor` against the input's box from the
-  // caret column (`measurePopupAnchor`), portal'd to body. The rect is static
-  // to the hook, so it is re-measured here on scroll (capture) and resize
-  // while the popup is visible; the hook re-places on the popup's own size
-  // changes.
-  const [popupAnchor, setPopupAnchor] = useState<PopupAnchorRect | null>(null)
-  const popupRef = useRef<HTMLDivElement | null>(null)
+  // Popup placement (`useNlpPopupAnchor`), portal'd to body.
+  const { popupRef, setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state)
 
   // A press outside the bar and its backdrop (the backdrop closes on its own
   // click) closes the bar. The backdrop covers the page, so this is only
@@ -602,45 +560,7 @@ export function QuickAddBar({
     }
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
-  }, [open, onClose])
-
-  const measureAnchor = useCallback(() => {
-    const next = measurePopupAnchor(inputRef.current, ac.state.caretLeft)
-    setPopupAnchor((prev) => (sameRect(prev, next) ? prev : next))
-  }, [ac.state.caretLeft])
-
-  useLayoutEffect(() => {
-    if (!ac.state.visible) return
-    measureAnchor()
-  }, [ac.state.visible, measureAnchor])
-
-  useEffect(() => {
-    if (!ac.state.visible) return
-    window.addEventListener('scroll', measureAnchor, true)
-    window.addEventListener('resize', measureAnchor)
-    return () => {
-      window.removeEventListener('scroll', measureAnchor, true)
-      window.removeEventListener('resize', measureAnchor)
-    }
-  }, [ac.state.visible, measureAnchor])
-
-  // Keys belong to the input (`useNlpAutocomplete`); the bar's own
-  // outside-click handler above covers the popup.
-  const { panelRef: popupPanelRef, style: popupStyle } = usePopoverAnchor({
-    anchor: popupAnchor ? { kind: 'rect', ...popupAnchor } : OFFSCREEN,
-    open: ac.state.visible,
-    offset: POPUP_GAP_PX,
-    closeOnScroll: false,
-    closeOnResize: false,
-    closeOnEscape: false,
-    closeOnOutsideClick: false,
-    observeSize: true,
-    onClose: () => {},
-  })
-  const setPopupEl = useCallback((el: HTMLDivElement | null) => {
-    popupRef.current = el
-    popupPanelRef(el)
-  }, [popupPanelRef])
+  }, [open, onClose, popupRef])
 
   /** A chip's ×: edit the text (and drop a preset marker), keeping the caret in the field. */
   const onRemoveChip = (chip: ChipRemoval) => {
@@ -875,7 +795,7 @@ export function QuickAddBar({
               onHighlight={ac.highlight}
               popupRef={setPopupEl}
               className={styles.popup}
-              style={{ top: popupStyle.top, left: popupStyle.left, width: POPUP_WIDTH_PX }}
+              style={popupStyle}
               entityMenu={{ keyTarget: () => inputRef.current }}
             />
           </DialogLayerContext.Provider>,

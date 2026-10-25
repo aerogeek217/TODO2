@@ -168,7 +168,7 @@ describe('search-tokens: completion and the box', () => {
   })
 
   it('a token Esc kept as words is not a chip, and not "new"', () => {
-    const p = parseSearch('@ai ', sources, [{ start: 0, raw: '@ai' }])
+    const p = parseSearch('@ai ', sources, ['@ai'])
     expect(p.tokens).toEqual([])
     expect(p.names).toEqual([expect.objectContaining({ name: 'ai', unmatched: false })])
     expect(searchTints(p)).toEqual([])

@@ -52,6 +52,8 @@ interface UseNlpAutocompleteOptions {
   onApply: (value: string, cursor: number) => void
   /** A picked create row: makes the person / tag (default: the stores, `services/nlp-create`). */
   onCreate?: (trigger: '@' | '#', name: string) => Promise<void>
+  /** What the popup lists (default `computeAutocomplete`; the search box: `services/search-tokens.searchAutocomplete`). */
+  compute?: typeof computeAutocomplete
 }
 
 /** The text-measuring context, made once (`null` where there is no canvas); `undefined` = not made yet. */
@@ -91,7 +93,7 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * highlighted person / tag when that is an exact, initials or prefix match (`implicitAccept`).
  */
 export function useNlpAutocomplete({
-  people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply, onCreate = createNlpEntity,
+  people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply, onCreate = createNlpEntity, compute = computeAutocomplete,
 }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   /** The text the popup was last computed for (re-read when the candidates change). */
@@ -112,7 +114,7 @@ export function useNlpAutocomplete({
     const open = stateRef.current
     let value = typedValue
     let cursor = typedCursor
-    let view = computeAutocomplete(value, cursor, sources)
+    let view = compute(value, cursor, sources)
     // Typed on past an `@` / `#` token without picking: the highlighted person / tag.
     if (prev && open.visible && open.view) {
       const done = implicitAccept({ value: prev.value, view: open.view, index: open.selectedIndex }, value, cursor, view)
@@ -120,7 +122,7 @@ export function useNlpAutocomplete({
         value = done.value
         cursor = done.cursor
         onApplyRef.current(value, cursor)
-        view = computeAutocomplete(value, cursor, sources)
+        view = compute(value, cursor, sources)
       }
     }
     lastInputRef.current = { value, cursor, input }
@@ -139,7 +141,7 @@ export function useNlpAutocomplete({
         caretLeft: measureCaretLeft(input, value, view.anchor),
       }
     })
-  }, [people, tags, statuses, commands, followupDefault, stateRef, onApplyRef])
+  }, [people, tags, statuses, commands, followupDefault, stateRef, onApplyRef, compute])
 
   // The candidates changed (a person renamed or deleted from a row's menu):
   // an open popup shows the new rows at once.

@@ -101,55 +101,6 @@
   background: var(--color-accent-bg);
 }
 
-.tint {
-  border-radius: 4px;
-}
-
-.tint[data-tint="chip"] {
-  background: var(--color-tint-8);
-  box-shadow: 0 0 0 2px var(--color-tint-8);
-  color: var(--color-text-secondary);
-}
-
-.tint[data-tint="new"] {
-  box-shadow: 0 0 0 1px var(--color-accent);
-  color: var(--color-accent-text);
-}
-
-.tint[data-tint="due"] {
-  background: var(--color-overdue-bg);
-  box-shadow: 0 0 0 2px var(--color-overdue-bg);
-  color: var(--color-overdue);
-}
-
-.tint[data-tint="urgent"] {
-  background: var(--color-danger-bg);
-  box-shadow: 0 0 0 2px var(--color-danger-bg);
-  color: var(--color-danger);
-}
-
-.tint[data-tint="followup"] {
-  background: var(--color-followup-bg);
-  box-shadow: 0 0 0 2px var(--color-followup-bg);
-  color: var(--color-followup);
-}
-
-.tint[data-tint="accent"] {
-  background: var(--color-accent-bg-medium);
-  box-shadow: 0 0 0 2px var(--color-accent-bg-medium);
-  color: var(--color-accent-text);
-}
-
-.tint[data-tint="error"] {
-  box-shadow: 0 0 0 1px var(--color-danger);
-  color: var(--color-danger);
-}
-
-.tint[data-tint="ignored"] {
-  box-shadow: 0 0 0 1px var(--color-border);
-  color: var(--color-text-muted);
-}
-
 /* ─── Chips row (what the task gets; × edits the text) ──────── */
 
 .chipsRow {

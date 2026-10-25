@@ -268,6 +268,67 @@
   color: var(--color-text-muted);
 }
 
+/* The input's own text is transparent: its mirror (`.searchMirror`, the
+ * token tints) lies over it in the same font and padding, so the caret and
+ * the selection show through. */
+.searchInput {
+  color: transparent;
+  caret-color: var(--color-text-primary);
+}
+
+.searchInput::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.searchMirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 0 28px 0 29px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 26px;
+  white-space: pre;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+/* The `@ # /` popup under the box (portal'd, fixed). */
+.nlpPopup {
+  position: fixed;
+  z-index: var(--z-popover);
+}
+
+/* A name the search matched nobody to: one line under the box, or atop the results. */
+.searchNote {
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.searchNote b {
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.searchNoteHint {
+  color: var(--color-text-muted);
+}
+
+.searchNotePopover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  white-space: nowrap;
+  background: var(--color-popover-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-dropdown);
+}
+
 .searchInput:focus {
   box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
 }
