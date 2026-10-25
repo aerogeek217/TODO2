@@ -96,6 +96,27 @@ describe('TaskRow', () => {
       expect(screen.getByRole('button', { name: /^Due / })).not.toHaveAttribute('data-due-past')
     })
 
+    it('one tint step: a date inside the Settings due-soon range is marked due soon (overdue too), a later one or Off is not', () => {
+      // The default range: 3 days. Today is Thu 16 Apr.
+      const due = () => screen.getByRole('button', { name: /^Due / })
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 19) })} />)
+      expect(due()).toHaveAttribute('data-due-soon', 'true')
+      unmount()
+      const far = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
+      expect(due()).not.toHaveAttribute('data-due-soon')
+      far.unmount()
+      const past = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />)
+      expect(due()).toHaveAttribute('data-due-soon', 'true')
+      past.unmount()
+      // A completed task's date is never "soon".
+      const done = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 16), isCompleted: true })} />)
+      expect(due()).not.toHaveAttribute('data-due-soon')
+      done.unmount()
+      useSettingsStore.setState({ urgentDueWithinDays: null })
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 16) })} />)
+      expect(due()).not.toHaveAttribute('data-due-soon')
+    })
+
     it('an empty due cell is the Set due date button with a hidden placeholder', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       const empty = screen.getByRole('button', { name: 'Set due date' })

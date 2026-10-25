@@ -1,9 +1,10 @@
-import { useMemo, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useMemo, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { type PersistedTodoItem, type Person, type Status, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
 import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/date'
-import { dateIntensity, daysUntil, dueTooltip, isDeadlinePast } from '../../utils/effective-date'
+import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
+import { isUrgentByDate } from '../../utils/urgency'
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
 import { markerSummary } from '../../utils/markers'
 import { progressNotesPreview } from '../../utils/notes-preview'
@@ -335,9 +336,9 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const due = todo.dueDate
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
   const past = isDeadlinePast(todo, today)
-  const style = due && !past
-    ? ({ '--date-intensity': dateIntensity(daysUntil(due, today)) } as CSSProperties)
-    : undefined
+  // One tint step: muted until the date is inside the Settings "due soon" range (the one that makes a task urgent), then the deadline colour.
+  const range = useSettingsStore((s) => s.urgentDueWithinDays)
+  const soon = isUrgentByDate(todo, today, range)
   const repeats = todo.recurrenceRule != null
   // The date alone; the repeat glyph (smaller, with the padding given up) stays before a repeating task's date.
   const dateOnly = due && showDate
@@ -346,9 +347,9 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
       <button
         type="button"
         className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
-        style={style}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
+        data-due-soon={soon || undefined}
         data-due-past={past || undefined}
         onClick={cellClick(onOpen)}
         {...triggerProps}
