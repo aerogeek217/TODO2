@@ -3,13 +3,14 @@ import { type PersistedTodoItem, type Person, type Status, type Tag, DEFAULT_STA
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
 import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/date'
-import { dateIntensity, daysUntil, dueTooltip, isDeadlinePast } from '../../utils/effective-date'
+import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
+import { isUrgentByDate } from '../../utils/urgency'
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
 import { markerSummary } from '../../utils/markers'
 import { progressNotesPreview } from '../../utils/notes-preview'
 import { datesParts, peopleFit, tagsFit, type PeopleFit } from '../../utils/task-row-columns'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
-import { RepeatIcon } from '../shared/icons'
+import { NotesIcon, RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
 import { MarkerDots } from '../shared/MarkerDots'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -41,11 +42,7 @@ function cellClick(open: (e: MouseEvent) => void) {
 /** The notes icon. */
 export function NotesGlyph() {
   return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-      <path d="M9.5 1.5V5H13" />
-      <path d="M5 8h6M5 11h4" />
-    </svg>
+    <NotesIcon size={12} />
   )
 }
 
@@ -180,7 +177,8 @@ export function PeopleCell({ people, anchorRef, open, onToggle, onPersonContextM
               <span
                 key={p.id}
                 className={styles.avatar}
-                style={{ background: p.color || NEUTRAL_PERSON_COLOR }}
+                // Monochrome at rest; the person's colour while the row is hovered / focused / has a picker open.
+                style={{ '--avatar-color': p.color || NEUTRAL_PERSON_COLOR } as CSSProperties}
                 data-person-avatar={p.name}
                 onContextMenu={onPersonContextMenu ? (e) => onPersonContextMenu(e, p) : undefined}
               >
@@ -234,7 +232,6 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
             <span
               key={t.id}
               className={`${styles.tag} ${i === shown.length - 1 ? styles.tagLast : ''}`}
-              style={t.color ? { color: t.color } : undefined}
               data-tag-name={t.name}
               onContextMenu={onTagContextMenu ? (e) => onTagContextMenu(e, t) : undefined}
             >
@@ -252,14 +249,15 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
 // ── Dates ───────────────────────────────────────────────────────────────────
 
 /**
- * The dates cell: the due date (a clock — the repeat glyph for a repeating
- * task — then `MM/DD`) and the next follow-up (the flag, then `MM/DD`), two
- * parts with their own click target, picker, tooltip and colours. The
- * details width (capped by the list's) sets which dates show beside their
- * icons (`TaskRowColumns.datesTier`; the follow-up's date goes first, then
- * the due date's — the tooltip still has them); the cell re-renders only when
- * that changes, so a divider drag renders it only as it crosses a tier. An absent date is
- * its icon as the placeholder. A part showing its date gets a clear × over
+ * The dates cell: the due date and the next follow-up as `MM/DD`, two parts
+ * with their own click target, picker, tooltip and colours. A set date shows
+ * its text alone (no clock or flag beside it; a repeating task's due date
+ * keeps the repeat glyph before it); an absent date is its icon as the
+ * placeholder. The details width (capped by the list's) sets which dates
+ * show (`TaskRowColumns.datesTier`; the follow-up's date goes first, then
+ * the due date's — a dropped date shows as its icon, the tooltip still has
+ * it); the cell re-renders only when that changes, so a divider drag renders
+ * it only as it crosses a tier. A part showing its date gets a clear × over
  * its right end on hover.
  */
 export function DatesCell({
@@ -334,27 +332,33 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const due = todo.dueDate
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
   const past = isDeadlinePast(todo, today)
-  const style = due && !past
-    ? ({ '--date-intensity': dateIntensity(daysUntil(due, today)) } as CSSProperties)
-    : undefined
-  const icon = todo.recurrenceRule ? <RepeatIcon size={12} /> : <ClockIcon />
+  // One tint step: muted until the date is inside the Settings "due soon" range (the one that makes a task urgent), then the deadline colour.
+  const range = useSettingsStore((s) => s.urgentDueWithinDays)
+  const soon = isUrgentByDate(todo, today, range)
+  const repeats = todo.recurrenceRule != null
+  // The date alone; the repeat glyph (smaller, with the padding given up) stays before a repeating task's date.
+  const dateOnly = due && showDate
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${showDate ? '' : styles.cellCenter} ${styles.due} ${past ? styles.duePast : ''}`}
-        style={style}
+        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
+        data-due-soon={soon || undefined}
         data-due-past={past || undefined}
         onClick={cellClick(onOpen)}
         {...triggerProps}
       >
         {due ? (
-          <>
-            {icon}
-            {showDate && <span className={styles.dateText}>{formatDateNumeric(due)}</span>}
-          </>
+          showDate ? (
+            <>
+              {repeats && <RepeatIcon size={10} />}
+              <span className={styles.dateText}>{formatDateNumeric(due)}</span>
+            </>
+          ) : (
+            repeats ? <RepeatIcon size={12} /> : <ClockIcon />
+          )
         ) : (
           <Placeholder><ClockIcon /></Placeholder>
         )}
@@ -404,10 +408,9 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
         {...triggerProps}
       >
         {next ? (
-          <>
-            <FollowupFlagIcon filled={state !== 'upcoming'} />
-            {showDate && <span className={styles.dateText}>{formatDateNumeric(next)}</span>}
-          </>
+          showDate
+            ? <span className={styles.dateText}>{formatDateNumeric(next)}</span>
+            : <FollowupFlagIcon filled={state !== 'upcoming'} />
         ) : (
           <Placeholder><FollowupFlagIcon /></Placeholder>
         )}
@@ -431,7 +434,8 @@ export function StatusCell({ status, anchorRef, open, onToggle }: {
       ref={anchorRef}
       type="button"
       className={`${styles.cell} ${styles.cellCenter} ${styles.status} ${open ? styles.cellOpen : ''}`}
-      style={status ? { color: status.color } : undefined}
+      // Muted at rest; the status's colour while the row is hovered / focused / has a picker open.
+      style={status ? { '--status-color': status.color } as CSSProperties : undefined}
       aria-label={status ? `Status: ${status.name}` : 'Set status'}
       aria-haspopup="menu"
       aria-expanded={open}

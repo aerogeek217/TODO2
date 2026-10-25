@@ -124,6 +124,8 @@ export function createCommands(
     // Filter presets
     { id: 'filter-show-completed', name: 'Toggle Show Completed', category: 'filter', action: () => ctx.setShowCompleted(!ctx.getShowCompleted()) },
     { id: 'filter-clear', name: 'Clear All Filters', category: 'filter', action: ctx.clearAllFilters },
+    bound('lens-cycle', 'Cycle Lens', 'cycle-lens', 'filter'),
+    bound('lens-lift', 'Lift Lens / Put It Back', 'lift-lens', 'filter'),
     { id: 'filter-overdue', name: 'Show Overdue Tasks', category: 'filter', action: () => {
       ctx.clearAllFilters()
       const yesterday = new Date(startOfToday().getTime() - 1)

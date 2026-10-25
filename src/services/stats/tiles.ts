@@ -25,9 +25,10 @@ export interface TileStats {
   overdue: { ids: number[]; oldest: Date | null; oldestDaysLate: number }
   /**
    * Next follow-up today or earlier (`late` + `today`); `upcoming` = follow-ups
-   * on the rest of the next 7 days (tomorrow … today + 6), not in the count.
+   * on the rest of the next 7 days (tomorrow … today + 6), not in the count;
+   * `next` = the soonest follow-up after today, however far.
    */
-  followupDue: { ids: number[]; late: number; today: number; upcoming: number }
+  followupDue: { ids: number[]; late: number; today: number; upcoming: number; next: Date | null }
   /** In Focus; `dueToday` of them due today. */
   focus: { ids: number[]; dueToday: number }
   /** Due today; `upcoming` = due tomorrow … today + 6, not in the count. */
@@ -54,6 +55,7 @@ export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsCont
   const followupDue: PersistedTodoItem[] = []
   let followupLate = 0
   let followupUpcoming = 0
+  let followupNext: Date | null = null
   const focus: PersistedTodoItem[] = []
   let focusDueToday = 0
   const dueToday: PersistedTodoItem[] = []
@@ -85,8 +87,10 @@ export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsCont
     } else if (fu <= 0) {
       followupDue.push(t)
       if (fu < 0) followupLate++
-    } else if (fu < NEXT_DAYS) {
-      followupUpcoming++
+    } else {
+      if (fu < NEXT_DAYS) followupUpcoming++
+      const at = t.nextFollowupAt ? new Date(t.nextFollowupAt) : null
+      if (at && (!followupNext || at.getTime() < followupNext.getTime())) followupNext = at
     }
 
     if (t.focus === true) {
@@ -120,6 +124,7 @@ export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsCont
       late: followupLate,
       today: followupDue.length - followupLate,
       upcoming: followupUpcoming,
+      next: followupNext,
     },
     focus: { ids: idsByDate(focus, 'deadline'), dueToday: focusDueToday },
     dueToday: { ids: idsByDate(dueToday, 'deadline'), upcoming: dueNext7.length - dueToday.length },

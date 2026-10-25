@@ -221,6 +221,60 @@ describe('view state', () => {
     expect((await stored(id!)).columns[1]!.cells[0]!.tabs[0]!.viewState).toEqual({})
   })
 
+  it('the lens pick is view state: stored at once, never dirty, kept by Discard; No lens removes the key', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().setLens('lens-a')
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working?.lensId).toBe('lens-a')
+    expect(ws().layouts.find((l) => l.id === id)?.lensId).toBe('lens-a')
+    expect((await stored(id!)).lensId).toBe('lens-a')
+    ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
+    await ws().discard()
+    expect(ws().working?.lensId).toBe('lens-a')
+    await ws().setLens(null)
+    expect('lensId' in (await stored(id!))).toBe(false)
+    expect(ws().working && 'lensId' in ws().working!).toBe(false)
+  })
+
+  it('the phone’s page is view state: stored at once, never dirty, kept by Discard; the first page removes the key', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().setActiveColumn('B')
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working?.activeColumnId).toBe('B')
+    expect(ws().layouts.find((l) => l.id === id)?.activeColumnId).toBe('B')
+    expect((await stored(id!)).activeColumnId).toBe('B')
+    expect((await stored(id!)).modifiedAt).toEqual(ws().saved?.modifiedAt)
+    ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })
+    await ws().discard()
+    expect(ws().working?.activeColumnId).toBe('B')
+    await ws().setActiveColumn(null)
+    expect('activeColumnId' in (await stored(id!))).toBe(false)
+    expect(ws().working && 'activeColumnId' in ws().working!).toBe(false)
+  })
+
+  it('Save as copies the lens pick; a new layout starts with No lens', async () => {
+    await seedAndInit(twoColumns())
+    await ws().setLens('lens-a')
+    const copy = await ws().saveAs('Copy')
+    expect((await stored(copy!)).lensId).toBe('lens-a')
+    const fresh = await ws().createLayout('Fresh')
+    expect((await stored(fresh!)).lensId).toBeUndefined()
+    expect(ws().working?.lensId).toBeUndefined()
+  })
+
+  it('setLayoutsLens sets the pick of layouts that aren’t open too, in the list and as stored', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A', { lensId: 'lens-a' }), twoColumns('B', { lensId: 'lens-a' }))
+    await ws().setLayoutsLens([a!, b!], null)
+    expect(ws().working?.lensId).toBeUndefined()
+    expect(ws().layouts.map((l) => l.lensId)).toEqual([undefined, undefined])
+    expect((await stored(b!)).lensId).toBeUndefined()
+    await ws().setLayoutsLens([b!], 'lens-b')
+    expect((await stored(b!)).lensId).toBe('lens-b')
+    expect((await stored(a!)).lensId).toBeUndefined()
+    await ws().load(b!)
+    expect(ws().working?.lensId).toBe('lens-b')
+  })
+
   it('with unsaved changes: view state still reaches the stored layout, structure does not', async () => {
     const [id] = await seedAndInit(twoColumns())
     const tabId = ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })!
@@ -489,6 +543,20 @@ describe('saved layouts', () => {
     expect(row.name).toBe('Morning')
     expect(row.columns).toHaveLength(2)
     expect(await ws().rename(id!, '')).toBe(false)
+  })
+
+  it('rename with a hue stores both at once, never dirty; null clears the hue; no hue leaves it', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    expect(await ws().rename(id!, 'Morning', 'violet')).toBe(true)
+    expect(ws()).toMatchObject({ isDirty: false })
+    expect(ws().working).toMatchObject({ name: 'Morning', hue: 'violet' })
+    expect(ws().layouts.find((l) => l.id === id)?.hue).toBe('violet')
+    expect(await stored(id!)).toMatchObject({ name: 'Morning', hue: 'violet' })
+    expect(await ws().rename(id!, 'Evening')).toBe(true)
+    expect((await stored(id!)).hue).toBe('violet')
+    expect(await ws().rename(id!, 'Evening', null)).toBe(true)
+    expect('hue' in (await stored(id!))).toBe(false)
+    expect(ws().working!.hue).toBeUndefined()
   })
 
   it('createLayout stores an empty layout under its name, after the others, and opens it', async () => {

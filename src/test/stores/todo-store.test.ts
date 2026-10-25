@@ -52,6 +52,18 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todos[0]!.isCompleted).toBe(false)
   })
 
+  it('every completion shows the undo snackbar (one undo step); reopening stays quiet', async () => {
+    const id = await useTodoStore.getState().add('Task')
+    useUndoStore.getState().dismissSnackbar()
+    const before = useUndoStore.getState().undoStack.length
+    await useTodoStore.getState().toggleComplete(id)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Complete "Task"' })
+    expect(useUndoStore.getState().undoStack.length).toBe(before + 1)
+    useUndoStore.getState().dismissSnackbar()
+    await useTodoStore.getState().toggleComplete(id)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+  })
+
   it('undo of uncompleting a completed recurring task completes it again with its original completedAt, the due date untouched; redo uncompletes', async () => {
     const due = new Date(2026, 9, 1)
     const completedAt = new Date(2026, 8, 20, 9, 30)

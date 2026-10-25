@@ -15,6 +15,7 @@ export type TodoSortBy =
   | 'deadline'    // dueDate (UI label "Due")
   | 'followup'    // nextFollowupAt
   | 'created'     // createdAt
+  | 'modified'    // modifiedAt (oldest first: the untouched tasks on top)
   | 'people'      // sortOrder fallback (categorical)
   | 'status'      // sortOrder fallback
 
@@ -28,7 +29,7 @@ export type TodoGroupBy =
   | 'priority'    // many-to-many: Hot, Focus, Urgent, Important, No priority
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
-  'manual', 'priority', 'name', 'deadline', 'followup', 'created',
+  'manual', 'priority', 'name', 'deadline', 'followup', 'created', 'modified',
   'people', 'status',
 ] as const
 

@@ -107,7 +107,7 @@ test('the tab config decides which tiles and sections show; a dashboard is a lay
 
 test('a Hot row drags onto a calendar day to set its due date', async ({ page }) => {
   await seedWorkspace(page, seedWith({}, [
-    { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false } }] }] },
+    { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] },
   ]))
   const row = section(page, 'hot').locator('[data-row-key]').filter({ hasText: 'Plan the offsite' })
   const day = wsCell(page, 'k2').locator('[data-day]').nth(2)

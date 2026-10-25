@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
-import { LAYOUT_NAME_MAX } from '../../models/workspace-layout'
+import { HUE_NAMES, LAYOUT_NAME_MAX, type HueName } from '../../models/workspace-layout'
+import { HUE_LABEL, hueColor } from '../../utils/layout-hue'
 import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
@@ -39,16 +40,24 @@ interface LayoutNameDialogProps {
   initialName: string
   /** The empty field's hint (New layout, which starts empty). */
   placeholder?: string
-  onConfirm: (name: string) => void
+  /** Rename: the layout's hue, offered as a swatch row under the name (`null` = none). Absent = no swatches. */
+  initialHue?: HueName | null
+  /** `hue` only when the dialog offers the swatches. */
+  onConfirm: (name: string, hue?: HueName | null) => void
   onCancel: () => void
 }
 
-/** "New layout…" / "Save as new layout…" / "Rename…": one name field, prefilled and selected; empty can't be confirmed. */
-export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, onConfirm, onCancel }: LayoutNameDialogProps) {
+/**
+ * "New layout…" / "Save as new layout…" / "Rename…": one name field, prefilled
+ * and selected; empty can't be confirmed. Rename adds the hue swatches (D19).
+ */
+export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, initialHue, onConfirm, onCancel }: LayoutNameDialogProps) {
   const [name, setName] = useState(initialName)
+  const [hue, setHue] = useState<HueName | null>(initialHue ?? null)
+  const withHue = initialHue !== undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmed = name.trim()
-  const submit = () => { if (trimmed) onConfirm(trimmed) }
+  const submit = () => { if (trimmed) onConfirm(trimmed, withHue ? hue : undefined) }
   return (
     <Dialog open onClose={onCancel} title={title} initialFocusRef={inputRef} nested>
       <form
@@ -67,12 +76,39 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
             onFocus={(e) => e.currentTarget.select()}
           />
         </label>
+        {withHue && <HueSwatches value={hue} onChange={setHue} />}
         <DialogActions>
           <button type="button" className={styles.ghost} onClick={onCancel}>Cancel</button>
           <button type="submit" className={styles.primary} disabled={!trimmed}>{confirmLabel}</button>
         </DialogActions>
       </form>
     </Dialog>
+  )
+}
+
+/** None + the six hues as one radio group (arrow keys move the pick). */
+function HueSwatches({ value, onChange }: { value: HueName | null; onChange: (hue: HueName | null) => void }) {
+  const options: Array<{ hue: HueName | null; label: string }> = [{ hue: null, label: 'None (the accent)' }, ...HUE_NAMES.map((h) => ({ hue: h, label: HUE_LABEL[h] }))]
+  return (
+    <fieldset className={styles.hues}>
+      <legend className={styles.huesLegend}>Hue</legend>
+      <div className={styles.swatches}>
+        {options.map((o) => (
+          <input
+            key={o.hue ?? 'none'}
+            type="radio"
+            name="layout-hue"
+            className={`${styles.swatch} ${o.hue ? '' : styles.swatchNone}`}
+            style={o.hue ? { background: hueColor(o.hue) } : undefined}
+            checked={value === o.hue}
+            onChange={() => onChange(o.hue)}
+            aria-label={o.label}
+            title={o.label}
+            data-hue={o.hue ?? 'none'}
+          />
+        ))}
+      </div>
+    </fieldset>
   )
 }
 

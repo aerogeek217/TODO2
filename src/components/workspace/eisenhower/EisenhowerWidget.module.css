@@ -112,9 +112,7 @@
 }
 
 .toggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .chevron {
@@ -221,7 +219,6 @@
 .add:focus-visible {
   background: var(--color-tint-12);
   color: var(--color-text-primary);
-  outline: none;
 }
 
 .touch .add {
@@ -335,24 +332,38 @@
 
 /* ── Screen filter hides everything ─────────────────────────────────────── */
 
+/* The panes' shared note, in the flow under them (the 2×2's last row,
+   spanning both columns; the next item when stacked), so it never lies
+   over a pane's header. */
 .notePanel {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   width: 300px;
-  max-width: calc(100% - 24px);
-  padding: 14px 16px;
+  max-width: 100%;
+  padding: 12px 16px;
   box-sizing: border-box;
   border-radius: 8px;
-  background: var(--color-popover-bg);
-  box-shadow: var(--shadow-dropdown);
+  background: var(--color-surface-high);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
   text-align: center;
-  z-index: 2;
+}
+
+.grid .notePanel {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+
+.stacked .notePanel {
+  flex-shrink: 0;
+  align-self: center;
+  margin-top: 8px;
+}
+
+/* During a drag it keeps its place (the panes don't move under the pointer) but doesn't show. */
+.widget[data-dragging='true'] .notePanel {
+  visibility: hidden;
 }
 
 .noteTitle {

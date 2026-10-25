@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useMemo, forwardRef, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useLayoutEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
 import { useFilterStore } from '../../stores/filter-store'
@@ -26,7 +27,14 @@ import styles from './TopBar.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, traySqueeze, useTopBarFold } from './use-top-bar-fold'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
-import { useScreenSearch } from '../../hooks/use-screen-search'
+import { LensControl } from '../shared/filters/LensControl'
+import { usePickedLens, useScreenFilter } from '../../stores/screen-filter'
+import { matchesFilterWithLookups } from '../../utils/filter-match'
+import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
+import { useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
+import { NlpPopup } from '../shared/NlpPopup'
+import { TintedText } from '../shared/TintedText'
+import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
@@ -41,6 +49,8 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   tag: 'Tags',
 }
 const MAX_GROUP_PREVIEW = 5
+/** Keys that move the search box's caret (the `@ # /` popup follows it). */
+const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End'])
 
 /**
  * The most layouts shown as tabs: more than a bar can hold anyway, so past
@@ -80,6 +90,23 @@ function ClearFiltersButton({ active }: { active: boolean }) {
       {tooltip}
     </button>
   )
+}
+
+/**
+ * The search box's placeholder: `Search…`, and while the empty box has the
+ * focus the token examples in turn (D16), so the grammar can be found.
+ */
+const SEARCH_PLACEHOLDERS = ['Search…', 'Search… @person', 'Search… #tag', 'Search… overdue', 'Search… due fri']
+const PLACEHOLDER_MS = 2500
+
+function useSearchPlaceholder(cycling: boolean): string {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    if (!cycling) return
+    const id = setInterval(() => setStep((n) => n + 1), PLACEHOLDER_MS)
+    return () => clearInterval(id)
+  }, [cycling])
+  return cycling ? SEARCH_PLACEHOLDERS[step % SEARCH_PLACEHOLDERS.length] ?? 'Search…' : 'Search…'
 }
 
 function SearchFieldIcon({ field }: { field: TextMatchField }) {
@@ -214,12 +241,14 @@ const NO_TAGS_MAP = new Map<number, Tag[]>()
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
   query: string
+  /** The box's note for a name matching nobody, above the results. */
+  note?: ReactNode
   pillCtx: SearchResultPillContext
   searchInputRef: React.RefObject<HTMLInputElement | null>
   onOpen: (todoId: number) => void
   onBlur: (e: React.FocusEvent<HTMLDivElement>) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
-}>(function SearchResultsGroups({ groups, query, pillCtx, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
+}>(function SearchResultsGroups({ groups, query, note, pillCtx, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
   // "Show all" expansions belong to the query they were made under; a new
   // query starts collapsed. Derived from the stored query instead of reset in
   // an effect.
@@ -260,6 +289,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
       tabIndex={-1}
       onBlur={onBlur}
     >
+      {note}
       {SEARCH_FIELD_ORDER.map(field => {
         const items = groups[field]
         if (items.length === 0) return null
@@ -303,8 +333,11 @@ export function TopBar() {
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [localSearch, handleSearchChange] = useScreenSearch()
+  // The box: its tokens become the tray's chips, its words the text search.
+  const box = useSearchBox({ inputRef: searchInputRef })
+  const searchWords = box.words
   const [searchFocused, setSearchFocused] = useState(false)
+  const searchPlaceholder = useSearchPlaceholder(searchFocused && box.text === '')
   const miniListRef = useRef<HTMLDivElement>(null)
   // Right-click menu state is kept on TopBar (not SearchResultRow) so the
   // menu outlives the search dropdown closing when the menu opens — the row
@@ -319,7 +352,7 @@ export function TopBar() {
   const panelRef = useRef<HTMLDivElement>(null)
   // The tasks and their people / tags only while the search dropdown (or a
   // result's menu) can show: otherwise a task write doesn't render the bar.
-  const searching = !panelOpen && ((localSearch.length > 0 && searchFocused) || searchContextMenu !== null)
+  const searching = !panelOpen && ((searchWords.length > 0 && searchFocused) || searchContextMenu !== null)
   const todos = useTodoStore((s) => (searching ? s.todos : NO_TODOS))
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
@@ -338,16 +371,51 @@ export function TopBar() {
     statusesById,
   }), [assignedPeopleMap, statusesById])
 
+  // The dropdown lists the words' matches among the tasks the chips and the
+  // lens keep (completed ones too, last, as before the chips).
+  const screenFilter = useScreenFilter()
+  const filterSettings = useFilterSettings()
   const miniListGroups = useMemo(() => {
-    if (!localSearch || !searchFocused) return null
+    if (!searchWords || !searchFocused) return null
     const lookups = { assignedPeopleMap, assignedTagsMap, statusesById }
-    return groupTodosByTextMatch(todos, localSearch, (t) => textMatchContextFor(t, lookups))
-  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById])
+    const narrowing = { ...screenFilter.filters, searchText: '', showCompleted: true }
+    const today = startOfToday()
+    const kept = screenFilter.active
+      ? todos.filter((t) => matchesFilterWithLookups(narrowing, t, lookups, today, filterSettings))
+      : todos
+    return groupTodosByTextMatch(kept, searchWords, (t) => textMatchContextFor(t, lookups))
+  }, [searchWords, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById, screenFilter.filters, screenFilter.active, filterSettings])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
     : 0
-  const showMiniList = !panelOpen && searchFocused && localSearch.length > 0 && !!miniListGroups && totalMatchCount > 0
+  // The `@ # /` popup under the box (Quick Add's): the results wait while it shows.
+  const popupOpen = box.ac.state.visible && box.ac.state.view !== null
+  const dismissPopup = box.ac.dismiss
+  const popup = useNlpPopupAnchor(searchInputRef, box.ac.state)
+  const showMiniList = !panelOpen && !popupOpen && searchFocused && searchWords.length > 0 && !!miniListGroups && totalMatchCount > 0
+  // A name the search matched nobody to: a line under the box, while it has the focus.
+  const unmatchedNotes = searchFocused && !popupOpen && box.unmatched.length > 0
+    ? (
+      <div className={styles.searchNote} role="status">
+        {box.unmatched.map((n) => {
+          const note = unmatchedNote(n)
+          return (
+            <div key={`${n.kind}-${n.start}`}>
+              {note.lead}<b>{note.name}</b>{note.rest} · <span className={styles.searchNoteHint}>{note.hint}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+    : null
+
+  // Keep the tint mirror scrolled with the input's text.
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  const syncMirror = useCallback(() => {
+    if (mirrorRef.current && searchInputRef.current) mirrorRef.current.scrollLeft = searchInputRef.current.scrollLeft
+  }, [])
+  useLayoutEffect(() => { syncMirror() }, [box.text, syncMirror])
 
   const location = useLocation()
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
@@ -359,9 +427,11 @@ export function TopBar() {
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  // Show N tasks shows while a filter is on or the panel is open (it stays
-  // the panel's toggle when Clear all empties the filter).
-  const showTasksButton = isActive || panelOpen
+  // The counter shows while a chip is on or the layout has a lens (lifted
+  // too: 109 of 109), or the panel is open (it stays the panel's toggle when
+  // Clear all empties the filter).
+  const lensPicked = usePickedLens() != null
+  const showTasksButton = isActive || lensPicked || panelOpen
   // While the panel is open over folded filters, the tray expands in place
   // to show every filter button: lifted out of the bar (a slot of its folded
   // width keeps its place, so nothing else moves), from its left edge
@@ -398,12 +468,13 @@ export function TopBar() {
     return () => window.removeEventListener('resize', place)
   }, [expandable, trayOpen, trayOpenMin, trayFolded, tabsKey])
 
+  const clearSearch = box.clear
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
-    handleSearchChange('')
+    clearSearch()
     setSearchFocused(false)
     searchInputRef.current?.blur()
-  }, [openEditPopup, handleSearchChange])
+  }, [openEditPopup, clearSearch])
 
   const handleOpenSearchContextMenu = useCallback((todo: PersistedTodoItem, x: number, y: number) => {
     setSearchContextMenu({ todoId: todo.id, x, y })
@@ -472,14 +543,21 @@ export function TopBar() {
               ref={searchInputRef}
               className={styles.searchInput}
               type="text"
-              placeholder="Search…"
+              placeholder={searchPlaceholder}
               aria-label="Search tasks"
-              value={localSearch}
-              onChange={(e) => handleSearchChange(e.target.value)}
+              value={box.text}
+              onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}
+              onSelect={syncMirror}
+              onMouseUp={(e) => box.onCaretMove(e.currentTarget)}
+              onKeyUp={(e) => {
+                if (CARET_KEYS.has(e.key)) box.onCaretMove(e.currentTarget)
+              }}
+              onScroll={syncMirror}
               aria-controls="search-results"
-              aria-expanded={showMiniList}
+              aria-expanded={showMiniList || popupOpen}
               onFocus={() => setSearchFocused(true)}
               onBlur={(e) => {
+                dismissPopup()
                 if (miniListRef.current?.contains(e.relatedTarget as Node)) return
                 // Right-click on a search row opens a context menu that autoFocuses
                 // its first item; preserve the listbox so the menu's actions can
@@ -488,14 +566,22 @@ export function TopBar() {
                 setSearchFocused(false)
               }}
               onKeyDown={(e) => {
+                // The `@ # /` popup's keys; ⏎ makes every token a chip;
+                // Backspace in the empty box takes the last one back.
+                if (box.onKeyDown(e)) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  return
+                }
                 if (e.key === 'Escape' && panelOpen) {
                   // Over the panel: the text first (stays here), then the panel.
-                  if (localSearch !== '') {
+                  if (box.text !== '') {
                     e.preventDefault()
-                    handleSearchChange('')
+                    box.clear()
                   }
                 } else if (e.key === 'Escape') {
-                  handleSearchChange('')
+                  // The box only: the chips stay.
+                  box.clear()
                   setSearchFocused(false)
                   searchInputRef.current?.blur()
                 } else if (e.key === 'ArrowDown' && showMiniList) {
@@ -504,9 +590,14 @@ export function TopBar() {
                   first?.focus()
                 }
               }}
+              spellCheck={false}
               {...{ [SEARCH_INPUT_ATTR]: '' }}
             />
-            {localSearch && (
+            {/* The box's text with its token tints, over the input's transparent text. */}
+            <div ref={mirrorRef} className={styles.searchMirror} aria-hidden="true" data-testid="search-mirror">
+              <TintedText text={box.text} spans={box.tints} />
+            </div>
+            {box.text && (
               // Like `ClearableField`'s ×, a mouse target only (it acts on
               // mousedown); from the keyboard, Esc in the field clears it.
               <button
@@ -514,16 +605,17 @@ export function TopBar() {
                 className={styles.searchClear}
                 aria-label="Clear search"
                 tabIndex={-1}
-                onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
+                onMouseDown={(e) => { e.preventDefault(); box.clear(); searchInputRef.current?.focus() }}
               >
                 <CloseIcon size={8} />
               </button>
             )}
-            {showMiniList && miniListGroups && (
+            {showMiniList && miniListGroups ? (
               <SearchResultsGroups
                 ref={miniListRef}
                 groups={miniListGroups}
-                query={localSearch}
+                query={searchWords}
+                note={unmatchedNotes}
                 pillCtx={searchPillCtx}
                 searchInputRef={searchInputRef}
                 onOpen={handleOpenTodo}
@@ -535,9 +627,17 @@ export function TopBar() {
                   }
                 }}
               />
+            ) : unmatchedNotes && (
+              <div className={styles.searchNotePopover}>{unmatchedNotes}</div>
             )}
           </div>
 
+          {isWorkspace && (
+            <>
+              <LensControl />
+              <span className={styles.lensSeparator} aria-hidden="true" />
+            </>
+          )}
           <FilterChipBar
             predicate={filterPredicate}
             onChange={handleFilterChange}
@@ -584,6 +684,19 @@ export function TopBar() {
         )}
       </header>
       {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} trayLeft={expansion?.left} />}
+      {popupOpen && box.ac.state.view && createPortal(
+        <NlpPopup
+          view={box.ac.state.view}
+          selectedIndex={box.ac.state.selectedIndex}
+          onPick={(row) => box.ac.select(row, searchInputRef.current)}
+          onHighlight={box.ac.highlight}
+          popupRef={popup.setPopupEl}
+          className={styles.nlpPopup}
+          style={popup.style}
+          entityMenu={{ keyTarget: () => searchInputRef.current }}
+        />,
+        document.body,
+      )}
     </>
   )
 }

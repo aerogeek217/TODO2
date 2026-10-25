@@ -207,19 +207,15 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-30 00:00', last: null })
   })
 
-  test('overdue follow-up: the filled flag and its date ("late" in its accessible name), glowing yellow, not the due-date magenta', async ({ page }) => {
+  test('overdue follow-up: its date alone ("late" in its accessible name) in the follow-up yellow, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
     const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
     await expect(cell).toHaveAttribute('data-followup', 'late')
     await expect(cell).toHaveText('10/08')
-    const { filter, color, fill } = await cell.evaluate((el) => {
-      const svg = el.querySelector('svg')!
-      return { filter: getComputedStyle(svg).filter, color: getComputedStyle(el).color, fill: svg.getAttribute('fill') }
-    })
-    expect(filter).toContain('drop-shadow')
-    expect(fill).toBe('currentColor')
+    // A shown date has no flag beside it (the flag, glowing, stays for the icon-only tier).
+    await expect(cell.locator('svg')).toHaveCount(0)
     // Dark theme `--color-followup` (#f5c842).
-    expect(color).toBe('rgb(245, 200, 66)')
+    await expect(cell).toHaveCSS('color', 'rgb(245, 200, 66)')
   })
 
   test('row menu: Follow-up › "Pick a date or interval…" opens the popover; "Mark followed up" stamps the task', async ({ page }) => {

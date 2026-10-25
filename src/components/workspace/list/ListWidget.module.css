@@ -18,6 +18,11 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
+/* A grouped list's header sticks at the top: the top fade starts under it. */
+.scroll:has(.groupHeaderRow) {
+  --scroll-fade-inset: var(--list-group-header-height);
+}
+
 /* ── Body ───────────────────────────────────────────────────────────────── */
 
 .body {
@@ -50,9 +55,18 @@
   background: var(--color-surface-hover);
 }
 
-/* A People group: the header keeps its full width; the envelope sits over its end. */
+/*
+ * The header row sticks to the top of the scrolling body while its group
+ * scrolls under it (the surface fill with a hairline below; above the rows,
+ * under the drop line). A People group's header keeps its full width; the
+ * envelope sits over its end.
+ */
 .groupHeaderRow {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-above-2);
+  background: var(--color-surface);
+  box-shadow: 0 1px 0 var(--color-border-muted);
 }
 
 .groupHeaderWithAction {
@@ -100,10 +114,11 @@
   transform: rotate(-90deg);
 }
 
+/* The group's colour lives in the 6px swatch alone (the colour budget); the name is plain secondary text. */
 .swatch {
   flex-shrink: 0;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
 }
 
@@ -112,11 +127,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-text-secondary);
 }
 
 .groupCount {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Rows: selection, cursor, drag (row states) ──────────────────────── */
@@ -124,6 +141,31 @@
 .row {
   position: relative;
   outline: none;
+  box-shadow: none;
+}
+
+/*
+ * A row just completed in a list that hides completed tasks (D19): after a
+ * beat it folds to nothing (`FOLD_MS`, 180 ms), then drops out. Never under
+ * reduced motion (it leaves at once).
+ */
+.row.rowFolding {
+  display: grid;
+  grid-template-rows: 1fr;
+  pointer-events: none;
+  animation: rowFold 180ms ease-in forwards;
+}
+
+.row.rowFolding > [data-todo-id] {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@keyframes rowFold {
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
 }
 
 /* Consecutive selected rows share one fill; the run's ends are rounded. */
@@ -421,25 +463,6 @@
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 
-
-.smallButton {
-  height: 22px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.smallButton:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
 /* Add task: in the accent, its + on a filled accent tile like the top
  * bar's New task. */
 .addTask {
@@ -479,34 +502,6 @@
 .addTask:hover .addTaskIcon,
 .addTask:active .addTaskIcon {
   background: var(--color-accent-dim);
-}
-
-/* ── Empty states (text only) ───────────────────────────────────────── */
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 24px 16px;
-  text-align: center;
-}
-
-.emptyTitle {
-  font-size: var(--font-size-task);
-  color: var(--color-text-secondary);
-}
-
-.emptyHint {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  line-height: 1.4;
-}
-
-.emptyAction {
-  composes: smallButton;
-  height: 24px;
-  margin-top: 4px;
 }
 
 /* ── Touch (mobile) ─────────────────────────────────────────────────────── */

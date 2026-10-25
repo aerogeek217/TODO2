@@ -6,7 +6,7 @@ import type { ListDefinition, RuntimeFilterField } from '../models/list-definiti
 export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'priority', 'deadline', 'followup', 'people', 'status', 'tag']
 
 /** Sorts a list definition offers, in menu order. */
-export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'created']
+export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'created', 'modified']
 
 /** Prompt fields a list definition offers, in menu order (`none` = no prompt). */
 export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['none', 'person', 'status', 'tag']
@@ -29,6 +29,7 @@ export const SORT_LABEL: Record<TodoSortBy, string> = {
   followup: 'Follow-up date',
   name: 'Name',
   created: 'Created',
+  modified: 'Modified',
   people: 'People',
   status: 'Status',
 }
@@ -58,6 +59,7 @@ export const GROUP_NOTE: Partial<Record<TodoGroupBy, string>> = {
 export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
   manual: 'Your drag order (per list)',
   priority: 'Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date',
+  modified: 'Longest untouched first · any edit counts, a reorder too',
 }
 
 /** What each direction of a sort puts first, in words (sorts with a direction only). */
@@ -67,6 +69,7 @@ const SORT_ORDER_WORDS: Partial<Record<TodoSortBy, Record<TodoSortDirection, str
   followup: { asc: 'Soonest first', desc: 'Latest first' },
   name: { asc: 'A → Z', desc: 'Z → A' },
   created: { asc: 'Oldest first', desc: 'Newest first' },
+  modified: { asc: 'Longest untouched first', desc: 'Recently changed first' },
 }
 
 /** `sort` in `direction`, in words (`Latest first`); `null` for a sort without a direction. */

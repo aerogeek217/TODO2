@@ -56,8 +56,7 @@
 }
 
 .chip:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
 }
 
 .chip[aria-disabled='true'] {
@@ -83,6 +82,12 @@
   background: var(--color-accent-bg-medium);
   box-shadow: none;
   color: var(--color-marker-focus);
+}
+
+.chipUrgentOn:focus-visible,
+.chipImportantOn:focus-visible,
+.chipFocusOn:focus-visible {
+  box-shadow: var(--focus-ring);
 }
 
 .count {
@@ -114,11 +119,6 @@
 .remove:hover {
   background: var(--color-tint-6);
   color: var(--color-text-primary);
-}
-
-.remove:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 .or {
@@ -161,11 +161,6 @@
   color: var(--color-text-primary);
 }
 
-.addLine:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .footer {
   display: flex;
   align-items: center;
@@ -196,11 +191,6 @@
 
 .reset:hover {
   text-decoration: underline;
-}
-
-.reset:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
 }
 
 /* The flyout form (dashboard tab menu › Hot is ›): fills its 316px panel. */

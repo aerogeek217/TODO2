@@ -127,7 +127,8 @@ export const NEGATABLE_FIELDS: readonly NegatableField[] = ['personIds', 'status
  * - Status is not {…}: the task's status (0 = no status) is not ticked.
  * - People is not {…}: the task has none of the ticked people (0 =
  *   unassigned, so "is not Unassigned" = has someone).
- * - Tags is not {…}: the task has none of the ticked tags (untagged passes).
+ * - Tags is not {…}: the task has none of the ticked tags (0 = no tags, so
+ *   "is not No tags" = has a tag; otherwise untagged passes).
  */
 export type FilterNegation = { [K in NegatableField]?: true }
 
@@ -160,8 +161,9 @@ export interface TodoPredicate {
   markers?: MarkersFilter | null
   /**
    * null = no filter; array of tag ids (into the `tags` registry) with OR
-   * semantics (todo must have at least one assigned tag in the set). A todo
-   * with no tag assignments is excluded when this clause is a non-empty array.
+   * semantics (todo must have at least one assigned tag in the set; 0 = "no
+   * tags" sentinel, which an untagged todo matches). A todo with no tag
+   * assignments is excluded when this clause is a non-empty array without 0.
    * Optional on read so pre-tags predicates (stored in `listDefinitions` /
    * `savedViews`) deserialize as `tags: null` without a data rewrite.
    * With `negate.tags`: only tasks with none of the tags (untagged passes).

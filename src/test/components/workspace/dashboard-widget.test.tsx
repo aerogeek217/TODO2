@@ -91,6 +91,16 @@ describe('DashboardWidget — the design sample', () => {
     expect(tile('open').querySelector('polyline')).not.toBeNull()
   })
 
+  it('tiles are lit only when their number asks for action', () => {
+    setup()
+    expect(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'].filter((id) => tile(id).dataset.lit === 'true'))
+      .toEqual(['hot', 'urgent', 'overdue', 'followupDue'])
+    const count = (id: string) => tile(id).querySelector<HTMLElement>('[data-testid="dash-tile-count"]')!.style.color
+    expect(count('overdue')).toBe('var(--color-overdue)')
+    expect(count('open')).toBe('var(--color-text-primary)')
+    expect(count('focus')).toBe('var(--color-text-primary)')
+  })
+
   it('reports the open count for the tab and its counts for Copy summary', () => {
     setup(tabWith({ listTiles: [1] }))
     expect(lastResult?.countLabel).toBe('19')
@@ -212,7 +222,7 @@ describe('DashboardWidget — config', () => {
     expect(Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)).toEqual(['hot', 'trend', 'people'])
     // 5 + 5 fit a row and the row's last stretches to 7; People (4) starts a row alone.
     expect(['hot', 'trend', 'people'].map((id) => section(id)!.style.gridColumn)).toEqual(['span 5', 'span 7', 'span 12'])
-    expect(widget().style.gridTemplateRows).toBe('auto minmax(0, 1fr) 272px')
+    expect(widget().style.gridTemplateRows).toBe('auto minmax(200px, 1fr) 272px')
   })
 
   it('list tiles: count shown of total; prompted and deleted lists are skipped', () => {
@@ -248,6 +258,9 @@ describe('DashboardWidget — screen filter', () => {
       .toEqual(['5of 19', '1of 4', '1of 8', '0of 2', '0of 2', '1of 3'])
     expect(tile('hot').textContent).toContain('1 in Focus')
     expect(tile('overdue').textContent).toContain('Nothing overdue')
+    // At 0 a tile goes neutral, its count muted.
+    expect(tile('overdue').dataset.lit).toBeUndefined()
+    expect(tile('overdue').querySelector<HTMLElement>('[data-testid="dash-tile-count"]')!.style.color).toBe('var(--color-text-muted)')
     expect(tile('focus').textContent).toContain('None due today')
     expect(lastResult?.countLabel).toBe('5 of 19')
     expect(lastResult?.summary.plain).toBe('Open 5 of 19 · Hot 1 of 4 · Focus 1 of 3 · Urgent 1 of 8 · Overdue 0 of 2 · Follow-up due 0 of 2')

@@ -75,15 +75,16 @@ describe('TaskRow', () => {
       expect(due).toHaveTextContent('04/20')
     })
 
-    it('the date follows a clock; a repeating task shows the repeat glyph in its place', () => {
+    it('a set date is its text alone (no clock); a repeating task keeps the repeat glyph before it', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
       const once = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
-      expect(once.querySelectorAll('svg')).toHaveLength(1)
-      expect(once.querySelector('circle')).not.toBeNull()
+      expect(once).toHaveTextContent('04/20')
+      expect(once.querySelectorAll('svg')).toHaveLength(0)
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
       const repeating = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
       expect(repeating).toHaveTextContent('04/20')
+      expect(repeating.querySelectorAll('svg')).toHaveLength(1)
       expect(repeating.querySelector('circle')).toBeNull()
     })
 
@@ -93,6 +94,27 @@ describe('TaskRow', () => {
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })} />)
       expect(screen.getByRole('button', { name: /^Due / })).not.toHaveAttribute('data-due-past')
+    })
+
+    it('one tint step: a date inside the Settings due-soon range is marked due soon (overdue too), a later one or Off is not', () => {
+      // The default range: 3 days. Today is Thu 16 Apr.
+      const due = () => screen.getByRole('button', { name: /^Due / })
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 19) })} />)
+      expect(due()).toHaveAttribute('data-due-soon', 'true')
+      unmount()
+      const far = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
+      expect(due()).not.toHaveAttribute('data-due-soon')
+      far.unmount()
+      const past = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />)
+      expect(due()).toHaveAttribute('data-due-soon', 'true')
+      past.unmount()
+      // A completed task's date is never "soon".
+      const done = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 16), isCompleted: true })} />)
+      expect(due()).not.toHaveAttribute('data-due-soon')
+      done.unmount()
+      useSettingsStore.setState({ urgentDueWithinDays: null })
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 16) })} />)
+      expect(due()).not.toHaveAttribute('data-due-soon')
     })
 
     it('an empty due cell is the Set due date button with a hidden placeholder', () => {
@@ -107,6 +129,68 @@ describe('TaskRow', () => {
       fireEvent.pointerEnter(screen.getByRole('button', { name: 'Due Mon 20 Apr' }))
       act(() => { vi.advanceTimersByTime(400) })
       expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysRepeats every Monday')
+    })
+  })
+
+  describe('hot title', () => {
+    it('a hot task (the Settings rule) has its title marked hot; a completed or non-hot one not', () => {
+      const title = () => screen.getByText('Task 1').closest('[data-task-title]')
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, urgent: true, important: true })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+      unmount()
+      const focus = render(<TaskRow todo={makeTodo({ id: 1, focus: true })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+      focus.unmount()
+      // Urgent by its due date counts (the default range: 3 days).
+      const soon = render(<TaskRow todo={makeTodo({ id: 1, important: true, dueDate: new Date(2026, 3, 17) })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+      soon.unmount()
+      const one = render(<TaskRow todo={makeTodo({ id: 1, urgent: true })} />)
+      expect(title()).not.toHaveAttribute('data-hot')
+      one.unmount()
+      const done = render(<TaskRow todo={makeTodo({ id: 1, focus: true, isCompleted: true })} />)
+      expect(title()).not.toHaveAttribute('data-hot')
+      done.unmount()
+      // The rule from Settings.
+      useSettingsStore.setState({ hotRule: [{ important: true }] })
+      render(<TaskRow todo={makeTodo({ id: 1, important: true })} />)
+      expect(title()).toHaveAttribute('data-hot', 'true')
+    })
+  })
+
+  describe('stale fade', () => {
+    const day = (d: number) => new Date(2026, 3, d)
+    it('an open task untouched for the Settings threshold (30 days) is marked stale; a fresh, completed or opted-out one not', () => {
+      const { container, unmount } = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 17) })} />)
+      expect(container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
+      unmount()
+      const fresh = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2026, 2, 18) })} />)
+      expect(fresh.container.querySelector('[data-todo-id]')).not.toHaveAttribute('data-stale')
+      fresh.unmount()
+      const done = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: day(1), isCompleted: true })} />)
+      expect(done.container.querySelector('[data-todo-id]')).not.toHaveAttribute('data-stale')
+      done.unmount()
+      useSettingsStore.setState({ staleAfterDays: 0 })
+      const off = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: new Date(2025, 0, 1) })} />)
+      expect(off.container.querySelector('[data-todo-id]')).not.toHaveAttribute('data-stale')
+      off.unmount()
+      useSettingsStore.setState({ staleAfterDays: 7 })
+      const week = render(<TaskRow todo={makeTodo({ id: 1, modifiedAt: day(9) })} />)
+      expect(week.container.querySelector('[data-todo-id]')).toHaveAttribute('data-stale', 'true')
+    })
+
+    it('a stale row\u2019s title tooltip opens even when the title fits, with the last-edited line', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Short', modifiedAt: new Date(2026, 2, 5, 14) })} />)
+      fireEvent.pointerEnter(screen.getByText('Short'))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('ShortLast edited 42 days ago \u00b7 Mar 5, 2026')
+    })
+
+    it('a fresh row\u2019s title tooltip stays closed while the title fits', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Short' })} />)
+      fireEvent.pointerEnter(screen.getByText('Short'))
+      act(() => { vi.advanceTimersByTime(400) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
     })
   })
 
@@ -549,16 +633,16 @@ describe('TaskRow', () => {
   })
 
   describe('tags column', () => {
-    it('coloured #name text, whole tags while they fit, then +N; the cell names them all', () => {
+    it('muted #name text (no inline colour), whole tags while they fit, then +N; the cell names them all', () => {
       const tags = [
         { id: 1, name: 'alpha', color: '#ff0000' },
-        { id: 2, name: 'beta', color: '#222' },
+        { id: 2, name: 'beta-release-notes', color: '#222' },
       ]
       useTagStore.setState({ tags, assignedTagsMap: new Map([[1, tags]]) })
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
-      const cell = screen.getByRole('button', { name: 'Tags: alpha, beta' })
-      expect(within(cell).getByText('#alpha')).toHaveStyle({ color: '#ff0000' })
-      expect(within(cell).queryByText('#beta')).toBeNull()
+      const cell = screen.getByRole('button', { name: 'Tags: alpha, beta-release-notes' })
+      expect(within(cell).getByText('#alpha').getAttribute('style')).toBeNull()
+      expect(within(cell).queryByText('#beta-release-notes')).toBeNull()
       expect(within(cell).getByText('+1')).toBeInTheDocument()
     })
 

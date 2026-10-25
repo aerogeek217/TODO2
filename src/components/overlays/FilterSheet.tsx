@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
@@ -7,6 +7,11 @@ import { useUIStore } from '../../stores/ui-store'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { useScreenTaskCount } from '../../hooks/use-screen-task-count'
 import { screenTaskDialog, showTasksLabel } from '../../services/task-dialog'
+import { usePickedLens } from '../../stores/screen-filter'
+import { FilterSheetLens } from './FilterSheetLens'
+import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
+import { NlpPopup } from '../shared/NlpPopup'
+import { TintedText } from '../shared/TintedText'
 import styles from './FilterSheet.module.css'
 
 export function FilterSheet() {
@@ -15,7 +20,15 @@ export function FilterSheet() {
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
   const filters = useFilterStore((s) => s.filters)
   const isActive = useFilterStore((s) => s.isActive)
-  const setSearchText = useFilterStore((s) => s.setSearchText)
+  const lensPicked = usePickedLens() != null
+  // The search: its tokens become the sections' values (the screen filter's chips), its words the text search.
+  const searchRef = useRef<HTMLInputElement>(null)
+  const box = useSearchBox({ inputRef: searchRef, debounce: false })
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  const syncMirror = useCallback(() => {
+    if (mirrorRef.current && searchRef.current) mirrorRef.current.scrollLeft = searchRef.current.scrollLeft
+  }, [])
+  useLayoutEffect(() => { syncMirror() }, [box.text, syncMirror])
   const location = useLocation()
 
   const predicate = useMemo<TodoPredicate>(() => criteriaToPredicate(filters), [filters])
@@ -58,21 +71,61 @@ export function FilterSheet() {
               </svg>
             </span>
             <input
+              ref={searchRef}
               className={styles.searchInput}
               type="text"
               placeholder="Search tasks..."
               aria-label="Search tasks"
               autoFocus={focusSearch}
-              value={filters.searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+              value={box.text}
+              onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}
+              onSelect={syncMirror}
+              onScroll={syncMirror}
+              onMouseUp={(e) => box.onCaretMove(e.currentTarget)}
+              onKeyDown={(e) => {
+                // The `@ # /` popup's keys; ⏎ makes every token a section's value;
+                // Backspace in the empty box takes the last one back.
+                if (box.onKeyDown(e)) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }
+              }}
+              spellCheck={false}
             />
-            {filters.searchText && (
-              <button className={styles.searchClear} onClick={() => setSearchText('')}>
+            {/* The box's text with its token tints, over the input's transparent text. */}
+            <div ref={mirrorRef} className={styles.searchMirror} aria-hidden="true" data-testid="search-mirror">
+              <TintedText text={box.text} spans={box.tints} />
+            </div>
+            {box.text && (
+              <button className={styles.searchClear} onClick={box.clear}>
                 ×
               </button>
             )}
           </div>
+          {/* The `@ # /` popup inside the sheet, under the box. */}
+          {box.ac.state.visible && box.ac.state.view && (
+            <NlpPopup
+              view={box.ac.state.view}
+              selectedIndex={box.ac.state.selectedIndex}
+              onPick={(row) => box.ac.select(row, searchRef.current)}
+              onHighlight={box.ac.highlight}
+              className={styles.popup}
+            />
+          )}
+          {box.unmatched.length > 0 && !box.ac.state.visible && (
+            <div className={styles.searchNote} role="status">
+              {box.unmatched.map((n) => {
+                const note = unmatchedNote(n)
+                return (
+                  <div key={`${n.kind}-${n.start}`}>
+                    {note.lead}<b>{note.name}</b>{note.rest}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
+          <FilterSheetLens />
           <FilterChipBar
             predicate={predicate}
             onChange={handleChange}
@@ -80,7 +133,7 @@ export function FilterSheet() {
             onClearExtra={closeSheet}
             onClearAll={() => useFilterStore.getState().clearAll()}
           />
-          {isActive && <ShowTasksButton onShow={closeSheet} />}
+          {(isActive || lensPicked) && <ShowTasksButton onShow={closeSheet} />}
         </div>
       </div>
     </>
@@ -88,8 +141,8 @@ export function FilterSheet() {
 }
 
 /**
- * The sheet's foot while a filter is on, as the top bar's tray end: how many
- * tasks the filter matches; a tap closes the sheet and opens them in the
+ * The sheet's foot while a filter is on or the layout has a lens, as the top
+ * bar's tray end: how many tasks the filter and the lens keep; a tap closes the sheet and opens them in the
  * task dialog (whose filter bar edits this filter).
  */
 function ShowTasksButton({ onShow }: { onShow: () => void }) {

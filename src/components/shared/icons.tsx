@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import type { WidgetKind } from '../../models/workspace-layout'
+import type { HueName, WidgetKind } from '../../models/workspace-layout'
+import { hueColor } from '../../utils/layout-hue'
 
 /**
  * Inline stroke icons for the workspace chrome: 16×16 viewBox, stroke 1.6,
@@ -29,7 +30,9 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   lens: (
     <>
       <path d="M6 4h7.5M6 8h7.5M6 12h7.5" />
-      <path d="M2.5 4h.01M2.5 8h.01M2.5 12h.01" strokeWidth={2.2} />
+      <circle cx="2.75" cy="4" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="2.75" cy="8" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="2.75" cy="12" r=".9" fill="currentColor" stroke="none" />
     </>
   ),
   calendar: (
@@ -69,6 +72,13 @@ export function LayoutIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** The layout glyph in the layout's hue (D19); none = the surrounding colour. */
+export function HuedLayoutIcon({ hue, size = 14 }: { hue?: HueName; size?: number }) {
+  return hue
+    ? <span style={{ display: 'inline-flex', color: hueColor(hue) }}><LayoutIcon size={size} /></span>
+    : <LayoutIcon size={size} />
+}
+
 export function SaveIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size}>
@@ -97,11 +107,27 @@ export function ChevronLeftIcon({ size = 12 }: { size?: number }) {
 /** Two arrows chasing round: a recurring task. */
 export function RepeatIcon({ size = 10 }: { size?: number }) {
   return (
-    <Svg size={size} strokeWidth={1.8}>
+    <Svg size={size}>
       <path d="M12.5 6.5A4.5 4.5 0 0 0 4.2 5M3.5 9.5A4.5 4.5 0 0 0 11.8 11" />
       <path d="M4 2.5V5h2.5M12 13.5V11H9.5" />
     </Svg>
   )
+}
+
+/** A page with a folded corner and two lines: a task's progress / notes. */
+export function NotesIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M3.5 2h6l3 3v9h-9z" />
+      <path d="M9.5 2v3h3" />
+      <path d="M5.5 8.5h5M5.5 11h3.5" />
+    </Svg>
+  )
+}
+
+/** Lines of text: show titles. */
+export function TitlesIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M3 4.5h10M3 8h10M3 11.5h6" /></Svg>
 }
 
 /** A ring with a dot: jump to today. */
@@ -223,6 +249,18 @@ export function CloseCellIcon({ size = 14 }: { size?: number }) {
 /** Funnel: a screen (top-bar) filter. */
 export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
+}
+
+/** Glasses: a lens (a layout's saved screen filter); `slashed` = lifted for now. */
+export function GlassesIcon({ size = 16, slashed = false }: { size?: number; slashed?: boolean }) {
+  return (
+    <Svg size={size}>
+      <circle cx="4.5" cy="10" r="3" />
+      <circle cx="11.5" cy="10" r="3" />
+      <path d="M7.5 10h1M1.5 9.5 3.5 4h2M14.5 9.5 12.5 4h-2" />
+      {slashed && <path d="M2.5 14 13.5 3" />}
+    </Svg>
+  )
 }
 
 /** Sort lines: a list's group · sort. */

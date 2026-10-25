@@ -446,6 +446,24 @@ describe('validateImportData', () => {
       }
     })
 
+    it('the lenses are read leniently: an unreadable lens goes, completed tasks go off, with a warning', () => {
+      const good = { id: 'lens-a', name: 'Fresh', predicate: { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } } }
+      const value = JSON.stringify([good, { id: 'lens-a', name: 'Again', predicate: emptyPredicate() }, { name: 'No id', predicate: emptyPredicate() }, { id: 'lens-b', name: '  Spaced  ', predicate: { ...emptyPredicate(), showCompleted: true } }])
+      const result = validateImportData(validData({ settings: [{ key: 'lenses', value }, { key: 'lensPresetsSeeded', value: 'true' }] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(JSON.parse(result.data.settings[0]!.value)).toEqual([good, { id: 'lens-b', name: 'Spaced', predicate: emptyPredicate() }])
+      expect(result.data.settings[1]).toEqual({ key: 'lensPresetsSeeded', value: 'true' })
+      expect(result.warnings).toEqual([expect.stringContaining('lenses (2 lenses dropped, lens fixed)')])
+      for (const bad of ['nope', '{}', 'x'.repeat(1_000_001)]) {
+        const read = validateImportData(validData({ settings: [{ key: 'lenses', value: bad }] }))
+        if (!read.ok) throw new Error(read.error)
+        expect(JSON.parse(read.data.settings[0]!.value)).toEqual([])
+        expect(read.warnings).toHaveLength(1)
+      }
+      expect(validateImportData(validData({ settings: [{ key: 'lensPresetsSeeded', value: 'yes' }] })))
+        .toEqual({ ok: false, error: expect.stringContaining('lensPresetsSeeded must be true') })
+    })
+
     it('the check-in scope of older builds is an unknown setting (the check-in filter replaced it)', () => {
       const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'hot' }] }))
       if (!result.ok) throw new Error(result.error)
@@ -465,6 +483,8 @@ describe('validateImportData', () => {
         ['newListSort', 'priority'], ['newListSort', 'manual'], ['newListSortDirection', 'desc'], ['newListSortDirection', 'asc'],
         ['newListGroup', 'tag'], ['purgePromptIntervalDays', '1'], ['purgePromptIntervalDays', '365'],
         ['purgePromptLastAt', '2026-10-20T08:00:00.000Z'],
+        ['staleAfterDays', '0'], ['staleAfterDays', '30'], ['staleAfterDays', '365'],
+        ['rowDensity', 'comfortable'], ['rowDensity', 'compact'],
       ]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result.ok, `${key}=${value}`).toBe(true)
@@ -482,6 +502,11 @@ describe('validateImportData', () => {
         ['purgePromptIntervalDays', '7.5', 'purgePromptIntervalDays must be a day count 1–365'],
         ['purgePromptIntervalDays', '07', 'purgePromptIntervalDays must be a day count 1–365'],
         ['purgePromptLastAt', 'yesterday', 'purgePromptLastAt must be a date'],
+        ['staleAfterDays', '366', 'staleAfterDays must be a day count 0–365'],
+        ['staleAfterDays', '-1', 'staleAfterDays must be a day count 0–365'],
+        ['staleAfterDays', '07', 'staleAfterDays must be a day count 0–365'],
+        ['staleAfterDays', '', 'staleAfterDays must be a day count 0–365'],
+        ['rowDensity', 'cosy', 'rowDensity must be comfortable or compact'],
       ] as const) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result, `${key}=${value}`).toEqual({ ok: false, error: expect.stringContaining(message) })
@@ -824,7 +849,7 @@ describe('validateImportData', () => {
         listDefinitions: [
           { ...list(1, 'Down', {}), sort: 'deadline', sortDirection: 'desc' },
           { ...list(2, 'Up', {}), sort: 'name', sortDirection: 'asc' },
-          { ...list(3, 'Plain', {}), sort: 'created' },
+          { ...list(3, 'Plain', {}), sort: 'modified' },
           { ...list(4, 'Sideways', {}), sort: 'name', sortDirection: 'sideways' },
           { ...list(5, 'Null', {}), sort: 'name', sortDirection: null },
         ],

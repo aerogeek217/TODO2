@@ -457,3 +457,55 @@ describe('countActiveFilters', () => {
     expect(useFilterStore.getState().isActive).toBe(true)
   })
 })
+
+describe('useFilterStore: chips the search box made', () => {
+  const s = () => useFilterStore.getState()
+
+  it('applySearchTokens merges each clause and remembers the token', () => {
+    s().applySearchTokens([
+      { raw: '@ann', clause: { field: 'personIds', id: 1 } },
+      { raw: '@bo', clause: { field: 'personIds', id: 2 } },
+      { raw: 'overdue', clause: { field: 'deadline', match: { match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' } } } },
+    ])
+    expect(f().personIds).toEqual(new Set([1, 2]))
+    expect(f().dates.deadline).toEqual({ match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' } })
+    expect(s().isActive).toBe(true)
+    expect(s().boxChips.map((c) => c.token)).toEqual(['@ann', '@bo', 'overdue'])
+  })
+
+  it('unwindSearchToken takes the last chip back, newest first, and puts its field back as it was', () => {
+    s().setDateRange(new Date(2026, 9, 1), null)
+    const before = f().dates.deadline
+    s().applySearchTokens([
+      { raw: '#q4', clause: { field: 'tags', id: 7 } },
+      { raw: 'no due', clause: { field: 'deadline', match: { match: 'unset' } } },
+    ])
+    expect(s().unwindSearchToken()).toBe('no due')
+    expect(f().dates.deadline).toEqual(before)
+    expect(s().unwindSearchToken()).toBe('#q4')
+    expect(f().tags).toBeNull()
+    expect(s().unwindSearchToken()).toBeNull()
+  })
+
+  it('a picker editing a field drops that field\'s box chips only', () => {
+    s().applySearchTokens([
+      { raw: '@ann', clause: { field: 'personIds', id: 1 } },
+      { raw: '#q4', clause: { field: 'tags', id: 7 } },
+    ])
+    s().setTags(new Set([7, 8]))
+    expect(s().boxChips.map((c) => c.token)).toEqual(['@ann'])
+    // The text search and an unchanged field keep them.
+    s().setSearchText('x')
+    s().setAllFilters({ ...f() })
+    expect(s().boxChips.map((c) => c.token)).toEqual(['@ann'])
+    expect(s().unwindSearchToken()).toBe('@ann')
+    expect(f().tags).toEqual(new Set([7, 8]))
+  })
+
+  it('Clear all forgets them', () => {
+    s().applySearchTokens([{ raw: 'done', clause: { field: 'showCompleted' } }])
+    s().clearAll()
+    expect(s().boxChips).toEqual([])
+    expect(s().unwindSearchToken()).toBeNull()
+  })
+})

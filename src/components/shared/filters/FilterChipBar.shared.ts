@@ -176,7 +176,8 @@ export function useFilterChipBarState(
   const tagIdsSet = useMemo(() => (p.tags ? new Set(p.tags) : null), [p.tags])
 
   const sortedTags = useMemo(() => [...tags].sort(byName), [tags])
-  const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
+  // 0 = No tags.
+  const allTagIds = useMemo(() => [0, ...sortedTags.map((t) => t.id!)], [sortedTags])
 
   const peopleActive = p.personIds !== null
   const statusActive = p.statusIds !== null

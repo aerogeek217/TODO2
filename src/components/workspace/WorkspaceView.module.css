@@ -7,9 +7,31 @@
   min-width: 0;
   height: 100%;
   padding: var(--workspace-gutter) 0;
+  position: relative;
   background: var(--color-app-bg);
   overflow: hidden;
   box-sizing: border-box;
+}
+
+/* A layout with a hue (D19): every cell header takes 7 % of it; on the
+   tinted header a tab's label steps up to the secondary text (the muted
+   one would fall under 4.5:1). */
+.area:not([data-layout-hue='none']) {
+  --cell-header-tint: color-mix(in srgb, var(--layout-hue) 7%, transparent);
+  --cell-tab-text: var(--color-text-secondary);
+}
+
+/* The grain (D19): turbulence screened over the app background, under the
+   cells (they paint after it); dark theme only (`--grain-display`). */
+.grain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: var(--grain-display);
+  opacity: 0.035;
+  mix-blend-mode: screen;
+  pointer-events: none;
 }
 
 /* Bands span the visible workspace and never scroll sideways. */
@@ -58,12 +80,6 @@
   padding: 24px 16px;
 }
 
-.emptyTitle {
-  margin: 0 0 6px;
-  font-size: var(--font-size-body);
-  color: var(--color-text-secondary);
-}
-
 .emptyHint {
   margin: 0;
   font-size: var(--font-size-meta);
@@ -75,7 +91,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  margin: 14px 0;
+  margin: 8px 0;
 }
 
 .tile {
@@ -99,10 +115,13 @@
 
 .tile:hover,
 .tile:focus-visible {
-  outline: none;
   background: var(--color-accent-bg-medium);
   box-shadow: inset 0 0 0 1.5px var(--color-accent), var(--shadow-card);
   color: var(--color-accent-text);
+}
+
+.tile:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-border-muted), var(--shadow-card), var(--focus-ring);
 }
 
 .tileIcon {

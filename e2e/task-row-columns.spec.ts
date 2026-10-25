@@ -106,9 +106,9 @@ test('status is the last column, flush with the row’s right padding; the defau
     expect(await laidOutDetails(r)).toBe(300)
   }
   const busy = row(widget, 'Draft the Q4 roadmap review deck')
-  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(53)
-  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(79)
-  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(112)
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(60)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(90)
+  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(94)
   await expect(busy.locator('[data-row-cell="due"]')).toHaveText(/^\d\d\/\d\d$/)
   await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(/^\d\d\/\d\d$/)
   await expect(widget.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
@@ -164,7 +164,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   // People and tags grew; the dates / status didn't.
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 360 })
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(112)
+  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(94)
 
   await page.reload()
   await expect(first).toBeVisible()

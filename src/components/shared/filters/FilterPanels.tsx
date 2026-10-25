@@ -267,6 +267,8 @@ interface EntityDropdownItemsProps {
   showDot?: boolean
   /** Show the leading "None" row (id 0). Default true. */
   withNone?: boolean
+  /** The None row's name (default `None`; tags: `No tags`). */
+  noneLabel?: string
   /**
    * The rows are people / tags: a right-click on one opens its Show tasks ·
    * Edit… · Delete… menu over the picker (without ticking it); Show tasks
@@ -309,6 +311,7 @@ export function EntityDropdownItems({
   namePrefix,
   showDot = true,
   withNone = true,
+  noneLabel = 'None',
   entityMenu,
   onShowTasks,
   label,
@@ -323,7 +326,7 @@ export function EntityDropdownItems({
   const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   const order = usePickerOrder(searchText, allIds, isChecked)
   const q = searchText.trim().toLowerCase()
-  const showNone = withNone && (!q || 'none'.includes(q))
+  const showNone = withNone && (!q || 'none'.includes(q) || noneLabel.toLowerCase().includes(q))
   const matching = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
     .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))
     .toSorted(byName)
@@ -408,7 +411,7 @@ export function EntityDropdownItems({
       {rowIds.length > 0 && (
         <div ref={listRef} role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
           {rowIds.map((id) => {
-            if (id === 0) return row(0, <span className={picker.noneLabel}>None</span>, !!entityMenu)
+            if (id === 0) return row(0, <span className={picker.noneLabel}>{noneLabel}</span>, !!entityMenu)
             const entity = byId.get(id)
             return entity && row(id, (
               <>

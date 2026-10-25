@@ -324,6 +324,13 @@ describe('ListWidget', () => {
     expect(result()?.countLabel).toBe('2')
   })
 
+  it('the pick-a-value state’s one action puts the focus in the prompt’s field', () => {
+    setup(def({ runtimeFilter: { field: 'person' } }))
+    expect(document.querySelector('[data-empty-state="person"]')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Pick someone' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Filter tasks by person'))
+  })
+
   it('picking values in the prompt picker filters the list, several picks OR-combined', () => {
     usePersonStore.setState({
       people: [alice, bob],
@@ -616,13 +623,23 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
   })
 
+  it('a Hot list offers + Add task, seeding the Hot rule’s first line (the new task is hot)', () => {
+    useSettingsStore.setState({ hotRule: [{ urgent: true, important: true }, { focus: true }] })
+    setup(def({}, { markers: 'hot' }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: true, important: true })
+    act(() => useSettingsStore.setState({ hotRule: [{ focus: true }] }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ focus: true })
+  })
+
   it('a list whose only Priority clause is a No offers + Add task (the new task starts without the marker)', () => {
     setup(def({}, { markers: { urgent: false } }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
   })
 
-  it('a Hot list re-filters when the Hot rule or the urgent range changes, and offers no + Add task', () => {
+  it('a Hot list re-filters when the Hot rule or the urgent range changes', () => {
     const tomorrow = new Date()
     tomorrow.setHours(0, 0, 0, 0)
     tomorrow.setDate(tomorrow.getDate() + 1)
@@ -635,7 +652,6 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     })
     const { result } = setup(def({}, { markers: 'hot' }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
-    expect(screen.queryByRole('button', { name: /Add task/ })).toBeNull()
     act(() => useSettingsStore.setState({ hotRule: [{ important: true }] }))
     expect(titles()).toEqual(['Alice task', 'Shared task'])
     expect(result()?.countLabel).toBe('2')
@@ -758,5 +774,58 @@ describe('ListWidget People group headers: email check-in', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy 2 tasks' }))
     await vi.waitFor(() => expect(written).toEqual(['[ ] Shared task @Alice, @Bob\n[ ] Bob task @Bob']))
     await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 2 tasks' }))
+  })
+})
+
+describe('ListWidget — a completed row leaves (D19)', () => {
+  const complete = (id: number) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
+  })
+  const leavingOf = (title: string) => document.querySelector(`[data-task-title="${title}"]`)?.closest('[data-leaving]')?.getAttribute('data-leaving') ?? null
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('stays in place, completed, for 500 ms, folds for 180 ms, then drops out of a list hiding completed tasks', () => {
+    vi.useFakeTimers()
+    setup(def())
+    complete(2)
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(leavingOf('Bob task')).toBe('stay')
+    expect(screen.getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(leavingOf('Bob task')).toBe('fold')
+    act(() => { vi.advanceTimersByTime(180) })
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+  })
+
+  it('reopened while it lingers, it simply stays', () => {
+    vi.useFakeTimers()
+    setup(def())
+    complete(2)
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 2 ? { ...t, isCompleted: false, completedAt: undefined } : t)) })
+    })
+    expect(leavingOf('Bob task')).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+  })
+
+  it('in a list that shows completed tasks nothing folds', () => {
+    vi.useFakeTimers()
+    setup(def({}, { showCompleted: true }))
+    complete(2)
+    expect(leavingOf('Bob task')).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles()).toContain('Bob task')
+  })
+
+  it('under reduced motion the row leaves at once', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    setup(def())
+    complete(2)
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
   })
 })

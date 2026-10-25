@@ -42,6 +42,14 @@
   background: transparent;
 }
 
+/*
+ * Ember (D19): a hot task (P1's flag on its title) glows faintly from the
+ * left edge. Before the hover and synced-hover fills, which paint over it.
+ */
+.row:has(> [data-hot]) {
+  background: radial-gradient(60px 28px at 0 50%, color-mix(in srgb, var(--color-danger) var(--ember-strength), transparent), transparent);
+}
+
 .row:active {
   cursor: grabbing;
 }
@@ -67,6 +75,17 @@
 
 .row.completed {
   opacity: 0.4;
+}
+
+/* Stale (untouched for the Settings threshold): faded until the row is hovered, focused or has a picker open. */
+.row[data-stale] {
+  opacity: 0.55;
+}
+
+.row[data-stale]:hover,
+.row[data-stale]:focus-within,
+.row[data-stale].rowDropdownOpen {
+  opacity: 1;
 }
 
 /*
@@ -95,11 +114,6 @@
   border-color: var(--color-text-secondary);
 }
 
-.checkbox:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .checkbox:checked {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -112,16 +126,33 @@
   100% { transform: scale(1); }
 }
 
-.checkbox:checked::after {
-  content: '✓';
+/* The checkbox and its check (D19): an inline SVG over the box whose stroke
+   draws itself (dashoffset 1 → 0, 160 ms) when the box is ticked, with the
+   pop; unticked, it is gone at once. */
+.checkWrap {
+  position: relative;
+  display: flex;
+}
+
+.checkMark {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 10px;
-  font-weight: bold;
-  color: var(--color-text-on-accent);
-  line-height: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--color-text-on-accent);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  pointer-events: none;
+}
+
+.checkbox:checked + .checkMark {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 160ms ease-out;
+  animation: checkPop 0.2s ease;
 }
 
 .statusMenu {
@@ -174,9 +205,24 @@
   padding-right: 4px;
 }
 
+/* A hot task (the Settings Hot rule): the title semibold. */
+.title.hot {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The strike (D19): a line under the text's middle that sweeps across it
+   (220 ms) when the task is completed; at once when it loads completed. */
+.titleText {
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 58% / 0 1.5px;
+}
+
 .title.completedTitle {
-  text-decoration: line-through;
   color: var(--color-text-completed);
+}
+
+.completedTitle .titleText {
+  background-size: 100% 1.5px;
+  transition: background-size 220ms ease-out;
 }
 
 .titleInput {
@@ -188,6 +234,7 @@
   font-family: inherit;
   padding: 0;
   outline: none;
+  box-shadow: none;
   min-width: 0;
 }
 
@@ -240,11 +287,6 @@
   color: var(--color-text-secondary);
 }
 
-.cell:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 .cellCenter {
   justify-content: center;
   padding: 0;
@@ -294,7 +336,7 @@
   right: -2px;
   top: 0;
   bottom: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .gutter:hover::before,
@@ -306,15 +348,21 @@
   background: transparent;
 }
 
+/* The focus ring goes round the hit area (4px radius), not the 5px dot column. */
 .gutter:focus-visible {
-  outline: none;
+  box-shadow: none;
 }
 
 .gutter:focus-visible::before {
-  outline: 2px solid var(--color-accent);
+  box-shadow: var(--focus-ring);
 }
 
-/* People: overlapping 16px avatars ringed in the row background, then "+N". */
+/*
+ * People: overlapping 16px avatars ringed in the row background, then "+N".
+ * Monochrome at rest (the colour budget); the person's colour
+ * (`--avatar-color`) comes back on the placeholder trigger set: row hover,
+ * focus within, a picker open.
+ */
 .avatars {
   position: relative;
   display: inline-flex;
@@ -332,14 +380,23 @@
   margin-left: -4px;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--color-surface);
-  color: var(--color-text-on-accent);
+  background: var(--color-surface-bright);
+  color: var(--color-text-secondary);
   font-size: 8px;
   font-weight: 700;
   line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .avatar:first-child {
   margin-left: 0;
+}
+
+.row:hover .avatar,
+.row:focus-within .avatar,
+.rowDropdownOpen .avatar {
+  background: var(--avatar-color);
+  color: var(--color-text-on-accent);
 }
 
 /* "+N" on the avatar's corner when it doesn't fit beside it. */
@@ -364,7 +421,7 @@
   color: var(--color-text-muted);
 }
 
-/* Tags: coloured text, no border or fill; the last shown may ellipsize. */
+/* Tags: muted text (the tag's colour stays in the picker), no border or fill; the last shown may ellipsize. */
 .tag {
   flex-shrink: 0;
   line-height: 16px;
@@ -379,9 +436,10 @@
 }
 
 /*
- * Dates: the due part (clock + MM/DD) and the follow-up part (flag + MM/DD)
- * side by side, each part its own button with its own width (set inline per
- * tier); a narrow list shows a part as its icon alone.
+ * Dates: the due part and the follow-up part (each its `MM/DD` alone) side
+ * by side, each part its own button with its own width (set inline per
+ * tier); a narrow list shows a part as its icon alone, as an absent date's
+ * placeholder is.
  */
 .datesCell {
   display: flex;
@@ -398,21 +456,27 @@
 .datePartButton {
   flex: 1;
   gap: 3px;
+  padding: 0 6px;
 }
 
 .dateText {
   min-width: 0;
 }
 
-/* Due: text colour only — due soon toward the deadline colour by proximity, overdue bold; the clock follows it. */
-.due {
-  --date-intensity: 0;
-  --fade: calc((1 - var(--date-intensity)) * 100%);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 34 = 46). */
+.dueRepeat {
+  gap: 2px;
+  padding: 0;
 }
 
-.due:hover {
-  color: color-mix(in srgb, var(--color-text-secondary) var(--fade), var(--color-deadline));
+/*
+ * Due: text colour only, one step — muted until the date is inside the
+ * Settings "due soon" range (`data-due-soon`), then the deadline colour;
+ * overdue bold.
+ */
+.due[data-due-soon],
+.due[data-due-soon]:hover {
+  color: var(--color-deadline);
 }
 
 .duePast,
@@ -456,11 +520,7 @@
   color: var(--color-text-primary);
 }
 
-/* Follow-up: upcoming outlined and muted, today filled, late filled and glowing; the date in the flag's colour. */
-.followup[data-followup="upcoming"] {
-  color: color-mix(in srgb, var(--color-followup) 55%, var(--color-text-muted));
-}
-
+/* Follow-up: upcoming plain muted (its flag outlined), today and late in the follow-up colour, late glowing. */
 .followup[data-followup="today"],
 .followup[data-followup="late"] {
   color: var(--color-followup);
@@ -470,10 +530,19 @@
   filter: drop-shadow(0 0 3px var(--color-followup-glow));
 }
 
-/* Status: the icon in its colour; empty = a dot placeholder. */
+/*
+ * Status: the icon muted at rest, in its colour (`--status-color`) on the
+ * placeholder trigger set; empty = a dot placeholder.
+ */
 .status {
   font-size: 14px;
   line-height: 0;
+}
+
+.row:hover .status,
+.row:focus-within .status,
+.rowDropdownOpen .status {
+  color: var(--status-color, var(--color-text-muted));
 }
 
 .statusDot {
@@ -489,6 +558,44 @@
   .ph {
     opacity: 1;
   }
+}
+
+/* ── Comfortable density (Settings › Appearance; the row list's `data-density`) ── */
+
+/*
+ * The title wraps to two lines (18px each, then an ellipsis); the row grows
+ * to fit, at least 44px, and its cells sit on the first line.
+ */
+[data-density="comfortable"] .row {
+  align-items: start;
+  min-height: 44px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+[data-density="comfortable"] .title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 18px;
+}
+
+[data-density="comfortable"] .titleInput {
+  height: 18px;
+  line-height: 18px;
+}
+
+[data-density="comfortable"] .checkbox,
+[data-density="comfortable"] .gutter,
+[data-density="comfortable"] .cell {
+  height: 18px;
+}
+
+[data-density="comfortable"] .checkbox {
+  width: 18px;
 }
 
 /* ── The row list and its divider ──────────────────────────────────────── */
@@ -513,6 +620,7 @@
   cursor: col-resize;
   touch-action: none;
   outline: none;
+  box-shadow: none;
 }
 
 .dividerLine {

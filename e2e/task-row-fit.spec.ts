@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
 
 /**
@@ -60,7 +60,16 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
       widths.add(Math.round(box.width))
       const name = `${row.dataset.todoId}@${Math.round(box.width)}`
       if (row.scrollWidth > row.clientWidth + 1) problems.push(`${name}: scrolls ${row.scrollWidth}`)
+      // An element clipped by a box inside the row (the title's ellipsis box
+      // clips its text) is that box's to fit: the box itself is checked.
+      const clippedInside = (el: HTMLElement) => {
+        for (let p = el.parentElement; p && p !== row; p = p.parentElement) {
+          if (getComputedStyle(p).overflowX !== 'visible') return true
+        }
+        return false
+      }
       for (const el of Array.from(row.querySelectorAll<HTMLElement>('*'))) {
+        if (clippedInside(el)) continue
         const b = el.getBoundingClientRect()
         if (b.width > 0 && b.right > box.right + 0.5 && getComputedStyle(el).position !== 'absolute') {
           problems.push(`${name}: ${el.getAttribute('aria-label') ?? el.className} ends at ${Math.round(b.right - box.left)}`)
@@ -74,8 +83,24 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
   })
 }
 
-/** Which dates the rows show beside their icons, per column width: the narrower, the fewer. */
-const DATES_TIER: Record<number, string> = { 300: 'icons', 330: 'icons', 345: 'due', 380: 'both', 455: 'both', 560: 'both' }
+/**
+ * A row's due and follow-up parts in `tier`: a shown date is its `MM/DD`
+ * text alone, a dropped one its icon (the clock, the flag) — in view either way.
+ */
+async function expectDateParts(row: Locator, tier: string): Promise<void> {
+  const date = /^\d\d\/\d\d$/
+  const due = row.locator('[data-row-cell="due"]')
+  const followup = row.locator('[data-row-cell="followup"]')
+  await expect(due).toBeInViewport()
+  await expect(followup).toBeInViewport()
+  if (tier === 'icons') await expect(due.locator('svg')).toHaveCount(1)
+  else await expect(due).toHaveText(date)
+  if (tier === 'both') await expect(followup).toHaveText(date)
+  else await expect(followup.locator('svg')).toHaveCount(1)
+}
+
+/** Which dates the rows show, per column width: the narrower, the fewer. */
+const DATES_TIER: Record<number, string> = { 300: 'icons', 330: 'due', 345: 'due', 380: 'both', 455: 'both', 560: 'both' }
 
 test.describe('task rows fit their container', () => {
   for (const width of [300, 330, 345, 380, 455, 560]) {
@@ -88,9 +113,9 @@ test.describe('task rows fit their container', () => {
       const busiest = page.locator('[data-todo-id]').first()
       await busiest.locator('[data-task-title]').hover()
       await expect(busiest.locator('[data-row-cell="status"]')).toBeInViewport()
-      // Narrow columns drop the follow-up date first, then the due date; the icons stay.
+      // Narrow columns drop the follow-up date first, then the due date; a dropped date shows as its icon.
       await expect(busiest.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', DATES_TIER[width]!)
-      for (const part of ['due', 'followup']) await expect(busiest.locator(`[data-row-cell="${part}"] svg`).first()).toBeInViewport()
+      await expectDateParts(busiest, DATES_TIER[width]!)
     })
   }
 
@@ -136,7 +161,7 @@ test('narrowing the details by the divider: people and tags shrink, the dates go
     await expect(busiest.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', tier)
     await expect(busiest.locator('[data-row-cell="people"]')).toHaveCount(people ? 1 : 0)
     await expect(busiest.locator('[data-row-cell="tags"]')).toHaveCount(tags ? 1 : 0)
-    for (const part of ['due', 'followup']) await expect(busiest.locator(`[data-row-cell="${part}"] svg`).first()).toBeInViewport()
+    await expectDateParts(busiest, tier)
     expect((await rowOverflow(page)).problems).toEqual([])
   }
   await page.mouse.up()

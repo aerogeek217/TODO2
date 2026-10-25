@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { screenTaskCount } from '../services/task-dialog'
-import { useFilterStore } from '../stores/filter-store'
+import { screenTaskCounts, type ScreenTaskCounts } from '../services/task-dialog'
+import { useScreenFilter } from '../stores/screen-filter'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
@@ -9,23 +9,29 @@ import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
 
 /**
- * How many tasks the screen filter matches — what its task dialog lists
- * (`screenTaskCount`: open ones, completed too under Show completed), kept
- * current.
+ * What the screen filter (the chips with the open layout's lens) keeps —
+ * what its task dialog lists (open ones, completed too under Show
+ * completed) — of every such task, and what the lens alone keeps
+ * (`screenTaskCounts`), kept current.
  */
-export function useScreenTaskCount(): number {
+export function useScreenTaskCounts(): ScreenTaskCounts {
   const todos = useTodoStore((s) => s.todos)
-  const screen = useFilterStore((s) => s.filters)
+  const screen = useScreenFilter().filters
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const { urgentRange, hotRule, weekStartsOn } = useFilterSettings()
   const today = useToday()
   return useMemo(
-    () => screenTaskCount({
+    () => screenTaskCounts({
       todos, screen, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn,
       markerSettings: { urgentRange, hotRule },
     }),
     [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, urgentRange, hotRule],
   )
+}
+
+/** How many tasks the screen filter matches — what its task dialog lists — kept current. */
+export function useScreenTaskCount(): number {
+  return useScreenTaskCounts().shown
 }

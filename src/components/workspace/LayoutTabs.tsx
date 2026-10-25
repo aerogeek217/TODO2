@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import type { PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import { LayoutIcon, PlusIcon } from '../shared/icons'
+import { hueColor } from '../../utils/layout-hue'
 import styles from './LayoutControls.module.css'
 
 type Layout = PersistedWorkspaceLayout
@@ -158,7 +159,7 @@ function LayoutTabView({ layout, active, dirty, focusable, onActivate, onOpenMen
     <div
       ref={(el) => { sortable?.ref(el); setRef(el) }}
       {...sortable?.listeners}
-      style={sortable?.style}
+      style={{ ...sortable?.style, '--layout-hue': hueColor(layout.hue) } as React.CSSProperties}
       role="tab"
       aria-selected={active}
       tabIndex={focusable ? 0 : -1}

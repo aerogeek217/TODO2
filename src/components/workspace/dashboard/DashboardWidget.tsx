@@ -15,7 +15,7 @@ import { createValueStore } from '../../../utils/value-store'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { countOf, tileSubLine, withScreenNote } from './dashboard-copy'
-import { TILES, tileDrill } from './dashboard-tiles'
+import { TILES, tileColors, tileDrill } from './dashboard-tiles'
 import { DASHBOARD_WIDE_MIN_PX, packSections, sectionRowTracks, TILES_PER_ROW } from './dashboard-layout'
 import { DASHBOARD_SECTIONS } from './dashboard-sections'
 import { buildDashboardSummary, sectionSummaryLines, type DashboardSummary } from './dashboard-summary'
@@ -60,11 +60,13 @@ function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData;
   const shown = ids.length
   const total = data.tiles.total[id].ids.length
   const sub = tileSubLine(id, stats, { today: data.ctx.today, trendNet: data.trend?.net ?? null, trendRange: data.trendRange })
-  const numberColor = shown === 0 ? 'var(--color-text-muted)' : id === 'open' ? 'var(--color-text-primary)' : def.color
+  const colors = tileColors(id, shown)
   const content = (
     <>
-      <span className={styles.tileLabel}><DashGlyph name={def.glyph} size={12} color={def.color} />{def.label}</span>
-      <span className={styles.tileCount} style={{ color: numberColor }} data-testid="dash-tile-count">
+      <span className={styles.tileLabel} style={{ color: colors.label }}>
+        <DashGlyph name={def.glyph} size={12} color={colors.glyph} />{def.label}
+      </span>
+      <span className={styles.tileCount} style={{ color: colors.count }} data-testid="dash-tile-count">
         {shown}
         {shown !== total && <span className={styles.of}>of {total}</span>}
       </span>
@@ -73,12 +75,14 @@ function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData;
     </>
   )
   const cls = `${styles.tile} ${styles.surface}`
-  if (!onDrill) return <div className={cls} data-dash-tile={id} aria-label={`${def.label}: ${countOf(shown, total)}`} role="group">{content}</div>
+  const lit = colors.lit ? 'true' : undefined
+  if (!onDrill) return <div className={cls} data-dash-tile={id} data-lit={lit} aria-label={`${def.label}: ${countOf(shown, total)}`} role="group">{content}</div>
   return (
     <button
       type="button"
       className={cls}
       data-dash-tile={id}
+      data-lit={lit}
       aria-label={`${def.label}: ${countOf(shown, total)}. ${sub ? `${sub}. ` : ''}Show tasks`}
       onClick={() => onDrill(tileDrill(id, data))}
     >

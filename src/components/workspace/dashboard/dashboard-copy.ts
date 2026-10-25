@@ -1,7 +1,7 @@
 import type { MarkerKey, MarkerSet } from '../../../models'
 import type { DashboardTrendRange } from '../../../models/dashboard-config'
 import type { TileStats } from '../../../services/stats/tiles'
-import { formatFollowupDate, formatFollowupDay } from '../../../utils/followup'
+import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
 import { lineMarkers, type HotRule } from '../../../utils/hot'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
@@ -102,7 +102,7 @@ export function tileSubLine(id: keyof TileStats, tiles: TileStats, ctx: TileCopy
     }
     case 'hot': {
       const parts = tiles.hot.lines.filter((l) => l.ids.length > 0)
-      if (parts.length === 0) return 'Nothing hot right now'
+      if (parts.length === 0) return 'None right now'
       const only = parts.length === 1 ? parts[0] : undefined
       if (only && hotLineLabel(only.line) === 'Focus') return `${only.ids.length} in Focus`
       return parts.map((l) => `${l.ids.length} ${hotLineLabel(l.line)}`).join(' · ')
@@ -123,8 +123,10 @@ export function tileSubLine(id: keyof TileStats, tiles: TileStats, ctx: TileCopy
       const { late, today, upcoming } = tiles.followupDue
       if (late > 0 && upcoming > 0) return `${late} late · ${upcoming} more in 7 days`
       if (late > 0) return today > 0 ? `${late} late · ${today} today` : `${late} late`
-      if (upcoming > 0) return `${upcoming} more in the next 7 days`
-      return today > 0 ? 'All due today' : 'Nothing due'
+      if (today > 0) return upcoming > 0 ? `${upcoming} more in the next 7 days` : 'All due today'
+      // None due yet: when the next one is.
+      const { next } = tiles.followupDue
+      return next ? `Next one ${formatWeekdayNumeric(next)}` : 'Nothing due'
     }
     case 'focus': {
       const n = tiles.focus.dueToday

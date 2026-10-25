@@ -222,7 +222,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0.08)",
-      "color": "rgb(92, 88, 82)",
+      "color": "rgb(93, 88, 83)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -235,7 +235,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "normal",
       "cursor": "pointer"
@@ -248,7 +248,7 @@
       "font-weight": "400",
       "line-height": "normal",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "normal",
       "cursor": "pointer"
@@ -261,7 +261,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -274,7 +274,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "color(srgb 0.172863 0.470902 0.438118)",
+      "color": "color(srgb 0.140078 0.45898 0.426196)",
       "box-shadow": "rgb(45, 125, 116) 0px 0px 0px 1px inset",
       "gap": "4px",
       "cursor": "default"
@@ -287,7 +287,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -302,7 +302,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0.08)",
-      "color": "rgb(92, 88, 82)",
+      "color": "rgb(93, 88, 83)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -315,7 +315,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "normal",
       "cursor": "pointer"
@@ -328,7 +328,7 @@
       "font-weight": "400",
       "line-height": "normal",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "normal",
       "cursor": "pointer"
@@ -341,7 +341,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -356,7 +356,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0.08)",
-      "color": "rgb(92, 88, 82)",
+      "color": "rgb(93, 88, 83)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -369,7 +369,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "normal",
       "cursor": "pointer"
@@ -382,7 +382,7 @@
       "font-weight": "400",
       "line-height": "normal",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "normal",
       "cursor": "pointer"
@@ -395,7 +395,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"
@@ -408,7 +408,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "color(srgb 0.172863 0.470902 0.438118)",
+      "color": "color(srgb 0.140078 0.45898 0.426196)",
       "box-shadow": "rgb(45, 125, 116) 0px 0px 0px 1px inset",
       "gap": "4px",
       "cursor": "default"
@@ -421,7 +421,7 @@
       "font-weight": "600",
       "line-height": "12px",
       "background-color": "rgba(0, 0, 0, 0)",
-      "color": "rgb(111, 107, 104)",
+      "color": "rgb(111, 106, 100)",
       "box-shadow": "none",
       "gap": "4px",
       "cursor": "pointer"

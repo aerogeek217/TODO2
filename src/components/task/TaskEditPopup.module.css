@@ -20,6 +20,7 @@
 
 .backdrop:focus {
   outline: none;
+  box-shadow: none;
 }
 
 /* On the dialog frame, which centres its panel by auto margins: the card
@@ -129,10 +130,9 @@
   letter-spacing: -0.01em;
 }
 
-/* No square ring inside the rounded card (the global input ring outranks
- * the `outline: none` above); the caret marks the focus. */
+/* No ring inside the rounded card; the caret marks the focus. */
 .titleInput:focus-visible {
-  outline: none;
+  box-shadow: none;
 }
 
 .titleInput::placeholder {
@@ -216,11 +216,6 @@
 .markerToggle:hover {
   background: var(--color-tint-6);
   color: var(--color-text-primary);
-}
-
-.markerToggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 .markerToggleFocusOn,

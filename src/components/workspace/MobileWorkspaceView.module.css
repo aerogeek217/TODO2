@@ -86,6 +86,40 @@
   background: var(--color-tint-8);
 }
 
+/* `61 of 109` (D15): neutral with a lens alone, red while a chip is on. */
+.shownPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  margin-right: 2px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shownPill b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.shownPillFiltered {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: color-mix(in srgb, var(--color-danger-text) 70%, var(--color-text-muted));
+}
+
+.shownPillFiltered b {
+  color: var(--color-danger-text);
+}
+
 /* ── Column strip ── */
 
 .strip {
@@ -128,8 +162,7 @@
 }
 
 .stripItem:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -4px;
+  box-shadow: var(--focus-ring-inset);
   border-radius: var(--radius-md);
 }
 
@@ -203,6 +236,13 @@
   min-height: 0;
 }
 
+/* A layout with a hue (D19), as on desktop: every cell header takes 7 % of
+   it, and a tab's label steps up to the secondary text. */
+.pager:not([data-layout-hue='none']) {
+  --cell-header-tint: color-mix(in srgb, var(--layout-hue) 7%, transparent);
+  --cell-tab-text: var(--color-text-secondary);
+}
+
 .cellHeader {
   display: flex;
   align-items: flex-end;
@@ -210,7 +250,9 @@
   height: var(--cell-header-height);
   flex-shrink: 0;
   padding: 0 0 0 4px;
-  background: var(--color-header-bg);
+  background:
+    linear-gradient(var(--cell-header-tint, transparent), var(--cell-header-tint, transparent)),
+    var(--color-header-bg);
   border-bottom: 1px solid var(--color-border-muted);
 }
 

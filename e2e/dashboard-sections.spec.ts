@@ -164,7 +164,7 @@ test('Customize shows a section, changes its option and hides it again, as layou
 
 test('Stale and Recently completed rows are task rows: select, drag out, reopen', async ({ page }) => {
   await seedWorkspace(page, seedWith({}, [
-    { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false } }] }] },
+    { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] },
   ]))
   const stale = section(page, 'stale')
   const title = (root: Locator, t: string) => root.locator('[data-row-todo]').filter({ hasText: t }).locator(`span[data-task-title="${t}"]`)
@@ -191,7 +191,8 @@ test('Stale and Recently completed rows are task rows: select, drag out, reopen'
   // A recently completed row shows as completed; reopening it takes it out of the section.
   const recent = section(page, 'recent')
   const done = recent.locator('[data-row-todo]').filter({ hasText: 'Ship release notes' })
-  await expect(done.locator('span[data-task-title="Ship release notes"]')).toHaveCSS('text-decoration-line', 'line-through')
+  // Struck through: the strike (D19) fills the title's text.
+  await expect(done.locator('span[data-task-title="Ship release notes"] [data-title-text]')).toHaveCSS('background-size', '100% 1.5px')
   await done.getByRole('checkbox', { name: 'Mark incomplete' }).click()
   await expect(sectionCount(page, 'recent')).toHaveText('1')
   await expect(recent.locator('[data-row-todo]').filter({ hasText: 'Ship release notes' })).toHaveCount(0)

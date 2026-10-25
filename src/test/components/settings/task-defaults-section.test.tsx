@@ -158,12 +158,35 @@ describe('TaskDefaultsSection — Hot tasks', () => {
   })
 })
 
+describe('TaskDefaultsSection — fade untouched tasks', () => {
+  it('shows the threshold (default 30 days); a whole number 0–365 commits on blur, 0 reads as off, anything else reverts', async () => {
+    render(<TaskDefaultsSection />)
+    const input = screen.getByRole('spinbutton', { name: 'Fade tasks untouched for (days)' }) as HTMLInputElement
+    expect(input.value).toBe('30')
+    expect(screen.getByText('days')).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: '45' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(useSettingsStore.getState().staleAfterDays).toBe(45))
+    expect((await db.settings.get('staleAfterDays'))!.value).toBe('45')
+    fireEvent.change(input, { target: { value: '0' } })
+    expect(screen.getByText('days (off)')).toBeInTheDocument()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.blur(input)
+    await waitFor(() => expect(useSettingsStore.getState().staleAfterDays).toBe(0))
+    fireEvent.change(input, { target: { value: '400' } })
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    fireEvent.blur(input)
+    expect(input.value).toBe('0')
+    expect(useSettingsStore.getState().staleAfterDays).toBe(0)
+  })
+})
+
 describe('TaskDefaultsSection — new lists', () => {
   it('New lists sort by: Manual by default with no order choice; a sort with a direction offers its order in words', async () => {
     render(<TaskDefaultsSection />)
     const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
     expect(sort).toHaveValue('manual')
-    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created'])
+    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Modified'])
     expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
 
     fireEvent.change(sort, { target: { value: 'deadline' } })

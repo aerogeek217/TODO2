@@ -7,7 +7,9 @@ function Svg({ filled, children, strokeOnly }: { filled?: boolean; children: Rea
     <svg {...svgBase}
       fill={strokeOnly ? 'none' : filled ? 'currentColor' : 'none'}
       stroke="currentColor"
-      strokeWidth={filled && !strokeOnly ? 0 : 1.3}>
+      strokeWidth={filled && !strokeOnly ? 0 : 1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round">
       {children}
     </svg>
   )
@@ -20,9 +22,11 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
         <svg {...svgBase}
           fill={filled ? 'currentColor' : 'none'}
           stroke={filled ? 'none' : 'currentColor'}
-          strokeWidth={filled ? 0 : 1.3}>
-          <circle cx="8" cy="5" r="3" />
-          <path d="M2.5 14a5.5 5.5 0 0 1 11 0" />
+          strokeWidth={filled ? 0 : 1.6}
+          strokeLinecap="round"
+          strokeLinejoin="round">
+          <circle cx="8" cy="5.25" r="2.75" />
+          <path d="M3 13.5a5 5 0 0 1 10 0" />
         </svg>
       )
     case 'message-bubble':
@@ -41,7 +45,7 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
       return (
         <Svg filled={filled} strokeOnly>
           <circle cx="8" cy="8" r="6" />
-          <line x1="8" y1="4.5" x2="8" y2="9" strokeLinecap="round" />
+          <line x1="8" y1="4.5" x2="8" y2="9" />
           <circle cx="8" cy="11.5" r="0.5" fill="currentColor" stroke="none" />
         </Svg>
       )
@@ -49,27 +53,27 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
       return (
         <Svg filled={filled} strokeOnly>
           <circle cx="8" cy="8" r="6" />
-          <path d="M8 4.5V8l2.5 1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8 4.5V8l2.5 1.5" />
         </Svg>
       )
     case 'check':
       return (
         <Svg filled={filled} strokeOnly>
-          <path d="M3.5 8.5L6.5 11.5 12.5 4.5" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          <path d="M3.5 8.5L6.5 11.5 12.5 4.5" />
         </Svg>
       )
     case 'question':
       return (
         <Svg filled={filled} strokeOnly>
           <circle cx="8" cy="8" r="6" />
-          <path d="M6 6a2 2 0 013.5 1.5c0 1-1.5 1-1.5 2.5" strokeLinecap="round" />
+          <path d="M6 6a2 2 0 013.5 1.5c0 1-1.5 1-1.5 2.5" />
           <circle cx="8" cy="12" r="0.5" fill="currentColor" stroke="none" />
         </Svg>
       )
     case 'flag':
       return (
         <Svg filled={filled} strokeOnly>
-          <path d="M3 2v12" strokeLinecap="round" />
+          <path d="M3 2v12" />
           <path d="M3 2.5h9l-2.5 3.5L12 9.5H3" fill={filled ? 'currentColor' : 'none'} />
         </Svg>
       )
@@ -85,20 +89,20 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
     case 'snooze':
       return (
         <Svg filled={filled} strokeOnly>
-          <path d="M5 5h6L5 11h6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+          <path d="M5 5h6L5 11h6" />
         </Svg>
       )
     case 'arrow':
       return (
         <Svg filled={filled} strokeOnly>
-          <path d="M3 8h10M9 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+          <path d="M3 8h10M9 4l4 4-4 4" />
         </Svg>
       )
     case 'calendar':
       return (
         <Svg filled={filled} strokeOnly>
           <rect x="2" y="3" width="12" height="11" rx="1.5" />
-          <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" strokeLinecap="round" />
+          <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" />
         </Svg>
       )
     default:

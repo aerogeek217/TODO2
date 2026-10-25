@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useState, type RefObject } from 'rea
 import { createPortal } from 'react-dom'
 import { screenTaskDialog } from '../../services/task-dialog'
 import { useFilterStore } from '../../stores/filter-store'
+import { currentPickedLens } from '../../stores/screen-filter'
 import { useUIStore } from '../../stores/ui-store'
 import { attrSelector, SEARCH_INPUT_ATTR, SHOW_FILTERED_TASKS_ATTR, shortcutScope } from '../../utils/dom-contract'
 import { tabAcross } from '../../utils/focusables'
@@ -20,9 +21,10 @@ function samePlacement(a: FilterPanelPlacement, b: FilterPanelPlacement): boolea
     && a.scrimTop === b.scrimTop && a.joinedLeft === b.joinedLeft && a.joinedRight === b.joinedRight
 }
 
-/** The tray's Show N tasks, else (no filter: the button goes with the panel) its search. */
+/** The tray's counter, else (no chip and no lens: the counter goes with the panel) its search. */
 function focusTrayAfterClose(): void {
-  const selector = useFilterStore.getState().isActive ? attrSelector(SHOW_FILTERED_TASKS_ATTR) : attrSelector(SEARCH_INPUT_ATTR)
+  const counted = useFilterStore.getState().isActive || currentPickedLens() != null
+  const selector = counted ? attrSelector(SHOW_FILTERED_TASKS_ATTR) : attrSelector(SEARCH_INPUT_ATTR)
   document.querySelector<HTMLElement>(selector)?.focus()
 }
 

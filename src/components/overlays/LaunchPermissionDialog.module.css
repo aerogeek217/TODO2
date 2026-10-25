@@ -236,12 +236,6 @@
   color: var(--color-text-primary);
 }
 
-.primary:focus-visible,
-.secondary:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 .kbd {
   padding: 1px 5px;
   border-radius: 4px;

@@ -39,14 +39,22 @@ export interface FilterCriteria {
   markers: MarkersFilter | null
   /**
    * null = no filter; Set of tag ids (into the `tags` registry) — todo must
-   * have at least one assigned tag in the set (OR semantics). An empty Set
-   * matches zero todos; a todo with no tag assignments is excluded whenever
-   * this clause is non-null and non-empty. With `negate.tags`: only tasks
-   * with none of these tags (untagged passes).
+   * have at least one assigned tag in the set (OR semantics; 0 = no tags, which
+   * an untagged todo matches). An empty Set matches zero todos; a todo with no
+   * tag assignments is excluded whenever this clause is non-null, non-empty
+   * and without 0. With `negate.tags`: only tasks with none of these tags
+   * (untagged passes unless 0 is in the set).
    */
   tags: Set<number> | null
   /** The "is not" switches of people / status / tags (`utils/filter-negation`); absent = every field "is". */
   negate?: FilterNegation
+  /**
+   * The screen filter only: the open layout's lens (`utils/lens.withLens`),
+   * a stage a task must pass as well — its own clauses and "is not"
+   * switches, ANDed under these. It never decides completion (its
+   * `showCompleted` is ignored: these do). Absent = no lens, or lifted.
+   */
+  lens?: FilterCriteria
 }
 
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
@@ -57,7 +65,8 @@ export function fixedAnchor(d: Date): DateAnchor {
 /**
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
- * search.
+ * search — and the lens, when the filter carries one (the composed screen
+ * filter; the top bar's chips alone never do).
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -69,6 +78,7 @@ export function countActiveFilters(f: FilterCriteria): number {
     hasMarkers(f.markers),
     f.showCompleted,
     f.searchText !== '',
+    f.lens != null,
   ].filter(Boolean).length
 }
 

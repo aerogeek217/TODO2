@@ -123,6 +123,16 @@ export function convertCalendarOffset(
 export const MONTH_CELL = { padding: 4, number: 18, entry: 18, gap: 1 } as const
 
 /**
+ * The least height a month row gets: the heat map's day its number line; with
+ * titles on, the number and one slot (`+N more`). In a cell too short for six
+ * such rows the month grid scrolls rather than clipping them.
+ */
+export const MONTH_ROW_MIN = {
+  heat: MONTH_CELL.padding + MONTH_CELL.number,
+  titles: MONTH_CELL.padding + MONTH_CELL.number + MONTH_CELL.entry + MONTH_CELL.gap,
+} as const
+
+/**
  * How many 18px entries a month cell of `cellHeight` px fits; unbounded
  * before the cell is measured.
  */

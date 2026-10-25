@@ -1,0 +1,173 @@
+/* Settings › Tasks › Lenses (D15 board E): a row per lens that opens into
+ * its editor (the list filter chips), then + New lens. */
+
+.intro,
+.empty {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lens {
+  border-radius: 8px;
+  background: var(--color-tint-6);
+}
+
+.lensOpen {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.headButton {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.headButton:hover {
+  background: var(--color-tint-4);
+}
+
+.name {
+  flex: none;
+  font-weight: var(--font-weight-semibold);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.used {
+  flex: none;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.nameInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  margin: 6px 10px 6px 8px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--color-inset);
+}
+
+.noFilter {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-muted);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.foot b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.actions {
+  display: flex;
+  gap: 14px;
+  margin-left: auto;
+}
+
+.link {
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.danger {
+  color: var(--color-danger-text);
+}
+
+.newLens {
+  align-self: flex-start;
+}

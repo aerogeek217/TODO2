@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
 import { entityPickerSelection } from '../../../utils/filter-negation'
+import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
 import type { TodoPredicate } from '../../../models'
 import picker from './FilterPicker.module.css'
 import { ImportantIcon } from '../MarkerIcons'
@@ -552,7 +553,7 @@ export function FilterChipBarDesktop({
             onToggle={h.onToggle}
             onSearchClear={clearSearch}
             namePrefix="#"
-            withNone={false}
+            noneLabel={NO_TAGS_LABEL}
             entityMenu="tag"
             onShowTasks={closeAll}
           />

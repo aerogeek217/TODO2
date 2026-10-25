@@ -4,6 +4,7 @@ import {
   DEFAULT_WEIGHT,
   tabListId,
   type BandEdge,
+  type HueName,
   type LayoutBand,
   type LayoutBody,
   type LayoutCell,
@@ -689,6 +690,33 @@ export function setActiveTab<L extends WorkspaceLayout>(layout: L, tabId: string
   const loc = findTab(layout, tabId)
   if (!loc) return layout
   return updatePanelStrip(layout, loc.panelId, (s) => (s.activeTabId === tabId ? s : { ...s, activeTabId: tabId }))
+}
+
+/** View state: the layout's lens (`null` = No lens; the key goes). The same layout when unchanged. */
+export function setLayoutLens<L extends WorkspaceLayout>(layout: L, lensId: string | null): L {
+  if ((layout.lensId ?? null) === lensId) return layout
+  const next = { ...layout }
+  if (lensId == null) delete next.lensId
+  else next.lensId = lensId
+  return next
+}
+
+/** View state: the page the phone shows (`null` = the first; the key goes). The same layout when unchanged. */
+export function setLayoutActiveColumn<L extends WorkspaceLayout>(layout: L, pageId: string | null): L {
+  if ((layout.activeColumnId ?? null) === pageId) return layout
+  const next = { ...layout }
+  if (pageId == null) delete next.activeColumnId
+  else next.activeColumnId = pageId
+  return next
+}
+
+/** The layout's hue (`null` = none, the app accent; the key goes). The same layout when unchanged. */
+export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: HueName | null): L {
+  if ((layout.hue ?? null) === hue) return layout
+  const next = { ...layout }
+  if (hue == null) delete next.hue
+  else next.hue = hue
+  return next
 }
 
 /**

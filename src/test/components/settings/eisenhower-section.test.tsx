@@ -91,9 +91,9 @@ afterEach(() => {
 })
 
 describe('Settings › Tasks › Eisenhower', () => {
-  it('sits in Tasks between Task defaults and Completed tasks; the tab menu’s shortcut opens it there', () => {
+  it('sits in Tasks between Lenses and Completed tasks; the tab menu’s shortcut opens it there', () => {
     const { settings } = open()
-    expect(Array.from(settings.querySelectorAll('h3')).map((h) => h.textContent)).toEqual(['Task defaults', 'Eisenhower', 'Completed tasks'])
+    expect(Array.from(settings.querySelectorAll('h3')).map((h) => h.textContent)).toEqual(['Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks'])
     expect(settings.querySelector('h2')?.textContent).toBe('Tasks')
     // Shown: the part and focus are forgotten, so reopening later doesn't jump again.
     expect(useUIStore.getState()).toMatchObject({ settingsPart: null, settingsFocus: null })

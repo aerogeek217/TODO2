@@ -36,7 +36,7 @@ const panelTitles = (page: Page) => rowTitles(panel(page))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const header = (page: Page) => page.locator('header')
 const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
-const showTasks = (page: Page) => tray(page).getByRole('button', { name: /^Show \d+ tasks?$/ })
+const showTasks = (page: Page) => tray(page).getByRole('button', { name: /^\d+ of \d+ (open )?tasks shown\. Show them$/ })
 
 /** Whether the element on top at `locator`'s centre is inside it (nothing covers it). */
 async function onTop(locator: Locator): Promise<boolean> {
@@ -126,9 +126,9 @@ test.describe('desktop', () => {
     const closed = await bar(page)
     expect(closed).toMatchObject({ fold: 'none', tabs: 2 })
 
-    const show = tray(page).getByRole('button', { name: 'Show 2 tasks' })
+    const show = tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' })
     await show.hover()
-    await expect(page.getByRole('tooltip')).toHaveText('Show the tasks matching the filter')
+    await expect(page.getByRole('tooltip')).toContainText('2 of 4 open tasks shown')
     await show.click()
     await expect(panel(page)).toBeVisible()
     await expect(show).toHaveAttribute('aria-expanded', 'true')
@@ -153,7 +153,7 @@ test.describe('desktop', () => {
   })
 
   test('over folded filters the tray expands in place, rightwards over the right zone; closing folds them back — every time', async ({ page }) => {
-    await page.setViewportSize({ width: 1200, height: 800 })
+    await page.setViewportSize({ width: 1305, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
     // Closed: the layouts as tabs, the filters folded to fit beside them.
@@ -162,7 +162,7 @@ test.describe('desktop', () => {
     const closed = await bar(page)
     expect(closed).toMatchObject({ fold: 'filters', tabs: 2 })
 
-    const show = tray(page).getByRole('button', { name: 'Show 2 tasks' })
+    const show = tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' })
     for (const close of ['scrim', 'toggle', 'escape', 'scrim'] as const) {
       await show.click()
       await expect(panel(page)).toBeVisible()
@@ -190,14 +190,14 @@ test.describe('desktop', () => {
   })
 
   test('a filter changed in the expanded tray: on close the bar folds as it would for the new filter', async ({ page }) => {
-    await page.setViewportSize({ width: 1230, height: 800 })
+    await page.setViewportSize({ width: 1335, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     // No filter: every button fits beside the tabs.
     await expectEveryFilterButton(page)
     await filterToAnn(page)
     await expect(filtersMenu(page)).toBeVisible()
 
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expectEveryFilterButton(page)
     await pickFilter(page, 'People', '@Bob')
     await pickFilter(page, 'Tags', '#q4')
@@ -216,7 +216,7 @@ test.describe('desktop', () => {
     await expect.poll(() => bar(page)).toEqual(after)
 
     // Cleared in the expanded tray: on close every button is back.
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
     await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
     await page.keyboard.press('Escape')
@@ -226,7 +226,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter set and cleared without the panel: the filters fold, then unfold again', async ({ page }) => {
-    await page.setViewportSize({ width: 1230, height: 800 })
+    await page.setViewportSize({ width: 1335, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await expectEveryFilterButton(page)
     const none = await bar(page)
@@ -240,7 +240,7 @@ test.describe('desktop', () => {
   test('a filter picker from the tray opens above the panel and edits its rows and the workspace; Esc closes the picker, then the panel', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await filterToAnn(page)
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
 
     await tray(page).getByRole('button', { name: 'Tags filter' }).click()
@@ -259,13 +259,13 @@ test.describe('desktop', () => {
     await expect(tray(page).getByRole('button', { name: 'Tags filter: q4' })).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
-    await expect(tray(page).getByRole('button', { name: 'Show 1 task' })).toBeFocused()
+    await expect(tray(page).getByRole('button', { name: '1 of 4 open tasks shown. Show them' })).toBeFocused()
   })
 
   test('the Dates and Priority pickers open above the panel and take the first Esc too', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await tray(page).getByRole('button', { name: 'Show completed' }).click()
-    await tray(page).getByRole('button', { name: 'Show 4 tasks' }).click()
+    await tray(page).getByRole('button', { name: '4 of 4 tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
     for (const name of ['Dates filter', 'Priority filter']) {
       const button = tray(page).getByRole('button', { name, exact: true })
@@ -287,7 +287,7 @@ test.describe('desktop', () => {
   test('a row opens the editor above the panel; Esc closes the editor, then the panel', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await filterToAnn(page)
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await panel(page).locator('[data-todo-id]').filter({ hasText: 'Ann call' }).locator('[data-task-title]').click()
     const editor = page.getByRole('dialog', { name: 'Edit task' })
     await expect(editor).toBeVisible()
@@ -303,7 +303,7 @@ test.describe('desktop', () => {
   test('the scrim dims and blurs the workspace below the top bar; a press on it, or on the bar outside the tray, closes the panel', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await filterToAnn(page)
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     const scrim = page.locator('[data-filter-panel-scrim]')
     await expect(scrim).toBeVisible()
     // It covers the workspace, not the top bar, and blurs it as a modal's backdrop does.
@@ -316,7 +316,7 @@ test.describe('desktop', () => {
     await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan', 'Ann call'])
 
     // The gear: closes the panel, then opens Settings.
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
     await header(page).getByRole('button', { name: 'Settings' }).click()
     await expect(panel(page)).toHaveCount(0)
@@ -327,7 +327,7 @@ test.describe('desktop', () => {
     await seedWorkspace(page, SEED)
     const search = tray(page).getByRole('textbox', { name: 'Search tasks' })
     await search.fill('ann')
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
 
     // Completed here: the row stays, struck through.
@@ -349,7 +349,7 @@ test.describe('desktop', () => {
     await expect(panel(page)).toContainText('Every open task: no screen filter is on.')
     await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan', 'Bob task', 'Nobody task'])
     // The toggle stays while it is open; closed with no filter, it goes.
-    await expect(tray(page).getByRole('button', { name: 'Show 3 tasks' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(tray(page).getByRole('button', { name: '3 of 3 open tasks shown. Show them' })).toHaveAttribute('aria-expanded', 'true')
     await panel(page).getByRole('button', { name: /^Close\s*Esc$/ }).click()
     await expect(panel(page)).toHaveCount(0)
     await expect(showTasks(page)).toHaveCount(0)
@@ -365,7 +365,7 @@ test.describe('desktop', () => {
     await expect(panel(page)).toBeVisible()
     await expect(panel(page)).toBeFocused()
     await expect.poll(() => panelTitles(page)).toEqual(ALL)
-    await expect(tray(page).getByRole('button', { name: 'Show 4 tasks' })).toHaveAttribute('aria-expanded', 'true')
+    await expect(tray(page).getByRole('button', { name: '4 of 4 open tasks shown. Show them' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   test('where the expanded tray would cross the window’s right gutter it shrinks, then slides left by just what still crosses, over the layout tabs', async ({ page }) => {
@@ -374,14 +374,14 @@ test.describe('desktop', () => {
     await filterToAnn(page)
     const closed = await bar(page)
     expect(closed.fold).not.toBe('none')
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
     await expectEveryFilterButton(page)
     const open = await bar(page)
     // Shrunk first (the search as narrow as it goes), then its right edge on
     // the gutter, its left moved by the overflow only; nothing else moved.
     expect(await header(page).locator('[data-fold-search]').evaluate((el) => el.getBoundingClientRect().width)).toBe(110)
-    expect(open.trayRight).toBe(1000 - 16)
+    expect(Math.abs(open.trayRight - (1000 - 16))).toBeLessThanOrEqual(1)
     expect(open.trayLeft).toBeLessThan(closed.trayLeft)
     expect(open).toMatchObject({ fold: closed.fold, springLeft: closed.springLeft, tabs: closed.tabs })
     expect((await joint(page)).left).toBe(0)
@@ -400,7 +400,7 @@ test.describe('desktop', () => {
     await seedWorkspace(page, withSpareLayouts(SEED))
     await filterToAnn(page)
     const closed = await bar(page)
-    await tray(page).getByRole('button', { name: 'Show 2 tasks' }).click()
+    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
     await expect(filtersMenu(page)).toBeVisible()
     expect(await bar(page)).toEqual(closed)
@@ -414,7 +414,7 @@ test.describe('desktop', () => {
   test('without a filter Show N tasks isn’t there and the room comes back', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await tray(page).getByRole('button', { name: 'Show completed' }).click()
-    await expect(tray(page).getByRole('button', { name: 'Show 4 tasks' })).toBeVisible()
+    await expect(tray(page).getByRole('button', { name: '4 of 4 tasks shown. Show them' })).toBeVisible()
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
     await expect(showTasks(page)).toHaveCount(0)

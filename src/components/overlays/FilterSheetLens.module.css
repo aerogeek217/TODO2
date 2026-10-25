@@ -1,0 +1,103 @@
+/* The phone filter sheet's Lens section (D15 board F). */
+
+.glyph {
+  display: inline-flex;
+  width: 20px;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.glyphOn {
+  color: var(--color-accent-text);
+}
+
+.struck {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 8px 26px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--mobile-row-min-height);
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.option input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.option:has(input:checked) {
+  color: var(--color-text-primary);
+}
+
+.words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.count {
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lift {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-6);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lift b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.lift[aria-pressed='true'] {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}

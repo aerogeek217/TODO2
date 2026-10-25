@@ -4,7 +4,7 @@ import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-
 import type { EisenhowerQuadrant } from '../models/workspace-layout'
 import { QUADRANT_COLOR, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../utils/urgency'
-import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
+import { countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
 import type { TodoNameLookups } from '../utils/filter'
@@ -16,6 +16,7 @@ import { buildList, type ListBuildContext, type ListContents } from './build-lis
 import type { CopyTaskSection } from './task-copy'
 import type { TaskDialogPayload, TaskDialogSource } from '../stores/task-dialog-payload'
 import { useFilterStore } from '../stores/filter-store'
+import { currentAppliedLens, currentScreenFilter } from '../stores/screen-filter'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
 import { useListOrderStore } from '../stores/list-order-store'
@@ -84,7 +85,7 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
     people: people.people,
     statuses: useStatusStore.getState().statuses,
     listDefinitions: useListDefinitionStore.getState().listDefinitions.map((d) => drafts[d.id] ?? d),
-    screen: useFilterStore.getState().filters,
+    screen: currentScreenFilter(),
     listRanks: useListOrderStore.getState().ranks,
     newListView: { sort: settings.newListSort, sortDirection: settings.newListSortDirection, grouping: settings.newListGroup },
   }
@@ -186,6 +187,35 @@ export function screenTaskCount(env: ScreenCountEnv): number {
   let n = 0
   for (const t of env.todos) if (matches(OPEN_TASKS, t)) n++
   return n
+}
+
+/** The top bar's counter: what the screen filter (chips and lens) keeps of every task it can show. */
+export interface ScreenTaskCounts {
+  /** What the dialog lists (`screenTaskCount`). */
+  shown: number
+  /** Every open task (completed too under Show completed): the `of N`. */
+  total: number
+  /** What the lens alone keeps of `total` (`total` without a lens). */
+  lensKeeps: number
+}
+
+/** The screen filter's counts (`ScreenTaskCounts`). */
+export function screenTaskCounts(env: ScreenCountEnv): ScreenTaskCounts {
+  const { screen } = env
+  const settings = filterSettingsOf(env)
+  const lookups = lookupsOf(env)
+  const everything: FilterCriteria = { ...predicateToCriteria(OPEN_TASKS), showCompleted: screen.showCompleted }
+  const shown = createScreenComposedEvaluator(screen, lookups, env.today, settings)
+  const all = createScreenComposedEvaluator(everything, lookups, env.today, settings)
+  const lens = screen.lens ? createScreenComposedEvaluator({ ...everything, lens: screen.lens }, lookups, env.today, settings) : null
+  const counts = { shown: 0, total: 0, lensKeeps: 0 }
+  for (const t of env.todos) {
+    if (!all(OPEN_TASKS, t)) continue
+    counts.total++
+    if (!lens || lens(OPEN_TASKS, t)) counts.lensKeeps++
+    if (shown(OPEN_TASKS, t)) counts.shown++
+  }
+  return counts
 }
 
 /** How many tasks the dialog shows (a task under two headings counts once). */
@@ -338,10 +368,11 @@ export function eisenhowerSummaryDialog(
 
 /** The screen filter's tasks (the top bar's Show N tasks, the palette); the dialog edits that filter live. */
 export function screenTaskDialog(): TaskDialogPayload {
+  const lens = currentAppliedLens()
   return {
     title: SCREEN_DIALOG_TITLE,
     glyph: 'filter',
-    description: screenTaskDialogDescription(useFilterStore.getState().filters),
+    description: screenTaskDialogDescription(useFilterStore.getState().filters, lens && { name: lens.name, counts: screenTaskCounts(currentTaskDialogEnv()) }),
     source: { kind: 'screen' },
   }
 }
@@ -351,10 +382,22 @@ export function showTasksLabel(n: number): string {
   return `Show ${n} ${n === 1 ? 'task' : 'tasks'}`
 }
 
-/** What the screen filter's dialog shows, in words, for the filter as it is (the dialog keeps it current). */
-export function screenTaskDialogDescription(screen: FilterCriteria): string {
-  if (countActiveFilters(screen) === 0) return 'Every open task: no screen filter is on. A filter set here applies to every widget.'
-  const what = screen.showCompleted ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
+/**
+ * What the screen filter's dialog shows, in words, for the filter as it is
+ * (the dialog keeps it current): `chips` = the top bar's chips; `lens` = the
+ * open layout's lens as it applies (its name and the counts), if any.
+ */
+export function screenTaskDialogDescription(chips: FilterCriteria, lens?: { name: string; counts: ScreenTaskCounts }): string {
+  const tasks = chips.showCompleted ? 'tasks' : 'open tasks'
+  if (lens) {
+    const { shown, total, lensKeeps } = lens.counts
+    if (countActiveFilters({ ...chips, showCompleted: false }) === 0) {
+      return `${shown} of ${total} ${tasks} shown: the lens “${lens.name}” hides ${total - lensKeeps}. A filter set here applies to every widget; the lens is the layout’s.`
+    }
+    return `${shown} of ${total} ${tasks} match the filter under the lens “${lens.name}”. A change here applies to every widget.`
+  }
+  if (countActiveFilters(chips) === 0) return 'Every open task: no screen filter is on. A filter set here applies to every widget.'
+  const what = chips.showCompleted ? 'Tasks matching the screen filter, completed ones included.' : 'Open tasks matching the screen filter.'
   return `${what} A change here applies to every widget.`
 }
 

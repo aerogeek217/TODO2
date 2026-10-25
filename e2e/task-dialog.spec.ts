@@ -52,7 +52,7 @@ test('a tile opens its tasks; a completed row stays, struck through, while the c
   await expect(tileCount(page, 'hot')).toHaveText('1')
   await expect(outage).toBeVisible()
   await expect(outage.getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
-  await expect(outage.locator('span[data-task-title="Fix checkout outage"]')).toHaveCSS('text-decoration-line', 'line-through')
+  await expect(outage.locator('span[data-task-title="Fix checkout outage"] [data-title-text]')).toHaveCSS('background-size', '100% 1.5px')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 
   await page.keyboard.press('Escape')

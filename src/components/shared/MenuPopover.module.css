@@ -39,7 +39,11 @@
 .item:focus-visible,
 .itemOpen {
   background: var(--color-tint-8);
-  outline: none;
+}
+
+/* The ring inside the item: the menu's edge would clip it outside. */
+.item:focus-visible {
+  box-shadow: var(--focus-ring-inset);
 }
 
 .item:disabled {

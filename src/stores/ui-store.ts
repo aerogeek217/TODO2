@@ -19,6 +19,7 @@ export type SettingsSectionId =
 /** The headed parts of the merged sections (Tasks, Database). */
 export type SettingsPartId =
   | 'task-defaults'
+  | 'lenses'
   | 'eisenhower'
   | 'completed'
   | 'file-storage'
@@ -29,6 +30,7 @@ export type SettingsPartId =
 /** The section each part sits in. */
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
   'task-defaults': 'tasks',
+  lenses: 'tasks',
   eisenhower: 'tasks',
   completed: 'tasks',
   'file-storage': 'database',
@@ -135,6 +137,12 @@ interface UIState {
   filterPanelOpen: boolean
   /** Counts the requests to focus the panel (each open, the palette's command while it is open). */
   filterPanelFocusKey: number
+  /**
+   * The open layout's lens is lifted for now (the lens control's glasses):
+   * every widget shows what the chips keep; the pick stays. A layout
+   * switch (`workspace-store`) and a reload put the lens back.
+   */
+  lensLifted: boolean
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
   /** The filter sheet was opened from a search button: focus its search box. */
@@ -234,6 +242,8 @@ interface UIState {
    */
   openFilterPanel: () => void
   closeFilterPanel: () => void
+  /** Lifts the open layout's lens for now, or puts it back (`lensLifted`). */
+  setLensLifted: (lifted: boolean) => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
@@ -280,6 +290,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   taskDialog: null,
   filterPanelOpen: false,
   filterPanelFocusKey: 0,
+  lensLifted: false,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   listEditor: null,
@@ -397,6 +408,10 @@ export const useUIStore = create<UIState>((set, get) => ({
       selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null,
       selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null,
     })
+  },
+
+  setLensLifted(lifted) {
+    if (get().lensLifted !== lifted) set({ lensLifted: lifted })
   },
 
   closeFilterPanel() {

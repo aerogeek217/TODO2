@@ -3,6 +3,7 @@ import {
   getActiveTab,
   type BandEdge,
   type EisenhowerTab,
+  type HueName,
   type LayoutBand,
   type LayoutColumn,
   type LayoutPanel,
@@ -12,6 +13,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
 import { scrollBehavior } from '../../utils/motion'
+import { hueColor } from '../../utils/layout-hue'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -24,8 +26,14 @@ import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from '../shared/icons'
+import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, HuedLayoutIcon, MoreIcon } from '../shared/icons'
+import { useFilterStore } from '../../stores/filter-store'
+import { usePickedLens } from '../../stores/screen-filter'
+import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
+import { screenTaskDialog } from '../../services/task-dialog'
+import { shownOfTotalText } from '../shared/filters/lens-text'
 import styles from './MobileWorkspaceView.module.css'
+import { withViewTransition } from '../shared/view-transition'
 
 /** Gap between columns in the pager (px). */
 const PAGER_GAP_PX = 8
@@ -76,7 +84,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
     if (id === activeLayoutId) { onClose(); return }
     // Unsaved changes can only come from a wider screen in this session; still never lose them silently.
     if (useWorkspaceStore.getState().isDirty || unsavedLists.length > 0) { setPending({ id, name }); return }
-    void useWorkspaceStore.getState().load(id)
+    withViewTransition(() => useWorkspaceStore.getState().load(id))
     onClose()
   }
 
@@ -107,7 +115,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
                 aria-current={current ? 'true' : undefined}
                 onClick={() => pick(l.id, l.name)}
               >
-                <span className={styles.sheetGlyph}><LayoutIcon /></span>
+                <span className={styles.sheetGlyph}><HuedLayoutIcon hue={l.hue} /></span>
                 <span className={styles.sheetName}>{l.name}</span>
                 {current && isDirty && <span className={styles.sheetNote}>Edited</span>}
                 {current && <span className={styles.sheetCheck}><CheckIcon /></span>}
@@ -127,7 +135,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
             const { id } = pending
             setPending(null)
             onClose()
-            void useWorkspaceStore.getState().load(id)
+            withViewTransition(() => useWorkspaceStore.getState().load(id))
           }}
           onCancel={() => setPending(null)}
         />
@@ -144,7 +152,7 @@ const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
  * the storage status (`status`, shown only while a warning is active) and
  * search (opens the filter sheet).
  */
-function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
+function MobileTopBar({ name, hue, status }: { name: string; hue?: HueName; status?: ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   return (
     <header className={styles.topBar}>
@@ -157,12 +165,13 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
         data-testid="layout-picker"
         onClick={() => setSheetOpen(true)}
       >
-        <span className={styles.pickerGlyph}><LayoutIcon /></span>
+        <span className={styles.pickerGlyph}><HuedLayoutIcon hue={hue} /></span>
         <span className={styles.pickerName}>{name}</span>
         <ChevronDownIcon />
       </button>
       <div className={styles.topBarEnd}>
         {status}
+        <ShownOfTotalPill />
         <button
           type="button"
           className={styles.iconButton}
@@ -174,6 +183,35 @@ function MobileTopBar({ name, status }: { name: string; status?: ReactNode }) {
       </div>
       {sheetOpen && <LayoutSheet onClose={() => setSheetOpen(false)} />}
     </header>
+  )
+}
+
+/**
+ * The phone top bar's `61 of 109` (D15): what the screen filter's chips and
+ * the layout's lens keep of every open task, while a chip is on or the
+ * layout has a lens; a tap lists them in the task dialog (whose filter bar
+ * edits the chips). Its own component, so only it renders for a task write.
+ */
+function ShownOfTotalPill() {
+  const chipsOn = useFilterStore((s) => s.isActive)
+  const lensPicked = usePickedLens() != null
+  if (!chipsOn && !lensPicked) return null
+  return <ShownOfTotalCount chipsOn={chipsOn} />
+}
+
+function ShownOfTotalCount({ chipsOn }: { chipsOn: boolean }) {
+  const { shown, total } = useScreenTaskCounts()
+  const showCompleted = useFilterStore((s) => s.filters.showCompleted)
+  return (
+    <button
+      type="button"
+      className={`${styles.shownPill} ${chipsOn ? styles.shownPillFiltered : ''}`}
+      aria-label={`${shownOfTotalText(shown, total, showCompleted)}. Show them`}
+      data-testid="shown-of-total"
+      onClick={() => useUIStore.getState().showTaskDialog(screenTaskDialog())}
+    >
+      <b>{shown}</b> of {total}
+    </button>
   )
 }
 
@@ -352,8 +390,10 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
             if (tab?.kind === 'eisenhower') setEisenhowerSheet(tabId)
           }}
           onActivate={(tabId) => {
-            void setActiveTab(tabId)
-            if (collapsed) void setCellCollapsed(cell.id, false)
+            withViewTransition(() => {
+              void setActiveTab(tabId)
+              if (collapsed) void setCellCollapsed(cell.id, false)
+            })
           }}
         />
         {collapsed ? (
@@ -480,15 +520,18 @@ function PageName({ page, index, active, setRef, onPick }: {
  * viewport wide each, swiped with native scrolling and mandatory scroll
  * snap. The strip above names them (bands with a band glyph); its underline
  * follows the scroll position, and tapping a name scrolls to that page.
+ * It opens on the layout's `activeColumnId` (view state, while that page
+ * is still there; else the first) and saves the page it settles on.
  */
-function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
+function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hue?: HueName; activeId?: string }) {
   const pagerRef = useRef<HTMLDivElement | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLSpanElement | null>(null)
   const itemEls = useRef<(HTMLButtonElement | null)[]>([])
   const frame = useRef<number | null>(null)
-  const activeRef = useRef(0)
-  const [active, setActive] = useState(0)
+  const [initial] = useState(() => Math.max(0, pages.findIndex((p) => p.id === activeId)))
+  const activeRef = useRef(initial)
+  const [active, setActive] = useState(initial)
   const count = pages.length
 
   const sync = useCallback(() => {
@@ -518,6 +561,18 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
   }, [sync])
 
   useEffect(() => () => { if (frame.current != null) cancelAnimationFrame(frame.current) }, [])
+
+  // Open on the remembered page, before the first paint and the underline's placing.
+  useLayoutEffect(() => {
+    const pager = pagerRef.current
+    if (pager && initial > 0) pager.scrollLeft = pageOffset(initial, pager.clientWidth, PAGER_GAP_PX)
+  }, [initial])
+
+  // The page shown is view state: saved as it changes (the first page is the default, no key).
+  const shownId = active === 0 ? null : (pages[active]?.id ?? null)
+  useEffect(() => {
+    if (shownId !== (activeId ?? null)) void useWorkspaceStore.getState().setActiveColumn(shownId)
+  }, [shownId, activeId])
 
   // Place the underline before paint, and again when the pager or names resize
   // (rotation, renamed tabs). A resize keeps the current column in view.
@@ -572,7 +627,15 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
 
   return (
     <>
-      <div ref={stripRef} className={styles.strip} role="tablist" aria-label="Columns" onKeyDown={onStripKeyDown}>
+      <div
+        ref={stripRef}
+        className={styles.strip}
+        role="tablist"
+        aria-label="Columns"
+        onKeyDown={onStripKeyDown}
+        data-layout-hue={hue ?? 'none'}
+        style={{ '--layout-hue': hueColor(hue) } as CSSProperties}
+      >
         {pages.map((page, i) => (
           <PageName
             key={page.id}
@@ -588,7 +651,9 @@ function ColumnPager({ pages }: { pages: readonly PagerPage[] }) {
       <div
         ref={pagerRef}
         className={styles.pager}
-        style={{ '--ws-pager-gap': `${PAGER_GAP_PX}px` } as CSSProperties}
+        // The layout's hue (D19), as the desktop workspace: the cell headers' tint and the focus ring.
+        style={{ '--ws-pager-gap': `${PAGER_GAP_PX}px`, '--layout-hue': hueColor(hue) } as CSSProperties}
+        data-layout-hue={hue ?? 'none'}
         onScroll={onScroll}
         data-ws-area
         data-ws-pager
@@ -611,7 +676,7 @@ export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayou
   const pages = pagesOf(layout)
   return (
     <div className={styles.root} data-ws-mobile>
-      <MobileTopBar name={layout.name} status={status} />
+      <MobileTopBar name={layout.name} hue={layout.hue} status={status} />
       {pages.length === 0 ? (
         <div className={styles.emptyLayout} data-ws-area>
           <p className={styles.emptyLayoutTitle}>This layout is empty</p>
@@ -619,8 +684,8 @@ export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayou
           <p className={styles.emptyHint}>Or choose a saved layout from the picker above.</p>
         </div>
       ) : (
-        // Remount per layout so a switch starts at the first column.
-        <ColumnPager key={layout.id ?? 'layout'} pages={pages} />
+        // Remount per layout so a switch starts on that layout's remembered column.
+        <ColumnPager key={layout.id ?? 'layout'} pages={pages} hue={layout.hue} activeId={layout.activeColumnId} />
       )}
     </div>
   )

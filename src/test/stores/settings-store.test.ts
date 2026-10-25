@@ -73,7 +73,7 @@ describe('useSettingsStore', () => {
   it('setColor: dark write does not leak into light bag', async () => {
     await useSettingsStore.getState().setColor('dark', 'appBg', '#222222')
     expect(useSettingsStore.getState().colors.dark.appBg).toBe('#222222')
-    expect(useSettingsStore.getState().colors.light.appBg).toBe('#f5f4f2')
+    expect(useSettingsStore.getState().colors.light.appBg).toBe(DEFAULT_THEMED_COLORS.light.appBg)
   })
 
   it('setColor rejects invalid', async () => {
@@ -292,6 +292,104 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().purgePromptIntervalDays).toBe(7)
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
+  })
+
+  it('the stale threshold: 30 days by default (no row), 0–365 kept (0 = off), anything else ignored; junk on load reads as 30', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().staleAfterDays).toBe(30)
+    useUndoStore.getState().clear()
+
+    await useSettingsStore.getState().setStaleAfterDays(0)
+    expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '0' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Don’t fade untouched tasks')
+    await useSettingsStore.getState().setStaleAfterDays(45)
+    expect(await db.settings.get('staleAfterDays')).toEqual({ key: 'staleAfterDays', value: '45' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Fade tasks untouched for 45 days')
+    for (const bad of [-1, 366, 2.5, Number.NaN]) await useSettingsStore.getState().setStaleAfterDays(bad)
+    expect(useSettingsStore.getState().staleAfterDays).toBe(45)
+    await useSettingsStore.getState().setStaleAfterDays(30)
+    expect(await db.settings.get('staleAfterDays')).toBeUndefined()
+
+    await db.settings.put({ key: 'staleAfterDays', value: '14' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().staleAfterDays).toBe(14)
+    await db.settings.put({ key: 'staleAfterDays', value: 'soon' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().staleAfterDays).toBe(30)
+  })
+
+  it('the lenses: none by default (no row); add, rename, change, duplicate — each one undo step — and read back on load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().lenses).toEqual([])
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+
+    const id = await s().addLens('  Fresh ')
+    expect(id).not.toBeNull()
+    expect(s().lenses).toEqual([{ id, name: 'Fresh', predicate: emptyPredicate() }])
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('New lens “Fresh”')
+    expect(await s().addLens('   ')).toBeNull()
+
+    expect(await s().renameLens(id!, 'Recent')).toBe(true)
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Renamed lens “Fresh” to “Recent”')
+    await s().setLensPredicate(id!, { ...emptyPredicate(), showCompleted: true, personIds: [0], negate: { personIds: true } })
+    expect(s().lenses[0]!.predicate).toEqual({ ...emptyPredicate(), personIds: [0], negate: { personIds: true } })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Changed lens “Recent”')
+    const copy = await s().duplicateLens(id!)
+    expect(s().lenses.map((l) => [l.id, l.name])).toEqual([[id, 'Recent'], [copy, 'Recent 2']])
+    expect(useUndoStore.getState().undoStack).toHaveLength(4)
+
+    useSettingsStore.setState({ lenses: [] })
+    await s().load()
+    expect(s().lenses.map((l) => l.name)).toEqual(['Recent', 'Recent 2'])
+
+    await useUndoStore.getState().undo()
+    expect(s().lenses.map((l) => l.name)).toEqual(['Recent'])
+    await s().setLenses([], 'Deleted lens “Recent”')
+    expect(await db.settings.get('lenses')).toBeUndefined()
+  })
+
+  it('the preset lenses are seeded once, after the lenses there are, without an undo step', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+    await s().addLens('Fresh')
+    useUndoStore.getState().clear()
+
+    await s().seedLensPresets(null)
+    expect(s().lenses.map((l) => l.name)).toEqual(['Fresh', 'This month', 'Has a person', 'Fresh 2'])
+    expect(new Set(s().lenses.map((l) => l.id)).size).toBe(4)
+    expect(s().lensPresetsSeeded).toBe(true)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(await db.settings.get('lensPresetsSeeded')).toEqual({ key: 'lensPresetsSeeded', value: 'true' })
+
+    await s().setLenses([], 'Deleted every lens')
+    await s().seedLensPresets(3)
+    expect(s().lenses).toEqual([])
+    useSettingsStore.setState({ lensPresetsSeeded: false })
+    await s().load()
+    expect(s().lensPresetsSeeded).toBe(true)
+  })
+
+  it('the row density: compact by default (no row); comfortable stored, compact removes the row; junk ignored on load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDensity).toBe('compact')
+    useUndoStore.getState().clear()
+
+    await useSettingsStore.getState().setRowDensity('comfortable')
+    expect(await db.settings.get('rowDensity')).toEqual({ key: 'rowDensity', value: 'comfortable' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Comfortable rows')
+    await useSettingsStore.getState().setRowDensity('cosy' as never)
+    expect(useSettingsStore.getState().rowDensity).toBe('comfortable')
+    await useSettingsStore.getState().setRowDensity('compact')
+    expect(await db.settings.get('rowDensity')).toBeUndefined()
+
+    await db.settings.put({ key: 'rowDensity', value: 'comfortable' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDensity).toBe('comfortable')
+    await db.settings.put({ key: 'rowDensity', value: 'roomy' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDensity).toBe('compact')
   })
 
   it('new-list sort / grouping and the purge interval: each change is one undo step with the snackbar; undo / redo save', async () => {

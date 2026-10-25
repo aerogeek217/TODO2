@@ -45,13 +45,17 @@ export function packSections<Id extends string>(
   return rows
 }
 
+/** The least height a shared section row gets: its header and a few rows. Below it, the grid scrolls. */
+export const SECTION_ROW_MIN_PX = 200
+
 /**
  * The grid's row track sizes for the section rows: every row shares the
- * leftover height, except that with two or more rows the last one is a
- * fixed 272px band (the charts' row).
+ * leftover height (at least `SECTION_ROW_MIN_PX`), except that with two or
+ * more rows the last one is a fixed 272px band (the charts' row).
  */
 export function sectionRowTracks(rowCount: number): string[] {
   if (rowCount === 0) return []
-  if (rowCount === 1) return ['minmax(0, 1fr)']
-  return [...Array.from({ length: rowCount - 1 }, () => 'minmax(0, 1fr)'), '272px']
+  const shared = `minmax(${SECTION_ROW_MIN_PX}px, 1fr)`
+  if (rowCount === 1) return [shared]
+  return [...Array.from({ length: rowCount - 1 }, () => shared), '272px']
 }

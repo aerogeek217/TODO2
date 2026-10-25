@@ -10,6 +10,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { entityPickerSelection, isNegated, withIdFilter } from '../../../utils/filter-negation'
 import { MARKERS_LABEL } from '../../../utils/markers'
+import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
 import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
@@ -121,8 +122,7 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
   const searchRef = useRef<HTMLInputElement>(null)
   useEffect(() => { searchRef.current?.focus() }, [])
 
-  const withNone = field !== 'tags'
-  const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
+  const allIds = [0, ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   // The ids and the switch are written together: the last "is not" tick
   // removed drops the stored switch, and the picker stays on Is not.
   const set = (next: Set<number> | null, not = negated) => {
@@ -163,7 +163,7 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
           onToggle={toggle}
           namePrefix={field === 'people' ? '@' : field === 'tags' ? '#' : undefined}
           showDot={field !== 'people'}
-          withNone={withNone}
+          noneLabel={field === 'tags' ? NO_TAGS_LABEL : undefined}
           entityMenu={field === 'people' ? 'person' : field === 'tags' ? 'tag' : undefined}
           onShowTasks={onClose}
           onSearchClear={() => setSearchText('')}

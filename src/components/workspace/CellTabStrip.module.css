@@ -30,7 +30,7 @@
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
+  color: var(--cell-tab-text, var(--color-text-muted));
   background: transparent;
   cursor: pointer;
   user-select: none;
@@ -43,16 +43,20 @@
   color: var(--color-text-secondary);
 }
 
-.tab:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-
 .active,
 .active:hover {
   background: var(--color-surface);
   box-shadow: 0 0 0 1px var(--color-border-muted);
   color: var(--color-text-primary);
+}
+
+/* The ring inside the tab: the strip clips anything outside it. */
+.tab:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+}
+
+.active:focus-visible {
+  box-shadow: 0 0 0 1px var(--color-border-muted), var(--focus-ring-inset);
 }
 
 .active::before {
@@ -129,6 +133,10 @@
   background: transparent;
   box-shadow: none;
   color: var(--color-text-secondary);
+}
+
+.flat:focus-visible {
+  box-shadow: var(--focus-ring-inset);
 }
 
 .flat.active::before {

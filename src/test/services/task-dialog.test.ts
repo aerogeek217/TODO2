@@ -12,6 +12,7 @@ import {
   tagsSectionDialog,
   resolveTaskDialog,
   screenTaskCount,
+  screenTaskCounts,
   screenTaskDialog,
   screenTaskDialogDescription,
   showTasksLabel,
@@ -166,6 +167,30 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
       .toBe('Every open task: no screen filter is on. A filter set here applies to every widget.')
     expect(showTasksLabel(1)).toBe('Show 1 task')
     expect(showTasksLabel(12)).toBe('Show 12 tasks')
+  })
+
+  it('the counter’s numbers: shown (chips and lens), the open total, what the lens alone keeps', () => {
+    const lens = { ...emptyFilterCriteria, personIds: new Set([PRIYA]) }
+    const priyaOpen = 4
+    expect(screenTaskCounts(env())).toEqual({ shown: SAMPLE_OPEN_COUNT, total: SAMPLE_OPEN_COUNT, lensKeeps: SAMPLE_OPEN_COUNT })
+    expect(screenTaskCounts(env({ screen: { ...emptyFilterCriteria, lens } })))
+      .toEqual({ shown: priyaOpen, total: SAMPLE_OPEN_COUNT, lensKeeps: priyaOpen })
+    // Chips on top: shown narrows further; the lens's own count stays.
+    const hot = { ...emptyFilterCriteria, markers: 'hot' as const, lens }
+    const counts = screenTaskCounts(env({ screen: hot }))
+    expect(counts.lensKeeps).toBe(priyaOpen)
+    expect(counts.shown).toBe(screenTaskCount(env({ screen: hot })))
+    expect(counts.shown).toBeLessThanOrEqual(priyaOpen)
+    // Under Show completed the total counts completed tasks too.
+    expect(screenTaskCounts(env({ screen: { ...emptyFilterCriteria, showCompleted: true } })).total).toBe(SAMPLE_TASKS.length)
+  })
+
+  it('the description names the lens and what it hides; with chips too, the filter under it', () => {
+    const counts = { shown: 61, total: 109, lensKeeps: 61 }
+    expect(screenTaskDialogDescription(emptyFilterCriteria, { name: 'This month', counts }))
+      .toBe('61 of 109 open tasks shown: the lens “This month” hides 48. A filter set here applies to every widget; the lens is the layout’s.')
+    expect(screenTaskDialogDescription(priya, { name: 'This month', counts: { ...counts, shown: 6 } }))
+      .toBe('6 of 109 open tasks match the filter under the lens “This month”. A change here applies to every widget.')
   })
 })
 

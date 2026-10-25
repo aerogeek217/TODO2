@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
-import type { PersistedListDefinition } from '../../../models/list-definition'
+import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
+import { useLeavingRows } from '../../../hooks/use-leaving-rows'
+import { useTodoStore } from '../../../stores/todo-store'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useFilterStore } from '../../../stores/filter-store'
+import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
+import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
@@ -31,6 +34,7 @@ import {
 import { dispatchCrossGroupMutation } from '../../../services/cross-group-mutation'
 import type { ListRowDragSource, ListRowDropTarget } from '../../../utils/list-row-drop'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
+import { EmptyState } from '../../shared/EmptyState'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -47,7 +51,8 @@ import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
-import { activeMarkers } from '../../../utils/markers'
+import { activeMarkers, isHotFilter } from '../../../utils/markers'
+import { hotSeed } from '../../../utils/hot'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
 import { useFilterSettings } from '../../../hooks/use-filter-settings'
@@ -56,6 +61,8 @@ import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
+import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { transitionName, withViewTransition } from '../../shared/view-transition'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
 export interface ListWidgetResult {
@@ -63,6 +70,8 @@ export interface ListWidgetResult {
   countLabel: string
   /** The sections shown, for Copy tasks. */
   sections: readonly Section[]
+  /** The list shows group headers (Collapse all / Expand all groups apply). */
+  grouped?: boolean
 }
 
 interface ListWidgetProps {
@@ -71,6 +80,9 @@ interface ListWidgetProps {
 }
 
 const EMPTY_SECTIONS: readonly Section[] = []
+
+/** The runtime-filter prompt's one action: into the picker's field. */
+const RUNTIME_PICK_ACTION: Record<RuntimeFilterField, string> = { person: 'Pick someone', status: 'Pick a status', tag: 'Pick a tag' }
 
 /** Tasks in the sections, each once. */
 function uniqueCount(sections: readonly Section[]): number {
@@ -89,7 +101,7 @@ export function ListWidget({ tab, onResult }: ListWidgetProps) {
   const listId = tab.config.listDefinitionId
   const definition = useEffectiveListDefinition(listId)
   if (listId == null || !definition) {
-    return <div className={styles.empty}><span className={styles.emptyHint}>{listId == null ? 'No list configured' : 'This list was deleted'}</span></div>
+    return <EmptyState illustration="list" title={listId == null ? 'No list configured' : 'This list was deleted'} />
   }
   return <ListWidgetBody tab={tab} definition={definition} onResult={onResult} />
 }
@@ -118,8 +130,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
   const toggleGroup = useListWidgetStore((s) => s.toggleGroup)
-  const screen = useFilterStore((s) => s.filters)
-  const screenActive = useFilterStore((s) => s.isActive)
+  const { filters: screen, active: screenActive } = useScreenFilter()
+  const lens = useAppliedLens()
   const screenChips = useScreenChips()
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -128,15 +140,36 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const today = useToday()
   const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const runtimeInputRef = useRef<HTMLInputElement>(null)
+  // The drag hook reads the scroller through `scrollRef`; the edge fades track it.
+  const setScrollEl = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el
+    const stop = trackScrollEdges(el)
+    return () => {
+      scrollRef.current = null
+      stop?.()
+    }
+  }, [])
   const widgetRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
 
-  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates } = useBuiltList(
+  // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
+  const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
+  const leaving = useLeavingRows((id) => shownIdsRef.current.has(id))
+  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept } = useBuiltList(
     definition,
     picks,
     screenActive ? screen : undefined,
+    isMobile ? undefined : leaving,
+  )
+  useEffect(() => { shownIdsRef.current = new Set(list?.todos.map((t) => t.id)) })
+  // A kept row is built as it was (open); it shows as it is now (completed).
+  const allTodos = useTodoStore((s) => s.todos)
+  const keptTodos = useMemo(
+    () => (kept.size > 0 ? new Map(allTodos.filter((t) => kept.has(t.id)).map((t) => [t.id, t])) : null),
+    [kept, allTodos],
   )
 
   const sections = list?.sections ?? EMPTY_SECTIONS
@@ -144,28 +177,30 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const total = list?.todos.length ?? 0
   const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
 
-  const onResultRef = useLatestRef(onResult)
-  useEffect(() => {
-    onResultRef.current?.({ countLabel, sections: sections })
-  }, [countLabel, sections, onResultRef])
-
   const predicate = definition.membership.predicate
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
 
   // + Add task: only when the merged predicate names people / status / tags
-  // / markers to seed the new task with (Hot seeds nothing; an "is not"
-  // field seeds nothing either, but keeps the button).
+  // / markers to seed the new task with (Hot seeds the Hot rule's first
+  // line, so the task lands in the list; an "is not" field seeds nothing,
+  // but keeps the button).
   const canAddTask = mergedPredicate != null && (
     mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
     || activeMarkers(mergedPredicate.markers).length > 0
+    || (isHotFilter(mergedPredicate.markers) && hotSeed(filterSettings.hotRule) != null)
   )
 
   const groupedBy = definition.grouping
   const grouped = groupedBy !== 'none'
   const manual = definition.sort === 'manual'
   const collapsedKeys = useMemo(() => new Set(collapsed ?? []), [collapsed])
+
+  const onResultRef = useLatestRef(onResult)
+  useEffect(() => {
+    onResultRef.current?.({ countLabel, sections: sections, grouped })
+  }, [countLabel, sections, grouped, onResultRef])
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
@@ -275,7 +310,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         )
       }
     }
-    section.todos.forEach((todo, i) => {
+    section.todos.forEach((built, i) => {
+      const todo = keptTodos?.get(built.id) ?? built
       const key = rowKey(section.key, todo.id)
       if (drag?.source.key !== key) {
         if (target?.index === j) indicator()
@@ -301,6 +337,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           selLast={!(next && selectedIds.has(next.id))}
           cursor={cursorKey === key}
           look={rowLook(drag, key, manual)}
+          leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id) : undefined}
           onSelect={onRowSelect}
           onOpenDetail={openEditPopup}
         />,
@@ -318,24 +355,28 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   if (runtimeFilterPending) {
     body = (
       <EmptyState
+        illustration={definition.runtimeFilter?.field === 'person' ? 'person' : 'list'}
         title={`Pick a ${promptLabel.toLowerCase()} to show this list`}
-        hint={`Type in the ${promptLabel} field above. The pick is temporary and isn’t saved.`}
+        text={`Type in the ${promptLabel} field above. The pick is temporary and isn’t saved.`}
+        action={{ label: RUNTIME_PICK_ACTION[definition.runtimeFilter?.field ?? 'person'], onClick: () => runtimeInputRef.current?.focus() }}
       />
     )
   } else if (total === 0) {
     if (baseCount > 0) {
       body = (
         <EmptyState
+          illustration="list"
           title="No tasks match"
-          hint={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by the screen filter.`}
-          action={{ label: screenChips.length === 1 ? 'Clear screen filter' : 'Clear screen filters', onClick: () => useFilterStore.getState().clearAll() }}
+          text={`All ${baseCount} ${baseCount === 1 ? 'task' : 'tasks'} in this list ${baseCount === 1 ? 'is' : 'are'} hidden by ${screenHiderText(screenChips.length > 0, lens)}.`}
+          action={screenUnhideAction(screenChips.length)}
         />
       )
     } else if (hasNarrowingFilters(predicate)) {
       body = (
         <EmptyState
+          illustration="list"
           title="No tasks match"
-          hint={describeFilters(listChips)}
+          text={describeFilters(listChips)}
           action={{
             label: 'Edit filters',
             onClick: () => openEditList(tab.id, definition.id),
@@ -343,7 +384,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         />
       )
     } else {
-      body = <EmptyState title="No tasks in this list" />
+      body = <EmptyState illustration="list" title="No tasks in this list" />
     }
   } else {
     const sourceLabel = drag ? sections.find((s) => s.key === drag.source.sectionKey)?.label : undefined
@@ -357,11 +398,11 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             type="button"
             className={`${styles.groupHeader} ${person && !drag ? styles.groupHeaderWithAction : ''}`}
             aria-expanded={!isCollapsed}
-            onClick={() => toggleGroup(tab.id, section.key)}
+            onClick={() => withViewTransition(() => toggleGroup(tab.id, section.key))}
           >
             <span className={styles.groupChevron}><ChevronDownIcon /></span>
             <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
-            <span className={styles.groupName} style={{ color: section.accentColor ?? 'var(--color-text-secondary)' }} data-testid="list-group-name">{section.label}</span>
+            <span className={styles.groupName} data-testid="list-group-name">{section.label}</span>
             <span className={styles.groupCount}>{section.todos.length}</span>
             {crossTarget && sourceLabel != null && (
               <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
@@ -373,6 +414,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             key={section.key}
             className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
             data-list-group={section.key}
+            style={isMobile ? undefined : { viewTransitionName: transitionName('ws-group', tab.id, section.key) }}
             {...{ [LIST_SECTION_ATTR]: section.key }}
           >
             {isMobile ? header : (
@@ -419,13 +461,14 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     >
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
+          inputRef={runtimeInputRef}
           spec={definition.runtimeFilter}
           value={picks}
           onChange={(ids) => setPicks(tab.id, ids)}
         />
       )}
       <ListFilterRow tabId={tab.id} definition={definition} />
-      <div ref={scrollRef} className={styles.scroll}>
+      <div ref={setScrollEl} className={styles.scroll}>
         {body}
       </div>
       {canAddTask && (
@@ -435,7 +478,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           title="Add a task to this list"
           onClick={() => {
             if (!mergedPredicate) return
-            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
+            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate, { hotRule: filterSettings.hotRule }) })
           }}
         >
           <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
@@ -497,22 +540,4 @@ function rowLook(drag: ListRowDragState | null, key: string, manual: boolean): L
   if (!reordering) return 'origin'
   // Manual order: the row's slot stays where it is until the pointer picks another spot.
   return target && target.index !== source.index ? 'gone' : 'slot'
-}
-
-function EmptyState({ title, hint, action }: {
-  title: string
-  hint?: string
-  action?: { label: string; onClick: () => void }
-}) {
-  return (
-    <div className={styles.empty}>
-      <span className={styles.emptyTitle}>{title}</span>
-      {hint && <span className={styles.emptyHint}>{hint}</span>}
-      {action && (
-        <button type="button" className={styles.emptyAction} onClick={action.onClick}>
-          {action.label}
-        </button>
-      )}
-    </div>
-  )
 }

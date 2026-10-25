@@ -86,7 +86,9 @@
   /* Transitions */
   --transition-fast: 120ms ease;
   --transition-medium: 200ms ease;
-  --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --spring-duration: 220ms;
+  --spring-easing: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --transition-spring: var(--spring-duration) var(--spring-easing);
 
   /* The phone breakpoint is 640px. CSS @media queries cannot read custom
      properties, so the literal is written in each `@media (max-width:
@@ -108,6 +110,20 @@
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+}
+
+/*
+ * Focus ring (D19): the global `:focus-visible` rule below. The inset variant
+ * is for an element a scroller would clip (tabs, menu rows): the same 2px
+ * ring drawn inside its edge. Inside a layout with a hue (`data-layout-hue`,
+ * `--layout-hue`, set by the workspace) the ring takes the hue, so these are
+ * declared again there.
+ */
+:root,
+[data-layout-hue] {
+  --focus-ring-color: var(--layout-hue, var(--color-accent));
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
+  --focus-ring-inset: inset 0 0 0 2px var(--focus-ring-color);
 }
 
 /* ═══════════════════════════════════════════
@@ -139,6 +155,10 @@
      an `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
      colour editor shows the actual rendered colour. */
   --color-header-bg: #1f2120;
+  /* The cell header's one-step gradient ends here (D19). */
+  --cell-header-shade: color-mix(in srgb, var(--color-header-bg) 92%, black);
+  /* The workspace grain (D19): dark only. */
+  --grain-display: block;
   /* The top bar's search field, recessed into the app background. */
   --color-search-bg: var(--color-inset);
   /* The notes editor's page (task notes and the global note). */
@@ -152,6 +172,17 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* A hot row's ember: the danger colour at this strength at its left edge. */
+  --ember-strength: 11%;
+
+  /* Layout hues (D19, a layout's `hue`): its active tab, cell headers and
+     focus ring. Each ≥ 3:1 on every surface. */
+  --hue-teal: #7ec4bc;
+  --hue-violet: #a78bfa;
+  --hue-blue: #5b8def;
+  --hue-green: #4fb286;
+  --hue-amber: #e9a23b;
+  --hue-rose: #e07a9a;
 
   /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
   --eis-do-bg: rgba(238, 125, 119, 0.075);
@@ -210,6 +241,18 @@
   --cal-on-followup: #111110;
   --cal-overdue-day: rgba(232, 107, 240, 0.10);
   --cal-followup-day: rgba(245, 200, 66, 0.08);
+  /* Calendar heat map (D18): a day's tint per step (1–2 · 3–5 · 6+ entries),
+     the due / follow-up colour mixed into the surface */
+  --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));
+  --cal-heat-due-2: color-mix(in srgb, var(--color-overdue) 24%, var(--color-surface));
+  --cal-heat-due-3: color-mix(in srgb, var(--color-overdue) 40%, var(--color-surface));
+  --cal-heat-followup-1: color-mix(in srgb, var(--color-followup) 12%, var(--color-surface));
+  --cal-heat-followup-2: color-mix(in srgb, var(--color-followup) 24%, var(--color-surface));
+  --cal-heat-followup-3: color-mix(in srgb, var(--color-followup) 40%, var(--color-surface));
+  /* A late day's number: lighter than the overdue / follow-up colours, so it
+     reads at 4.5:1 on every heat step. */
+  --cal-late-due: color-mix(in srgb, var(--color-overdue) 55%, white);
+  --cal-late-followup: color-mix(in srgb, var(--color-followup) 60%, white);
 
   /* Due-date chip colors */
   --color-deadline: #e86bf0;
@@ -224,16 +267,17 @@
   --color-text-completed: #4a4743;
   --color-text-on-accent: #111110;
 
-  /* Accent alpha */
-  --color-accent-bg-subtle: rgba(126, 196, 188, 0.05);
-  --color-accent-bg-light: rgba(126, 196, 188, 0.08);
-  --color-accent-bg-medium: rgba(126, 196, 188, 0.12);
-  --color-accent-bg: rgba(126, 196, 188, 0.18);
+  /* Accent alpha: mixed from the accent, so a custom accent (Settings ›
+     Appearance) tints with its own colour. */
+  --color-accent-bg-subtle: color-mix(in srgb, var(--color-accent) 5%, transparent);
+  --color-accent-bg-light: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  --color-accent-bg-medium: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --color-accent-bg: color-mix(in srgb, var(--color-accent) 18%, transparent);
   --color-accent-alpha: var(--color-accent-bg-medium);
-  --color-accent-glow: rgba(126, 196, 188, 0.3);
-  --color-accent-focus: rgba(126, 196, 188, 0.4);
-  --color-accent-shadow: rgba(126, 196, 188, 0.2);
-  --color-accent-shadow-subtle: rgba(126, 196, 188, 0.15);
+  --color-accent-glow: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --color-accent-focus: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  --color-accent-shadow: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 15%, transparent);
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.4);
@@ -293,24 +337,27 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  /* Backgrounds */
-  --color-app-bg: #f5f4f2;
-  --color-surface: #ffffff;
-  --color-surface-high: #f0efed;
-  --color-surface-bright: #e5e3e0;
-  --color-surface-glass: rgba(255, 255, 255, 0.88);
+  /* Backgrounds: warm paper (D19), the cards a shade lighter */
+  --color-app-bg: #f7f6f3;
+  --color-surface: #fcfbf9;
+  --color-surface-high: #f3f1ed;
+  --color-surface-bright: #e6e2dc;
+  --color-surface-glass: rgba(252, 251, 249, 0.88);
   --color-surface-hover: rgba(0, 0, 0, 0.05);
   /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
   /* Popovers, menus, dialogs and sheets. */
   --color-popover-bg: var(--color-surface);
-  --color-popover-ring: rgba(0, 0, 0, 0.06);
-  --color-border: #d9d5d0;
+  --color-popover-ring: rgba(60, 45, 20, 0.07);
+  --color-border: #dedad4;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
-  --color-border-muted: rgba(0, 0, 0, 0.06);
+  --color-border-muted: rgba(60, 45, 20, 0.07);
   /* Solid background for the workspace cell headers (tab strips). */
-  --color-header-bg: #f7fbfa;
+  --color-header-bg: #f3f1ed;
+  /* 98.5 %: muted tab labels keep 4.5:1 at the header's foot. */
+  --cell-header-shade: color-mix(in srgb, var(--color-header-bg) 98.5%, black);
+  --grain-display: none;
   --color-search-bg: var(--color-surface-high);
   --color-notes-bg: var(--color-surface);
   /* The system I-beam follows the OS pointer scheme, not `color-scheme`: a
@@ -323,6 +370,15 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  --ember-strength: 7%;
+
+  /* Layout hues: the light twins, each ≥ 3:1 on every light surface. */
+  --hue-teal: #2f9a8f;
+  --hue-violet: #7c5cd6;
+  --hue-blue: #3f73d9;
+  --hue-green: #2f8a5e;
+  --hue-amber: #a86a12;
+  --hue-rose: #c0517a;
 
   /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
   --eis-do-bg: rgba(196, 60, 53, 0.06);
@@ -335,9 +391,9 @@
   --color-chart-created: rgba(0, 0, 0, 0.16);
 
   /* Accent — deepened for contrast on light backgrounds */
-  --color-accent: #3a9e93;
+  --color-accent: #2f9a8f;
   --color-accent-dim: #2d7d74;
-  /* The accent as text: darkened to 5.2:1 on the surface (4.5:1 on the
+  /* The accent as text: darkened to 5.3:1 on the surface (4.9:1 on the
      elevated surface), mixed from the accent so a colour override carries over. */
   --color-accent-text: color-mix(in srgb, var(--color-accent) 76%, black);
 
@@ -359,12 +415,13 @@
 
   /* Tooltip (dark on purpose). */
   --color-tooltip-bg: #1a1917;
-  --color-tooltip-text: #f5f4f2;
+  --color-tooltip-text: #f7f6f3;
   --color-tooltip-muted: #a8a39d;
   --shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.25);
 
-  /* Overdue */
-  --color-overdue: #b838c0;
+  /* Overdue: D0's light overdue, as the solid fill below — 4.5:1 on every
+     surface, a hovered row and its own tint included. */
+  --color-overdue: #a32cab;
   --color-overdue-bg: rgba(184, 56, 192, 0.08);
   --color-overdue-bg-strong: rgba(163, 44, 171, 0.16);
 
@@ -377,30 +434,43 @@
   --cal-on-followup: #1a1917;
   --cal-overdue-day: rgba(163, 44, 171, 0.07);
   --cal-followup-day: rgba(245, 200, 66, 0.14);
+  /* Calendar heat map (D18). The follow-up steps mix the bright fill yellow:
+     the darker text yellow reads brown as a fill. */
+  --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));
+  --cal-heat-due-2: color-mix(in srgb, var(--color-overdue) 24%, var(--color-surface));
+  --cal-heat-due-3: color-mix(in srgb, var(--color-overdue) 40%, var(--color-surface));
+  --cal-heat-followup-1: color-mix(in srgb, var(--cal-followup-solid) 12%, var(--color-surface));
+  --cal-heat-followup-2: color-mix(in srgb, var(--cal-followup-solid) 24%, var(--color-surface));
+  --cal-heat-followup-3: color-mix(in srgb, var(--cal-followup-solid) 40%, var(--color-surface));
+  /* A late day's number: darker than the overdue / follow-up text colours, so
+     it reads at 4.5:1 on every heat step. */
+  --cal-late-due: color-mix(in srgb, var(--color-overdue) 66%, black);
+  --cal-late-followup: color-mix(in srgb, var(--color-followup) 88%, black);
 
-  /* Due-date chip colors */
-  --color-deadline: #b838c0;
+  /* Due-date chip colors (the overdue colour) */
+  --color-deadline: #a32cab;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
 
   /* Text */
-  --color-text-primary: #1a1917;
+  --color-text-primary: #1f1d1a;
   --color-text: var(--color-text-primary);
-  --color-text-secondary: #5c5852;
-  /* 5.3:1 on the surface, 4.8:1 on the app background, 4.6:1 on the elevated surface. */
-  --color-text-muted: #6f6b68;
+  --color-text-secondary: #5d5853;
+  /* 5.1:1 on the surface, 4.9:1 on the app background, 4.7:1 on the elevated surface and the cell header. */
+  --color-text-muted: #6f6a64;
   --color-text-completed: #c4c0bb;
   --color-text-on-accent: #ffffff;
 
-  /* Accent alpha */
-  --color-accent-bg-subtle: rgba(58, 158, 147, 0.04);
-  --color-accent-bg-light: rgba(58, 158, 147, 0.06);
-  --color-accent-bg-medium: rgba(58, 158, 147, 0.10);
-  --color-accent-bg: rgba(58, 158, 147, 0.18);
+  /* Accent alpha: mixed from the accent, so a custom accent (Settings ›
+     Appearance) tints with its own colour. */
+  --color-accent-bg-subtle: color-mix(in srgb, var(--color-accent) 4%, transparent);
+  --color-accent-bg-light: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  --color-accent-bg-medium: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --color-accent-bg: color-mix(in srgb, var(--color-accent) 18%, transparent);
   --color-accent-alpha: var(--color-accent-bg-medium);
-  --color-accent-glow: rgba(58, 158, 147, 0.2);
-  --color-accent-focus: rgba(58, 158, 147, 0.3);
-  --color-accent-shadow: rgba(58, 158, 147, 0.15);
-  --color-accent-shadow-subtle: rgba(58, 158, 147, 0.1);
+  --color-accent-glow: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --color-accent-focus: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --color-accent-shadow: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  --color-accent-shadow-subtle: color-mix(in srgb, var(--color-accent) 10%, transparent);
 
   /* Overlay */
   --color-overlay: rgba(0, 0, 0, 0.25);
@@ -429,28 +499,29 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.35);
-  --color-scrim: rgba(245, 244, 242, 0.78);
+  --color-scrim: rgba(247, 246, 243, 0.78);
 
   /* Card glass */
-  --color-card-glass-from: rgba(255, 255, 255, 0.98);
-  --color-card-glass-to: rgba(248, 247, 246, 0.96);
+  --color-card-glass-from: rgba(252, 251, 249, 0.98);
+  --color-card-glass-to: rgba(247, 246, 243, 0.96);
 
 
-  /* Shadows — lighter, subtler */
-  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--color-popover-ring);
-  --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  /* Shadows — lighter, subtler, tinted toward the paper (D19); cards keep a white top highlight */
+  --shadow-card: 0 1px 4px rgba(60, 45, 20, 0.06), 0 4px 16px rgba(60, 45, 20, 0.04);
+  --shadow-dropdown: 0 4px 16px rgba(60, 45, 20, 0.1), 0 0 0 1px var(--color-popover-ring);
+  --shadow-modal: 0 12px 48px rgba(60, 45, 20, 0.12), 0 0 0 1px rgba(60, 45, 20, 0.06);
   --shadow-glass-card:
-    0 0 0 1px rgba(0, 0, 0, 0.06),
-    0 8px 24px rgba(0, 0, 0, 0.08),
-    0 24px 64px rgba(0, 0, 0, 0.05);
-  --shadow-fab: 0 2px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-fab-hover: 0 4px 16px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.08);
+    0 0 0 1px rgba(60, 45, 20, 0.06),
+    0 8px 24px rgba(60, 45, 20, 0.08),
+    0 24px 64px rgba(60, 45, 20, 0.05),
+    inset 0 1px 0 #ffffff;
+  --shadow-fab: 0 2px 8px rgba(60, 45, 20, 0.1), 0 1px 3px rgba(60, 45, 20, 0.06);
+  --shadow-fab-hover: 0 4px 16px rgba(60, 45, 20, 0.14), 0 2px 4px rgba(60, 45, 20, 0.08);
   --shadow-drag-overlay:
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    0 12px 32px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(60, 45, 20, 0.1),
+    0 12px 32px rgba(60, 45, 20, 0.08),
     0 0 0 1px var(--color-accent-shadow-subtle);
-  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-float: 0 4px 16px rgba(60, 45, 20, 0.1);
 }
 
 /* ═══════════════════════════════════════════
@@ -476,16 +547,57 @@ button {
   cursor: pointer;
 }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+/*
+ * One focus ring (D19): a 2px gap in the surface colour, then 2px of the
+ * accent, drawn as a box-shadow so it follows the element's own rounded
+ * corners. In a layer so any component box-shadow wins: an element with its
+ * own shadow adds the ring layers in its `:focus-visible` rule
+ * (`box-shadow: <its own>, var(--focus-ring)`), one inside a clipping
+ * scroller uses `--focus-ring-inset`, and one that marks focus its own way
+ * sets `box-shadow: none`.
+ */
+@layer focus-ring {
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* A container that takes focus to hold it (a dialog, a list box) shows none. */
+  :is([role="dialog"], [role="listbox"])[tabindex="-1"]:focus-visible {
+    box-shadow: none;
+  }
 }
 
 input {
   font-family: inherit;
+}
+
+/*
+ * Scroll-edge fades (D19, `utils/scroll-edges`): a scrolling body fades its
+ * first 18px / last 22px while there is more content that way. A body with
+ * a sticky header sets `--scroll-fade-inset` to its height, so the rows fade
+ * as they slide under it and the header itself stays solid.
+ */
+[data-can-scroll-up],
+[data-can-scroll-down] {
+  --scroll-fade-top: #000;
+  --scroll-fade-bottom: #000;
+  mask-image: linear-gradient(
+    to bottom,
+    #000 var(--scroll-fade-inset, 0px),
+    var(--scroll-fade-top) var(--scroll-fade-inset, 0px),
+    #000 calc(var(--scroll-fade-inset, 0px) + 18px),
+    #000 calc(100% - 22px),
+    var(--scroll-fade-bottom) 100%
+  );
+}
+
+[data-can-scroll-up] {
+  --scroll-fade-top: transparent;
+}
+
+[data-can-scroll-down] {
+  --scroll-fade-bottom: transparent;
 }
 
 /* A native drop-down's open list can't show a select's translucent fill, so
@@ -494,6 +606,18 @@ select option,
 select optgroup {
   background: var(--color-surface);
   color: var(--color-text-primary);
+}
+
+/*
+ * View transitions (D19, `shared/view-transition`): a layout switch, a tab
+ * change, a group collapse — named cells and groups slide and resize, the
+ * rest crossfades, on the spring curve.
+ */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--spring-duration);
+  animation-timing-function: var(--spring-easing);
 }
 
 /* Reduced motion: every animation and transition finishes at once (1 ms, so
@@ -509,5 +633,12 @@ select optgroup {
     transition-duration: 1ms !important;
     transition-delay: 0s !important;
     scroll-behavior: auto !important;
+  }
+
+  /* No view transition runs (the helper checks too): a plain swap. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

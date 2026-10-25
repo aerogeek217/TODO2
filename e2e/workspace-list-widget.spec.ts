@@ -273,7 +273,7 @@ test('narrow widgets: the dates show as icons, the tags column gives way, the su
   for (const w of [wide, narrow]) await expect(w.locator('[data-row-cell="followup"]')).toHaveAttribute('data-followup', 'upcoming')
   await expect(wide.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
   await expect(narrow.locator('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'icons')
-  expect(Math.round((await wide.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(55)
+  expect(Math.round((await wide.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(46)
   expect(Math.round((await narrow.locator('[data-row-cell="due"]').boundingBox())!.width)).toBe(18)
   await expect(narrow.locator('[data-row-cell="due"]')).toHaveText('')
   await expect(narrow.locator('[data-row-cell="followup"]')).toHaveText('')

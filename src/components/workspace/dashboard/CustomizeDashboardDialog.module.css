@@ -152,8 +152,6 @@
 }
 
 .grip:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
   opacity: 1;
 }
 
@@ -261,6 +259,10 @@ span.check {
   color: var(--color-text-primary);
 }
 
+.addList:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
+}
+
 .option {
   display: inline-flex;
   align-items: center;
@@ -348,16 +350,6 @@ span.check {
 
 .primaryBtn:hover {
   opacity: 0.9;
-}
-
-.primaryBtn:focus-visible,
-.ghostBtn:focus-visible,
-.select:focus-visible,
-.addList:focus-visible,
-.remove:focus-visible,
-.closeBtn:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 @media (max-width: 720px) {

@@ -63,6 +63,11 @@ export interface CalendarTabViewState {
   view?: CalendarView
   /** Weeks (week view) or months (month view) from the current one. */
   offset?: number
+  /**
+   * The month shows a bar per entry (its title); absent / false = the heat
+   * map (a day tinted by its count). The week shows bars either way.
+   */
+  titles?: boolean
 }
 
 /**
@@ -240,6 +245,32 @@ export interface WorkspaceLayout {
   modifiedAt: Date
   /** Last time the layout was opened; picks the next layout after a delete. */
   lastUsedAt?: Date
+  /**
+   * View state: the lens picked for the layout (`utils/lens`, a lens's id);
+   * absent = No lens. An id no lens has (any more) reads as No lens.
+   */
+  lensId?: string
+  /**
+   * View state (a phone): the page the phone workspace last showed — a
+   * column's or a band's id; absent, or an id the layout no longer has,
+   * = the first page.
+   */
+  activeColumnId?: string
+  /**
+   * The layout's hue (D19): its active tab, its cell headers and the focus
+   * ring inside it take it; absent = the app accent. Set in the Rename
+   * dialog and saved at once, as the name is.
+   */
+  hue?: HueName
+}
+
+/** The six layout hues (D19), each a token pair (`--hue-<name>`, dark and light). */
+export const HUE_NAMES = ['teal', 'violet', 'blue', 'green', 'amber', 'rose'] as const
+
+export type HueName = (typeof HUE_NAMES)[number]
+
+export function isHueName(v: unknown): v is HueName {
+  return typeof v === 'string' && (HUE_NAMES as readonly string[]).includes(v)
 }
 
 export type PersistedWorkspaceLayout = WorkspaceLayout & { id: number }

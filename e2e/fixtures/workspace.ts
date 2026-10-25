@@ -13,6 +13,8 @@ export interface WsTabSeed {
   /** Calendar tabs: view state. */
   view?: 'month' | 'week'
   offset?: number
+  /** Calendar tabs: the month shows titled bars (view state; default off = the heat map). */
+  titles?: boolean
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
@@ -55,6 +57,8 @@ export interface WsLayoutSeed {
   /** The full-width band above / below the columns. */
   top?: WsBandSeed
   bottom?: WsBandSeed
+  /** The layout's hue (D19). */
+  hue?: 'teal' | 'violet' | 'blue' | 'green' | 'amber' | 'rose'
 }
 
 /** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
@@ -70,6 +74,11 @@ export interface WorkspaceSeed {
    * no filter) and its custom panes.
    */
   eisenhower?: { listDefIdx?: number; panes?: EisenhowerPanesSeed }
+  /**
+   * Lenses (the `lenses` settings row, the presets marked seeded so none are
+   * added): each predicate merged over the empty one.
+   */
+  lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   tags?: string[]
@@ -254,6 +263,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       if (tab.kind === 'calendar') {
         if (tab.dateTypes) config.dateTypes = tab.dateTypes
         if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
+        if (tab.titles != null) out.viewState = { ...(out.viewState as object | undefined), titles: tab.titles }
       }
       if (tab.kind === 'dashboard' && tab.dashboard) {
         const d = tab.dashboard
@@ -290,7 +300,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
           tabs: band.tabs.map(buildTab),
         }
       }
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, createdAt: now, modifiedAt: now })
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
       firstId ??= id
       layoutIds.push(id)
     }
@@ -318,6 +328,11 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(p?.filter ? { filter: { ...seed.predicate, ...p.filter } } : {}),
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
+    }
+    if (seed.lenses) {
+      const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
+      tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
+      tx.objectStore('settings').put({ key: 'lensPresetsSeeded', value: 'true' })
     }
     await done
     idb.close()

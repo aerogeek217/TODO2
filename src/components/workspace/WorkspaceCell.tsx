@@ -14,6 +14,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasks } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { CellTabStrip } from './CellTabStrip'
@@ -49,6 +50,8 @@ import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eise
 import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
+import { trackScrollEdges } from '../../utils/scroll-edges'
+import { transitionName, withViewTransition } from '../shared/view-transition'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -333,7 +336,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   return (
     <section
       className={`${styles.cell} ${collapsed ? styles.collapsed : ''} ${isDragSource ? styles.dragSource : ''}`}
-      style={style}
+      style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
       data-ws-band={band}
       aria-label={`${activeTitle} ${noun}`}
@@ -348,8 +351,10 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           activeCount={activeCount}
           ghosts={ghosts}
           onActivate={(tabId) => {
-            void setActiveTab(tabId)
-            if (collapsed) void setCellCollapsed(cell.id, false)
+            withViewTransition(() => {
+              void setActiveTab(tabId)
+              if (collapsed) void setCellCollapsed(cell.id, false)
+            })
           }}
           onClose={closeTabGuarded}
           onOpenTabMenu={(tabId, p) => setTabMenu({ tabId, ...p })}
@@ -399,6 +404,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       </div>
       {!collapsed && active && (
         <div
+          ref={trackScrollEdges}
           className={styles.body}
           role="tabpanel"
           aria-labelledby={`ws-tab-${active.id}`}
@@ -454,15 +460,30 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
-            ? [{
-                label: 'Copy tasks',
-                icon: '⧉',
-                onSelect: () => {
-                  const sections = widgetResult.result.sections
-                  const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
-                  void copyTasks(sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
+            ? [
+                {
+                  label: 'Copy tasks',
+                  icon: '⧉',
+                  onSelect: () => {
+                    const sections = widgetResult.result.sections
+                    const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
+                    void copyTasks(sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
+                  },
                 },
-              }]
+                // A grouped list: fold or unfold every group (the collapse set is per tab, never saved).
+                ...(widgetResult.result.grouped ? [
+                  {
+                    label: 'Collapse all groups',
+                    icon: <ChevronUpIcon />,
+                    onSelect: () => useListWidgetStore.getState().setCollapsed(menuTab.id, widgetResult.result.sections.map((sec) => sec.key)),
+                  },
+                  {
+                    label: 'Expand all groups',
+                    icon: <ChevronDownIcon size={14} />,
+                    onSelect: () => useListWidgetStore.getState().setCollapsed(menuTab.id, []),
+                  },
+                ] : []),
+              ]
             : undefined}
           onClose={() => setTabMenu(null)}
         />

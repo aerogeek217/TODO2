@@ -101,7 +101,7 @@ describe('CommandPalette', () => {
       type('undo')
       expect(optionNames()).toEqual(['Undo', 'Uncomplete 2 Tasks'])
       type('filters')
-      expect(optionNames()).toEqual(['Focus Filters', 'Clear All Filters', 'Toggle Show Completed', 'Show Overdue Tasks'])
+      expect(optionNames()).toEqual(['Focus Filters', 'Clear All Filters', 'Toggle Show Completed', 'Cycle Lens', 'Lift Lens / Put It Back', 'Show Overdue Tasks'])
       type('complete')
       expect(optionNames()).toEqual(['Complete 2 Tasks', 'Uncomplete 2 Tasks', 'Toggle Show Completed'])
       type('email')

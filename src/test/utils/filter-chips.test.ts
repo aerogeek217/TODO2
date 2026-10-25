@@ -57,7 +57,17 @@ describe('filterChips', () => {
     expect(chips[0]!.value).toBe('Unassigned +1')
     expect(chips[1]!.value).toBe('none')
     const zeros = filterChips({ ...emptyPredicate(), tags: [0, 1], statusIds: [0] }, names)
-    expect(zeros.map((c) => c.value)).toEqual(['Untagged +1', 'No status'])
+    expect(zeros.map((c) => c.value)).toEqual(['No tags +1', 'No status'])
+  })
+
+  it('No tags: the tags sentinel; "is not No tags" alone reads "has a tag", with what each "is not" hides', () => {
+    const [noTags] = filterChips({ ...emptyPredicate(), tags: [0] }, names)
+    expect(noTags).toEqual({ field: 'tags', label: 'Tags', value: 'No tags' })
+    const [hasTag] = filterChips({ ...emptyPredicate(), tags: [0], negate: { tags: true } }, names)
+    expect(hasTag).toEqual({ field: 'tags', label: 'Tags', value: 'has a tag', negated: true, tooltip: 'Tags: has a tag\nHides untagged tasks' })
+    const [mixed] = filterChips({ ...emptyPredicate(), tags: [0, 2], negate: { tags: true } }, names)
+    expect(mixed!.value).toBe('not No tags +1')
+    expect(mixed!.tooltip).toBe('Tags: not No tags or #home\nHides untagged tasks and tasks with that tag')
   })
 
   it('screen criteria take the same path; completed shows only when asked', () => {
@@ -179,6 +189,14 @@ describe('describeAnchor / describeRange', () => {
     expect(describeRange({ kind: 'relative', token: 'tomorrow' }, null)).toBe('from tomorrow')
     expect(describeRange({ kind: 'relative', token: 'start-of-week' }, { kind: 'relative', token: 'end-of-week' })).toBe('start of week – end of week')
     expect(describeRange(null, null)).toBe('')
+  })
+
+  it('words one day alone, and up to yesterday as before today (the search tokens\' ranges)', () => {
+    expect(describeRange({ kind: 'relative', token: 'today' }, { kind: 'relative', token: 'today' })).toBe('today')
+    const oct30 = { kind: 'fixed', iso: new Date(2026, 9, 30).toISOString() } as const
+    expect(describeRange(oct30, oct30)).toBe('Oct 30')
+    expect(describeRange(null, { kind: 'relative', token: 'yesterday' })).toBe('before today')
+    expect(describeRange({ kind: 'offset', days: -7 }, { kind: 'relative', token: 'yesterday' })).toBe('7 days ago – yesterday')
   })
 })
 

@@ -24,6 +24,11 @@
   outline: none;
 }
 
+/* The page marks the focus (its wrapper); no ring round the text. */
+.host :global(.cm-content) {
+  box-shadow: none;
+}
+
 .host :global(.cm-scroller) {
   padding: 10px 12px 14px;
   font-family: inherit;

@@ -41,8 +41,8 @@ export interface ShortcutSpec {
   /** What it does — the list's text and the name a conflict message uses. */
   description: string
   category: ShortcutCategory
-  /** The default keys. */
-  chord: ShortcutChord
+  /** The default keys; `null` = none until the user sets some (Settings › Keyboard shortcuts). */
+  chord: ShortcutChord | null
   /** The user can change it (Settings › Keyboard shortcuts). */
   editable: boolean
   /** Fires while a text field has focus too (it must keep Ctrl / ⌘). */
@@ -141,6 +141,15 @@ export const SHORTCUT_SPECS = {
   'copy-selected': {
     description: 'Copy selected tasks', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'c', mod: true }),
+  },
+  // The layout's lens (D15): no keys by default.
+  'cycle-lens': {
+    description: 'Cycle lens', category: 'general', editable: true,
+    chord: null,
+  },
+  'lift-lens': {
+    description: 'Lift lens / put it back', category: 'general', editable: true,
+    chord: null,
   },
 } as const satisfies Record<string, ShortcutSpec>
 

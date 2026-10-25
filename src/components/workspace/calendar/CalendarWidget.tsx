@@ -1,4 +1,4 @@
-import { useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import {
   clampCalendarOffset,
@@ -16,6 +16,8 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
+import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
+import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { countActiveFilters } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -35,14 +37,16 @@ import {
   convertCalendarOffset,
   dayLabel,
   monthCellFit,
+  MONTH_ROW_MIN,
   dayOverflow,
   weekRowsFit,
   weekdayLabels,
 } from '../../../utils/calendar-grid'
+import { dayHeat, heatHue, heatLegendLabel, heatSummary, latestLateDay, HEAT_LEGEND, type LateDay } from '../../../utils/calendar-heat'
 import { dayKey } from '../../../utils/date'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
-import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TodayIcon, WidgetKindIcon } from '../../shared/icons'
+import { ChevronLeftIcon, ChevronRightIcon, FlagIcon, PlusIcon, TitlesIcon, TodayIcon, WidgetKindIcon } from '../../shared/icons'
 import { CalendarEntryButton, type CalendarEntrySize } from './CalendarEntryButton'
 import { CalendarDayPopover } from './CalendarDayPopover'
 import {
@@ -52,6 +56,7 @@ import {
   type CalendarEntryDragData,
 } from './calendar-drag'
 import { useElementSize } from '../../../hooks/use-element-size'
+import { useTooltip } from '../../shared/use-tooltip'
 import styles from './CalendarWidget.module.css'
 
 /** Width assumed before the widget is measured. */
@@ -239,26 +244,139 @@ function MonthDay({ day, month, entries, fit, ctx, onMore, moreOpen }: {
   )
 }
 
-function MonthGrid({ days, month, entriesByDay, ctx, weekStartsOn, onMore, moreDayMs }: {
+/**
+ * A month day with titles off: tinted by its entry count (`dayHeat`), the
+ * count in the corner, the number in the late colour on a past day still
+ * open. Hover names the count; a day with entries is a button that opens the
+ * day popover (as `+N more` does). Drops land on it as on a bar day.
+ */
+function MonthHeatDay({ day, month, entries, ctx, onMore, moreOpen }: {
+  day: Date
+  month: number
+  entries: CalendarEntry[]
+  ctx: DayContext
+  onMore: (day: Date, cell: HTMLElement) => void
+  moreOpen: boolean
+}) {
+  const { setNodeRef, highlighted } = useDayTarget(ctx, day)
+  const isToday = day.getTime() === ctx.today.getTime()
+  const outside = day.getMonth() !== month
+  const heat = dayHeat(entries, day, ctx.today)
+  const summary = heatSummary(heat)
+  const { triggerProps, tooltip } = useTooltip(moreOpen || ctx.drag ? null : summary)
+  const className = dayClasses(styles.monthDay, ctx, highlighted, [
+    styles.heatDay,
+    outside && styles.dayOutside,
+    isToday && styles.heatToday,
+    moreOpen && styles.heatSelected,
+  ])
+  const attrs = {
+    'data-day': dayKey(day),
+    'data-today': isToday ? 'true' : undefined,
+    'data-outside': outside ? 'true' : undefined,
+    'data-drop-target': highlighted ? 'true' : undefined,
+    'data-heat': heat.step,
+    'data-late': heat.late ?? undefined,
+  }
+  const content = (
+    <>
+      <div className={styles.dayNumber}>
+        <span className={isToday ? styles.todayPill : undefined}>{day.getDate()}</span>
+      </div>
+      {heat.count > 0 && <span className={styles.heatCount} aria-hidden="true">{heat.count}</span>}
+      {highlighted && <DropLabel ctx={ctx} />}
+    </>
+  )
+  if (heat.count === 0) return <div ref={setNodeRef} className={className} {...attrs}>{content}</div>
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={className}
+      aria-label={`${dayLabel(day)}, ${summary}`}
+      aria-haspopup="dialog"
+      aria-expanded={moreOpen}
+      onClick={(e) => onMore(day, e.currentTarget)}
+      {...triggerProps}
+      {...attrs}
+    >
+      {content}
+      {tooltip}
+    </button>
+  )
+}
+
+/**
+ * Under the heat map: what the tint counts, the four steps, and — when the
+ * month holds one — a late day's number in its colour (the latest).
+ */
+function HeatLegend({ types, lateDay }: { types: CalendarDateTypes; lateDay: LateDay | null }) {
+  return (
+    <div className={styles.heatLegend} data-cal-legend="">
+      <span>{heatLegendLabel(types)}:</span>
+      {HEAT_LEGEND.map((s) => (
+        <span key={s.step} className={styles.heatLegendStep}>
+          <i className={styles.heatSwatch} data-heat={s.step} aria-hidden="true" />
+          {s.label}
+        </span>
+      ))}
+      {lateDay && (
+        <span>
+          · <span className={styles.heatLegendLate} data-late={lateDay.late}>{lateDay.day.getDate()}</span> still open past its day
+        </span>
+      )}
+    </div>
+  )
+}
+
+function MonthGrid({ days, month, entriesByDay, ctx, weekStartsOn, titles, onMore, moreDayMs }: {
   days: Date[]
   month: number
   entriesByDay: Map<string, CalendarEntry[]>
   ctx: DayContext
   weekStartsOn: 0 | 1
+  /** Bars with titles; else the heat map. */
+  titles: boolean
   onMore: (day: Date, cell: HTMLElement) => void
   moreDayMs: number | null
 }) {
-  const [gridRef, gridSize] = useElementSize()
+  const [sizeRef, gridSize] = useElementSize()
+  const gridEl = useRef<HTMLDivElement | null>(null)
+  const gridRef = useCallback((el: HTMLDivElement | null) => {
+    gridEl.current = el
+    sizeRef(el)
+  }, [sizeRef])
   const rows = Math.ceil(days.length / 7)
-  const cellHeight = gridSize.height > 0 ? (gridSize.height - MONTH_GRID_PAD - MONTH_GRID_GAP * (rows - 1)) / rows : 0
-  const fit = monthCellFit(cellHeight)
+  const minRow = titles ? MONTH_ROW_MIN.titles : MONTH_ROW_MIN.heat
+  const shared = gridSize.height > 0 ? (gridSize.height - MONTH_GRID_PAD - MONTH_GRID_GAP * (rows - 1)) / rows : 0
+  // Too short for the rows at their least: they keep it and the grid scrolls.
+  const scrolls = shared > 0 && shared < minRow
+  const fit = monthCellFit(shared > 0 ? Math.max(shared, minRow) : 0)
+  const lateDay = titles ? null : latestLateDay(days, month, (d) => entriesByDay.get(dayKey(d)) ?? [], ctx.today)
+  // A scrolling month opens on today's week (when it shows today).
+  const firstDayMs = days[0]?.getTime()
+  useLayoutEffect(() => {
+    const grid = gridEl.current
+    if (!scrolls || !grid) return
+    const today = grid.querySelector<HTMLElement>('[data-today="true"]')
+    if (!today) { grid.scrollTop = 0; return }
+    const top = today.getBoundingClientRect().top - grid.getBoundingClientRect().top + grid.scrollTop
+    grid.scrollTop = top - (grid.clientHeight - today.offsetHeight) / 2
+  }, [scrolls, firstDayMs, titles])
   return (
     <>
       <div className={styles.weekdays} aria-hidden="true">
         {weekdayLabels(weekStartsOn).map((w) => <span key={w}>{w}</span>)}
       </div>
-      <div ref={gridRef} className={styles.monthGrid} data-cal-grid="month">
-        {days.map((day) => (
+      <div
+        ref={gridRef}
+        className={styles.monthGrid}
+        style={{ gridTemplateRows: `repeat(${rows}, minmax(${minRow}px, 1fr))` }}
+        data-cal-grid="month"
+        data-heat-map={titles ? undefined : 'true'}
+        data-scrolls={scrolls ? 'true' : undefined}
+      >
+        {days.map((day) => titles ? (
           <MonthDay
             key={day.getTime()}
             day={day}
@@ -269,8 +387,19 @@ function MonthGrid({ days, month, entriesByDay, ctx, weekStartsOn, onMore, moreD
             onMore={onMore}
             moreOpen={moreDayMs === day.getTime()}
           />
+        ) : (
+          <MonthHeatDay
+            key={day.getTime()}
+            day={day}
+            month={month}
+            entries={entriesByDay.get(dayKey(day)) ?? []}
+            ctx={ctx}
+            onMore={onMore}
+            moreOpen={moreDayMs === day.getTime()}
+          />
         ))}
       </div>
+      {!titles && <HeatLegend types={ctx.dateTypes} lateDay={lateDay} />}
     </>
   )
 }
@@ -373,11 +502,13 @@ function WeekColumn({ day, entries, ctx }: { day: Date; entries: CalendarEntry[]
 
 // ── Compact month ────────────────────────────────────────────────────────
 
-function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
+/** A compact-month day: up to three dots (titles on), or the heat tint with the count under the number. */
+function CompactDay({ day, month, entries, selected, titles, ctx, onSelect }: {
   day: Date
   month: number
   entries: CalendarEntry[]
   selected: boolean
+  titles: boolean
   ctx: DayContext
   onSelect: (day: Date) => void
 }) {
@@ -385,6 +516,7 @@ function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
   const isToday = day.getTime() === ctx.today.getTime()
   const outside = day.getMonth() !== month
   const count = entries.length
+  const heat = titles ? null : dayHeat(entries, day, ctx.today)
   return (
     <button
       ref={setNodeRef}
@@ -392,7 +524,7 @@ function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
       className={dayClasses(styles.compactDay, ctx, highlighted, [
         outside && styles.dayOutside,
         selected && styles.compactSelected,
-        washClass(entries, day, ctx.today),
+        heat ? styles.compactHeat : washClass(entries, day, ctx.today),
       ])}
       aria-pressed={selected}
       aria-label={`${dayLabel(day)}, ${count} ${count === 1 ? 'task' : 'tasks'}`}
@@ -400,12 +532,18 @@ function CompactDay({ day, month, entries, selected, ctx, onSelect }: {
       data-today={isToday ? 'true' : undefined}
       data-outside={outside ? 'true' : undefined}
       data-drop-target={highlighted ? 'true' : undefined}
+      data-heat={heat?.step}
+      data-late={heat?.late ?? undefined}
       onClick={() => onSelect(day)}
     >
       <span className={isToday ? styles.todayPill : styles.compactNumber}>{day.getDate()}</span>
-      <span className={styles.dots} aria-hidden="true">
-        {dayDots(entries).map((d, i) => <span key={i} className={styles.dot} data-dot={d} />)}
-      </span>
+      {heat ? (
+        <span className={styles.compactCount} aria-hidden="true">{count > 0 ? count : ''}</span>
+      ) : (
+        <span className={styles.dots} aria-hidden="true">
+          {dayDots(entries).map((d, i) => <span key={i} className={styles.dot} data-dot={d} />)}
+        </span>
+      )}
     </button>
   )
 }
@@ -453,6 +591,24 @@ function TypeToggle({ type, types, iconOnly, onToggle }: {
   )
 }
 
+/** Month view: a bar per entry with its title (on) or the heat map (off, the default). */
+function TitlesToggle({ on, iconOnly, onToggle }: { on: boolean; iconOnly: boolean; onToggle: () => void }) {
+  const tip = on ? 'Show the month as a heat map' : 'Show task titles in the month'
+  return (
+    <button
+      type="button"
+      className={`${styles.typeToggle} ${styles.titlesToggle} ${iconOnly ? styles.typeToggleIcon : ''}`}
+      aria-pressed={on}
+      aria-label={iconOnly ? 'Titles' : undefined}
+      title={iconOnly ? `${tip} (Titles)` : tip}
+      onClick={onToggle}
+    >
+      <TitlesIcon size={12} />
+      {!iconOnly && <span>Titles</span>}
+    </button>
+  )
+}
+
 // ── Widget ───────────────────────────────────────────────────────────────
 
 interface MoreState {
@@ -475,9 +631,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const screen = useFilterStore((s) => s.filters)
+  const { filters: screen, active: screenActive } = useScreenFilter()
+  const lens = useAppliedLens()
+  const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
   const markerSettings = useFilterSettings()
-  const screenActive = useFilterStore((s) => s.isActive)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const pending = useContext(PendingCalendarDropContext)
   const drag = useTaskDrag()
@@ -488,6 +645,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const dateTypes = tab.config.dateTypes
   const view: CalendarView = tab.viewState?.view ?? 'month'
   const offset = clampCalendarOffset(tab.viewState?.offset ?? 0)
+  const titles = tab.viewState?.titles === true
   const scope = calendarScope(tab.id)
   const width = rootSize.width > 0 ? rootSize.width : UNMEASURED_WIDTH
   const narrow = width < CALENDAR_BREAKPOINTS.compactMonth
@@ -548,6 +706,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'calendar', { view, offset: clampCalendarOffset(next) })
   }, [tab.id, view])
 
+  const toggleTitles = useCallback(() => {
+    void useWorkspaceStore.getState().patchTabViewState(tab.id, 'calendar', { titles: titles ? undefined : true })
+  }, [tab.id, titles])
+
   const toggleType = useCallback((type: CalendarDateType) => {
     const next = toggleCalendarDateType(dateTypes, type)
     if (next !== dateTypes) useWorkspaceStore.getState().patchTabConfig(tab.id, 'calendar', { dateTypes: next })
@@ -579,6 +741,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
           entriesByDay={entriesByDay}
           ctx={ctx}
           weekStartsOn={weekStartsOn}
+          titles={titles}
           onMore={openMore}
           moreDayMs={more?.dayMs ?? null}
         />
@@ -598,6 +761,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
                 month={month}
                 entries={entriesByDay.get(dayKey(day)) ?? []}
                 selected={day.getTime() === selectedDay.getTime()}
+                titles={titles}
                 ctx={ctx}
                 onSelect={(d) => setSelectedMs(d.getTime())}
               />
@@ -633,7 +797,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const noTypes = !dateTypes.due && !dateTypes.followup
   // With no date type shown the note stays up during a drag: it says why the days take no drop.
   const showEmpty = noTypes || (entryCount === 0 && !drag)
-  const filterCount = countActiveFilters(screen)
+  const unhide = screenUnhideAction(chipCount)
 
   return (
     <div
@@ -641,6 +805,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
       className={styles.widget}
       data-calendar-widget={tab.id}
       data-mode={mode}
+      data-heat-hue={heatHue(dateTypes)}
       data-mobile={isMobile ? 'true' : undefined}
       data-dragging={drag ? 'true' : undefined}
     >
@@ -685,6 +850,9 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
             ))}
           </div>
         )}
+        {!isMobile && view === 'month' && (
+          <TitlesToggle on={titles} iconOnly={width < CALENDAR_BREAKPOINTS.toggleLabels} onToggle={toggleTitles} />
+        )}
         <div className={styles.segmented} role="group" aria-label="Calendar view">
           {(['month', 'week'] as const).map((v) => (
             <button
@@ -713,10 +881,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
               <div className={styles.emptyNote} data-testid="calendar-empty" data-empty="filtered">
                 <div className={styles.emptyLine1}>No tasks match</div>
                 <div className={styles.emptyLine2}>
-                  {hiddenCount} {hiddenCount === 1 ? 'task' : 'tasks'} {view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`} {hiddenCount === 1 ? 'is' : 'are'} hidden by the screen filter.
+                  {hiddenCount} {hiddenCount === 1 ? 'task' : 'tasks'} {view === 'week' && rangeName === 'this week' ? rangeName : `in ${rangeName}`} {hiddenCount === 1 ? 'is' : 'are'} hidden by {screenHiderText(chipCount > 0, lens)}.
                 </div>
-                <button type="button" className={styles.emptyAction} onClick={() => useFilterStore.getState().clearAll()}>
-                  {filterCount === 1 ? 'Clear screen filter' : 'Clear screen filters'}
+                <button type="button" className={styles.emptyAction} onClick={unhide.onClick}>
+                  {unhide.label}
                 </button>
               </div>
             ) : (

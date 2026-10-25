@@ -94,6 +94,10 @@
   background: var(--color-surface-hover);
 }
 
+.row:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+}
+
 .ring {
   width: 16px;
   height: 16px;

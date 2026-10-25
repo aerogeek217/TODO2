@@ -83,6 +83,24 @@ export const SETTING_KEYS = {
   purgePromptIntervalDays: 'purgePromptIntervalDays',
   /** When the launch prompt about deleting old completed tasks last showed (an ISO date-time). Absent = never. */
   purgePromptLastAt: 'purgePromptLastAt',
+  /**
+   * "Fade tasks untouched for": days without a change after which an open
+   * task's row is drawn faded — a whole number 0–365, `0` = off. Absent = 30.
+   */
+  staleAfterDays: 'staleAfterDays',
+  /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
+  rowDensity: 'rowDensity',
+  /**
+   * The lenses (named screen filters, picked per layout): JSON array of
+   * `{ id, name, predicate }`, the predicate a list predicate with
+   * completed tasks off (`data/lens-shape`). Absent = none.
+   */
+  lenses: 'lenses',
+  /**
+   * The preset lenses were seeded (the first open of Settings › Lenses):
+   * `true`. Absent = not yet; nothing seeds them again once set.
+   */
+  lensPresetsSeeded: 'lensPresetsSeeded',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

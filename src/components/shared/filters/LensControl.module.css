@@ -1,0 +1,96 @@
+/* The top bar's lens control (D15): the glasses (on / lifted) and the
+ * lens's name, which opens the picker. */
+
+.lens {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.lens[data-state='on'] {
+  background: var(--color-tint-6);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+button.toggle {
+  cursor: pointer;
+}
+
+.lens[data-state='on'] .toggle {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+button.toggle:hover {
+  color: var(--color-text-primary);
+}
+
+.lens[data-state='on'] button.toggle:hover {
+  color: var(--color-accent-text);
+  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 7px 0 2px;
+  border: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.name:hover {
+  color: var(--color-text-primary);
+}
+
+.name svg {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.nameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.lens[data-state='none'] .name {
+  padding-left: 0;
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.lens[data-state='on'] .name {
+  color: var(--color-text-primary);
+}
+
+.lens[data-state='lifted'] .nameText {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}

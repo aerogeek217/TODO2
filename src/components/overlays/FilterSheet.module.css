@@ -62,6 +62,7 @@
   font-size: 15px;
   font-family: inherit;
   outline: none;
+  box-shadow: none;
 }
 
 .searchInput::placeholder {
@@ -104,4 +105,54 @@
 
 .showTasks:active {
   background: var(--color-accent-dim);
+}
+
+/* The input's own text is transparent: its mirror (the token tints) lies
+ * over it in the same font and padding (the border's 1px included). */
+.searchInput {
+  color: transparent;
+  caret-color: var(--color-text-primary);
+}
+
+.searchInput::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.searchMirror {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 37px;
+  font-size: 15px;
+  font-family: inherit;
+  white-space: pre;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+/* The `@ # /` popup inside the sheet: full width, finger-sized rows. */
+.popup {
+  width: auto;
+  max-width: none;
+  margin: -8px 0 12px;
+}
+
+.popup [role="option"] {
+  min-height: 44px;
+}
+
+/* A name the search matched nobody to. */
+.searchNote {
+  margin: -6px 2px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.searchNote b {
+  font-weight: 600;
+  color: var(--color-accent-text);
 }

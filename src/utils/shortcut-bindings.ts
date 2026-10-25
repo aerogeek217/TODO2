@@ -31,19 +31,24 @@ import {
 import { isRecord } from './is-record'
 import { formatShortcut } from './platform'
 
-export type ResolvedBindings = Readonly<Record<ShortcutId, ShortcutChord>>
+/** Every binding's keys; `null` for one without keys (none by default, none set). */
+export type ResolvedBindings = Readonly<Record<ShortcutId, ShortcutChord | null>>
 
 /** Every binding's keys: the user's override, else the default. */
 export function resolveBindings(overrides: ShortcutOverrides): ResolvedBindings {
   return Object.fromEntries(
     SHORTCUT_IDS.map((id) => [id, overrides[id] ?? shortcutSpec(id).chord]),
-  ) as Record<ShortcutId, ShortcutChord>
+  ) as Record<ShortcutId, ShortcutChord | null>
 }
 
-/** The label of `id`'s live keys (`Ctrl+K`, `G then S`). */
+/** The label of `id`'s live keys (`Ctrl+K`, `G then S`); `''` while it has none. */
 export function shortcutLabel(id: ShortcutId, overrides: ShortcutOverrides): string {
-  return chordLabel(overrides[id] ?? shortcutSpec(id).chord)
+  const chord = overrides[id] ?? shortcutSpec(id).chord
+  return chord ? chordLabel(chord) : ''
 }
+
+/** How the lists show a binding without keys. */
+export const NO_KEYS_LABEL = 'Not set'
 
 interface ReservedCombo {
   combo: KeyCombo
@@ -189,8 +194,9 @@ function ruleRefusal(id: ShortcutId, chord: ShortcutChord): string | null {
   return null
 }
 
-/** Why `chord` would clash with `other`'s keys, or null. */
-function clash(chord: ShortcutChord, other: ShortcutChord, otherName: string): string | null {
+/** Why `chord` would clash with `other`'s keys (none: no clash), or null. */
+function clash(chord: ShortcutChord, other: ShortcutChord | null, otherName: string): string | null {
+  if (!other) return null
   if (chordsOverlap(chord, other)) return `${chordLabel(chord)} is already used by ${otherName}.`
   if (startsSequence(chord, other)) return `${chordLabel(chord)} starts ${chordLabel(other)} (${otherName}).`
   if (startsSequence(other, chord)) {
@@ -219,7 +225,8 @@ export function shortcutRefusal(id: ShortcutId, chord: ShortcutChord, overrides:
 /** `overrides` with `id` set to `chord` (dropped when that is its default). */
 export function withShortcut(overrides: ShortcutOverrides, id: ShortcutId, chord: ShortcutChord | null): ShortcutOverrides {
   const next: Partial<Record<ShortcutId, ShortcutChord>> = { ...overrides }
-  if (chord === null || formatChordText(chord) === formatChordText(shortcutSpec(id).chord)) {
+  const byDefault = shortcutSpec(id).chord
+  if (chord === null || (byDefault !== null && formatChordText(chord) === formatChordText(byDefault))) {
     delete next[id]
   } else {
     next[id] = chord
@@ -320,7 +327,8 @@ function firstClash(bindings: ResolvedBindings): readonly [ShortcutId, ShortcutI
       const a = SHORTCUT_IDS[i]
       const b = SHORTCUT_IDS[j]
       if (a === undefined || b === undefined) continue
-      if (clash(bindings[a], bindings[b], '') !== null) return [a, b]
+      const keys = bindings[a]
+      if (keys && clash(keys, bindings[b], '') !== null) return [a, b]
     }
   }
   return null
@@ -352,11 +360,12 @@ export function shortcutListSections(overrides: ShortcutOverrides): ShortcutList
     const spec = shortcutSpec(id)
     if (spec.unlisted) continue
     const chord = overrides[id]
+    const live = chord ?? spec.chord
     rows.push({
       category: spec.category,
       row: {
         id,
-        label: spec.docLabel !== undefined ? formatShortcut(spec.docLabel) : chordLabel(chord ?? spec.chord),
+        label: spec.docLabel !== undefined ? formatShortcut(spec.docLabel) : live ? chordLabel(live) : NO_KEYS_LABEL,
         description: spec.description,
         editable: spec.editable,
         changed: chord !== undefined,

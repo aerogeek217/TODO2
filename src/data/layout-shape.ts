@@ -56,7 +56,8 @@ export const LAYOUT_PART_LIMIT = 1000
 
 type Obj = Record<string, unknown>
 
-function isId(v: unknown): v is string {
+/** A layout part's id (a column, band, cell or tab) as stored. */
+export function isId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
 }
 
@@ -90,6 +91,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
       if (view?.offset !== undefined && !isFiniteNum(view.offset)) return `${path}.viewState.offset`
+      if (view?.titles !== undefined && typeof view.titles !== 'boolean') return `${path}.viewState.titles`
       return true
     }
     case 'eisenhower': {
@@ -296,6 +298,8 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           else if (view.view !== undefined) fix('settings')
           if (isFiniteNum(view.offset)) viewState.offset = clampCalendarOffset(view.offset)
           else if (view.offset !== undefined) fix('settings')
+          if (typeof view.titles === 'boolean') viewState.titles = view.titles
+          else if (view.titles !== undefined) fix('settings')
           if (Object.keys(viewState).length > 0) calendar.viewState = viewState
         }
         return calendar

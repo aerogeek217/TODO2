@@ -5,7 +5,7 @@
   min-width: 0;
   background: var(--color-surface);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-glass-card);
   overflow: hidden;
   position: relative;
 }
@@ -21,7 +21,9 @@
   height: var(--cell-header-height);
   flex-shrink: 0;
   padding: 0 4px;
-  background: var(--color-header-bg);
+  background:
+    linear-gradient(var(--cell-header-tint, transparent), var(--cell-header-tint, transparent)),
+    linear-gradient(var(--color-header-bg), var(--cell-header-shade));
   border-bottom: 1px solid var(--color-border-muted);
   position: relative;
 }

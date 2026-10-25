@@ -90,8 +90,8 @@
 }
 
 .input:focus-visible {
-  /* The wrapper draws the focus ring. */
-  outline: none;
+  /* The wrapper marks the focus. */
+  box-shadow: none;
 }
 
 .input::placeholder {
@@ -266,14 +266,6 @@
 .followedUpSecondary.followedUpDone:hover {
   background: var(--color-tint-14);
   color: var(--color-text-primary);
-}
-
-.followedUpPrimary:focus-visible,
-.followedUpSecondary:focus-visible,
-.quickButton:focus-visible,
-.inputClear:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
 }
 
 /* ═══ Editor group ═══ */

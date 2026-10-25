@@ -26,8 +26,9 @@ function layoutWith(tab: CalendarTab): PersistedWorkspaceLayout {
   }
 }
 
+/** A calendar tab; the month shows bars (titles on) unless `over` says otherwise. */
 function calendarTab(over: Partial<CalendarTab> = {}): CalendarTab {
-  return { id: 'cal', kind: 'calendar', config: { dateTypes: { due: true, followup: true } }, ...over }
+  return { id: 'cal', kind: 'calendar', config: { dateTypes: { due: true, followup: true } }, viewState: { titles: true }, ...over }
 }
 
 /** Renders the calendar tab as the workspace store holds it (so config / view-state edits show). */
@@ -133,11 +134,11 @@ describe('CalendarWidget', () => {
     setup()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Next month' })) })
     expect(label()).toBe('November 2026')
-    expect(workingTab().viewState).toEqual({ view: 'month', offset: 1 })
+    expect(workingTab().viewState).toEqual({ titles: true, view: 'month', offset: 1 })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Today' })) })
     expect(label()).toBe('October 2026')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Week' })) })
-    expect(workingTab().viewState).toEqual({ view: 'week', offset: 0 })
+    expect(workingTab().viewState).toEqual({ titles: true, view: 'week', offset: 0 })
     expect(label()).toBe('Oct 12 – 18, 2026')
     expect(screen.getByRole('button', { name: 'Previous week' })).toBeInTheDocument()
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
@@ -159,6 +160,103 @@ describe('CalendarWidget', () => {
     fireEvent.click(within(note).getByRole('button', { name: 'Clear screen filter' }))
     expect(useFilterStore.getState().isActive).toBe(false)
     expect(screen.queryByTestId('calendar-empty')).toBeNull()
+  })
+})
+
+describe('CalendarWidget heat map (titles off)', () => {
+  const heatTab = (over: Partial<CalendarTab> = {}) => calendarTab({ viewState: undefined, ...over })
+
+  it('tints each month day by its count instead of bars; the count in the corner', () => {
+    setup(heatTab())
+    expect(document.querySelector('[data-cal-grid="month"]')).toHaveAttribute('data-heat-map', 'true')
+    expect(document.querySelectorAll('[data-cal-entry]')).toHaveLength(0)
+    // 12 Oct: Late due + a Weekly occurrence; 16: Both dates (due); 20: its follow-up.
+    expect(dayCell(day(12))).toHaveAttribute('data-heat', '1')
+    expect(dayCell(day(12))!.textContent).toBe('122')
+    expect(dayCell(day(16))).toHaveAttribute('aria-label', 'Fri 16 Oct, 1 due')
+    expect(dayCell(day(20))).toHaveAttribute('aria-label', 'Tue 20 Oct, 1 follow-up')
+    expect(dayCell(day(13))).toHaveAttribute('data-heat', '0')
+    expect(dayCell(day(13))!.tagName).toBe('DIV')
+    expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-heat-hue', 'due')
+  })
+
+  it('a past day still open shows its number in the late colour, not the wash; the legend names one', () => {
+    setup(heatTab())
+    expect(dayCell(day(12))).toHaveAttribute('data-late', 'due')
+    expect(dayCell(day(12))!.className).not.toMatch(/washDue/)
+    // A past day holding only an occurrence isn't late.
+    expect(dayCell(day(16))).not.toHaveAttribute('data-late')
+    const legend = document.querySelector('[data-cal-legend]')!
+    expect(legend.textContent).toBe('Due and follow-ups:01–23–56+· 12 still open past its day')
+  })
+
+  it('completed tasks count only under Show completed', () => {
+    setup(heatTab())
+    expect(dayCell(day(15))).toHaveAttribute('data-heat', '0')
+    act(() => useFilterStore.getState().setShowCompleted(true))
+    expect(dayCell(day(15))).toHaveAttribute('aria-label', 'Thu 15 Oct, 1 due · 0 open')
+  })
+
+  it('clicking a day opens the day popover with its entries', () => {
+    setup(heatTab())
+    fireEvent.click(dayCell(day(12))!)
+    const popover = screen.getByTestId('calendar-day-popover')
+    expect(within(popover).getByText('Late due')).toBeInTheDocument()
+    expect(within(popover).getByText('Weekly')).toBeInTheDocument()
+    expect(dayCell(day(12))).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('follow-ups alone tint in the follow-up hue', () => {
+    setup(heatTab({ config: { dateTypes: { due: false, followup: true } } }))
+    expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-heat-hue', 'followup')
+    expect(dayCell(day(20))).toHaveAttribute('data-heat', '1')
+    expect(document.querySelector('[data-cal-legend]')!.textContent).toMatch(/^Follow-ups:/)
+  })
+
+  it('the week keeps its bars and has no Titles toggle', () => {
+    setup(heatTab({ viewState: { view: 'week' } }))
+    expect(within(dayCell(day(16))!).getByText('Both dates')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
+  })
+
+  it('on a phone the compact month: the tint under the number and the count in place of the dots', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    try {
+      setup(heatTab())
+      expect(document.querySelector('[data-calendar-widget]')).toHaveAttribute('data-mode', 'compact')
+      expect(screen.queryByRole('button', { name: 'Titles' })).toBeNull()
+      expect(document.querySelectorAll('[data-dot]')).toHaveLength(0)
+      expect(dayCell(day(12))).toHaveAttribute('data-heat', '1')
+      expect(dayCell(day(12))).toHaveAttribute('data-late', 'due')
+      expect(dayCell(day(12))!.className).not.toMatch(/washDue/)
+      expect(dayCell(day(12))!.textContent).toBe('122')
+      expect(dayCell(day(13))!.textContent).toBe('13')
+      // The day list is unchanged.
+      fireEvent.click(dayCell(day(16))!)
+      expect(within(document.querySelector('[data-cal-day-list]')!).getByText('Both dates')).toBeInTheDocument()
+      cleanup()
+      setup(calendarTab())
+      expect(dayCell(day(12))!.querySelectorAll('[data-dot]')).toHaveLength(2)
+      expect(dayCell(day(12))).not.toHaveAttribute('data-heat')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('Titles (off by default) switches the month to bars and back: view state, never unsaved', async () => {
+    setup(heatTab())
+    const toggle = screen.getByRole('button', { name: 'Titles' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await act(async () => { fireEvent.click(toggle) })
+    expect(workingTab().viewState).toEqual({ titles: true })
+    expect(screen.getByRole('button', { name: 'Titles' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(dayCell(day(16))!).getByText('Both dates')).toBeInTheDocument()
+    expect(document.querySelector('[data-cal-legend]')).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Titles' })) })
+    expect(workingTab().viewState).toEqual({})
+    expect(dayCell(day(16))).toHaveAttribute('data-heat', '1')
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 })
 

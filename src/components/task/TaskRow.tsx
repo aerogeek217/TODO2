@@ -3,8 +3,11 @@ import { type PersistedTodoItem, type Person, type Tag, DEFAULT_STATUS_ICON } fr
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { startOfToday } from '../../utils/date'
+import { isHot } from '../../utils/hot'
+import { isStale, staleTooltipLine } from '../../utils/stale'
 import { StatusIcon } from '../shared/StatusIcon'
 import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
@@ -111,15 +114,22 @@ export const TaskRow = memo(function TaskRow({
     save: saveTitle, handleKeyDown: handleTitleKeyDown, scheduleEdit, cancelScheduledEdit,
   } = useInlineEdit(todo.title, handleSaveTitle)
 
-  // The full title in the tooltip — only when it's cut off.
-  const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(todo.title)
-  const onTitlePointerEnter = (e: React.PointerEvent<HTMLElement>) => {
-    const el = e.currentTarget
-    if (el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
-  }
-
   const today = startOfToday()
   const people = assignedPeople ?? NO_PEOPLE
+  // Stale (untouched for the Settings threshold): the row faded until hovered; the title tooltip says when it was last edited.
+  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  const stale = isStale(todo, today, staleAfterDays)
+
+  // The full title in the tooltip — only when it's cut off; a stale row's always, with its last-edited line.
+  const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(stale ? `${todo.title}\n${staleTooltipLine(todo, today)}` : todo.title)
+  const onTitlePointerEnter = (e: React.PointerEvent<HTMLElement>) => {
+    const el = e.currentTarget
+    if (stale || el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
+  }
+  // Hot (the Settings rule): the title semibold — the one weight step in a list.
+  const hotRule = useSettingsStore((s) => s.hotRule)
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const hot = isHot(todo, hotRule, today, urgentRange)
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen
@@ -148,6 +158,7 @@ export const TaskRow = memo(function TaskRow({
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-ghosted={ghost ? '' : undefined}
+      data-stale={stale || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
@@ -176,15 +187,21 @@ export const TaskRow = memo(function TaskRow({
         ? <MarkerGutterStatic todo={todo} today={today} />
         : <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
-      <input
-        type="checkbox"
-        className={styles.checkbox}
-        checked={todo.isCompleted}
-        onChange={handleToggleComplete}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-        data-row-cell="checkbox"
-      />
+      <span className={styles.checkWrap}>
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={todo.isCompleted}
+          onChange={handleToggleComplete}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+          data-row-cell="checkbox"
+        />
+        {/* The check, drawn over the box: it draws itself when the task is completed (D19). */}
+        <svg className={styles.checkMark} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
+        </svg>
+      </span>
 
       {isEditing ? (
         <input
@@ -200,8 +217,9 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           data-task-title={todo.title}
+          data-hot={hot || undefined}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
           onClick={(e) => {
@@ -215,7 +233,7 @@ export const TaskRow = memo(function TaskRow({
             }
           }}
         >
-          {todo.title}
+          <span className={styles.titleText} data-title-text="">{todo.title}</span>
           {titleTip}
         </span>
       )}

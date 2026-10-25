@@ -71,11 +71,6 @@
   font-weight: 600;
 }
 
-.nameInput:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -1px;
-}
-
 .count {
   flex: none;
   font-size: 12px;
@@ -133,11 +128,6 @@
 .resetBtn:disabled {
   opacity: 0.45;
   cursor: default;
-}
-
-.resetBtn:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
 }
 
 .footer {

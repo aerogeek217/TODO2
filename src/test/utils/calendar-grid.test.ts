@@ -7,6 +7,7 @@ import {
   convertCalendarOffset,
   dayOverflow,
   monthCellFit,
+  MONTH_ROW_MIN,
   weekRowsFit,
   weekStartOf,
   weekdayLabels,
@@ -102,6 +103,12 @@ describe('month cell fit', () => {
     expect(monthCellFit(60)).toBe(2)
     expect(monthCellFit(20)).toBe(0)
     expect(monthCellFit(0)).toBe(Number.POSITIVE_INFINITY)
+  })
+
+  it('a month row’s least height: the heat day’s number line; with titles, the number and one slot', () => {
+    expect(MONTH_ROW_MIN.heat).toBe(22)
+    expect(MONTH_ROW_MIN.titles).toBe(41)
+    expect(monthCellFit(MONTH_ROW_MIN.titles)).toBe(1)
   })
 
   it('overflow: everything when it fits, else fit − 1 entries and +N more', () => {

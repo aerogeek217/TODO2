@@ -17,6 +17,9 @@ function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}
 const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['blank name', layoutRow([], { name: '  ' }), 'name'],
   ['bad date', layoutRow([], { modifiedAt: 'nope' }), 'modifiedAt'],
+  ['lens pick not an id', layoutRow([], { lensId: 7 }), 'lensId'],
+  ['phone column not an id', layoutRow([], { activeColumnId: '' }), 'activeColumnId'],
+  ['hue not one of the six', layoutRow([], { hue: 'mauve' }), 'hue'],
   ['columns not an array', layoutRow({}), 'columns'],
   ['column without cells', layoutRow([{ id: 'c', weight: 1, cells: [] }]), 'columns[0].cells'],
   ['zero weight', layoutRow([{ id: 'c', weight: 0, cells: [] }]), 'columns[0].weight'],
@@ -28,6 +31,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].cells[0].tabs[0].config'],
   ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
   ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].cells[0].tabs[0].viewState.view'],
+  ['calendar titles not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { titles: 'on' } })), 'columns[0].cells[0].tabs[0].viewState.titles'],
   ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
   ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
@@ -64,7 +68,7 @@ const EVERY_KIND = [
   { id: 'c1', weight: 1, cells: [
     { id: 'k1', weight: 1, activeTabId: 't2', collapsed: true, tabs: [
       { id: 't1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 300 } },
-      { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
+      { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2, titles: true } },
       { id: 't3', kind: 'notes', config: {} },
       { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'], detailsWidth: 0 } },
       { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] }, viewState: { detailsWidth: 4000 } },
@@ -109,7 +113,7 @@ describe('layouts row validation', () => {
         { id: 'k2', weight: 0.5, tabs: [] },
       ] },
     ]
-    expect(validateRow('layouts', layoutRow(columns, { lastUsedAt: DATE }))).toBe(true)
+    expect(validateRow('layouts', layoutRow(columns, { lastUsedAt: DATE, lensId: 'lens-a', activeColumnId: 'c1', hue: 'violet' }))).toBe(true)
     expect(validateRow('layouts', layoutRow([]))).toBe(true)
   })
 
@@ -323,8 +327,14 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(validateRow('layouts', JSON.parse(JSON.stringify(sanitizeRow('layouts', row))))).toBe(true)
   })
 
+  it('a bad phone column pick is repaired away (the first page)', () => {
+    const row = layoutRow([], { activeColumnId: 42 })
+    expect(rowFixes('layouts', row)).toContain('phone column reset')
+    expect((sanitizeRow('layouts', row) as { activeColumnId?: unknown }).activeColumnId).toBeUndefined()
+  })
+
   it('a valid layout has nothing to fix, and its repair is the import pick', () => {
-    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, ...BANDS })
+    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, lensId: 'lens-a', activeColumnId: 'c1', hue: 'amber', ...BANDS })
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })

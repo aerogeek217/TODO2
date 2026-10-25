@@ -175,7 +175,7 @@ export type PaneEntityField = 'status' | 'people' | 'tags'
  * when it is "Status is" one status; a person when it is "People is" one
  * person; a tag when it is "Tags is" one tag — only one that exists. A Hot
  * filter, "is not", several values, "No status" / "Unassigned" /
- * "Untagged", dates and text imply nothing.
+ * "No tags", dates and text imply nothing.
  */
 export interface PaneWrites {
   markers: MarkerConditions

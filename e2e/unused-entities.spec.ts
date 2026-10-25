@@ -21,12 +21,12 @@ const SEED: WorkspaceSeed = {
   layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
 }
 
-/** The names a top-bar filter picker offers (its options, without None). */
+/** The names a top-bar filter picker offers (its options, without the None / No tags row). */
 async function pickerNames(page: Page, field: 'People' | 'Tags'): Promise<string[]> {
   await page.getByRole('button', { name: new RegExp(`^${field} filter`) }).click()
   const list = page.getByRole('listbox', { name: field })
   await expect(list).toBeVisible()
-  const names = (await list.getByRole('option').allTextContents()).map((t) => t.trim()).filter((t) => t !== 'None')
+  const names = (await list.getByRole('option').allTextContents()).map((t) => t.trim()).filter((t) => t !== 'None' && t !== 'No tags')
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
   return names

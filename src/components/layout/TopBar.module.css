@@ -6,15 +6,43 @@
  * changes none of that: over folded filters the tray expands in place. */
 
 .topBar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
   height: var(--topbar-height);
   padding: 0 8px;
-  background: var(--color-app-bg);
   border-bottom: 1px solid var(--color-border-muted);
   flex-shrink: 0;
   min-width: 0;
+}
+
+/*
+ * The glass (D19): the app background at 72 % over a blur of what is behind.
+ * On a layer under the bar's content rather than the bar itself, so the bar
+ * stays no containing block for its fixed tray and popovers, and no
+ * stacking context.
+ */
+.topBar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: color-mix(in srgb, var(--color-app-bg) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  pointer-events: none;
+}
+
+/* The hairline: the accent fading out along the bottom edge, over the border. */
+.topBar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--color-accent) 55%, transparent), transparent 70%);
+  pointer-events: none;
 }
 
 /* ═══ New task (the + alone; the name is its tooltip) ═══ */
@@ -44,12 +72,6 @@
   transform: scale(0.98);
 }
 
-.newTask:focus-visible,
-.gear:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
 /* ═══ Layout controls (tabs, or the picker once folded) ═══ */
 
 .layoutSlot {
@@ -68,7 +90,7 @@
   margin-left: 10px;
   padding: 0 4px 0 3px;
   border-radius: 8px;
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
   box-shadow: inset 0 0 0 1px var(--color-border-muted);
   flex: 0 1 auto;
   min-width: 0;
@@ -88,6 +110,11 @@
   z-index: var(--z-above);
   width: max-content;
   margin-left: 0;
+}
+
+/* Lifted over the bar's other controls: opaque, so they don't show through. */
+.trayExpanded:not(.trayActive) {
+  background: var(--color-surface);
 }
 
 /* Where the tray sits in the bar while it is lifted out: its folded width. */
@@ -137,12 +164,16 @@
   background: color-mix(in srgb, var(--color-danger) 14%, transparent);
 }
 
-.funnel:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
+/* ═══ The counter (61 of 109): the tray's end while a filter or the lens hides tasks ═══ */
 
-/* ═══ Show N tasks: the tray's end while a filter is on ═══ */
+/* After the lens control, before the chips. */
+.lensSeparator {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--color-border-muted);
+  flex-shrink: 0;
+}
 
 .showTasksSeparator {
   width: 1px;
@@ -155,6 +186,7 @@
 .showTasks {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 26px;
   padding: 0 8px;
   border: none;
@@ -163,11 +195,18 @@
   color: var(--color-danger-text);
   font-family: inherit;
   font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+.showTasksShown {
+  font-weight: var(--font-weight-semibold);
+}
+
+.showTasksOf {
+  color: color-mix(in srgb, var(--color-danger-text) 70%, var(--color-text-muted));
 }
 
 .showTasks:hover {
@@ -180,22 +219,34 @@
   background: color-mix(in srgb, var(--color-danger) 20%, transparent);
 }
 
-/* No filter (cleared with the panel open): the neutral tray's look. */
-.trayPanelOpen:not(.trayActive) .showTasks {
+/* No chip on (the lens alone, or cleared with the panel open): the neutral tray's look. */
+.tray:not(.trayActive) .showTasks {
   color: var(--color-text-secondary);
 }
 
-.trayPanelOpen:not(.trayActive) .showTasksOpen {
+.tray:not(.trayActive) .showTasksShown {
+  color: var(--color-text-primary);
+}
+
+.tray:not(.trayActive) .showTasksOf {
+  color: var(--color-text-muted);
+}
+
+.tray:not(.trayActive) .showTasks:hover {
+  background: var(--color-tint-6);
+}
+
+.tray:not(.trayActive) .showTasksOpen,
+.tray:not(.trayActive) .showTasksOpen:hover {
   background: var(--color-tint-12);
+}
+
+.tray:not(.trayActive) .showTasksSeparator {
+  background: var(--color-border-muted);
 }
 
 .trayPanelOpen:not(.trayActive) .showTasksSeparator {
   background: var(--color-border);
-}
-
-.showTasks:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
 }
 
 /* ═══ Search input ═══ */
@@ -232,6 +283,67 @@
 
 .searchInput::placeholder {
   color: var(--color-text-muted);
+}
+
+/* The input's own text is transparent: its mirror (`.searchMirror`, the
+ * token tints) lies over it in the same font and padding, so the caret and
+ * the selection show through. */
+.searchInput {
+  color: transparent;
+  caret-color: var(--color-text-primary);
+}
+
+.searchInput::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.searchMirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  padding: 0 28px 0 29px;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 26px;
+  white-space: pre;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+/* The `@ # /` popup under the box (portal'd, fixed). */
+.nlpPopup {
+  position: fixed;
+  z-index: var(--z-popover);
+}
+
+/* A name the search matched nobody to: one line under the box, or atop the results. */
+.searchNote {
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.searchNote b {
+  font-weight: 600;
+  color: var(--color-accent-text);
+}
+
+.searchNoteHint {
+  color: var(--color-text-muted);
+}
+
+.searchNotePopover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  white-space: nowrap;
+  background: var(--color-popover-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-dropdown);
 }
 
 .searchInput:focus {

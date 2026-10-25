@@ -39,15 +39,15 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     deadline: '#e86bf0',
   },
   light: {
-    accent: '#3a9e93',
-    appBg: '#f5f4f2',
-    surface: '#ffffff',
-    border: '#d9d5d0',
-    header: '#f7fbfa',
+    accent: '#2f9a8f',
+    appBg: '#f7f6f3',
+    surface: '#fcfbf9',
+    border: '#dedad4',
+    header: '#f3f1ed',
     danger: '#d94a43',
     warning: '#d08a12',
     star: '#826600',
-    deadline: '#b838c0',
+    deadline: '#a32cab',
   },
 }
 

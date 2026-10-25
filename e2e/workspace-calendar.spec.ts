@@ -18,7 +18,7 @@ function layoutWith(calendar: Omit<WsTabSeed, 'id' | 'kind'>, opts: { listWeight
     name: 'Main',
     columns: [
       { id: 'colA', weight: opts.listWeight ?? 1, cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', ...calendar }] }] },
+      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', titles: true, ...calendar }] }] },
     ],
   }]
 }

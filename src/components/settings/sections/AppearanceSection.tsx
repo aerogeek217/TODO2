@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSettingsStore, type ThemeMode } from '../../../stores/settings-store'
+import { useSettingsStore, type RowDensity, type ThemeMode } from '../../../stores/settings-store'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { ThemeColorsEditor } from '../ThemeColorsEditor'
 import { NlpSyntaxModal } from '../NlpSyntaxModal'
@@ -13,10 +13,17 @@ const THEME_OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
   { mode: 'dark', label: 'Dark' },
 ]
 
-/** Theme (the only place it is set) and theme colors. */
+const DENSITY_OPTIONS: ReadonlyArray<{ density: RowDensity; label: string }> = [
+  { density: 'comfortable', label: 'Comfortable' },
+  { density: 'compact', label: 'Compact' },
+]
+
+/** Theme (the only place it is set), theme colors and the row density. */
 export function AppearanceSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const rowDensity = useSettingsStore((s) => s.rowDensity)
+  const setRowDensity = useSettingsStore((s) => s.setRowDensity)
   const isMobile = useIsMobile()
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showNlpSyntax, setShowNlpSyntax] = useState(false)
@@ -34,6 +41,22 @@ export function AppearanceSection() {
               aria-checked={themeMode === mode}
               className={`${styles.segment} ${themeMode === mode ? styles.segmentActive : ''}`}
               onClick={() => setThemeMode(mode)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+      <SettingRow label="Row density" help="Comfortable lets task names wrap to two lines in taller rows; Compact keeps one line per task.">
+        <div className={styles.segmented} role="radiogroup" aria-label="Row density">
+          {DENSITY_OPTIONS.map(({ density, label }) => (
+            <button
+              key={density}
+              type="button"
+              role="radio"
+              aria-checked={rowDensity === density}
+              className={`${styles.segment} ${rowDensity === density ? styles.segmentActive : ''}`}
+              onClick={() => void setRowDensity(density)}
             >
               {label}
             </button>

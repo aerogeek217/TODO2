@@ -1,4 +1,4 @@
-// Task marker glyphs (16×16 viewBox, currentColor), sized in `em` so they
+// Task marker glyphs (16×16 viewBox, the icon family's 1.6 stroke, round, currentColor), sized in `em` so they
 // follow the surrounding font size. Decorative: the element that shows one
 // carries the accessible name and the tooltip (`TaskMarkers`).
 
@@ -10,13 +10,13 @@ const SVG_STYLE = { verticalAlign: '-0.125em', flexShrink: 0 } as const
 export function UrgentIcon() {
   return (
     <svg width="1em" height="1em" viewBox="0 0 16 16" style={SVG_STYLE} aria-hidden>
-      <path d="M8 3v6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-      <circle cx="8" cy="12.6" r="1.4" fill="currentColor" />
+      <path d="M8 3v6.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="8" cy="12.4" r="1.1" fill="currentColor" />
     </svg>
   )
 }
 
-const STAR_PATH = 'M8 1.6l1.95 4.1 4.45.55-3.27 3.08.84 4.42L8 11.6l-3.97 2.15.84-4.42L1.6 6.25l4.45-.55z'
+const STAR_PATH = 'M8 1.9l1.85 3.9 4.25.55-3.1 2.95.8 4.2L8 11.45 4.2 13.5l.8-4.2-3.1-2.95 4.25-.55z'
 
 /** Important: a five-point star, filled (or outlined, for an off toggle). */
 export function ImportantIcon({ outline = false }: { outline?: boolean } = {}) {
@@ -25,8 +25,8 @@ export function ImportantIcon({ outline = false }: { outline?: boolean } = {}) {
       <path
         d={STAR_PATH}
         fill={outline ? 'none' : 'currentColor'}
-        stroke={outline ? 'currentColor' : 'none'}
-        strokeWidth={outline ? 1.3 : 0}
+        stroke="currentColor"
+        strokeWidth="1.6"
         strokeLinejoin="round"
       />
     </svg>
@@ -47,7 +47,7 @@ export function FocusIcon() {
 export function ClockIcon() {
   return (
     <svg width="1em" height="1em" viewBox="0 0 16 16" style={SVG_STYLE} aria-hidden>
-      <circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
       <path d="M8 5v3.2l2.1 1.4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )

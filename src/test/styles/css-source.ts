@@ -44,7 +44,7 @@ export function themeTokens(theme: ThemeName): Map<string, string> {
   return new Map([...declarations(TOKENS_CSS, ':root {'), ...declarations(TOKENS_CSS, THEME_SELECTORS[theme])])
 }
 
-type Rgb = [number, number, number]
+export type Rgb = [number, number, number]
 
 function parseHex(hex: string): Rgb {
   const h = hex.replace('#', '')

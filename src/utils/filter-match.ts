@@ -32,6 +32,10 @@ export function matchesFilter(
   settings: FilterSettings,
 ): boolean {
   if (todo.isCompleted && !filters.showCompleted) return false
+  // The lens: its own clauses under these; completion is decided above.
+  if (filters.lens && !matchesFilter({ ...filters.lens, showCompleted: true }, todo, assignedPersonIds, today, searchCtx, assignedTagIds, settings)) {
+    return false
+  }
 
   const negate = filters.negate
   if (filters.statusIds !== null) {
@@ -59,8 +63,10 @@ export function matchesFilter(
   }
   const tags = filters.tags
   if (tags !== null) {
-    // Is: one of the ticked tags (untagged fails). Is not: none of them (untagged passes).
-    const tagMatch = (assignedTagIds ?? []).some((id) => tags.has(id))
+    // 0 = no tags. Is: one of the ticked tags (or untagged when No tags is
+    // ticked). Is not: none of them (untagged passes unless No tags is ticked).
+    const assigned = assignedTagIds ?? []
+    const tagMatch = assigned.some((id) => tags.has(id)) || (assigned.length === 0 && tags.has(0))
     if (tagMatch === (negate?.tags === true)) return false
   }
 
@@ -118,7 +124,7 @@ export function matchesFilterWithLookups(
 ): boolean {
   const personIds = (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.id!)
   const tagIds = (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.id!)
-  const searchCtx = filters.searchText ? textMatchContextFor(todo, lookups) : undefined
+  const searchCtx = filters.searchText || filters.lens?.searchText ? textMatchContextFor(todo, lookups) : undefined
   return matchesFilter(filters, todo, personIds, today, searchCtx, tagIds, settings)
 }
 

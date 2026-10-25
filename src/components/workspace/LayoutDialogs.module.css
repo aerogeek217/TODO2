@@ -98,7 +98,62 @@
 
 .input:focus {
   outline: none;
+  box-shadow: none;
   border-color: var(--color-accent);
+}
+
+/* Rename's hue swatches (D19): None, then the six hues. */
+.hues {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.huesLegend {
+  float: left;
+  padding: 0;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.swatches {
+  display: flex;
+  gap: 8px;
+}
+
+/* Each swatch is its radio, drawn as a dot (the inline background is the hue). */
+.swatch {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.swatchNone {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
+}
+
+.swatch:checked {
+  box-shadow: 0 0 0 2px var(--color-popover-bg), 0 0 0 3.5px var(--color-text-primary);
+}
+
+.swatchNone:checked {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted), 0 0 0 2px var(--color-popover-bg), 0 0 0 3.5px var(--color-text-primary);
+}
+
+.swatch:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.swatchNone:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted), var(--focus-ring);
 }
 
 /* Combined unsaved prompt: one checked row per layout / list. */

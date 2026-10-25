@@ -30,6 +30,8 @@ interface ListWidgetState {
   /** Sets a tab's prompt picks; an empty list clears them. */
   setPicks: (tabId: string, ids: readonly number[]) => void
   toggleGroup: (tabId: string, sectionKey: string) => void
+  /** Collapses exactly `sectionKeys` of a tab (Collapse all groups); an empty list expands them all. */
+  setCollapsed: (tabId: string, sectionKeys: readonly string[]) => void
 }
 
 function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
@@ -66,8 +68,12 @@ export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
     const keys = current.includes(sectionKey)
       ? current.filter((k) => k !== sectionKey)
       : [...current, sectionKey]
+    get().setCollapsed(tabId, keys)
+  },
+
+  setCollapsed(tabId, sectionKeys) {
     const next = withoutGoneTabs(get().collapsed)
-    if (keys.length > 0) next[tabId] = keys
+    if (sectionKeys.length > 0) next[tabId] = [...sectionKeys]
     else delete next[tabId]
     set({ collapsed: next })
   },

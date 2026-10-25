@@ -39,10 +39,9 @@
   outline: none;
 }
 
-/* No square ring inside the rounded card (the global input ring outranks
- * the `outline: none` above); the caret marks the focus. */
+/* No ring inside the rounded card; the caret marks the focus. */
 .input:focus-visible {
-  outline: none;
+  box-shadow: none;
 }
 
 .input::placeholder {

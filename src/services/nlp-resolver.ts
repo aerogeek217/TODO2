@@ -123,6 +123,11 @@ export function matchPerson(name: string, people: readonly Person[]): Person | u
   return typedMatch(name, people)
 }
 
+/** The status a `/status` name resolves to: the exact name, else the first it starts (any case). */
+export function matchStatus<T extends { name: string }>(name: string, statuses: readonly T[]): T | undefined {
+  return matchByName(name, statuses, (s) => s.name)
+}
+
 /**
  * Resolve a list of parsed names against known entities, deduplicating by ID.
  */
@@ -244,9 +249,7 @@ export function resolveInput(
   statuses: Status[] = [],
 ): ResolvedInput {
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
-  const status = parsed.status !== undefined
-    ? matchByName(parsed.status, statuses, (s) => s.name)
-    : undefined
+  const status = parsed.status !== undefined ? matchStatus(parsed.status, statuses) : undefined
   const unknownStatus = parsed.status !== undefined && status?.id === undefined
     ? parsed.tokens.find((t) => t.command === 'status')
     : undefined
