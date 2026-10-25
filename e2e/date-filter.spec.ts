@@ -61,14 +61,14 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(panel).toBeHidden()
 
   // The button reads both names; its tooltip lists each type; every list shows a screen chip per type.
-  const button = page.getByRole('button', { name: /^Dates filter: Due by end of next week; Modified by yesterday$/ })
+  const button = page.getByRole('button', { name: /^Dates filter: Due by end of next week; Modified before today$/ })
   await expect(button).toHaveText('Due + Modified')
   await button.hover()
   const tip = page.getByRole('tooltip')
   await expect(tip).toContainText('Due: by end of next week')
-  await expect(tip).toContainText('Modified: by yesterday')
+  await expect(tip).toContainText('Modified: before today')
   await expect(tip).toContainText('Tasks must match both · × clears both')
-  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due by end of next week', 'Modified by yesterday'])
+  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due by end of next week', 'Modified before today'])
 
   // The × clears every date type.
   await page.getByRole('button', { name: 'Clear date filters' }).click()
