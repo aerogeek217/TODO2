@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { getFilterDefaults, predicateToFilterDefaults } from '../../utils/filter-defaults'
+import { getFilterDefaults, markerFlags, predicateToFilterDefaults } from '../../utils/filter-defaults'
+import { DEFAULT_HOT_RULE, hotSeed, isHot, type HotRule } from '../../utils/hot'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models'
 
@@ -93,10 +94,23 @@ function makePredicate(overrides: Partial<TodoPredicate> = {}): TodoPredicate {
 }
 
 describe('getFilterDefaults — Priority Yes / No', () => {
-  it('seeds each Yes on and each No off; Hot seeds nothing', () => {
+  it('seeds each Yes on and each No off; Hot seeds nothing without the rule', () => {
     expect(getFilterDefaults(makeFilters({ markers: { urgent: true, important: false } })).markers).toEqual({ urgent: true, important: false })
     expect(getFilterDefaults(makeFilters({ markers: { focus: false } })).markers).toEqual({ focus: false })
     expect(getFilterDefaults(makeFilters({ markers: 'hot' })).markers).toBeUndefined()
+  })
+
+  it('Hot with the rule seeds its first line, and the seeded task is hot under that rule', () => {
+    const today = new Date(2026, 9, 25)
+    for (const rule of [DEFAULT_HOT_RULE, [{ focus: true }], [{ important: true }, { urgent: true }], [{ urgent: true, important: true, focus: true }]] as HotRule[]) {
+      const markers = getFilterDefaults(makeFilters({ markers: 'hot' }), { hotRule: rule }).markers
+      expect(markers).toEqual({ ...rule[0] })
+      const task = { ...markerFlags({ markers }), isCompleted: false }
+      expect(isHot(task, rule, today, 3), JSON.stringify(rule)).toBe(true)
+    }
+    // A rule with no marker on any line (not valid) seeds nothing.
+    expect(getFilterDefaults(makeFilters({ markers: 'hot' }), { hotRule: [{}] }).markers).toBeUndefined()
+    expect(hotSeed([])).toBeNull()
   })
 })
 

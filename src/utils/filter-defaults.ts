@@ -1,6 +1,7 @@
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import type { MarkerConditions, MarkerKey, TodoItem, TodoPredicate } from '../models'
-import { activeMarkers, markerConditions } from './markers'
+import { activeMarkers, isHotFilter, markerConditions } from './markers'
+import { hotSeed, lineMarkers, type HotRule } from './hot'
 import { isNegated } from './filter-negation'
 
 export interface FilterDefaults {
@@ -10,10 +11,16 @@ export interface FilterDefaults {
   /**
    * The markers the filter tests (Focus / Urgent / Important): new tasks
    * start with each Yes flag on and each No flag off, so they show where they
-   * were added. A Hot filter seeds nothing (no single set of flags makes a
-   * task hot under every rule).
+   * were added. A Hot filter seeds the Hot rule's first line (given the
+   * rule, `FilterDefaultsOptions`), else nothing: no single set of flags
+   * makes a task hot under every rule.
    */
   markers?: MarkerConditions
+}
+
+export interface FilterDefaultsOptions {
+  /** The Hot rule in force: a Hot filter then seeds its first line's markers, so the new task is hot. */
+  hotRule?: HotRule
 }
 
 /**
@@ -21,10 +28,11 @@ export interface FilterDefaults {
  * Strips sentinel value 0 (None/Unaffiliated) from entity ID sets.
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
  * A Markers filter makes new tasks start with its Yes markers flagged and
- * its No markers off; a Hot filter seeds none. An "is not" People / Status / Tags filter seeds nothing
+ * its No markers off; a Hot filter seeds the Hot rule's first line when
+ * `options.hotRule` is given, else none. An "is not" People / Status / Tags filter seeds nothing
  * (the new task simply has none of the excluded values).
  */
-export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
+export function getFilterDefaults(filters: FilterCriteria, options: FilterDefaultsOptions = {}): FilterDefaults {
   const seeds = (field: 'personIds' | 'tags') => {
     const ids = filters[field]
     return ids && !isNegated(filters, field) ? [...ids].filter(id => id !== 0) : []
@@ -38,9 +46,14 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) statusId = only
   }
 
-  return activeMarkers(filters.markers).length > 0
-    ? { personIds, tagIds, statusId, markers: markerConditions(filters.markers) }
-    : { personIds, tagIds, statusId }
+  if (activeMarkers(filters.markers).length > 0) return { personIds, tagIds, statusId, markers: markerConditions(filters.markers) }
+  const hot = isHotFilter(filters.markers) && options.hotRule ? hotSeed(options.hotRule) : null
+  if (hot) {
+    const markers: MarkerConditions = {}
+    for (const k of lineMarkers(hot)) markers[k] = true
+    return { personIds, tagIds, statusId, markers }
+  }
+  return { personIds, tagIds, statusId }
 }
 
 /** The task flags a filter's markers seed (`{}` when none; a No marker is `false`): spread into a new task. */
@@ -66,6 +79,6 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
  * a "+ Add task" affordance from the predicate of a list widget,
  * post any runtime-filter merge.
  */
-export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
-  return getFilterDefaults(predicateToCriteria(predicate))
+export function predicateToFilterDefaults(predicate: TodoPredicate, options: FilterDefaultsOptions = {}): FilterDefaults {
+  return getFilterDefaults(predicateToCriteria(predicate), options)
 }

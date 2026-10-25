@@ -623,13 +623,23 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
   })
 
+  it('a Hot list offers + Add task, seeding the Hot rule’s first line (the new task is hot)', () => {
+    useSettingsStore.setState({ hotRule: [{ urgent: true, important: true }, { focus: true }] })
+    setup(def({}, { markers: 'hot' }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: true, important: true })
+    act(() => useSettingsStore.setState({ hotRule: [{ focus: true }] }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ focus: true })
+  })
+
   it('a list whose only Priority clause is a No offers + Add task (the new task starts without the marker)', () => {
     setup(def({}, { markers: { urgent: false } }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
   })
 
-  it('a Hot list re-filters when the Hot rule or the urgent range changes, and offers no + Add task', () => {
+  it('a Hot list re-filters when the Hot rule or the urgent range changes', () => {
     const tomorrow = new Date()
     tomorrow.setHours(0, 0, 0, 0)
     tomorrow.setDate(tomorrow.getDate() + 1)
@@ -642,7 +652,6 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     })
     const { result } = setup(def({}, { markers: 'hot' }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
-    expect(screen.queryByRole('button', { name: /Add task/ })).toBeNull()
     act(() => useSettingsStore.setState({ hotRule: [{ important: true }] }))
     expect(titles()).toEqual(['Alice task', 'Shared task'])
     expect(result()?.countLabel).toBe('2')

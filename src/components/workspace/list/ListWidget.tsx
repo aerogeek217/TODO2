@@ -51,7 +51,8 @@ import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
-import { activeMarkers } from '../../../utils/markers'
+import { activeMarkers, isHotFilter } from '../../../utils/markers'
+import { hotSeed } from '../../../utils/hot'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
 import { useFilterSettings } from '../../../hooks/use-filter-settings'
@@ -180,13 +181,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
 
   // + Add task: only when the merged predicate names people / status / tags
-  // / markers to seed the new task with (Hot seeds nothing; an "is not"
-  // field seeds nothing either, but keeps the button).
+  // / markers to seed the new task with (Hot seeds the Hot rule's first
+  // line, so the task lands in the list; an "is not" field seeds nothing,
+  // but keeps the button).
   const canAddTask = mergedPredicate != null && (
     mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
     || activeMarkers(mergedPredicate.markers).length > 0
+    || (isHotFilter(mergedPredicate.markers) && hotSeed(filterSettings.hotRule) != null)
   )
 
   const groupedBy = definition.grouping
@@ -475,7 +478,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           title="Add a task to this list"
           onClick={() => {
             if (!mergedPredicate) return
-            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
+            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate, { hotRule: filterSettings.hotRule }) })
           }}
         >
           <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>

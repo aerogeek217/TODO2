@@ -40,6 +40,15 @@ export function matchesHotLine(todo: MarkerFields, line: MarkerSet, today: Date,
   return keys.length > 0 && keys.every((k) => hasMarker(todo, k, today, range))
 }
 
+/**
+ * The flags that make a new task hot under `rule`: its first line's markers
+ * (each set, the task matches that line — Urgent as a flag is effective
+ * urgent). Null when no line has a marker (not a valid rule).
+ */
+export function hotSeed(rule: HotRule): MarkerSet | null {
+  return rule.find((line) => lineMarkers(line).length > 0) ?? null
+}
+
 /** Whether `todo` is hot: open and matching any line of `rule`. */
 export function isHot(todo: MarkerFields, rule: HotRule, today: Date, range: UrgentDueWithinDays): boolean {
   return rule.some((line) => matchesHotLine(todo, line, today, range))
