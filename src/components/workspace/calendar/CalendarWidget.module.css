@@ -309,7 +309,7 @@ button.heatDay {
   font-weight: var(--font-weight-semibold);
   line-height: 16px;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   pointer-events: none;
 }
 
@@ -324,13 +324,13 @@ button.heatDay {
 .heatDay[data-late='due'] .dayNumber,
 .compactHeat[data-late='due'] .compactNumber,
 .heatLegendLate[data-late='due'] {
-  color: var(--color-overdue);
+  color: var(--cal-late-due);
 }
 
 .heatDay[data-late='followup'] .dayNumber,
 .compactHeat[data-late='followup'] .compactNumber,
 .heatLegendLate[data-late='followup'] {
-  color: var(--color-followup);
+  color: var(--cal-late-followup);
 }
 
 .heatToday {
@@ -528,7 +528,7 @@ button.heatDay {
   font-size: 10px;
   line-height: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .compactSelected {

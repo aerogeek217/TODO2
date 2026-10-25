@@ -46,6 +46,47 @@ describe('text contrast (WCAG AA)', () => {
   })
 })
 
+describe('the warm light theme (D19) keeps D0’s contrast', () => {
+  const SURFACES = ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg']
+
+  it.each(['--color-text-primary', '--color-text-secondary', '--color-text-muted', '--color-accent-text'])('light: %s reads on every surface', (fg) => {
+    for (const bg of SURFACES) {
+      expect(ratio('light', fg, bg), `${fg} on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+  })
+
+  it.each(THEMES)('%s: muted tab labels read at the foot of the cell header’s gradient', (theme) => {
+    expect(ratio(theme, '--color-text-muted', '--cell-header-shade')).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  it.each(THEMES)('%s: the focus ring’s accent stands out from every surface', (theme) => {
+    for (const bg of SURFACES) {
+      expect(ratio(theme, '--color-accent', bg), `accent on ${bg}`).toBeGreaterThanOrEqual(AA_GRAPHIC)
+    }
+  })
+})
+
+describe('the calendar heat map (D18) reads on every step', () => {
+  const STEPS = (hue: 'due' | 'followup') => [1, 2, 3].map((n) => `--cal-heat-${hue}-${n}`)
+
+  it.each(THEMES)('%s: a late day’s number', (theme) => {
+    for (const hue of ['due', 'followup'] as const) {
+      for (const bg of ['--color-surface', ...STEPS(hue)]) {
+        expect(ratio(theme, `--cal-late-${hue}`, bg), `late ${hue} on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
+      }
+    }
+  })
+
+  it.each(THEMES)('%s: a day’s count (secondary on step 1, primary on 2–3)', (theme) => {
+    for (const hue of ['due', 'followup'] as const) {
+      const [one, two, three] = STEPS(hue) as [string, string, string]
+      expect(ratio(theme, '--color-text-secondary', one), `count on ${one}`).toBeGreaterThanOrEqual(AA_TEXT)
+      expect(ratio(theme, '--color-text-primary', two), `count on ${two}`).toBeGreaterThanOrEqual(AA_TEXT)
+      expect(ratio(theme, '--color-text-primary', three), `count on ${three}`).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+  })
+})
+
 /** Literal white is theme-blind: on the dark theme's light accent or danger fills it all but vanishes. */
 describe('no hard-coded white in component styles', () => {
   // The check-in email preview is an email: white paper in either theme.

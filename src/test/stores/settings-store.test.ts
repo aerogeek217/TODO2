@@ -73,7 +73,7 @@ describe('useSettingsStore', () => {
   it('setColor: dark write does not leak into light bag', async () => {
     await useSettingsStore.getState().setColor('dark', 'appBg', '#222222')
     expect(useSettingsStore.getState().colors.dark.appBg).toBe('#222222')
-    expect(useSettingsStore.getState().colors.light.appBg).toBe('#f5f4f2')
+    expect(useSettingsStore.getState().colors.light.appBg).toBe(DEFAULT_THEMED_COLORS.light.appBg)
   })
 
   it('setColor rejects invalid', async () => {
