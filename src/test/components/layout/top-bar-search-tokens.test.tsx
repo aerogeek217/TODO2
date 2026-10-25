@@ -222,3 +222,21 @@ describe('TopBar search tokens: tints, the popup, the note (D16)', () => {
     expect(popup()).not.toBeNull()
   })
 })
+
+describe('TopBar search: the placeholder hints', () => {
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('cycles token examples while the empty box has the focus', () => {
+    vi.useFakeTimers()
+    renderBar()
+    expect(input().placeholder).toBe('Search…')
+    act(() => { input().focus() })
+    act(() => { vi.advanceTimersByTime(2600) })
+    expect(input().placeholder).toBe('Search… @person')
+    act(() => { input().blur() })
+    expect(input().placeholder).toBe('Search…')
+  })
+})

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, forwardRef, useLayoutEffect, type ReactNode } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useLayoutEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
@@ -90,6 +90,23 @@ function ClearFiltersButton({ active }: { active: boolean }) {
       {tooltip}
     </button>
   )
+}
+
+/**
+ * The search box's placeholder: `Search…`, and while the empty box has the
+ * focus the token examples in turn (D16), so the grammar can be found.
+ */
+const SEARCH_PLACEHOLDERS = ['Search…', 'Search… @person', 'Search… #tag', 'Search… overdue', 'Search… due fri']
+const PLACEHOLDER_MS = 2500
+
+function useSearchPlaceholder(cycling: boolean): string {
+  const [step, setStep] = useState(0)
+  useEffect(() => {
+    if (!cycling) return
+    const id = setInterval(() => setStep((n) => n + 1), PLACEHOLDER_MS)
+    return () => clearInterval(id)
+  }, [cycling])
+  return cycling ? SEARCH_PLACEHOLDERS[step % SEARCH_PLACEHOLDERS.length] ?? 'Search…' : 'Search…'
 }
 
 function SearchFieldIcon({ field }: { field: TextMatchField }) {
@@ -320,6 +337,7 @@ export function TopBar() {
   const box = useSearchBox({ inputRef: searchInputRef })
   const searchWords = box.words
   const [searchFocused, setSearchFocused] = useState(false)
+  const searchPlaceholder = useSearchPlaceholder(searchFocused && box.text === '')
   const miniListRef = useRef<HTMLDivElement>(null)
   // Right-click menu state is kept on TopBar (not SearchResultRow) so the
   // menu outlives the search dropdown closing when the menu opens — the row
@@ -525,7 +543,7 @@ export function TopBar() {
               ref={searchInputRef}
               className={styles.searchInput}
               type="text"
-              placeholder="Search…"
+              placeholder={searchPlaceholder}
               aria-label="Search tasks"
               value={box.text}
               onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}

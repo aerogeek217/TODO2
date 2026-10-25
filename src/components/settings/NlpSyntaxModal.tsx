@@ -53,6 +53,22 @@ const SECTIONS: NlpSyntaxSection[] = [
       { syntax: 'a/b, 1/2, /etc/hosts', description: 'A / inside a word or path is not a command' },
     ],
   },
+  {
+    label: 'Search — the top bar’s search box',
+    rows: [
+      { syntax: '@name, #tag', description: 'The People / Tags filter (several OR); a search never creates — an unknown name stays words' },
+      { syntax: '/status <name>, /waiting', description: 'The Status filter; a one-word status works as its own command' },
+      { syntax: '/urgent /important /focus /hot', description: 'The Priority filter' },
+      { syntax: 'overdue', description: 'Due before today' },
+      { syntax: 'due today / tomorrow / fri / 11/03', description: 'Due that day' },
+      { syntax: 'due this week / next week / this month', description: 'Due in that range (from today)' },
+      { syntax: 'followup <the same> / followup late', description: 'The next follow-up; late = before today' },
+      { syntax: 'no due, no followup', description: 'No date of that kind' },
+      { syntax: 'done, completed', description: 'Show completed tasks too' },
+      { syntax: 'a space, ⏎ or a pick', description: 'Makes a token its filter chip; the other words are the text search' },
+      { syntax: 'Backspace in the empty box', description: 'Takes the last chip the box made back as its token' },
+    ],
+  },
 ]
 
 interface NlpSyntaxModalProps {
