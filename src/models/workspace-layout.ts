@@ -63,6 +63,11 @@ export interface CalendarTabViewState {
   view?: CalendarView
   /** Weeks (week view) or months (month view) from the current one. */
   offset?: number
+  /**
+   * The month shows a bar per entry (its title); absent / false = the heat
+   * map (a day tinted by its count). The week shows bars either way.
+   */
+  titles?: boolean
 }
 
 /**

@@ -195,11 +195,11 @@
   padding: 2px 4px;
   overflow: hidden;
   border-radius: var(--radius-md);
-  background-color: var(--cal-day-fill);
+  background-color: var(--heat-fill, var(--cal-day-fill));
 }
 
 .monthDay.dayOutside {
-  background-color: transparent;
+  background-color: var(--heat-fill, transparent);
 }
 
 .dayNumber {
@@ -235,6 +235,115 @@
 .moreOpen {
   background: var(--color-tint-12);
   color: var(--color-text-primary);
+}
+
+/* ── Heat map (titles off) ───────────────────────────────────────────────── */
+
+/* The tint's hue follows the date types: follow-up only when it's alone. */
+.widget[data-heat-hue='due'] {
+  --heat-1: var(--cal-heat-due-1);
+  --heat-2: var(--cal-heat-due-2);
+  --heat-3: var(--cal-heat-due-3);
+}
+
+.widget[data-heat-hue='followup'] {
+  --heat-1: var(--cal-heat-followup-1);
+  --heat-2: var(--cal-heat-followup-2);
+  --heat-3: var(--cal-heat-followup-3);
+}
+
+/* A day's fill (`--heat-fill`) by its step; step 0 keeps the day's own fill. */
+.heatDay[data-heat='1'],
+.heatSwatch[data-heat='1'] {
+  --heat-fill: var(--heat-1);
+}
+
+.heatDay[data-heat='2'],
+.heatSwatch[data-heat='2'] {
+  --heat-fill: var(--heat-2);
+}
+
+.heatDay[data-heat='3'],
+.heatSwatch[data-heat='3'] {
+  --heat-fill: var(--heat-3);
+}
+
+.heatDay {
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+}
+
+button.heatDay {
+  cursor: pointer;
+}
+
+.heatCount {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.heatDay[data-heat='2'] .heatCount,
+.heatDay[data-heat='3'] .heatCount {
+  color: var(--color-text-primary);
+}
+
+/* A past day still open: its number in the late colour (in place of the wash). */
+.heatDay[data-late='due'] .dayNumber,
+.heatLegendLate[data-late='due'] {
+  color: var(--color-overdue);
+}
+
+.heatDay[data-late='followup'] .dayNumber,
+.heatLegendLate[data-late='followup'] {
+  color: var(--color-followup);
+}
+
+.heatToday {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+/* The day whose popover is open. */
+.heatSelected {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+
+.heatLegend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  padding: 0 10px 6px;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.heatLegendStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.heatSwatch {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--heat-fill, var(--cal-day-fill));
+}
+
+.heatLegendLate {
+  font-weight: var(--font-weight-semibold);
 }
 
 /* ── Week rows ───────────────────────────────────────────────────────────── */

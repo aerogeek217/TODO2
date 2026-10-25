@@ -74,6 +74,27 @@ export function dayHeat(entries: readonly HeatEntry[], day: Date, today: Date): 
   }
 }
 
+export interface LateDay {
+  day: Date
+  late: CalendarDateType
+}
+
+/** The latest day of `month` (0–11) among `days` that is late (`DayHeat.late`), or null — the legend's example. */
+export function latestLateDay(
+  days: readonly Date[],
+  month: number,
+  entriesOf: (day: Date) => readonly HeatEntry[],
+  today: Date,
+): LateDay | null {
+  for (let i = days.length - 1; i >= 0; i--) {
+    const day = days[i]
+    if (!day || day.getMonth() !== month) continue
+    const late = dayHeat(entriesOf(day), day, today).late
+    if (late) return { day, late }
+  }
+  return null
+}
+
 /**
  * A heat day's tooltip and label: `6 due`, `2 follow-ups`, `4 due · 1
  * follow-up`; `· 5 open` when some are completed (under Show completed).

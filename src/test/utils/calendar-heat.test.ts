@@ -5,6 +5,7 @@ import {
   heatLegendLabel,
   heatStep,
   heatSummary,
+  latestLateDay,
   type HeatEntry,
 } from '../../utils/calendar-heat'
 
@@ -75,5 +76,22 @@ describe('heatLegendLabel', () => {
     expect(heatLegendLabel({ due: true, followup: false })).toBe('Tasks due')
     expect(heatLegendLabel({ due: false, followup: true })).toBe('Follow-ups')
     expect(heatLegendLabel({ due: true, followup: true })).toBe('Due and follow-ups')
+  })
+})
+
+describe('latestLateDay', () => {
+  it('the month’s latest late day; days outside the month are skipped', () => {
+    const days = [new Date(2026, 8, 30), new Date(2026, 9, 5), new Date(2026, 9, 20), new Date(2026, 9, 22), new Date(2026, 9, 28)]
+    const byKey = new Map<number, HeatEntry[]>([
+      [days[0]!.getTime(), [entry('due')]],
+      [days[1]!.getTime(), [entry('followup')]],
+      [days[2]!.getTime(), [entry('due')]],
+      [days[3]!.getTime(), [entry('due', { done: true })]],
+      [days[4]!.getTime(), [entry('due')]],
+    ])
+    const of = (d: Date) => byKey.get(d.getTime()) ?? []
+    expect(latestLateDay(days, 9, of, TODAY)).toEqual({ day: days[2], late: 'due' })
+    expect(latestLateDay(days, 8, of, TODAY)).toEqual({ day: days[0], late: 'due' })
+    expect(latestLateDay(days.slice(3), 9, of, TODAY)).toBeNull()
   })
 })

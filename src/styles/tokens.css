@@ -210,6 +210,14 @@
   --cal-on-followup: #111110;
   --cal-overdue-day: rgba(232, 107, 240, 0.10);
   --cal-followup-day: rgba(245, 200, 66, 0.08);
+  /* Calendar heat map (D18): a day's tint per step (1–2 · 3–5 · 6+ entries),
+     the due / follow-up colour mixed into the surface */
+  --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));
+  --cal-heat-due-2: color-mix(in srgb, var(--color-overdue) 24%, var(--color-surface));
+  --cal-heat-due-3: color-mix(in srgb, var(--color-overdue) 40%, var(--color-surface));
+  --cal-heat-followup-1: color-mix(in srgb, var(--color-followup) 12%, var(--color-surface));
+  --cal-heat-followup-2: color-mix(in srgb, var(--color-followup) 24%, var(--color-surface));
+  --cal-heat-followup-3: color-mix(in srgb, var(--color-followup) 40%, var(--color-surface));
 
   /* Due-date chip colors */
   --color-deadline: #e86bf0;
@@ -377,6 +385,14 @@
   --cal-on-followup: #1a1917;
   --cal-overdue-day: rgba(163, 44, 171, 0.07);
   --cal-followup-day: rgba(245, 200, 66, 0.14);
+  /* Calendar heat map (D18). The follow-up steps mix the bright fill yellow:
+     the darker text yellow reads brown as a fill. */
+  --cal-heat-due-1: color-mix(in srgb, var(--color-overdue) 12%, var(--color-surface));
+  --cal-heat-due-2: color-mix(in srgb, var(--color-overdue) 24%, var(--color-surface));
+  --cal-heat-due-3: color-mix(in srgb, var(--color-overdue) 40%, var(--color-surface));
+  --cal-heat-followup-1: color-mix(in srgb, var(--cal-followup-solid) 12%, var(--color-surface));
+  --cal-heat-followup-2: color-mix(in srgb, var(--cal-followup-solid) 24%, var(--color-surface));
+  --cal-heat-followup-3: color-mix(in srgb, var(--cal-followup-solid) 40%, var(--color-surface));
 
   /* Due-date chip colors */
   --color-deadline: #b838c0;
