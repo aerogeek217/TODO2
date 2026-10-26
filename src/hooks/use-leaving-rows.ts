@@ -15,7 +15,20 @@ export interface LeavingRow {
   phase: LeavingPhase
   /** The task as it was just before it was completed — what keeps its row in place. */
   before: PersistedTodoItem
+  /**
+   * A recurring task's occurrence was done: the task is open with its next
+   * date, and the row lingers as the finished occurrence (`before`, shown
+   * completed) before the next one takes its place.
+   */
+  advanced?: boolean
 }
+
+/** What a leaving row shows while it lingers: the task as it is, or a finished occurrence. */
+export function leavingShownAs(todo: PersistedTodoItem, row: LeavingRow | undefined): PersistedTodoItem {
+  return row?.advanced ? { ...row.before, isCompleted: true } : todo
+}
+
+const time = (d: Date | undefined | null): number => (d ? new Date(d).getTime() : 0)
 
 export type LeavingRows = ReadonlyMap<number, LeavingRow>
 
@@ -29,7 +42,11 @@ const NONE: LeavingRows = new Map()
  * it, built from the task as it was before the completion (`before`), so
  * neither its completion nor the `modifiedAt` the completion moved can
  * re-sort or drop the row meanwhile. Taken back if the task is reopened
- * meanwhile. Under reduced motion nothing lingers: the row leaves at once.
+ * meanwhile. A recurring task's occurrence done (its due date advanced,
+ * the task still open) lingers the same way, shown as the finished
+ * occurrence (`advanced`), and the next occurrence takes its place after
+ * the fold; an undo that puts the date back takes it back. Under reduced
+ * motion nothing lingers: the row leaves at once.
  *
  * `isShown` tells whether a task is a row of this list now (read when a
  * completion arrives, not on every render).
@@ -41,12 +58,15 @@ export function useLeavingRows(isShown: (todoId: number) => boolean): LeavingRow
 
   useEffect(() => {
     const timers = new Map<number, number[]>()
+    /** The rows lingering now (the effect's own copy of the state, for the take-back checks). */
+    const rows = new Map<number, LeavingRow>()
     const clear = (id: number) => {
       for (const t of timers.get(id) ?? []) window.clearTimeout(t)
       timers.delete(id)
     }
     const remove = (id: number) => {
       clear(id)
+      rows.delete(id)
       setLeaving((cur) => {
         if (!cur.has(id)) return cur
         const next = new Map(cur)
@@ -57,20 +77,32 @@ export function useLeavingRows(isShown: (todoId: number) => boolean): LeavingRow
     const unsubscribe = useTodoStore.subscribe((state, prev) => {
       if (state.todos === prev.todos) return
       const before = new Map(prev.todos.map((t) => [t.id, t]))
-      const started: PersistedTodoItem[] = []
+      const started: LeavingRow[] = []
       for (const t of state.todos) {
         const was = before.get(t.id)
-        if (was?.isCompleted === false && t.isCompleted && isShownRef.current(t.id)) started.push(was)
-        else if (was?.isCompleted === true && !t.isCompleted && timers.has(t.id)) remove(t.id)
+        if (!was) continue
+        if (!was.isCompleted && t.isCompleted) {
+          if (isShownRef.current(t.id)) started.push({ phase: 'stay', before: was })
+        } else if (was.isCompleted && !t.isCompleted) {
+          if (timers.has(t.id)) remove(t.id)
+        } else if (!t.isCompleted && was.recurrenceRule && time(t.dueDate) !== time(was.dueDate)) {
+          // A recurring task's date moved: its occurrence was done (forward),
+          // or that was undone (back to where the lingering row started).
+          const row = rows.get(t.id)
+          if (row?.advanced && time(t.dueDate) === time(row.before.dueDate)) remove(t.id)
+          else if (time(t.dueDate) > time(was.dueDate) && isShownRef.current(t.id)) started.push({ phase: 'stay', before: was, advanced: true })
+        }
       }
       if (started.length === 0 || prefersReducedMotion()) return
       setLeaving((cur) => {
         const next = new Map(cur)
-        for (const t of started) next.set(t.id, { phase: 'stay', before: t })
+        for (const row of started) next.set(row.before.id, row)
         return next
       })
-      for (const { id } of started) {
+      for (const row of started) {
+        const id = row.before.id
         clear(id)
+        rows.set(id, row)
         const fold = (cur: LeavingRows) => {
           const row = cur.get(id)
           return row?.phase === 'stay' ? new Map(cur).set(id, { ...row, phase: 'fold' }) : cur
@@ -91,10 +123,11 @@ export function useLeavingRows(isShown: (todoId: number) => boolean): LeavingRow
 }
 
 /**
- * `todos` with each leaving task that is completed now as it was just
- * before its completion (open, its `modifiedAt` unmoved) — what keeps its
- * row in place while it lingers. `only` limits it to those ids (the ones a
- * surface would otherwise drop).
+ * `todos` with each leaving task that is completed now (or whose occurrence
+ * was done, `advanced`) as it was just before (open, its date and
+ * `modifiedAt` unmoved) — what keeps its row in place while it lingers.
+ * `only` limits it to those ids (the ones a surface would otherwise drop or
+ * move).
  */
 export function restoreLeaving(
   todos: readonly PersistedTodoItem[],
@@ -102,16 +135,33 @@ export function restoreLeaving(
   only?: ReadonlySet<number>,
 ): PersistedTodoItem[] {
   return todos.map((t) => {
-    const row = t.isCompleted && (!only || only.has(t.id)) ? leaving.get(t.id) : undefined
-    return row ? row.before : t
+    const row = !only || only.has(t.id) ? leaving.get(t.id) : undefined
+    return row && (row.advanced || t.isCompleted) ? row.before : t
   })
 }
 
-/** The task as it is now behind each kept row: a kept row is built as it was, and shows as it is (completed). */
-export function useKeptTodos(kept: ReadonlySet<number>): ReadonlyMap<number, PersistedTodoItem> | null {
+/**
+ * Which of the `leaving` tasks a surface keeps as they were: those it would
+ * otherwise drop (`shown` lacks them), and every finished occurrence (its
+ * task is open with the next date, which would move the row).
+ */
+export function keptOf(leaving: LeavingRows, shown: ReadonlySet<number>): Set<number> {
+  const kept = new Set<number>()
+  for (const [id, row] of leaving) if (row.advanced || !shown.has(id)) kept.add(id)
+  return kept
+}
+
+/**
+ * What each kept row shows: a kept row is built as it was, and shows as it
+ * is (completed) — or, for a finished occurrence, as that occurrence done
+ * (`leavingShownAs`).
+ */
+export function useKeptTodos(kept: ReadonlySet<number>, leaving?: LeavingRows): ReadonlyMap<number, PersistedTodoItem> | null {
   const todos = useTodoStore((s) => s.todos)
-  return useMemo(
-    () => (kept.size > 0 ? new Map(todos.filter((t) => kept.has(t.id)).map((t) => [t.id, t])) : null),
-    [kept, todos],
-  )
+  return useMemo(() => {
+    if (kept.size === 0) return null
+    const shown = new Map<number, PersistedTodoItem>()
+    for (const t of todos) if (kept.has(t.id)) shown.set(t.id, leavingShownAs(t, leaving?.get(t.id)))
+    return shown
+  }, [kept, leaving, todos])
 }

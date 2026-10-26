@@ -495,7 +495,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
   )
   const { inScope, selectedIds, cursorKey, onSelect } = useWidgetSelection(tab.id, () => rows)
   useEffect(() => { shownIdsRef.current = new Set(rows.map((r) => r.todoId)) })
-  const keptTodos = useKeptTodos(kept)
+  const keptTodos = useKeptTodos(kept, leaving)
 
   const toggle = (q: EisenhowerQuadrant, collapse: boolean) => {
     const next = EISENHOWER_QUADRANTS.filter((x) => (x === q ? collapse : collapsed.has(x)))
