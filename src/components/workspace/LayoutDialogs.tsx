@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
-import { HUE_NAMES, LAYOUT_NAME_MAX, type HueName } from '../../models/workspace-layout'
+import { HUE_NAMES, isHueName, LAYOUT_NAME_MAX, type HueName } from '../../models/workspace-layout'
 import { HUE_LABEL, hueColor } from '../../utils/layout-hue'
+import { ColorInput } from '../shared/ColorInput'
 import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
@@ -40,10 +41,10 @@ interface LayoutNameDialogProps {
   initialName: string
   /** The empty field's hint (New layout, which starts empty). */
   placeholder?: string
-  /** Edit layout: the layout's hue, offered as a swatch row under the name (`null` = none). Absent = no swatches. */
-  initialHue?: HueName | null
+  /** Edit layout: the layout's hue (a preset's name or a hex colour), offered as a swatch row + a colour input under the name (`null` = none). Absent = no swatches. */
+  initialHue?: string | null
   /** `hue` only when the dialog offers the swatches. */
-  onConfirm: (name: string, hue?: HueName | null) => void
+  onConfirm: (name: string, hue?: string | null) => void
   onCancel: () => void
 }
 
@@ -53,7 +54,7 @@ interface LayoutNameDialogProps {
  */
 export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, initialHue, onConfirm, onCancel }: LayoutNameDialogProps) {
   const [name, setName] = useState(initialName)
-  const [hue, setHue] = useState<HueName | null>(initialHue ?? null)
+  const [hue, setHue] = useState<string | null>(initialHue ?? null)
   const withHue = initialHue !== undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const trimmed = name.trim()
@@ -86,8 +87,20 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
   )
 }
 
-/** None + the six hues as one radio group (arrow keys move the pick). */
-function HueSwatches({ value, onChange }: { value: HueName | null; onChange: (hue: HueName | null) => void }) {
+/** The custom colour the input starts on while a preset (or none) is picked. */
+const CUSTOM_HUE_START = '#8a7cf0'
+
+/**
+ * None + the six preset hues + a custom colour as one radio group (arrow
+ * keys move the pick), with the app's colour input (`ColorInput`) for the
+ * custom one: changing it picks it. A preset has a light twin; a custom
+ * colour is used as it is in both themes.
+ */
+function HueSwatches({ value, onChange }: { value: string | null; onChange: (hue: string | null) => void }) {
+  const customOn = value != null && !isHueName(value)
+  // The colour input's value: the custom colour while one is picked, else the last one typed (or a start).
+  const [custom, setCustom] = useState(customOn ? value : CUSTOM_HUE_START)
+  if (customOn && value !== custom) setCustom(value)
   const options: Array<{ hue: HueName | null; label: string }> = [{ hue: null, label: 'None (the accent)' }, ...HUE_NAMES.map((h) => ({ hue: h, label: HUE_LABEL[h] }))]
   return (
     <fieldset className={styles.hues}>
@@ -107,6 +120,20 @@ function HueSwatches({ value, onChange }: { value: HueName | null; onChange: (hu
             data-hue={o.hue ?? 'none'}
           />
         ))}
+        <input
+          type="radio"
+          name="layout-hue"
+          className={styles.swatch}
+          style={{ background: custom }}
+          checked={customOn}
+          onChange={() => onChange(custom)}
+          aria-label="Custom colour"
+          title="Custom colour"
+          data-hue="custom"
+        />
+      </div>
+      <div className={styles.custom} data-hue-custom>
+        <ColorInput value={custom} onChange={(c) => { setCustom(c); onChange(c) }} />
       </div>
     </fieldset>
   )

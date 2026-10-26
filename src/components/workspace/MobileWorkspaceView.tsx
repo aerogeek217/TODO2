@@ -3,7 +3,6 @@ import {
   getActiveTab,
   type BandEdge,
   type EisenhowerTab,
-  type HueName,
   type LayoutBand,
   type LayoutColumn,
   type LayoutPanel,
@@ -13,7 +12,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
 import { scrollBehavior } from '../../utils/motion'
-import { hueColor } from '../../utils/layout-hue'
+import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -152,7 +151,7 @@ const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
  * the storage status (`status`, shown only while a warning is active) and
  * search (opens the filter sheet).
  */
-function MobileTopBar({ name, hue, status }: { name: string; hue?: HueName; status?: ReactNode }) {
+function MobileTopBar({ name, hue, status }: { name: string; hue?: string; status?: ReactNode }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   return (
     <header className={styles.topBar}>
@@ -523,7 +522,7 @@ function PageName({ page, index, active, setRef, onPick }: {
  * It opens on the layout's `activeColumnId` (view state, while that page
  * is still there; else the first) and saves the page it settles on.
  */
-function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hue?: HueName; activeId?: string }) {
+function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hue?: string; activeId?: string }) {
   const pagerRef = useRef<HTMLDivElement | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const underlineRef = useRef<HTMLSpanElement | null>(null)
@@ -633,7 +632,7 @@ function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hu
         role="tablist"
         aria-label="Columns"
         onKeyDown={onStripKeyDown}
-        data-layout-hue={hue ?? 'none'}
+        data-layout-hue={hueAttr(hue)}
         style={{ '--layout-hue': hueColor(hue) } as CSSProperties}
       >
         {pages.map((page, i) => (
@@ -653,7 +652,7 @@ function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hu
         className={styles.pager}
         // The layout's hue (D19), as the desktop workspace: the cell headers' tint and the focus ring.
         style={{ '--ws-pager-gap': `${PAGER_GAP_PX}px`, '--layout-hue': hueColor(hue) } as CSSProperties}
-        data-layout-hue={hue ?? 'none'}
+        data-layout-hue={hueAttr(hue)}
         onScroll={onScroll}
         data-ws-area
         data-ws-pager

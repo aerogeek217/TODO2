@@ -8,7 +8,7 @@ import { WorkspaceDivider } from './WorkspaceDivider'
 import { BandDivider } from './BandDivider'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
-import { hueColor } from '../../utils/layout-hue'
+import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { useWorkspaceDrag } from './workspace-drag'
 import styles from './WorkspaceView.module.css'
 
@@ -174,7 +174,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
     <div
       className={styles.area}
       data-ws-area
-      data-layout-hue={layout.hue ?? 'none'}
+      data-layout-hue={hueAttr(layout.hue)}
       style={{ '--layout-hue': hueColor(layout.hue) } as CSSProperties}
     >
       <Grain />

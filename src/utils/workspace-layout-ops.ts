@@ -4,7 +4,6 @@ import {
   DEFAULT_WEIGHT,
   tabListId,
   type BandEdge,
-  type HueName,
   type LayoutBand,
   type LayoutBody,
   type LayoutCell,
@@ -711,7 +710,7 @@ export function setLayoutActiveColumn<L extends WorkspaceLayout>(layout: L, page
 }
 
 /** The layout's hue (`null` = none, the app accent; the key goes). The same layout when unchanged. */
-export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: HueName | null): L {
+export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: string | null): L {
   if ((layout.hue ?? null) === hue) return layout
   const next = { ...layout }
   if (hue == null) delete next.hue

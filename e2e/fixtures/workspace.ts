@@ -57,8 +57,8 @@ export interface WsLayoutSeed {
   /** The full-width band above / below the columns. */
   top?: WsBandSeed
   bottom?: WsBandSeed
-  /** The layout's hue (D19). */
-  hue?: 'teal' | 'violet' | 'blue' | 'green' | 'amber' | 'rose'
+  /** The layout's hue (D19): a preset name or a hex colour. */
+  hue?: string
 }
 
 /** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */

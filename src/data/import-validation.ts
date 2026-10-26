@@ -14,7 +14,8 @@ import { parseStaleAfterDays } from '../utils/stale'
 import { isRowDensity } from '../utils/row-density'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
-import { isHueName, LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { isLayoutHue } from '../utils/layout-hue'
 import { checkLayoutBody, isId, pickLayoutBody } from './layout-shape'
 import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
@@ -299,7 +300,7 @@ function checkLayout(v: unknown): CheckResult {
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
     ['lensId', v.lensId === undefined || isLensId(v.lensId)],
     ['activeColumnId', v.activeColumnId === undefined || isId(v.activeColumnId)],
-    ['hue', v.hue === undefined || isHueName(v.hue)],
+    ['hue', v.hue === undefined || isLayoutHue(v.hue)],
   ])
   if (fields !== true) return fields
   return checkLayoutBody(v)
@@ -622,7 +623,7 @@ function layoutFixes(v: Raw): string[] {
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
   if (v.lensId !== undefined && !isLensId(v.lensId)) fixes.push('lens reset')
   if (v.activeColumnId !== undefined && !isId(v.activeColumnId)) fixes.push('phone column reset')
-  if (v.hue !== undefined && !isHueName(v.hue)) fixes.push('hue reset')
+  if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
 
@@ -649,7 +650,7 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
     lensId: isLensId(v.lensId) ? v.lensId : undefined,
     activeColumnId: isId(v.activeColumnId) ? v.activeColumnId : undefined,
-    hue: isHueName(v.hue) ? v.hue : undefined,
+    hue: isLayoutHue(v.hue) ? v.hue : undefined,
   } satisfies AllFields<WorkspaceLayout>
 }
 

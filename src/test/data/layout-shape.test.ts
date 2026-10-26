@@ -19,7 +19,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['bad date', layoutRow([], { modifiedAt: 'nope' }), 'modifiedAt'],
   ['lens pick not an id', layoutRow([], { lensId: 7 }), 'lensId'],
   ['phone column not an id', layoutRow([], { activeColumnId: '' }), 'activeColumnId'],
-  ['hue not one of the six', layoutRow([], { hue: 'mauve' }), 'hue'],
+  ['hue neither a preset name nor a hex colour', layoutRow([], { hue: 'mauve' }), 'hue'],
   ['columns not an array', layoutRow({}), 'columns'],
   ['column without cells', layoutRow([{ id: 'c', weight: 1, cells: [] }]), 'columns[0].cells'],
   ['zero weight', layoutRow([{ id: 'c', weight: 0, cells: [] }]), 'columns[0].weight'],

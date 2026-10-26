@@ -575,6 +575,10 @@ describe('saved layouts', () => {
     expect(await stored(id!)).toMatchObject({ name: 'Morning', hue: 'violet' })
     expect(await ws().rename(id!, 'Evening')).toBe(true)
     expect((await stored(id!)).hue).toBe('violet')
+    // A custom colour is a hue too.
+    expect(await ws().rename(id!, 'Evening', '#ff6600')).toBe(true)
+    expect((await stored(id!)).hue).toBe('#ff6600')
+    expect(ws().working?.hue).toBe('#ff6600')
     expect(await ws().rename(id!, 'Evening', null)).toBe(true)
     expect('hue' in (await stored(id!))).toBe(false)
     expect(ws().working!.hue).toBeUndefined()

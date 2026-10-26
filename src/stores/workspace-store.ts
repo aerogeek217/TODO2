@@ -17,7 +17,6 @@ import {
   layoutBodyOf,
   withLayoutBody,
   type BandEdge,
-  type HueName,
   type LayoutBody,
   type PersistedWorkspaceLayout,
   type TabConfigOf,
@@ -157,7 +156,7 @@ export interface WorkspaceState {
    * Edit layout dialog's swatches). A kept new layout not saved yet
    * (`UNSAVED_LAYOUT_ID`) is renamed in memory.
    */
-  rename: (id: number, name: string, hue?: HueName | null) => Promise<boolean>
+  rename: (id: number, name: string, hue?: string | null) => Promise<boolean>
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with

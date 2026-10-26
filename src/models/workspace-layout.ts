@@ -268,13 +268,14 @@ export interface WorkspaceLayout {
   activeColumnId?: string
   /**
    * The layout's hue (D19): its active tab, its cell headers and the focus
-   * ring inside it take it; absent = the app accent. Set in the Edit layout
-   * dialog and saved at once, as the name is.
+   * ring inside it take it; absent = the app accent. A preset's name
+   * (`HUE_NAMES`) or a hex colour (`utils/layout-hue.isLayoutHue`). Set in
+   * the Edit layout dialog and saved at once, as the name is.
    */
-  hue?: HueName
+  hue?: string
 }
 
-/** The six layout hues (D19), each a token pair (`--hue-<name>`, dark and light). */
+/** The six preset layout hues (D19), each a token pair (`--hue-<name>`, dark and light). */
 export const HUE_NAMES = ['teal', 'violet', 'blue', 'green', 'amber', 'rose'] as const
 
 export type HueName = (typeof HUE_NAMES)[number]

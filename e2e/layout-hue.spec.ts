@@ -60,10 +60,23 @@ test('a hued layout keeps its hue and its lens across a reload; the focus ring i
   await expect(page.locator('header').getByRole('button', { name: /^Lens: Plans/ })).toBeVisible()
   await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Plan the launch'])
 
+  // A custom colour, typed into the colour input: picked as it is, in place of the preset.
+  const edit = await openLayoutTabMenu(page, 'Main')
+  await edit.getByRole('menuitem', { name: 'Edit…' }).click()
+  const custom = page.getByRole('dialog', { name: 'Edit layout' })
+  await expect(custom.getByRole('radio', { name: 'Violet' })).toBeChecked()
+  await custom.locator('[data-hue-custom] input[type="text"]').fill('#ff6600')
+  await expect(custom.getByRole('radio', { name: 'Custom colour' })).toBeChecked()
+  await custom.getByRole('button', { name: 'Apply' }).click()
+  await expect(custom).toBeHidden()
+  await expect(area(page)).toHaveAttribute('data-layout-hue', 'custom')
+  expect(await cssVar(page, '[data-ws-area]', '--layout-hue')).toBe('#ff6600')
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+
   // None again: back to the accent.
   const again = await openLayoutTabMenu(page, 'Main')
   await again.getByRole('menuitem', { name: 'Edit…' }).click()
-  await expect(page.getByRole('dialog', { name: 'Edit layout' }).getByRole('radio', { name: 'Violet' })).toBeChecked()
+  await expect(page.getByRole('dialog', { name: 'Edit layout' }).getByRole('radio', { name: 'Custom colour' })).toBeChecked()
   await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('radio', { name: 'None (the accent)' }).check()
   await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('button', { name: 'Apply' }).click()
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'none')
