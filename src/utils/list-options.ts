@@ -6,7 +6,7 @@ import type { ListDefinition, RuntimeFilterField } from '../models/list-definiti
 export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'priority', 'deadline', 'followup', 'people', 'status', 'tag']
 
 /** Sorts a list definition offers, in menu order. */
-export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'created', 'modified']
+export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'people', 'status', 'created', 'modified']
 
 /** Prompt fields a list definition offers, in menu order (`none` = no prompt). */
 export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['none', 'person', 'status', 'tag']
@@ -60,6 +60,8 @@ export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
   manual: 'Your drag order (per list)',
   priority: 'Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date',
   modified: 'Longest untouched first · any edit counts, a reorder too',
+  people: 'By name of the first person, A → Z · unassigned last',
+  status: 'In the statuses’ order (Settings) · no status last',
 }
 
 /** What each direction of a sort puts first, in words (sorts with a direction only). */

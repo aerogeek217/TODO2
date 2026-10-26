@@ -15,6 +15,7 @@ import { useListOrderStore, useListRanks } from '../../../stores/list-order-stor
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { useStatusStore } from '../../../stores/status-store'
 import {
   isUngroupedSectionKey,
   listSortComparator,
@@ -278,6 +279,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       .sort(listSortComparator(definition.sort, {
         urgentRange: useSettingsStore.getState().urgentDueWithinDays,
         direction: definition.sortDirection,
+        assignedPeopleMap,
+        statuses: useStatusStore.getState().statuses,
       }))
       .map((t) => t.id)
     void useListOrderStore.getState().replaceList(listId, seedRanks(order, pendingSwitch.move))

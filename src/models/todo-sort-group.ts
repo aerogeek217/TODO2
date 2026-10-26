@@ -16,8 +16,8 @@ export type TodoSortBy =
   | 'followup'    // nextFollowupAt
   | 'created'     // createdAt
   | 'modified'    // modifiedAt (oldest first: the untouched tasks on top)
-  | 'people'      // sortOrder fallback (categorical)
-  | 'status'      // sortOrder fallback
+  | 'people'      // the first assigned person's name, unassigned last
+  | 'status'      // the statuses' order in Settings, no status last
 
 export type TodoGroupBy =
   | 'none'        // flat list — no group headers

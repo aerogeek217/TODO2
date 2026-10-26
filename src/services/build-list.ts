@@ -141,6 +141,8 @@ export function buildList(
     today: startOfDay(ctx.today),
     urgentRange: ctx.urgentRange,
     direction: def.sortDirection,
+    assignedPeopleMap: ctx.assignedPeopleMap,
+    statuses: ctx.statuses,
   }))
   return {
     id: def.id,

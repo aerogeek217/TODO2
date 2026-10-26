@@ -59,10 +59,10 @@ describe('<ListEditorBody>', () => {
     expect(last(onChange).grouping).toBe('people')
   })
 
-  it('offers the list choices, plus a stored sort no longer offered', () => {
+  it('offers the list choices, People and Status among the sorts', () => {
     render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
     openChoices('Sort by')
-    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'Created', 'Modified', 'Status'])
+    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'People', 'Status', 'Created', 'Modified'])
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')

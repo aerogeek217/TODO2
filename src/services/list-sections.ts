@@ -69,6 +69,10 @@ export interface ListSortContext {
   urgentRange?: UrgentDueWithinDays
   /** `desc` reverses the sort's primary key; absent = natural order. */
   direction?: TodoSortDirection
+  /** The People sort's assignments; absent = every task unassigned. */
+  assignedPeopleMap?: ReadonlyMap<number, readonly Person[]>
+  /** The Status sort's statuses (their Settings order); absent = every task without one. */
+  statuses?: readonly Status[]
 }
 
 /**
@@ -85,8 +89,11 @@ export interface ListSortContext {
  * - `priority` — Focus, then Urgent + Important, Urgent, Important, none
  *   (`priorityRank`; Urgent includes due soon); ties by due date (undated
  *   last), then manual order.
- * - `people` / `status` — no ordering of their own; they fall back to manual
- *   order (as does a stored value this build doesn't know).
+ * - `people` — by the task's people's names (its alphabetically first
+ *   person), unassigned last; ties by manual order.
+ * - `status` — by the statuses' order in Settings, no status (or a deleted
+ *   one) last; ties by manual order.
+ * - A stored value this build doesn't know falls back to manual order.
  *
  * `ctx.direction` `desc` reverses the primary key only (latest / newest /
  * Z → A / lowest priority first): ties keep their tie-break order and
@@ -112,12 +119,51 @@ export function listSortComparator(
       return (a, b) => (sign * (a.createdAt.getTime() - b.createdAt.getTime())) || bySortOrder(a, b)
     case 'modified':
       return (a, b) => (sign * (a.modifiedAt.getTime() - b.modifiedAt.getTime())) || bySortOrder(a, b)
-    case 'manual':
     case 'people':
+      return peopleComparator(ctx)
     case 'status':
+      return statusComparator(ctx)
+    case 'manual':
       return bySortOrder
   }
   return bySortOrder
+}
+
+/** The People sort: the task's alphabetically first person's name, unassigned last, then manual order. */
+function peopleComparator(ctx: ListSortContext): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  const manual = ctx.manualRanks ? manualOrderComparator(ctx.manualRanks) : bySortOrder
+  const firstName = new Map<number, string | null>()
+  const nameOf = (t: PersistedTodoItem): string | null => {
+    let name = firstName.get(t.id)
+    if (name === undefined) {
+      name = null
+      for (const p of ctx.assignedPeopleMap?.get(t.id) ?? []) {
+        if (name === null || p.name.localeCompare(name) < 0) name = p.name
+      }
+      firstName.set(t.id, name)
+    }
+    return name
+  }
+  return (a, b) => {
+    const an = nameOf(a)
+    const bn = nameOf(b)
+    if (an !== null && bn !== null) return an.localeCompare(bn) || manual(a, b)
+    if (an === null && bn !== null) return 1
+    if (an !== null && bn === null) return -1
+    return manual(a, b)
+  }
+}
+
+/** The Status sort: the statuses' order in Settings, no status last, then manual order. */
+function statusComparator(ctx: ListSortContext): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  const manual = ctx.manualRanks ? manualOrderComparator(ctx.manualRanks) : bySortOrder
+  const rank = new Map([...(ctx.statuses ?? [])].sort(bySortOrder).map((st, i) => [st.id, i]))
+  const rankOf = (t: PersistedTodoItem): number => (t.statusId != null ? rank.get(t.statusId) : undefined) ?? Infinity
+  return (a, b) => {
+    const ar = rankOf(a)
+    const br = rankOf(b)
+    return (ar === br ? 0 : ar < br ? -1 : 1) || manual(a, b)
+  }
 }
 
 /** The Priority sort: rank (reversed for `sign` -1), then due date (undated last), then manual order. */
@@ -209,6 +255,8 @@ export function buildListSections(
     today: ctx.today,
     urgentRange: ctx.urgentRange,
     direction: spec.sortDirection,
+    assignedPeopleMap: ctx.assignedPeopleMap,
+    statuses: ctx.statuses,
   }))
   if (groupBy === 'none') {
     return sorted.length > 0 ? [{ key: 'all', label: 'All tasks', todos: sorted }] : []

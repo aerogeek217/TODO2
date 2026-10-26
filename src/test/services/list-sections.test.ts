@@ -439,12 +439,53 @@ describe('listSortComparator', () => {
     expect([a, c, b].sort(listSortComparator('manual')).map((t) => t.id)).toEqual([2, 3, 1])
   })
 
-  it('categorical sorts with no order of their own fall back to manual', () => {
-    const a = makeTodo({ id: 1, title: 'b', sortOrder: 2 })
-    const b = makeTodo({ id: 2, title: 'a', sortOrder: 1 })
-    for (const sortBy of ['people', 'status'] as const) {
-      expect([a, b].sort(listSortComparator(sortBy)).map((t) => t.id)).toEqual([2, 1])
-    }
+  it('people: by the task’s alphabetically first person, unassigned last, ties by manual order', () => {
+    const ann: Person = { id: 1, name: 'Ann', initials: 'AN' }
+    const bo: Person = { id: 2, name: 'bo', initials: 'BO' }
+    const cy: Person = { id: 3, name: 'Cy', initials: 'CY' }
+    const todos = [
+      makeTodo({ id: 1, sortOrder: 1 }), // unassigned
+      makeTodo({ id: 2, sortOrder: 2 }), // Cy
+      makeTodo({ id: 3, sortOrder: 3 }), // Cy, Ann → Ann
+      makeTodo({ id: 4, sortOrder: 4 }), // bo (case-insensitive: after Ann, before Cy)
+      makeTodo({ id: 5, sortOrder: 0 }), // Ann, tied with 3: manual order first
+      makeTodo({ id: 6, sortOrder: 5 }), // unassigned
+    ]
+    const assignedPeopleMap = new Map([[2, [cy]], [3, [cy, ann]], [4, [bo]], [5, [ann]]])
+    const ids = (ctx: Parameters<typeof listSortComparator>[1]) => [...todos].sort(listSortComparator('people', ctx)).map((t) => t.id)
+    expect(ids({ assignedPeopleMap })).toEqual([5, 3, 4, 2, 1, 6])
+    // Ties and the unassigned follow the list's manual order when it has one.
+    expect(ids({ assignedPeopleMap, manualRanks: new Map([[3, 1], [5, 2], [6, 3], [1, 4]]) })).toEqual([3, 5, 4, 2, 6, 1])
+    // No assignments known: all unassigned, manual order.
+    expect(ids({})).toEqual([5, 1, 2, 3, 4, 6])
+  })
+
+  it('status: by the statuses’ order in Settings, no status (or a deleted one) last, ties by manual order', () => {
+    const statuses: Status[] = [
+      { id: 7, name: 'Waiting', color: '#888', sortOrder: 2 },
+      { id: 8, name: 'To do', color: '#888', sortOrder: 0 },
+      { id: 9, name: 'Doing', color: '#888', sortOrder: 1 },
+    ]
+    const todos = [
+      makeTodo({ id: 1, sortOrder: 1 }), // no status
+      makeTodo({ id: 2, statusId: 7, sortOrder: 2 }),
+      makeTodo({ id: 3, statusId: 9, sortOrder: 3 }),
+      makeTodo({ id: 4, statusId: 8, sortOrder: 4 }),
+      makeTodo({ id: 5, statusId: 9, sortOrder: 0 }),
+      makeTodo({ id: 6, statusId: 99, sortOrder: 5 }), // a deleted status
+    ]
+    const ids = (ctx: Parameters<typeof listSortComparator>[1]) => [...todos].sort(listSortComparator('status', ctx)).map((t) => t.id)
+    expect(ids({ statuses })).toEqual([4, 5, 3, 2, 1, 6])
+    expect(ids({ statuses, manualRanks: new Map([[3, 1], [6, 2]]) })).toEqual([4, 3, 5, 2, 6, 1])
+  })
+
+  it('buildListSections sorts by people / status within each group', () => {
+    const ann: Person = { id: 1, name: 'Ann', initials: 'AN' }
+    const bo: Person = { id: 2, name: 'Bo', initials: 'BO' }
+    const todos = [makeTodo({ id: 1, sortOrder: 1 }), makeTodo({ id: 2, sortOrder: 2 }), makeTodo({ id: 3, sortOrder: 3 })]
+    const assignedPeopleMap = new Map([[2, [bo]], [3, [ann]]])
+    const sections = build(todos, 'none', { assignedPeopleMap, people: [ann, bo] }, { sortBy: 'people' })
+    expect(sections[0]?.todos.map((t) => t.id)).toEqual([3, 2, 1])
   })
 
   it('sorts created oldest first, regardless of manual order', () => {
