@@ -3,6 +3,7 @@ import type { PersistedTodoItem } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { useBuiltList } from './use-built-list'
 import { useFilterSettings } from './use-filter-settings'
+import type { LeavingRows } from './use-leaving-rows'
 import { useEffectiveListDefinition } from './use-list-draft'
 import { useToday } from './use-today'
 import { useScreenFilter } from '../stores/screen-filter'
@@ -35,9 +36,12 @@ export interface EisenhowerSource {
   openTotal: number
   /** The Eisenhower's list; absent only until it is loaded (all tasks are considered then, as its empty filter would). */
   list?: ListSourceContext
+  /** Of the `leaving` tasks, the ones kept in `shown` as they were (`useBuiltList`'s `kept`). */
+  kept: ReadonlySet<number>
 }
 
 const NO_TASKS: PersistedTodoItem[] = []
+const NO_IDS: ReadonlySet<number> = new Set()
 
 export function countOpen(todos: readonly PersistedTodoItem[]): number {
   let n = 0
@@ -53,8 +57,11 @@ export function countOpen(todos: readonly PersistedTodoItem[]): number {
  * tasks through the screen filter (what a list with no filter holds). Used
  * by every Eisenhower widget and by Settings › Tasks › Eisenhower (the live
  * counts).
+ *
+ * `leaving` (D19, a widget's `useLeavingRows`): just-completed tasks the
+ * list keeps as they were while their rows linger (see `useBuiltList`).
  */
-export function useEisenhowerSource(): EisenhowerSource {
+export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
   const listId = useSettingsStore((s) => s.eisenhowerListId) ?? undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const today = useToday()
@@ -72,7 +79,7 @@ export function useEisenhowerSource(): EisenhowerSource {
     () => (definition ? { ...definition, runtimeFilter: undefined, grouping: 'none' } : undefined),
     [definition],
   )
-  const built = useBuiltList(membersOnly, undefined, screenActive ? screen : undefined)
+  const built = useBuiltList(membersOnly, undefined, screenActive ? screen : undefined, leaving)
   const listShown = built.list?.todos ?? NO_TASKS
   const listOpenTotal = useMemo(() => built.countOpenBase(), [built])
   const appOpen = useMemo(() => countOpen(todos), [todos])
@@ -91,7 +98,9 @@ export function useEisenhowerSource(): EisenhowerSource {
   )
 
   return useMemo<EisenhowerSource>(
-    () => (list ? { shown: listShown, openTotal: listOpenTotal, list } : { shown: allShown, openTotal: appOpen }),
-    [list, listShown, listOpenTotal, allShown, appOpen],
+    () => (list
+      ? { shown: listShown, openTotal: listOpenTotal, list, kept: built.kept }
+      : { shown: allShown, openTotal: appOpen, kept: NO_IDS }),
+    [list, listShown, listOpenTotal, allShown, appOpen, built.kept],
   )
 }

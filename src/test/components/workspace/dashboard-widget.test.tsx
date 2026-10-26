@@ -564,3 +564,73 @@ describe('DashboardWidget — the Eisenhower section follows the app-wide panes 
   })
 
 })
+
+describe('DashboardWidget — a completed row leaves its section (D19)', () => {
+  const complete = (id: number) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
+  })
+  const reopen = (id: number) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: false, completedAt: undefined } : t)) })
+  })
+  const leavingOf = (el: HTMLElement, id: number) => el.querySelector(`[data-row-todo="${id}"]`)?.getAttribute('data-leaving') ?? null
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 9, 10, 10))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('Hot: stays in place, completed, for 500 ms, folds for 180 ms, then drops out; the count moves at once', () => {
+    setup(tabWith({ sections: [{ id: 'hot' }] }))
+    complete(2)
+    const hot = section('hot')!
+    expect(rowTitles(hot)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy', 'Book venue for offsite'])
+    expect(leavingOf(hot, 2)).toBe('stay')
+    expect(within(hot.querySelector<HTMLElement>('[data-row-todo="2"]')!).getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
+    expect(sectionCount('hot')).toBe('3')
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(leavingOf(hot, 2)).toBe('fold')
+    act(() => { vi.advanceTimersByTime(180) })
+    expect(rowTitles(hot)).toEqual(['Fix checkout outage', 'Draft homepage copy', 'Book venue for offsite'])
+  })
+
+  it('Needs follow-up and Stale tasks: the row lingers in its group, which stays until it has folded', () => {
+    setup(tabWith({ sections: [{ id: 'followup' }, { id: 'stale' }] }))
+    complete(10)
+    complete(17)
+    const followup = section('followup')!
+    expect(within(followup).getByRole('group', { name: 'Late' })).toBeTruthy()
+    expect(leavingOf(followup, 10)).toBe('stay')
+    expect(leavingOf(section('stale')!, 17)).toBe('stay')
+    act(() => { vi.advanceTimersByTime(680) })
+    expect(within(followup).queryByRole('group', { name: 'Late' })).toBeNull()
+    expect(rowTitles(section('stale')!)).toEqual(['Clean up shared drive'])
+  })
+
+  it('a section that shows completed tasks (Recently completed) gains the row at once, unfolded', () => {
+    setup(tabWith({ sections: [{ id: 'hot' }, { id: 'recent' }] }))
+    complete(2)
+    expect(leavingOf(section('hot')!, 2)).toBe('stay')
+    expect(section('recent')!.querySelector('[data-row-todo="2"]')).not.toBeNull()
+    expect(leavingOf(section('recent')!, 2)).toBeNull()
+  })
+
+  it('reopened while it lingers, it simply stays', () => {
+    setup(tabWith({ sections: [{ id: 'hot' }] }))
+    complete(2)
+    reopen(2)
+    expect(leavingOf(section('hot')!, 2)).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(rowTitles(section('hot')!)).toContain('Headcount request')
+  })
+
+  it('under reduced motion the row leaves at once', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    setup(tabWith({ sections: [{ id: 'hot' }] }))
+    complete(2)
+    expect(rowTitles(section('hot')!)).toEqual(['Fix checkout outage', 'Draft homepage copy', 'Book venue for offsite'])
+  })
+})

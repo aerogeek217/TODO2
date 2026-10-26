@@ -301,3 +301,65 @@ describe('EisenhowerWidget on its list', () => {
   })
 
 })
+
+describe('EisenhowerWidget — a completed row leaves its quadrant (D19)', () => {
+  const complete = (id: number) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: true, completedAt: new Date() } : t)) })
+  })
+  const leavingOf = (q: string, id: number) => quadrant(q).querySelector(`[data-row-todo="${id}"]`)?.getAttribute('data-leaving') ?? null
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(TODAY)
+    useListOrderStore.setState({ ranks: new Map(), loaded: true })
+    useListDraftStore.setState({ drafts: {} })
+    useListDefinitionStore.setState({
+      listDefinitions: [{ id: 7, name: 'Everything', sortOrder: 0, membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none' }],
+    })
+    useSettingsStore.setState({ eisenhowerListId: 7 })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('stays in place, completed, for 500 ms, folds for 180 ms, then drops out', () => {
+    setup()
+    complete(2)
+    expect(titles('schedule')).toEqual(['Draft OKRs', 'Board update'])
+    expect(leavingOf('schedule', 2)).toBe('stay')
+    expect(within(quadrant('schedule').querySelector<HTMLElement>('[data-row-todo="2"]')!).getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(leavingOf('schedule', 2)).toBe('fold')
+    act(() => { vi.advanceTimersByTime(180) })
+    expect(titles('schedule')).toEqual(['Board update'])
+    expect(lastResult).toEqual({ countLabel: '6' })
+  })
+
+  it('reopened while it lingers, it simply stays', () => {
+    setup()
+    complete(2)
+    act(() => {
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 2 ? { ...t, isCompleted: false, completedAt: undefined } : t)) })
+    })
+    expect(leavingOf('schedule', 2)).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles('schedule')).toEqual(['Draft OKRs', 'Board update'])
+  })
+
+  it('with Show completed nothing folds', () => {
+    setup()
+    act(() => useFilterStore.getState().setShowCompleted(true))
+    complete(2)
+    expect(leavingOf('schedule', 2)).toBeNull()
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles('schedule')).toContain('Draft OKRs')
+  })
+
+  it('under reduced motion the row leaves at once', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    setup()
+    complete(2)
+    expect(titles('schedule')).toEqual(['Board update'])
+  })
+})

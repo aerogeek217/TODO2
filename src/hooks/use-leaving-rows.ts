@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { PersistedTodoItem } from '../models'
 import { useTodoStore } from '../stores/todo-store'
 import { prefersReducedMotion } from '../utils/motion'
 
@@ -75,4 +76,28 @@ export function useLeavingRows(isShown: (todoId: number) => boolean): LeavingRow
   }, [])
 
   return leaving
+}
+
+/**
+ * `todos` with each leaving task that is completed now built as it was
+ * before (open) — what keeps its row in place while it lingers. `only`
+ * limits it to those ids (the ones a surface would otherwise drop).
+ */
+export function restoreLeaving(
+  todos: readonly PersistedTodoItem[],
+  leaving: LeavingRows,
+  only?: ReadonlySet<number>,
+): PersistedTodoItem[] {
+  return todos.map((t) => (t.isCompleted && leaving.has(t.id) && (!only || only.has(t.id))
+    ? { ...t, isCompleted: false, completedAt: undefined }
+    : t))
+}
+
+/** The task as it is now behind each kept row: a kept row is built as it was, and shows as it is (completed). */
+export function useKeptTodos(kept: ReadonlySet<number>): ReadonlyMap<number, PersistedTodoItem> | null {
+  const todos = useTodoStore((s) => s.todos)
+  return useMemo(
+    () => (kept.size > 0 ? new Map(todos.filter((t) => kept.has(t.id)).map((t) => [t.id, t])) : null),
+    [kept, todos],
+  )
 }

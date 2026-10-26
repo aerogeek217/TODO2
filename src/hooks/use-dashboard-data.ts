@@ -11,6 +11,7 @@ import {
   type DashboardTrendRange,
 } from '../models/dashboard-config'
 import { useFilterSettings } from './use-filter-settings'
+import { restoreLeaving, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
 import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
@@ -77,6 +78,27 @@ export interface DashboardData {
   /** `null` until the history has been read. */
   trend: TrendStats | null
   trendRange: DashboardTrendRange
+  /** The task-row sections' rows (Hot, Needs follow-up, Stale). */
+  rows: DashboardRows
+}
+
+/**
+ * The rows of the task-row sections: `tiles.shown.hot`, `followup.shown` and
+ * `stale.shown` — plus, while a just-completed task lingers (D19), that task
+ * as it was before, in its place.
+ */
+export interface DashboardRows {
+  hot: number[]
+  followup: FollowupGroups
+  stale: number[]
+  /** The leaving tasks these rows keep as they were (they show as they are now, completed). */
+  kept: ReadonlySet<number>
+}
+
+const NO_IDS: ReadonlySet<number> = new Set()
+
+function rowIds(hot: readonly number[], followup: FollowupGroups, stale: readonly number[]): number[] {
+  return [...hot, ...followup.late, ...followup.today, ...followup.upcoming, ...stale]
 }
 
 /** The Eisenhower settings as the dashboard's Eisenhower section uses them. */
@@ -94,7 +116,11 @@ function sectionOption<K extends keyof DashboardSectionOptions>(config: Dashboar
   return config.sections.find((s) => s.id === id)?.options?.[key]
 }
 
-export function useDashboardData(config: DashboardTabConfig): DashboardData {
+/**
+ * `leaving` (a widget's `useLeavingRows`): just-completed tasks the task-row
+ * sections keep in place, as they were, until they have folded away.
+ */
+export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRows): DashboardData {
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
   const statuses = useStatusStore((s) => s.statuses)
@@ -205,8 +231,23 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     })
   }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, markerSettings])
 
+  const rows = useMemo<DashboardRows>(() => {
+    const now: DashboardRows = { hot: tiles.shown.hot.ids, followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
+    if (!leaving || leaving.size === 0) return now
+    const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings)
+    const hot = computeTiles(asWas, ctx).hot.ids
+    const followupAsWas = computeFollowupGroups(asWas, ctx, lookAhead)
+    const staleAsWas = computeStaleTasks(asWas, ctx, staleDays).ids
+    const shownNow = new Set(rowIds(now.hot, now.followup, now.stale))
+    const kept = new Set(rowIds(hot, followupAsWas, staleAsWas).filter((id) => leaving.has(id) && !shownNow.has(id)))
+    return kept.size > 0 ? { hot, followup: followupAsWas, stale: staleAsWas, kept } : now
+  }, [
+    tiles, followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings,
+    ctx, lookAhead, staleDays,
+  ])
+
   return {
     ctx, shown, filtered, todoById, tiles, listTiles, followup, nextDays, status, people,
-    tags, stale, staleDays, recent, recentDays, eisenhower, eisenhowerSetup, trend, trendRange,
+    tags, stale, staleDays, recent, recentDays, eisenhower, eisenhowerSetup, trend, trendRange, rows,
   }
 }

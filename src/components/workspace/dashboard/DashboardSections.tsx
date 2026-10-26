@@ -116,12 +116,17 @@ function Clickable({ as, className, label, onClick, children, ...rest }: {
   return <Tag className={className} {...rest}>{children}</Tag>
 }
 
-/** Task rows as in a list widget: draggable, selectable, open on click. */
-function TaskRows({ sectionKey, ids, data, kit }: {
+/**
+ * Task rows as in a list widget: draggable, selectable, open on click. A
+ * `kept` row (a just-completed task the section keeps as it was) shows as
+ * it is now and folds away (D19).
+ */
+function TaskRows({ sectionKey, ids, data, kit, kept }: {
   sectionKey: string
   ids: readonly number[]
   data: DashboardData
   kit: DashboardRowKit
+  kept?: ReadonlySet<number>
 }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const todos = ids.flatMap((id) => {
@@ -151,6 +156,7 @@ function TaskRows({ sectionKey, ids, data, kit }: {
             selLast={!(next && kit.selectedIds.has(next.id))}
             cursor={kit.cursorKey === key}
             look="idle"
+            leaving={kept?.has(todo.id) ? kit.leaving?.get(todo.id) : undefined}
             onSelect={kit.onSelect}
             onOpenDetail={kit.onOpen}
           />
@@ -191,19 +197,19 @@ function inSortOrder(ids: readonly number[], data: DashboardData): number[] {
 
 
 export function HotSection({ data, rows, onDrill, style }: DashboardSectionProps) {
-  const ids = data.tiles.shown.hot.ids
+  const ids = data.rows.hot
   return (
     <Panel
       def={SECTION_META.hot}
       style={style}
-      count={countOf(ids.length, data.tiles.total.hot.ids.length)}
+      count={countOf(data.tiles.shown.hot.ids.length, data.tiles.total.hot.ids.length)}
       onCount={onDrill ? () => onDrill(tileDrill('hot', data)) : undefined}
       sub={hotRuleInWords(data.ctx.hotRule)}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>
         {ids.length === 0
           ? <Empty title="Nothing hot" hint="Tasks matching the Hot setting show here." />
-          : <RowsGrid kit={rows}><TaskRows sectionKey="hot" ids={ids} data={data} kit={rows} /></RowsGrid>}
+          : <RowsGrid kit={rows}><TaskRows sectionKey="hot" ids={ids} data={data} kit={rows} kept={data.rows.kept} /></RowsGrid>}
       </div>
     </Panel>
   )
@@ -215,11 +221,14 @@ export function HotSection({ data, rows, onDrill, style }: DashboardSectionProps
 export function FollowupSection({ data, options, rows, onDrill, style }: DashboardSectionProps) {
   const lookAhead = options.lookAhead ?? DEFAULT_DASHBOARD_LOOK_AHEAD
   const { shown, total } = data.followup
-  const groups = [
-    { key: 'fu-late', name: 'Late', dot: 'var(--color-followup)', ids: shown.late },
-    { key: 'fu-today', name: 'Today', dot: 'var(--color-followup)', ids: shown.today },
-    { key: 'fu-next', name: `Next ${lookAhead} days`, dot: 'var(--color-text-muted)', ids: shown.upcoming },
-  ].filter((g) => g.ids.length > 0)
+  const groupsOf = (g: typeof shown) => [
+    { key: 'fu-late', name: 'Late', dot: 'var(--color-followup)', ids: g.late },
+    { key: 'fu-today', name: 'Today', dot: 'var(--color-followup)', ids: g.today },
+    { key: 'fu-next', name: `Next ${lookAhead} days`, dot: 'var(--color-text-muted)', ids: g.upcoming },
+  ].filter((group) => group.ids.length > 0)
+  const groups = groupsOf(shown)
+  // The rows: a just-completed task lingers in its group (D19).
+  const rowGroups = groupsOf(data.rows.followup)
   const shownCount = shown.late.length + shown.today.length + shown.upcoming.length
   const totalCount = total.late.length + total.today.length + total.upcoming.length
   return (
@@ -236,21 +245,21 @@ export function FollowupSection({ data, options, rows, onDrill, style }: Dashboa
       sub={`Late, today and the next ${lookAhead} days`}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>
-        {groups.length === 0 ? (
+        {rowGroups.length === 0 ? (
           <Empty
             title="Nothing needs follow-up"
             hint={`No follow-ups are late, due today or due in the next ${lookAhead} days.`}
           />
         ) : (
           <RowsGrid kit={rows}>
-            {groups.map((g) => (
+            {rowGroups.map((g) => (
               <div key={g.key} role="group" aria-label={g.name}>
                 <div className={styles.groupHeader}>
                   <i className={styles.groupDot} style={{ background: g.dot }} />
                   <span>{g.name}</span>
                   <span className={styles.groupCount}>· {g.ids.length}</span>
                 </div>
-                <TaskRows sectionKey={g.key} ids={g.ids} data={data} kit={rows} />
+                <TaskRows sectionKey={g.key} ids={g.ids} data={data} kit={rows} kept={data.rows.kept} />
               </div>
             ))}
           </RowsGrid>
@@ -642,19 +651,19 @@ export function TagsSection({ data, options, onDrill, style }: DashboardSectionP
 export function StaleSection({ data, rows, onDrill, style }: DashboardSectionProps) {
   const { shown, total } = data.stale
   const days = data.staleDays
-  const ids = shown.ids
+  const ids = data.rows.stale
   return (
     <Panel
       def={SECTION_META.stale}
       style={style}
-      count={countOf(ids.length, total.ids.length)}
-      onCount={onDrill ? () => onDrill(staleTasksDialog(ids, days)) : undefined}
+      count={countOf(shown.ids.length, total.ids.length)}
+      onCount={onDrill ? () => onDrill(staleTasksDialog(shown.ids, days)) : undefined}
       sub={staleSubLine(days, shown.oldestDays)}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>
         {ids.length === 0
           ? <Empty title="Nothing stale" hint={`Every open task changed in the last ${days} days.`} />
-          : <RowsGrid kit={rows}><TaskRows sectionKey="stale" ids={ids} data={data} kit={rows} /></RowsGrid>}
+          : <RowsGrid kit={rows}><TaskRows sectionKey="stale" ids={ids} data={data} kit={rows} kept={data.rows.kept} /></RowsGrid>}
       </div>
     </Panel>
   )
