@@ -342,9 +342,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     return out
   }
 
-  const promptLabel = definition.runtimeFilter
-    ? (definition.runtimeFilter.label?.trim() || PROMPT_LABEL[definition.runtimeFilter.field])
-    : ''
+  const promptLabel = definition.runtimeFilter ? PROMPT_LABEL[definition.runtimeFilter.field] : ''
 
   let body: React.ReactNode
   if (runtimeFilterPending) {

@@ -944,30 +944,20 @@ describe('validateImportData', () => {
       expect(result.ok).toBe(false)
     })
 
-    it('accepts runtimeFilter with optional label', () => {
-      const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'Assignee' } })],
-      }))
-      expect(result.ok).toBe(true)
+    it('accepts a runtimeFilter with an old label of any shape and drops the label', () => {
+      for (const label of ['Assignee', 42, 'x'.repeat(101)]) {
+        const result = validateImportData(validData({
+          listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label } })],
+        }))
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({ field: 'person' })
+      }
     })
 
     it('rejects runtimeFilter with unknown field', () => {
       const result = validateImportData(validData({
         listDefinitions: [makeListDef({ runtimeFilter: { field: 'evil', label: '<img onerror=x>' } })],
-      }))
-      expect(result.ok).toBe(false)
-    })
-
-    it('rejects runtimeFilter with non-string label', () => {
-      const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 42 } })],
-      }))
-      expect(result.ok).toBe(false)
-    })
-
-    it('rejects runtimeFilter with label exceeding 100 chars', () => {
-      const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'x'.repeat(101) } })],
       }))
       expect(result.ok).toBe(false)
     })
@@ -984,14 +974,11 @@ describe('validateImportData', () => {
       // only emits a `runtimeFilter` when the field is in the allowlist —
       // the `as` cast that previously passed unknown shapes through is gone.
       const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'Assignee' } })],
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', extra: '<img onerror=x>' } })],
       }))
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({
-        field: 'person',
-        label: 'Assignee',
-      })
+      expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({ field: 'person' })
     })
   })
 })

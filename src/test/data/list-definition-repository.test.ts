@@ -42,6 +42,12 @@ describe('listDefinitionRepository', () => {
     expect(defs.map(d => d.name)).toEqual(['First', 'Second', 'Third'])
   })
 
+  it('getAll reads a prompt by its field alone: an older build’s stored label is dropped', async () => {
+    await db.listDefinitions.add({ ...makeDef(), runtimeFilter: { field: 'person', label: 'Client' } } as ListDefinition)
+    const [def] = await listDefinitionRepository.getAll()
+    expect(def?.runtimeFilter).toEqual({ field: 'person' })
+  })
+
   it('update modifies fields', async () => {
     const id = await listDefinitionRepository.insert(makeDef({ name: 'Old' }))
     const existing = await listDefinitionRepository.getById(id)

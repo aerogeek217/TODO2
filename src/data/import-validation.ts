@@ -177,8 +177,8 @@ const VALID_RUNTIME_FILTER_FIELDS: readonly RuntimeFilterField[] = ['person', 's
 function isOptRuntimeFilter(v: unknown): boolean {
   if (v === undefined || v === null) return true
   if (!isRecord(v)) return false
+  // Only the field is read; anything else (an old `label`) is dropped.
   if (typeof v.field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(v.field)) return false
-  if (!isOptStr(v.label, 100)) return false
   return true
 }
 
@@ -669,10 +669,7 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
   if (!isRecord(v)) return undefined
   const field = v.field
   if (typeof field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(field)) return undefined
-  return compactRow<RuntimeFilterSpec>({
-    field: field as RuntimeFilterField,
-    label: typeof v.label === 'string' ? v.label : undefined,
-  } satisfies AllFields<RuntimeFilterSpec>)
+  return { field: field as RuntimeFilterField } satisfies AllFields<RuntimeFilterSpec>
 }
 
 /**

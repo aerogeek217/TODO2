@@ -280,8 +280,7 @@
       "sort": "deadline",
       "grouping": "people",
       "runtimeFilter": {
-        "field": "person",
-        "label": "Who"
+        "field": "person"
       },
       "owner": {
         "layoutId": 1

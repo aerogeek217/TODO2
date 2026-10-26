@@ -37,7 +37,6 @@ interface RuntimeFilterPickerProps {
 }
 
 function defaultLabel(spec: RuntimeFilterSpec): string {
-  if (spec.label && spec.label.trim()) return spec.label
   switch (spec.field) {
     case 'person': return 'Person'
     case 'status': return 'Status'

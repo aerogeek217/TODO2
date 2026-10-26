@@ -38,8 +38,6 @@ export type RuntimeFilterField = 'person' | 'status' | 'tag'
  */
 export interface RuntimeFilterSpec {
   field: RuntimeFilterField
-  /** Optional override for the picker label; defaults to the capitalised field. */
-  label?: string
 }
 
 /**
