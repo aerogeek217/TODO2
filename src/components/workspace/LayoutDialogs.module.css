@@ -105,6 +105,7 @@
 /* Edit layout's hue swatches (D19): None, then the six hues. */
 .hues {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin: 14px 0 0;
