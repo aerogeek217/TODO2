@@ -351,6 +351,17 @@ describe('validateImportData', () => {
     expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: horizonSlots, selectedHorizonDefId'])
   })
 
+  // The phone row's status button uses the default status: quickStatusId (no UI ever set it) is retired.
+  it('drops a quickStatusId row as an unrecognized setting', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'defaultStatusId', value: '3' }, { key: 'quickStatusId', value: '2' }],
+    }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([{ key: 'defaultStatusId', value: '3' }])
+    expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: quickStatusId'])
+  })
+
   // Tags have no cap: a maxTags row (a setting of older builds) is an unknown key now.
   it('drops a maxTags row in a current file as an unrecognized setting', () => {
     const result = validateImportData(validData({

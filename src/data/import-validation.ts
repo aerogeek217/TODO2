@@ -366,7 +366,6 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (
     v.key === SETTING_KEYS.defaultStatusId ||
-    v.key === SETTING_KEYS.quickStatusId ||
     v.key === SETTING_KEYS.seededAssignedStatusId ||
     v.key === SETTING_KEYS.activeLayoutId
   ) {

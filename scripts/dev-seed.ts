@@ -880,7 +880,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     { key: 'eisenhowerPanes', value: JSON.stringify(panes) },
     { key: 'eisenhowerSource', value: `list:${L.eisenhower}` },
     { key: 'followupDefaultInterval', value: '1w' },
-    { key: 'quickStatusId', value: String(IDS.statuses.followup) },
     { key: 'seededAssignedStatusId', value: String(IDS.statuses.assigned) },
     { key: 'themeMode', value: 'dark' },
     { key: 'urgentDueWithinDays', value: '2' },

@@ -13,7 +13,6 @@
 export const SETTING_KEYS = {
   themeMode: 'themeMode',
   defaultStatusId: 'defaultStatusId',
-  quickStatusId: 'quickStatusId',
   seededAssignedStatusId: 'seededAssignedStatusId',
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',

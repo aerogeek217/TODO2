@@ -96,7 +96,6 @@ function buildSeed(): Seed {
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
-      { key: 'quickStatusId', value: '1' },
       { key: 'completedRetentionDays', value: '30' },
       { key: 'color.dark.accent', value: '#4f8cff' },
       { key: 'color.light.accent', value: '#1a5fd0' },

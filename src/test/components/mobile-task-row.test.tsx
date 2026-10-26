@@ -3,6 +3,9 @@ import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
 import { useUIStore } from '../../stores/ui-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { useStatusStore } from '../../stores/status-store'
 import { makeTodo, makePerson } from '../helpers'
 
 const mockToggleComplete = vi.fn()
@@ -44,6 +47,44 @@ describe('MobileTaskRow', () => {
   afterEach(() => {
     cleanup()
     vi.useRealTimers()
+  })
+
+  // ── The status button ─────────────────────────────────────────────
+
+  describe('status button', () => {
+    const waiting = { id: 2, name: 'Waiting', color: '#888', sortOrder: 0 }
+    const doing = { id: 3, name: 'Doing', color: '#3a3', sortOrder: 1 }
+    let update: ReturnType<typeof vi.fn>
+    beforeEach(() => {
+      update = vi.fn()
+      useTodoStore.setState({ update } as unknown as Partial<ReturnType<typeof useTodoStore.getState>>)
+      useStatusStore.setState({ statuses: [waiting, doing] })
+    })
+
+    it('gives a task without a status the default status (Settings › Tasks)', () => {
+      useSettingsStore.setState({ defaultStatusId: 3 })
+      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Set status' }))
+      expect(update).toHaveBeenCalledWith(1, { statusId: 3 })
+    })
+
+    it('without a default status — or with a deleted one — it sets nothing', () => {
+      useSettingsStore.setState({ defaultStatusId: null })
+      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Set status' }))
+      cleanup()
+      useSettingsStore.setState({ defaultStatusId: 9 })
+      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Set status' }))
+      expect(update).not.toHaveBeenCalled()
+    })
+
+    it('clears a task’s status', () => {
+      useSettingsStore.setState({ defaultStatusId: 3 })
+      render(<MobileTaskRow todo={makeTodo({ id: 1, statusId: 2 })} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Status: Waiting' }))
+      expect(update).toHaveBeenCalledWith(1, { statusId: undefined })
+    })
   })
 
   // ── Rendering basics ──────────────────────────────────────────────
