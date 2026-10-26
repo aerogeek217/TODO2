@@ -91,10 +91,11 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
 const CUSTOM_HUE_START = '#8a7cf0'
 
 /**
- * None + the six preset hues + a custom colour as one radio group (arrow
- * keys move the pick), with the app's colour input (`ColorInput`) for the
- * custom one: changing it picks it. A preset has a light twin; a custom
- * colour is used as it is in both themes.
+ * None + the six preset hues as one radio group (arrow keys move the pick),
+ * and under them the app's colour input (`ColorInput`, the one the people
+ * and tag editors use) for any other colour: changing it picks that colour
+ * and no preset stays checked. A preset has a light twin; a custom colour is
+ * used as it is in both themes.
  */
 function HueSwatches({ value, onChange }: { value: string | null; onChange: (hue: string | null) => void }) {
   const customOn = value != null && !isHueName(value)
@@ -120,19 +121,10 @@ function HueSwatches({ value, onChange }: { value: string | null; onChange: (hue
             data-hue={o.hue ?? 'none'}
           />
         ))}
-        <input
-          type="radio"
-          name="layout-hue"
-          className={styles.swatch}
-          style={{ background: custom }}
-          checked={customOn}
-          onChange={() => onChange(custom)}
-          aria-label="Custom colour"
-          title="Custom colour"
-          data-hue="custom"
-        />
       </div>
-      <div className={styles.custom} data-hue-custom>
+      {/* Any colour: the app's colour input, as the people and tag editors have it. Changing it picks it (no preset stays checked). */}
+      <div className={styles.custom} data-hue-custom data-on={customOn || undefined}>
+        <span className={styles.customLabel}>Custom</span>
         <ColorInput value={custom} onChange={(c) => { setCustom(c); onChange(c) }} />
       </div>
     </fieldset>
