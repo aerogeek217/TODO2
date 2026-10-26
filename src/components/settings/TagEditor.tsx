@@ -6,7 +6,7 @@ import { useTagAssignmentsForLoadedTodos } from '../../hooks/use-entity-assignme
 import type { Tag } from '../../models'
 import type { DialogLayer } from '../shared/Dialog'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
-import { ColorInput } from '../shared/ColorInput'
+import { ColorPicker } from '../shared/ColorPicker'
 import { DeleteTagConfirm } from './EntityDeleteConfirm'
 import styles from './EntityEditor.module.css'
 import { EditorModal } from './EditorModal'
@@ -141,7 +141,7 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
       return (
         <div key={tag.id}>
           <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
-            <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+            <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
             <input
               className={styles.editInput}
               value={ed.name}
@@ -196,7 +196,7 @@ export function TagEditor({ onClose, editTagId, layer }: TagEditorProps) {
         {adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
-              <ColorInput value={newColor} onChange={setNewColor} />
+              <ColorPicker value={newColor} onChange={setNewColor} />
               <input
                 className={styles.editInput}
                 value={newName}
