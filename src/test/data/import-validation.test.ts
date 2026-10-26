@@ -398,6 +398,26 @@ describe('validateImportData', () => {
       expect(result.warnings).toEqual([])
     })
 
+    it('normalises initials as the editor keeps them: uppercase, at most 3, with a warning', () => {
+      const result = validateImportData(validData({
+        people: [
+          makePerson({ initials: 'al' }),
+          makePerson({ id: 2, name: 'Bo Dee', initials: 'bode' }),
+          makePerson({ id: 3, name: 'Finance', initials: 'FIN' }),
+          makePerson({ id: 4, name: 'Cy Lu', initials: '  ' }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.people.map((p) => p.initials)).toEqual(['AL', 'BOD', 'FIN', 'CL'])
+      expect(result.warnings).toEqual(['Fixed 3 people: "Alice" (initials normalised); "Bo Dee" (initials normalised); "Cy Lu" (initials normalised)'])
+    })
+
+    it('still rejects initials longer than 4 or empty', () => {
+      for (const initials of ['ABCDE', '']) {
+        expect(validateImportData(validData({ people: [makePerson({ initials })] })).ok).toBe(false)
+      }
+    })
+
     it('drops an email that is not one valid address, keeping the person, with a warning', () => {
       const result = validateImportData(validData({
         people: [

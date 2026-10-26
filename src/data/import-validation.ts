@@ -21,7 +21,7 @@ import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './e
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, readLensesSetting } from './lens-shape'
 import { LENS_ID_MAX } from '../utils/lens'
-import { isValidEmail, normalizeEmail } from '../utils/person'
+import { isValidEmail, normalizeEmail, normalizeInitials } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -518,7 +518,7 @@ function personEmail(v: unknown): { email: string | undefined; dropped: boolean 
 
 function pickPerson(v: Raw): AllFields<Person> {
   return {
-    id: optNum(v.id), name: v.name as string, initials: v.initials as string,
+    id: optNum(v.id), name: v.name as string, initials: normalizeInitials(v.initials as string, v.name as string),
     color: optStr(v.color),
     email: personEmail(v.email).email,
   } satisfies AllFields<Person>
@@ -772,7 +772,10 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     check: checkPerson,
     pick: pickPerson,
     fixer: {
-      fixes: (row) => (personEmail(row.email).dropped ? ['invalid email dropped'] : []),
+      fixes: (row) => [
+        ...(typeof row.initials === 'string' && normalizeInitials(row.initials, String(row.name)) !== row.initials ? ['initials normalised'] : []),
+        ...(personEmail(row.email).dropped ? ['invalid email dropped'] : []),
+      ],
       lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
     },
   },
