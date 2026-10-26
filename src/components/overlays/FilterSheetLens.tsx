@@ -14,8 +14,8 @@ import styles from './FilterSheetLens.module.css'
  * The phone filter sheet's first section (D15 board F): the open layout's
  * lens — a radio list (No lens with the open count, each lens with its
  * filters in a line and how many open tasks it hides) — and "Lift the lens
- * for now", as the desktop lens control's glasses. The pick is the layout's,
- * saved at once.
+ * for now", as the desktop lens control's glasses. The pick is a layout
+ * edit: unsaved until the layout is saved.
  */
 export function FilterSheetLens() {
   const lenses = useSettingsStore((s) => s.lenses)
@@ -27,7 +27,7 @@ export function FilterSheetLens() {
   const groupName = useId()
   const pick = (id: string | null) => {
     useUIStore.getState().setLensLifted(false)
-    void useWorkspaceStore.getState().setLens(id)
+    useWorkspaceStore.getState().setLens(id)
   }
   return (
     <div className={sheet.entitySection} data-testid="sheet-lens">

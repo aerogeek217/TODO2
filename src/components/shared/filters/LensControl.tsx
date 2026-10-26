@@ -18,7 +18,8 @@ import styles from './LensControl.module.css'
  * lift it for now and put it back — slashed, the name struck through, while
  * lifted; the pick stays — and the name opens the picker (No lens, each
  * lens with its filters in a line and how many open tasks it hides, Edit
- * lenses…). The pick saves at once, as the layout's view state.
+ * lenses…). The pick is a layout edit: unsaved until the layout is saved,
+ * like a tab added or closed (the Save button lights).
  */
 export function LensControl() {
   const lenses = useSettingsStore((s) => s.lenses)
@@ -86,7 +87,7 @@ function LensMenu({ lenses, lensId, anchorRef, onClose }: {
   const counts = useLensHideCounts(lenses)
   const pick = (id: string | null) => {
     useUIStore.getState().setLensLifted(false)
-    void useWorkspaceStore.getState().setLens(id)
+    useWorkspaceStore.getState().setLens(id)
   }
   const entries = useMemo<MenuEntry[]>(() => [
     { kind: 'label', text: 'Lens · hides tasks across this layout' },

@@ -8,7 +8,7 @@ import { registerModuleReset } from './module-reset'
 /**
  * Lenses: named, saved screen filters, defined once (Settings › Tasks ›
  * Lenses, one settings row — `data/lens-shape`) and picked per layout (the
- * layout's `lensId`, view state). The open layout's lens composes under the
+ * layout's `lensId`, layout config: unsaved until Save). The open layout's lens composes under the
  * top bar's chips wherever the screen filter applies (`withLens`). A lens
  * only hides: completed tasks are the chips' Show completed, never a lens's.
  *

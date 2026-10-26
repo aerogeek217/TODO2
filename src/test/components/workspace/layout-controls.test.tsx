@@ -12,7 +12,7 @@ import { resetDb } from '../../helpers'
 
 /**
  * The top bar's layout controls: the layouts as tabs (click opens one, the
- * tab menu — Move left / right, Rename…, Delete… naming the lists that
+ * tab menu — Move left / right, Edit…, Delete… naming the lists that
  * go — and `+` asking a name), or folded into the picker.
  */
 
@@ -80,12 +80,12 @@ describe('LayoutControls — tabs', () => {
     expect(within(tab('Main')).getByRole('img', { name: 'unsaved changes' })).toBeInTheDocument()
   })
 
-  it('another tab’s menu: Rename…, Move left / right, Delete layout… (no Save / Discard); Move right moves it', async () => {
+  it('another tab’s menu: Edit…, Move left / right, Delete layout… (no Save / Discard); Move right moves it', async () => {
     const [, b] = await seed('Main', 'Second', 'Third')
     render(<LayoutControls mode="tabs" />)
     fireEvent.contextMenu(tab('Second'))
     const menu = screen.getByRole('menu', { name: 'Layout Second' })
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Rename…', 'Move left', 'Move right', 'Delete layout…'])
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Edit…', 'Move left', 'Move right', 'Delete layout…'])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'Move right' }))
     await waitFor(() => expect(tabNames()).toEqual(['Main', 'Third', 'Second']))
     expect(ws().layouts.map((l) => l.id).at(-1)).toBe(b)
@@ -162,7 +162,7 @@ describe('LayoutControls — folded into the picker', () => {
     const menu = screen.getByRole('menu', { name: 'Layouts' })
     expect(within(menu).getAllByRole('menuitemradio').map((i) => i.textContent)).toEqual(['Second', 'Main'])
     expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
-      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Rename…', 'Delete layout…',
+      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Edit…', 'Delete layout…',
     ])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'New layout…' }))
     expect(screen.getByRole('dialog', { name: 'New layout' })).toBeInTheDocument()

@@ -28,6 +28,12 @@ const RETENTION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
   { value: '90', label: '90 days' },
 ]
 
+/** The retention choices, plus a stored value outside them (e.g. set by an import), which still shows. */
+function retentionChoices(days: number | null): ReadonlyArray<{ value: string; label: string }> {
+  if (days == null || RETENTION_OPTIONS.some((o) => o.value === String(days))) return RETENTION_OPTIONS
+  return [...RETENTION_OPTIONS, { value: String(days), label: plural(days, 'day') }]
+}
+
 const CLEANUP_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 0, label: 'All completed' },
   { value: 7, label: '7 days' },
@@ -148,7 +154,7 @@ export function CompletedTasksSection() {
           value={completedRetentionDays ?? ''}
           onChange={(e) => setCompletedRetentionDays(e.target.value ? Number(e.target.value) : null)}
         >
-          {RETENTION_OPTIONS.map(({ value, label }) => (
+          {retentionChoices(completedRetentionDays).map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>

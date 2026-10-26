@@ -25,6 +25,7 @@ import { useTooltip } from '../../shared/use-tooltip'
 import { useListTileHints } from './use-list-tile-hints'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from '../../../hooks/use-dashboard-data'
+import { useLeavingRows } from '../../../hooks/use-leaving-rows'
 import styles from './DashboardWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
@@ -182,7 +183,20 @@ export interface DashboardWidgetProps {
  */
 export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onCustomize }: DashboardWidgetProps) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
-  const data = useDashboardData(config)
+  const isMobile = useIsMobile()
+  // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
+  const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
+  const leaving = useLeavingRows((id) => shownIdsRef.current.has(id))
+  const data = useDashboardData(config, isMobile ? undefined : leaving)
+  const rowSections = useMemo(() => new Set(config.sections.map((s) => s.id)), [config.sections])
+  useEffect(() => {
+    const { hot, followup, stale } = data.rows
+    shownIdsRef.current = new Set([
+      ...(rowSections.has('hot') ? hot : []),
+      ...(rowSections.has('followup') ? [...followup.late, ...followup.today, ...followup.upcoming] : []),
+      ...(rowSections.has('stale') ? stale : []),
+    ])
+  })
   // A section divider's width while it is dragged: every task-row section follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
   const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
@@ -190,7 +204,6 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onCustomi
   const onDrill: OnDashboardDrill | undefined = onDrillProp && ((d) => onDrillProp(
     data.filtered ? { ...d, description: withScreenNote(d.description) } : d,
   ))
-  const isMobile = useIsMobile()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -220,6 +233,7 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onCustomi
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'dashboard', { detailsWidth }),
     liveDetailsWidth,
+    leaving: isMobile ? undefined : leaving,
   }
 
   const wide = !isMobile && (size.width === 0 || size.width >= DASHBOARD_WIDE_MIN_PX)

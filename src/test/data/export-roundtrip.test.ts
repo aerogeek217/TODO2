@@ -96,7 +96,6 @@ function buildSeed(): Seed {
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
-      { key: 'quickStatusId', value: '1' },
       { key: 'completedRetentionDays', value: '30' },
       { key: 'color.dark.accent', value: '#4f8cff' },
       { key: 'color.light.accent', value: '#1a5fd0' },
@@ -125,7 +124,7 @@ function buildSeed(): Seed {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'deadline', sortDirection: 'desc', grouping: 'people',
-      runtimeFilter: { field: 'person', label: 'Who' },
+      runtimeFilter: { field: 'person' },
       owner: { layoutId: 2 },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
@@ -247,7 +246,7 @@ describe('export → JSON → import round-trip', () => {
     expect(ALL_SETTING_KEYS.filter((k) => !settingKeys.has(k)), 'settings missing from buildSeed()').toEqual([])
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
-    expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
+    expect(seed.listDefinitions.some((d) => d.runtimeFilter !== undefined)).toBe(true)
     // Both kinds of owner: a layout's list and the Eisenhower's.
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)

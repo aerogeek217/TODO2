@@ -4,7 +4,6 @@ import {
   DEFAULT_WEIGHT,
   tabListId,
   type BandEdge,
-  type HueName,
   type LayoutBand,
   type LayoutBody,
   type LayoutCell,
@@ -692,7 +691,7 @@ export function setActiveTab<L extends WorkspaceLayout>(layout: L, tabId: string
   return updatePanelStrip(layout, loc.panelId, (s) => (s.activeTabId === tabId ? s : { ...s, activeTabId: tabId }))
 }
 
-/** View state: the layout's lens (`null` = No lens; the key goes). The same layout when unchanged. */
+/** Layout config: the layout's lens (`null` = No lens; the key goes). The same layout when unchanged. */
 export function setLayoutLens<L extends WorkspaceLayout>(layout: L, lensId: string | null): L {
   if ((layout.lensId ?? null) === lensId) return layout
   const next = { ...layout }
@@ -711,7 +710,7 @@ export function setLayoutActiveColumn<L extends WorkspaceLayout>(layout: L, page
 }
 
 /** The layout's hue (`null` = none, the app accent; the key goes). The same layout when unchanged. */
-export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: HueName | null): L {
+export function setLayoutHue<L extends WorkspaceLayout>(layout: L, hue: string | null): L {
   if ((layout.hue ?? null) === hue) return layout
   const next = { ...layout }
   if (hue == null) delete next.hue
@@ -801,11 +800,12 @@ function bandKey(band: LayoutBand | undefined): unknown {
 
 /**
  * The structural part of a layout's body — its columns, cells, bands and
- * tabs with their config — without view state (sizes, active tab,
- * collapsed, `viewState`).
+ * tabs with their config, and its lens pick — without view state (sizes,
+ * active tab, collapsed, `viewState`).
  */
 export function layoutStructureKey(body: LayoutBody): string {
   return JSON.stringify({
+    lensId: body.lensId ?? null,
     top: bandKey(body.top),
     columns: body.columns.map((col) => ({
       id: col.id,
@@ -821,6 +821,6 @@ export function layoutStructureKey(body: LayoutBody): string {
 /** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
 export function layoutStructureEqual(a: LayoutBody, b: LayoutBody): boolean {
   if (a === b) return true
-  if (a.columns === b.columns && a.top === b.top && a.bottom === b.bottom) return true
+  if (a.columns === b.columns && a.top === b.top && a.bottom === b.bottom && a.lensId === b.lensId) return true
   return layoutStructureKey(a) === layoutStructureKey(b)
 }

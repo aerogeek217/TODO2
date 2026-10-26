@@ -21,6 +21,7 @@ import {
   patchTabViewState,
   replaceTab,
   setActiveTab,
+  setLayoutLens,
   setCellCollapsed,
   setCellWeights,
   setColumnWeights,
@@ -287,8 +288,10 @@ describe('layoutStructureEqual', () => {
     expect(layoutStructureEqual(l, setCellWeights(l, { ka: 0.25 }))).toBe(true)
   })
 
-  it('sees structure and config', () => {
+  it('sees structure, config and the lens pick', () => {
     const l = addTab(base(), createTab('calendar', 'cal'), { kind: 'cell', cellId: 'kd' }, seqIds())
+    expect(layoutStructureEqual(l, setLayoutLens(l, 'lens-a'))).toBe(false)
+    expect(layoutStructureEqual(setLayoutLens(l, 'lens-a'), setLayoutLens(setLayoutLens(l, 'lens-a'), null))).toBe(false)
     expect(layoutStructureEqual(l, moveTab(l, 'a1', { kind: 'cell', cellId: 'ka', index: 1 }, seqIds()))).toBe(false)
     expect(layoutStructureEqual(l, splitCell(l, 'kc', 'below', seqIds()).layout)).toBe(false)
     expect(layoutStructureEqual(l, patchTabConfig(l, 'cal', 'calendar', { dateTypes: { due: true, followup: false } }))).toBe(false)

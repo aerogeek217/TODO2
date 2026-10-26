@@ -351,6 +351,17 @@ describe('validateImportData', () => {
     expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: horizonSlots, selectedHorizonDefId'])
   })
 
+  // The phone row's status button uses the default status: quickStatusId (no UI ever set it) is retired.
+  it('drops a quickStatusId row as an unrecognized setting', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'defaultStatusId', value: '3' }, { key: 'quickStatusId', value: '2' }],
+    }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([{ key: 'defaultStatusId', value: '3' }])
+    expect(result.warnings).toEqual(['Ignored 1 unrecognized setting: quickStatusId'])
+  })
+
   // Tags have no cap: a maxTags row (a setting of older builds) is an unknown key now.
   it('drops a maxTags row in a current file as an unrecognized setting', () => {
     const result = validateImportData(validData({
@@ -385,6 +396,26 @@ describe('validateImportData', () => {
       if (!result.ok) throw new Error(result.error)
       expect(result.data.people[0]!.email).toBe('ann@example.com')
       expect(result.warnings).toEqual([])
+    })
+
+    it('normalises initials as the editor keeps them: uppercase, at most 3, with a warning', () => {
+      const result = validateImportData(validData({
+        people: [
+          makePerson({ initials: 'al' }),
+          makePerson({ id: 2, name: 'Bo Dee', initials: 'bode' }),
+          makePerson({ id: 3, name: 'Finance', initials: 'FIN' }),
+          makePerson({ id: 4, name: 'Cy Lu', initials: '  ' }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.people.map((p) => p.initials)).toEqual(['AL', 'BOD', 'FIN', 'CL'])
+      expect(result.warnings).toEqual(['Fixed 3 people: "Alice" (initials normalised); "Bo Dee" (initials normalised); "Cy Lu" (initials normalised)'])
+    })
+
+    it('still rejects initials longer than 4 or empty', () => {
+      for (const initials of ['ABCDE', '']) {
+        expect(validateImportData(validData({ people: [makePerson({ initials })] })).ok).toBe(false)
+      }
     })
 
     it('drops an email that is not one valid address, keeping the person, with a warning', () => {
@@ -588,8 +619,8 @@ describe('validateImportData', () => {
   it('rebuilds a recurrenceRule from its known keys, dropping stray ones', () => {
     const result = validateImportData(validData({
       todos: [
-        makeTodo({ id: 1, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
-        makeTodo({ id: 2, recurrenceRule: { type: 'weekly', legacy: true } }),
+        makeTodo({ id: 1, dueDate: now, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
+        makeTodo({ id: 2, dueDate: now, recurrenceRule: { type: 'weekly', legacy: true } }),
         makeTodo({ id: 3, recurrenceRule: null }),
       ],
     }))
@@ -601,6 +632,19 @@ describe('validateImportData', () => {
       undefined,
     ])
     expect('recurrenceRule' in result.data.todos[2]!).toBe(false)
+  })
+
+  it('drops a repeat on a task without a due date, with a warning (the UI repeats only with one)', () => {
+    const result = validateImportData(validData({
+      todos: [
+        makeTodo({ id: 1, title: 'Weekly report', dueDate: now, recurrenceRule: { type: 'weekly' } }),
+        makeTodo({ id: 2, title: 'Water plants', recurrenceRule: { type: 'daily' } }),
+        makeTodo({ id: 3, title: 'Gym', dueDate: null, recurrenceRule: { type: 'weekly' } }),
+      ],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([{ type: 'weekly' }, undefined, undefined])
+    expect(result.warnings).toEqual(['Fixed 2 tasks: "Water plants" (repeat without a due date dropped); "Gym" (repeat without a due date dropped)'])
   })
 
   it('rebuilds a list membership from its known keys, dropping stray ones', () => {
@@ -944,30 +988,20 @@ describe('validateImportData', () => {
       expect(result.ok).toBe(false)
     })
 
-    it('accepts runtimeFilter with optional label', () => {
-      const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'Assignee' } })],
-      }))
-      expect(result.ok).toBe(true)
+    it('accepts a runtimeFilter with an old label of any shape and drops the label', () => {
+      for (const label of ['Assignee', 42, 'x'.repeat(101)]) {
+        const result = validateImportData(validData({
+          listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label } })],
+        }))
+        expect(result.ok).toBe(true)
+        if (!result.ok) return
+        expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({ field: 'person' })
+      }
     })
 
     it('rejects runtimeFilter with unknown field', () => {
       const result = validateImportData(validData({
         listDefinitions: [makeListDef({ runtimeFilter: { field: 'evil', label: '<img onerror=x>' } })],
-      }))
-      expect(result.ok).toBe(false)
-    })
-
-    it('rejects runtimeFilter with non-string label', () => {
-      const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 42 } })],
-      }))
-      expect(result.ok).toBe(false)
-    })
-
-    it('rejects runtimeFilter with label exceeding 100 chars', () => {
-      const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'x'.repeat(101) } })],
       }))
       expect(result.ok).toBe(false)
     })
@@ -984,14 +1018,11 @@ describe('validateImportData', () => {
       // only emits a `runtimeFilter` when the field is in the allowlist —
       // the `as` cast that previously passed unknown shapes through is gone.
       const result = validateImportData(validData({
-        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'Assignee' } })],
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', extra: '<img onerror=x>' } })],
       }))
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({
-        field: 'person',
-        label: 'Assignee',
-      })
+      expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({ field: 'person' })
     })
   })
 })

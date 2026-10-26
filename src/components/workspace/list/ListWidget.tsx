@@ -4,8 +4,7 @@ import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
-import { useLeavingRows } from '../../../hooks/use-leaving-rows'
-import { useTodoStore } from '../../../stores/todo-store'
+import { useKeptTodos, useLeavingRows } from '../../../hooks/use-leaving-rows'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
@@ -16,6 +15,7 @@ import { useListOrderStore, useListRanks } from '../../../stores/list-order-stor
 import { usePersonStore } from '../../../stores/person-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { useStatusStore } from '../../../stores/status-store'
 import {
   isUngroupedSectionKey,
   listSortComparator,
@@ -166,11 +166,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   )
   useEffect(() => { shownIdsRef.current = new Set(list?.todos.map((t) => t.id)) })
   // A kept row is built as it was (open); it shows as it is now (completed).
-  const allTodos = useTodoStore((s) => s.todos)
-  const keptTodos = useMemo(
-    () => (kept.size > 0 ? new Map(allTodos.filter((t) => kept.has(t.id)).map((t) => [t.id, t])) : null),
-    [kept, allTodos],
-  )
+  const keptTodos = useKeptTodos(kept)
 
   const sections = list?.sections ?? EMPTY_SECTIONS
   const shown = useMemo(() => uniqueCount(sections), [sections])
@@ -283,6 +279,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       .sort(listSortComparator(definition.sort, {
         urgentRange: useSettingsStore.getState().urgentDueWithinDays,
         direction: definition.sortDirection,
+        assignedPeopleMap,
+        statuses: useStatusStore.getState().statuses,
       }))
       .map((t) => t.id)
     void useListOrderStore.getState().replaceList(listId, seedRanks(order, pendingSwitch.move))
@@ -337,7 +335,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           selLast={!(next && selectedIds.has(next.id))}
           cursor={cursorKey === key}
           look={rowLook(drag, key, manual)}
-          leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id) : undefined}
+          leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id)?.phase : undefined}
           onSelect={onRowSelect}
           onOpenDetail={openEditPopup}
         />,
@@ -347,9 +345,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     return out
   }
 
-  const promptLabel = definition.runtimeFilter
-    ? (definition.runtimeFilter.label?.trim() || PROMPT_LABEL[definition.runtimeFilter.field])
-    : ''
+  const promptLabel = definition.runtimeFilter ? PROMPT_LABEL[definition.runtimeFilter.field] : ''
 
   let body: React.ReactNode
   if (runtimeFilterPending) {

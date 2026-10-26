@@ -83,7 +83,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     if (!todo.statusId) return undefined
     return s.statuses.find(st => st.id === todo.statusId)
   })
-  const quickStatusId = useSettingsStore((s) => s.quickStatusId)
+  // The status button gives a task without one the default status (Settings › Tasks), when it still exists.
+  const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
+  const hasDefaultStatus = useStatusStore((s) => defaultStatusId != null && s.statuses.some((st) => st.id === defaultStatusId))
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const markers = markerSummary(todo, today, urgentRange)
   const hotRule = useSettingsStore((s) => s.hotRule)
@@ -157,8 +159,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           style={status ? { color: status.color } : undefined}
           onClick={(e) => {
             e.stopPropagation()
-            if (!todo.statusId && quickStatusId != null) {
-              useTodoStore.getState().update(todo.id, { statusId: quickStatusId })
+            if (!todo.statusId && defaultStatusId != null && hasDefaultStatus) {
+              useTodoStore.getState().update(todo.id, { statusId: defaultStatusId })
             } else if (todo.statusId) {
               useTodoStore.getState().update(todo.id, { statusId: undefined })
             }

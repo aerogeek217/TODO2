@@ -168,23 +168,23 @@ describe('RuntimeFilterPicker', () => {
     })
     const onChange = vi.fn()
     const { getByLabelText, rerender, queryByLabelText } = render(
-      <RuntimeFilterPicker spec={{ field: 'person', label: 'Who' }} value={[1, 2]} onChange={onChange} />,
+      <RuntimeFilterPicker spec={{ field: 'person' }} value={[1, 2]} onChange={onChange} />,
     )
-    const clear = getByLabelText('Clear Who')
-    expect(clear.getAttribute('title')).toBe('Clear Who')
+    const clear = getByLabelText('Clear Person')
+    expect(clear.getAttribute('title')).toBe('Clear Person')
     // Not a Tab stop, and its press doesn't take the focus.
     expect(clear.tabIndex).toBe(-1)
     expect(fireEvent.mouseDown(clear)).toBe(false)
     fireEvent.click(clear)
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenLastCalledWith([])
-    expect(document.activeElement).toBe(getByLabelText(/Filter tasks by who/i))
+    expect(document.activeElement).toBe(getByLabelText(/Filter tasks by person/i))
 
     // No picks (or only picks whose entity is gone): no ×.
-    rerender(<RuntimeFilterPicker spec={{ field: 'person', label: 'Who' }} value={[]} onChange={onChange} />)
-    expect(queryByLabelText('Clear Who')).toBeNull()
-    rerender(<RuntimeFilterPicker spec={{ field: 'person', label: 'Who' }} value={[99]} onChange={onChange} />)
-    expect(queryByLabelText('Clear Who')).toBeNull()
+    rerender(<RuntimeFilterPicker spec={{ field: 'person' }} value={[]} onChange={onChange} />)
+    expect(queryByLabelText('Clear Person')).toBeNull()
+    rerender(<RuntimeFilterPicker spec={{ field: 'person' }} value={[99]} onChange={onChange} />)
+    expect(queryByLabelText('Clear Person')).toBeNull()
   })
 
   it('subscribes to the tag store when the spec field is "tag"', () => {

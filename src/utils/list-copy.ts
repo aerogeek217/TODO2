@@ -83,7 +83,7 @@ export function copiedListParts(source: ListDefinition): CopiedListParts {
     sort: source.sort,
     ...(source.sortDirection != null ? { sortDirection: source.sortDirection } : {}),
     grouping: source.grouping,
-    ...(source.runtimeFilter != null ? { runtimeFilter: { ...source.runtimeFilter } } : {}),
+    ...(source.runtimeFilter != null ? { runtimeFilter: { field: source.runtimeFilter.field } } : {}),
     ...(source.showFilterLine === false ? { showFilterLine: false as const } : {}),
   }
 }

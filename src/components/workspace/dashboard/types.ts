@@ -1,6 +1,7 @@
 import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
 import type { ListRowSelectMods } from '../list/ListWidgetRow'
 import type { ValueStore } from '../../../utils/value-store'
+import type { LeavingRows } from '../../../hooks/use-leaving-rows'
 
 /**
  * The tasks a dashboard number stands for — what clicking it opens in the
@@ -27,4 +28,6 @@ export interface DashboardRowKit {
   onDetailsWidthChange: (width: number | undefined) => void
   /** The width while a section's divider is dragged: every section follows it live. */
   liveDetailsWidth: ValueStore<number | null>
+  /** Just-completed rows lingering before they fold (D19; desktop). */
+  leaving: LeavingRows | undefined
 }

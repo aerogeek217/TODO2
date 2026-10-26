@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useDndMonitor, useDroppable, type DragStartEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
 import {
@@ -10,6 +10,7 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
+import { useKeptTodos, useLeavingRows, type LeavingRows } from '../../../hooks/use-leaving-rows'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useAppliedLens } from '../../../stores/screen-filter'
@@ -203,6 +204,10 @@ interface RowContext {
   onDetailsWidthChange: (width: number | undefined) => void
   /** The width while a pane's divider is dragged: every pane follows it live. */
   liveDetailsWidth: ValueStore<number | null>
+  /** Just-completed rows lingering before they fold (D19; desktop). */
+  leaving: LeavingRows | undefined
+  /** The task as it is now behind each kept row (built as it was; shown completed). */
+  keptTodos: ReadonlyMap<number, PersistedTodoItem> | null
 }
 
 interface QuadrantProps {
@@ -253,7 +258,8 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
 
   const rows: ReactNode[] = []
   let j = 0
-  tasks.forEach((todo, i) => {
+  tasks.forEach((built, i) => {
+    const todo = ctx.keptTodos?.get(built.id) ?? built
     const key = rowKey(q, todo.id)
     if (key !== drag?.sourceKey) {
       if (j === lineAt) rows.push(<div key="drop-line" className={styles.dropLine} data-drop-line="" />)
@@ -279,6 +285,7 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
         selLast={!(next && ctx.selectedIds.has(next.id))}
         cursor={ctx.cursorKey === key}
         look={rowLook(key)}
+        leaving={ctx.keptTodos?.has(todo.id) ? ctx.leaving?.get(todo.id)?.phase : undefined}
         onSelect={ctx.onSelect}
         onOpenDetail={ctx.onOpen}
       />,
@@ -387,7 +394,11 @@ interface WidgetProps {
  * defaults).
  */
 export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
-  const source = useEisenhowerSource()
+  const isMobile = useIsMobile()
+  // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
+  const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
+  const leaving = useLeavingRows((id) => shownIdsRef.current.has(id))
+  const source = useEisenhowerSource(isMobile ? undefined : leaving)
   return (
     <EisenhowerBody
       tab={tab}
@@ -395,6 +406,9 @@ export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
       shown={source.shown}
       openTotal={source.openTotal}
       list={source.list}
+      leaving={isMobile ? undefined : leaving}
+      kept={source.kept}
+      shownIdsRef={shownIdsRef}
     />
   )
 }
@@ -417,9 +431,14 @@ interface BodyProps extends WidgetProps {
   openTotal: number
   /** The Eisenhower's list (absent only until it is loaded). */
   list?: ListSourceContext
+  leaving: LeavingRows | undefined
+  /** Of the `leaving` tasks, the ones `shown` keeps as they were. */
+  kept: ReadonlySet<number>
+  /** Set to the tasks shown as rows now (what a completion lingers in). */
+  shownIdsRef: RefObject<ReadonlySet<number>>
 }
 
-function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
+function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, shownIdsRef }: BodyProps) {
   const isMobile = useIsMobile()
   // A pane divider's width while it is dragged: every pane follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
@@ -475,6 +494,8 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
     [byPane, stacked, collapsed],
   )
   const { inScope, selectedIds, cursorKey, onSelect } = useWidgetSelection(tab.id, () => rows)
+  useEffect(() => { shownIdsRef.current = new Set(rows.map((r) => r.todoId)) })
+  const keptTodos = useKeptTodos(kept)
 
   const toggle = (q: EisenhowerQuadrant, collapse: boolean) => {
     const next = EISENHOWER_QUADRANTS.filter((x) => (x === q ? collapse : collapsed.has(x)))
@@ -502,6 +523,8 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list }: BodyProps) {
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'eisenhower', { detailsWidth }),
     liveDetailsWidth,
+    leaving,
+    keptTodos,
   }
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 

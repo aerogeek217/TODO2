@@ -14,13 +14,14 @@ import { parseStaleAfterDays } from '../utils/stale'
 import { isRowDensity } from '../utils/row-density'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
-import { isHueName, LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { isLayoutHue } from '../utils/layout-hue'
 import { checkLayoutBody, isId, pickLayoutBody } from './layout-shape'
 import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, readLensesSetting } from './lens-shape'
 import { LENS_ID_MAX } from '../utils/lens'
-import { isValidEmail, normalizeEmail } from '../utils/person'
+import { isValidEmail, normalizeEmail, normalizeInitials } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -176,8 +177,8 @@ const VALID_RUNTIME_FILTER_FIELDS: readonly RuntimeFilterField[] = ['person', 's
 function isOptRuntimeFilter(v: unknown): boolean {
   if (v === undefined || v === null) return true
   if (!isRecord(v)) return false
+  // Only the field is read; anything else (an old `label`) is dropped.
   if (typeof v.field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(v.field)) return false
-  if (!isOptStr(v.label, 100)) return false
   return true
 }
 
@@ -299,7 +300,7 @@ function checkLayout(v: unknown): CheckResult {
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
     ['lensId', v.lensId === undefined || isLensId(v.lensId)],
     ['activeColumnId', v.activeColumnId === undefined || isId(v.activeColumnId)],
-    ['hue', v.hue === undefined || isHueName(v.hue)],
+    ['hue', v.hue === undefined || isLayoutHue(v.hue)],
   ])
   if (fields !== true) return fields
   return checkLayoutBody(v)
@@ -309,7 +310,8 @@ function checkLayout(v: unknown): CheckResult {
  * A layout's lens pick as stored: a lens id's shape (whether a lens has it
  * is read where the pick is used — an id no lens has is No lens).
  */
-function isLensId(v: unknown): v is string {
+/** A layout's lens pick as stored: a lens id (a short string); `data/draft-storage` reads one too. */
+export function isLensId(v: unknown): v is string {
   return isStr(v, LENS_ID_MAX)
 }
 
@@ -364,7 +366,6 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (
     v.key === SETTING_KEYS.defaultStatusId ||
-    v.key === SETTING_KEYS.quickStatusId ||
     v.key === SETTING_KEYS.seededAssignedStatusId ||
     v.key === SETTING_KEYS.activeLayoutId
   ) {
@@ -485,7 +486,9 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     dueDate: toOptDate(v.dueDate),
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
-    recurrenceRule: pickRecurrenceRule(v.recurrenceRule),
+    // A repeat needs a due date (the UI offers it only with one; any later
+    // write drops it — `withOrphanedRuleDropped`): without one it is dropped.
+    recurrenceRule: v.dueDate != null ? pickRecurrenceRule(v.recurrenceRule) : undefined,
     // Only `true` is stored; `false` / absent both mean "not in focus".
     focus: v.focus === true ? true : undefined,
     urgent: v.urgent === true ? true : undefined,
@@ -517,7 +520,7 @@ function personEmail(v: unknown): { email: string | undefined; dropped: boolean 
 
 function pickPerson(v: Raw): AllFields<Person> {
   return {
-    id: optNum(v.id), name: v.name as string, initials: v.initials as string,
+    id: optNum(v.id), name: v.name as string, initials: normalizeInitials(v.initials as string, v.name as string),
     color: optStr(v.color),
     email: personEmail(v.email).email,
   } satisfies AllFields<Person>
@@ -621,7 +624,7 @@ function layoutFixes(v: Raw): string[] {
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
   if (v.lensId !== undefined && !isLensId(v.lensId)) fixes.push('lens reset')
   if (v.activeColumnId !== undefined && !isId(v.activeColumnId)) fixes.push('phone column reset')
-  if (v.hue !== undefined && !isHueName(v.hue)) fixes.push('hue reset')
+  if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
 
@@ -648,7 +651,7 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
     lensId: isLensId(v.lensId) ? v.lensId : undefined,
     activeColumnId: isId(v.activeColumnId) ? v.activeColumnId : undefined,
-    hue: isHueName(v.hue) ? v.hue : undefined,
+    hue: isLayoutHue(v.hue) ? v.hue : undefined,
   } satisfies AllFields<WorkspaceLayout>
 }
 
@@ -667,10 +670,7 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
   if (!isRecord(v)) return undefined
   const field = v.field
   if (typeof field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(field)) return undefined
-  return compactRow<RuntimeFilterSpec>({
-    field: field as RuntimeFilterField,
-    label: typeof v.label === 'string' ? v.label : undefined,
-  } satisfies AllFields<RuntimeFilterSpec>)
+  return { field: field as RuntimeFilterField } satisfies AllFields<RuntimeFilterSpec>
 }
 
 /**
@@ -769,12 +769,22 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * may have stored before it checked these parts.
  */
 export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K> } = {
-  todos: { check: checkTodo, pick: pickTodo },
+  todos: {
+    check: checkTodo,
+    pick: pickTodo,
+    fixer: {
+      fixes: (row) => (row.recurrenceRule != null && row.dueDate == null ? ['repeat without a due date dropped'] : []),
+      lead: (n) => `Fixed ${plural(n, 'task', 'tasks')}`,
+    },
+  },
   people: {
     check: checkPerson,
     pick: pickPerson,
     fixer: {
-      fixes: (row) => (personEmail(row.email).dropped ? ['invalid email dropped'] : []),
+      fixes: (row) => [
+        ...(typeof row.initials === 'string' && normalizeInitials(row.initials, String(row.name)) !== row.initials ? ['initials normalised'] : []),
+        ...(personEmail(row.email).dropped ? ['invalid email dropped'] : []),
+      ],
       lead: (n) => `Fixed ${plural(n, 'person', 'people')}`,
     },
   },

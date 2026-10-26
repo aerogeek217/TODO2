@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { CompletedTasksSection } from '../../../components/settings/sections/CompletedTasksSection'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { makeTodo } from '../../helpers'
 
 // Settings › Completed tasks › "Delete completed tasks…" is a modal like the
@@ -37,5 +38,28 @@ describe('the Delete completed tasks dialog', () => {
     fireEvent.keyDown(cancel, { key: 'Tab' })
     expect(dialog.contains(document.activeElement)).toBe(true)
     expect(document.activeElement).not.toBe(cancel)
+  })
+})
+
+describe('Offer to delete after', () => {
+  const retention = () => screen.getByRole('combobox', { name: 'Offer to delete completed tasks after' }) as HTMLSelectElement
+  const labels = () => Array.from(retention().options).map((o) => o.textContent)
+
+  it('a stored value outside the choices (e.g. from an import) shows as an extra choice', () => {
+    useSettingsStore.setState({ completedRetentionDays: 45 })
+    render(<CompletedTasksSection />)
+    expect(retention().value).toBe('45')
+    expect(labels()).toEqual(['Keep forever', '7 days', '14 days', '30 days', '60 days', '90 days', '45 days'])
+    cleanup()
+    useSettingsStore.setState({ completedRetentionDays: 1 })
+    render(<CompletedTasksSection />)
+    expect(labels().at(-1)).toBe('1 day')
+  })
+
+  it('an offered value adds nothing', () => {
+    useSettingsStore.setState({ completedRetentionDays: 30 })
+    render(<CompletedTasksSection />)
+    expect(retention().value).toBe('30')
+    expect(labels()).toHaveLength(6)
   })
 })

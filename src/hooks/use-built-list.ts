@@ -13,6 +13,7 @@ import { applyRuntimeFilter, buildList, type ListContents } from '../services/bu
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
 import { useFilterSettings } from './use-filter-settings'
+import { restoreLeaving, type LeavingRows } from './use-leaving-rows'
 
 export interface BuiltList {
   /** The list's members and sections; `null` without a definition or while its prompt is unanswered. */
@@ -71,15 +72,17 @@ const NO_BUILT: BuiltList = {
  * yet; an empty array = no narrowing.
  *
  * `leaving` (D19, `useLeavingRows`): tasks just completed that this list
- * showed. Where the list would drop one now, it is built as it was before
- * the completion (open), so its row keeps its place until it has folded
- * away; `kept` names those.
+ * showed. Where the list would drop one now, it is built as it was just
+ * before the completion (open, its `modifiedAt` unmoved — a Modified sort or
+ * clause keeps it too), so its row keeps its place until it has folded
+ * away; `kept` names those. Only membership, order and grouping read the
+ * kept build: its row shows the task as it is now (`useKeptTodos`).
  */
 export function useBuiltList(
   definition: PersistedListDefinition | undefined,
   runtimeFilterValue: number[] | undefined,
   screenFilter?: FilterCriteria,
-  leaving?: ReadonlyMap<number, unknown>,
+  leaving?: LeavingRows,
 ): BuiltList {
   const statuses = useStatusStore((s) => s.statuses)
   const todos = useTodoStore((s) => s.todos)
@@ -141,7 +144,7 @@ export function useBuiltList(
       const shown = new Set(list.todos.map((t) => t.id))
       const dropped = new Set([...leaving.keys()].filter((id) => !shown.has(id)))
       if (dropped.size > 0) {
-        list = build(todos.map((t) => (dropped.has(t.id) && t.isCompleted ? { ...t, isCompleted: false, completedAt: undefined } : t)))
+        list = build(restoreLeaving(todos, leaving, dropped))
         kept = dropped
       }
     }

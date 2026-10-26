@@ -81,7 +81,6 @@ interface SettingsState {
   colors: ThemedColors
   themeMode: ThemeMode
   defaultStatusId: number | null
-  quickStatusId: number | null
   seededAssignedStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
@@ -354,7 +353,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   themeMode: 'dark' as ThemeMode,
   defaultStatusId: null,
-  quickStatusId: null,
   seededAssignedStatusId: null,
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
@@ -386,7 +384,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
       let defaultStatusId: number | null = null
-      let quickStatusId: number | null = null
       let seededAssignedStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
@@ -418,8 +415,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           }
         } else if (row.key === SETTING_KEYS.defaultStatusId) {
           defaultStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === SETTING_KEYS.quickStatusId) {
-          quickStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.seededAssignedStatusId) {
           seededAssignedStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.completedRetentionDays) {
@@ -474,7 +469,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       // A direction only for a sort that has one.
       if (!sortHasDirection(newListSort)) newListSortDirection = 'asc'
       set({
-        colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
+        colors, defaultStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
         followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
         rowDensity, lenses, lensPresetsSeeded, shortcutOverrides, eisenhowerPanes, eisenhowerListId,

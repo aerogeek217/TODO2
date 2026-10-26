@@ -5,7 +5,6 @@ import {
   DEFAULT_LAYOUT_NAME,
   createTab,
   layoutBodyOf,
-  type HueName,
   type PersistedWorkspaceLayout,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
@@ -333,7 +332,7 @@ export const layoutRepository = {
 
   /** Renames the layout; nothing else in the row changes. */
   /** Renames a layout; with `hue`, sets its hue too (`null` = none: the key goes). */
-  async rename(id: number, name: string, hue?: HueName | null): Promise<void> {
+  async rename(id: number, name: string, hue?: string | null): Promise<void> {
     await db.layouts.update(id, hue === undefined ? { name } : { name, hue: hue ?? undefined })
   },
 

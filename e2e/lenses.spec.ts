@@ -3,10 +3,11 @@ import { rowTitles } from './fixtures/seed'
 import { seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * D15 Lenses: a layout's lens, picked in the top bar's lens control, is
- * view state — it survives a reload — and composes under every widget; the
- * glasses lift it for now, and a layout switch (or a reload) puts it back.
- * The counter at the tray's end says what the lens and the chips keep.
+ * D15 Lenses: a layout's lens, picked in the top bar's lens control, is a
+ * layout edit — unsaved until Save (kept across a reload meanwhile, like any
+ * edit) — and composes under every widget; the glasses lift it for now, and
+ * a layout switch (or a reload) puts it back. The counter at the tray's end
+ * says what the lens and the chips keep.
  */
 
 const SEED: WorkspaceSeed = {
@@ -39,24 +40,46 @@ async function pickLens(page: Page, name: string) {
   await page.getByRole('menu', { name: 'Lens for this layout' }).getByRole('menuitemradio', { name: new RegExp(`^${name}`) }).click()
 }
 
+const saveButton = (page: Page) => page.getByTestId('layout-save')
+
+/** Picks the lens and saves the layout (a pick is an unsaved edit). */
+async function pickAndSaveLens(page: Page, name: string) {
+  await pickLens(page, name)
+  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await saveButton(page).click()
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+}
+
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('a lens picked for a layout survives a reload; the counter and the widgets follow it', async ({ page }) => {
+test('a lens picked for a layout is an unsaved edit, kept across a reload, stored by Save; the counter and the widgets follow it', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
   await expect(lensName(page)).toHaveAccessibleName('Lens: none')
   await expect(counter(page)).toHaveCount(0)
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
   await pickLens(page, 'Has a person')
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
   await expect(counter(page)).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
+  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
 
+  // Unsaved, the pick is kept across a reload like any edit.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
+  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
   await expect(counter(page)).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
+
+  // Saved, it is the layout's.
+  await saveButton(page).click()
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await page.reload()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
   // The other layout has its own pick (none); coming back, this one's is there.
   await switchLayout(page, 'Other')
@@ -67,7 +90,7 @@ test('a lens picked for a layout survives a reload; the counter and the widgets 
 
 test('the glasses lift the lens for now; a layout switch and a reload put it back', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await pickLens(page, 'Has a person')
+  await pickAndSaveLens(page, 'Has a person')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
 
   await tray(page).getByRole('button', { name: 'Lens on. Lift it' }).click()
@@ -93,7 +116,7 @@ test('the glasses lift the lens for now; a layout switch and a reload put it bac
 
 test('a chip on top narrows further and turns the counter red; Clear all leaves the lens', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await pickLens(page, 'Has a person')
+  await pickAndSaveLens(page, 'Has a person')
   await tray(page).getByRole('button', { name: /^Status filter/ }).click()
   await page.getByRole('option', { name: 'Waiting' }).click()
   await page.keyboard.press('Escape')
