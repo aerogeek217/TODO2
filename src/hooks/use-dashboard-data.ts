@@ -11,7 +11,7 @@ import {
   type DashboardTrendRange,
 } from '../models/dashboard-config'
 import { useFilterSettings } from './use-filter-settings'
-import { restoreLeaving, type LeavingRows } from './use-leaving-rows'
+import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
 import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
@@ -238,8 +238,9 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
     const hot = computeTiles(asWas, ctx).hot.ids
     const followupAsWas = computeFollowupGroups(asWas, ctx, lookAhead)
     const staleAsWas = computeStaleTasks(asWas, ctx, staleDays).ids
-    const shownNow = new Set(rowIds(now.hot, now.followup, now.stale))
-    const kept = new Set(rowIds(hot, followupAsWas, staleAsWas).filter((id) => leaving.has(id) && !shownNow.has(id)))
+    const inRows = new Set(rowIds(hot, followupAsWas, staleAsWas))
+    const kept = keptOf(leaving, new Set(rowIds(now.hot, now.followup, now.stale)))
+    for (const id of kept) if (!inRows.has(id)) kept.delete(id)
     return kept.size > 0 ? { hot, followup: followupAsWas, stale: staleAsWas, kept } : now
   }, [
     tiles, followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings,

@@ -838,6 +838,62 @@ describe('ListWidget — a completed row leaves (D19)', () => {
     todos: useTodoStore.getState().todos.map((t, i) => ({ ...t, modifiedAt: new Date(2026, 8, days[i] ?? 1) })),
   })
 
+  /** Task `id` repeats weekly from `due`. */
+  const repeatsWeekly = (id: number, due: Date) => useTodoStore.setState({
+    todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, recurrenceRule: { type: 'weekly' as const }, dueDate: due } : t)),
+  })
+  /** Its occurrence done, as the store does it: the due date advances, nothing is completed, the modified date moves. */
+  const advance = (id: number, to: Date) => act(() => {
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, dueDate: to, modifiedAt: new Date(2026, 9, 10, 12) } : t)) })
+  })
+  const rowCheckbox = (title: string) => document.querySelector(`[data-task-title="${title}"]`)!.closest('[data-row-todo]')!.querySelector<HTMLInputElement>('input[type="checkbox"]')!
+
+  it('a recurring task’s occurrence done: the row lingers as that occurrence, completed, then the next one takes its place', () => {
+    vi.useFakeTimers()
+    repeatsWeekly(2, new Date(2026, 9, 24))
+    setup(def({ sort: 'modified' }))
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    advance(2, new Date(2026, 9, 31))
+    // In place, checked and struck, though the task is open with its next date.
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(leavingOf('Bob task')).toBe('stay')
+    expect(rowCheckbox('Bob task').checked).toBe(true)
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(leavingOf('Bob task')).toBe('fold')
+    act(() => { vi.advanceTimersByTime(180) })
+    // The next occurrence: still in the list (no date clause), open, at its new place (Modified sorts oldest first: the advance's date is the oldest here).
+    expect(leavingOf('Bob task')).toBeNull()
+    expect(rowCheckbox('Bob task').checked).toBe(false)
+    expect(titles()).toEqual(['Bob task', 'Alice task', 'Shared task'])
+  })
+
+  it('a recurring task’s occurrence done leaves a list the next date falls outside, after the linger', () => {
+    vi.useFakeTimers()
+    repeatsWeekly(2, new Date(2026, 9, 24))
+    const thatWeek = { match: 'range' as const, start: { kind: 'fixed' as const, iso: '2026-10-19' }, end: { kind: 'fixed' as const, iso: '2026-10-25' } }
+    setup(def({}, { dates: { deadline: thatWeek } }))
+    expect(titles()).toEqual(['Bob task'])
+    advance(2, new Date(2026, 9, 31))
+    expect(titles()).toEqual(['Bob task'])
+    expect(leavingOf('Bob task')).toBe('stay')
+    expect(rowCheckbox('Bob task').checked).toBe(true)
+    act(() => { vi.advanceTimersByTime(680) })
+    expect(titles()).toEqual([])
+  })
+
+  it('the advance undone while the row lingers takes it back, open', () => {
+    vi.useFakeTimers()
+    repeatsWeekly(2, new Date(2026, 9, 24))
+    setup(def())
+    advance(2, new Date(2026, 9, 31))
+    expect(leavingOf('Bob task')).toBe('stay')
+    advance(2, new Date(2026, 9, 24))
+    expect(leavingOf('Bob task')).toBeNull()
+    expect(rowCheckbox('Bob task').checked).toBe(false)
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+  })
+
   it('in a list sorted by Modified the row keeps its place, though the completion moved its modified date', () => {
     vi.useFakeTimers()
     modifiedOn([1, 2, 3, 4])

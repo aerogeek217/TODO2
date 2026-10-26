@@ -37,6 +37,7 @@ import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import styles from './DashboardWidget.module.css'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { leavingShownAs } from '../../../hooks/use-leaving-rows'
 
 /** What every section is rendered with. */
 export interface DashboardSectionProps {
@@ -131,7 +132,7 @@ function TaskRows({ sectionKey, ids, data, kit, kept }: {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const todos = ids.flatMap((id) => {
     const t = data.todoById.get(id)
-    return t ? [t] : []
+    return t ? [leavingShownAs(t, kept?.has(id) ? kit.leaving?.get(id) : undefined)] : []
   })
   return (
     <>

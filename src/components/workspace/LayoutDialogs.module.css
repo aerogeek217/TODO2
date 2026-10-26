@@ -105,6 +105,7 @@
 /* Edit layout's hue swatches (D19): None, then the six hues. */
 .hues {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin: 14px 0 0;
@@ -125,10 +126,20 @@
   gap: 8px;
 }
 
-/* The custom colour's input (the app's colour swatch + hex field), after the presets. */
+/* The custom colour on its own line under the presets: its radio, a label,
+   then the app's colour input (swatch + hex) and its Choose… button. */
 .custom {
+  flex-basis: 100%;
   display: flex;
   align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.customLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  cursor: pointer;
 }
 
 /* Each swatch is its radio, drawn as a dot (the inline background is the hue). */

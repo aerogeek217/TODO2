@@ -166,7 +166,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   )
   useEffect(() => { shownIdsRef.current = new Set(list?.todos.map((t) => t.id)) })
   // A kept row is built as it was (open); it shows as it is now (completed).
-  const keptTodos = useKeptTodos(kept)
+  const keptTodos = useKeptTodos(kept, leaving)
 
   const sections = list?.sections ?? EMPTY_SECTIONS
   const shown = useMemo(() => uniqueCount(sections), [sections])

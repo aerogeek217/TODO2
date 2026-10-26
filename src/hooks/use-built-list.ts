@@ -13,7 +13,7 @@ import { applyRuntimeFilter, buildList, type ListContents } from '../services/bu
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
 import { useFilterSettings } from './use-filter-settings'
-import { restoreLeaving, type LeavingRows } from './use-leaving-rows'
+import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
 
 export interface BuiltList {
   /** The list's members and sections; `null` without a definition or while its prompt is unanswered. */
@@ -141,8 +141,7 @@ export function useBuiltList(
     let list = build(todos)
     let kept: ReadonlySet<number> = NO_IDS
     if (leaving && leaving.size > 0) {
-      const shown = new Set(list.todos.map((t) => t.id))
-      const dropped = new Set([...leaving.keys()].filter((id) => !shown.has(id)))
+      const dropped = keptOf(leaving, new Set(list.todos.map((t) => t.id)))
       if (dropped.size > 0) {
         list = build(restoreLeaving(todos, leaving, dropped))
         kept = dropped
