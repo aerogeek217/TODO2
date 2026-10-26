@@ -610,6 +610,18 @@ describe('DashboardWidget — a completed row leaves its section (D19)', () => {
     expect(rowTitles(section('stale')!)).toEqual(['Clean up shared drive'])
   })
 
+  it('Stale tasks: the row lingers though the completion moved its modified date to now', () => {
+    setup(tabWith({ sections: [{ id: 'stale' }] }))
+    act(() => {
+      const now = new Date()
+      useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === 17 ? { ...t, isCompleted: true, completedAt: now, modifiedAt: now } : t)) })
+    })
+    expect(rowTitles(section('stale')!)).toEqual(['Offsite agenda', 'Clean up shared drive'])
+    expect(leavingOf(section('stale')!, 17)).toBe('stay')
+    act(() => { vi.advanceTimersByTime(680) })
+    expect(rowTitles(section('stale')!)).toEqual(['Clean up shared drive'])
+  })
+
   it('a section that shows completed tasks (Recently completed) gains the row at once, unfolded', () => {
     setup(tabWith({ sections: [{ id: 'hot' }, { id: 'recent' }] }))
     complete(2)

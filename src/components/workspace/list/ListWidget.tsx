@@ -332,7 +332,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           selLast={!(next && selectedIds.has(next.id))}
           cursor={cursorKey === key}
           look={rowLook(drag, key, manual)}
-          leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id) : undefined}
+          leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id)?.phase : undefined}
           onSelect={onRowSelect}
           onOpenDetail={openEditPopup}
         />,

@@ -285,7 +285,7 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
         selLast={!(next && ctx.selectedIds.has(next.id))}
         cursor={ctx.cursorKey === key}
         look={rowLook(key)}
-        leaving={ctx.keptTodos?.has(todo.id) ? ctx.leaving?.get(todo.id) : undefined}
+        leaving={ctx.keptTodos?.has(todo.id) ? ctx.leaving?.get(todo.id)?.phase : undefined}
         onSelect={ctx.onSelect}
         onOpenDetail={ctx.onOpen}
       />,

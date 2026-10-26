@@ -73,3 +73,25 @@ test('a completed row lingers, then folds out of a dashboard section; the count 
   await expect.poll(() => rowTitles(hot)).toEqual(['Fix the outage', 'Plan learning time'])
   await expect(hot.locator('[data-leaving]')).toHaveCount(0)
 })
+
+test('a stale row lingers too, though completing it moves its modified date to now', async ({ page }) => {
+  await seedWorkspace(page, {
+    tasks: [
+      { title: 'Plan the offsite', modifiedInDays: -40 },
+      { title: 'Collect sign-offs', modifiedInDays: -30 },
+      { title: 'Clean the garage', modifiedInDays: -20 },
+    ],
+    layouts: [{
+      name: 'Dash',
+      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'stale' }] } }] }] }],
+    }],
+  })
+  const stale = page.locator('[data-dash-section="stale"]')
+  await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
+  await stale.locator('[data-row-todo]', { has: page.locator('span[data-task-title="Collect sign-offs"]') })
+    .getByRole('checkbox', { name: 'Mark complete' }).click()
+
+  await expect(stale.locator('[data-leaving="stay"]')).toHaveCount(1)
+  expect(await rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
+  await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Clean the garage'])
+})

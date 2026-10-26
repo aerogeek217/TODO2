@@ -156,7 +156,7 @@ function TaskRows({ sectionKey, ids, data, kit, kept }: {
             selLast={!(next && kit.selectedIds.has(next.id))}
             cursor={kit.cursorKey === key}
             look="idle"
-            leaving={kept?.has(todo.id) ? kit.leaving?.get(todo.id) : undefined}
+            leaving={kept?.has(todo.id) ? kit.leaving?.get(todo.id)?.phase : undefined}
             onSelect={kit.onSelect}
             onOpenDetail={kit.onOpen}
           />

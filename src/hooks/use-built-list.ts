@@ -72,9 +72,11 @@ const NO_BUILT: BuiltList = {
  * yet; an empty array = no narrowing.
  *
  * `leaving` (D19, `useLeavingRows`): tasks just completed that this list
- * showed. Where the list would drop one now, it is built as it was before
- * the completion (open), so its row keeps its place until it has folded
- * away; `kept` names those.
+ * showed. Where the list would drop one now, it is built as it was just
+ * before the completion (open, its `modifiedAt` unmoved — a Modified sort or
+ * clause keeps it too), so its row keeps its place until it has folded
+ * away; `kept` names those. Only membership, order and grouping read the
+ * kept build: its row shows the task as it is now (`useKeptTodos`).
  */
 export function useBuiltList(
   definition: PersistedListDefinition | undefined,

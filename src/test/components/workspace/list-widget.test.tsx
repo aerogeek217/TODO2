@@ -828,4 +828,37 @@ describe('ListWidget — a completed row leaves (D19)', () => {
     complete(2)
     expect(titles()).toEqual(['Alice task', 'Shared task'])
   })
+
+  /** Completes task `id` as the store does: its modified date moves to now. */
+  const completeNow = (id: number) => act(() => {
+    const now = new Date(2026, 9, 10, 12)
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, isCompleted: true, completedAt: now, modifiedAt: now } : t)) })
+  })
+  const modifiedOn = (days: number[]) => useTodoStore.setState({
+    todos: useTodoStore.getState().todos.map((t, i) => ({ ...t, modifiedAt: new Date(2026, 8, days[i] ?? 1) })),
+  })
+
+  it('in a list sorted by Modified the row keeps its place, though the completion moved its modified date', () => {
+    vi.useFakeTimers()
+    modifiedOn([1, 2, 3, 4])
+    setup(def({ sort: 'modified' }))
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    completeNow(1)
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(leavingOf('Alice task')).toBe('stay')
+    act(() => { vi.advanceTimersByTime(680) })
+    expect(titles()).toEqual(['Bob task', 'Shared task'])
+  })
+
+  it('a Modified date clause keeps the row while it lingers', () => {
+    vi.useFakeTimers()
+    modifiedOn([1, 2, 3, 4])
+    const lastSeptember = { match: 'range' as const, start: { kind: 'fixed' as const, iso: '2026-09-01' }, end: { kind: 'fixed' as const, iso: '2026-09-30' } }
+    setup(def({}, { dates: { modified: lastSeptember } }))
+    completeNow(2)
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    expect(leavingOf('Bob task')).toBe('stay')
+    act(() => { vi.advanceTimersByTime(680) })
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+  })
 })
