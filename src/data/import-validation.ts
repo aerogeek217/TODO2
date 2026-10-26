@@ -486,7 +486,9 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     dueDate: toOptDate(v.dueDate),
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
-    recurrenceRule: pickRecurrenceRule(v.recurrenceRule),
+    // A repeat needs a due date (the UI offers it only with one; any later
+    // write drops it — `withOrphanedRuleDropped`): without one it is dropped.
+    recurrenceRule: v.dueDate != null ? pickRecurrenceRule(v.recurrenceRule) : undefined,
     // Only `true` is stored; `false` / absent both mean "not in focus".
     focus: v.focus === true ? true : undefined,
     urgent: v.urgent === true ? true : undefined,
@@ -767,7 +769,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  * may have stored before it checked these parts.
  */
 export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K> } = {
-  todos: { check: checkTodo, pick: pickTodo },
+  todos: {
+    check: checkTodo,
+    pick: pickTodo,
+    fixer: {
+      fixes: (row) => (row.recurrenceRule != null && row.dueDate == null ? ['repeat without a due date dropped'] : []),
+      lead: (n) => `Fixed ${plural(n, 'task', 'tasks')}`,
+    },
+  },
   people: {
     check: checkPerson,
     pick: pickPerson,

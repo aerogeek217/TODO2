@@ -619,8 +619,8 @@ describe('validateImportData', () => {
   it('rebuilds a recurrenceRule from its known keys, dropping stray ones', () => {
     const result = validateImportData(validData({
       todos: [
-        makeTodo({ id: 1, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
-        makeTodo({ id: 2, recurrenceRule: { type: 'weekly', legacy: true } }),
+        makeTodo({ id: 1, dueDate: now, recurrenceRule: { type: 'monthly', originalDayOfMonth: 31, every: 2, note: 'x' } }),
+        makeTodo({ id: 2, dueDate: now, recurrenceRule: { type: 'weekly', legacy: true } }),
         makeTodo({ id: 3, recurrenceRule: null }),
       ],
     }))
@@ -632,6 +632,19 @@ describe('validateImportData', () => {
       undefined,
     ])
     expect('recurrenceRule' in result.data.todos[2]!).toBe(false)
+  })
+
+  it('drops a repeat on a task without a due date, with a warning (the UI repeats only with one)', () => {
+    const result = validateImportData(validData({
+      todos: [
+        makeTodo({ id: 1, title: 'Weekly report', dueDate: now, recurrenceRule: { type: 'weekly' } }),
+        makeTodo({ id: 2, title: 'Water plants', recurrenceRule: { type: 'daily' } }),
+        makeTodo({ id: 3, title: 'Gym', dueDate: null, recurrenceRule: { type: 'weekly' } }),
+      ],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.todos.map((t) => t.recurrenceRule)).toEqual([{ type: 'weekly' }, undefined, undefined])
+    expect(result.warnings).toEqual(['Fixed 2 tasks: "Water plants" (repeat without a due date dropped); "Gym" (repeat without a due date dropped)'])
   })
 
   it('rebuilds a list membership from its known keys, dropping stray ones', () => {
