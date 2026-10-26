@@ -97,8 +97,10 @@ const LAYER_CLASS: Record<DialogLayer, string | undefined> = {
  *   where it was when the dialog closes.
  * - **Backdrop:** a press that starts and ends on it closes the dialog, so a
  *   text drag that ends outside the panel doesn't. It dims and blurs the
- *   page (`--backdrop-blur`) — unless the dialog opened over another modal
- *   or on the `raised` / `nested` tiers, whose backdrop adds no second blur.
+ *   page (`--backdrop-blur`) — unless the dialog opened over another modal,
+ *   whose backdrop already blurs it (a second blur would double it). The
+ *   tier (`raised` / `nested`) only orders the layers: a dialog on one that
+ *   opens alone blurs like any other.
  * - **Keys stay in:** the panel is `data-shortcut-scope="modal"`, so no app
  *   shortcut fires from inside it.
  * - **Tier:** what it renders (portaled layers too) reads its `layer` with
@@ -136,17 +138,17 @@ export function DialogFrame({
   // Opened over another modal: that one's backdrop already blurs the page.
   // Decided once mounted (before paint), from the backdrops before this one
   // in the page: a modal this one replaces in the same render is gone then.
+  // Whatever the tier: a `nested` / `raised` dialog that opens alone (a
+  // confirm from a list, the unsaved prompt from the top bar) blurs too.
   const backdropRef = useRef<HTMLDivElement | null>(null)
-  const tierStacked = layer === 'nested' || layer === 'raised'
-  const [overAnother, setOverAnother] = useState(false)
+  const [stacked, setStacked] = useState(false)
   useLayoutEffect(() => {
     const own = backdropRef.current
-    if (!own || tierStacked) return
+    if (!own) return
     const below = [...document.querySelectorAll(`[${MODAL_BACKDROP_ATTR}]`)]
       .some((el) => el !== own && (el.compareDocumentPosition(own) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0)
-    setOverAnother(below)
-  }, [tierStacked])
-  const stacked = tierStacked || overAnother
+    setStacked(below)
+  }, [])
 
   // Focus moves in on open (unless a control inside already took it) and
   // goes back to the opener once the dialog is gone.

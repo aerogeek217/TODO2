@@ -60,7 +60,7 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
   const trimmed = name.trim()
   const submit = () => { if (trimmed) onConfirm(trimmed, withHue ? hue : undefined) }
   return (
-    <Dialog open onClose={onCancel} title={title} initialFocusRef={inputRef} nested>
+    <Dialog open onClose={onCancel} title={title} initialFocusRef={inputRef}>
       <form
         onSubmit={(e) => { e.preventDefault(); submit() }}
         className={styles.form}
@@ -150,7 +150,7 @@ interface DeleteLayoutDialogProps {
 export function DeleteLayoutDialog({ layoutName, ownedLists = 0, onConfirm, onCancel }: DeleteLayoutDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   return (
-    <Dialog open onClose={onCancel} title={`Delete layout “${layoutName}”?`} initialFocusRef={cancelRef} nested>
+    <Dialog open onClose={onCancel} title={`Delete layout “${layoutName}”?`} initialFocusRef={cancelRef}>
       <DialogBody>{deleteLayoutMessage(ownedLists)}</DialogBody>
       <DialogActions>
         <button ref={cancelRef} type="button" className={styles.ghost} onClick={onCancel}>Cancel</button>

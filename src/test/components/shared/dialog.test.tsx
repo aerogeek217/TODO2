@@ -423,13 +423,13 @@ describe('DialogFrame backdrop blur', () => {
     expect(backdrops.map(blurred)).toEqual([true])
   })
 
-  it('the raised and nested tiers never blur', () => {
+  it('a raised or nested tier blurs when it opens alone, not over another dialog', () => {
     render(
       <>
         <DialogFrame onClose={() => {}} layer="raised" aria-label="Raised"><button>a</button></DialogFrame>
         <DialogFrame onClose={() => {}} layer="nested" aria-label="Nested"><button>b</button></DialogFrame>
       </>,
     )
-    expect([...document.querySelectorAll('[data-modal-backdrop]')].map(blurred)).toEqual([false, false])
+    expect([...document.querySelectorAll('[data-modal-backdrop]')].map(blurred)).toEqual([true, false])
   })
 })
