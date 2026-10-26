@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
-import { HUE_NAMES, isHueName, LAYOUT_NAME_MAX, type HueName } from '../../models/workspace-layout'
-import { HUE_LABEL, hueColor } from '../../utils/layout-hue'
-import { ColorInput } from '../shared/ColorInput'
+import { isHueName, LAYOUT_NAME_MAX } from '../../models/workspace-layout'
+import { HUE_PRESET_HEX, presetHueOf } from '../../utils/layout-hue'
+import { ColorPicker } from '../shared/ColorPicker'
 import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
@@ -87,45 +87,37 @@ export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder
   )
 }
 
-/** The custom colour the input starts on while a preset (or none) is picked. */
-const CUSTOM_HUE_START = '#8a7cf0'
+/** The colour the picker shows while the layout has no hue (None). */
+const NO_HUE_COLOR = '#8a7cf0'
 
 /**
- * None + the six preset hues as one radio group (arrow keys move the pick),
- * and under them the app's colour input (`ColorInput`, the one the people
- * and tag editors use) for any other colour: changing it picks that colour
- * and no preset stays checked. A preset has a light twin; a custom colour is
- * used as it is in both themes.
+ * The layout's hue: None (the accent) before the app's colour picker
+ * (`ColorPicker`, the one the people, status and tag editors use — the six
+ * preset hues as swatches, then the colour input). A preset is stored by
+ * name (it has a light twin); any other colour as its hex, used as it is in
+ * both themes.
  */
 function HueSwatches({ value, onChange }: { value: string | null; onChange: (hue: string | null) => void }) {
   const customOn = value != null && !isHueName(value)
-  // The colour input's value: the custom colour while one is picked, else the last one typed (or a start).
-  const [custom, setCustom] = useState(customOn ? value : CUSTOM_HUE_START)
-  if (customOn && value !== custom) setCustom(value)
-  const options: Array<{ hue: HueName | null; label: string }> = [{ hue: null, label: 'None (the accent)' }, ...HUE_NAMES.map((h) => ({ hue: h, label: HUE_LABEL[h] }))]
+  // What the picker shows: a preset's colour, the custom colour, or a start while None.
+  const shown = value == null ? NO_HUE_COLOR : isHueName(value) ? HUE_PRESET_HEX[value] : value
+  const none = (
+    <input
+      type="radio"
+      name="layout-hue-none"
+      className={`${styles.swatch} ${styles.swatchNone}`}
+      checked={value == null}
+      onChange={() => onChange(null)}
+      aria-label="None (the accent)"
+      title="None (the accent)"
+      data-hue="none"
+    />
+  )
   return (
     <fieldset className={styles.hues}>
       <legend className={styles.huesLegend}>Hue</legend>
-      <div className={styles.swatches}>
-        {options.map((o) => (
-          <input
-            key={o.hue ?? 'none'}
-            type="radio"
-            name="layout-hue"
-            className={`${styles.swatch} ${o.hue ? '' : styles.swatchNone}`}
-            style={o.hue ? { background: hueColor(o.hue) } : undefined}
-            checked={value === o.hue}
-            onChange={() => onChange(o.hue)}
-            aria-label={o.label}
-            title={o.label}
-            data-hue={o.hue ?? 'none'}
-          />
-        ))}
-      </div>
-      {/* Any colour: the app's colour input, as the people and tag editors have it. Changing it picks it (no preset stays checked). */}
-      <div className={styles.custom} data-hue-custom data-on={customOn || undefined}>
-        <span className={styles.customLabel}>Custom</span>
-        <ColorInput value={custom} onChange={(c) => { setCustom(c); onChange(c) }} />
+      <div data-hue-custom data-on={customOn || undefined}>
+        <ColorPicker value={shown} onChange={(hex) => onChange(presetHueOf(hex) ?? hex)} before={none} />
       </div>
     </fieldset>
   )

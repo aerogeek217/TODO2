@@ -17,7 +17,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../../models'
 import { DEFAULT_ENTITY_COLOR, DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
-import { ColorInput } from '../shared/ColorInput'
+import { ColorPicker } from '../shared/ColorPicker'
 import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
@@ -231,7 +231,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                   return (
                     <div key={s.id}>
                       <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
-                        <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+                        <ColorPicker value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
                         <IconPicker value={ed.icon} onChange={(icon) => setEditing({ ...ed, icon })} color={ed.color} />
                         <input
                           className={styles.editInput}
@@ -266,7 +266,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
         {adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
-              <ColorInput value={newColor} onChange={setNewColor} />
+              <ColorPicker value={newColor} onChange={setNewColor} />
               <IconPicker value={newIcon} onChange={setNewIcon} color={newColor} />
               <input
                 className={styles.editInput}

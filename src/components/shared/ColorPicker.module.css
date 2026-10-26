@@ -1,0 +1,33 @@
+/* The colour picker: the preset swatches, then the colour input (swatch + hex). */
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Each preset is its radio, drawn as a dot (the inline background is the colour). */
+.swatch {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.swatch:checked {
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 3.5px var(--color-text-primary);
+}
+
+.swatch:focus-visible {
+  box-shadow: var(--focus-ring);
+}

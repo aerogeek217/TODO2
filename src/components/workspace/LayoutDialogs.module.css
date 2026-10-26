@@ -121,32 +121,11 @@
   color: var(--color-text-secondary);
 }
 
-.swatches {
-  display: flex;
-  gap: 8px;
-}
-
-/* The custom colour on its own line under the presets: its radio, a label,
-   then the app's colour input (swatch + hex) and its Choose… button. */
-.custom {
-  flex-basis: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.customLabel {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-/* Each swatch is its radio, drawn as a dot (the inline background is the hue). */
+/* The None swatch before the colour picker's presets: a radio drawn as an empty dot, the picker's size. */
 .swatch {
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   margin: 0;
   border: none;
   border-radius: 50%;

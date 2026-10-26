@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { HUE_NAMES, isHueName, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
-import { hueAttr, hueColor, isLayoutHue } from '../../utils/layout-hue'
+import { HUE_PRESET_HEX, hueAttr, hueColor, isLayoutHue, presetHueOf } from '../../utils/layout-hue'
 import { setLayoutHue } from '../../utils/workspace-layout-ops'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
+import { declarations, TOKENS_CSS } from '../styles/css-source'
 
 const layout: PersistedWorkspaceLayout = { id: 1, name: 'D', sortOrder: 0, columns: [], createdAt: new Date(0), modifiedAt: new Date(0) }
 const DATE = '2026-09-01T09:00:00.000Z'
@@ -31,6 +32,14 @@ describe('a layout’s hue (D19)', () => {
     expect(hueAttr('rose')).toBe('rose')
     expect(hueAttr('#ff6600')).toBe('custom')
     expect(hueAttr(undefined)).toBe('none')
+  })
+
+  it('the preset colours every picker inserts are the dark-theme hue tokens; a colour maps back to its preset', () => {
+    const dark = declarations(TOKENS_CSS, '[data-theme="dark"],')
+    for (const name of HUE_NAMES) expect(dark.get(`--hue-${name}`), name).toBe(HUE_PRESET_HEX[name])
+    expect(presetHueOf('#A78BFA')).toBe('violet')
+    expect(presetHueOf('#123456')).toBeNull()
+    expect(presetHueOf(undefined)).toBeNull()
   })
 
   it('set, cleared (the key goes), the same layout when unchanged', () => {

@@ -4,7 +4,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { usePersonAssignmentsForLoadedTodos } from '../../hooks/use-entity-assignments-for-todos'
 import { countTodosByEntity } from '../../stores/assignment-helpers'
 import { generateInitials, isValidEmail, PERSON_EMAIL_MAX, withEmail } from '../../utils/person'
-import { ColorInput } from '../shared/ColorInput'
+import { ColorPicker } from '../shared/ColorPicker'
 import { DeletePersonConfirm } from './EntityDeleteConfirm'
 import type { Person } from '../../models'
 import type { DialogLayer } from '../shared/Dialog'
@@ -75,11 +75,11 @@ interface PeopleEditorProps {
   layer?: DialogLayer
 }
 
-/** Color picker plus a clear button; a person without a color shows the neutral swatch. */
+/** The colour picker (presets + the colour input) plus a clear button; a person without a colour shows the neutral swatch. */
 function PersonColorField({ color, onChange }: { color: string | undefined; onChange: (color: string | undefined) => void }) {
   return (
     <>
-      <ColorInput value={color ?? NEUTRAL_PERSON_COLOR} onChange={onChange} />
+      <ColorPicker value={color ?? NEUTRAL_PERSON_COLOR} onChange={onChange} />
       {color && (
         <button
           type="button"
