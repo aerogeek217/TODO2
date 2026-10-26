@@ -46,7 +46,9 @@
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  grid-auto-rows: 100px;
+  /* A tile grows past 100px when its parts need more (a wider font's metrics,
+     a count with "of N"), rather than squashing its label. */
+  grid-auto-rows: minmax(100px, auto);
   gap: 12px;
 }
 
@@ -85,6 +87,10 @@ button.tile:focus-visible {
 
 .tileLabel {
   display: flex;
+  /* Never the part that gives way: `overflow: hidden` lets a flex item shrink
+     below its content, which clipped the label's top when the tile was short. */
+  flex: none;
+  min-height: 16px;
   align-items: center;
   gap: 6px;
   font-size: var(--font-size-sm);
@@ -112,6 +118,9 @@ button.tile:focus-visible {
 .of {
   font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
+  /* Its own line box, not the count's 40px one: on the baseline that made the
+     row 48px and squashed the label above it. */
+  line-height: 1;
   letter-spacing: 0;
   color: var(--color-text-muted);
 }
