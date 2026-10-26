@@ -154,7 +154,7 @@ export interface WorkspaceState {
   /**
    * Renames a layout (not a layout change: never dirty). Empty name → `false`.
    * With `hue`, sets its hue in the same write (`null` = none; D19 — the
-   * Rename dialog's swatches). A kept new layout not saved yet
+   * Edit layout dialog's swatches). A kept new layout not saved yet
    * (`UNSAVED_LAYOUT_ID`) is renamed in memory.
    */
   rename: (id: number, name: string, hue?: HueName | null) => Promise<boolean>

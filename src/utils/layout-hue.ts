@@ -15,7 +15,7 @@ export function hueColor(hue: HueName | null | undefined): string {
   return hue ? HUE_COLOR[hue] : 'var(--color-accent)'
 }
 
-/** A hue's name in words (the Rename dialog's swatches). */
+/** A hue's name in words (the Edit layout dialog's swatches). */
 export const HUE_LABEL: Readonly<Record<HueName, string>> = {
   teal: 'Teal',
   violet: 'Violet',

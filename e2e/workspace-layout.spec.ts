@@ -271,7 +271,7 @@ test.describe('saved layouts', () => {
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).toContainText('Edited')
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem')).toHaveText([
-      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Rename…', 'Delete layout…',
+      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Edit…', 'Delete layout…',
     ])
     await page.getByRole('menuitem', { name: 'Discard changes' }).click()
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
@@ -376,10 +376,10 @@ test.describe('saved layouts', () => {
     await nameDialog.getByRole('button', { name: 'Save layout' }).click()
     await expectOpenLayout(page, 'Planning')
 
-    await openLayoutAction(page, 'Rename…')
-    const renameDialog = page.getByRole('dialog', { name: 'Rename layout' })
+    await openLayoutAction(page, 'Edit…')
+    const renameDialog = page.getByRole('dialog', { name: 'Edit layout' })
     await renameDialog.getByLabel('Name').fill('Weekly')
-    await renameDialog.getByRole('button', { name: 'Rename' }).click()
+    await renameDialog.getByRole('button', { name: 'Apply' }).click()
     await expectOpenLayout(page, 'Weekly')
 
     await openLayoutAction(page, 'Delete layout…')

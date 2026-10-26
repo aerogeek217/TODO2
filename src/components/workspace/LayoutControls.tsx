@@ -34,9 +34,9 @@ type Pending =
  *
  * - Tabs: click opens a layout; right-click / Shift+F10 → its menu (the open
  *   one: Save changes, Save as new layout…, Discard changes; every one:
- *   Rename…, Move left / right, Delete layout…); drag to reorder; `+` = New layout.
+ *   Edit…, Move left / right, Delete layout…); drag to reorder; `+` = New layout.
  * - Picker: the layouts (drag to reorder), then New layout…, Save changes,
- *   Save as new layout…, Discard changes, Rename…, Delete layout….
+ *   Save as new layout…, Discard changes, Edit…, Delete layout….
  *
  * One order feeds both (the store's `layouts`); a reorder is saved at once,
  * not a layout change. New layout asks for a name and stores the empty
@@ -103,7 +103,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     { kind: 'separator' },
     { kind: 'item', label: 'New layout…', icon: <PlusIcon />, onSelect: () => setPending({ kind: 'new-name' }) },
     ...openLayoutEntries,
-    { kind: 'item', label: 'Rename…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id: isNew ? null : activeLayoutId, name }) },
+    { kind: 'item', label: 'Edit…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id: isNew ? null : activeLayoutId, name }) },
     { kind: 'separator' },
     {
       kind: 'item',
@@ -120,7 +120,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     const index = id == null ? -1 : indexOf(id)
     return [
       ...(open ? [...openLayoutEntries, { kind: 'separator' as const }] : []),
-      { kind: 'item', label: 'Rename…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
+      { kind: 'item', label: 'Edit…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
       {
         kind: 'item',
         label: 'Move left',
@@ -261,8 +261,8 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       )}
       {pending?.kind === 'rename' && (
         <LayoutNameDialog
-          title="Rename layout"
-          confirmLabel="Rename"
+          title="Edit layout"
+          confirmLabel="Apply"
           initialName={pending.name}
           initialHue={hueOf(pending.id)}
           onConfirm={(n, hue) => { close(); void store().rename(pending.id ?? UNSAVED_LAYOUT_ID, n, hue) }}

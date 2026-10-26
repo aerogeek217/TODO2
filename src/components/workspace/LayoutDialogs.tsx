@@ -40,7 +40,7 @@ interface LayoutNameDialogProps {
   initialName: string
   /** The empty field's hint (New layout, which starts empty). */
   placeholder?: string
-  /** Rename: the layout's hue, offered as a swatch row under the name (`null` = none). Absent = no swatches. */
+  /** Edit layout: the layout's hue, offered as a swatch row under the name (`null` = none). Absent = no swatches. */
   initialHue?: HueName | null
   /** `hue` only when the dialog offers the swatches. */
   onConfirm: (name: string, hue?: HueName | null) => void
@@ -48,8 +48,8 @@ interface LayoutNameDialogProps {
 }
 
 /**
- * "New layout…" / "Save as new layout…" / "Rename…": one name field, prefilled
- * and selected; empty can't be confirmed. Rename adds the hue swatches (D19).
+ * "New layout…" / "Save as new layout…" / "Edit…": one name field, prefilled
+ * and selected; empty can't be confirmed. Edit… adds the hue swatches (D19).
  */
 export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, initialHue, onConfirm, onCancel }: LayoutNameDialogProps) {
   const [name, setName] = useState(initialName)

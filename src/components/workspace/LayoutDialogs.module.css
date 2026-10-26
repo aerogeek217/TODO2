@@ -102,7 +102,7 @@
   border-color: var(--color-accent);
 }
 
-/* Rename's hue swatches (D19): None, then the six hues. */
+/* Edit layout's hue swatches (D19): None, then the six hues. */
 .hues {
   display: flex;
   align-items: center;

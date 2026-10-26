@@ -268,7 +268,7 @@ export interface WorkspaceLayout {
   activeColumnId?: string
   /**
    * The layout's hue (D19): its active tab, its cell headers and the focus
-   * ring inside it take it; absent = the app accent. Set in the Rename
+   * ring inside it take it; absent = the app accent. Set in the Edit layout
    * dialog and saved at once, as the name is.
    */
   hue?: HueName

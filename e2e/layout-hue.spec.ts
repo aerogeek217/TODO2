@@ -3,7 +3,7 @@ import { rowTitles } from './fixtures/seed'
 import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * D19 · a hue per layout: picked with the name in the Rename dialog's
+ * D19 · a hue per layout: picked with the name in the Edit layout dialog's
  * swatches and saved at once (the layout stays saved). The layout's
  * `--layout-hue` and the focus ring inside it take the hue, and it
  * survives a reload — with the layout's lens (D15) still picked.
@@ -37,13 +37,13 @@ test('a hued layout keeps its hue and its lens across a reload; the focus ring i
   await page.getByTestId('layout-save').click()
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
-  // The hue, with the name, in Rename.
+  // The hue, with the name, in Edit….
   const menu = await openLayoutTabMenu(page, 'Main')
-  await menu.getByRole('menuitem', { name: 'Rename…' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Rename layout' })
+  await menu.getByRole('menuitem', { name: 'Edit…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit layout' })
   await expect(dialog.getByRole('radio', { name: 'None (the accent)' })).toBeChecked()
   await dialog.getByRole('radio', { name: 'Violet' }).check()
-  await dialog.getByRole('button', { name: 'Rename' }).click()
+  await dialog.getByRole('button', { name: 'Apply' }).click()
   await expect(dialog).toBeHidden()
 
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'violet')
@@ -62,10 +62,10 @@ test('a hued layout keeps its hue and its lens across a reload; the focus ring i
 
   // None again: back to the accent.
   const again = await openLayoutTabMenu(page, 'Main')
-  await again.getByRole('menuitem', { name: 'Rename…' }).click()
-  await expect(page.getByRole('dialog', { name: 'Rename layout' }).getByRole('radio', { name: 'Violet' })).toBeChecked()
-  await page.getByRole('dialog', { name: 'Rename layout' }).getByRole('radio', { name: 'None (the accent)' }).check()
-  await page.getByRole('dialog', { name: 'Rename layout' }).getByRole('button', { name: 'Rename' }).click()
+  await again.getByRole('menuitem', { name: 'Edit…' }).click()
+  await expect(page.getByRole('dialog', { name: 'Edit layout' }).getByRole('radio', { name: 'Violet' })).toBeChecked()
+  await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('radio', { name: 'None (the accent)' }).check()
+  await page.getByRole('dialog', { name: 'Edit layout' }).getByRole('button', { name: 'Apply' }).click()
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'none')
 })
 

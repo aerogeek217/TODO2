@@ -421,7 +421,7 @@ export async function switchLayout(page: Page, name: string): Promise<void> {
 }
 
 /**
- * Picks an action for the open layout (Save as new layout…, Rename…,
+ * Picks an action for the open layout (Save as new layout…, Edit…,
  * Delete layout…, Discard changes, …): from its tab's menu, or the picker's
  * when the tabs are folded.
  */
