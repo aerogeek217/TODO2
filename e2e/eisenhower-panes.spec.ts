@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -58,7 +58,7 @@ async function closeSettings(page: Page): Promise<void> {
 
 /** In a pane card of the Eisenhower settings: + Filter › Status › (Is / Is not) › `status`. */
 async function addStatusFilter(page: Page, card: Locator, status: string, mode: 'Is' | 'Is not'): Promise<void> {
-  await card.getByRole('button', { name: 'Filter', exact: true }).click()
+  await card.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
   const picker = page.getByTestId('list-filter-picker')
   if (mode === 'Is not') await picker.getByRole('radio', { name: 'Is not' }).click()

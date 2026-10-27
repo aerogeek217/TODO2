@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsListWidget, wsTab, readListDefinitions, editListDraft, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, wsCell, wsListWidget, wsTab, readListDefinitions, editListDraft, type WorkspaceSeed } from './fixtures/workspace'
 import { box, type Box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
@@ -296,7 +296,7 @@ test('the filter line always shows (No filters + the summary); Revert · Save jo
   const saved = widget.getByTestId('list-filter-row')
   await expect(saved).toBeVisible()
   await expect(saved).toContainText('No filters')
-  await expect(saved.getByRole('button', { name: /Filter/ }).first()).toBeVisible()
+  await expect(saved.getByRole('button', { name: ADD_FILTER }).first()).toBeVisible()
   await expect(saved.getByTestId('list-summary')).toHaveText('Manual')
   await expect(saved.getByTestId('save-list')).toHaveCount(0)
   await expect(saved.getByTestId('revert-list')).toHaveCount(0)

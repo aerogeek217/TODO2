@@ -228,24 +228,7 @@
   min-height: 36px;
 }
 
-/* A row expanded in place: its picker or its group's panel under it. */
-.expansion {
-  align-self: stretch;
-  max-width: 380px;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 4px;
-  border-left: 2px solid var(--color-border);
-  border-radius: 0 6px 6px 0;
-  background: var(--color-filter-expansion);
-}
-
-.expansionDates {
-  padding: 0;
-}
-
-/* A chip's picker ends with "Or another filter" (in place and in the popover). */
+/* A chip's picker ends with "Another filter (OR)". */
 .orAnotherRow {
   margin-top: 4px;
   padding: 4px 0 0;

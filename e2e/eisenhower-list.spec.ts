@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -143,7 +143,7 @@ test.describe('desktop', () => {
     const popover = await box(editList)
     expect(popover.x >= panel.x + panel.width - 1 || popover.x + popover.width <= panel.x + 1).toBe(true)
     // Its filter, in Edit list's form: Status is Waiting.
-    await editList.getByRole('button', { name: 'Filter', exact: true }).click()
+    await editList.getByRole('button', { name: ADD_FILTER }).click()
     await page.getByRole('menuitem', { name: 'Status' }).click()
     await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Waiting' }).click()
     // A click in Edit list closes the picker (it stays open).

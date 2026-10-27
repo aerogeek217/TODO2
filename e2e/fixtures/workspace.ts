@@ -613,3 +613,6 @@ export async function openSettings(page: Page, section?: string): Promise<Locato
   }
   return dialog
 }
+
+/** The + Filter button's name: `Filter`, or in an editor with a row already, `Another filter (AND)`. */
+export const ADD_FILTER = /^(Filter|Another filter \(AND\))$/

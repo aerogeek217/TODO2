@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -191,7 +191,7 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
   const line = dialog.getByTestId('checkin-filter')
   await expect(line).toContainText('All open tasks')
   await expect(count('Ada Lovelace')).toHaveText('2 tasks')
-  await line.getByRole('button', { name: 'Filter', exact: true }).click()
+  await line.getByRole('button', { name: ADD_FILTER }).click()
   const add = page.getByRole('menu', { name: 'Add a filter' })
   await expect(add.getByRole('menuitem', { name: 'Priority' })).toBeVisible()
   // The check-in is per person: no People filter.

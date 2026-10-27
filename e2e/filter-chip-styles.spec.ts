@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import LOOKS from './fixtures/filter-chip-looks.json' with { type: 'json' }
 
 /**
@@ -57,7 +57,7 @@ async function rowLooks(row: Locator) {
     chip: await look(chip),
     label: await look(chip.locator('span').first()),
     remove: await look(chip.getByRole('button', { name: 'Remove filter' })),
-    add: await look(row.getByRole('button', { name: /Filter/ }).last()),
+    add: await look(row.getByRole('button', { name: ADD_FILTER }).last()),
   }
 }
 
