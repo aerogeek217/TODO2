@@ -327,6 +327,47 @@ test('a chip’s picker flipped above it: searching shortens it, it stays on its
   await expectCaretAt(picker, chip, 'bottom')
 })
 
+test('the task editor’s glass People dropdown keeps the page surface as the focus ring’s gap', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await seedWorkspace(page, {
+    people: ['Ann', 'Bob'],
+    listDefinitions: [{ name: 'All' }],
+    tasks: [{ title: 'Fix the sink' }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  })
+  await taskRowByTitle(page, 'Fix the sink').locator('span[data-task-title="Fix the sink"]').dblclick()
+  const peopleLabel = page.getByText('People', { exact: true }).and(page.locator(':not([data-filter-row] *)'))
+  await peopleLabel.locator('..').getByRole('button', { name: '+ Add' }).click()
+  const search = page.getByRole('combobox').and(page.locator(':focus'))
+  await expect(search).toBeFocused()
+  const gaps = await search.evaluate((el) => {
+    const root = el.closest('[data-popover-level]')
+    const probe = document.createElement('div')
+    probe.style.color = 'var(--color-surface)'
+    probe.style.backgroundColor = 'var(--color-popover-bg)'
+    root?.appendChild(probe)
+    const cs = getComputedStyle(probe)
+    const out = {
+      gap: root ? getComputedStyle(root).getPropertyValue('--focus-ring').trim() : '',
+      surface: cs.color,
+      popover: cs.backgroundColor,
+    }
+    probe.remove()
+    return out
+  })
+  // The ring's first layer: the 2px gap, in the surface the glass is drawn over.
+  const gapColour = await page.evaluate((ring) => {
+    const probe = document.createElement('div')
+    probe.style.color = ring.slice(ring.indexOf('2px') + 3, ring.indexOf(', 0 0 0 4px')).trim()
+    document.body.appendChild(probe)
+    const out = getComputedStyle(probe).color
+    probe.remove()
+    return out
+  }, gaps.gap)
+  expect(gapColour).toBe(gaps.surface)
+  expect(gapColour).not.toBe(gaps.popover)
+})
+
 test.describe('carets on a row’s note popover', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
 

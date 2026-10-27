@@ -56,6 +56,19 @@ describe('theming lives in tokens.css', () => {
     expect(declarations(TOKENS_CSS, '[data-popover-level] {').get('--focus-ring')).toBe('0 0 0 2px var(--color-popover-bg), 0 0 0 4px var(--focus-ring-color)')
   })
 
+  it('a glass popover root keeps the page surface as the gap (the glass is drawn over it)', () => {
+    const files = new Map(sourceFiles(/\.module\.css$/))
+    const glassRoots: Array<[string, string]> = [
+      // AnchoredPicker's root (its child draws the glass) and every root composing the glass dropdown.
+      ['components/shared/AnchoredPicker.module.css', '.picker[data-popover-level] {'],
+      ['components/shared/dropdown.module.css', '.menu[data-popover-level] {'],
+    ]
+    for (const [path, selector] of glassRoots) {
+      expect(declarations(files.get(path) ?? '', selector).get('--focus-ring'), `${path} ${selector}`)
+        .toBe('0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color)')
+    }
+  })
+
   it('every popover-like panel takes the popover token, never the raised surface straight', () => {
     // The panels a light-theme fork used to put on the surface.
     const panels: Array<[string, string]> = [

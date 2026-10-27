@@ -10,3 +10,11 @@
   padding: 4px 0;
   box-shadow: var(--shadow-dropdown);
 }
+
+/* As the popover root itself (the task editor's people / tags / status
+ * dropdowns are `PopoverRoot`s composing it): the glass is about the page
+ * surface, so the focus ring's gap is the surface, not the popover ground
+ * (`[data-popover-level]` in tokens.css) — as `AnchoredPicker`'s glass. */
+.menu[data-popover-level] {
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
+}
