@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
+import { usePopoverAnchor, type PopoverCaret } from '../../../hooks/use-popover-anchor'
 import { datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
 import { entityPickerSelection } from '../../../utils/filter-negation'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
@@ -171,7 +171,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
     setOpen(false)
     onClose?.()
   }, [onClose])
-  const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape })
+  const { panelRef, style, caret } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape, caret: true })
   const on = field.value != null
   const cut = on && valueWidth != null
   // No tooltip over an open picker. A field's own tooltip starts with its whole value already.
@@ -219,7 +219,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
         </button>
       )}
       {open && createPortal(
-        <FieldPopover field={field} panelRef={panelRef} position={style}>
+        <FieldPopover field={field} panelRef={panelRef} position={style} caret={caret}>
           <FieldPanelBody field={field} onDone={close} />
         </FieldPopover>,
         document.body,
@@ -239,16 +239,19 @@ function clearName(field: FieldDef): string {
 }
 
 /** The portaled popover a field's picker sits in: the picker panel, or the field's own popover. */
-function FieldPopover({ field, panelRef, position, children }: {
+function FieldPopover({ field, panelRef, position, caret = null, children }: {
   field: FieldDef
   panelRef: (el: HTMLDivElement | null) => void
   position: Pick<CSSProperties, 'position' | 'left' | 'top'>
+  /** The caret towards the filter button (none for a picker beside the Filters menu). */
+  caret?: PopoverCaret | null
   children: ReactNode
 }) {
   const custom = field.panel.kind === 'custom' ? field.panel : null
   return (
     <PopoverRoot
       ref={panelRef}
+      caret={caret}
       className={custom?.className ?? picker.dropdownPanel}
       style={{ position: position.position, left: position.left, top: position.top }}
       role={custom?.dialogLabel ? 'dialog' : undefined}
@@ -282,7 +285,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
     setOpen(false)
   }, [closeSub])
 
-  const { panelRef: menuPanelRef, style: menuStyle } = usePopoverAnchor({
+  const { panelRef: menuPanelRef, style: menuStyle, caret: menuCaret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: triggerRef },
     open,
     onClose: closeAll,
@@ -290,6 +293,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
     closeOnScroll: false,
     extraInsideRefs: [subRef],
     consumeEscape,
+    caret: true,
   })
   const { panelRef: subPanelRef, style: subStyle } = usePopoverAnchor({
     anchor: { kind: 'point', x: sub?.x ?? 0, y: sub?.y ?? 0 },
@@ -329,6 +333,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
       {open && createPortal(
         <PopoverRoot
           ref={menuPanelRef}
+          caret={menuCaret}
           className={styles.menu}
           style={{ position: menuStyle.position, left: menuStyle.left, top: menuStyle.top }}
           role="group"

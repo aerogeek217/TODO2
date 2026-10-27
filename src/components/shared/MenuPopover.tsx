@@ -4,7 +4,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
-import { usePopoverAnchor, type PopoverAnchor, type PopoverPlacement } from '../../hooks/use-popover-anchor'
+import { anchorAtPoint, usePopoverAnchor, type AnchorRect, type PopoverAnchor, type PopoverCaret, type PopoverPlacement } from '../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { CheckIcon, ChevronRightIcon, DashIcon } from './icons'
 import styles from './MenuPopover.module.css'
@@ -87,8 +87,15 @@ export type MenuEntry =
 
 interface MenuPopoverProps {
   anchorRef?: RefObject<HTMLElement | null>
-  point?: { x: number; y: number }
+  /** A viewport point; with its element's `rect` (`pointBelow`) the menu is anchored to that element. */
+  point?: { x: number; y: number; rect?: AnchorRect }
   placement?: PopoverPlacement
+  /**
+   * Draw the caret towards the anchor (D21). Default: on for a menu anchored
+   * to an element (`anchorRef`, or a `point` with its `rect`) below or above
+   * it; never for a bare point (a menu at the pointer) or beside the anchor.
+   */
+  caret?: boolean
   entries: readonly MenuEntry[]
   label: string
   width?: number
@@ -131,7 +138,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
  */
 export function MenuPopover({
-  anchorRef, point, placement = 'bottom-start', entries, label, width, closeOnScroll = false, restoreFocus = false, onReorder, onClose,
+  anchorRef, point, placement = 'bottom-start', caret: caretProp, entries, label, width, closeOnScroll = false, restoreFocus = false, onReorder, onClose,
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -143,14 +150,16 @@ export function MenuPopover({
   const [open, setOpen] = useState<{ index: number; pinned: boolean; focus: boolean } | null>(null)
   const sub = open?.index ?? null
   const level = usePopoverLevel()
-  const { panelRef, style } = usePopoverAnchor({
-    anchor: anchorRef ? { kind: 'ref', ref: anchorRef } : { kind: 'point', x: point?.x ?? 0, y: point?.y ?? 0 },
+  const beside = placement === 'right-start' || placement === 'left-start'
+  const { panelRef, style, caret } = usePopoverAnchor({
+    anchor: anchorRef ? { kind: 'ref', ref: anchorRef } : anchorAtPoint(point ?? { x: 0, y: 0 }),
     open: true,
     placement,
     closeOnScroll,
     closeOnEscape: false,
     extraInsideRefs: [subRef],
     onClose,
+    caret: caretProp ?? !beside,
   })
   const setRef = useCallback((el: HTMLDivElement | null) => {
     menuRef.current = el
@@ -243,6 +252,7 @@ export function MenuPopover({
           label={label}
           className={styles.menu}
           style={{ ...style, ...(width ? { width } : {}) }}
+          caret={caret}
           openIndex={sub}
           onSelect={select}
           onReorder={onReorder}
@@ -351,12 +361,13 @@ function handleMenuKeys(
   return true
 }
 
-function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSelect, onReorder, onHoverItem, onKey }: {
+function MenuPanel({ panelRef, entries, label, className, style, caret, openIndex, onSelect, onReorder, onHoverItem, onKey }: {
   panelRef: (el: HTMLDivElement | null) => void
   entries: readonly MenuEntry[]
   label: string
   className: string | undefined
   style: React.CSSProperties
+  caret?: PopoverCaret | null
   openIndex: number | null
   onSelect: (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => void
   onReorder?: (dragId: string, toIndex: number) => void
@@ -389,6 +400,7 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
   return (
     <PopoverRoot
       ref={setRef}
+      caret={caret}
       role="menu"
       aria-label={label}
       className={className}

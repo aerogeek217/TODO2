@@ -141,6 +141,7 @@
 [data-popover-level='2'] {
   --color-popover-bg: var(--color-popover-bg-2);
   --color-popover-ring: var(--color-popover-ring-2);
+  --color-popover-rim: var(--color-popover-rim-2);
   --shadow-dropdown: var(--shadow-dropdown-2);
 }
 
@@ -170,6 +171,10 @@
      hairline, 2.1 : 1 on the cell; level 2's a little stronger. */
   --color-popover-ring: rgba(255, 255, 255, 0.14);
   --color-popover-ring-2: rgba(255, 255, 255, 0.18);
+  /* The dark rim outside that ring (the 3px layer in `--shadow-dropdown`),
+     for what draws the edge itself: the caret's two outer sides. */
+  --color-popover-rim: rgba(0, 0, 0, 0.45);
+  --color-popover-rim-2: rgba(0, 0, 0, 0.5);
   /* Muted text inside a popover (every `[data-popover-level]`): the app's
      muted is under 4.5 : 1 on the lifted grounds; this is 5.5 : 1 on level 1,
      4.7 : 1 on level 2. */
@@ -408,6 +413,9 @@
   /* Their ring: darker than the row rules behind them. */
   --color-popover-ring: rgba(60, 45, 20, 0.22);
   --color-popover-ring-2: rgba(60, 45, 20, 0.3);
+  /* No dark rim in light: the ring is the edge. */
+  --color-popover-rim: transparent;
+  --color-popover-rim-2: transparent;
   --color-popover-text-muted: var(--color-text-muted);
   /* Dialogs: the surface (the shadow does the lifting). */
   --color-dialog-bg: var(--color-surface);

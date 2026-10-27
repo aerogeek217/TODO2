@@ -23,15 +23,16 @@
   height: 12px;
   background: inherit;
   transform: rotate(45deg);
-  /* The popover's 1px ring (`--shadow-dropdown`) carried round the arrow. */
-  box-shadow: -1px 1px 0 var(--color-popover-ring);
+  /* The popover's 1px ring (`--shadow-dropdown`) carried round the arrow,
+   * and the dark theme's 3px rim outside it (as on the carets, D21). */
+  box-shadow: -1px 1px 0 var(--color-popover-ring), -4px 4px 0 var(--color-popover-rim);
   pointer-events: none;
 }
 
 .arrowRight {
   left: auto;
   right: -6px;
-  box-shadow: 1px -1px 0 var(--color-popover-ring);
+  box-shadow: 1px -1px 0 var(--color-popover-ring), 4px -4px 0 var(--color-popover-rim);
 }
 
 .header {

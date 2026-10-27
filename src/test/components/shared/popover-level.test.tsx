@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, cleanup, screen, fireEvent, act, within } from '@testing-library/react'
 import { createPortal } from 'react-dom'
-import { PopoverRoot } from '../../../components/shared/PopoverRoot'
+import { POPOVER_CARET_ATTR, PopoverRoot } from '../../../components/shared/PopoverRoot'
 import { POPOVER_LEVEL_ATTR } from '../../../components/shared/popover-level'
 import { MenuPopover } from '../../../components/shared/MenuPopover'
 import { Dialog } from '../../../components/shared/Dialog'
@@ -103,5 +103,20 @@ describe('popover levels (D21)', () => {
       fireEvent.click(screen.getByRole('menuitem', { name: 'People' }))
       expect(level(screen.getByTestId('list-filter-picker'))).toBe('2')
     })
+  })
+})
+
+describe('PopoverRoot caret (D21)', () => {
+  it('draws the caret as its last child at the hook’s edge point, its side marked; none without one', () => {
+    const { rerender } = render(
+      <PopoverRoot data-testid="pop" caret={{ side: 'bottom', offset: 20, x: 120, y: 300 }}><button type="button">Item</button></PopoverRoot>,
+    )
+    const caret = screen.getByTestId('pop').lastElementChild as HTMLElement
+    expect(caret.getAttribute(POPOVER_CARET_ATTR)).toBe('bottom')
+    expect(caret.getAttribute('aria-hidden')).toBe('true')
+    expect(caret.style.left).toBe('120px')
+    expect(caret.style.top).toBe('300px')
+    rerender(<PopoverRoot data-testid="pop" caret={null}><button type="button">Item</button></PopoverRoot>)
+    expect(screen.getByTestId('pop').querySelector(`[${POPOVER_CARET_ATTR}]`)).toBeNull()
   })
 })

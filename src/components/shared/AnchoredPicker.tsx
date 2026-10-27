@@ -30,7 +30,7 @@ interface AnchoredPickerProps {
  * later (an editor) still covers it.
  */
 export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anchorIsInside = true, children }: AnchoredPickerProps) {
-  const { panelRef, style } = usePopoverAnchor({
+  const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: anchorRef },
     open: true,
     closeOnScroll: false,
@@ -40,9 +40,10 @@ export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anch
     anchorIsInside,
     observeSize: true,
     onClose,
+    caret: true,
   })
   return createPortal(
-    <PopoverRoot ref={panelRef} className={styles.picker} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
+    <PopoverRoot ref={panelRef} caret={caret} className={styles.picker} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
       {children}
     </PopoverRoot>,
     document.body,

@@ -106,7 +106,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     [anchorRef],
   )
   useClickOutside(containerRef, onClose, true, isInside)
-  const { panelRef, style } = usePopoverAnchor({
+  const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: anchorRef },
     open: true,
     closeOnScroll: false,
@@ -117,6 +117,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     // The panel's height changes after it opens (the editor mounting, text,
     // the toast line): re-place so the flip / clamp use the new height.
     observeSize: true,
+    caret: true,
   })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
@@ -154,6 +155,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   return (
     <PopoverRoot
       ref={setPanel}
+      caret={caret}
       className={styles.popover}
       // The hook's viewport cap, tightened to the popover's own 60vh.
       style={{ ...style, maxHeight: `min(60vh, ${style.maxHeight}px)` }}

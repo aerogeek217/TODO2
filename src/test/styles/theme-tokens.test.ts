@@ -27,11 +27,17 @@ describe('theming lives in tokens.css', () => {
 
   it.each(['dark', 'light'] as const)('%s: every popover token has a level-2 twin; each shadow rings with its own level’s ring', (theme) => {
     const tokens = themeTokens(theme)
-    for (const name of ['--color-popover-bg', '--color-popover-ring', '--shadow-dropdown']) {
+    for (const name of ['--color-popover-bg', '--color-popover-ring', '--color-popover-rim', '--shadow-dropdown']) {
       expect(tokens.get(`${name}-2`), `${theme} ${name}-2`).toBeDefined()
     }
     expect(tokens.get('--shadow-dropdown')).toContain('0 0 0 1px var(--color-popover-ring),')
     expect(tokens.get('--shadow-dropdown-2')).toContain('0 0 0 1px var(--color-popover-ring-2),')
+  })
+
+  it('the caret’s rim is the dark shadow’s 3px rim (none in light)', () => {
+    expect(themeTokens('dark').get('--shadow-dropdown')).toContain(`0 0 0 3px ${themeTokens('dark').get('--color-popover-rim')},`)
+    expect(themeTokens('dark').get('--shadow-dropdown-2')).toContain(`0 0 0 3px ${themeTokens('dark').get('--color-popover-rim-2')},`)
+    expect(themeTokens('light').get('--color-popover-rim')).toBe('transparent')
   })
 
   it('level 2 swaps the popover tokens for their twins; every popover takes the popover muted text', () => {
@@ -39,6 +45,7 @@ describe('theming lives in tokens.css', () => {
     expect(Object.fromEntries(level2)).toEqual({
       '--color-popover-bg': 'var(--color-popover-bg-2)',
       '--color-popover-ring': 'var(--color-popover-ring-2)',
+      '--color-popover-rim': 'var(--color-popover-rim-2)',
       '--shadow-dropdown': 'var(--shadow-dropdown-2)',
     })
     expect(declarations(TOKENS_CSS, '[data-popover-level] {').get('--color-text-muted')).toBe('var(--color-popover-text-muted)')

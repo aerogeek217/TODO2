@@ -85,7 +85,7 @@ export function FollowupPopover({
   const input = useFollowupInput(proposal ?? undefined, 'next', today)
   // The field holds a proposal the user usually replaces: focus selects it.
   const selectOnFocus = useSelectAllOnFocus()
-  const { panelRef, style } = usePopoverAnchor({ anchor, open: true, onClose })
+  const { panelRef, style, caret } = usePopoverAnchor({ anchor, open: true, onClose, caret: true })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
     panelRef(el)
@@ -149,6 +149,7 @@ export function FollowupPopover({
   return createPortal(
     <PopoverRoot
       ref={setPanel}
+      caret={caret}
       className={styles.popover}
       style={{ position: style.position, left: style.left, top: style.top }}
       role="dialog"

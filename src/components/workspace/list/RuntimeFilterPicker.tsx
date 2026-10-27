@@ -128,7 +128,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
   // (label + chips + input) counts as "inside" so clicking a chip's × or
   // the label doesn't dismiss the panel mid-edit. Escape is owned by the
   // input's onKeyDown (also blurs the input), so closeOnEscape=false.
-  const { panelRef, style } = usePopoverAnchor({
+  const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: fieldRef },
     open,
     closeOnScroll: false,
@@ -136,6 +136,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
     closeOnEscape: false,
     onClose: handleClose,
     extraInsideRefs: [wrapperRef],
+    caret: true,
   })
 
   // A pick with search text clears it: the whole list shows again (the
@@ -222,6 +223,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
       {open && createPortal(
         <PopoverRoot
           ref={panelRef}
+          caret={caret}
           className={styles.panel}
           style={style}
         >
