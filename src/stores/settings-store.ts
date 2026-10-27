@@ -993,7 +993,9 @@ async function recordSettingWrite(
 
 /**
  * Shows one setting's new value at once, then saves it with `persist`; a
- * failed save puts the value before it back and resolves false.
+ * failed save puts the value before it back and resolves false — only where
+ * the store still shows this write's value: a later write (a quick second
+ * pick, saved first) or a reload since keeps its own.
  */
 function writeSetting<K extends keyof SettingsState>(
   patch: Pick<SettingsState, K>,
@@ -1001,15 +1003,18 @@ function writeSetting<K extends keyof SettingsState>(
   label: string,
 ): Promise<boolean> {
   return trackWrite(async () => {
+    const keys = Object.keys(patch) as K[]
     const state = useSettingsStore.getState()
-    const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, state[k as K]])) as Pick<SettingsState, K>
+    const prev = Object.fromEntries(keys.map((k) => [k, state[k]])) as Pick<SettingsState, K>
     useSettingsStore.setState(patch)
     try {
       await persist()
       return true
     } catch (e) {
       console.error(`Failed to save ${label}:`, e)
-      useSettingsStore.setState(prev)
+      const now = useSettingsStore.getState()
+      const back = keys.filter((k) => Object.is(now[k], patch[k]))
+      if (back.length > 0) useSettingsStore.setState(Object.fromEntries(back.map((k) => [k, prev[k]])) as Partial<SettingsState>)
       return false
     }
   })

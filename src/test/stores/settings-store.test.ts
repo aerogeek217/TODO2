@@ -417,6 +417,21 @@ describe('useSettingsStore', () => {
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lens pick.', notice: true })
   })
 
+  it('quick picks: an earlier pick’s save failing after a later pick saved keeps the later pick (on screen and stored)', async () => {
+    const s = () => useSettingsStore.getState()
+    await s().load()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let failFirst: (e: Error) => void = () => {}
+    vi.spyOn(settingsRepository, 'put').mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject }))
+    const first = s().setActiveLens('lens-a')
+    const second = s().setActiveLens('lens-b')
+    expect(await second).toBe(true)
+    failFirst(new Error('quota'))
+    expect(await first).toBe(false)
+    expect(s().activeLensId).toBe('lens-b')
+    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-b' })
+  })
+
   it('the row density: compact by default (no row); comfortable stored, compact removes the row; junk ignored on load', async () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().rowDensity).toBe('compact')
