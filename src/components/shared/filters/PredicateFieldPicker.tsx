@@ -17,6 +17,7 @@ import { ENTITY_ID_FIELD } from './FilterChipBar.shared'
 import { ClearableField } from '../ClearableField'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
+import { PopoverRoot } from '../PopoverRoot'
 
 type EntityField = 'people' | 'tags' | 'status'
 
@@ -55,7 +56,7 @@ export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscap
   })
   const dates = body.field === 'dates'
   return createPortal(
-    <div
+    <PopoverRoot
       ref={panelRef}
       className={dates ? DATE_FILTER_POPOVER_CLASS : `${picker.dropdownPanel} ${styles.pickerPanel}`}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
@@ -64,7 +65,7 @@ export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscap
       data-testid="list-filter-picker"
     >
       <PredicateFieldPickerBody {...body} />
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

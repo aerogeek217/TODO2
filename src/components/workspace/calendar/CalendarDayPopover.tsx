@@ -7,6 +7,7 @@ import { dayLabel } from '../../../utils/calendar-grid'
 import { CloseIcon } from '../../shared/icons'
 import styles from './CalendarWidget.module.css'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { PopoverRoot } from '../../shared/PopoverRoot'
 
 interface CalendarDayPopoverProps {
   day: Date
@@ -41,7 +42,7 @@ export function CalendarDayPopover({ day, at, entries, renderEntry, onClose }: C
 
   const count = `${entries.length} ${entries.length === 1 ? 'task' : 'tasks'}`
   return createPortal(
-    <div
+    <PopoverRoot
       ref={panelRef}
       className={styles.dayPopover}
       style={{ position: style.position, left: style.left, top: style.top, visibility: dragging ? 'hidden' : undefined }}
@@ -59,7 +60,7 @@ export function CalendarDayPopover({ day, at, entries, renderEntry, onClose }: C
       <div ref={trackScrollEdges} className={styles.dayPopoverEntries}>
         {entries.map((e) => renderEntry(e))}
       </div>
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

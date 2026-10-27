@@ -10,6 +10,7 @@ import { SyncWarningIcon, SyncWarningSections } from './SyncWarningSections'
 import { SyncWarningAnnouncer } from './SyncWarningAnnouncer'
 import { usePopoverFocus } from '../shared/use-popover-focus'
 import styles from './StoragePill.module.css'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 /**
  * Where the data lives, in the top bar, and every sync warning: Local only /
@@ -135,7 +136,7 @@ export function StoragePill() {
       </button>
       <SyncWarningAnnouncer warnings={warnings} />
       {open && createPortal(
-        <div
+        <PopoverRoot
           ref={setPopover}
           className={styles.popover}
           style={{ position: style.position, left: style.left, top: style.top }}
@@ -146,7 +147,7 @@ export function StoragePill() {
           data-testid="storage-popover"
         >
           {content}
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
     </>

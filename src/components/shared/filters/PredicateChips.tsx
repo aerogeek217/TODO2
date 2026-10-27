@@ -20,6 +20,7 @@ import { useTooltip } from '../use-tooltip'
 import menuStyles from '../MenuPopover.module.css'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
+import { PopoverRoot } from '../PopoverRoot'
 
 /** Which clauses an edit goes to: the predicate's own (`null`) or or group `n`'s. */
 type Scope = number | null
@@ -603,7 +604,7 @@ function FilterPopover({ at, consumeEscape, onClose, className, label, testId, c
     onClose,
   })
   return createPortal(
-    <div
+    <PopoverRoot
       ref={panelRef}
       className={className}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
@@ -612,7 +613,7 @@ function FilterPopover({ at, consumeEscape, onClose, className, label, testId, c
       data-testid={testId}
     >
       {children}
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

@@ -10,6 +10,7 @@ import { isNotesConvertOpen } from './notes/NotesConvert'
 import { TOAST_VISIBLE_MS } from '../../constants'
 import { hasModalAbove, isInLayerAbove } from '../../utils/dom-layers'
 import styles from './TaskNotePopover.module.css'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 // The notes' `@ # /` popup is portalled to the body, and so are the notes →
 // tasks dialogs and anything opened above the popover (the popup's person /
@@ -151,7 +152,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   }
 
   return (
-    <div
+    <PopoverRoot
       ref={setPanel}
       className={styles.popover}
       // The hook's viewport cap, tightened to the popover's own 60vh.
@@ -190,6 +191,6 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
         onConvertToast={handleToast}
       />
       {toast && <div className={styles.toast}>{toast}</div>}
-    </div>
+    </PopoverRoot>
   )
 }

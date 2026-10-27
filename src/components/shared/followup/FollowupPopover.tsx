@@ -20,6 +20,7 @@ import { useTooltip } from '../use-tooltip'
 import { FollowupDateButton } from './FollowupDateButton'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
 import styles from './Followup.module.css'
+import { PopoverRoot } from '../PopoverRoot'
 
 interface FollowupPopoverProps {
   todo: PersistedTodoItem
@@ -146,7 +147,7 @@ export function FollowupPopover({
   const nowText = current === 'mixed' ? 'mixed' : current ? formatWeekdayNumeric(current) : 'none'
 
   return createPortal(
-    <div
+    <PopoverRoot
       ref={setPanel}
       className={styles.popover}
       style={{ position: style.position, left: style.left, top: style.top }}
@@ -243,7 +244,7 @@ export function FollowupPopover({
         Mark followed up
       </button>
       {followedUpTip}
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

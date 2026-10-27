@@ -6,6 +6,7 @@ import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
 import { byName } from '../../utils/sort-order'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 interface TaskEditMetadataProps {
   // Due date + repeat
@@ -103,7 +104,7 @@ export function TaskEditMetadata({
             + Add
           </button>
           {openDropdown === 'people' && (
-            <div className={styles.chipDropdown}>
+            <PopoverRoot className={styles.chipDropdown}>
               <ChipSelector
                 items={personPickerItems(allPeople)}
                 selectedIds={assignedPeopleIds}
@@ -114,7 +115,7 @@ export function TaskEditMetadata({
                 entityMenu="person"
                 placeholder={PERSON_PICKER_PLACEHOLDER}
               />
-            </div>
+            </PopoverRoot>
           )}
         </div>
       </div>
@@ -138,7 +139,7 @@ export function TaskEditMetadata({
             + Add
           </button>
           {openDropdown === 'tags' && (
-            <div className={styles.chipDropdown}>
+            <PopoverRoot className={styles.chipDropdown}>
               <ChipSelector
                 items={allTags.toSorted(byName).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
                 selectedIds={assignedTagIds}
@@ -147,7 +148,7 @@ export function TaskEditMetadata({
                 placeholder="Search tags..."
                 entityMenu="tag"
               />
-            </div>
+            </PopoverRoot>
           )}
         </div>
       </div>

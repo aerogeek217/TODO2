@@ -36,6 +36,8 @@ import {
   type FilterChipBarProps,
 } from './FilterChipBar.shared'
 import styles from './ScreenFilters.module.css'
+import { PopoverRoot } from '../PopoverRoot'
+import { PopoverLevelContext, usePopoverLevel } from '../popover-level'
 
 type FieldKey = Extract<FilterChipField, 'people' | 'tags' | 'dates' | 'status' | 'markers'>
 
@@ -245,7 +247,7 @@ function FieldPopover({ field, panelRef, position, children }: {
 }) {
   const custom = field.panel.kind === 'custom' ? field.panel : null
   return (
-    <div
+    <PopoverRoot
       ref={panelRef}
       className={custom?.className ?? picker.dropdownPanel}
       style={{ position: position.position, left: position.left, top: position.top }}
@@ -253,7 +255,7 @@ function FieldPopover({ field, panelRef, position, children }: {
       aria-label={custom?.dialogLabel}
     >
       {children}
-    </div>
+    </PopoverRoot>
   )
 }
 
@@ -266,6 +268,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
   const [sub, setSub] = useState<{ key: FieldKey; x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
+  const level = usePopoverLevel()
   const count = fields.filter((f) => f.value != null).length
   const subField = sub ? fields.find((f) => f.key === sub.key) : undefined
   const subOnClose = subField?.onClose
@@ -324,7 +327,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}><ChevronDownIcon /></span>
       </button>
       {open && createPortal(
-        <div
+        <PopoverRoot
           ref={menuPanelRef}
           className={styles.menu}
           style={{ position: menuStyle.position, left: menuStyle.left, top: menuStyle.top }}
@@ -368,13 +371,16 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
           >
             Clear all filters
           </button>
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
       {sub && subField && createPortal(
-        <FieldPopover field={subField} panelRef={setSubRef} position={subStyle}>
-          <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
-        </FieldPopover>,
+        // A field's picker beside the menu is a popover on it: a level above.
+        <PopoverLevelContext.Provider value={level}>
+          <FieldPopover field={subField} panelRef={setSubRef} position={subStyle}>
+            <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
+          </FieldPopover>
+        </PopoverLevelContext.Provider>,
         document.body,
       )}
     </>

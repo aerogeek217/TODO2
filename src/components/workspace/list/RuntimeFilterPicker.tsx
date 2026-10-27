@@ -8,6 +8,7 @@ import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import styles from './RuntimeFilterPicker.module.css'
 import { byName } from '../../../utils/sort-order'
+import { PopoverRoot } from '../../shared/PopoverRoot'
 
 // All option lookups for this picker go through cached Zustand stores
 // (`usePersonStore`, `useStatusStore`, `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
@@ -219,7 +220,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
         )}
       </div>
       {open && createPortal(
-        <div
+        <PopoverRoot
           ref={panelRef}
           className={styles.panel}
           style={style}
@@ -252,7 +253,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
               })}
             </div>
           )}
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
     </div>

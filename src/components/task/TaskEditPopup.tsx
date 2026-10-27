@@ -28,6 +28,7 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 import { isInLayerAbove } from '../../utils/dom-layers'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './TaskEditPopup.module.css'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 interface TaskEditPopupBaseProps {
   assignedPeople: Person[]
@@ -600,7 +601,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 {' '}&#x25BE;
               </button>
               {showStatusMenu && (
-                <div className={styles.statusMenu}>
+                <PopoverRoot className={styles.statusMenu}>
                   <button
                     className={`${styles.statusOption} ${!statusId ? styles.statusOptionActive : ''}`}
                     onClick={(e) => {
@@ -628,7 +629,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                       {s.name}
                     </button>
                   ))}
-                </div>
+                </PopoverRoot>
               )}
             </div>
           )}

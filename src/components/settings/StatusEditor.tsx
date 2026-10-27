@@ -26,6 +26,7 @@ import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sorta
 import { bySortOrder } from '../../utils/sort-order'
 import { EditorModal } from './EditorModal'
 import styles from './EntityEditor.module.css'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 interface EditState {
   id: number
@@ -62,7 +63,7 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
         <StatusIcon icon={value || DEFAULT_STATUS_ICON} />
       </button>
       {open && createPortal(
-        <div ref={panelRef} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
+        <PopoverRoot ref={panelRef} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
           {STATUS_ICON_KEYS.map(key => (
             <button
               key={key}
@@ -74,7 +75,7 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
               <StatusIcon icon={key} />
             </button>
           ))}
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
     </div>

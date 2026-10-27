@@ -2,6 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './AnchoredPicker.module.css'
+import { PopoverRoot } from './PopoverRoot'
 
 interface AnchoredPickerProps {
   anchorRef: RefObject<HTMLElement | null>
@@ -41,9 +42,9 @@ export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anch
     onClose,
   })
   return createPortal(
-    <div ref={panelRef} className={styles.picker} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
+    <PopoverRoot ref={panelRef} className={styles.picker} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
       {children}
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

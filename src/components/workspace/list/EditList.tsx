@@ -19,6 +19,7 @@ import { CloseIcon, LinkIcon } from '../../shared/icons'
 import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
 import styles from './EditList.module.css'
 import { shortcutScope } from '../../../utils/dom-contract'
+import { PopoverRoot } from '../../shared/PopoverRoot'
 
 /** The side popover's width (px) and its gap to the panel. */
 const POPOVER_WIDTH_PX = 340
@@ -335,7 +336,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const arrow = placement?.mode === 'below' ? null : placementUsed === 'left-start' ? 'right' : 'left'
 
   return createPortal(
-    <div
+    <PopoverRoot
       ref={setPanel}
       className={styles.popover}
       style={{ left: style.left, top: style.top, visibility: placed ? undefined : 'hidden' }}
@@ -360,7 +361,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
       <Footer model={model} className={styles.footer} buttonClass={styles.footerButton} saveClass={styles.footerSave}>
         <span className={styles.shared}><LinkIcon /> {sharedText(model.widgets)}</span>
       </Footer>
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

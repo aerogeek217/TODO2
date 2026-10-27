@@ -9,6 +9,7 @@ import styles from './NlpPopup.module.css'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { PickerEntityMenu } from './EntityMenu'
 import { registerModuleReset } from '../../utils/module-reset'
+import { PopoverRoot } from './PopoverRoot'
 
 /** A person / tag row's menu (Show tasks · Edit… · Delete…) on the popup's rows. */
 export interface NlpEntityMenuOptions {
@@ -244,7 +245,7 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
   }
 
   return (
-    <div
+    <PopoverRoot
       ref={popupRef}
       className={`${styles.popup} ${className ?? ''}`}
       style={style}
@@ -277,6 +278,6 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
           onClose={closeMenu}
         />
       )}
-    </div>
+    </PopoverRoot>
   )
 }
