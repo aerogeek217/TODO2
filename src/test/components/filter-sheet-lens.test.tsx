@@ -27,14 +27,14 @@ describe('the phone filter sheet’s Lens section', () => {
   beforeEach(() => {
     useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'F', focus: true }), makeTodo({ id: 2, title: 'P' })] })
     useSettingsStore.setState({ lenses: [FOCUS] })
-    useWorkspaceStore.setState({ working: LAYOUT, saved: null, hydrated: true })
+    useWorkspaceStore.setState({ working: LAYOUT, saved: LAYOUT, hydrated: true })
   })
 
   afterEach(cleanup)
 
-  it('a radio list first: No lens with the open count, each lens with what it hides; a pick is the layout’s', () => {
+  it('a radio list first: No lens with the open count, each lens with what it hides; a pick is the top bar’s', () => {
     renderSheet()
-    const group = screen.getByRole('radiogroup', { name: 'Lens for this layout' })
+    const group = screen.getByRole('radiogroup', { name: 'Lens' })
     const radios = within(group).getAllByRole('radio')
     expect(radios.map((r) => (r as HTMLInputElement).checked)).toEqual([true, false])
     expect(group).toHaveTextContent('No lens2')
@@ -43,12 +43,13 @@ describe('the phone filter sheet’s Lens section', () => {
     // No chip and no lens: no Show N tasks foot.
     expect(screen.queryByRole('button', { name: /^Show \d+ tasks?$/ })).toBeNull()
     fireEvent.click(radios[1]!)
-    expect(useWorkspaceStore.getState().working?.lensId).toBe('lens-f')
+    expect(useSettingsStore.getState().activeLensId).toBe('lens-f')
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
     expect(screen.getByRole('button', { name: 'Show 1 task' })).toBeInTheDocument()
   })
 
   it('Lift the lens for now toggles the lift, the pick kept', () => {
-    useWorkspaceStore.setState({ working: { ...LAYOUT, lensId: 'lens-f' } })
+    useSettingsStore.setState({ activeLensId: 'lens-f' })
     renderSheet()
     const lift = screen.getByRole('button', { name: /Lift the lens for now · shows all 2/ })
     expect(lift).toHaveAttribute('aria-pressed', 'false')
@@ -56,6 +57,6 @@ describe('the phone filter sheet’s Lens section', () => {
     expect(useUIStore.getState().lensLifted).toBe(true)
     expect(lift).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Show 2 tasks' })).toBeInTheDocument()
-    expect(useWorkspaceStore.getState().working?.lensId).toBe('lens-f')
+    expect(useSettingsStore.getState().activeLensId).toBe('lens-f')
   })
 })

@@ -142,7 +142,7 @@ export const SHORTCUT_SPECS = {
     description: 'Copy selected tasks', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'c', mod: true }),
   },
-  // The layout's lens (D15): no keys by default.
+  // The top bar's lens (D15, cr22): no keys by default.
   'cycle-lens': {
     description: 'Cycle lens', category: 'general', editable: true,
     chord: null,

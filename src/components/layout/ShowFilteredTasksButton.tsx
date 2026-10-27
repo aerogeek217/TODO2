@@ -8,7 +8,7 @@ import { shownOfTotalText } from '../shared/filters/lens-text'
 import styles from './TopBar.module.css'
 
 /**
- * The end of the top bar's filter tray while a chip or the layout's lens
+ * The end of the top bar's filter tray while a chip or the top bar's lens
  * hides tasks (and while its panel is open): what they keep of every open
  * task (completed ones too under Show completed), `61 of 109` — red with the
  * tray while a chip is on, neutral with the lens alone. A click opens or

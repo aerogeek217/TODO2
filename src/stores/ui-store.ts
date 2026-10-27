@@ -138,9 +138,10 @@ interface UIState {
   /** Counts the requests to focus the panel (each open, the palette's command while it is open). */
   filterPanelFocusKey: number
   /**
-   * The open layout's lens is lifted for now (the lens control's glasses):
-   * every widget shows what the chips keep; the pick stays. A layout
-   * switch (`workspace-store`) and a reload put the lens back.
+   * The top bar's lens is lifted for now (the lens control's glasses):
+   * every widget shows what the chips keep; the pick stays. A second
+   * click, a pick, Cycle lens and a reload put the lens back — a layout
+   * switch doesn't.
    */
   lensLifted: boolean
   /** Mobile filter sheet open state */
@@ -242,7 +243,7 @@ interface UIState {
    */
   openFilterPanel: () => void
   closeFilterPanel: () => void
-  /** Lifts the open layout's lens for now, or puts it back (`lensLifted`). */
+  /** Lifts the top bar's lens for now, or puts it back (`lensLifted`). */
   setLensLifted: (lifted: boolean) => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void

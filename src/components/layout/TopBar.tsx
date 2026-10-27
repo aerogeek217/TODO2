@@ -427,7 +427,7 @@ export function TopBar() {
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  // The counter shows while a chip is on or the layout has a lens (lifted
+  // The counter shows while a chip is on or a lens is picked (lifted
   // too: 109 of 109), or the panel is open (it stays the panel's toggle when
   // Clear all empties the filter).
   const lensPicked = usePickedLens() != null

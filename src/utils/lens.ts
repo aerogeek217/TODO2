@@ -1,22 +1,22 @@
 import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
 import type { Status } from '../models'
-import type { WorkspaceLayout } from '../models/workspace-layout'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { withNormalizedNegation } from './filter-negation'
 import { registerModuleReset } from './module-reset'
 
 /**
  * Lenses: named, saved screen filters, defined once (Settings › Tasks ›
- * Lenses, one settings row — `data/lens-shape`) and picked per layout (the
- * layout's `lensId`, layout config: unsaved until Save). The open layout's lens composes under the
- * top bar's chips wherever the screen filter applies (`withLens`). A lens
- * only hides: completed tasks are the chips' Show completed, never a lens's.
+ * Lenses, one settings row — `data/lens-shape`) and picked in the top bar
+ * for every layout (the `activeLensId` settings row, saved at once). The
+ * picked lens composes under the top bar's chips wherever the screen
+ * filter applies (`withLens`). A lens only hides: completed tasks are the
+ * chips' Show completed, never a lens's.
  *
  * Not to be confused with the list widget's stored kind id `lens` (its old
  * name, `models/workspace-layout`).
  */
 export interface Lens {
-  /** Unique among the lenses (`newLensId`); what a layout's `lensId` names. */
+  /** Unique among the lenses (`newLensId`); what the top bar's pick (`activeLensId`) names. */
   id: string
   /** Trimmed, 1–`LENS_NAME_MAX` characters. */
   name: string
@@ -50,7 +50,7 @@ registerModuleReset(() => { lastComposed = null })
 
 /**
  * The screen filter as every widget applies it: the top bar's chips
- * (`screen`) with `lens` (the open layout's, unless lifted) under them as
+ * (`screen`) with `lens` (the top bar's, unless lifted) under them as
  * `FilterCriteria.lens`. No lens = `screen` itself. The same inputs give
  * the same object.
  */
@@ -74,26 +74,6 @@ export function newLensId(lenses: readonly Lens[]): string {
 /** The lens `id` names, or `undefined` (none picked, or a lens deleted since). */
 export function findLens(lenses: readonly Lens[], id: string | null | undefined): Lens | undefined {
   return id == null ? undefined : lenses.find((l) => l.id === id)
-}
-
-/**
- * The layouts that picked lens `id`, in `layouts`' order — the open layout
- * as edited (`open`, which may be an unsaved new one) instead of its stored
- * copy.
- */
-export function layoutsUsingLens<L extends Pick<WorkspaceLayout, 'name' | 'lensId'> & { id: number }>(
-  layouts: readonly L[],
-  open: L | null,
-  id: string,
-): L[] {
-  const all = open && !layouts.some((l) => l.id === open.id) ? [...layouts, open] : layouts
-  return all.map((l) => (open && l.id === open.id ? open : l)).filter((l) => l.lensId === id)
-}
-
-/** Layout names as a sentence's list: `Default`, `Default and Planning`, `A, B and C`. */
-export function layoutNamesText(names: readonly string[]): string {
-  if (names.length <= 1) return names.join('')
-  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
 }
 
 /** `name`, or `name 2`, `name 3`, … — the first no lens of `lenses` has (a duplicate's name). */

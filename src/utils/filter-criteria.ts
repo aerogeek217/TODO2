@@ -56,7 +56,7 @@ export interface FilterCriteria {
    */
   orGroups?: CriteriaClauses[]
   /**
-   * The screen filter only: the open layout's lens (`utils/lens.withLens`),
+   * The screen filter only: the top bar's lens (`utils/lens.withLens`),
    * a stage a task must pass as well — its own clauses and "is not"
    * switches, ANDed under these. It never decides completion (its
    * `showCompleted` is ignored: these do). Absent = no lens, or lifted.

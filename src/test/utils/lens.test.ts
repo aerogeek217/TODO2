@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate } from '../../models/filter-predicate'
 import {
-  cleanLensName, findLens, layoutNamesText, layoutsUsingLens, lensPredicate, newLensId, presetLenses, uniqueLensName, waitingStatusId, type Lens,
+  cleanLensName, findLens, lensPredicate, newLensId, presetLenses, uniqueLensName, waitingStatusId, type Lens,
 } from '../../utils/lens'
-import { setLayoutLens } from '../../utils/workspace-layout-ops'
-import type { PersistedWorkspaceLayout } from '../../models/workspace-layout'
 
 const lens = (id: string, name: string): Lens => ({ id, name, predicate: emptyPredicate() })
 
@@ -38,32 +36,6 @@ describe('lens helpers', () => {
   it('the Waiting status is found by name, any case', () => {
     expect(waitingStatusId([{ id: 1, name: 'Assigned', color: '#000', sortOrder: 0 }, { id: 4, name: ' waiting ', color: '#000', sortOrder: 1 }])).toBe(4)
     expect(waitingStatusId([{ id: 1, name: 'Assigned', color: '#000', sortOrder: 0 }])).toBeNull()
-  })
-})
-
-describe('the layouts using a lens', () => {
-  const l = (id: number, name: string, lensId?: string) => ({ id, name, ...(lensId ? { lensId } : {}) })
-
-  it('reads the open layout as edited, an unsaved new one included', () => {
-    const stored = [l(1, 'Default', 'a'), l(2, 'Planning', 'a'), l(3, 'Review')]
-    expect(layoutsUsingLens(stored, l(1, 'Default'), 'a').map((x) => x.name)).toEqual(['Planning'])
-    expect(layoutsUsingLens(stored, l(0, 'New', 'a'), 'a').map((x) => x.name)).toEqual(['Default', 'Planning', 'New'])
-    expect(layoutsUsingLens(stored, null, 'b')).toEqual([])
-  })
-
-  it('names them as a sentence', () => {
-    expect(layoutNamesText(['A'])).toBe('A')
-    expect(layoutNamesText(['A', 'B'])).toBe('A and B')
-    expect(layoutNamesText(['A', 'B', 'C'])).toBe('A, B and C')
-  })
-
-  it('the pick on a layout: set, cleared (the key goes), the same layout when unchanged', () => {
-    const layout: PersistedWorkspaceLayout = { id: 1, name: 'D', sortOrder: 0, columns: [], createdAt: new Date(0), modifiedAt: new Date(0) }
-    const picked = setLayoutLens(layout, 'a')
-    expect(picked.lensId).toBe('a')
-    expect(setLayoutLens(picked, 'a')).toBe(picked)
-    expect('lensId' in setLayoutLens(picked, null)).toBe(false)
-    expect(setLayoutLens(layout, null)).toBe(layout)
   })
 })
 

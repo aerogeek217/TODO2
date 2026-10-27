@@ -2,16 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
 import { LensesSection } from '../../../components/settings/sections/LensesSection'
 import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
-import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { makeTodo, resetDb } from '../../helpers'
-
-const layout = (id: number, name: string, lensId?: string): PersistedWorkspaceLayout => ({
-  id, name, sortOrder: id, columns: [], createdAt: new Date(0), modifiedAt: new Date(0), ...(lensId ? { lensId } : {}),
-})
 
 beforeEach(async () => {
   await resetDb()
@@ -36,18 +30,23 @@ describe('Settings › Tasks › Lenses', () => {
     expect(screen.getByText('People not Unassigned')).toBeInTheDocument()
   })
 
-  it('a row says which layouts use the lens; open, it edits with the filter chips and says what it keeps now', async () => {
+  it('the top bar’s pick says In use; open, a row edits with the filter chips and says what it keeps now', async () => {
     useSettingsStore.setState({
       lensPresetsSeeded: true,
-      lenses: [{ id: 'lens-w', name: 'Not waiting', predicate: { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } } }],
+      lenses: [
+        { id: 'lens-w', name: 'Not waiting', predicate: { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } } },
+        { id: 'lens-x', name: 'Every task', predicate: emptyPredicate() },
+      ],
+      activeLensId: 'lens-w',
     })
-    useWorkspaceStore.setState({ layouts: [layout(1, 'Default', 'lens-w'), layout(2, 'Planning', 'lens-w')], working: layout(1, 'Default', 'lens-w') })
     render(<LensesSection />)
-    const [row] = rows()
+    const [row, other] = rows()
     expect(row).toHaveTextContent('Not waiting')
-    expect(row).toHaveTextContent('Default, Planning')
+    expect(row).toHaveTextContent('In use')
+    expect(other).not.toHaveTextContent('In use')
+    expect(screen.getByTestId('lens-list')).not.toHaveTextContent(/used by/i)
     fireEvent.click(row!)
-    expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 1 of 2 open tasks right now · used by Default, Planning')
+    expect(screen.getByTestId('lens-keeps')).toHaveTextContent(/^Keeps 1 of 2 open tasks right now$/)
     const chips = screen.getByTestId('lens-filter')
     expect(within(chips).getByTestId('list-filter-chip')).toHaveTextContent('Statusnot Waiting')
     // × removes the clause: every open task again.
