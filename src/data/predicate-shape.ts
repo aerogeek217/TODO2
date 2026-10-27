@@ -9,6 +9,8 @@ import {
   type DateAnchor,
   type DateFilters,
   type DateMatch,
+  OR_GROUPS_MAX,
+  type FilterClauses,
   type FilterNegation,
   type MarkerConditions,
   type MarkerKey,
@@ -17,6 +19,7 @@ import {
   type RelativeDateToken,
   type TodoPredicate,
 } from '../models/filter-predicate'
+import { hasFilterClause, normalizeClauses } from '../utils/or-groups'
 import { withNormalizedNegation } from '../utils/filter-negation'
 import { isRecord } from '../utils/is-record'
 
@@ -33,7 +36,9 @@ import { isRecord } from '../utils/is-record'
  *   import can warn and the audit can report. An "is not" switch this build
  *   can't read drops the filter it switched (which way it filtered is
  *   unknown, so the filter goes rather than turning round); an unknown
- *   switch is dropped. The
+ *   switch is dropped. Each or group is read the same way (its own
+ *   clauses, their own fixes); a malformed or group — or `orGroups` that isn't an
+ *   array — is dropped, and or groups past `OR_GROUPS_MAX` go. The
  *   core fields fall back to their defaults when malformed (only reachable
  *   for rows already in the database: import rejects those), so a bad stored
  *   predicate can't crash the lists showing it.
@@ -134,8 +139,8 @@ function readDateFilters(v: Obj, fixes: PredicateFix[]): DateFilters {
  * `true` when `v` has the core predicate shape import requires, else the
  * name of the first bad field: `showCompleted`, `searchText` and the date
  * filters map (`dates`, an object). The id filters, the Priority filter, the
- * date clauses inside `dates` and the text filter's length are not checked
- * here: `pickPredicate` sanitises them.
+ * date clauses inside `dates`, the text filter's length and the or
+ * groups are not checked here: `pickPredicate` sanitises them.
  */
 export function checkPredicateShape(v: unknown): true | string {
   if (!isRecord(v)) return 'predicate'
@@ -180,39 +185,33 @@ export interface PickedPredicate {
 }
 
 /**
- * Rebuilds a stored predicate from its known keys (unknown keys go). Optional
- * fields (`markers`, `tags`) stay absent when absent; a required one that is
- * missing gets its default. See the module comment for what is dropped and
- * reported.
+ * The narrowing clauses of a stored predicate or of an or group, rebuilt from
+ * their known keys (see the module comment for what is dropped and
+ * reported). Optional fields (`markers`, `tags`) stay absent when absent;
+ * a malformed text filter or date filters map is reset to no filter —
+ * reported only with `reportReset` (a predicate that isn't a record at all
+ * is one fix of its own).
  */
-export function pickPredicate(raw: unknown): PickedPredicate {
-  const fixes: PredicateFix[] = []
-  const v: Obj = isRecord(raw) ? raw : {}
-  if (!isRecord(raw)) fixes.push('filters reset')
-
+function pickClauses(v: Obj, fixes: PredicateFix[], reportReset: boolean): FilterClauses {
   const ids = (value: unknown, what: string): number[] | null => {
     const list = readIdList(value)
     if (list !== undefined) return list
     fixes.push(`${what} filter dropped`)
     return null
   }
-  const core = <T>(ok: boolean, value: T, fallback: T, what: string): T => {
-    if (ok) return value
-    if (isRecord(raw)) fixes.push(`${what} reset`)
-    return fallback
-  }
 
-  let searchText = core(typeof v.searchText === 'string', v.searchText as string, '', 'text filter')
+  let searchText = ''
+  if (typeof v.searchText === 'string') searchText = v.searchText
+  else if (reportReset) fixes.push('text filter reset')
   if (searchText.length > PREDICATE_SEARCH_TEXT_MAX) {
     searchText = searchText.slice(0, PREDICATE_SEARCH_TEXT_MAX)
     fixes.push('text filter shortened')
   }
   let dates: DateFilters = {}
   if (isRecord(v.dates)) dates = readDateFilters(v.dates, fixes)
-  else if (isRecord(raw)) fixes.push('date filters reset')
+  else if (reportReset) fixes.push('date filters reset')
 
-  const predicate: TodoPredicate = {
-    showCompleted: core(typeof v.showCompleted === 'boolean', v.showCompleted as boolean, false, 'show completed'),
+  const clauses: FilterClauses = {
     personIds: ids(v.personIds, 'people'),
     statusIds: ids(v.statusIds, 'status'),
     searchText,
@@ -221,12 +220,74 @@ export function pickPredicate(raw: unknown): PickedPredicate {
   if ('markers' in v && v.markers !== undefined) {
     const markers = readMarkers(v.markers)
     if (markers === undefined) fixes.push('priority filter dropped')
-    predicate.markers = markers ?? null
+    clauses.markers = markers ?? null
   }
-  if ('tags' in v && v.tags !== undefined) predicate.tags = ids(v.tags, 'tag')
-  readNegation(v.negate, predicate, fixes)
+  if ('tags' in v && v.tags !== undefined) clauses.tags = ids(v.tags, 'tag')
+  readNegation(v.negate, clauses, fixes)
   // An "is not" with nothing ticked is no filter; a switch on a field that doesn't filter goes.
-  return { predicate: withNormalizedNegation(predicate), fixes }
+  return withNormalizedNegation(clauses)
+}
+
+/**
+ * The stored or groups: `undefined` when absent (or `null`); an array of
+ * records, each read with `pickClauses` (its fixes reported once each) into
+ * its stored form (`normalizeClauses`). An `orGroups` that isn't an array is
+ * dropped (`or groups dropped`); an item that isn't a record, or whose every
+ * clause was malformed, is dropped (`or group dropped` / `N or groups dropped`);
+ * an or group with no clause filters nothing and goes silently; or groups past
+ * `OR_GROUPS_MAX` go (`or groups capped`, not read).
+ */
+function pickOrGroups(raw: unknown, fixes: PredicateFix[]): FilterClauses[] | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (!Array.isArray(raw)) {
+    fixes.push('or groups dropped')
+    return undefined
+  }
+  const orGroups: FilterClauses[] = []
+  const clauseFixes = new Set<PredicateFix>()
+  let dropped = 0
+  let capped = false
+  for (const item of raw as unknown[]) {
+    if (orGroups.length >= OR_GROUPS_MAX) {
+      capped = true
+      break
+    }
+    if (!isRecord(item)) {
+      dropped++
+      continue
+    }
+    const own: PredicateFix[] = []
+    const clauses = normalizeClauses(pickClauses(item, own, true))
+    for (const fix of own) clauseFixes.add(fix)
+    if (hasFilterClause(clauses)) orGroups.push(clauses)
+    else if (own.length > 0) dropped++
+  }
+  fixes.push(...clauseFixes)
+  if (dropped > 0) fixes.push(dropped === 1 ? 'or group dropped' : `${dropped} or groups dropped`)
+  if (capped) fixes.push('or groups capped')
+  return orGroups
+}
+
+/**
+ * Rebuilds a stored predicate from its known keys (unknown keys go): its
+ * clauses (`pickClauses`), Show completed, and its or groups
+ * (`pickOrGroups`; the key only while one is left). A required field that is
+ * missing gets its default. See the module comment for what is dropped and
+ * reported.
+ */
+export function pickPredicate(raw: unknown): PickedPredicate {
+  const fixes: PredicateFix[] = []
+  const v: Obj = isRecord(raw) ? raw : {}
+  if (!isRecord(raw)) fixes.push('filters reset')
+
+  const clauses = pickClauses(v, fixes, isRecord(raw))
+  let showCompleted = false
+  if (typeof v.showCompleted === 'boolean') showCompleted = v.showCompleted
+  else if (isRecord(raw)) fixes.push('show completed reset')
+  const predicate: TodoPredicate = { showCompleted, ...clauses }
+  const orGroups = pickOrGroups(v.orGroups, fixes)
+  if (orGroups && orGroups.length > 0) predicate.orGroups = orGroups
+  return { predicate, fixes }
 }
 
 /** An id filter's name in a fix (`people filter dropped`). */
@@ -237,13 +298,14 @@ const NEGATABLE_WORDS: Record<NegatableField, string> = {
 }
 
 /**
- * Reads the stored "is not" switches into `predicate.negate`. A switch is
+ * Reads the stored "is not" switches into `predicate.negate` (a predicate's
+ * clauses or an or group's). A switch is
  * `true`; `false`, `null` or absent = "is". Any other value on a known field
  * drops that field's filter (it can't tell which way the field filtered); a
  * `negate` that isn't an object drops every id filter that is set; an unknown
  * key is dropped. Each is named in `fixes`.
  */
-function readNegation(raw: unknown, predicate: TodoPredicate, fixes: PredicateFix[]): void {
+function readNegation(raw: unknown, predicate: FilterClauses, fixes: PredicateFix[]): void {
   if (raw === undefined || raw === null) return
   const dropFilter = (field: NegatableField) => {
     if (predicate[field] == null) return

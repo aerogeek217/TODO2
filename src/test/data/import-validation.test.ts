@@ -949,6 +949,27 @@ describe('validateImportData', () => {
       expect(result.warnings).toEqual(['Fixed 1 list: "Odd" (priority filter dropped)'])
     })
 
+    it('keeps a list\'s or groups; a malformed one is dropped with a warning', () => {
+      const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: 'hot', tags: null }
+      const result = validateImportData(validData({
+        listDefinitions: [
+          list(1, 'Hot or mine', { tags: [2], orGroups: [group] }),
+          list(2, 'Odd', { orGroups: [group, 'x', { ...group, personIds: 'ann', markers: null }] }),
+          list(3, 'Not a list', { orGroups: { 0: group } }),
+          list(4, 'Too many', { orGroups: Array.from({ length: 11 }, () => group) }),
+        ],
+      }))
+      if (!result.ok) throw new Error(result.error)
+      const [kept, odd, notList, many] = result.data.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate : null)
+      expect(kept?.orGroups).toEqual([group])
+      expect(odd?.orGroups).toEqual([group])
+      expect(notList && 'orGroups' in notList).toBe(false)
+      expect(many?.orGroups).toHaveLength(10)
+      expect(result.warnings).toEqual([
+        'Fixed 3 lists: "Odd" (people filter dropped, 2 or groups dropped); "Not a list" (or groups dropped); "Too many" (or groups capped)',
+      ])
+    })
+
     it('still rejects a predicate missing its core shape', () => {
       const result = validateImportData(validData({ listDefinitions: [list(1, 'L', { showCompleted: 'yes' })] }))
       expect(result).toEqual({ ok: false, error: expect.stringContaining('bad field "membership"') })

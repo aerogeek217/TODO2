@@ -328,6 +328,20 @@ describe('sanitisable-row audit', () => {
     expect(issue.samples![0]!.note).toBe('Cleanup: people filter dropped, priority filter dropped')
   })
 
+  it('reports a list with a malformed or group; cleanup drops it and keeps the readable one', async () => {
+    const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+    const id = await db.listDefinitions.add(list('Odd', { orGroups: [group, 7] }) as any)
+    await db.listDefinitions.add(list('Fine', { orGroups: [group] }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'listDefinitions')!
+    expect(issue).toMatchObject({ fix: 'sanitize', count: 1, ids: [id] })
+    expect(issue.samples![0]!.note).toBe('Cleanup: or group dropped')
+    await cleanupIssues(report.issues)
+    expect((await db.listDefinitions.get(id))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ orGroups: [group] }) })
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('reports a list with an unknown sort direction; cleanup drops it and keeps the sort', async () => {
     const id = await db.listDefinitions.add({ ...list('Odd', {}), sort: 'name', sortDirection: 'up' } as any)
     await db.listDefinitions.add({ ...list('Down', {}), sort: 'name', sortDirection: 'desc' } as any)

@@ -1,4 +1,5 @@
-import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
+import { emptyPredicate, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
+import { withNormalizedOrGroups } from './or-groups'
 import { predicatesEqual } from './list-def-equal'
 
 /**
@@ -29,16 +30,26 @@ export function isCheckinOpenMethod(value: unknown): value is CheckinOpenMethod 
  */
 export type CheckinTaskFilter = TodoPredicate
 
-/** The check-in filter as it is kept: no people filter (nor its "is not" switch), completed tasks off. */
-export function checkinFilterOf(predicate: TodoPredicate): CheckinTaskFilter {
-  const { negate, ...rest } = predicate
-  const out: TodoPredicate = { ...rest, showCompleted: false, personIds: null }
-  if (negate) {
-    const { personIds: _personIds, ...others } = negate
+/** Clauses without their people filter (nor its "is not" switch). */
+function withoutPeople<T extends FilterClauses>(c: T): T {
+  const out: T = { ...c, personIds: null }
+  if (c.negate) {
+    const { personIds: _personIds, ...others } = c.negate
     void _personIds
     if (Object.keys(others).length > 0) out.negate = others
+    else delete out.negate
   }
   return out
+}
+
+/**
+ * The check-in filter as it is kept: no people filter (nor its "is not"
+ * switch) — in an or group either, an or group left with no clause dropped —,
+ * completed tasks off.
+ */
+export function checkinFilterOf(predicate: TodoPredicate): CheckinTaskFilter {
+  const out: TodoPredicate = { ...withoutPeople(predicate), showCompleted: false }
+  return out.orGroups ? withNormalizedOrGroups({ ...out, orGroups: out.orGroups.map(withoutPeople) }) : out
 }
 
 /** Whether the check-in filter narrows nothing (all open tasks). */

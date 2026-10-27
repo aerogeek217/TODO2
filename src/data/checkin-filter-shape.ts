@@ -7,7 +7,8 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  * and written the one way import validation (and so the audit), the
  * settings store's read and its writes use. Read leniently, as a list's
  * filter is: a malformed clause is dropped (`pickPredicate`), the people
- * filter goes (a check-in is per person) and completed tasks stay off, each
+ * filter goes — in an or group too — (a check-in is per person) and
+ * completed tasks stay off, each
  * named in `fixes`; text that isn't JSON, isn't a predicate or is over
  * `CHECKIN_FILTER_SETTING_MAX_LEN` reads as no filter.
  */
@@ -42,7 +43,7 @@ export function readCheckinFilterSetting(value: string): ReadCheckinFilter {
   if (parsed === undefined || checkPredicateShape(parsed) !== true) return { filter: emptyPredicate(), fixes: [`${LABEL} reset`] }
   const { predicate, fixes } = pickPredicate(parsed)
   const out = [...fixes]
-  if (predicate.personIds != null) out.push('people filter dropped')
+  if (predicate.personIds != null || (predicate.orGroups ?? []).some((group) => group.personIds != null)) out.push('people filter dropped')
   if (predicate.showCompleted) out.push('show completed dropped')
   return { filter: checkinFilterOf(predicate), fixes: out }
 }
