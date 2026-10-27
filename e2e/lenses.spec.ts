@@ -1,13 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * D15 Lenses: a layout's lens, picked in the top bar's lens control, is a
- * layout edit — unsaved until Save (kept across a reload meanwhile, like any
- * edit) — and composes under every widget; the glasses lift it for now, and
- * a layout switch (or a reload) puts it back. The counter at the tray's end
- * says what the lens and the chips keep.
+ * D15 Lenses, as cr22 made them: the top bar's lens control picks one lens
+ * for every layout — saved at once (the `activeLensId` settings row; no
+ * unsaved layout, no undo step) — and it composes under every widget. The
+ * glasses lift it for now: a layout switch keeps the lift, a reload puts the
+ * lens back. The counter at the tray's end says what the lens and the chips
+ * keep. The control is found by its name in the header, wherever in the bar
+ * it sits.
  */
 
 const SEED: WorkspaceSeed = {
@@ -30,29 +32,28 @@ const SEED: WorkspaceSeed = {
 }
 
 const ALL = ['Ann plan', 'Ann waits', 'Nobody task']
-const tray = (page: Page) => page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
-const lensName = (page: Page) => tray(page).getByRole('button', { name: /^Lens:/ })
+const header = (page: Page) => page.locator('header')
+const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
+const lensName = (page: Page) => header(page).getByRole('button', { name: /^Lens:/ })
+const glasses = (page: Page, name: 'Lens on. Lift it' | 'Lens lifted. Put it back') => header(page).getByRole('button', { name })
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
 const mainTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
+const otherTitles = (page: Page) => rowTitles(wsListWidget(page, 't2'))
+const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 async function pickLens(page: Page, name: string) {
   await lensName(page).click()
-  await page.getByRole('menu', { name: 'Lens for this layout' }).getByRole('menuitemradio', { name: new RegExp(`^${name}`) }).click()
+  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: new RegExp(`^${name}`) }).click()
 }
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
-
-/** Picks the lens and saves the layout (a pick is an unsaved edit). */
-async function pickAndSaveLens(page: Page, name: string) {
-  await pickLens(page, name)
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-  await saveButton(page).click()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+async function reload(page: Page) {
+  await page.reload()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 }
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('a lens picked for a layout is an unsaved edit, kept across a reload, stored by Save; the counter and the widgets follow it', async ({ page }) => {
+test('a pick is saved at once for every layout: Save stays unlit, a reload and a layout switch keep it; the widgets and the counter follow it', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
   await expect(lensName(page)).toHaveAccessibleName('Lens: none')
@@ -63,60 +64,61 @@ test('a lens picked for a layout is an unsaved edit, kept across a reload, store
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
   await expect(counter(page)).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
-  // Unsaved, the pick is kept across a reload like any edit.
-  await page.reload()
-  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await reload(page)
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
-  await expect(counter(page)).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
 
-  // Saved, it is the layout's.
-  await saveButton(page).click()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-  await page.reload()
-  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-
-  // The other layout has its own pick (none); coming back, this one's is there.
+  // The other layout shows the same lens.
   await switchLayout(page, 'Other')
-  await expect(lensName(page)).toHaveAccessibleName('Lens: none')
-  await switchLayout(page, 'Main')
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
+  await expect.poll(() => otherTitles(page)).toEqual(['Ann plan', 'Ann waits'])
+  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+
+  // A pick there is the pick everywhere.
+  await pickLens(page, 'Plans')
+  await expect.poll(() => otherTitles(page)).toEqual(['Ann plan'])
+  await switchLayout(page, 'Main')
+  await expect(lensName(page)).toHaveAccessibleName('Lens: Plans')
+  await expect.poll(() => mainTitles(page)).toEqual(['Ann plan'])
+
+  await pickLens(page, 'No lens')
+  await expect(lensName(page)).toHaveAccessibleName('Lens: none')
+  await expect.poll(() => mainTitles(page)).toEqual(ALL)
+  await reload(page)
+  await expect(lensName(page)).toHaveAccessibleName('Lens: none')
 })
 
-test('the glasses lift the lens for now; a layout switch and a reload put it back', async ({ page }) => {
+test('the glasses lift the lens for now; a layout switch keeps the lift, a reload puts the lens back', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await pickAndSaveLens(page, 'Has a person')
+  await pickLens(page, 'Has a person')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
 
-  await tray(page).getByRole('button', { name: 'Lens on. Lift it' }).click()
-  await expect(tray(page).getByRole('button', { name: 'Lens lifted. Put it back' })).toHaveAttribute('aria-pressed', 'false')
+  await glasses(page, 'Lens on. Lift it').click()
+  await expect(glasses(page, 'Lens lifted. Put it back')).toHaveAttribute('aria-pressed', 'false')
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person, lifted')
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
   await expect(counter(page)).toHaveAccessibleName('3 of 3 open tasks shown. Show them')
 
-  // A layout switch and back: the lens is on again.
+  // A layout switch: still lifted there and back.
   await switchLayout(page, 'Other')
+  await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person, lifted')
+  await expect.poll(() => otherTitles(page)).toEqual(ALL)
   await switchLayout(page, 'Main')
-  await expect(tray(page).getByRole('button', { name: 'Lens on. Lift it' })).toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
-
-  // Lifted, then reloaded: on again.
-  await tray(page).getByRole('button', { name: 'Lens on. Lift it' }).click()
+  await expect(glasses(page, 'Lens lifted. Put it back')).toBeVisible()
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
-  await page.reload()
-  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  await expect(tray(page).getByRole('button', { name: 'Lens on. Lift it' })).toBeVisible()
+
+  // A reload: on again.
+  await reload(page)
+  await expect(glasses(page, 'Lens on. Lift it')).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
 })
 
-test('a chip on top narrows further and turns the counter red; Clear all leaves the lens', async ({ page }) => {
+test('a chip on top narrows further and turns the tray red; Clear all leaves the lens', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await pickAndSaveLens(page, 'Has a person')
+  await pickLens(page, 'Has a person')
   await tray(page).getByRole('button', { name: /^Status filter/ }).click()
   await page.getByRole('option', { name: 'Waiting' }).click()
   await page.keyboard.press('Escape')
@@ -127,4 +129,29 @@ test('a chip on top narrows further and turns the counter red; Clear all leaves 
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
   await expect(tray(page)).not.toHaveAttribute('data-filtered')
+})
+
+test('deleting the picked lens in Settings puts the top bar on No lens, without asking; Undo brings both back', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await pickLens(page, 'Has a person')
+  await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
+
+  const settings = await openSettings(page, 'Tasks')
+  const lenses = settings.getByTestId('lens-list')
+  const row = lenses.getByRole('button', { name: /^Has a person/ })
+  await expect(row).toContainText('In use')
+  await expect(lenses.getByRole('button', { name: /^Plans/ })).not.toContainText('In use')
+  await row.click()
+  await settings.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.getByText(/Delete lens/)).toHaveCount(0)
+  await expect(lenses.getByRole('button', { name: /^Has a person/ })).toHaveCount(0)
+  await expect(lensName(page)).toHaveAccessibleName('Lens: none')
+
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(lenses.getByRole('button', { name: /^Has a person/ })).toContainText('In use')
+  await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
+  await settings.getByRole('button', { name: 'Close settings' }).click()
+  await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
+  await reload(page)
+  await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
 })
