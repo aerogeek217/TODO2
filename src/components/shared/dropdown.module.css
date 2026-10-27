@@ -1,11 +1,20 @@
+/* A glass dropdown: its own blurred fill, the popovers' ring and shadow
+ * (`--shadow-dropdown`, D21). */
 .menu {
   position: absolute;
   top: 100%;
   margin-top: var(--space-1);
   background: var(--color-surface-glass);
   backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: 4px 0;
   box-shadow: var(--shadow-dropdown);
+}
+
+/* As the popover root itself (the task editor's people / tags / status
+ * dropdowns are `PopoverRoot`s composing it): the glass is about the page
+ * surface, so the focus ring's gap is the surface, not the popover ground
+ * (`[data-popover-level]` in tokens.css) — as `AnchoredPicker`'s glass. */
+.menu[data-popover-level] {
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
 }

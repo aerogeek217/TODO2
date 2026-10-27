@@ -21,8 +21,16 @@ const THEMES: ThemeName[] = ['dark', 'light']
 
 describe('text contrast (WCAG AA)', () => {
   it.each(THEMES)('%s: muted text reads on every surface it sits on', (theme) => {
-    for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg']) {
+    for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-dialog-bg']) {
       expect(ratio(theme, '--color-text-muted', bg), `${theme} muted on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+  })
+
+  it.each(THEMES)('%s: a popover’s text reads on both levels (D21; muted text there is the popover muted)', (theme) => {
+    for (const bg of ['--color-popover-bg', '--color-popover-bg-2']) {
+      for (const fg of ['--color-text-primary', '--color-text-secondary', '--color-popover-text-muted', '--color-accent-text', '--color-overdue', '--color-deadline', '--color-danger-text']) {
+        expect(ratio(theme, fg, bg), `${theme} ${fg} on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
+      }
     }
   })
 
@@ -48,7 +56,7 @@ describe('text contrast (WCAG AA)', () => {
 })
 
 describe('the warm light theme (D19) keeps D0’s contrast', () => {
-  const SURFACES = ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg']
+  const SURFACES = ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg', '--color-dialog-bg']
 
   it.each(['--color-text-primary', '--color-text-secondary', '--color-text-muted', '--color-accent-text'])('light: %s reads on every surface', (fg) => {
     for (const bg of SURFACES) {

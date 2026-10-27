@@ -67,9 +67,23 @@
   max-width: 260px;
 }
 
-/* A filter that is on, with its picker open. */
-.filterButtonOpen {
-  box-shadow: inset 0 0 0 1px var(--color-accent);
+/* Its picker open (D21): ringed in the accent over the accent fill, the
+ * icon, label and chevron in the text accent; a filter that is on keeps its
+ * stronger fill. The focus ring is the inner button's, outside the ring. */
+.filterButtonOpen,
+.filterButtonOpen:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.filterButtonActive.filterButtonOpen {
+  background: var(--color-accent-bg);
+}
+
+.filterButtonOpen .icon,
+.filterButtonOpen .chevron {
+  color: var(--color-accent-text);
 }
 
 .chevron {
@@ -174,6 +188,22 @@
 .filtersTrigger {
   composes: filterMain;
   gap: 6px;
+}
+
+/* Its menu open: the open trigger's ring (D21). */
+.filtersTrigger[aria-expanded='true'],
+.filtersTrigger[aria-expanded='true']:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.filtersTrigger[aria-expanded='true']:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
+}
+
+.filtersTrigger[aria-expanded='true'] .chevron {
+  color: var(--color-accent-text);
 }
 
 .countBadge {

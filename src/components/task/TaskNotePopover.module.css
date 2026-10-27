@@ -8,8 +8,7 @@
   width: 360px;
   min-height: 180px;
   max-height: 60vh;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-dropdown);
   overflow: hidden;

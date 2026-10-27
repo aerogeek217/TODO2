@@ -4,10 +4,12 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
-import { usePopoverAnchor, type PopoverAnchor, type PopoverPlacement } from '../../hooks/use-popover-anchor'
+import { anchorAtPoint, usePopoverAnchor, type AnchorRect, type PopoverAnchor, type PopoverCaret, type PopoverPlacement } from '../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { CheckIcon, ChevronRightIcon, DashIcon } from './icons'
 import styles from './MenuPopover.module.css'
+import { PopoverRoot } from './PopoverRoot'
+import { PopoverLevelContext, usePopoverLevel } from './popover-level'
 import { shortcutScope } from '../../utils/dom-contract'
 
 export interface MenuItemEntry {
@@ -85,8 +87,15 @@ export type MenuEntry =
 
 interface MenuPopoverProps {
   anchorRef?: RefObject<HTMLElement | null>
-  point?: { x: number; y: number }
+  /** A viewport point; with its element's `rect` (`pointBelow`) the menu is anchored to that element. */
+  point?: { x: number; y: number; rect?: AnchorRect }
   placement?: PopoverPlacement
+  /**
+   * Draw the caret towards the anchor (D21). Default: on for a menu anchored
+   * to an element (`anchorRef`, or a `point` with its `rect`) below or above
+   * it; never for a bare point (a menu at the pointer) or beside the anchor.
+   */
+  caret?: boolean
   entries: readonly MenuEntry[]
   label: string
   width?: number
@@ -129,7 +138,7 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
  */
 export function MenuPopover({
-  anchorRef, point, placement = 'bottom-start', entries, label, width, closeOnScroll = false, restoreFocus = false, onReorder, onClose,
+  anchorRef, point, placement = 'bottom-start', caret: caretProp, entries, label, width, closeOnScroll = false, restoreFocus = false, onReorder, onClose,
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
@@ -140,14 +149,19 @@ export function MenuPopover({
    */
   const [open, setOpen] = useState<{ index: number; pinned: boolean; focus: boolean } | null>(null)
   const sub = open?.index ?? null
-  const { panelRef, style } = usePopoverAnchor({
-    anchor: anchorRef ? { kind: 'ref', ref: anchorRef } : { kind: 'point', x: point?.x ?? 0, y: point?.y ?? 0 },
+  const level = usePopoverLevel()
+  const beside = placement === 'right-start' || placement === 'left-start'
+  const { panelRef, style, caret } = usePopoverAnchor({
+    // A point's coordinates may be missing (a synthetic `contextmenu`): 0.
+    anchor: anchorRef ? { kind: 'ref', ref: anchorRef }
+      : point?.rect ? anchorAtPoint(point) : { kind: 'point', x: point?.x ?? 0, y: point?.y ?? 0 },
     open: true,
     placement,
     closeOnScroll,
     closeOnEscape: false,
     extraInsideRefs: [subRef],
     onClose,
+    caret: caretProp ?? !beside,
   })
   const setRef = useCallback((el: HTMLDivElement | null) => {
     menuRef.current = el
@@ -240,6 +254,7 @@ export function MenuPopover({
           label={label}
           className={styles.menu}
           style={{ ...style, ...(width ? { width } : {}) }}
+          caret={caret}
           openIndex={sub}
           onSelect={select}
           onReorder={onReorder}
@@ -261,32 +276,35 @@ export function MenuPopover({
         />,
         document.body,
       )}
-      {openEntry?.kind === 'item' && openEntry.children && sub != null && (
-        <Submenu
-          subRef={subRef}
-          parentRef={menuRef}
-          parentIndex={sub}
-          entries={openEntry.children}
-          label={openEntry.label}
-          width={openEntry.childrenWidth}
-          maxHeight={openEntry.childrenMaxHeight}
-          autoFocus={open?.focus ?? false}
-          onRun={run}
-          onClose={onClose}
-          onBack={closeSub}
-        />
-      )}
-      {openEntry?.kind === 'item' && openEntry.panel && sub != null && (
-        <FlyoutPanel
-          subRef={subRef}
-          parentRef={menuRef}
-          parentIndex={sub}
-          panel={openEntry.panel}
-          autoFocus={open?.focus ?? false}
-          onPin={() => setOpen((prev) => (prev && !prev.pinned ? { ...prev, pinned: true } : prev))}
-          onBack={closeSub}
-        />
-      )}
+      {/* A submenu or panel is a popover on the menu: a level above it. */}
+      <PopoverLevelContext.Provider value={level}>
+        {openEntry?.kind === 'item' && openEntry.children && sub != null && (
+          <Submenu
+            subRef={subRef}
+            parentRef={menuRef}
+            parentIndex={sub}
+            entries={openEntry.children}
+            label={openEntry.label}
+            width={openEntry.childrenWidth}
+            maxHeight={openEntry.childrenMaxHeight}
+            autoFocus={open?.focus ?? false}
+            onRun={run}
+            onClose={onClose}
+            onBack={closeSub}
+          />
+        )}
+        {openEntry?.kind === 'item' && openEntry.panel && sub != null && (
+          <FlyoutPanel
+            subRef={subRef}
+            parentRef={menuRef}
+            parentIndex={sub}
+            panel={openEntry.panel}
+            autoFocus={open?.focus ?? false}
+            onPin={() => setOpen((prev) => (prev && !prev.pinned ? { ...prev, pinned: true } : prev))}
+            onBack={closeSub}
+          />
+        )}
+      </PopoverLevelContext.Provider>
     </>
   )
 }
@@ -345,12 +363,13 @@ function handleMenuKeys(
   return true
 }
 
-function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSelect, onReorder, onHoverItem, onKey }: {
+function MenuPanel({ panelRef, entries, label, className, style, caret, openIndex, onSelect, onReorder, onHoverItem, onKey }: {
   panelRef: (el: HTMLDivElement | null) => void
   entries: readonly MenuEntry[]
   label: string
   className: string | undefined
   style: React.CSSProperties
+  caret?: PopoverCaret | null
   openIndex: number | null
   onSelect: (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => void
   onReorder?: (dragId: string, toIndex: number) => void
@@ -381,8 +400,9 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
       : <MenuItemButton key={i} {...props} />
   })
   return (
-    <div
+    <PopoverRoot
       ref={setRef}
+      caret={caret}
       role="menu"
       aria-label={label}
       className={className}
@@ -397,7 +417,7 @@ function MenuPanel({ panelRef, entries, label, className, style, openIndex, onSe
       {onReorder && dragIds.length > 1
         ? <MenuReorder ids={dragIds} onReorder={onReorder}>{items}</MenuReorder>
         : items}
-    </div>
+    </PopoverRoot>
   )
 }
 
@@ -657,7 +677,7 @@ function FlyoutPanel({ subRef, parentRef, parentIndex, panel, autoFocus, onPin, 
   }
 
   return createPortal(
-    <div
+    <PopoverRoot
       ref={setRef}
       className={`${styles.menu} ${styles.submenu} ${styles.panel}`}
       style={{ position: 'fixed', left: style.left, top: style.top, maxHeight: style.maxHeight, width: panel.width }}
@@ -670,7 +690,7 @@ function FlyoutPanel({ subRef, parentRef, parentIndex, panel, autoFocus, onPin, 
       onKeyDown={onKeyDown}
     >
       {panel.render()}
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

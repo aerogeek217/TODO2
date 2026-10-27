@@ -8,7 +8,8 @@ import LOOKS from './fixtures/filter-chip-looks.json' with { type: 'json' }
  * computed styles of the list chip, its label and × button, + Filter, the
  * screen-filter chip and the group · sort summary, pinned to their values
  * (`fixtures/filter-chip-looks.json`, recorded before the chips' styles moved;
- * the muted and accent text colours are the AA-contrast tokens' values).
+ * the muted and accent text colours are the AA-contrast tokens' values —
+ * in the Edit list form, a popover, the muted is the popover muted, D21).
  */
 
 const SEED: WorkspaceSeed = {

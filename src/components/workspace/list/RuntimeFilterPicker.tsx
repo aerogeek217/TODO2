@@ -8,6 +8,7 @@ import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import styles from './RuntimeFilterPicker.module.css'
 import { byName } from '../../../utils/sort-order'
+import { PopoverRoot } from '../../shared/PopoverRoot'
 
 // All option lookups for this picker go through cached Zustand stores
 // (`usePersonStore`, `useStatusStore`, `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
@@ -127,7 +128,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
   // (label + chips + input) counts as "inside" so clicking a chip's × or
   // the label doesn't dismiss the panel mid-edit. Escape is owned by the
   // input's onKeyDown (also blurs the input), so closeOnEscape=false.
-  const { panelRef, style } = usePopoverAnchor({
+  const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: fieldRef },
     open,
     closeOnScroll: false,
@@ -135,6 +136,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
     closeOnEscape: false,
     onClose: handleClose,
     extraInsideRefs: [wrapperRef],
+    caret: true,
   })
 
   // A pick with search text clears it: the whole list shows again (the
@@ -219,8 +221,9 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
         )}
       </div>
       {open && createPortal(
-        <div
+        <PopoverRoot
           ref={panelRef}
+          caret={caret}
           className={styles.panel}
           style={style}
         >
@@ -252,7 +255,7 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
               })}
             </div>
           )}
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
     </div>

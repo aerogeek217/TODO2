@@ -12,7 +12,7 @@
   width: min(var(--settings-modal-width), calc(100vw - 64px));
   height: min(var(--settings-modal-height), calc(100vh - 64px));
   border-radius: var(--radius-lg);
-  background: var(--color-popover-bg);
+  background: var(--color-dialog-bg);
   box-shadow: var(--shadow-modal);
   overflow: hidden;
 }

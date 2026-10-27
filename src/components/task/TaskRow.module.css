@@ -252,7 +252,6 @@
 .chipDropdown {
   background: var(--color-surface-glass);
   backdrop-filter: blur(16px);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: 4px 0;
   box-shadow: var(--shadow-dropdown);
@@ -281,10 +280,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-.cell:hover,
-.cellOpen {
+.cell:hover {
   background: var(--color-tint-7);
   color: var(--color-text-secondary);
+}
+
+/* Its picker or popover open (status, people, tags, follow-up, notes — D21):
+ * the open trigger's accent ring and fill, its text in the text accent;
+ * focused, the focus ring outside the ring. (The marker gutter marks it on
+ * its hit area instead, below.) */
+.cell.cellOpen,
+.cell.cellOpen:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.cell.cellOpen:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
 .cellCenter {
@@ -528,6 +541,16 @@
 
 .followup[data-followup="late"] svg {
   filter: drop-shadow(0 0 3px var(--color-followup-glow));
+}
+
+/* Its popover open: the open trigger's text accent (`.cell.cellOpen`), not
+ * the follow-up colour or glow, which come back once it closes. */
+.followup.cellOpen[data-followup] {
+  color: var(--color-accent-text);
+}
+
+.followup.cellOpen[data-followup] svg {
+  filter: none;
 }
 
 /*

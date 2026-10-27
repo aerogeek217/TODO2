@@ -39,12 +39,17 @@
   color: var(--color-text-primary);
 }
 
-/* The chip whose picker is open. */
+/* The chip whose picker is open (D21): ringed in the accent, its value in
+ * the text accent; focused, the focus ring outside the ring. */
 .listChipOpen,
 .listChipOpen:hover {
-  background: var(--color-tint-12);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-primary);
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.listChipOpen:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
 .chipLabel {
@@ -79,10 +84,21 @@
   cursor: pointer;
 }
 
-.addFilter:hover,
-.addFilterOpen {
+.addFilter:hover {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
+}
+
+/* Its menu open: the open trigger's ring (D21). */
+.addFilterOpen,
+.addFilterOpen:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.addFilterOpen:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
 /* A disclosure chip's chevron (the editors): flipped while its picker is open under it. */
@@ -142,9 +158,13 @@
   background: var(--color-or-group-chip);
 }
 
-.orGroup .listChip:hover,
-.orGroup .listChipOpen {
+.orGroup .listChip:hover {
   background: var(--color-tint-12);
+}
+
+.orGroup .listChipOpen,
+.orGroup .listChipOpen:hover {
+  background: var(--color-trigger-open-fill);
 }
 
 :global([data-touch-chips]) .orGroup {

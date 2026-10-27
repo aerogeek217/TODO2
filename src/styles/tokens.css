@@ -126,6 +126,39 @@
   --focus-ring-inset: inset 0 0 0 2px var(--focus-ring-color);
 }
 
+/*
+ * The open trigger (D21): while its popover is open the chip or button that
+ * opened it is ringed in the accent over a 12 % accent fill, its value or
+ * label in the text accent. A host that is also focused layers the focus
+ * ring outside (`box-shadow: var(--trigger-open-ring), var(--focus-ring)`).
+ */
+:root {
+  --trigger-open-ring: 0 0 0 1px var(--color-accent);
+  --color-trigger-open-fill: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+/*
+ * Popover levels (D21): every popover's root carries `data-popover-level`
+ * (`PopoverRoot`, `components/shared/popover-level`) — 1 over the page, 2 on
+ * another popover or in a dialog. Inside any popover the muted text takes
+ * its popover variant (AA on the lifted grounds); at level 2 the popover
+ * tokens take their `-2` twins, so the surface, its ring, its shadow and
+ * anything drawn in them step up once more.
+ */
+[data-popover-level] {
+  --color-text-muted: var(--color-popover-text-muted);
+  /* The focus ring's 2px gap in the popover's own ground (its level's), not
+   * the page surface: declared again so it resolves on this root. */
+  --focus-ring: 0 0 0 2px var(--color-popover-bg), 0 0 0 4px var(--focus-ring-color);
+}
+
+[data-popover-level='2'] {
+  --color-popover-bg: var(--color-popover-bg-2);
+  --color-popover-ring: var(--color-popover-ring-2);
+  --color-popover-rim: var(--color-popover-rim-2);
+  --shadow-dropdown: var(--shadow-dropdown-2);
+}
+
 /* ═══════════════════════════════════════════
    Dark Theme (default)
    ═══════════════════════════════════════════ */
@@ -142,11 +175,26 @@
   --color-surface-hover: rgba(255, 255, 255, 0.05);
   /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
-  /* Popovers, menus, dialogs and sheets: raised above the surface here, the
-     surface itself in the light theme (where the shadow does the lifting). */
-  --color-popover-bg: var(--color-surface-high);
-  /* Their 1px ring (`--shadow-dropdown`, Edit list's arrow). */
-  --color-popover-ring: rgba(48, 46, 43, 0.5);
+  /* Popovers and menus (D21): two tones above the surface, so one reads as
+     lifted off a cell or a row. */
+  --color-popover-bg: #2a2825;
+  /* A popover on a popover or in a dialog (`[data-popover-level='2']`): one
+     tone further, still lighter than what it sits on. */
+  --color-popover-bg-2: #353230;
+  /* Their 1px ring (inside `--shadow-dropdown`, Edit list's arrow): a light
+     hairline, 2.1 : 1 on the cell; level 2's a little stronger. */
+  --color-popover-ring: rgba(255, 255, 255, 0.14);
+  --color-popover-ring-2: rgba(255, 255, 255, 0.18);
+  /* The dark rim outside that ring (the 3px layer in `--shadow-dropdown`),
+     for what draws the edge itself: the caret's two outer sides. */
+  --color-popover-rim: rgba(0, 0, 0, 0.45);
+  --color-popover-rim-2: rgba(0, 0, 0, 0.5);
+  /* Muted text inside a popover (every `[data-popover-level]`): the app's
+     muted is under 4.5 : 1 on the lifted grounds; this is 5.5 : 1 on level 1,
+     4.7 : 1 on level 2. */
+  --color-popover-text-muted: #a29d96;
+  /* Dialogs (Settings, the task dialog, the check-in …): the raised surface. */
+  --color-dialog-bg: var(--color-surface-high);
   --color-border: #302e2b;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
@@ -304,9 +352,11 @@
   --color-or-group-fill: rgba(255, 255, 255, 0.055);
   --color-or-group-chip: rgba(0, 0, 0, 0.28);
 
-  /* Segmented control (the date filter's type tabs and Show choice) */
+  /* Segmented control (the date filter's type tabs and Show choice, a
+     picker's Is / Is not): the selected segment lighter than either
+     popover level it sits in (D21). */
   --color-seg-track: rgba(0, 0, 0, 0.22);
-  --color-seg-selected: #2d2b29;
+  --color-seg-selected: #3f3c39;
   --shadow-seg-selected: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 
   /* Backdrop */
@@ -320,7 +370,27 @@
 
   /* Shadows */
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.2);
-  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--color-popover-ring);
+  /* A popover's edge and shadow (D21): a top highlight, the light ring, a 3px
+     dark rim just outside it (the edge reads on any ground), then contact,
+     near and far layers so the shadow shows as a halo over rows. */
+  --shadow-dropdown:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px var(--color-popover-ring),
+    0 0 0 3px rgba(0, 0, 0, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.6),
+    0 10px 24px rgba(0, 0, 0, 0.6),
+    0 28px 64px rgba(0, 0, 0, 0.7);
+  /* Level 2: its own ring, a darker rim, deeper layers. */
+  --shadow-dropdown-2:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px var(--color-popover-ring-2),
+    0 0 0 3px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.65),
+    0 12px 28px rgba(0, 0, 0, 0.65),
+    0 32px 72px rgba(0, 0, 0, 0.75);
+  /* A small raised thing that isn't a popover (a drag label, the FAB, the
+     undo snackbar): the shadow popovers had before D21. */
+  --shadow-raised: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(48, 46, 43, 0.5);
   --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(48, 46, 43, 0.4);
   --shadow-glass-card:
     0 0 0 1px rgba(0, 0, 0, 0.4),
@@ -333,7 +403,6 @@
     0 4px 12px rgba(0, 0, 0, 0.4),
     0 12px 32px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--color-accent-shadow-subtle);
-  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 /* ═══════════════════════════════════════════
@@ -351,9 +420,19 @@
   --color-surface-hover: rgba(0, 0, 0, 0.05);
   /* The Quick Add bar's panel. */
   --color-bg-elevated: var(--color-surface-high);
-  /* Popovers, menus, dialogs and sheets. */
-  --color-popover-bg: var(--color-surface);
-  --color-popover-ring: rgba(60, 45, 20, 0.07);
+  /* Popovers and menus (D21): white above the warm paper; level 2 stays
+     white, its ring and shadow step up. */
+  --color-popover-bg: #ffffff;
+  --color-popover-bg-2: #ffffff;
+  /* Their ring: darker than the row rules behind them. */
+  --color-popover-ring: rgba(60, 45, 20, 0.22);
+  --color-popover-ring-2: rgba(60, 45, 20, 0.3);
+  /* No dark rim in light: the ring is the edge. */
+  --color-popover-rim: transparent;
+  --color-popover-rim-2: transparent;
+  --color-popover-text-muted: var(--color-text-muted);
+  /* Dialogs: the surface (the shadow does the lifting). */
+  --color-dialog-bg: var(--color-surface);
   --color-border: #dedad4;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
@@ -518,7 +597,10 @@
 
   /* Shadows — lighter, subtler, tinted toward the paper (D19); cards keep a white top highlight */
   --shadow-card: 0 1px 4px rgba(60, 45, 20, 0.06), 0 4px 16px rgba(60, 45, 20, 0.04);
-  --shadow-dropdown: 0 4px 16px rgba(60, 45, 20, 0.1), 0 0 0 1px var(--color-popover-ring);
+  /* A popover: its ring, a contact layer, an ambient one (D21). */
+  --shadow-dropdown: 0 0 0 1px var(--color-popover-ring), 0 1px 2px rgba(60, 45, 20, 0.14), 0 12px 32px rgba(60, 45, 20, 0.2);
+  --shadow-dropdown-2: 0 0 0 1px var(--color-popover-ring-2), 0 1px 2px rgba(60, 45, 20, 0.16), 0 16px 40px rgba(60, 45, 20, 0.26);
+  --shadow-raised: 0 4px 16px rgba(60, 45, 20, 0.1), 0 0 0 1px rgba(60, 45, 20, 0.07);
   --shadow-modal: 0 12px 48px rgba(60, 45, 20, 0.12), 0 0 0 1px rgba(60, 45, 20, 0.06);
   --shadow-glass-card:
     0 0 0 1px rgba(60, 45, 20, 0.06),
@@ -531,7 +613,6 @@
     0 4px 12px rgba(60, 45, 20, 0.1),
     0 12px 32px rgba(60, 45, 20, 0.08),
     0 0 0 1px var(--color-accent-shadow-subtle);
-  --shadow-float: 0 4px 16px rgba(60, 45, 20, 0.1);
 }
 
 /* ═══════════════════════════════════════════

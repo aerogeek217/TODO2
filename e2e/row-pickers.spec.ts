@@ -108,7 +108,7 @@ test.describe('people picker', () => {
     // Typing narrows the list: the panel shrinks and is re-placed against the trigger.
     await page.keyboard.type('Carol')
     await expect(panel.getByRole('option')).toHaveCount(1)
-    await expect.poll(async () => Math.round((await box(trigger)).y - ((await box(panel)).y + (await box(panel)).height))).toBe(4)
+    await expect.poll(async () => Math.round((await box(trigger)).y - ((await box(panel)).y + (await box(panel)).height))).toBe(10)
     expect((await box(panel)).height).toBeLessThan(before.height)
   })
 
@@ -150,7 +150,7 @@ test.describe('people picker', () => {
     await expect.poll(async () => (await box(trigger)).y).toBeLessThan(before.y - 10)
     await expect(panel).toBeVisible()
     const t = await box(trigger)
-    await expect.poll(async () => Math.round((await box(panel)).y - (t.y + t.height))).toBe(4)
+    await expect.poll(async () => Math.round((await box(panel)).y - (t.y + t.height))).toBe(10)
   })
 })
 

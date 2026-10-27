@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { useEffect, useRef } from 'react'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import styles from './ListWidget.module.css'
+import { PopoverRoot } from '../../shared/PopoverRoot'
 
 interface SwitchToManualPopoverProps {
   listName: string
@@ -32,7 +33,7 @@ export function SwitchToManualPopover({ listName, sortLabel, at, onConfirm, onCa
   }, [])
 
   return createPortal(
-    <div
+    <PopoverRoot
       ref={panelRef}
       className={styles.switchPopover}
       style={{ position: style.position, left: style.left, top: style.top }}
@@ -53,7 +54,7 @@ export function SwitchToManualPopover({ listName, sortLabel, at, onConfirm, onCa
           Switch to manual
         </button>
       </div>
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

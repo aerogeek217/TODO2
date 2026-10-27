@@ -14,9 +14,12 @@
   animation: dropIn 0.1s ease-out;
 }
 
+/* The slide is a margin, not a transform: a transform would make the panel
+ * the containing block of its `position: fixed` caret (`PopoverRoot`) while
+ * it runs, throwing the caret off its anchor. */
 @keyframes dropIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; margin-top: -4px; }
+  to { opacity: 1; margin-top: 0; }
 }
 
 .panel {

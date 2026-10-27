@@ -114,15 +114,22 @@ button.toggle:hover,
   color: var(--color-accent-text);
 }
 
-/* Open: pressed, like the tray's counter while its panel is open. */
-.name[aria-expanded='true'],
-.name[aria-expanded='true']:hover {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
+/* Its picker open (D21): the name ringed in the accent over the accent
+ * fill, its text and chevron in the text accent — on the lit control (a lens
+ * on) the solid ring still reads inside the control's softer border; with no
+ * lens or lifted the control stays neutral round it. Focused, the focus ring
+ * goes outside the ring. */
+.lens .name[aria-expanded='true'],
+.lens .name[aria-expanded='true']:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
 }
 
-.lens[data-state='on'] .name[aria-expanded='true'],
-.lens[data-state='on'] .name[aria-expanded='true']:hover {
-  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+.lens .name[aria-expanded='true'] svg {
   color: var(--color-accent-text);
+}
+
+.lens .name[aria-expanded='true']:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }

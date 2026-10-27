@@ -8,6 +8,12 @@ export interface PopoverPoint {
   x: number
   y: number
   align: 'start' | 'end'
+  /**
+   * The rect of the element the point was measured from (`pointBelow`), when
+   * there is one: the popover is then anchored to it (`anchorAtPoint`), so
+   * its caret points at it (D21).
+   */
+  rect?: { left: number; top: number; right: number; bottom: number }
 }
 
 /** A filter field a list's filter picker edits. */

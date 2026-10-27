@@ -429,8 +429,7 @@
   min-width: 360px;
   max-height: 400px;
   overflow-y: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-dropdown);
@@ -448,7 +447,7 @@
 }
 
 .miniListItem:hover {
-  background: var(--color-surface-high);
+  background: var(--color-tint-8);
 }
 
 .miniListCheckbox {

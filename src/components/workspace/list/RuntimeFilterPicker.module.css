@@ -110,7 +110,7 @@
 .panel {
   position: fixed;
   width: 240px;
-  background: var(--color-surface-high);
+  background: var(--color-popover-bg);
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
   z-index: var(--z-popover);
@@ -142,7 +142,7 @@
 }
 
 .option:hover {
-  background: var(--color-surface-high);
+  background: var(--color-tint-8);
 }
 
 .optionName {

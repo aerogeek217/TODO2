@@ -84,7 +84,8 @@ test('two warnings: the most urgent leads, a count badge, both in the popover â€
   const p = (await pill.boundingBox())!
   const b = (await popover.boundingBox())!
   expect(Math.abs(b.x + b.width - (p.x + p.width))).toBeLessThanOrEqual(1)
-  expect(Math.round(b.y - (p.y + p.height))).toBe(8)
+  // 10: the gap a popover with a caret keeps (`CARET_GAP_PX`).
+  expect(Math.round(b.y - (p.y + p.height))).toBe(10)
   expect(Math.round(b.width)).toBe(340)
   // Dismiss the backup warning: its section goes, the popover stays on the other.
   await popover.getByRole('button', { name: 'Dismiss' }).click()

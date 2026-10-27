@@ -32,8 +32,9 @@
   white-space: normal;
 }
 
+/* A tint, not a surface: reads on either popover level (D21) and the sheet. */
 .rowOn {
-  background: var(--color-surface-high);
+  background: var(--color-tint-8);
 }
 
 .label {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
+import { usePopoverAnchor, type PopoverCaret } from '../../../hooks/use-popover-anchor'
 import { datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
 import { entityPickerSelection } from '../../../utils/filter-negation'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
@@ -36,6 +36,8 @@ import {
   type FilterChipBarProps,
 } from './FilterChipBar.shared'
 import styles from './ScreenFilters.module.css'
+import { PopoverRoot } from '../PopoverRoot'
+import { PopoverLevelContext, usePopoverLevel } from '../popover-level'
 
 type FieldKey = Extract<FilterChipField, 'people' | 'tags' | 'dates' | 'status' | 'markers'>
 
@@ -169,7 +171,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
     setOpen(false)
     onClose?.()
   }, [onClose])
-  const { panelRef, style } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape })
+  const { panelRef, style, caret } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape, caret: true })
   const on = field.value != null
   const cut = on && valueWidth != null
   // No tooltip over an open picker. A field's own tooltip starts with its whole value already.
@@ -181,7 +183,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
   return (
     <div
       ref={pillRef}
-      className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${on && open ? styles.filterButtonOpen : ''}`}
+      className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${open ? styles.filterButtonOpen : ''}`}
     >
       <button
         ref={mainRef}
@@ -217,7 +219,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
         </button>
       )}
       {open && createPortal(
-        <FieldPopover field={field} panelRef={panelRef} position={style}>
+        <FieldPopover field={field} panelRef={panelRef} position={style} caret={caret}>
           <FieldPanelBody field={field} onDone={close} />
         </FieldPopover>,
         document.body,
@@ -237,23 +239,26 @@ function clearName(field: FieldDef): string {
 }
 
 /** The portaled popover a field's picker sits in: the picker panel, or the field's own popover. */
-function FieldPopover({ field, panelRef, position, children }: {
+function FieldPopover({ field, panelRef, position, caret = null, children }: {
   field: FieldDef
   panelRef: (el: HTMLDivElement | null) => void
   position: Pick<CSSProperties, 'position' | 'left' | 'top'>
+  /** The caret towards the filter button (none for a picker beside the Filters menu). */
+  caret?: PopoverCaret | null
   children: ReactNode
 }) {
   const custom = field.panel.kind === 'custom' ? field.panel : null
   return (
-    <div
+    <PopoverRoot
       ref={panelRef}
+      caret={caret}
       className={custom?.className ?? picker.dropdownPanel}
       style={{ position: position.position, left: position.left, top: position.top }}
       role={custom?.dialogLabel ? 'dialog' : undefined}
       aria-label={custom?.dialogLabel}
     >
       {children}
-    </div>
+    </PopoverRoot>
   )
 }
 
@@ -266,6 +271,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
   const [sub, setSub] = useState<{ key: FieldKey; x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
+  const level = usePopoverLevel()
   const count = fields.filter((f) => f.value != null).length
   const subField = sub ? fields.find((f) => f.key === sub.key) : undefined
   const subOnClose = subField?.onClose
@@ -279,7 +285,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
     setOpen(false)
   }, [closeSub])
 
-  const { panelRef: menuPanelRef, style: menuStyle } = usePopoverAnchor({
+  const { panelRef: menuPanelRef, style: menuStyle, caret: menuCaret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: triggerRef },
     open,
     onClose: closeAll,
@@ -287,6 +293,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
     closeOnScroll: false,
     extraInsideRefs: [subRef],
     consumeEscape,
+    caret: true,
   })
   const { panelRef: subPanelRef, style: subStyle } = usePopoverAnchor({
     anchor: { kind: 'point', x: sub?.x ?? 0, y: sub?.y ?? 0 },
@@ -324,8 +331,9 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}><ChevronDownIcon /></span>
       </button>
       {open && createPortal(
-        <div
+        <PopoverRoot
           ref={menuPanelRef}
+          caret={menuCaret}
           className={styles.menu}
           style={{ position: menuStyle.position, left: menuStyle.left, top: menuStyle.top }}
           role="group"
@@ -368,13 +376,16 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
           >
             Clear all filters
           </button>
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
       {sub && subField && createPortal(
-        <FieldPopover field={subField} panelRef={setSubRef} position={subStyle}>
-          <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
-        </FieldPopover>,
+        // A field's picker beside the menu is a popover on it: a level above.
+        <PopoverLevelContext.Provider value={level}>
+          <FieldPopover field={subField} panelRef={setSubRef} position={subStyle}>
+            <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
+          </FieldPopover>
+        </PopoverLevelContext.Provider>,
         document.body,
       )}
     </>

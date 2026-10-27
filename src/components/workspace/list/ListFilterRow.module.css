@@ -13,12 +13,18 @@
   border-bottom: 1px solid var(--color-border-muted);
 }
 
+/* A scroller clips on both axes (`overflow-x` makes `overflow-y` auto too), so
+ * it is padded 4px round its chips — taken back by the negative margin, the
+ * line's height and the chips' place unchanged — for an open trigger's ring
+ * (D21) and the 4px focus ring to show whole, at the first chip as well. */
 .chips {
   display: flex;
   align-items: center;
   gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
+  margin: -4px;
+  padding: 4px;
   overflow-x: auto;
   scrollbar-width: none;
 }

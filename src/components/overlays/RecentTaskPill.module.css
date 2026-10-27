@@ -14,7 +14,7 @@
   background: var(--color-surface-high);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-dropdown);
+  box-shadow: var(--shadow-raised);
   color: var(--color-text-primary);
   font-size: var(--font-size-task);
   /* A set width, not shrink-to-fit: the row sizes its columns from the

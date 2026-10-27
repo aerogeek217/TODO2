@@ -326,10 +326,9 @@
   grid-template-columns: repeat(7, 1fr);
   gap: 2px;
   padding: 6px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-modal);
+  box-shadow: var(--shadow-dropdown);
 }
 
 .iconPickerCell {

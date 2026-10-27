@@ -26,6 +26,7 @@ import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sorta
 import { bySortOrder } from '../../utils/sort-order'
 import { EditorModal } from './EditorModal'
 import styles from './EntityEditor.module.css'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 interface EditState {
   id: number
@@ -41,12 +42,13 @@ interface StatusEditorProps {
 function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChange: (icon?: StatusIconKey) => void; color: string }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const { panelRef, style } = usePopoverAnchor({
+  const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: triggerRef },
     open,
     onClose: () => setOpen(false),
     // Esc closes the picker only, not the editor around it.
     consumeEscape: true,
+    caret: true,
   })
 
   return (
@@ -62,7 +64,7 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
         <StatusIcon icon={value || DEFAULT_STATUS_ICON} />
       </button>
       {open && createPortal(
-        <div ref={panelRef} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
+        <PopoverRoot ref={panelRef} caret={caret} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
           {STATUS_ICON_KEYS.map(key => (
             <button
               key={key}
@@ -74,7 +76,7 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
               <StatusIcon icon={key} />
             </button>
           ))}
-        </div>,
+        </PopoverRoot>,
         document.body,
       )}
     </div>

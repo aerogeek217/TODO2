@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { createPortal } from 'react-dom'
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
-import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
+import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
   chipClauses, chipKey, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
@@ -20,6 +20,7 @@ import { useTooltip } from '../use-tooltip'
 import menuStyles from '../MenuPopover.module.css'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
+import { PopoverRoot } from '../PopoverRoot'
 
 /** Which clauses an edit goes to: the predicate's own (`null`) or or group `n`'s. */
 type Scope = number | null
@@ -594,17 +595,19 @@ function FilterPopover({ at, consumeEscape, onClose, className, label, testId, c
   testId: string
   children: ReactNode
 }) {
-  const { panelRef, style } = usePopoverAnchor({
-    anchor: { kind: 'point', x: at.x, y: at.y },
+  const { panelRef, style, caret } = usePopoverAnchor({
+    anchor: anchorAtPoint(at),
     open: true,
     placement: at.align === 'start' ? 'bottom-start' : 'bottom-end',
     closeOnScroll: false,
     consumeEscape,
     onClose,
+    caret: true,
   })
   return createPortal(
-    <div
+    <PopoverRoot
       ref={panelRef}
+      caret={caret}
       className={className}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
       role="dialog"
@@ -612,7 +615,7 @@ function FilterPopover({ at, consumeEscape, onClose, className, label, testId, c
       data-testid={testId}
     >
       {children}
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

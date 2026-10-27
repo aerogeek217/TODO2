@@ -20,6 +20,7 @@ import { useTooltip } from '../use-tooltip'
 import { FollowupDateButton } from './FollowupDateButton'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
 import styles from './Followup.module.css'
+import { PopoverRoot } from '../PopoverRoot'
 
 interface FollowupPopoverProps {
   todo: PersistedTodoItem
@@ -84,7 +85,7 @@ export function FollowupPopover({
   const input = useFollowupInput(proposal ?? undefined, 'next', today)
   // The field holds a proposal the user usually replaces: focus selects it.
   const selectOnFocus = useSelectAllOnFocus()
-  const { panelRef, style } = usePopoverAnchor({ anchor, open: true, onClose })
+  const { panelRef, style, caret } = usePopoverAnchor({ anchor, open: true, onClose, caret: true })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
     panelRef(el)
@@ -146,8 +147,9 @@ export function FollowupPopover({
   const nowText = current === 'mixed' ? 'mixed' : current ? formatWeekdayNumeric(current) : 'none'
 
   return createPortal(
-    <div
+    <PopoverRoot
       ref={setPanel}
+      caret={caret}
       className={styles.popover}
       style={{ position: style.position, left: style.left, top: style.top }}
       role="dialog"
@@ -243,7 +245,7 @@ export function FollowupPopover({
         Mark followed up
       </button>
       {followedUpTip}
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

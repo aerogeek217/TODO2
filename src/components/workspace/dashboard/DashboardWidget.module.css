@@ -905,7 +905,7 @@ button.quadrant:focus-visible {
   border: none;
   border-radius: 6px;
   background: var(--color-surface-high);
-  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-dropdown);
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-raised);
   color: var(--color-text-secondary);
   cursor: pointer;
   opacity: 0;
@@ -918,7 +918,7 @@ button.quadrant:focus-visible {
 }
 
 .customizeGear:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-dropdown), var(--focus-ring);
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-raised), var(--focus-ring);
 }
 
 .customizeGear:hover {

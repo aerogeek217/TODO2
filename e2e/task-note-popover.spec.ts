@@ -62,7 +62,7 @@ test.describe('row notes popover placement', () => {
     const vp = page.viewportSize()
     const i = await box(icon)
     // Below the icon there is no room for the popover's minimum height.
-    expect(i.y + i.height + 4 + 180).toBeGreaterThan((vp?.height ?? 0) - MARGIN)
+    expect(i.y + i.height + 10 + 180).toBeGreaterThan((vp?.height ?? 0) - MARGIN)
 
     await icon.click()
     const popover = page.getByRole('dialog', { name: 'Progress and notes' })
@@ -93,7 +93,8 @@ test.describe('row notes popover placement', () => {
     await expect.poll(async () => (await box(icon)).y).toBeLessThan(before.y - 20)
     await expect(popover).toBeVisible()
     const i = await box(icon)
-    await expect.poll(async () => Math.round((await box(popover)).y - (i.y + i.height))).toBe(4)
+    // The gap a popover with a caret keeps (`CARET_GAP_PX`).
+    await expect.poll(async () => Math.round((await box(popover)).y - (i.y + i.height))).toBe(10)
 
     await icon.click()
     await expect(popover).toHaveCount(0)

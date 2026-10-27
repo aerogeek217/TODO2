@@ -39,6 +39,7 @@ import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
 import { trayExpansion, type TrayExpansion } from './tray-expansion'
+import { PopoverRoot } from '../shared/PopoverRoot'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
@@ -280,7 +281,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
   }
 
   return (
-    <div
+    <PopoverRoot
       ref={setRefs}
       className={styles.searchMiniList}
       id="search-results"
@@ -323,7 +324,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
           </div>
         )
       })}
-    </div>
+    </PopoverRoot>
   )
 })
 
@@ -643,7 +644,7 @@ export function TopBar() {
                 }}
               />
             ) : unmatchedNotes && (
-              <div className={styles.searchNotePopover}>{unmatchedNotes}</div>
+              <PopoverRoot className={styles.searchNotePopover}>{unmatchedNotes}</PopoverRoot>
             )}
           </div>
 

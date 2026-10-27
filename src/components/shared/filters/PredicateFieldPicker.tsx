@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { emptyFilterClauses, PREDICATE_SEARCH_TEXT_MAX, type FilterClauses } from '../../../models/filter-predicate'
 import type { DateField } from '../../../models/app-view'
-import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
+import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -17,6 +17,7 @@ import { ENTITY_ID_FIELD } from './FilterChipBar.shared'
 import { ClearableField } from '../ClearableField'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
+import { PopoverRoot } from '../PopoverRoot'
 
 type EntityField = 'people' | 'tags' | 'status'
 
@@ -45,18 +46,20 @@ export interface PredicateFieldPickerProps<T extends FilterClauses> extends Pick
  * open (entity checklist, date range, text).
  */
 export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscape = false, ...body }: PredicateFieldPickerProps<T>) {
-  const { panelRef, style } = usePopoverAnchor({
-    anchor: { kind: 'point', x: at.x, y: at.y },
+  const { panelRef, style, caret } = usePopoverAnchor({
+    anchor: anchorAtPoint(at),
     open: true,
     placement: at.align === 'start' ? 'bottom-start' : 'bottom-end',
     closeOnScroll: false,
     consumeEscape,
     onClose: body.onClose,
+    caret: true,
   })
   const dates = body.field === 'dates'
   return createPortal(
-    <div
+    <PopoverRoot
       ref={panelRef}
+      caret={caret}
       className={dates ? DATE_FILTER_POPOVER_CLASS : `${picker.dropdownPanel} ${styles.pickerPanel}`}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
       role="dialog"
@@ -64,7 +67,7 @@ export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscap
       data-testid="list-filter-picker"
     >
       <PredicateFieldPickerBody {...body} />
-    </div>,
+    </PopoverRoot>,
     document.body,
   )
 }

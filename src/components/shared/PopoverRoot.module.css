@@ -1,0 +1,44 @@
+/*
+ * A popover's caret (D21, `PopoverRoot`): a 10px square in the popover's own
+ * surface, turned 45° so one corner points at the anchor, centred 1px inside
+ * the facing edge (`left` / `top`, written inline: the edge point under the
+ * anchor). Only its outer half shows (`clip-path`), so it covers the
+ * popover's ring and rim where it joins and draws them on its two outer
+ * sides: the ring as a 1px border, the dark theme's 3px rim as an offset
+ * shadow. `position: fixed` keeps it out of a scrolling root's clip; the
+ * level's tokens (`[data-popover-level='2']`) reach it from the root.
+ */
+.caret {
+  position: fixed;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  box-sizing: border-box;
+  background: var(--popover-caret-bg, var(--color-popover-bg));
+  background-clip: padding-box;
+  backdrop-filter: var(--popover-caret-backdrop, none);
+  border-top: 1px solid var(--color-popover-ring);
+  border-left: 1px solid var(--color-popover-ring);
+  box-shadow: -3px -3px 0 0 var(--color-popover-rim);
+  /* The outer half (above the diagonal through the side corners) and the
+   * ring and rim beyond it. */
+  clip-path: polygon(-4px -4px, calc(100% + 4px) -4px, -4px calc(100% + 4px));
+}
+
+/* Turned so the bordered corner points out of the facing edge. */
+.caret[data-popover-caret='top'] {
+  transform: translateY(1px) rotate(45deg);
+}
+
+.caret[data-popover-caret='bottom'] {
+  transform: translateY(-1px) rotate(225deg);
+}
+
+.caret[data-popover-caret='left'] {
+  transform: translateX(1px) rotate(-45deg);
+}
+
+.caret[data-popover-caret='right'] {
+  transform: translateX(-1px) rotate(135deg);
+}
