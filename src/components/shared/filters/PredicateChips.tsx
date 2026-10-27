@@ -8,7 +8,7 @@ import {
   chipClauses, chipKey, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
   type FilterChip, type LineItem,
 } from '../../../utils/filter-chips'
-import { withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
+import { hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, ChevronRightIcon, CloseIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
@@ -240,13 +240,18 @@ export function PredicateChips({
     const chip = { field: o.field, dateField: o.dateField }
     setOpen({ kind: 'group', index: groups.length, orAnother: true, wrap: { chip, index: groups.length }, ...(o.at ? { at: o.at } : {}) })
   }
-  /** Whether a field picker offers "Or another filter" (not while adding; a new group only below the cap). */
+  /**
+   * Whether a field picker offers "Or another filter": not while adding, not
+   * while what it edits filters nothing (a held group, a chip of the
+   * predicate's own emptied in its picker — there is no chip to be an
+   * alternative to), a new group only below the cap.
+   */
   const offersOrAnother = (o: Extract<Open, { kind: 'field' }>) => {
-    // A held group has nothing to be an alternative to yet.
     if (o.adding || o.held) return false
     if (o.scope != null) return addable(clausesOf(o.scope)).length > 0
     const chip = { field: o.field, dateField: o.dateField }
-    return wrapChipInOrGroup(shown, chip) != null && addable(chipClauses(shown, chip)).length > 0
+    const own = chipClauses(shown, chip)
+    return hasFilterClause(own) && wrapChipInOrGroup(shown, chip) != null && addable(own).length > 0
   }
 
   const addToGroup = (o: Extract<Open, { kind: 'group' }>, field: ListFilterField) => {

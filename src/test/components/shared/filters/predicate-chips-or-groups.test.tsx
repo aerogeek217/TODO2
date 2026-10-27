@@ -182,6 +182,22 @@ describe('PredicateChips — a group emptied while its picker is open', () => {
     })
   }
 
+  for (const layout of ['line', 'stack'] as const) {
+    it(`(${layout}) a chip of the predicate's own emptied in its picker offers no "Or another filter" until it filters again`, () => {
+      const log: TodoPredicate[] = []
+      render(<Harness initial={{ ...waiting, searchText: 'foo' }} log={log} layout={layout} />)
+      fireEvent.click(chip(/Text/))
+      expect(screen.getByRole('button', { name: /Or another filter/ })).toBeInTheDocument()
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+      expect(screen.queryByRole('button', { name: /Or another filter/ })).toBeNull()
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: ' ' } })
+      expect(screen.queryByRole('button', { name: /Or another filter/ })).toBeNull()
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'bar' } })
+      fireEvent.click(screen.getByRole('button', { name: /Or another filter/ }))
+      expect(within(screen.getByTestId('or-group')).getByTestId('list-filter-chip')).toHaveTextContent('Text“bar”')
+    })
+  }
+
   it('closing it then leaves the group out', () => {
     const log: TodoPredicate[] = []
     render(<Harness initial={textThenWaiting} log={log} layout="stack" />)
