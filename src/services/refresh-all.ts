@@ -46,7 +46,11 @@ export async function refreshAllStores() {
   useUIStore.getState().closeListEditor()
   // Note text typed before the replace would be saved over the new note.
   useNoteStore.getState().discardPending()
+  const lensBefore = useSettingsStore.getState().activeLensId
   await useSettingsStore.getState().load()
+  // The lift is the lens the user lifted: a pick the replaced data brings
+  // (another device's, through the sync file) comes in on, not lifted.
+  if (useSettingsStore.getState().activeLensId !== lensBefore) useUIStore.getState().setLensLifted(false)
   await Promise.all([
     useTodoStore.getState().loadAll(),
     usePersonStore.getState().load(),

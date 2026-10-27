@@ -140,8 +140,8 @@ interface UIState {
   /**
    * The top bar's lens is lifted for now (the lens control's glasses):
    * every widget shows what the chips keep; the pick stays. A second
-   * click, a pick, Cycle lens and a reload put the lens back — a layout
-   * switch doesn't.
+   * click, a pick, Cycle lens, a reload and a data replace bringing another
+   * pick put the lens back — a layout switch doesn't.
    */
   lensLifted: boolean
   /** Mobile filter sheet open state */
