@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -69,7 +69,7 @@ test.describe('desktop', () => {
     await openSettings(page, 'Eisenhower')
     await expect(part(page)).toBeInViewport()
     await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('2 now')
-    await card(page, 'delegate').getByRole('button', { name: 'Filter', exact: true }).click()
+    await card(page, 'delegate').getByRole('button', { name: ADD_FILTER }).click()
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()
@@ -120,7 +120,7 @@ test.describe('desktop', () => {
     await expect(part(page).getByTestId('eisenhower-source')).toHaveCount(0)
     const line = part(page).getByTestId('eisenhower-list-line')
     await expect(line).toContainText('No filters')
-    await line.getByRole('button', { name: 'Filter', exact: true }).click()
+    await line.getByRole('button', { name: ADD_FILTER }).click()
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()
@@ -167,7 +167,7 @@ test.describe('desktop', () => {
     const snackbar = page.locator('[data-keeps-selection]').filter({ hasText: 'Undo' })
 
     // A filter change shows the snackbar over Settings; its Undo puts it back, Settings stays.
-    await card(page, 'delegate').getByRole('button', { name: 'Filter', exact: true }).click()
+    await card(page, 'delegate').getByRole('button', { name: ADD_FILTER }).click()
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Status' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radio', { name: 'Is not' }).click()

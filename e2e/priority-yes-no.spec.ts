@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -79,7 +79,7 @@ test.describe('desktop', () => {
     await wsListWidget(page, 't1').getByTestId('list-summary').click()
     const editList = page.getByTestId('edit-list')
     await expect(editList).toBeVisible()
-    await editList.getByRole('button', { name: 'Filter', exact: true }).click()
+    await editList.getByRole('button', { name: ADD_FILTER }).click()
     await page.getByRole('menuitem', { name: 'Priority' }).click()
     const picker = page.getByTestId('list-filter-picker')
     await picker.getByRole('radiogroup', { name: 'Important', exact: true }).getByRole('radio', { name: 'No' }).click()
