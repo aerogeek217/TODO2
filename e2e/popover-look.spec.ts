@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { ADD_FILTER, openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, openSettings, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Popovers stand off the page (D21): a popover over the page (level 1) and
@@ -212,6 +212,94 @@ for (const theme of ['dark', 'light'] as const) {
     })
   })
 }
+
+/**
+ * Room round `trigger` inside the nearest ancestor that clips (a filter
+ * line's chip scroller): px from each of its sides to the clip box's.
+ */
+async function clipRoom(trigger: Locator) {
+  return trigger.evaluate((el) => {
+    const clips = (node: Element) => {
+      const cs = getComputedStyle(node)
+      return cs.overflowX !== 'visible' || cs.overflowY !== 'visible'
+    }
+    let clip = el.parentElement
+    while (clip && !clips(clip)) clip = clip.parentElement
+    const c = (clip ?? document.documentElement).getBoundingClientRect()
+    const t = el.getBoundingClientRect()
+    return { top: t.top - c.top, bottom: c.bottom - t.bottom, left: t.left - c.left, right: c.right - t.right }
+  })
+}
+
+/** The 4px focus ring (and the open ring inside it) shows whole: nothing of it is clipped. */
+async function expectRingRoom(trigger: Locator) {
+  const room = await clipRoom(trigger)
+  for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+    expect(room[side], `room ${side}`).toBeGreaterThanOrEqual(4 - 0.01)
+  }
+}
+
+test.describe('the filter line does not clip an open or focused trigger’s ring', () => {
+  const LINES: WorkspaceSeed = {
+    people: ['Ann'],
+    listDefinitions: [{ name: 'Team', people: ['Ann'] }],
+    tasks: [{ title: 'Ann one', people: ['Ann'], urgent: true, important: true }],
+    layouts: [{
+      name: 'Main',
+      columns: [
+        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
+      ],
+    }],
+  }
+
+  test('desktop: a list’s chip and + Filter, and the Eisenhower’s + Filter, ringed whole while open; the line 36px', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 })
+    await seedWorkspace(page, LINES)
+    const row = wsListWidget(page, 't1').getByTestId('list-filter-row')
+    expect(Math.round((await box(row)).height)).toBe(36)
+
+    // The first chip sits at the scroller's start: its left side too.
+    const chip = row.getByTestId('list-filter-chip')
+    await chip.click()
+    await expect(page.getByTestId('list-filter-picker')).toBeVisible()
+    await expectRinged(page, chip, true)
+    await expectRingRoom(chip)
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('list-filter-picker')).toHaveCount(0)
+
+    const addFilter = row.getByRole('button', { name: ADD_FILTER })
+    await addFilter.click()
+    await expect(page.getByRole('menu', { name: 'Add a filter' })).toBeVisible()
+    await expectRinged(page, addFilter, true)
+    await expectRingRoom(addFilter)
+    await page.keyboard.press('Escape')
+
+    const eisLine = wsCell(page, 'k2').getByTestId('list-filter-row')
+    expect(Math.round((await box(eisLine)).height)).toBe(36)
+    const eisAdd = eisLine.getByRole('button', { name: ADD_FILTER })
+    await eisAdd.click()
+    await expect(page.getByRole('menu', { name: 'Add a filter' })).toBeVisible()
+    await expectRinged(page, eisAdd, true)
+    await expectRingRoom(eisAdd)
+  })
+
+  test('phone (touch chips): room for the ring round the 32px chips; the line 48px', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+    const page = await context.newPage()
+    try {
+      await seedWorkspace(page, LINES)
+      const row = wsCell(page, 'k1').getByTestId('list-filter-row')
+      expect(Math.round((await box(row)).height)).toBe(48)
+      const chip = row.getByTestId('list-filter-chip')
+      expect(Math.round((await box(chip)).height)).toBe(32)
+      await expectRingRoom(chip)
+      await expectRingRoom(row.getByRole('button', { name: ADD_FILTER }))
+    } finally {
+      await context.close()
+    }
+  })
+})
 
 test.describe('carets on a row’s note popover', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
