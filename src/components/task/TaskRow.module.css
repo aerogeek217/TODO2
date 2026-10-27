@@ -280,10 +280,24 @@
   font-variant-numeric: tabular-nums;
 }
 
-.cell:hover,
-.cellOpen {
+.cell:hover {
   background: var(--color-tint-7);
   color: var(--color-text-secondary);
+}
+
+/* Its picker or popover open (status, people, tags, follow-up, notes — D21):
+ * the open trigger's accent ring and fill, its text in the text accent;
+ * focused, the focus ring outside the ring. (The marker gutter marks it on
+ * its hit area instead, below.) */
+.cell.cellOpen,
+.cell.cellOpen:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.cell.cellOpen:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
 .cellCenter {

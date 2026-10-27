@@ -183,7 +183,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
   return (
     <div
       ref={pillRef}
-      className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${on && open ? styles.filterButtonOpen : ''}`}
+      className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${open ? styles.filterButtonOpen : ''}`}
     >
       <button
         ref={mainRef}

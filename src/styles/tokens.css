@@ -127,6 +127,17 @@
 }
 
 /*
+ * The open trigger (D21): while its popover is open the chip or button that
+ * opened it is ringed in the accent over a 12 % accent fill, its value or
+ * label in the text accent. A host that is also focused layers the focus
+ * ring outside (`box-shadow: var(--trigger-open-ring), var(--focus-ring)`).
+ */
+:root {
+  --trigger-open-ring: 0 0 0 1px var(--color-accent);
+  --color-trigger-open-fill: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+/*
  * Popover levels (D21): every popover's root carries `data-popover-level`
  * (`PopoverRoot`, `components/shared/popover-level`) — 1 over the page, 2 on
  * another popover or in a dialog. Inside any popover the muted text takes
