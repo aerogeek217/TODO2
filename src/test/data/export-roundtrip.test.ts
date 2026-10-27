@@ -7,7 +7,7 @@ import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
-import { NEGATABLE_FIELDS, type TodoPredicate } from '../../models/filter-predicate'
+import { NEGATABLE_FIELDS, type FilterClauses, type TodoPredicate } from '../../models/filter-predicate'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
@@ -49,6 +49,15 @@ const FULL_PREDICATE: TodoPredicate = {
   tags: [1],
 }
 
+/** Two or groups, in their stored form: every field kind inside one, an "is not" in the other. */
+const OR_GROUPS: FilterClauses[] = [
+  {
+    personIds: [2], statusIds: null, searchText: 'call',
+    dates: { followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } }, markers: 'hot', tags: [0],
+  },
+  { personIds: null, statusIds: [1, 0], searchText: '', dates: {}, markers: { urgent: false }, tags: null, negate: { statusIds: true } },
+]
+
 function buildSeed(): Seed {
   return {
     todos: [
@@ -84,7 +93,7 @@ function buildSeed(): Seed {
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'checkinOpenMethod', value: 'eml' },
-      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: 'hot', negate: { tags: true } }) },
+      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: 'hot', negate: { tags: true }, orGroups: [OR_GROUPS[1]!] }) },
       { key: 'newListSort', value: 'deadline' },
       { key: 'newListSortDirection', value: 'desc' },
       { key: 'newListGroup', value: 'tag' },
@@ -92,7 +101,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
-      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: 'hot', negate: { statusIds: true } } }]) },
+      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: 'hot', negate: { statusIds: true }, orGroups: OR_GROUPS } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
@@ -122,7 +131,7 @@ function buildSeed(): Seed {
       owner: { eisenhower: true },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true } } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true }, orGroups: OR_GROUPS } },
       sort: 'deadline', sortDirection: 'desc', grouping: 'people',
       runtimeFilter: { field: 'person' },
       owner: { layoutId: 2 },
@@ -181,7 +190,7 @@ function buildSeed(): Seed {
 /** The seed's Eisenhower panes, in their stored form (what import keeps unchanged). */
 const SEED_PANES: EisenhowerPanes = {
   do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: { focus: true, urgent: false }, tags: [2], negate: { tags: true } } },
-  delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true } } },
+  delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true }, orGroups: [OR_GROUPS[0]!] } },
   drop: { name: 'Someday' },
 }
 
@@ -258,6 +267,13 @@ describe('export → JSON → import round-trip', () => {
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
+    // Or groups: on a list, with every kind of clause and an "is not" inside; in a lens, a pane and the check-in filter.
+    const groups = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? d.membership.predicate.orGroups ?? [] : [])
+    expect(groups.some((g) => g.negate !== undefined)).toBe(true)
+    expect(groups.some((g) => g.personIds && g.tags && g.markers && g.searchText && Object.keys(g.dates).length > 0)).toBe(true)
+    for (const key of ['lenses', 'eisenhowerPanes', 'checkinTaskFilter']) {
+      expect(seed.settings.find((r) => r.key === key)?.value, `${key} holds an or group`).toContain('"orGroups"')
+    }
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(['deadline', 'followup', 'created', 'modified']))

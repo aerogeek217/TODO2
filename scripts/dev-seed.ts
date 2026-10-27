@@ -50,7 +50,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 68
+export const DEV_SEED_SCHEMA_VERSION = 69
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
