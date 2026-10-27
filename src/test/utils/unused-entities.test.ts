@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type ListDefinition, type Person, type TodoPredicate } from '../../models'
+import { emptyFilterClauses, emptyPredicate, type ListDefinition, type Person, type TodoPredicate } from '../../models'
 import {
   entityTaskUse,
   filterReferences,
@@ -97,6 +97,25 @@ describe('filterReferences', () => {
     }), 'tag')
     expect(refs.get(10)).toEqual({ lists: 0, panes: 2, checkin: false })
     expect(refs.get(11)).toEqual({ lists: 0, panes: 0, checkin: true })
+  })
+
+  it('finds people and tags named only inside an or group, a list counting once', () => {
+    const groups = (personIds: number[], tags: number[]): Partial<TodoPredicate> => ({
+      personIds: [1],
+      orGroups: [{ ...emptyFilterClauses(), personIds, negate: { personIds: true } }, { ...emptyFilterClauses(), personIds: [1], tags }],
+    })
+    const s = sources({
+      lists: [list(1, groups([2], [10]))],
+      panes: { do: { filter: { ...emptyPredicate(), ...groups([3], [11]) } } },
+      checkinFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), tags: [12, 0] }] },
+    })
+    const people = filterReferences(s, 'person')
+    expect(people.get(1)).toEqual({ lists: 1, panes: 1, checkin: false })
+    expect(people.get(2)).toEqual({ lists: 1, panes: 0, checkin: false })
+    expect(people.get(3)).toEqual({ lists: 0, panes: 1, checkin: false })
+    const tags = filterReferences(s, 'tag')
+    expect([...tags.keys()].sort()).toEqual([10, 11, 12])
+    expect(tags.get(12)).toEqual({ lists: 0, panes: 0, checkin: true })
   })
 
   it('a people filter names no tag, and the other way round', () => {

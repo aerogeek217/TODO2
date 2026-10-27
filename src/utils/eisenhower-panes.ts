@@ -198,7 +198,11 @@ function singleId(filter: TodoPredicate, field: 'personIds' | 'statusIds' | 'tag
   return only !== 0 ? only : undefined
 }
 
-/** `filter`'s writes, against the statuses / people / tags there are now (`known`). */
+/**
+ * `filter`'s writes, against the statuses / people / tags there are now
+ * (`known`). Only the clauses outside the or groups write (`singleId` reads
+ * those too): which of an or group's clauses a drop should meet is ambiguous.
+ */
 export function paneWrites(filter: TodoPredicate, known: FilterChipNames): PaneWrites {
   const out: PaneWrites = { markers: markerConditions(filter.markers) }
   const deleted: PaneEntityField[] = []

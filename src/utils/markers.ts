@@ -120,6 +120,12 @@ export function hasMarkers(m: MarkersFilter | null | undefined): boolean {
   return isHotFilter(m) || activeMarkers(m).length > 0
 }
 
+/** Hot, a copy of the markers' Yes / No conditions, or null when no marker is tested. */
+export function normalizeMarkersFilter(m: MarkersFilter | null | undefined): MarkersFilter | null {
+  if (isHotFilter(m)) return m
+  return activeMarkers(m).length > 0 ? markerConditions(m) : null
+}
+
 /**
  * `m` with `key` set to Yes (`true`), No (`false`) or Any (`undefined`);
  * `null` once no marker is tested. While Hot is on the single markers are

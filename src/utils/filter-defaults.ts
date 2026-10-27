@@ -30,7 +30,9 @@ export interface FilterDefaultsOptions {
  * A Markers filter makes new tasks start with its Yes markers flagged and
  * its No markers off; a Hot filter seeds the Hot rule's first line when
  * `options.hotRule` is given, else none. An "is not" People / Status / Tags filter seeds nothing
- * (the new task simply has none of the excluded values).
+ * (the new task simply has none of the excluded values). Or groups seed
+ * nothing, by design: which of an or group's clauses a new task should
+ * meet is ambiguous, so only the clauses outside them are read.
  */
 export function getFilterDefaults(filters: FilterCriteria, options: FilterDefaultsOptions = {}): FilterDefaults {
   const seeds = (field: 'personIds' | 'tags') => {

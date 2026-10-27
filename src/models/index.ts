@@ -38,7 +38,10 @@ export {
   type NegatableField,
   type FilterNegation,
   NEGATABLE_FIELDS,
+  type FilterClauses,
+  OR_GROUPS_MAX,
   emptyPredicate,
+  emptyFilterClauses,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'
 export { type TodoEvent, type TodoEventType } from './todo-event'
