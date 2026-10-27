@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { TodoPredicate } from '../../../models'
-import { PREDICATE_SEARCH_TEXT_MAX } from '../../../models/filter-predicate'
+import { emptyFilterClauses, PREDICATE_SEARCH_TEXT_MAX, type FilterClauses } from '../../../models/filter-predicate'
 import type { DateField } from '../../../models/app-view'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
@@ -9,100 +8,102 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { entityPickerSelection, isNegated, withIdFilter } from '../../../utils/filter-negation'
-import { MARKERS_LABEL } from '../../../utils/markers'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
 import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
-import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
-import { DEFAULT_PREDICATE, ENTITY_ID_FIELD } from './FilterChipBar.shared'
+import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
+import { PICKER_TITLE, pickerLabel } from './picker-label'
+import { ENTITY_ID_FIELD } from './FilterChipBar.shared'
 import { ClearableField } from '../ClearableField'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
 
 type EntityField = 'people' | 'tags' | 'status'
 
-export interface PredicateFieldPickerProps {
+interface PickerBodyProps<T extends FilterClauses> {
   field: ListFilterField
-  predicate: TodoPredicate
-  onChange: (next: TodoPredicate) => void
-  /** Viewport point the panel hangs from. */
-  at: PopoverPoint
+  /** The clauses edited: a predicate's own, or one of its or groups'. */
+  predicate: T
+  onChange: (next: T) => void
   /** Adding this filter: an entity picker starts with nothing ticked (the first pick narrows to it). */
   adding?: boolean
   /** The date type the date panel opens on (a date chip's); default the first that filters, else Due. */
   dateField?: DateField
-  /** Esc closes the picker only, not what it was opened from (e.g. a dialog). Default: it goes on. */
-  consumeEscape?: boolean
   onClose: () => void
 }
 
+export interface PredicateFieldPickerProps<T extends FilterClauses> extends PickerBodyProps<T> {
+  /** Viewport point the panel hangs from. */
+  at: PopoverPoint
+  /** Esc closes the picker only, not what it was opened from (e.g. a dialog). Default: it goes on. */
+  consumeEscape?: boolean
+}
+
 /**
- * The picker for one filter field of a list's predicate — the same pickers
- * the top bar's filter buttons open (entity checklist, date range, text).
+ * The picker for one filter field of a list's predicate (or of one of its
+ * or groups) in a popover — the same pickers the top bar's filter buttons
+ * open (entity checklist, date range, text).
  */
-export function PredicateFieldPicker({ field, predicate: stored, onChange, at, adding = false, dateField, consumeEscape = false, onClose }: PredicateFieldPickerProps) {
-  // A stored predicate may predate some fields; read it with their defaults.
-  const predicate = useMemo(() => ({ ...DEFAULT_PREDICATE, ...stored }), [stored])
+export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscape = false, ...body }: PredicateFieldPickerProps<T>) {
   const { panelRef, style } = usePopoverAnchor({
     anchor: { kind: 'point', x: at.x, y: at.y },
     open: true,
     placement: at.align === 'start' ? 'bottom-start' : 'bottom-end',
     closeOnScroll: false,
     consumeEscape,
-    onClose,
+    onClose: body.onClose,
   })
-
-  // Several updates can fire from one gesture (e.g. the date Clear): each
-  // builds on the last one sent, not on this render's predicate.
-  const latest = useRef(predicate)
-  useEffect(() => { latest.current = predicate }, [predicate])
-  const replace = useCallback((change: (p: TodoPredicate) => TodoPredicate) => {
-    const next = change(latest.current)
-    latest.current = next
-    onChange(next)
-  }, [onChange])
-  const update = useCallback((patch: Partial<TodoPredicate>) => replace((p) => ({ ...p, ...patch })), [replace])
-
-  const dates = field === 'dates'
+  const dates = body.field === 'dates'
   return createPortal(
     <div
       ref={panelRef}
       className={dates ? DATE_FILTER_POPOVER_CLASS : `${picker.dropdownPanel} ${styles.pickerPanel}`}
       style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
       role="dialog"
-      aria-label={dates ? DATE_FILTER_DIALOG_LABEL : `${PICKER_TITLE[field]} filter`}
+      aria-label={pickerLabel(body.field)}
       data-testid="list-filter-picker"
     >
-      {dates ? (
-        // Picking a type or clearing keeps the panel open.
-        <DateFilterPanel dates={predicate.dates} initialField={dateField} onChange={(d) => update({ dates: d })} autoFocus />
-      ) : field === 'text' ? (
-        <TextPicker predicate={predicate} update={update} onClose={onClose} />
-      ) : field === 'markers' ? (
-        // Several markers can be set, so picking one keeps the picker open.
-        <MarkersPanelBody value={predicate.markers ?? null} onChange={(markers) => update({ markers })} />
-      ) : (
-        <EntityPicker field={field} predicate={predicate} adding={adding} replace={replace} onClose={onClose} />
-      )}
+      <PredicateFieldPickerBody {...body} />
     </div>,
     document.body,
   )
 }
 
-const PICKER_TITLE: Record<ListFilterField, string> = {
-  people: 'People',
-  tags: 'Tags',
-  status: 'Status',
-  markers: MARKERS_LABEL,
-  dates: 'Dates',
-  text: 'Text',
+/**
+ * One field's picker body, without a popover around it (a list editor draws
+ * it in place under the chip).
+ */
+export function PredicateFieldPickerBody<T extends FilterClauses>({ field, predicate: stored, onChange, adding = false, dateField, onClose }: PickerBodyProps<T>) {
+  // Stored clauses may predate some fields; read them with their defaults.
+  const predicate = useMemo((): T => ({ ...emptyFilterClauses(), ...stored }), [stored])
+
+  // Several updates can fire from one gesture (e.g. the date Clear): each
+  // builds on the last one sent, not on this render's clauses.
+  const latest = useRef(predicate)
+  useEffect(() => { latest.current = predicate }, [predicate])
+  const replace = useCallback((change: (p: T) => T) => {
+    const next = change(latest.current)
+    latest.current = next
+    onChange(next)
+  }, [onChange])
+  const update = useCallback((patch: Partial<FilterClauses>) => replace((p) => ({ ...p, ...patch })), [replace])
+
+  if (field === 'dates') {
+    // Picking a type or clearing keeps the panel open.
+    return <DateFilterPanel dates={predicate.dates} initialField={dateField} onChange={(d) => update({ dates: d })} autoFocus />
+  }
+  if (field === 'text') return <TextPicker predicate={predicate} update={update} onClose={onClose} />
+  // Several markers can be set, so picking one keeps the picker open.
+  if (field === 'markers') return <MarkersPanelBody value={predicate.markers ?? null} onChange={(markers) => update({ markers })} />
+  return <EntityPicker field={field} predicate={predicate} adding={adding} replace={replace} onClose={onClose} />
 }
 
-function EntityPicker({ field, predicate, adding, replace, onClose }: {
+
+function EntityPicker<T extends FilterClauses>({ field, predicate, adding, replace, onClose }: {
   field: EntityField
-  predicate: TodoPredicate
+  predicate: T
   adding: boolean
-  replace: (change: (p: TodoPredicate) => TodoPredicate) => void
+  replace: (change: (p: T) => T) => void
   onClose: () => void
 }) {
   const people = usePersonStore((s) => s.people)
@@ -174,8 +175,8 @@ function EntityPicker({ field, predicate, adding, replace, onClose }: {
 }
 
 function TextPicker({ predicate, update, onClose }: {
-  predicate: TodoPredicate
-  update: (patch: Partial<TodoPredicate>) => void
+  predicate: FilterClauses
+  update: (patch: Partial<FilterClauses>) => void
   onClose: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)

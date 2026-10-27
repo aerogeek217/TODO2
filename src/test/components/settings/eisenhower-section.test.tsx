@@ -177,13 +177,13 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(within(part).getByTestId('eisenhower-settings-filter-note').textContent).toContain('(1 filter on)')
   })
 
-  it('Esc in a pane’s filter picker closes the picker only, not Settings', () => {
+  it('Esc in a pane’s filter picker (expanded under its chip) closes the picker only, not Settings', () => {
     const { part } = open({ delegate: { filter: NOT_DELEGATED } })
     const statusChip = within(card(part, 'delegate')).getAllByTestId('list-filter-chip')[1]!
     fireEvent.click(statusChip)
-    const picker = screen.getByTestId('list-filter-picker')
+    const picker = within(card(part, 'delegate')).getByTestId('list-filter-expansion')
     fireEvent.keyDown(picker, { key: 'Escape' })
-    expect(screen.queryByTestId('list-filter-picker')).toBeNull()
+    expect(screen.queryByTestId('list-filter-expansion')).toBeNull()
     expect(useUIStore.getState().settingsOpen).toBe(true)
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(useUIStore.getState().settingsOpen).toBe(false)

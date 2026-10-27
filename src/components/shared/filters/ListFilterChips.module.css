@@ -85,6 +85,220 @@
   color: var(--color-text-primary);
 }
 
+/* A disclosure chip's chevron (the editors): flipped while its picker is open under it. */
+.chipChevron {
+  display: inline-flex;
+  margin-right: -2px;
+  color: var(--color-text-muted);
+}
+
+.chipChevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ── Or groups: a plate of chips, any one of which will do ── */
+
+/* The words between items: "and" outside groups, "or" inside one. */
+.andWord,
+.orWord {
+  flex-shrink: 0;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.orWord {
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.orWord:hover {
+  color: var(--color-text-primary);
+}
+
+.orGroup {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 4px 0 5px;
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px var(--color-or-group-ring);
+  background: var(--color-or-group-fill);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* The chips sit set into the plate. */
+.orGroup .listChip {
+  background: var(--color-or-group-chip);
+}
+
+.orGroup .listChip:hover,
+.orGroup .listChipOpen {
+  background: var(--color-tint-12);
+}
+
+:global([data-touch-chips]) .orGroup {
+  height: 36px;
+  border-radius: 10px;
+}
+
+/* The editors: a group's last chip and its chevron, kept on one line. */
+.groupTail {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+/* The group's own disclosure (the editors). */
+.groupToggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.groupToggle:hover,
+.groupToggleOpen {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.groupToggleOpen svg {
+  transform: rotate(180deg);
+}
+
+:global([data-touch-chips]) .groupToggle {
+  width: 28px;
+  height: 28px;
+}
+
+/* ── The editors' Filters block: one chip or group per row, "and" on its own row ── */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.stack > .andWord {
+  padding: 0 4px;
+}
+
+.stackRow {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* In the editors a group's chips wrap to the block's width. */
+.stack .orGroup {
+  flex-wrap: wrap;
+  height: auto;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 3px 4px 3px 5px;
+  white-space: normal;
+}
+
+:global([data-touch-chips]) .stack .orGroup {
+  min-height: 36px;
+}
+
+/* A row expanded in place: its picker or its group's panel under it. */
+.expansion {
+  align-self: stretch;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 4px;
+  border-left: 2px solid var(--color-border);
+  border-radius: 0 6px 6px 0;
+  background: var(--color-filter-expansion);
+}
+
+.expansionDates {
+  padding: 0;
+}
+
+/* A chip's picker ends with "Or another filter" (in place and in the popover). */
+.orAnotherRow {
+  margin-top: 4px;
+  padding: 4px 0 0;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.orAnotherRowInset {
+  margin-top: 0;
+  padding: 4px;
+}
+
+.orAnother {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.orAnother:hover,
+.orAnother:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.orAnotherLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A group's panel: Add another · Remove group. */
+.groupPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.groupPopover {
+  width: 260px;
+  max-width: calc(100vw - 16px);
+  overflow: auto;
+}
+
 /* The list widget's own chips: a screen filter (read-only) and the
  * group · sort summary that opens Edit list. */
 .screenChip {

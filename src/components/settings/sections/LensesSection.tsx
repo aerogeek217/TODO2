@@ -4,7 +4,7 @@ import { deleteLens } from '../../../services/lenses'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { filterChips, type FilterChipNames } from '../../../utils/filter-chips'
+import { predicateLineItems, type FilterChipNames } from '../../../utils/filter-chips'
 import { LENS_NAME_MAX, layoutsUsingLens, waitingStatusId, type Lens } from '../../../utils/lens'
 import { ChevronDownIcon, PlusIcon } from '../../shared/icons'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
@@ -102,7 +102,7 @@ interface LensRowProps {
 function LensRow({ lens, names, usedBy, keeps, open, expanded, renaming, onToggle, onRename, onDuplicated }: LensRowProps) {
   const editorId = useId()
   const summary = useMemo(() => lensSummary(lens, names), [lens, names])
-  const hasChips = useMemo(() => filterChips(lens.predicate, names).length > 0, [lens.predicate, names])
+  const hasChips = useMemo(() => predicateLineItems(lens.predicate, names).length > 0, [lens.predicate, names])
   const used = usedBy.length > 0 ? usedBy.join(', ') : '—'
   return (
     <div className={`${styles.lens} ${expanded ? styles.lensOpen : ''}`} data-lens-id={lens.id}>
@@ -131,6 +131,7 @@ function LensRow({ lens, names, usedBy, keeps, open, expanded, renaming, onToggl
               predicate={lens.predicate}
               onChange={(next) => void useSettingsStore.getState().setLensPredicate(lens.id, next)}
               addLabel="Add a filter to this lens"
+              layout="stack"
               inDialog
               before={hasChips ? undefined : <span className={styles.noFilter}>No filter — every task</span>}
             />
