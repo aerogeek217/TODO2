@@ -12,13 +12,15 @@ import { lensSummary } from './lens-text'
 import styles from './LensControl.module.css'
 
 /**
- * The top bar's lens control, first in the tray after the search: the top
- * bar's lens, the same on every layout. Two buttons: the glasses (accent
- * while the lens is on) lift it for now and put it back — slashed, the name
- * struck through, while lifted; the pick stays — and the name opens the
- * picker (No lens, each lens with its filters in a line and how many open
- * tasks it hides, Edit lenses…). A pick is saved at once
- * (`settings-store.setActiveLens`): no unsaved state, no undo step.
+ * The top bar's lens control, its own part of the bar between the layout
+ * tabs and the screen-filter tray (never inside the tray): the top bar's
+ * lens, the same on every layout. While a lens is on the whole control is
+ * lit in the accent, as the tray is in red while a filter is on. Two
+ * buttons: the glasses lift the lens for now and put it back — slashed, the
+ * name struck through and the control neutral while lifted; the pick stays
+ * — and the name opens the picker (No lens, each lens with its filters in a
+ * line and how many open tasks it hides, Edit lenses…). A pick is saved at
+ * once (`settings-store.setActiveLens`): no unsaved state, no undo step.
  */
 export function LensControl() {
   const lenses = useSettingsStore((s) => s.lenses)
