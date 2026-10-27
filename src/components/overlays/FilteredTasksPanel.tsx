@@ -66,8 +66,9 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef, trayLeft }: {
   const scrimPress = useBackdropPress(close)
 
   // Placed under the tray before paint, and again whenever the tray or the
-  // window changes size (a filter's value, the fold, a resize) or the tray
-  // expands, slides or comes back.
+  // window changes size (a filter's value, the fold, a resize), the tray
+  // expands, slides or comes back, or a part before it in the bar changes
+  // width (the lens control, the layout tabs: the tray moves, unresized).
   useLayoutEffect(() => {
     const tray = trayRef.current
     if (!tray) return
@@ -80,6 +81,7 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef, trayLeft }: {
     update()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
     observer?.observe(tray)
+    for (let part = tray.previousElementSibling; part; part = part.previousElementSibling) observer?.observe(part)
     window.addEventListener('resize', update)
     return () => {
       observer?.disconnect()

@@ -180,6 +180,26 @@ async function settled(page: Page) {
   return JSON.parse(last) as Awaited<ReturnType<typeof geometry>>
 }
 
+const panel = (page: Page) => page.locator('[data-filter-panel]')
+const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
+const expanded = (page: Page) => header(page).locator('[data-expanded]')
+
+/** The panel's left edge against the tray's, px (0: lined up). */
+const panelOffset = (page: Page) => page.evaluate(() => {
+  const t = document.querySelector('header [data-filter-row]')!.getBoundingClientRect()
+  const p = document.querySelector('[data-filter-panel]')!.getBoundingClientRect()
+  return Math.round(p.left - t.left) || 0 // Not -0.
+})
+
+/** The palette's Cycle Lens, run from the tray's counter: nothing closes the panel. */
+async function cycleLensFromPalette(page: Page) {
+  await counter(page).focus()
+  await page.keyboard.press('ControlOrMeta+k')
+  await page.getByRole('combobox').fill('cycle lens')
+  await page.getByRole('option', { name: /Cycle Lens/ }).click()
+  await expect(page.getByRole('combobox')).toHaveCount(0)
+}
+
 async function inTray(page: Page, el: Locator): Promise<boolean> {
   const handle = await el.elementHandle()
   return tray(page).evaluate((t, node) => t.contains(node), handle)
@@ -299,4 +319,57 @@ test('over folded filters the tray expands without it; a press on it closes the 
   await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^No lens/ }).click()
   await expect(lensName(page)).toHaveAccessibleName('Lens: none')
   await expect(control(page)).toHaveAttribute('data-state', 'none')
+})
+
+test('the panel open: a lens change from the palette moves the tray, and the panel moves with it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await personChip(page, 'Aisha Rahman')
+  await counter(page).click()
+  await expect(panel(page)).toBeVisible()
+  await expect.poll(() => panelOffset(page)).toBe(0)
+  let before = await settled(page)
+  // No lens → a lens → a longer name: the control widens, the tray moves; the
+  // counter reads `1 of 3` throughout, so the tray itself keeps its size.
+  for (const name of ['Has a person', 'Customer escalations this quarter']) {
+    await cycleLensFromPalette(page)
+    await expect(lensName(page)).toHaveAccessibleName(`Lens: ${name}`)
+    await expect(panel(page)).toBeVisible()
+    const after = await settled(page)
+    expect(after.trayLeft).toBeGreaterThan(before.trayLeft)
+    expect(after.trayRight - after.trayLeft).toBe(before.trayRight - before.trayLeft)
+    await expect.poll(() => panelOffset(page)).toBe(0)
+    before = after
+  }
+})
+
+test('over folded filters with the panel open: a lens change moves the expanded tray with its place in the bar', async ({ page }) => {
+  await page.setViewportSize({ width: 1300, height: 900 })
+  await seedWorkspace(page, SEED)
+  await pickLens(page, 'Has a person')
+  await personChip(page, 'Aisha Rahman')
+  await expect(tray(page).getByRole('button', { name: /^Filters/ })).toBeVisible()
+  await counter(page).click()
+  await expect(panel(page)).toBeVisible()
+  await expect(expanded(page)).toHaveCount(1)
+  const leftOf = (loc: Locator) => loc.evaluate((el) => Math.round(el.getBoundingClientRect().left))
+  const slot = header(page).locator('[data-fold-part="tray-slot"]')
+  const first = { slot: await leftOf(slot), tray: await leftOf(expanded(page)) }
+
+  await cycleLensFromPalette(page)
+  await expect(lensName(page)).toHaveAccessibleName('Lens: Customer escalations this quarter')
+  await expect(panel(page)).toBeVisible()
+  await expect(expanded(page)).toHaveCount(1)
+  await expect.poll(() => leftOf(slot)).toBeGreaterThan(first.slot)
+  // It follows its slot (as far as the window's right gutter lets it), the panel under it…
+  await expect.poll(() => leftOf(expanded(page))).toBeGreaterThan(first.tray)
+  await expect.poll(() => panelOffset(page)).toBe(0)
+  await settled(page)
+  const live = await leftOf(expanded(page))
+  // …to where a fresh open places it.
+  await page.keyboard.press('Escape')
+  await expect(panel(page)).toHaveCount(0)
+  await counter(page).click()
+  await expect(expanded(page)).toHaveCount(1)
+  await expect.poll(() => leftOf(expanded(page))).toBe(live)
+  await expect.poll(() => panelOffset(page)).toBe(0)
 })

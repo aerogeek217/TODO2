@@ -464,8 +464,16 @@ export function TopBar() {
         && prev?.coversRight === next?.coversRight ? prev : next))
     }
     place()
+    // A part before it changing width (the lens control on a pick from the
+    // keyboard or the palette, the layout tabs) moves its place unresized.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
+    const anchor = slotRef.current ?? trayRef.current
+    for (let part = anchor?.previousElementSibling; part; part = part.previousElementSibling) observer?.observe(part)
     window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', place)
+    }
   }, [expandable, trayOpen, trayOpenMin, trayFolded, tabsKey])
 
   const clearSearch = box.clear
