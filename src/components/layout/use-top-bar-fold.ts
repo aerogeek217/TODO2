@@ -38,7 +38,7 @@ export interface TrayValue {
 export interface TopBarMeasure {
   /** The bar's width. */
   bar: number
-  /** What every fold needs besides the filter tray and the layout controls (padding, gaps, New task, the right zone). */
+  /** What every fold needs besides the filter tray and the layout controls (padding, gaps, New task, the lens control, the right zone). */
   base: number
   /** The tray with its filter buttons, at its natural width. */
   trayOpen?: number
@@ -122,10 +122,11 @@ export function traySqueeze(natural: number, width: number, values: readonly Tra
 /**
  * The bar's parts, by their `data-fold-part`: the filter tray, the slot
  * that stands in for it while it is lifted out of the bar (expanded over
- * the bar under the filtered-tasks panel), the layout controls and the
- * right zone (its auto margin is free space).
+ * the bar under the filtered-tasks panel), the layout controls, the lens
+ * control (a fixed part, like New task: never folds, counted in the base)
+ * and the right zone (its auto margin is free space).
  */
-export const FOLD_PART = { tray: 'tray', traySlot: 'tray-slot', layout: 'layout', spring: 'spring' } as const
+export const FOLD_PART = { tray: 'tray', traySlot: 'tray-slot', layout: 'layout', lens: 'lens', spring: 'spring' } as const
 
 /** On the tray's search box (`SEARCH_WIDTH` wide, narrowed by `traySqueeze`). */
 export const FOLD_SEARCH_ATTR = 'data-fold-search'

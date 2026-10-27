@@ -27,6 +27,8 @@ function renderBar() {
 
 const tray = () => screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
 const counter = () => within(tray()).queryByRole('button', { name: /tasks shown\. Show them$/ })
+/** The control: its own part of the bar, never inside the tray. */
+const lens = () => screen.getByTestId('lens-control')
 
 describe('the lens control and the counter', () => {
   beforeEach(() => {
@@ -42,16 +44,26 @@ describe('the lens control and the counter', () => {
 
   afterEach(cleanup)
 
+  it('sits between the layout controls and the tray, outside the tray, a fixed part of the fold', () => {
+    renderBar()
+    const slot = lens().parentElement!
+    expect(slot).toHaveAttribute('data-fold-part', 'lens')
+    expect(tray().contains(lens())).toBe(false)
+    expect(slot.previousElementSibling).toHaveAttribute('data-fold-part', 'layout')
+    expect(slot.nextElementSibling).toBe(tray())
+  })
+
   it('No lens: muted glasses, no toggle, no counter', () => {
     renderBar()
-    expect(within(tray()).getByRole('button', { name: 'Lens: none' })).toHaveTextContent('No lens')
-    expect(within(tray()).queryByRole('button', { name: /^Lens (on|lifted)/ })).toBeNull()
+    expect(lens()).toHaveAttribute('data-state', 'none')
+    expect(within(lens()).getByRole('button', { name: 'Lens: none' })).toHaveTextContent('No lens')
+    expect(within(lens()).queryByRole('button', { name: /^Lens (on|lifted)/ })).toBeNull()
     expect(counter()).toBeNull()
   })
 
   it('the picker lists No lens and each lens with its filters and what it hides; a pick is the top bar’s, saved at once and no layout edit', async () => {
     renderBar()
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Lens: none' }))
+    fireEvent.click(within(lens()).getByRole('button', { name: 'Lens: none' }))
     const menu = screen.getByRole('menu', { name: 'Lens' })
     const items = within(menu).getAllByRole('menuitemradio')
     expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
@@ -69,10 +81,11 @@ describe('the lens control and the counter', () => {
     await vi.waitFor(async () => expect((await db.settings.get(SETTING_KEYS.activeLensId))?.value).toBe('lens-f'))
   })
 
-  it('a lens on: accent glasses pressed, the counter neutral at what it keeps of every open task', () => {
+  it('a lens on: the control lit, the glasses pressed, the counter neutral at what it keeps of every open task', () => {
     useSettingsStore.setState({ activeLensId: 'lens-f' })
     renderBar()
-    const toggle = within(tray()).getByRole('button', { name: 'Lens on. Lift it' })
+    expect(lens()).toHaveAttribute('data-state', 'on')
+    const toggle = within(lens()).getByRole('button', { name: 'Lens on. Lift it' })
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(counter()).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
     expect(tray().className).not.toMatch(/trayActive/)
@@ -81,11 +94,12 @@ describe('the lens control and the counter', () => {
   it('the glasses lift it for now — every open task, the pick kept — and put it back', () => {
     useSettingsStore.setState({ activeLensId: 'lens-f' })
     renderBar()
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Lens on. Lift it' }))
+    fireEvent.click(within(lens()).getByRole('button', { name: 'Lens on. Lift it' }))
     expect(useUIStore.getState().lensLifted).toBe(true)
-    const back = within(tray()).getByRole('button', { name: 'Lens lifted. Put it back' })
+    const back = within(lens()).getByRole('button', { name: 'Lens lifted. Put it back' })
     expect(back).toHaveAttribute('aria-pressed', 'false')
-    expect(within(tray()).getByRole('button', { name: 'Lens: Focus only, lifted' })).toBeTruthy()
+    expect(lens()).toHaveAttribute('data-state', 'lifted')
+    expect(within(lens()).getByRole('button', { name: 'Lens: Focus only, lifted' })).toBeTruthy()
     expect(counter()).toHaveAccessibleName('3 of 3 open tasks shown. Show them')
     expect(useSettingsStore.getState().activeLensId).toBe('lens-f')
     fireEvent.click(back)
@@ -100,6 +114,6 @@ describe('the lens control and the counter', () => {
     expect(tray().className).toMatch(/trayActive/)
     fireEvent.click(within(tray()).getByRole('button', { name: 'Clear all filters' }))
     expect(counter()).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
-    expect(within(tray()).getByRole('button', { name: 'Lens: Focus only' })).toBeTruthy()
+    expect(within(lens()).getByRole('button', { name: 'Lens: Focus only' })).toBeTruthy()
   })
 })

@@ -520,6 +520,13 @@ export function TopBar() {
             <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />
           </div>
         )}
+        {/* The top bar's lens: its own part, outside the tray (never lifted
+            with it), a fixed width the fold counts like New task's. */}
+        {isWorkspace && (
+          <div className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
+            <LensControl />
+          </div>
+        )}
 
         {expansion && (
           <div ref={slotRef} className={styles.traySlot} style={{ width: trayFolded }} data-fold-part={FOLD_PART.traySlot} aria-hidden="true" />
@@ -632,12 +639,6 @@ export function TopBar() {
             )}
           </div>
 
-          {isWorkspace && (
-            <>
-              <LensControl />
-              <span className={styles.lensSeparator} aria-hidden="true" />
-            </>
-          )}
           <FilterChipBar
             predicate={filterPredicate}
             onChange={handleFilterChange}

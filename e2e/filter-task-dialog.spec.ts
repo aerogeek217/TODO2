@@ -396,7 +396,9 @@ test.describe('desktop', () => {
   })
 
   test('too narrow for every filter button even across the window, they stay folded and the panel still fits', async ({ page }) => {
-    await page.setViewportSize({ width: 780, height: 800 })
+    // The lens control is no part of the expanded tray (cr22): narrower than
+    // when it was, before the filter buttons can't fit across the window.
+    await page.setViewportSize({ width: 740, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED))
     await filterToAnn(page)
     const closed = await bar(page)
