@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
 import { LensesSection } from '../../../components/settings/sections/LensesSection'
-import { emptyPredicate } from '../../../models/filter-predicate'
+import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -54,6 +54,20 @@ describe('Settings › Tasks › Lenses', () => {
     fireEvent.click(within(chips).getByRole('button', { name: 'Remove filter' }))
     await waitFor(() => expect(useSettingsStore.getState().lenses[0]!.predicate.statusIds).toBeNull())
     expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 2 open tasks')
+  })
+
+  it('a lens whose only filter is a group reads the group in words and keeps what any of its filters keeps', () => {
+    useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 4, title: 'Other' })] })
+    useSettingsStore.setState({
+      lensPresetsSeeded: true,
+      lenses: [{ id: 'lens-g', name: 'Either', predicate: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), statusIds: [3], searchText: 'goes' }] } }],
+    })
+    render(<LensesSection />)
+    const [row] = rows()
+    expect(row).toHaveTextContent('Status Waiting or Text “goes”')
+    fireEvent.click(row!)
+    expect(screen.queryByText('No filter — every task')).toBeNull()
+    expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 3 open tasks right now')
   })
 
   it('Rename in place (Esc cancels), Duplicate after it, + New lens opens a new one to name', async () => {

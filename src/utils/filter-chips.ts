@@ -301,17 +301,24 @@ export function describeFilters(items: readonly (FilterChip | LineItem)[]): stri
     return item.kind === 'chip' ? chipWords(item.chip) : item.chips.map(chipWords).join(' or ')
   }).join(' · ')
 }
+/** One chip in a few words: `@Priya`, `#q4`, `Status: Waiting`. */
+function chipHint(c: FilterChip): string {
+  if (c.field === 'people') return `@${c.value}`
+  if (c.field === 'tags') return c.value
+  return `${c.label}: ${c.value}`
+}
+
 /**
  * A list's filters in a few words, for a hint under its name (a dashboard
- * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`; `All
+ * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`, an or
+ * group as its chips joined with "or" (`Priority: Hot or @Aisha`); `All
  * tasks` with none.
  */
-export function listFilterHint(chips: readonly FilterChip[]): string {
-  if (chips.length === 0) return 'All tasks'
-  return chips.map((c) => {
-    if (c.field === 'people') return `@${c.value}`
-    if (c.field === 'tags') return c.value
-    return `${c.label}: ${c.value}`
+export function listFilterHint(items: readonly (FilterChip | LineItem)[]): string {
+  if (items.length === 0) return 'All tasks'
+  return items.map((item) => {
+    if (!('kind' in item)) return chipHint(item)
+    return item.kind === 'chip' ? chipHint(item.chip) : item.chips.map(chipHint).join(' or ')
   }).join(' · ')
 }
 
