@@ -13,6 +13,20 @@ const VIEWPORT_MARGIN_PX = 8
 const DEFAULT_GAP_PX = 4
 
 /**
+ * The caret (D21): a 10px square turned 45°, half outside the popover's edge,
+ * so it reaches ~6px towards the anchor. With a caret the gap to the anchor
+ * is at least this, so the tip stays clear of it.
+ */
+export const CARET_GAP_PX = 10
+/** An anchor narrower than this gets the caret at its centre; a wider one ~`CARET_INSET_PX` in from its aligned edge. */
+const CARET_NARROW_PX = 48
+const CARET_INSET_PX = 20
+/** The caret's centre stays this far past the popover's corner radius. */
+const CARET_CORNER_PX = 5
+/** A popover root without its own radius (it sizes to a rounded child) is taken as this round. */
+const CARET_MIN_RADIUS_PX = 8
+
+/**
  * Marks a text field (a picker's search) that takes Escape while it holds
  * text — to empty itself — so the popover it sits in stays open; with the
  * field empty, Escape closes the popover as usual.
@@ -128,6 +142,28 @@ export interface UsePopoverAnchorOptions {
    * an editor growing. Default `false`.
    */
   observeSize?: boolean
+  /**
+   * Draw a caret towards the anchor (D21): the result's `caret` then holds
+   * where (`computePopoverCaret`), and the gap to the anchor is at least
+   * `CARET_GAP_PX`. A `point` anchor has nothing to point at: no caret, the
+   * gap as given. Default `false`.
+   */
+  caret?: boolean
+}
+
+/** Which edge of the popover faces its anchor. */
+export type PopoverCaretSide = 'top' | 'bottom' | 'left' | 'right'
+
+/**
+ * Where a popover's caret sits: on its `side` edge, `offset` px from that
+ * edge's start (its left end for `top` / `bottom`, its top for `left` /
+ * `right`), its centre at the viewport point (`x`, `y`) on that edge.
+ */
+export interface PopoverCaret {
+  readonly side: PopoverCaretSide
+  readonly offset: number
+  readonly x: number
+  readonly y: number
 }
 
 export interface PopoverStyle {
@@ -147,13 +183,90 @@ export interface UsePopoverAnchorResult {
   placementUsed: PopoverPlacement
   /** `false` until the panel has been placed against its anchor (it waits off-screen). */
   placed: boolean
+  /** Where to draw the caret (`caret: true`, a `ref` / `rect` anchor, once placed); otherwise `null`. */
+  caret: PopoverCaret | null
 }
 
-interface AnchorRect {
+export interface AnchorRect {
   left: number
   top: number
   right: number
   bottom: number
+}
+
+/** A popover's placed box, in viewport px. */
+export interface PanelBox {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+/**
+ * A point a popover hangs from, optionally with the rect of the element it
+ * was measured from (`pointBelow`): with the rect the popover is anchored to
+ * that element (a caret can point at it), else to the bare point.
+ */
+export function anchorAtPoint(p: { x: number; y: number; rect?: AnchorRect }): PopoverAnchor {
+  return p.rect ? { kind: 'rect', ...p.rect } : { kind: 'point', x: p.x, y: p.y }
+}
+
+/** The caret's position along one axis: the anchor's centre when narrow, else `CARET_INSET_PX` in from the edge the popover lines up with. */
+function caretTarget(start: number, end: number, alignEnd: boolean): number {
+  if (end - start < CARET_NARROW_PX) return (start + end) / 2
+  return alignEnd ? end - CARET_INSET_PX : start + CARET_INSET_PX
+}
+
+/**
+ * Pure caret maths (D21): which popover edge faces the anchor (from the
+ * settled placement: `bottom-*` → `top`, `top-*` → `bottom`, `right-start` →
+ * `left`, `left-start` → `right`) and where along it the caret goes — under
+ * the anchor (its centre, or ~20px in from the edge the placement lines up
+ * with), clamped to `[radius + 5, size − radius − 5]` so a popover shifted to
+ * stay in the viewport keeps its caret on its own edge, off the rounded
+ * corners. `null` for a popover not measured yet, or one that overlaps its
+ * anchor on that axis (a too-tall panel clamped over it: nothing to point at).
+ */
+export function computePopoverCaret(
+  anchor: AnchorRect,
+  panel: PanelBox,
+  placement: PopoverPlacement,
+  radius: number,
+): PopoverCaret | null {
+  if (panel.width <= 0 || panel.height <= 0) return null
+  const side: PopoverCaretSide = placement.startsWith('bottom') ? 'top'
+    : placement.startsWith('top') ? 'bottom'
+      : placement === 'right-start' ? 'left' : 'right'
+  const horizontal = side === 'top' || side === 'bottom'
+  if (side === 'top' && panel.top < anchor.bottom) return null
+  if (side === 'bottom' && panel.top + panel.height > anchor.top) return null
+  if (side === 'left' && panel.left < anchor.right) return null
+  if (side === 'right' && panel.left + panel.width > anchor.left) return null
+  const size = horizontal ? panel.width : panel.height
+  const target = horizontal
+    ? caretTarget(anchor.left, anchor.right, placement.endsWith('end')) - panel.left
+    : caretTarget(anchor.top, anchor.bottom, false) - panel.top
+  const min = radius + CARET_CORNER_PX
+  const max = size - radius - CARET_CORNER_PX
+  const offset = min > max ? size / 2 : Math.min(max, Math.max(min, target))
+  switch (side) {
+    case 'top': return { side, offset, x: panel.left + offset, y: panel.top }
+    case 'bottom': return { side, offset, x: panel.left + offset, y: panel.top + panel.height }
+    case 'left': return { side, offset, x: panel.left, y: panel.top + offset }
+    case 'right': return { side, offset, x: panel.left + panel.width, y: panel.top + offset }
+  }
+}
+
+function caretEqual(a: PopoverCaret | null, b: PopoverCaret | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return a.side === b.side && a.offset === b.offset && a.x === b.x && a.y === b.y
+}
+
+/** The panel's corner radius (or, for a root that sizes to a rounded child, at least `CARET_MIN_RADIUS_PX`). */
+function panelRadius(panel: HTMLElement): number {
+  const r = Number.parseFloat(getComputedStyle(panel).borderTopLeftRadius)
+  return Math.max(Number.isFinite(r) ? r : 0, CARET_MIN_RADIUS_PX)
 }
 
 function readAnchorRect(anchor: PopoverAnchor): AnchorRect | null {
@@ -374,10 +487,12 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     extraInsideRefs,
     contentKey,
     observeSize = false,
+    caret: wantsCaret = false,
   } = opts
 
   const [style, setStyle] = useState<PopoverStyle>(makeInitialStyle)
   const [placementUsed, setPlacementUsed] = useState<PopoverPlacement>(placement)
+  const [caret, setCaret] = useState<PopoverCaret | null>(null)
   const panelElRef = useRef<HTMLElement | null>(null)
 
   // Inputs are captured in refs so the callbacks below can stay stable
@@ -397,6 +512,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   const extraInsideRefsRef = useLatestRef(extraInsideRefs)
   const consumeEscapeRef = useLatestRef(consumeEscape)
   const anchorIsInsideRef = useLatestRef(anchorIsInside)
+  const wantsCaretRef = useLatestRef(wantsCaret)
   const anchorElRef = anchor.kind === 'ref' ? anchor.ref : null
   const anchorX = anchor.kind === 'point' ? anchor.x : anchor.kind === 'rect' ? anchor.left : null
   const anchorY = anchor.kind === 'point' ? anchor.y : anchor.kind === 'rect' ? anchor.top : null
@@ -404,11 +520,15 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   const anchorBottom = anchor.kind === 'rect' ? anchor.bottom : null
 
   const compute = useCallback(() => {
+    const a = anchorRef.current
+    const panel = panelElRef.current
+    // A caret points at an element (`ref` / `rect`), never at a bare point.
+    const caretOn = wantsCaretRef.current && a.kind !== 'point'
     const pos = computePopoverPosition(
-      anchorRef.current,
-      panelElRef.current,
+      a,
+      panel,
       placementRef.current,
-      offsetRef.current,
+      caretOn ? Math.max(offsetRef.current, CARET_GAP_PX) : offsetRef.current,
     )
     if (!pos) return
     // Bail out when the position didn't actually change. Without this guard,
@@ -417,7 +537,18 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     // render, which re-creates the callback ref and loops.
     setStyle((prev) => (styleEqual(prev, pos.style) ? prev : pos.style))
     setPlacementUsed((prev) => (prev === pos.placement ? prev : pos.placement))
-  }, [anchorRef, placementRef, offsetRef])
+    const anchorRect = caretOn ? readAnchorRect(a) : null
+    const panelRect = caretOn ? panel?.getBoundingClientRect() : undefined
+    const next = anchorRect && panel && panelRect
+      ? computePopoverCaret(
+        anchorRect,
+        { left: pos.style.left, top: pos.style.top, width: panelRect.width, height: panelRect.height },
+        pos.placement,
+        panelRadius(panel),
+      )
+      : null
+    setCaret((prev) => (caretEqual(prev, next) ? prev : next))
+  }, [anchorRef, placementRef, offsetRef, wantsCaretRef])
 
   // Stable callback ref. Calls compute *only* on attach (el !== null) so we
   // pick up the panel's measured size; React calls this with `null` on
@@ -534,5 +665,6 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     return () => document.removeEventListener('mousedown', handler, true)
   }, [open, closeOnOutsideClick, anchorRef, onCloseRef, extraInsideRefsRef, anchorIsInsideRef])
 
-  return { panelRef, style, placementUsed, placed: style.left !== OFFSCREEN_PX }
+  const placed = style.left !== OFFSCREEN_PX
+  return { panelRef, style, placementUsed, placed, caret: placed ? caret : null }
 }
