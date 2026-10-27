@@ -15,14 +15,14 @@ import { hasMarkers, normalizeMarkersFilter } from './markers'
 
 /**
  * Whether any clause of `c` filters: an id filter that is set (even with
- * nothing ticked — it then keeps no task), a text filter, a date clause or a
- * Priority filter.
+ * nothing ticked — it then keeps no task), a text filter (not spaces alone),
+ * a date clause or a Priority filter.
  */
 export function hasFilterClause(c: FilterClauses): boolean {
   return c.personIds != null
     || c.statusIds != null
     || c.tags != null
-    || c.searchText !== ''
+    || (c.searchText ?? '').trim() !== ''
     || hasDateFilters(c.dates)
     || hasMarkers(c.markers)
 }
@@ -30,14 +30,16 @@ export function hasFilterClause(c: FilterClauses): boolean {
 /**
  * `c`'s narrowing clauses alone (anything else — Show completed, or groups —
  * left out), in their stored form: every field present (`null` / `''` /
- * `{}` = no filter), the date clauses and the Priority filter normalised,
- * the "is not" switches normalised (`withNormalizedNegation`).
+ * `{}` = no filter), a text of spaces alone as `''` (it matches every task,
+ * which in an or group would let every task through), the date clauses and
+ * the Priority filter normalised, the "is not" switches normalised
+ * (`withNormalizedNegation`).
  */
 export function normalizeClauses(c: FilterClauses): FilterClauses {
   const out: FilterClauses = {
     personIds: c.personIds ?? null,
     statusIds: c.statusIds ?? null,
-    searchText: c.searchText,
+    searchText: c.searchText.trim() === '' ? '' : c.searchText,
     dates: normalizeDateFilters(c.dates),
     markers: normalizeMarkersFilter(c.markers),
     tags: c.tags ?? null,

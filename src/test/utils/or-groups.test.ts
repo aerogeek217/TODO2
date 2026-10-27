@@ -107,6 +107,15 @@ describe('evaluating or groups', () => {
     expect(idsOf(predicate({ orGroups: [clauses({ tags: [], statusIds: [2] })] }))).toEqual([2])
   })
 
+  it('a Text clause of spaces alone inside an or group is no clause: the group\'s other clauses still filter', () => {
+    expect(idsOf(predicate({ orGroups: [clauses({ personIds: [1], searchText: '  ' })] }))).toEqual([1, 3])
+    expect(idsOf(predicate({ orGroups: [clauses({ searchText: ' ' }), clauses({ statusIds: [2] })] }))).toEqual([2])
+    // Typed into a group's Text picker, it is written as no text.
+    const typed = withOrGroupClauses(predicate({ orGroups: [clauses({ personIds: [1] })] }), 0, (c) => ({ ...c, searchText: ' ' }))
+    expect(typed).toEqual(predicate({ orGroups: [clauses({ personIds: [1] })] }))
+    expect(withOrGroupClauses(emptyPredicate(), 0, (c) => ({ ...c, searchText: ' ' }))).toEqual(emptyPredicate())
+  })
+
   it('completion is the predicate\'s alone: an or group never brings a completed task back', () => {
     const group = clauses({ statusIds: [1] })
     expect(idsOf(predicate({ orGroups: [group] }))).toEqual([1])
@@ -176,6 +185,7 @@ describe('normalising or groups', () => {
     expect(hasFilterClause(clauses({ dates: { deadline: { match: 'range', start: null, end: null } } }))).toBe(false)
     for (const [, patch] of CLAUSES) expect(hasFilterClause(clauses(patch))).toBe(true)
     expect(hasFilterClause(clauses({ tags: [] }))).toBe(true)
+    expect(hasFilterClause(clauses({ searchText: ' \t' }))).toBe(false)
   })
 
   it('normalizeClauses: the narrowing fields alone, in stored form, "is not" normalised', () => {
