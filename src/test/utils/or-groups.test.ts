@@ -19,6 +19,7 @@ import {
   normalizeOrGroups,
   withNormalizedOrGroups,
   withOrGroupClauses,
+  withoutOrGroup,
 } from '../../utils/or-groups'
 import { withLens } from '../../utils/lens'
 import { predicateToFilterDefaults } from '../../utils/filter-defaults'
@@ -239,5 +240,17 @@ describe('what reads only the clauses outside the or groups', () => {
   it('a Prompt for pick merges into the clauses outside the or groups and keeps them', () => {
     const group = clauses({ personIds: [2], markers: 'hot' })
     expect(applyRuntimeFilter(predicate({ orGroups: [group] }), { field: 'person' }, [1])).toEqual(predicate({ personIds: [1], orGroups: [group] }))
+  })
+})
+
+describe('withoutOrGroup', () => {
+  it('takes one or group out; the key goes with the last one; another index changes nothing', () => {
+    const a = clauses({ markers: 'hot' })
+    const b = clauses({ tags: [0] })
+    expect(withoutOrGroup(predicate({ orGroups: [a, b] }), 0)).toEqual(predicate({ orGroups: [b] }))
+    expect(withoutOrGroup(predicate({ orGroups: [a] }), 0)).toEqual(predicate({}))
+    const p = predicate({ orGroups: [a] })
+    expect(withoutOrGroup(p, 1)).toBe(p)
+    expect(withoutOrGroup(p, -1)).toBe(p)
   })
 })

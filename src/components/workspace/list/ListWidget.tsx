@@ -22,7 +22,7 @@ import {
   type Section,
 } from '../../../services/list-sections'
 import { predicateToFilterDefaults } from '../../../utils/filter-defaults'
-import { describeFilters, filterChips, hasNarrowingFilters } from '../../../utils/filter-chips'
+import { describeFilters, hasNarrowingFilters, predicateLineItems } from '../../../utils/filter-chips'
 import { PROMPT_LABEL, sortSummary, withListSort } from '../../../utils/list-options'
 import { manualOrderComparator, planMove, seedRanks, type MoveTarget, type RankWrite } from '../../../utils/list-order'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
@@ -174,7 +174,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
 
   const predicate = definition.membership.predicate
-  const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
+  const listItems = useMemo(() => predicateLineItems(predicate, names), [predicate, names])
 
   // + Add task: only when the merged predicate names people / status / tags
   // / markers to seed the new task with (Hot seeds the Hot rule's first
@@ -372,7 +372,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         <EmptyState
           illustration="list"
           title="No tasks match"
-          text={describeFilters(listChips)}
+          text={describeFilters(listItems)}
           action={{
             label: 'Edit filters',
             onClick: () => openEditList(tab.id, definition.id),

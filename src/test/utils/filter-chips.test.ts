@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
 import type { ListDefinition } from '../../models/list-definition'
-import { emptyPredicate } from '../../models'
+import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
 import { expectWithin } from '../timing'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
@@ -13,8 +13,14 @@ import {
   describeAnchor,
   describeFilters,
   describeRange,
+  chipClauses,
   filterChips,
   hasNarrowingFilters,
+  heldFields,
+  orValue,
+  predicateLineItems,
+  removeChip,
+  wrapChipInOrGroup,
   type FilterChipNames,
 } from '../../utils/filter-chips'
 import { choicesWith, groupSortSummary, sortOrderWords, withListSort, withSortDirection } from '../../utils/list-options'
@@ -43,7 +49,7 @@ describe('filterChips', () => {
     expect(filterChips(p, names)).toEqual([
       { field: 'markers', label: 'Priority', value: 'Important' },
       { field: 'tags', label: 'Tags', value: '#q4' },
-      { field: 'people', label: 'People', value: 'Alice +2' },
+      { field: 'people', label: 'People', value: 'Alice, Bob or Cy', tooltip: 'People: Alice, Bob or Cy\nTasks with any of them' },
       { field: 'dates', dateField: 'deadline', label: 'Due', value: 'within 14 days' },
       { field: 'status', label: 'Status', value: 'Waiting' },
       { field: 'text', label: 'Text', value: '“invoice”' },
@@ -54,10 +60,10 @@ describe('filterChips', () => {
   it('names sentinels and empty picks', () => {
     const p = { ...emptyPredicate(), personIds: [0, 2], statusIds: [] as number[] }
     const chips = filterChips(p, names)
-    expect(chips[0]!.value).toBe('Unassigned +1')
+    expect(chips[0]!.value).toBe('Unassigned or Bob')
     expect(chips[1]!.value).toBe('none')
     const zeros = filterChips({ ...emptyPredicate(), tags: [0, 1], statusIds: [0] }, names)
-    expect(zeros.map((c) => c.value)).toEqual(['No tags +1', 'No status'])
+    expect(zeros.map((c) => c.value)).toEqual(['No tags or #q4', 'No status'])
   })
 
   it('No tags: the tags sentinel; "is not No tags" alone reads "has a tag", with what each "is not" hides', () => {
@@ -66,7 +72,7 @@ describe('filterChips', () => {
     const [hasTag] = filterChips({ ...emptyPredicate(), tags: [0], negate: { tags: true } }, names)
     expect(hasTag).toEqual({ field: 'tags', label: 'Tags', value: 'has a tag', negated: true, tooltip: 'Tags: has a tag\nHides untagged tasks' })
     const [mixed] = filterChips({ ...emptyPredicate(), tags: [0, 2], negate: { tags: true } }, names)
-    expect(mixed!.value).toBe('not No tags +1')
+    expect(mixed!.value).toBe('not No tags or #home')
     expect(mixed!.tooltip).toBe('Tags: not No tags or #home\nHides untagged tasks and tasks with that tag')
   })
 
@@ -159,7 +165,7 @@ describe('filterChips on a list with many ids', () => {
       { ...emptyPredicate(), personIds: crowd.map((p) => p.id!), negate: { personIds: true } },
       { people: crowd, tags: [], statuses: [] },
     )
-    expect(chip?.value).toBe('not P1 +24')
+    expect(chip?.value).toBe('not P1, P2 or 23 more')
     expect(chip?.tooltip).toBe('People: not P1, P2, P3, P4, P5, P6, P7, P8, P9, P10 and 15 more\nHides tasks assigned to any of them')
   })
 
@@ -307,5 +313,85 @@ describe('list choice helpers', () => {
     const byName: Pick<ListDefinition, 'sort' | 'sortDirection'> = { sort: 'name' }
     expect(withSortDirection(byName, 'desc')).toEqual({ sort: 'name', sortDirection: 'desc' })
     expect(withSortDirection({ ...byName, sortDirection: 'desc' }, 'asc')).toEqual({ sort: 'name' })
+  })
+})
+
+describe('multi-value chips read with "or"', () => {
+  it('two, three, more values; one value alone', () => {
+    expect(orValue(['A'])).toBe('A')
+    expect(orValue(['A', 'B'])).toBe('A or B')
+    expect(orValue(['A', 'B', 'C'])).toBe('A, B or C')
+    expect(orValue(['A', 'B', 'C', 'D'])).toBe('A, B or 2 more')
+    expect(orValue([])).toBe('none')
+  })
+
+  it('every multi-value "is" chip says any of them will do; a single value has no tooltip', () => {
+    const chips = filterChips({ ...emptyPredicate(), tags: [1, 2], personIds: [0, 1], statusIds: [0, 1] }, names)
+    expect(chips.map((c) => [c.value, c.tooltip])).toEqual([
+      ['#q4 or #home', 'Tags: #q4 or #home\nTasks with any of them'],
+      ['Unassigned or Alice', 'People: Unassigned or Alice\nTasks with any of them'],
+      ['No status or Waiting', 'Status: No status or Waiting\nTasks in any of them'],
+    ])
+    expect(filterChips({ ...emptyPredicate(), tags: [1] }, names)[0]?.tooltip).toBeUndefined()
+  })
+})
+
+describe('a filter line with or groups', () => {
+  const hot = { ...emptyFilterClauses(), markers: 'hot' as const }
+  const grouped: TodoPredicate = {
+    ...emptyPredicate(),
+    statusIds: [1],
+    orGroups: [{ ...hot, personIds: [1, 2] }, { ...emptyFilterClauses(), tags: [0] }],
+  }
+
+  it('the own chips first, then each or group as its chips', () => {
+    const items = predicateLineItems(grouped, names)
+    expect(items.map((i) => (i.kind === 'chip' ? i.chip.value : i.chips.map((c) => c.value)))).toEqual([
+      'Waiting', ['Hot', 'Alice or Bob'], ['No tags'],
+    ])
+    expect(items.map((i) => (i.kind === 'orGroup' ? i.index : null))).toEqual([null, 0, 1])
+  })
+
+  it('in words: an or group joins its chips with "or", items with " · "', () => {
+    expect(describeFilters(predicateLineItems(grouped, names))).toBe('Status Waiting · Priority Hot or People Alice or Bob · Tags No tags')
+    expect(describeFilters(filterChips(grouped, names))).toBe('Status Waiting')
+  })
+
+  it('a list whose only filter is an or group narrows', () => {
+    expect(hasNarrowingFilters({ ...emptyPredicate(), orGroups: [hot] })).toBe(true)
+  })
+
+  it('removing a chip from an or group; its last chip takes the group', () => {
+    const fewer = removeChip(grouped, { field: 'markers' }, 0)
+    expect(fewer.orGroups?.[0]?.markers).toBeNull()
+    expect(fewer.orGroups?.[0]?.personIds).toEqual([1, 2])
+    const gone = removeChip(grouped, { field: 'tags' }, 1)
+    expect(gone.orGroups).toHaveLength(1)
+    expect(removeChip(grouped, { field: 'status' }).statusIds).toBeNull()
+  })
+
+  it('a chip of its own moves into a new or group as its first alternative; refused at the cap', () => {
+    const p: TodoPredicate = { ...emptyPredicate(), statusIds: [1], negate: { statusIds: true }, personIds: [2] }
+    const wrapped = wrapChipInOrGroup(p, { field: 'status' })!
+    expect(wrapped.statusIds).toBeNull()
+    expect(wrapped.negate).toBeUndefined()
+    expect(wrapped.personIds).toEqual([2])
+    expect(wrapped.orGroups).toEqual([{ ...emptyFilterClauses(), statusIds: [1], negate: { statusIds: true } }])
+    const full: TodoPredicate = { ...p, orGroups: Array.from({ length: OR_GROUPS_MAX }, () => hot) }
+    expect(wrapChipInOrGroup(full, { field: 'status' })).toBeNull()
+  })
+
+  it('a date chip moves its date type alone', () => {
+    const due = { match: 'set' as const }
+    const created = { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: null }
+    const wrapped = wrapChipInOrGroup({ ...emptyPredicate(), dates: { deadline: due, created } }, { field: 'dates', dateField: 'created' })!
+    expect(wrapped.dates).toEqual({ deadline: due })
+    expect(chipClauses({ ...emptyPredicate(), dates: { deadline: due, created } }, { field: 'dates', dateField: 'created' }).dates).toEqual({ created })
+    expect(wrapped.orGroups?.[0]?.dates).toEqual({ created })
+  })
+
+  it('the fields a group holds', () => {
+    expect([...heldFields({ ...hot, personIds: [1], dates: { followup: { match: 'unset' } } })]).toEqual(['markers', 'people', 'dates'])
+    expect(heldFields(emptyFilterClauses()).size).toBe(0)
   })
 })

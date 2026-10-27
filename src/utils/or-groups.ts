@@ -86,3 +86,10 @@ export function withOrGroupClauses<T extends { orGroups?: FilterClauses[] }>(
   next[index] = edit(current)
   return withNormalizedOrGroups({ ...p, orGroups: next })
 }
+
+/** `p` without or group `index` (any other index leaves `p` unchanged). */
+export function withoutOrGroup<T extends { orGroups?: FilterClauses[] }>(p: T, index: number): T {
+  const groups = p.orGroups ?? []
+  if (!Number.isInteger(index) || index < 0 || index >= groups.length) return p
+  return withNormalizedOrGroups({ ...p, orGroups: groups.filter((_, i) => i !== index) })
+}
