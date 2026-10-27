@@ -147,6 +147,9 @@
  */
 [data-popover-level] {
   --color-text-muted: var(--color-popover-text-muted);
+  /* The focus ring's 2px gap in the popover's own ground (its level's), not
+   * the page surface: declared again so it resolves on this root. */
+  --focus-ring: 0 0 0 2px var(--color-popover-bg), 0 0 0 4px var(--focus-ring-color);
 }
 
 [data-popover-level='2'] {

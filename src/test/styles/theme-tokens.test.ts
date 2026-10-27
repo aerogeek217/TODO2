@@ -51,6 +51,11 @@ describe('theming lives in tokens.css', () => {
     expect(declarations(TOKENS_CSS, '[data-popover-level] {').get('--color-text-muted')).toBe('var(--color-popover-text-muted)')
   })
 
+  it('inside a popover the focus ring’s gap is the popover’s ground, not the page surface', () => {
+    expect(declarations(TOKENS_CSS, '[data-layout-hue] {').get('--focus-ring')).toBe('0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color)')
+    expect(declarations(TOKENS_CSS, '[data-popover-level] {').get('--focus-ring')).toBe('0 0 0 2px var(--color-popover-bg), 0 0 0 4px var(--focus-ring-color)')
+  })
+
   it('every popover-like panel takes the popover token, never the raised surface straight', () => {
     // The panels a light-theme fork used to put on the surface.
     const panels: Array<[string, string]> = [

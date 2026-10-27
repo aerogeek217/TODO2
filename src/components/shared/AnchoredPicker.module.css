@@ -10,6 +10,11 @@
   --popover-caret-backdrop: blur(16px);
 }
 
+/* The glass is about the surface: the focus ring's gap in it too. */
+.picker[data-popover-level] {
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--focus-ring-color);
+}
+
 /* The children's composed dropdown styles position themselves absolutely;
  * inside the placed wrapper they sit statically. */
 .picker > div {
