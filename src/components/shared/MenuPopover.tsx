@@ -152,7 +152,9 @@ export function MenuPopover({
   const level = usePopoverLevel()
   const beside = placement === 'right-start' || placement === 'left-start'
   const { panelRef, style, caret } = usePopoverAnchor({
-    anchor: anchorRef ? { kind: 'ref', ref: anchorRef } : anchorAtPoint(point ?? { x: 0, y: 0 }),
+    // A point's coordinates may be missing (a synthetic `contextmenu`): 0.
+    anchor: anchorRef ? { kind: 'ref', ref: anchorRef }
+      : point?.rect ? anchorAtPoint(point) : { kind: 'point', x: point?.x ?? 0, y: point?.y ?? 0 },
     open: true,
     placement,
     closeOnScroll,
