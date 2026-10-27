@@ -543,6 +543,16 @@
   filter: drop-shadow(0 0 3px var(--color-followup-glow));
 }
 
+/* Its popover open: the open trigger's text accent (`.cell.cellOpen`), not
+ * the follow-up colour or glow, which come back once it closes. */
+.followup.cellOpen[data-followup] {
+  color: var(--color-accent-text);
+}
+
+.followup.cellOpen[data-followup] svg {
+  filter: none;
+}
+
 /*
  * Status: the icon muted at rest, in its colour (`--status-color`) on the
  * placeholder trigger set; empty = a dot placeholder.

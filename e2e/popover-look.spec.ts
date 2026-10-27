@@ -327,6 +327,37 @@ test('a chip’s picker flipped above it: searching shortens it, it stays on its
   await expectCaretAt(picker, chip, 'bottom')
 })
 
+test('a late follow-up cell takes the open trigger’s text accent while its popover is open, its follow-up colour again once closed', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'All' }],
+    tasks: [{ title: 'Chase the vendor', followupInDays: -2 }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  })
+  const followupColour = await page.evaluate(() => {
+    const probe = document.createElement('div')
+    probe.style.color = 'var(--color-followup)'
+    document.body.appendChild(probe)
+    const out = getComputedStyle(probe).color
+    probe.remove()
+    return out
+  })
+  const cell = taskRowByTitle(page, 'Chase the vendor').locator('[data-row-cell="followup"]')
+  await expect(cell).toHaveAttribute('data-followup', 'late')
+  const colour = () => cell.evaluate((el) => getComputedStyle(el).color)
+  expect(await colour()).toBe(followupColour)
+  await cell.click()
+  await expect(page.getByRole('dialog', { name: 'Follow-up' })).toBeVisible()
+  // Not hovered (the pointer gone into the popover, or opened from the keyboard).
+  await page.mouse.move(0, 0)
+  await expectRinged(page, cell, true)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Follow-up' })).toHaveCount(0)
+  await page.mouse.move(0, 0)
+  await expectRinged(page, cell, false)
+  await expect.poll(colour).toBe(followupColour)
+})
+
 test('the task editor’s glass People dropdown keeps the page surface as the focus ring’s gap', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 })
   await seedWorkspace(page, {
