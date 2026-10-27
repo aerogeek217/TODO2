@@ -58,7 +58,7 @@
   padding: 0 8px;
   border-radius: var(--radius-md);
   background: var(--color-surface-high);
-  box-shadow: inset 0 0 0 1px var(--color-accent), var(--shadow-dropdown);
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--shadow-raised);
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
   color: var(--color-accent-text);

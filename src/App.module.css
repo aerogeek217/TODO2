@@ -130,7 +130,7 @@
     height: var(--touch-target-min);
     border-radius: var(--radius-pill);
     color: var(--color-text-on-accent);
-    box-shadow: var(--shadow-dropdown);
+    box-shadow: var(--shadow-raised);
   }
 }
 

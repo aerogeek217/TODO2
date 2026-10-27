@@ -401,7 +401,7 @@
 /* ═══ Delete completed tasks popup ═══ */
 
 .cleanupPopup {
-  background: var(--color-popover-bg);
+  background: var(--color-dialog-bg);
   border-radius: var(--radius-lg);
   padding: 20px 24px;
   width: 400px;

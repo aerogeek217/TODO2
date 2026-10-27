@@ -5,7 +5,7 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  background: var(--color-popover-bg);
+  background: var(--color-dialog-bg);
   border: 1px solid var(--color-border);
   border-radius: 16px;
   box-shadow: var(--shadow-modal);

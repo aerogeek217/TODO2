@@ -35,7 +35,7 @@
   box-sizing: border-box;
   padding: 24px 24px 20px;
   border-radius: 16px;
-  background: var(--color-popover-bg);
+  background: var(--color-dialog-bg);
   box-shadow: var(--shadow-modal);
 }
 

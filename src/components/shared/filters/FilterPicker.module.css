@@ -12,12 +12,13 @@
  * also gets us the Y-axis flip the prior `useRightEdgeFlip` lacked, so
  * panels near the dialog's bottom flip up instead of clipping inside the
  * body's `overflow: auto`. */
+/* The popover surface (D21): never darker than what it opens over; the ring
+ * is inside `--shadow-dropdown`. */
 .dropdownPanel {
   min-width: 180px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--color-popover-bg);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-dropdown);
   z-index: var(--z-dialog-nested);
   padding: 4px;
   animation: dropIn 0.1s ease-out;
@@ -122,8 +123,9 @@
   user-select: none;
 }
 
+/* A menu's hover tint: shows on either level's surface. */
 .dropdownItem:hover {
-  background: var(--color-surface-high);
+  background: var(--color-tint-8);
 }
 
 .dropdownItem:focus-visible {
