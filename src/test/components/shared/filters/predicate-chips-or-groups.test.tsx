@@ -247,6 +247,32 @@ describe('PredicateChips — the editors expand in place', () => {
     expect(words(screen.getByTestId('filter-stack'))).toEqual(['and', 'or'])
   })
 
+  it('after Or another filter, the chip in the new group expands its picker on that group; the first edit writes it', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={waiting} log={log} layout="stack" />)
+    fireEvent.click(chip(/Status/))
+    fireEvent.click(screen.getByRole('button', { name: /Or another filter/ }))
+    fireEvent.click(within(screen.getByTestId('or-group')).getByTestId('list-filter-chip'))
+    expect(screen.getAllByTestId('or-group')).toHaveLength(1)
+    expect(screen.getByTestId('list-filter-expansion')).toHaveAttribute('aria-label', 'Status filter')
+    expect(log).toEqual([])
+    tick('Active')
+    expect(log.at(-1)).toEqual({ ...emptyPredicate(), orGroups: [clauses({ statusIds: [2, 1] })] })
+  })
+
+  it('after Or another filter, a second click on the chip in the new group folds it and puts the chip back', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={waiting} log={log} layout="stack" />)
+    fireEvent.click(chip(/Status/))
+    fireEvent.click(screen.getByRole('button', { name: /Or another filter/ }))
+    fireEvent.click(within(screen.getByTestId('or-group')).getByTestId('list-filter-chip'))
+    fireEvent.click(within(screen.getByTestId('or-group')).getByTestId('list-filter-chip'))
+    expect(screen.queryByTestId('or-group')).toBeNull()
+    expect(screen.queryByTestId('list-filter-expansion')).toBeNull()
+    expect(screen.getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['StatusWaiting'])
+    expect(log).toEqual([])
+  })
+
   it('a group’s chevron expands its panel; Remove group', () => {
     const log: TodoPredicate[] = []
     render(<Harness initial={grouped} log={log} layout="stack" />)

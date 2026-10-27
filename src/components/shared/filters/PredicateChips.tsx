@@ -210,12 +210,15 @@ export function PredicateChips({
 
   const toggleChip = (chip: FilterChip, scope: Scope, el: Element) => {
     setAddPicker(null)
-    if (stack && isChipOpen(chip, scope) && !open?.wrap) {
+    // A second click folds it (a wrap not written yet: the chip back on its own).
+    if (stack && isChipOpen(chip, scope)) {
       setOpen(null)
       return
     }
+    // The wrapped chip in its new group (not written yet): its picker edits that group, the first edit writes the wrap.
+    const keepWrap = wrap && scope === wrap.index ? { wrap } : {}
     setOpen({
-      kind: 'field', scope, field: chip.field as ListFilterField, dateField: chip.dateField, adding: false,
+      kind: 'field', scope, field: chip.field as ListFilterField, dateField: chip.dateField, adding: false, ...keepWrap,
       ...(stack ? {} : { at: pointBelow(el) }),
     })
   }
