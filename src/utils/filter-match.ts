@@ -2,7 +2,7 @@ import { DATE_FIELD_VALUES, type DateField, type DateMatch, type TodoItem, type 
 import { startOfDay } from './date'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
-import { composeScreenFilter, predicateToCriteria, type FilterCriteria } from './filter-criteria'
+import { composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
 import { matchesMarkers, type MarkerSettings } from './markers'
 
 /**
@@ -16,11 +16,96 @@ export interface FilterSettings extends MarkerSettings {
   weekStartsOn: WeekStart
 }
 
+/** One task as the clause matchers read it. */
+interface ClauseTask {
+  todo: TodoItem
+  personIds: number[] | undefined
+  tagIds: number[] | undefined
+  today: Date
+  searchCtx: TextMatchContext | undefined
+  settings: FilterSettings
+}
+
+// ── One clause each (the caller checks that the clause filters) ─────────────
+
+function matchesStatusClause(c: CriteriaClauses, t: ClauseTask): boolean {
+  // 0 = no status.
+  const ticked = c.statusIds?.has(t.todo.statusId ?? 0) === true
+  return ticked !== (c.negate?.statusIds === true)
+}
+
+function matchesTextClause(c: CriteriaClauses, t: ClauseTask): boolean {
+  return matchTodoText(t.todo, c.searchText, t.searchCtx).matched
+}
+
+function matchesPeopleClause(c: CriteriaClauses, t: ClauseTask): boolean {
+  const ids = c.personIds
+  const people = t.personIds ?? []
+  const personMatch = ids != null && people.some((id) => ids.has(id))
+  const unassignedSentinel = people.length === 0 && ids?.has(0) === true
+  // Is: one of the ticked people (or unassigned when ticked). Is not: none of them.
+  return (personMatch || unassignedSentinel) !== (c.negate?.personIds === true)
+}
+
+function matchesMarkersClause(c: CriteriaClauses, t: ClauseTask): boolean {
+  return c.markers != null && matchesMarkers(t.todo, c.markers, t.today, t.settings)
+}
+
+function matchesTagsClause(c: CriteriaClauses, t: ClauseTask): boolean {
+  // 0 = no tags. Is: one of the ticked tags (or untagged when No tags is
+  // ticked). Is not: none of them (untagged passes unless No tags is ticked).
+  const ids = c.tags
+  const assigned = t.tagIds ?? []
+  const tagMatch = ids != null && (assigned.some((id) => ids.has(id)) || (assigned.length === 0 && ids.has(0)))
+  return tagMatch !== (c.negate?.tags === true)
+}
+
+function matchesDateClause(c: CriteriaClauses, field: DateField, t: ClauseTask): boolean {
+  const clause = c.dates[field]
+  return clause == null || matchesDateMatch(t.todo, field, clause, t.today, t.settings.weekStartsOn)
+}
+
+/**
+ * Runs `test` on each clause of `c` that filters, in a fixed order (cheap
+ * ones first), and stops at the first result equal to `stopAt`: with
+ * `false` that is "every clause passes", with `true` "some clause passes".
+ * Returns `stopAt` when it stopped, `!stopAt` when it ran through, and `null`
+ * when no clause filters.
+ */
+function scanClauses(c: CriteriaClauses, t: ClauseTask, stopAt: boolean): boolean | null {
+  let any = false
+  const hit = (result: boolean): boolean => {
+    any = true
+    return result === stopAt
+  }
+  if (c.statusIds != null && hit(matchesStatusClause(c, t))) return stopAt
+  if (c.searchText && hit(matchesTextClause(c, t))) return stopAt
+  if (c.personIds != null && hit(matchesPeopleClause(c, t))) return stopAt
+  if (c.markers != null && hit(matchesMarkersClause(c, t))) return stopAt
+  if (c.tags != null && hit(matchesTagsClause(c, t))) return stopAt
+  for (const field of DATE_FIELD_VALUES) {
+    if (c.dates[field] && hit(matchesDateClause(c, field, t))) return stopAt
+  }
+  return any ? !stopAt : null
+}
+
+/** Whether the task passes every clause of `c` (no clause: it passes). */
+function passesEveryClause(c: CriteriaClauses, t: ClauseTask): boolean {
+  return scanClauses(c, t, false) !== false
+}
+
+/** Whether the task passes an or group: at least one of its clauses (one with no clause filters nothing). */
+function passesOrGroup(group: CriteriaClauses, t: ClauseTask): boolean {
+  return scanClauses(group, t, true) !== false
+}
+
 /**
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
- * single todo; returns whether the todo passes the filter. A People / Status
- * / Tags clause with its "is not" switch passes the tasks the clause without
- * it would fail (`FilterNegation`).
+ * single todo; returns whether the todo passes the filter: its completion
+ * (`showCompleted`), the lens, every clause and every or group (at least
+ * one clause of each). A People / Status / Tags clause with its "is not"
+ * switch passes the tasks the clause without it would fail
+ * (`FilterNegation`) — inside an or group as outside.
  */
 export function matchesFilter(
   filters: FilterCriteria,
@@ -36,45 +121,14 @@ export function matchesFilter(
   if (filters.lens && !matchesFilter({ ...filters.lens, showCompleted: true }, todo, assignedPersonIds, today, searchCtx, assignedTagIds, settings)) {
     return false
   }
+  const t: ClauseTask = { todo, personIds: assignedPersonIds, tagIds: assignedTagIds, today, searchCtx, settings }
+  if (!passesEveryClause(filters, t)) return false
+  return (filters.orGroups ?? []).every((group) => passesOrGroup(group, t))
+}
 
-  const negate = filters.negate
-  if (filters.statusIds !== null) {
-    // 0 = no status.
-    const ticked = filters.statusIds.has(todo.statusId ?? 0)
-    if (ticked === (negate?.statusIds === true)) return false
-  }
-
-  if (filters.searchText) {
-    const { matched } = matchTodoText(todo, filters.searchText, searchCtx)
-    if (!matched) return false
-  }
-
-  const personIds = filters.personIds
-  if (personIds !== null) {
-    const people = assignedPersonIds ?? []
-    const hasPerson = people.length > 0
-    const personMatch = people.some((id) => personIds.has(id))
-    const unassignedSentinel = !hasPerson && personIds.has(0)
-    // Is: one of the ticked people (or unassigned when ticked). Is not: none of them.
-    if ((personMatch || unassignedSentinel) === (negate?.personIds === true)) return false
-  }
-  if (filters.markers != null && !matchesMarkers(todo, filters.markers, today, settings)) {
-    return false
-  }
-  const tags = filters.tags
-  if (tags !== null) {
-    // 0 = no tags. Is: one of the ticked tags (or untagged when No tags is
-    // ticked). Is not: none of them (untagged passes unless No tags is ticked).
-    const assigned = assignedTagIds ?? []
-    const tagMatch = assigned.some((id) => tags.has(id)) || (assigned.length === 0 && tags.has(0))
-    if (tagMatch === (negate?.tags === true)) return false
-  }
-
-  for (const field of DATE_FIELD_VALUES) {
-    const clause = filters.dates[field]
-    if (clause && !matchesDateMatch(todo, field, clause, today, settings.weekStartsOn)) return false
-  }
-  return true
+/** Whether evaluating `f` reads a text filter — its own, an or group's or its lens's — so needs the task's names. */
+function readsText(f: FilterCriteria): boolean {
+  return !!f.searchText || (f.orGroups ?? []).some((group) => !!group.searchText) || (f.lens != null && readsText(f.lens))
 }
 
 /** The task's date of one date type, or null when it has none. */
@@ -124,7 +178,7 @@ export function matchesFilterWithLookups(
 ): boolean {
   const personIds = (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.id!)
   const tagIds = (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.id!)
-  const searchCtx = filters.searchText || filters.lens?.searchText ? textMatchContextFor(todo, lookups) : undefined
+  const searchCtx = readsText(filters) ? textMatchContextFor(todo, lookups) : undefined
   return matchesFilter(filters, todo, personIds, today, searchCtx, tagIds, settings)
 }
 

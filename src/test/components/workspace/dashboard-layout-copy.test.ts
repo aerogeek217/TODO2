@@ -7,8 +7,8 @@ import { computeTiles } from '../../../services/stats/tiles'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SAMPLE_CTX } from '../../fixtures/dashboard-sample'
 import { makeTodo } from '../../helpers'
-import { filterChips, listFilterHint } from '../../../utils/filter-chips'
-import { emptyPredicate } from '../../../models'
+import { filterChips, listFilterHint, predicateLineItems } from '../../../utils/filter-chips'
+import { emptyFilterClauses, emptyPredicate } from '../../../models'
 
 const spans = (rows: ReturnType<typeof packSections>) => rows.map((r) => r.map((s) => `${s.id}:${s.span}`))
 
@@ -105,5 +105,16 @@ describe('dashboard copy', () => {
       dates: { deadline: { match: 'set' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } },
     }, { people: [], tags: [], statuses: [] })
     expect(listFilterHint(chips)).toBe('Due: has a date · Created: from start of month')
+  })
+
+  it('a list tile hint spells an or group as its chips joined with "or"', () => {
+    const names = { people: [{ id: 1, name: 'Aisha', initials: 'AI' }], tags: [], statuses: [] }
+    const items = predicateLineItems({
+      ...emptyPredicate(),
+      statusIds: [0],
+      orGroups: [{ ...emptyFilterClauses(), markers: 'hot', personIds: [1] }],
+    }, names)
+    expect(listFilterHint(items)).toBe('Status: No status · Priority: Hot or @Aisha')
+    expect(listFilterHint(predicateLineItems({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1] }] }, names))).toBe('@Aisha')
   })
 })

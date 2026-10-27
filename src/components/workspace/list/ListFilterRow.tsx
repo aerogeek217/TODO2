@@ -3,7 +3,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsListDirty } from '../../../hooks/use-list-draft'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { chipKey, filterChips, type FilterChip } from '../../../utils/filter-chips'
+import { chipKey, predicateLineItems, type FilterChip } from '../../../utils/filter-chips'
 import { groupSortSummary } from '../../../utils/list-options'
 import { ChevronDownIcon, FunnelIcon } from '../../shared/icons'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
@@ -63,7 +63,7 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, un
   const names = useChipNames()
   const screenChips = useScreenChips()
   const predicate = definition.membership.predicate
-  const hasListChips = useMemo(() => filterChips(predicate, names).length > 0, [predicate, names])
+  const hasListChips = useMemo(() => predicateLineItems(predicate, names).length > 0, [predicate, names])
   const chipsRef = useRef<HTMLDivElement>(null)
   const chipsOverflow = useOverflowsX(chipsRef)
   const id = definition.id

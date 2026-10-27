@@ -2,11 +2,12 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 
 /**
- * The database declares only the floor's store layout (no versions before
- * it). A v68 database as the builds that declared every version left it —
- * the layout below, read from one — must open as it is: no upgrade, no
- * Dexie schema patch (which would raise its native version past 680 and add
- * a `$meta` store), every store and index kept, its rows untouched.
+ * The database declares the floor's store layout (no versions before it)
+ * and the version steps after it, none of which changes a store yet. A v68
+ * database as the builds that declared every version left it — the layout
+ * below, read from one — must open with only the version steps: no Dexie
+ * schema patch (which would add a `$meta` store), every store and index
+ * kept, its rows untouched.
  */
 
 type IndexSpec = [name: string, keyPath: string | string[], unique?: 'unique']
@@ -81,12 +82,12 @@ afterEach(async () => {
 })
 
 describe('the floor’s store layout', () => {
-  it('the floor is the current version', () => {
+  it('the floor is v68, the current version v69', () => {
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(68)
-    expect(CURRENT_DB_VERSION).toBe(68)
+    expect(CURRENT_DB_VERSION).toBe(69)
   })
 
-  it('a v68 database as the full version chain left it opens unchanged: no upgrade, no patch', async () => {
+  it('a v68 database as the full version chain left it opens at v69 with its stores, indexes and rows unchanged: no patch', async () => {
     db.close()
     await db.delete()
     await createRawDb(680, V68_LAYOUT)
@@ -95,16 +96,16 @@ describe('the floor’s store layout', () => {
     expect(await db.todos.toArray()).toEqual([task])
     db.close()
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SchemaDiff'))
-    expect(await readRawDb()).toEqual({ version: 680, layout: V68_LAYOUT, todos: [task] })
+    expect(await readRawDb()).toEqual({ version: 690, layout: V68_LAYOUT, todos: [task] })
   })
 
-  it('a new database gets exactly the v68 layout', async () => {
+  it('a new database gets exactly the v68 layout, at v69 (which changed no store)', async () => {
     db.close()
     await db.delete()
     await db.open()
     db.close()
     const raw = await readRawDb()
-    expect(raw.version).toBe(680)
+    expect(raw.version).toBe(690)
     expect(raw.layout).toEqual(V68_LAYOUT)
   })
 })

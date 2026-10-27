@@ -18,7 +18,7 @@ import {
   withPaneConfig,
   type EisenhowerPane,
 } from '../../../utils/eisenhower-panes'
-import { filterChips, type FilterChipNames } from '../../../utils/filter-chips'
+import { predicateLineItems, type FilterChipNames } from '../../../utils/filter-chips'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ConfirmDialog } from '../../shared/Dialog'
@@ -153,7 +153,7 @@ function PaneCard({ pane, names, count, onRename, onFilter, onReset }: PaneCardP
     setSyncedFrom(stored)
     if (name.trim() !== stored) setName(stored)
   }
-  const hasChips = useMemo(() => filterChips(pane.filter, names).length > 0, [pane.filter, names])
+  const hasChips = useMemo(() => predicateLineItems(pane.filter, names).length > 0, [pane.filter, names])
   const subtitle = useMemo(() => paneSubtitle(pane, names), [pane, names])
   return (
     <section
@@ -189,6 +189,7 @@ function PaneCard({ pane, names, count, onRename, onFilter, onReset }: PaneCardP
           predicate={pane.filter}
           onChange={onFilter}
           addLabel="Add a filter to this pane"
+          layout="stack"
           inDialog
           before={hasChips ? undefined : <span className={styles.noFilter}>No filter — every task</span>}
         />

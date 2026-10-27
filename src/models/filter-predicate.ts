@@ -175,12 +175,44 @@ export interface TodoPredicate {
    * have none.
    */
   negate?: FilterNegation
+  /**
+   * The or groups: a task must pass every or group as well as the clauses
+   * above, and passes an or group when it passes at least one of its
+   * clauses (each read exactly as the same clause outside an or group, its "is
+   * not" included). Completion is decided by `showCompleted` alone. Absent
+   * or empty = no or group; one with no clause filters nothing and isn't
+   * stored; at most `OR_GROUPS_MAX`. Optional on read: older predicates have none.
+   */
+  orGroups?: FilterClauses[]
 }
+
+/**
+ * The narrowing clauses of a predicate — what a chip can be: one clause per
+ * field, "is not" per id field, no Show completed. The predicate's own
+ * clauses have this shape (a `TodoPredicate` is one), and so does each of
+ * its or groups.
+ */
+export type FilterClauses = Pick<TodoPredicate, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
+
+/** Most or groups a predicate holds. */
+export const OR_GROUPS_MAX = 10
 
 /** Empty predicate — matches every open task (completed tasks need `showCompleted`). */
 export function emptyPredicate(): TodoPredicate {
   return {
     showCompleted: false,
+    personIds: null,
+    statusIds: null,
+    searchText: '',
+    dates: {},
+    markers: null,
+    tags: null,
+  }
+}
+
+/** Clauses that filter nothing (an or group before its first chip). */
+export function emptyFilterClauses(): FilterClauses {
+  return {
     personIds: null,
     statusIds: null,
     searchText: '',

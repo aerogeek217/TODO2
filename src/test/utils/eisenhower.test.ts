@@ -11,7 +11,7 @@ import {
 } from '../../utils/eisenhower'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import { isEffectivelyUrgent, isUrgentByDate, type UrgentDueWithinDays } from '../../utils/urgency'
-import { emptyPredicate, type TodoItem, type TodoPredicate } from '../../models'
+import { emptyFilterClauses, emptyPredicate, type TodoItem, type TodoPredicate } from '../../models'
 import type { EisenhowerQuadrant } from '../../models/workspace-layout'
 import { blockedDropLines, makePaneContext, makeTodo, resolveQuadrantDrop } from '../helpers'
 
@@ -367,6 +367,28 @@ describe('resolvePaneDrop on custom panes', () => {
     if (res.kind !== 'blocked') return
     expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Priority filter (Hot).')
     expect(resolvePaneDrop([t({ focus: true })], 'do', panes, ctx)).toEqual({ kind: 'none' })
+  })
+
+  it('a pane’s or group writes nothing: a task matching none of its filters is refused, naming the group', () => {
+    const group = { ...emptyFilterClauses(), statusIds: [4], personIds: [1] }
+    const panes = resolvePanes({ do: { name: 'Chase', filter: { ...emptyPredicate(), markers: { urgent: true }, orGroups: [group] } } })
+    const task = t({})
+    const res = resolvePaneDrop([task], 'do', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'orGroup', index: 0 } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)).toEqual([
+      'Can’t move to Chase',
+      'Chase vendor doesn’t match any filter in its group (People Ann or Status Waiting).',
+      'Change the task first, or edit the panes.',
+    ])
+    // One of the group's filters is enough: the drop writes the flag and lands.
+    expect(resolvePaneDrop([t({ statusId: 4 })], 'do', panes, ctx)).toEqual({ kind: 'apply', changes: [{ todoId: 1, urgent: true }] })
+  })
+
+  it('a clause outside the or groups that fails is named before the group', () => {
+    const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), dates: { deadline: { match: 'set' } }, orGroups: [{ ...emptyFilterClauses(), statusIds: [4] }] } } })
+    const task = t({})
+    expect(resolvePaneDrop([task], 'do', panes, ctx)).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'deadline' } }] })
   })
 
   it('a pane’s "+" hint: what a new task gets — its Yes markers, status, person, tag; a No or a deleted status gives nothing', () => {

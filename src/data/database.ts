@@ -5,6 +5,7 @@ import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
+import { applySchemaUpgradeInTx } from './schema-upgrades'
 
 export interface SettingRow {
   key: string
@@ -20,7 +21,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 68
+export const CURRENT_DB_VERSION = 69
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -178,7 +179,13 @@ export class Todo2Database extends Dexie {
     // open back with the database untouched.
     this.version(OLDEST_SUPPORTED_DB_VERSION).stores(FLOOR_STORES).upgrade(refuseBelowFloor)
 
-    // The next schema step N goes here, after the floor:
+    // v69: a version marker. No index or data change
+    // (`upgrades/v69-or-groups.ts` returns its input); v69 data may hold a
+    // stored filter's or groups, which an older build would drop silently,
+    // so older builds refuse it.
+    this.version(69).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 69))
+
+    // The next schema step N goes here, after the last one:
     //
     //   this.version(N).stores({ /* only what N adds, changes or drops (null) */ })
     //     .upgrade((tx) => applySchemaUpgradeInTx(tx, N))

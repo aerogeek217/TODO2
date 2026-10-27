@@ -4,7 +4,7 @@ import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
 import { EditListHost } from '../../../components/workspace/list/EditList'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import { emptyPredicate } from '../../../models'
+import { emptyFilterClauses, emptyPredicate } from '../../../models'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -637,6 +637,18 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     setup(def({}, { markers: { urgent: false } }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
+  })
+
+  it('a list whose only filter is an or group offers + Add task and seeds nothing; the clauses outside a group seed', () => {
+    setup(def({}, { orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: { focus: true } }] }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    const defaults = useUIStore.getState().quickAddDraft?.defaults
+    expect(defaults?.personIds).toEqual([])
+    expect(defaults?.markers).toBeUndefined()
+    cleanup()
+    setup(def({}, { statusIds: [2], orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: { focus: true } }] }))
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults).toMatchObject({ statusId: 2, personIds: [] })
   })
 
   it('a Hot list re-filters when the Hot rule or the urgent range changes', () => {

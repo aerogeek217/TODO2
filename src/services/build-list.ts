@@ -73,7 +73,8 @@ export interface ListContents {
  * of the list's own clause on that field, and is always "is" (a list's "is
  * not" switch on the field goes with the clause it switched). Empty `values`
  * is a no-op so "user cleared all chips" doesn't short-circuit to "match
- * nothing".
+ * nothing". The pick merges into the clauses outside the or groups, which
+ * stay as they are.
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -113,7 +114,8 @@ export function buildList(
   // The effective predicate's person / tag picks narrow the visible groups
   // so a multi-assignee task doesn't emit sections for non-picked people.
   // An "is not" pick doesn't: its members have none of the picked people /
-  // tags, so their groups never show anyway.
+  // tags, so their groups never show anyway. Only the clauses outside the
+  // or groups narrow them: an or group's pick may not be what a member has.
   const predicate = membership.kind === 'custom' ? membership.predicate : undefined
   const sections = buildListSections(
     members,

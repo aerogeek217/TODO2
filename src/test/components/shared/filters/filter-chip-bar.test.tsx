@@ -55,7 +55,7 @@ describe('FilterChipBar — primitive', () => {
       const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10, 20] }
       render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />)
       expect(screen.getByRole('button', { name: 'People filter: Alice' })).toHaveTextContent('Alice')
-      expect(screen.getByRole('button', { name: 'Tags filter: urgent +1' })).toHaveTextContent('urgent +1')
+      expect(screen.getByRole('button', { name: 'Tags filter: urgent or soon' })).toHaveTextContent('urgent or soon')
       fireEvent.click(screen.getByRole('button', { name: 'Clear people filter' }))
       expect(updates.at(-1)?.personIds).toBeNull()
       expect(updates.at(-1)?.tags).toEqual([10, 20])

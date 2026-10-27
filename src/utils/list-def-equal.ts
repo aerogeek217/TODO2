@@ -1,7 +1,8 @@
 import type { PersistedListDefinition } from '../models/list-definition'
-import type { TodoPredicate } from '../models'
+import type { FilterClauses, TodoPredicate } from '../models'
 import { effectiveSortDirection } from '../models'
 import { dateFiltersEqual } from './date-filters'
+import { hasFilterClause } from './or-groups'
 import { markersEqual } from './markers'
 import { negationEqual } from './filter-negation'
 
@@ -14,10 +15,9 @@ function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null |
   return true
 }
 
-/** Whether two predicates filter the same (id lists as sets, the "is not" switches included). */
-export function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
+/** Whether two sets of clauses filter the same (id lists as sets, the "is not" switches included). */
+function clausesEqual(a: FilterClauses, b: FilterClauses): boolean {
   return (
-    a.showCompleted === b.showCompleted &&
     a.searchText === b.searchText &&
     dateFiltersEqual(a.dates, b.dates) &&
     markersEqual(a.markers, b.markers) &&
@@ -26,6 +26,22 @@ export function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
     idArraysEqualAsSet(a.tags, b.tags) &&
     negationEqual(a, b)
   )
+}
+
+/**
+ * Whether two predicates filter the same: Show completed, their clauses
+ * (id lists as sets, the "is not" switches included) and their or groups
+ * in order, each compared as the clauses are (one that filters nothing
+ * doesn't count).
+ */
+export function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
+  if (a.showCompleted !== b.showCompleted || !clausesEqual(a, b)) return false
+  const x = (a.orGroups ?? []).filter(hasFilterClause)
+  const y = (b.orGroups ?? []).filter(hasFilterClause)
+  return x.length === y.length && x.every((group, i) => {
+    const other = y[i]
+    return other !== undefined && clausesEqual(group, other)
+  })
 }
 
 /**
@@ -61,9 +77,9 @@ export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt' | 'f
 
 /**
  * The editor rows whose value differs between `a` and `b` (e.g. a draft and
- * the saved list). Show completed and the "is not" switches count as part
- * of the filters and the sort direction as part of the sort; Show filter
- * line is its own row; `sortOrder` is never compared.
+ * the saved list). Show completed, the "is not" switches and the or groups
+ * count as part of the filters and the sort direction as part of the sort;
+ * Show filter line is its own row; `sortOrder` is never compared.
  */
 export function changedListFields(a: PersistedListDefinition, b: PersistedListDefinition): ReadonlySet<ListDefField> {
   const out = new Set<ListDefField>()

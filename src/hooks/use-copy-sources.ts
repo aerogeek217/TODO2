@@ -7,7 +7,7 @@ import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
-import { filterChips, listFilterHint } from '../utils/filter-chips'
+import { listFilterHint, predicateLineItems } from '../utils/filter-chips'
 import { copySourceGroups, type CopySourceGroup, type CopySourceRef } from '../utils/list-copy'
 
 /** A list Copy from offers. */
@@ -45,7 +45,7 @@ export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[
         sortOrder: saved.sortOrder,
         def,
         name: def.name.trim() || saved.name,
-        hint: listFilterHint(filterChips(def.membership.predicate, names)),
+        hint: listFilterHint(predicateLineItems(def.membership.predicate, names)),
       }
     })
     return copySourceGroups({ lists, layouts, openLayoutId, eisenhowerListId, excludeId })

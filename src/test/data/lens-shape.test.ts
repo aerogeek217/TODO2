@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate } from '../../models/filter-predicate'
+import { emptyFilterClauses, emptyPredicate } from '../../models/filter-predicate'
 import { LENSES_SETTING_MAX_LEN, formatLensesSetting, pickLenses, readLensesSetting } from '../../data/lens-shape'
 import { LENSES_MAX } from '../../utils/lens'
 
@@ -30,6 +30,15 @@ describe('the stored lenses', () => {
       { id: 'a', name: ' A ', extra: 1, predicate: { ...emptyPredicate(), showCompleted: true, statusIds: 'x', tags: [2] } },
     ])
     expect(lenses).toEqual([{ id: 'a', name: 'A', predicate: { ...emptyPredicate(), tags: [2] } }])
+    expect(fixes).toEqual(['lens fixed'])
+  })
+
+  it('keeps a lens’s or groups; a malformed one fixes the lens', () => {
+    const group = { ...emptyFilterClauses(), markers: 'hot' as const, tags: [0] }
+    const triage = { id: 'a', name: 'Triage', predicate: { ...emptyPredicate(), statusIds: [1], orGroups: [group] } }
+    expect(readLensesSetting(formatLensesSetting([triage]))).toEqual({ lenses: [triage], fixes: [] })
+    const { lenses, fixes } = pickLenses([{ ...triage, predicate: { ...triage.predicate, orGroups: [group, 'x'] } }])
+    expect(lenses).toEqual([triage])
     expect(fixes).toEqual(['lens fixed'])
   })
 

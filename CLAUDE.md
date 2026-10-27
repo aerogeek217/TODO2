@@ -17,7 +17,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 - Test watch: `npm run test:watch`
 - E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server; `PW_PORT=<port>` picks another, so two checkouts can run their suites at once). Single spec: `npx playwright test e2e/<name>.spec.ts`
 - Lint: `npm run lint` (`eslint . --max-warnings 0`). No per-file ignores — don't add any to dodge fixes.
-- Dev seed: `npm run seed:dev` → `dev-data/seed-v68.json` (gitignored; realistic export in the current schema for manual testing via Settings → Import / Export → Import JSON — replaces that browser's data; dates relative to today, re-run when stale). Needs Node ≥ 22.6.
+- Dev seed: `npm run seed:dev` → `dev-data/seed-v69.json` (gitignored; realistic export in the current schema for manual testing via Settings → Import / Export → Import JSON — replaces that browser's data; dates relative to today, re-run when stale). Needs Node ≥ 22.6.
 
 ## Tech Stack
 - React 19 + TypeScript + Vite

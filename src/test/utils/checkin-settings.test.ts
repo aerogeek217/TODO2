@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate } from '../../models/filter-predicate'
+import { emptyFilterClauses, emptyPredicate, type FilterClauses } from '../../models/filter-predicate'
+import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import {
   DEFAULT_CHECKIN_OPEN_METHOD,
   checkinFilterOf,
@@ -25,6 +26,25 @@ describe('the check-in filter', () => {
     expect(checkinFilterOf({ ...emptyPredicate(), showCompleted: true, personIds: [1], tags: [2], negate: { personIds: true, tags: true } }))
       .toEqual({ ...emptyPredicate(), tags: [2], negate: { tags: true } })
     expect(checkinFilterOf({ ...emptyPredicate(), personIds: [1], negate: { personIds: true } })).toEqual(emptyPredicate())
+  })
+
+  it('drops people inside or groups too; an or group left with nothing goes', () => {
+    const kept: FilterClauses = { ...emptyFilterClauses(), tags: [2], negate: { tags: true } }
+    expect(checkinFilterOf({
+      ...emptyPredicate(),
+      orGroups: [{ ...emptyFilterClauses(), personIds: [1], negate: { personIds: true } }, { ...kept, personIds: [3] }],
+    })).toEqual({ ...emptyPredicate(), orGroups: [kept] })
+    expect(checkinFilterOf({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1] }] })).toEqual(emptyPredicate())
+  })
+
+  it('reading the stored filter says when people went from an or group', () => {
+    const stored = JSON.stringify({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: 'hot' }] })
+    expect(readCheckinFilterSetting(stored)).toEqual({
+      filter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot' }] },
+      fixes: ['people filter dropped'],
+    })
+    const clean = formatCheckinFilterSetting({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot' }] })
+    expect(readCheckinFilterSetting(clean).fixes).toEqual([])
   })
 
   it('no filter: nothing narrows (people and completed tasks don’t count)', () => {

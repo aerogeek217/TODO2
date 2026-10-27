@@ -402,7 +402,8 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
           if (chip.tooltip) tooltips[chip.field] = chip.tooltip
           break
         case 'tags':
-          values.tags = chip.value.replace(/^(not )?#/, '$1')
+          // Every name loses its # (`home or garden`).
+          values.tags = chip.value.replace(/(^not |^|, | or )#/g, '$1')
           if (chip.tooltip) tooltips.tags = chip.tooltip
           break
       }

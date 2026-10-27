@@ -57,10 +57,13 @@ export interface FilterSources {
 
 type EntityField = 'personIds' | 'tags'
 
-/** The ids a predicate's People / Tags clause names, "is" or "is not" (0 — unassigned / no tag — is no entry). */
+/**
+ * The ids a predicate's People / Tags clauses name — its own and its or
+ * groups' —, "is" or "is not" (0 — unassigned / no tag — is no entry).
+ */
 function namedIds(predicate: TodoPredicate | undefined, field: EntityField): number[] {
-  const ids = predicate?.[field]
-  return ids ? ids.filter((id) => id > 0) : []
+  if (!predicate) return []
+  return [predicate, ...(predicate.orGroups ?? [])].flatMap((c) => (c[field] ?? []).filter((id) => id > 0))
 }
 
 /** Entity id → where the filters name it; an entry no filter names is absent. */

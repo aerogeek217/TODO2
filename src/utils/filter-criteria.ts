@@ -1,7 +1,8 @@
-import type { DateAnchor, DateFilters, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
+import type { DateAnchor, DateFilters, FilterClauses, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
 import { hasDateFilters, normalizeDateFilters, readDateFilters } from './date-filters'
+import { normalizeOrGroups } from './or-groups'
 import { withNormalizedNegation } from './filter-negation'
-import { activeMarkers, hasMarkers, isHotFilter, markerConditions } from './markers'
+import { hasMarkers, normalizeMarkersFilter } from './markers'
 
 /**
  * Runtime filter state: same fields as the serializable `TodoPredicate`, but
@@ -49,6 +50,12 @@ export interface FilterCriteria {
   /** The "is not" switches of people / status / tags (`utils/filter-negation`); absent = every field "is". */
   negate?: FilterNegation
   /**
+   * The or groups (`TodoPredicate.orGroups`), each with Sets as above: a
+   * task must pass at least one clause of each. Absent = none (the
+   * top bar's chips never have one; a list's, a lens's or a pane's may).
+   */
+  orGroups?: CriteriaClauses[]
+  /**
    * The screen filter only: the open layout's lens (`utils/lens.withLens`),
    * a stage a task must pass as well — its own clauses and "is not"
    * switches, ANDed under these. It never decides completion (its
@@ -56,6 +63,9 @@ export interface FilterCriteria {
    */
   lens?: FilterCriteria
 }
+
+/** The narrowing clauses of the runtime filter (the runtime `FilterClauses`): the shape of the root's and of each or group. */
+export type CriteriaClauses = Pick<FilterCriteria, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
 
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
 export function fixedAnchor(d: Date): DateAnchor {
@@ -66,7 +76,8 @@ export function fixedAnchor(d: Date): DateAnchor {
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
  * search — and the lens, when the filter carries one (the composed screen
- * filter; the top bar's chips alone never do).
+ * filter; the top bar's chips alone never do). Or groups aren't
+ * counted: the screen filter never has one.
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -102,40 +113,48 @@ export function composeScreenFilter(
   return [{ ...screen, showCompleted }, { ...list, showCompleted }]
 }
 
+/** Runtime clauses → stored ones (not yet normalised: the callers run `withNormalizedNegation`). */
+function clausesToPredicate(c: CriteriaClauses): FilterClauses {
+  const p: FilterClauses = {
+    personIds: c.personIds ? Array.from(c.personIds) : null,
+    statusIds: c.statusIds ? Array.from(c.statusIds) : null,
+    searchText: c.searchText,
+    dates: normalizeDateFilters(c.dates),
+    markers: normalizeMarkersFilter(c.markers),
+    tags: c.tags ? Array.from(c.tags) : null,
+  }
+  return c.negate ? { ...p, negate: { ...c.negate } } : p
+}
+
+/** Stored clauses → runtime ones, "is not" switches normalised. Reads date anchors through `readDateAnchor` (legacy ISO strings → fixed). */
+function clausesToCriteria(c: FilterClauses): CriteriaClauses {
+  const f: CriteriaClauses = {
+    personIds: Array.isArray(c.personIds) ? new Set(c.personIds) : null,
+    statusIds: Array.isArray(c.statusIds) ? new Set(c.statusIds) : null,
+    searchText: c.searchText,
+    dates: readDateFilters(c.dates),
+    markers: normalizeMarkersFilter(c.markers),
+    tags: Array.isArray(c.tags) ? new Set(c.tags) : null,
+  }
+  return withNormalizedNegation(c.negate ? { ...f, negate: { ...c.negate } } : f)
+}
+
 /**
  * Runtime (Sets) → serializable (arrays) for saved views / list definitions.
  * The "is not" switches are normalised (`withNormalizedNegation`): `negate`
- * is present only while some field reads "is not".
+ * is present only while some field reads "is not"; the or groups are in
+ * their stored form (`normalizeOrGroups`): `orGroups` is present only while
+ * one filters. The lens isn't part of it.
  */
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
-  const p: TodoPredicate = {
-    showCompleted: f.showCompleted,
-    personIds: f.personIds ? Array.from(f.personIds) : null,
-    statusIds: f.statusIds ? Array.from(f.statusIds) : null,
-    searchText: f.searchText,
-    dates: normalizeDateFilters(f.dates),
-    markers: normalizeMarkers(f.markers),
-    tags: f.tags ? Array.from(f.tags) : null,
-  }
-  return withNormalizedNegation(f.negate ? { ...p, negate: { ...f.negate } } : p)
+  const p: TodoPredicate = withNormalizedNegation({ showCompleted: f.showCompleted, ...clausesToPredicate(f) })
+  const orGroups = normalizeOrGroups(f.orGroups?.map(clausesToPredicate))
+  return orGroups.length > 0 ? { ...p, orGroups } : p
 }
 
-/** Serializable → runtime. Inverse of `criteriaToPredicate`. Reads date anchors through `readDateAnchor` (legacy ISO strings → fixed). */
+/** Serializable → runtime. Inverse of `criteriaToPredicate` (or groups that filter nothing are left out). */
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
-  const f: FilterCriteria = {
-    showCompleted: p.showCompleted,
-    personIds: Array.isArray(p.personIds) ? new Set(p.personIds) : null,
-    statusIds: Array.isArray(p.statusIds) ? new Set(p.statusIds) : null,
-    searchText: p.searchText,
-    dates: readDateFilters(p.dates),
-    markers: normalizeMarkers(p.markers),
-    tags: Array.isArray(p.tags) ? new Set(p.tags) : null,
-  }
-  return withNormalizedNegation(p.negate ? { ...f, negate: { ...p.negate } } : f)
-}
-
-/** Hot, a copy of the markers' Yes / No conditions, or null when no marker is tested. */
-function normalizeMarkers(m: MarkersFilter | null | undefined): MarkersFilter | null {
-  if (isHotFilter(m)) return m
-  return activeMarkers(m).length > 0 ? markerConditions(m) : null
+  const f: FilterCriteria = { showCompleted: p.showCompleted, ...clausesToCriteria(p) }
+  const orGroups = normalizeOrGroups(p.orGroups).map(clausesToCriteria)
+  return orGroups.length > 0 ? { ...f, orGroups } : f
 }

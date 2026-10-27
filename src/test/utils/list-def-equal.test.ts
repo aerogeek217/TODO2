@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type TodoPredicate } from '../../models'
+import { emptyFilterClauses, emptyPredicate, type FilterClauses, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { changedListFields, defsEqual } from '../../utils/list-def-equal'
+import { changedListFields, defsEqual, predicatesEqual } from '../../utils/list-def-equal'
 
 function def(over: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
   return {
@@ -53,5 +53,33 @@ describe('list definition equality — filter line and Priority grouping', () =>
   it('grouping by Priority is a group change', () => {
     expect(defsEqual(def(), def({ grouping: 'priority' }))).toBe(false)
     expect([...changedListFields(def({ grouping: 'priority' }), def())]).toEqual(['group'])
+  })
+})
+
+describe('list definition equality — or groups', () => {
+  const hot: FilterClauses = { ...emptyFilterClauses(), markers: 'hot' }
+  const mine: FilterClauses = { ...emptyFilterClauses(), personIds: [1, 2] }
+  const withGroups = (orGroups: FilterClauses[] | undefined, extra: Partial<TodoPredicate> = {}) =>
+    def({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...extra, ...(orGroups ? { orGroups } : {}) } } })
+
+  it('an or group is part of the filters', () => {
+    expect(predicatesEqual({ ...emptyPredicate(), orGroups: [hot] }, emptyPredicate())).toBe(false)
+    expect([...changedListFields(withGroups([hot]), withGroups(undefined))]).toEqual(['filters'])
+    expect([...changedListFields(withGroups([hot, mine]), withGroups([hot, { ...mine, negate: { personIds: true } }]))]).toEqual(['filters'])
+  })
+
+  it('or groups compare in order, each as the clauses compare (id lists as sets)', () => {
+    expect(defsEqual(withGroups([hot, mine]), withGroups([hot, { ...mine, personIds: [2, 1] }]))).toBe(true)
+    expect(defsEqual(withGroups([hot, mine]), withGroups([mine, hot]))).toBe(false)
+    expect(defsEqual(withGroups([hot]), withGroups([hot, mine]))).toBe(false)
+  })
+
+  it('an or group that filters nothing, an empty list and no key are the same', () => {
+    expect(defsEqual(withGroups([]), withGroups(undefined))).toBe(true)
+    expect(defsEqual(withGroups([emptyFilterClauses(), hot]), withGroups([hot]))).toBe(true)
+  })
+
+  it('a clause inside an or group is not the same clause outside it', () => {
+    expect(defsEqual(withGroups([hot]), withGroups(undefined, { markers: 'hot' }))).toBe(false)
   })
 })

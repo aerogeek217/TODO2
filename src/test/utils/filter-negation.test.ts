@@ -204,14 +204,14 @@ describe('new-task defaults', () => {
 describe('chips', () => {
   it('say "not" and spell out what they hide', () => {
     const chips = filterChips({ ...emptyPredicate(), personIds: [1, 2], statusIds: [2], tags: [1], negate: { personIds: true, statusIds: true, tags: true } }, names)
-    expect(chips.map((c) => [c.label, c.value])).toEqual([['Tags', 'not #work'], ['People', 'not Ann +1'], ['Status', 'not Waiting']])
+    expect(chips.map((c) => [c.label, c.value])).toEqual([['Tags', 'not #work'], ['People', 'not Ann or Bob'], ['Status', 'not Waiting']])
     expect(chips.every((c) => c.negated)).toBe(true)
     expect(chips.map((c) => c.tooltip)).toEqual([
       'Tags: not #work\nHides tasks with that tag; untagged tasks stay',
       'People: not Ann or Bob\nHides tasks assigned to any of them',
       'Status: not Waiting\nHides tasks with that status',
     ])
-    expect(describeFilters(chips)).toBe('Tags not #work · People not Ann +1 · Status not Waiting')
+    expect(describeFilters(chips)).toBe('Tags not #work · People not Ann or Bob · Status not Waiting')
   })
 
   it('name the sentinels', () => {

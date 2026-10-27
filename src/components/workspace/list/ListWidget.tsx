@@ -22,7 +22,7 @@ import {
   type Section,
 } from '../../../services/list-sections'
 import { predicateToFilterDefaults } from '../../../utils/filter-defaults'
-import { describeFilters, filterChips, hasNarrowingFilters } from '../../../utils/filter-chips'
+import { describeFilters, hasNarrowingFilters, predicateLineItems } from '../../../utils/filter-chips'
 import { PROMPT_LABEL, sortSummary, withListSort } from '../../../utils/list-options'
 import { manualOrderComparator, planMove, seedRanks, type MoveTarget, type RankWrite } from '../../../utils/list-order'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
@@ -53,6 +53,7 @@ import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { activeMarkers, isHotFilter } from '../../../utils/markers'
 import { hotSeed } from '../../../utils/hot'
+import { hasOrGroups } from '../../../utils/or-groups'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
 import { useFilterSettings } from '../../../hooks/use-filter-settings'
@@ -174,18 +175,20 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
 
   const predicate = definition.membership.predicate
-  const listChips = useMemo(() => filterChips(predicate, names), [predicate, names])
+  const listItems = useMemo(() => predicateLineItems(predicate, names), [predicate, names])
 
   // + Add task: only when the merged predicate names people / status / tags
   // / markers to seed the new task with (Hot seeds the Hot rule's first
   // line, so the task lands in the list; an "is not" field seeds nothing,
-  // but keeps the button).
+  // but keeps the button — and so does an or group: which of its clauses a
+  // new task should meet is ambiguous, so only the clauses outside it seed).
   const canAddTask = mergedPredicate != null && (
     mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
     || activeMarkers(mergedPredicate.markers).length > 0
     || (isHotFilter(mergedPredicate.markers) && hotSeed(filterSettings.hotRule) != null)
+    || hasOrGroups(mergedPredicate)
   )
 
   const groupedBy = definition.grouping
@@ -372,7 +375,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
         <EmptyState
           illustration="list"
           title="No tasks match"
-          text={describeFilters(listChips)}
+          text={describeFilters(listItems)}
           action={{
             label: 'Edit filters',
             onClick: () => openEditList(tab.id, definition.id),

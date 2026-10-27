@@ -220,6 +220,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
             onChange={(next) => onChange({ ...draft, membership: { kind: 'custom', predicate: next } })}
             // Esc closes an open field picker only, not Edit list around it.
             inDialog
+            layout="stack"
           />
         </div>
         {variant !== 'sheet' && showCompleted}

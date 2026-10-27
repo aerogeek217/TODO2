@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type TodoPredicate } from '../../models'
+import { emptyFilterClauses, emptyPredicate, type TodoPredicate } from '../../models'
 import {
   defaultPaneFilter,
   normalizePaneConfig,
@@ -88,6 +88,14 @@ describe('paneSubtitle of a custom filter', () => {
     const [empty] = resolvePanes({ do: { filter: p({}) } })
     expect(paneSubtitle(empty!, NAMES)).toBe('Every task')
   })
+
+  it('spells an or group as its chips joined with "or", each chip whole; a group-only filter is no longer every task', () => {
+    const group = { ...emptyFilterClauses(), statusIds: [4], markers: { urgent: true, important: false } }
+    const [pane] = resolvePanes({ do: { filter: p({ tags: [5], orGroups: [group] }) } })
+    expect(paneSubtitle(pane!, NAMES)).toBe('#home · Urgent, not Important or Waiting')
+    const [only] = resolvePanes({ do: { filter: p({ orGroups: [{ ...emptyFilterClauses(), personIds: [1, 2] }] }) } })
+    expect(paneSubtitle(only!, NAMES)).toBe('Ann or Bob')
+  })
 })
 
 describe('paneWrites — what a drop / "+" on the pane writes', () => {
@@ -125,5 +133,12 @@ describe('withPaneSeed — a pane "+"’s new-task defaults', () => {
     expect(withPaneSeed(base, { markers: {} })).toEqual(base)
     expect(withPaneSeed({ personIds: [], tagIds: [], statusId: undefined }, { markers: { urgent: false } }))
       .toEqual({ personIds: [], tagIds: [], statusId: undefined })
+  })
+})
+
+describe('paneWrites and or groups', () => {
+  it('writes the clauses outside the or groups only (which of a group’s clauses to meet is ambiguous)', () => {
+    const filter = p({ markers: { urgent: true }, orGroups: [{ ...emptyFilterClauses(), statusIds: [4], personIds: [1] }] })
+    expect(paneWrites(filter, NAMES)).toEqual({ markers: { urgent: true } })
   })
 })

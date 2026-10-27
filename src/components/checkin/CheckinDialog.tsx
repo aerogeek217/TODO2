@@ -275,6 +275,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
               predicate={filter}
               onChange={(next) => { void useSettingsStore.getState().setCheckinTaskFilter(next) }}
               addLabel="Add a filter to the check-in"
+              layout="stack"
               omitFields={CHECKIN_OMIT_FIELDS}
               inDialog
               before={filtered ? undefined : <span className={styles.noFilter}>All open tasks</span>}

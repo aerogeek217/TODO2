@@ -44,6 +44,16 @@ describe('the eisenhowerPanes setting', () => {
     expect(sanitizeRow('settings', row)).toEqual(panesRow({ drop: { name: 'Later soon' } }))
   })
 
+  it('keeps a pane filter’s or groups; a malformed one is dropped with a warning', () => {
+    const group = { personIds: [2], statusIds: null, searchText: '', dates: {}, markers: null, tags: [3] }
+    const row = panesRow({ do: { filter: filter({ markers: { urgent: true }, orGroups: [group] }) } })
+    expect(rowFixes('settings', row)).toEqual([])
+    expect(sanitizeRow('settings', row)).toEqual(row)
+    const bad = panesRow({ do: { filter: filter({ markers: { urgent: true }, orGroups: [group, 4] }) } })
+    expect(rowFixes('settings', bad)).toEqual(['Eisenhower pane setting dropped'])
+    expect(sanitizeRow('settings', bad)).toEqual(row)
+  })
+
   it('has no length limit (names and filters have none)', () => {
     const row = panesRow({ drop: { name: 'n'.repeat(5000) } })
     expect(validateRow('settings', row)).toBe(true)

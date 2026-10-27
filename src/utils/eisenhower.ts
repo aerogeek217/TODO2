@@ -1,11 +1,12 @@
 import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import type { TodoNameLookups } from './filter'
-import { filterChips, type FilterChipField, type FilterChipNames } from './filter-chips'
+import { describeFilters, filterChips, type FilterChipField, type FilterChipNames } from './filter-chips'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
 import { isHotFilter, MARKER_LABELS } from './markers'
+import { normalizeOrGroups } from './or-groups'
 import { isEffectivelyUrgent, isUrgentByDate, URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 import { paneWrites, QUADRANT_ADD_HINT, QUADRANT_NAME, type EisenhowerPane, type PaneEntityField } from './eisenhower-panes'
 
@@ -80,13 +81,20 @@ interface PaneMatcher {
   applied: (view: TaskView, change: PaneChange) => TaskView
   /** The first pane the task matches, or `null`. */
   paneOf: (view: TaskView) => EisenhowerQuadrant | null
-  /** The first clause of `pane`'s filter the task fails (`null` when it matches). */
-  failingField: (pane: EisenhowerPane, view: TaskView) => FilterChipField | DateField | null
+  /**
+   * The first clause of `pane`'s filter the task fails, else the first of its
+   * or groups it fails (`orGroup`: its index among the groups that filter);
+   * `null` when it matches.
+   */
+  failing: (pane: EisenhowerPane, view: TaskView) => FilterChipField | DateField | { orGroup: number } | null
 }
 
-/** The criteria with one field's clause only (the others no filter). */
+/** Criteria that filter nothing. */
+const NO_FILTER: FilterCriteria = { showCompleted: true, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+
+/** The criteria with one field's clause only (the others no filter; no or group). */
 function onlyField(c: FilterCriteria, field: FilterChipField | DateField): FilterCriteria {
-  const base: FilterCriteria = { showCompleted: true, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+  const base = NO_FILTER
   switch (field) {
     case 'markers': return { ...base, markers: c.markers }
     case 'status': return { ...base, statusIds: c.statusIds, ...(c.negate?.statusIds ? { negate: { statusIds: true } } : {}) }
@@ -145,9 +153,12 @@ function createPaneMatcher(panes: readonly EisenhowerPane[], ctx: PaneContext): 
       }
     },
     paneOf: (v) => panes.find((p) => test(criteriaOf(p), v))?.id ?? null,
-    failingField: (pane, v) => {
+    failing: (pane, v) => {
       const c = criteriaOf(pane)
-      return CLAUSE_ORDER.find((f) => !test(onlyField(c, f), v)) ?? null
+      const field = CLAUSE_ORDER.find((f) => !test(onlyField(c, f), v))
+      if (field) return field
+      const orGroup = (c.orGroups ?? []).findIndex((group) => !test({ ...NO_FILTER, orGroups: [group] }, v))
+      return orGroup >= 0 ? { orGroup } : null
     },
   }
 }
@@ -199,6 +210,8 @@ export type PaneMiss =
   | { kind: 'earlier'; pane: EisenhowerQuadrant }
   /** It fails the pane's clause on `field`, which the drop can't change. */
   | { kind: 'clause'; field: FilterChipField | DateField }
+  /** It fails every clause of the pane's or group `index` (among those that filter); a drop writes none of them. */
+  | { kind: 'orGroup'; index: number }
   /** The status / person / tag the pane's clause on `field` names no longer exists (nothing is written). */
   | { kind: 'deleted'; field: PaneEntityField }
 
@@ -291,8 +304,9 @@ function missOf(
   deleted: readonly PaneEntityField[],
   ctx: PaneContext,
 ): PaneMiss {
-  const field = m.failingField(pane, after)
+  const field = m.failing(pane, after)
   if (field == null) return landed ? { kind: 'earlier', pane: landed } : { kind: 'clause', field: 'markers' }
+  if (typeof field === 'object') return { kind: 'orGroup', index: field.orGroup }
   const gone = deleted.find((f) => f === field)
   if (gone) return { kind: 'deleted', field: gone }
   const markers = pane.filter.markers
@@ -439,6 +453,13 @@ function missSentence(
     return `${task.title} matches “${first}” first.`
   }
   if (miss.kind === 'deleted') return DELETED_SENTENCE[miss.field]
+  if (miss.kind === 'orGroup') {
+    // The groups as the matcher reads them (`predicateToCriteria`): those that filter, in order.
+    const group = normalizeOrGroups(pane.filter.orGroups).at(miss.index)
+    const chips = group ? filterChips(group, names) : []
+    const value = chips.length > 0 ? ` (${describeFilters([{ kind: 'orGroup', index: miss.index, chips }])})` : ''
+    return `${task.title} doesn’t match any filter in its group${value}.`
+  }
   if (miss.kind === 'clause' && miss.field === 'status') {
     const status = task.statusId != null ? nameIn(names.statuses, task.statusId) : undefined
     return status ? `${task.title} is still ${status}.` : `${task.title} has no status.`
