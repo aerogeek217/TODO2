@@ -103,3 +103,36 @@ test('the filter line: a group’s "or" opens its panel as a popover under the g
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
 })
+
+const NO_CLAUSE = { personIds: null, statusIds: null, tags: null, searchText: '', dates: {}, markers: null }
+
+for (const where of ['Edit list', 'the filter line'] as const) {
+  test(`${where}: a group's text typed over keeps the picker on that group, the focus in it; the other group untouched`, async ({ page }) => {
+    await seedWorkspace(page, {
+      ...SEED,
+      listDefinitions: [{
+        name: 'Team',
+        predicate: { orGroups: [{ ...NO_CLAUSE, searchText: 'urgent' }, { ...NO_CLAUSE, markers: { urgent: true } }] },
+      }],
+    })
+    await expect.poll(() => titles(page)).toEqual(['Ann urgent', 'Bob urgent'])
+    const widget = wsListWidget(page, 't1')
+    let block = widget
+    if (where === 'Edit list') {
+      await widget.getByTestId('list-summary').click()
+      block = page.getByTestId('edit-list')
+    }
+    await block.getByTestId('list-filter-chip').filter({ hasText: 'Text' }).click()
+    const input = page.getByRole('textbox', { name: 'Text contains' })
+    await expect(input).toBeFocused()
+    // Emptied, the group goes from the list; the picker stays on it.
+    await page.keyboard.press('End')
+    for (let i = 0; i < 'urgent'.length; i++) await page.keyboard.press('Backspace')
+    await expect(block.getByTestId('or-group')).toHaveCount(1)
+    await expect(input).toBeFocused()
+    await page.keyboard.type('Ann')
+    await expect.poll(() => titles(page)).toEqual(['Ann urgent'])
+    await page.keyboard.press('Enter')
+    await expect(block.getByTestId('or-group')).toHaveText([/Text\s*“Ann”/, /Priority\s*Urgent/])
+  })
+}

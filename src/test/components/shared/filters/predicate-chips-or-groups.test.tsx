@@ -150,6 +150,65 @@ describe('PredicateChips — or groups on the filter line', () => {
   })
 })
 
+describe('PredicateChips — a group emptied while its picker is open', () => {
+  const textThenWaiting: TodoPredicate = {
+    ...emptyPredicate(),
+    orGroups: [clauses({ searchText: 'foo' }), clauses({ statusIds: [2], personIds: [1] })],
+  }
+
+  for (const layout of ['line', 'stack'] as const) {
+    it(`(${layout}) the picker stays on that group: the next edit writes it back in its place, the other group untouched`, () => {
+      const log: TodoPredicate[] = []
+      render(<Harness initial={textThenWaiting} log={log} layout={layout} />)
+      fireEvent.click(chip(/Text/))
+      const input = screen.getByRole('textbox')
+      fireEvent.change(input, { target: { value: '' } })
+      expect(log.at(-1)?.orGroups).toEqual([clauses({ statusIds: [2], personIds: [1] })])
+      // The same input: the picker isn't redrawn under the typing.
+      expect(screen.getByRole('textbox')).toBe(input)
+      expect(screen.getAllByTestId('or-group')).toHaveLength(1)
+      fireEvent.change(input, { target: { value: 'bar' } })
+      expect(log.at(-1)?.orGroups).toEqual([clauses({ searchText: 'bar' }), clauses({ statusIds: [2], personIds: [1] })])
+    })
+
+    it(`(${layout}) the last group emptied keeps its picker open, as a chip of the predicate's own does`, () => {
+      const log: TodoPredicate[] = []
+      render(<Harness initial={{ ...waiting, orGroups: [clauses({ searchText: 'foo' })] }} log={log} layout={layout} />)
+      fireEvent.click(chip(/Text/))
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+      expect(log.at(-1)).toEqual(waiting)
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'bar' } })
+      expect(log.at(-1)).toEqual({ ...waiting, orGroups: [clauses({ searchText: 'bar' })] })
+    })
+  }
+
+  it('closing it then leaves the group out', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={textThenWaiting} log={log} layout="stack" />)
+    fireEvent.click(chip(/Text/))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    expect(screen.queryByTestId('list-filter-expansion')).toBeNull()
+    expect(screen.getAllByTestId('or-group')).toHaveLength(1)
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ statusIds: [2], personIds: [1] })])
+  })
+
+  it('(stack) × on an earlier group’s last chip: the open picker follows its group down', () => {
+    const log: TodoPredicate[] = []
+    const three: TodoPredicate = {
+      ...emptyPredicate(),
+      orGroups: [clauses({ markers: 'hot' }), clauses({ personIds: [1] }), clauses({ statusIds: [2] })],
+    }
+    render(<Harness initial={three} log={log} layout="stack" />)
+    fireEvent.click(chip(/People/))
+    fireEvent.click(within(chip(/Priority/)).getByRole('button', { name: 'Remove filter' }))
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ personIds: [1] }), clauses({ statusIds: [2] })])
+    expect(screen.getByTestId('list-filter-expansion')).toHaveAttribute('aria-label', 'People filter')
+    tick('Bob')
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ personIds: [1, 2] }), clauses({ statusIds: [2] })])
+  })
+})
+
 describe('PredicateChips — the editors expand in place', () => {
   it('a chip row expands its picker under it; a second click collapses it', () => {
     render(<Harness initial={waiting} log={[]} layout="stack" />)
