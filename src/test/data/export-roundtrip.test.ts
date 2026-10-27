@@ -103,6 +103,7 @@ function buildSeed(): Seed {
       { key: 'rowDensity', value: 'comfortable' },
       { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: 'hot', negate: { statusIds: true }, orGroups: OR_GROUPS } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
+      { key: 'activeLensId', value: 'lens-a' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'completedRetentionDays', value: '30' },
@@ -146,7 +147,7 @@ function buildSeed(): Seed {
       { id: 1, name: 'Empty', sortOrder: 1, columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
       {
         id: 2, name: 'Daily', sortOrder: 0,
-        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), lensId: 'lens-a', activeColumnId: 'c1', hue: 'violet',
+        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), activeColumnId: 'c1', hue: 'violet',
         columns: [
           {
             id: 'c1', weight: 1.5, cells: [

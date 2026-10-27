@@ -371,6 +371,67 @@ describe('useSettingsStore', () => {
     expect(s().lensPresetsSeeded).toBe(true)
   })
 
+  it('the top bar’s lens pick: No lens by default (no row); a pick is saved at once with no undo step, No lens removes the row; a reload reads it back', async () => {
+    const s = () => useSettingsStore.getState()
+    await s().load()
+    expect(s().activeLensId).toBeNull()
+    useUndoStore.getState().clear()
+
+    expect(await s().setActiveLens('lens-a')).toBe(true)
+    expect(s().activeLensId).toBe('lens-a')
+    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-a' })
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+
+    useSettingsStore.setState({ activeLensId: null })
+    await s().load()
+    expect(s().activeLensId).toBe('lens-a')
+
+    expect(await s().setActiveLens(null)).toBe(true)
+    expect(s().activeLensId).toBeNull()
+    expect(await db.settings.get('activeLensId')).toBeUndefined()
+    await s().load()
+    expect(s().activeLensId).toBeNull()
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+  })
+
+  it('the lens pick: an id no lens has is kept (it reads as No lens where used); a value that is no lens id is ignored', async () => {
+    const s = () => useSettingsStore.getState()
+    await db.settings.put({ key: 'activeLensId', value: 'lens-gone' })
+    await s().load()
+    expect(s().activeLensId).toBe('lens-gone')
+    await db.settings.put({ key: 'activeLensId', value: 'x'.repeat(101) })
+    await s().load()
+    expect(s().activeLensId).toBeNull()
+    expect(await s().setActiveLens('')).toBe(false)
+    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'x'.repeat(101) })
+  })
+
+  it('a failed save of the lens pick puts it back and says so', async () => {
+    const s = () => useSettingsStore.getState()
+    await s().load()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('quota'))
+    expect(await s().setActiveLens('lens-a')).toBe(false)
+    expect(s().activeLensId).toBeNull()
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lens pick.', notice: true })
+  })
+
+  it('quick picks: an earlier pick’s save failing after a later pick saved keeps the later pick (on screen and stored)', async () => {
+    const s = () => useSettingsStore.getState()
+    await s().load()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    let failFirst: (e: Error) => void = () => {}
+    vi.spyOn(settingsRepository, 'put').mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject }))
+    const first = s().setActiveLens('lens-a')
+    const second = s().setActiveLens('lens-b')
+    expect(await second).toBe(true)
+    failFirst(new Error('quota'))
+    expect(await first).toBe(false)
+    expect(s().activeLensId).toBe('lens-b')
+    expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-b' })
+  })
+
   it('the row density: compact by default (no row); comfortable stored, compact removes the row; junk ignored on load', async () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().rowDensity).toBe('compact')

@@ -3,9 +3,8 @@ import { useLensHideCounts } from '../../../hooks/use-lens-counts'
 import { deleteLens } from '../../../services/lenses'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { predicateLineItems, type FilterChipNames } from '../../../utils/filter-chips'
-import { LENS_NAME_MAX, layoutsUsingLens, waitingStatusId, type Lens } from '../../../utils/lens'
+import { LENS_NAME_MAX, waitingStatusId, type Lens } from '../../../utils/lens'
 import { ChevronDownIcon, PlusIcon } from '../../shared/icons'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
@@ -14,22 +13,21 @@ import sectionStyles from './sections.module.css'
 import styles from './LensesSection.module.css'
 
 /**
- * Settings › Tasks › Lenses: the lenses — named screen filters a layout
- * picks in the top bar — each a row (name, its filters in a line, the
- * layouts that use it) that opens into its editor: the list filter row's
- * chips, + Filter and pickers (with their "is not" switch), how many open
- * tasks it keeps right now, Rename · Duplicate · Delete (asked first when a
- * layout uses it). + New lens adds one. Every change is saved at once as
- * one undo step with the snackbar. The presets are seeded on the first
- * open. Desktop only.
+ * Settings › Tasks › Lenses: the lenses — named screen filters picked in
+ * the top bar — each a row (name, its filters in a line, "In use" on the
+ * top bar's pick) that opens into its editor: the list filter row's chips,
+ * + Filter and pickers (with their "is not" switch), how many open tasks it
+ * keeps right now, Rename · Duplicate · Delete (deleting the picked lens
+ * puts the top bar on No lens; Undo brings both back). + New lens adds one.
+ * Every change is saved at once as one undo step with the snackbar. The
+ * presets are seeded on the first open. Desktop only.
  */
 export function LensesSection() {
   const lenses = useSettingsStore((s) => s.lenses)
   const seeded = useSettingsStore((s) => s.lensPresetsSeeded)
+  const activeLensId = useSettingsStore((s) => s.activeLensId)
   const statusesLoaded = useStatusStore((s) => s.loaded)
   const statuses = useStatusStore((s) => s.statuses)
-  const layouts = useWorkspaceStore((s) => s.layouts)
-  const working = useWorkspaceStore((s) => s.working)
   const names = useChipNames()
   const counts = useLensHideCounts(lenses)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -51,8 +49,8 @@ export function LensesSection() {
   return (
     <div className={sectionStyles.section}>
       <p className={styles.intro}>
-        A lens is a saved filter with a name, picked in the top bar for each layout: every widget on the layout shows
-        only what it keeps. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to
+        A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every
+        layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to
         leave out. Filters set in the top bar apply on top of it.
       </p>
       {lenses.length === 0 && <p className={styles.empty}>No lenses yet.</p>}
@@ -62,7 +60,7 @@ export function LensesSection() {
             key={lens.id}
             lens={lens}
             names={names}
-            usedBy={layoutsUsingLens(layouts, working, lens.id).map((l) => l.name)}
+            inUse={lens.id === activeLensId}
             keeps={counts.open - (counts.hides.get(lens.id) ?? 0)}
             open={counts.open}
             expanded={openId === lens.id}
@@ -86,8 +84,8 @@ export function LensesSection() {
 interface LensRowProps {
   lens: Lens
   names: FilterChipNames
-  /** The names of the layouts that picked it. */
-  usedBy: readonly string[]
+  /** It is the top bar's pick. */
+  inUse: boolean
   /** Open tasks it keeps now, of `open`. */
   keeps: number
   open: number
@@ -99,11 +97,10 @@ interface LensRowProps {
 }
 
 /** One lens: its row, and — open — its editor. */
-function LensRow({ lens, names, usedBy, keeps, open, expanded, renaming, onToggle, onRename, onDuplicated }: LensRowProps) {
+function LensRow({ lens, names, inUse, keeps, open, expanded, renaming, onToggle, onRename, onDuplicated }: LensRowProps) {
   const editorId = useId()
   const summary = useMemo(() => lensSummary(lens, names), [lens, names])
   const hasChips = useMemo(() => predicateLineItems(lens.predicate, names).length > 0, [lens.predicate, names])
-  const used = usedBy.length > 0 ? usedBy.join(', ') : '—'
   return (
     <div className={`${styles.lens} ${expanded ? styles.lensOpen : ''}`} data-lens-id={lens.id}>
       <div className={styles.head}>
@@ -119,7 +116,7 @@ function LensRow({ lens, names, usedBy, keeps, open, expanded, renaming, onToggl
           >
             <span className={styles.name}>{lens.name}</span>
             <span className={styles.summary}>{summary}</span>
-            <span className={styles.used} title={usedBy.length > 0 ? `Used by ${used}` : 'No layout uses it'}>{used}</span>
+            {inUse && <span className={styles.used} title="Picked in the top bar">In use</span>}
             <span className={`${styles.chevron} ${expanded ? styles.chevronOpen : ''}`}><ChevronDownIcon /></span>
           </button>
         )}
@@ -139,7 +136,6 @@ function LensRow({ lens, names, usedBy, keeps, open, expanded, renaming, onToggl
           <div className={styles.foot}>
             <span data-testid="lens-keeps">
               Keeps <b>{keeps} of {open}</b> open tasks right now
-              {usedBy.length > 0 && <> · used by <b>{used}</b></>}
             </span>
             <span className={styles.actions}>
               <button type="button" className={styles.link} onClick={() => onRename(true)}>Rename</button>

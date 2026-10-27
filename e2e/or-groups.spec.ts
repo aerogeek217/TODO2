@@ -80,8 +80,8 @@ test.describe('desktop', () => {
       lenses: [{ id: 'lens-focus', name: 'Triage', predicate: { markers: { focus: true } } }],
     })
     const tray = page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
-    await tray.getByRole('button', { name: /^Lens:/ }).click()
-    await page.getByRole('menu', { name: 'Lens for this layout' }).getByRole('menuitemradio', { name: /^Triage/ }).click()
+    await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
+    await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Triage/ }).click()
     await expect.poll(() => titles(page)).toEqual(['Hot one'])
     const counter = tray.getByRole('button', { name: /tasks shown\. Show them$/ })
     await expect(counter).toHaveAccessibleName('1 of 4 open tasks shown. Show them')

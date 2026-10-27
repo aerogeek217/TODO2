@@ -151,6 +151,29 @@ describe('refreshAllStores', () => {
     expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
   })
 
+  it('a lifted lens: the replaced data picking another lens puts it on, not lifted; the same pick keeps the lift', async () => {
+    await useSettingsStore.getState().setActiveLens('lens-a')
+    useUIStore.getState().setLensLifted(true)
+
+    // The same pick in the replaced data: still the lens the user lifted.
+    await refreshAllStores()
+    expect(useSettingsStore.getState().activeLensId).toBe('lens-a')
+    expect(useUIStore.getState().lensLifted).toBe(true)
+
+    // Another device's pick, through the sync file.
+    await db.settings.put({ key: 'activeLensId', value: 'lens-b' })
+    await refreshAllStores()
+    expect(useSettingsStore.getState().activeLensId).toBe('lens-b')
+    expect(useUIStore.getState().lensLifted).toBe(false)
+
+    // No pick in the replaced data: nothing lifted either.
+    useUIStore.getState().setLensLifted(true)
+    await db.settings.delete('activeLensId')
+    await refreshAllStores()
+    expect(useSettingsStore.getState().activeLensId).toBeNull()
+    expect(useUIStore.getState().lensLifted).toBe(false)
+  })
+
   it('at launch (before the workspace opened) a sync-file load keeps them, to be checked when it opens', async () => {
     localStorage.setItem('todo2-unsaved-lists', '{"1":{}}')
     await refreshAllStores()

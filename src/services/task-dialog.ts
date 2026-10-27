@@ -385,14 +385,14 @@ export function showTasksLabel(n: number): string {
 /**
  * What the screen filter's dialog shows, in words, for the filter as it is
  * (the dialog keeps it current): `chips` = the top bar's chips; `lens` = the
- * open layout's lens as it applies (its name and the counts), if any.
+ * top bar's lens as it applies (its name and the counts), if any.
  */
 export function screenTaskDialogDescription(chips: FilterCriteria, lens?: { name: string; counts: ScreenTaskCounts }): string {
   const tasks = chips.showCompleted ? 'tasks' : 'open tasks'
   if (lens) {
     const { shown, total, lensKeeps } = lens.counts
     if (countActiveFilters({ ...chips, showCompleted: false }) === 0) {
-      return `${shown} of ${total} ${tasks} shown: the lens “${lens.name}” hides ${total - lensKeeps}. A filter set here applies to every widget; the lens is the layout’s.`
+      return `${shown} of ${total} ${tasks} shown: the lens “${lens.name}” hides ${total - lensKeeps}. A filter set here applies to every widget, on top of the lens.`
     }
     return `${shown} of ${total} ${tasks} match the filter under the lens “${lens.name}”. A change here applies to every widget.`
   }

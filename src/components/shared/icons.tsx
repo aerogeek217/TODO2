@@ -251,7 +251,7 @@ export function FunnelIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
 }
 
-/** Glasses: a lens (a layout's saved screen filter); `slashed` = lifted for now. */
+/** Glasses: a lens (a saved screen filter picked in the top bar); `slashed` = lifted for now. */
 export function GlassesIcon({ size = 16, slashed = false }: { size?: number; slashed?: boolean }) {
   return (
     <Svg size={size}>

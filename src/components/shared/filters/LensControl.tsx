@@ -2,26 +2,31 @@ import { useMemo, useRef, useState } from 'react'
 import { useLensHideCounts } from '../../../hooks/use-lens-counts'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { usePickedLens } from '../../../stores/screen-filter'
 import type { Lens } from '../../../utils/lens'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, GearIcon, GlassesIcon } from '../icons'
 import { useTooltip } from '../use-tooltip'
 import { useChipNames } from './filter-menu'
+import { LENS_NAME_ATTR } from './lens-fold'
 import { lensSummary } from './lens-text'
 import styles from './LensControl.module.css'
 
 /**
- * The top bar's lens control, first in the tray after the search: the open
- * layout's lens. Two buttons: the glasses (accent while the lens is on)
- * lift it for now and put it back — slashed, the name struck through, while
- * lifted; the pick stays — and the name opens the picker (No lens, each
- * lens with its filters in a line and how many open tasks it hides, Edit
- * lenses…). The pick is a layout edit: unsaved until the layout is saved,
- * like a tab added or closed (the Save button lights).
+ * The top bar's lens control, its own part of the bar between the layout
+ * tabs and the screen-filter tray (never inside the tray): the top bar's
+ * lens, the same on every layout. While a lens is on the whole control is
+ * lit in the accent, as the tray is in red while a filter is on. Two
+ * buttons: the glasses lift the lens for now and put it back — slashed, the
+ * name struck through and the control neutral while lifted; the pick stays
+ * — and the name opens the picker (No lens, each lens with its filters in a
+ * line and how many open tasks it hides, Edit lenses…). A pick is saved at
+ * once (`settings-store.setActiveLens`): no unsaved state, no undo step.
+ * The name is cut at 160px; the top bar cuts it further (`nameWidth`) only
+ * when even its most folded state is short of room — the whole name then in
+ * the name's tooltip.
  */
-export function LensControl() {
+export function LensControl({ nameWidth = null }: { nameWidth?: number | null } = {}) {
   const lenses = useSettingsStore((s) => s.lenses)
   const lens = usePickedLens()
   const lifted = useUIStore((s) => s.lensLifted)
@@ -30,8 +35,8 @@ export function LensControl() {
   const [menuOpen, setMenuOpen] = useState(false)
   // A click on the name while its menu is open closes it (the menu's outside click already did).
   const menuWasOpen = useRef(false)
-  const toggleTip = useTooltip(!lens ? null : lifted ? `Put “${lens.name}” back` : `Lift “${lens.name}” for now\nThe pick stays; a layout switch puts it back`)
-  const nameTip = useTooltip(menuOpen ? null : 'Lens for this layout')
+  const toggleTip = useTooltip(!lens ? null : lifted ? `Put “${lens.name}” back` : `Lift “${lens.name}” for now\nThe pick stays`)
+  const nameTip = useTooltip(menuOpen ? null : nameWidth !== null && lens ? `Lens: ${lens.name}` : 'Lens')
 
   return (
     <span className={styles.lens} data-state={state} data-testid="lens-control">
@@ -66,7 +71,13 @@ export function LensControl() {
         }}
         {...nameTip.triggerProps}
       >
-        <span className={styles.nameText}>{lens?.name ?? 'No lens'}</span>
+        <span
+          className={styles.nameText}
+          style={nameWidth !== null ? { maxWidth: nameWidth } : undefined}
+          {...{ [LENS_NAME_ATTR]: '' }}
+        >
+          {lens?.name ?? 'No lens'}
+        </span>
         <ChevronDownIcon />
       </button>
       {toggleTip.tooltip}
@@ -87,10 +98,10 @@ function LensMenu({ lenses, lensId, anchorRef, onClose }: {
   const counts = useLensHideCounts(lenses)
   const pick = (id: string | null) => {
     useUIStore.getState().setLensLifted(false)
-    useWorkspaceStore.getState().setLens(id)
+    void useSettingsStore.getState().setActiveLens(id)
   }
   const entries = useMemo<MenuEntry[]>(() => [
-    { kind: 'label', text: 'Lens · hides tasks across this layout' },
+    { kind: 'label', text: 'Lens · hides tasks on every widget' },
     { kind: 'item', label: 'No lens', radio: true, indicator: 'radio', checked: lensId == null, note: `${counts.open} shown`, onSelect: () => pick(null) },
     ...(lenses.length > 0 ? [{ kind: 'separator' } as const] : []),
     ...lenses.map((l): MenuEntry => ({
@@ -105,7 +116,7 @@ function LensMenu({ lenses, lensId, anchorRef, onClose }: {
     })),
     { kind: 'separator' },
     { kind: 'item', label: 'Edit lenses…', icon: <GearIcon size={14} />, onSelect: () => useUIStore.getState().openSettings('lenses') },
-    { kind: 'note', text: 'The pick is this layout’s. The glasses switch the lens off and on without changing it. Filters set in the bar apply on top.' },
+    { kind: 'note', text: 'The glasses switch the lens off and on without changing it. Filters set in the bar apply on top.' },
   ], [lenses, lensId, counts, names])
-  return <MenuPopover anchorRef={anchorRef} placement="bottom-start" width={300} label="Lens for this layout" entries={entries} onClose={onClose} />
+  return <MenuPopover anchorRef={anchorRef} placement="bottom-start" width={300} label="Lens" entries={entries} onClose={onClose} />
 }

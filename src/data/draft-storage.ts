@@ -3,7 +3,7 @@ import { LAYOUT_NAME_MAX, layoutBodyOf, type LayoutBody } from '../models/worksp
 import { registerModuleReset } from '../utils/module-reset'
 import { isRecord } from '../utils/is-record'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from './database'
-import { isLensId, rowFixes, sanitizeRow, validateRow } from './import-validation'
+import { rowFixes, sanitizeRow, validateRow } from './import-validation'
 import { pickLayoutBody } from './layout-shape'
 import { upgradeDataSet, type DataRow } from './schema-upgrades'
 
@@ -28,12 +28,12 @@ const LAYOUT_KEY = 'todo2-unsaved-layout'
 const LISTS_KEY = 'todo2-unsaved-lists'
 
 /**
- * The open layout's unsaved working copy: its body (columns, bands and the
- * lens pick). Kept as `columns` / `top` / `bottom` / `lensId` (and
- * `baseColumns` / `baseTop` / `baseBottom` / `baseLensId` for the base), so
- * a record kept before bands existed reads as a body without bands, and one
- * kept before the lens was part of the body as one with No lens (its base
- * then differs from a stored layout that has a lens, and the draft is dropped).
+ * The open layout's unsaved working copy: its body (columns and bands). Kept
+ * as `columns` / `top` / `bottom` (and `baseColumns` / `baseTop` /
+ * `baseBottom` for the base), so a record kept before bands existed reads
+ * as a body without bands. A `lensId` / `baseLensId` an earlier build kept
+ * (when the lens was a layout's pick) is ignored: such a draft reads as its
+ * body without it, so one that differed only by the lens reads clean.
  */
 export type LayoutDraftRecord =
   /** Edits to a stored layout, made against `base` (its stored body then). */
@@ -104,13 +104,11 @@ function writeJson(key: string, value: unknown): string | null | false {
   }
 }
 
-/** A body only when it passes the layout repair unchanged (and its lens pick, if any, is a lens id); else `null`. */
+/** A body only when it passes the layout repair unchanged; else `null`. */
 function bodyOf(raw: unknown): LayoutBody | null {
   if (!isRecord(raw) || !Array.isArray(raw.columns)) return null
-  if (raw.lensId !== undefined && !isLensId(raw.lensId)) return null
   const { fixes, ...body } = pickLayoutBody({ columns: raw.columns, top: raw.top, bottom: raw.bottom })
-  if (fixes.length > 0) return null
-  return layoutBodyOf(isLensId(raw.lensId) ? { ...body, lensId: raw.lensId } : body)
+  return fixes.length === 0 ? layoutBodyOf(body) : null
 }
 
 /** The kept layout draft, or `null` (none, or not readable by this build). */
@@ -121,8 +119,8 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
   if (from === null) return null
   // The body (and the base's) as layout rows, upgraded together.
   const upgraded = upgradeRows('layouts', [
-    { columns: v.columns, top: v.top, bottom: v.bottom, lensId: v.lensId },
-    { columns: v.baseColumns, top: v.baseTop, bottom: v.baseBottom, lensId: v.baseLensId },
+    { columns: v.columns, top: v.top, bottom: v.bottom },
+    { columns: v.baseColumns, top: v.baseTop, bottom: v.baseBottom },
   ], from)
   if (!upgraded) return null
   const body = bodyOf(upgraded[0])
@@ -147,12 +145,12 @@ export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
 /** A layout draft as kept: the body's keys flat (`columns`, `top`, …), the base's prefixed. */
 function storedForm(record: LayoutDraftRecord): Record<string, unknown> {
   const { body } = record
-  const flat = { columns: body.columns, top: body.top, bottom: body.bottom, lensId: body.lensId }
+  const flat = { columns: body.columns, top: body.top, bottom: body.bottom }
   if (record.kind === 'new') return { kind: 'new', name: record.name, ...flat }
   const { base } = record
   return {
     kind: 'saved', layoutId: record.layoutId, ...flat,
-    baseColumns: base.columns, baseTop: base.top, baseBottom: base.bottom, baseLensId: base.lensId,
+    baseColumns: base.columns, baseTop: base.top, baseBottom: base.bottom,
   }
 }
 

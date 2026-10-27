@@ -36,10 +36,23 @@ export interface ReadLayout {
  * no columns (the workspace then shows its empty-layout tiles); it is never
  * dropped.
  */
-function readable(row: PersistedWorkspaceLayout): ReadLayout {
+function readable(stored: PersistedWorkspaceLayout): ReadLayout {
+  const row = withoutLegacyLens(stored)
   const fixes = rowFixes('layouts', row)
   if (fixes.length === 0) return { layout: row, fixes }
   return { layout: { ...sanitizeRow('layouts', row), id: row.id } as PersistedWorkspaceLayout, fixes }
+}
+
+/**
+ * `row` without the lens pick an earlier build kept on a layout (`lensId`;
+ * the top bar's pick is a settings row now — `activeLensId`) — not a repair:
+ * the layout opens clean, and the key goes with the row's next write.
+ */
+function withoutLegacyLens(row: PersistedWorkspaceLayout): PersistedWorkspaceLayout {
+  if (!('lensId' in row)) return row
+  const next: PersistedWorkspaceLayout & { lensId?: unknown } = { ...row }
+  delete next.lensId
+  return next
 }
 
 /** Picker order: by `sortOrder`, then oldest first. */
@@ -210,8 +223,10 @@ export const layoutRepository = {
    */
   async updateView(id: number, apply: (layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout): Promise<void> {
     await db.transaction('rw', db.layouts, async () => {
-      const row = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
-      if (!row || rowFixes('layouts', row).length > 0) return
+      const stored = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
+      if (!stored) return
+      const row = withoutLegacyLens(stored)
+      if (rowFixes('layouts', row).length > 0) return
       const next = apply(row)
       if (next !== row) await db.layouts.put(next)
     })

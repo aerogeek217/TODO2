@@ -1,4 +1,4 @@
-import { findLens, layoutNamesText, layoutsUsingLens, type Lens } from '../utils/lens'
+import { findLens, type Lens } from '../utils/lens'
 import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
 import type { TodoNameLookups } from '../utils/filter'
@@ -7,11 +7,11 @@ import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { undoable } from '../stores/undoable'
-import { useWorkspaceStore } from '../stores/workspace-store'
 
 /**
- * Lens actions that reach past the settings row: deleting a lens takes it
- * off the layouts that picked it.
+ * Lens actions that reach past the lenses' settings row: the picker's
+ * counts, the keyboard's Cycle / Lift lens (the lift is `ui-store`'s), and
+ * deleting a lens with the top bar's pick (`settings-store.activeLensId`).
  */
 
 /** What the lens picker shows beside each choice: the open tasks, and how many of them each lens hides. */
@@ -40,72 +40,55 @@ export function lensHideCounts(env: Omit<ScreenCountEnv, 'screen'>, lenses: read
 }
 
 /**
- * The keyboard's Cycle lens: the open layout's next lens in Settings' order
+ * The keyboard's Cycle lens: the top bar's next lens in Settings' order
  * (after the last, No lens; from No lens, the first), its lens back on. With
  * no lens defined the snackbar says where to make one.
  */
 export function cycleLens(): void {
-  const lenses = useSettingsStore.getState().lenses
+  const { lenses, activeLensId } = useSettingsStore.getState()
   if (lenses.length === 0) {
     useUndoStore.getState().notify('No lenses yet — add one in Settings › Tasks › Lenses.')
     return
   }
-  const current = findLens(lenses, useWorkspaceStore.getState().working?.lensId)
+  const current = findLens(lenses, activeLensId)
   const at = current ? lenses.indexOf(current) : -1
   const next = lenses[at + 1] ?? null
   useUIStore.getState().setLensLifted(false)
-  useWorkspaceStore.getState().setLens(next?.id ?? null)
+  void useSettingsStore.getState().setActiveLens(next?.id ?? null)
 }
 
-/** The keyboard's Lift lens: the open layout's lens lifted for now, or put back; without one the snackbar says so. */
+/** The keyboard's Lift lens: the top bar's lens lifted for now, or put back; without one the snackbar says so. */
 export function toggleLensLift(): void {
-  if (!findLens(useSettingsStore.getState().lenses, useWorkspaceStore.getState().working?.lensId)) {
-    useUndoStore.getState().notify('This layout has no lens to lift.')
+  const { lenses, activeLensId } = useSettingsStore.getState()
+  if (!findLens(lenses, activeLensId)) {
+    useUndoStore.getState().notify('No lens to lift.')
     return
   }
   const ui = useUIStore.getState()
   ui.setLensLifted(!ui.lensLifted)
 }
 
-/** The names of the layouts that picked lens `id` (the open one as edited). */
-export function lensUserNames(id: string): string[] {
-  const { layouts, working } = useWorkspaceStore.getState()
-  return layoutsUsingLens(layouts, working, id).map((l) => l.name)
+/** For an undo / redo: rejects when the pick wasn't saved, so the undo store keeps the entry and says so. */
+async function mustPick(id: string | null): Promise<void> {
+  if (!(await useSettingsStore.getState().setActiveLens(id))) throw new Error('The lens pick could not be saved')
 }
 
 /**
- * Deletes lens `id`. When layouts picked it, asks first ("Used by Default
- * and Planning — they'll show every task"); those layouts go to No lens. One
- * undo step with the snackbar: Undo brings the lens back with the layouts'
- * picks. Resolves whether it was deleted.
+ * Deletes lens `id`; when it is the top bar's pick, the top bar goes to No
+ * lens. One undo step with the snackbar: Undo brings the lens back with the
+ * pick. Resolves whether it was deleted.
  */
 export async function deleteLens(id: string): Promise<boolean> {
   const lens = findLens(useSettingsStore.getState().lenses, id)
   if (!lens) return false
-  const { layouts, working } = useWorkspaceStore.getState()
-  const users = layoutsUsingLens(layouts, working, id)
-  if (users.length > 0) {
-    const names = layoutNamesText(users.map((l) => `“${l.name}”`))
-    const confirmed = await useUIStore.getState().askConfirmation({
-      title: `Delete lens “${lens.name}”?`,
-      message: `Used by ${names} — ${users.length === 1 ? 'it' : 'they'}’ll show every task.`,
-      confirmLabel: 'Delete',
-      danger: true,
-    })
-    if (!confirmed) return false
-  }
   const description = `Deleted lens “${lens.name}”`
-  const layoutIds = users.map((l) => l.id)
   return useUndoStore.getState().runGroup(description, async () => {
-    const remaining = useSettingsStore.getState().lenses.filter((l) => l.id !== id)
-    if (!(await useSettingsStore.getState().setLenses(remaining, description))) return false
-    if (layoutIds.length > 0) {
-      await useWorkspaceStore.getState().setLayoutsLens(layoutIds, null)
-      undoable(
-        description,
-        () => useWorkspaceStore.getState().setLayoutsLens(layoutIds, null),
-        () => useWorkspaceStore.getState().setLayoutsLens(layoutIds, id),
-      )
+    const settings = useSettingsStore.getState()
+    const picked = settings.activeLensId === id
+    if (!(await settings.setLenses(settings.lenses.filter((l) => l.id !== id), description))) return false
+    // A pick that fails to clear (said by the snackbar) names a lens no more: No lens all the same.
+    if (picked && await useSettingsStore.getState().setActiveLens(null)) {
+      undoable(description, () => mustPick(null), () => mustPick(id))
     }
     return true
   })

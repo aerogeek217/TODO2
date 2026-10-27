@@ -188,7 +188,7 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
   it('the description names the lens and what it hides; with chips too, the filter under it', () => {
     const counts = { shown: 61, total: 109, lensKeeps: 61 }
     expect(screenTaskDialogDescription(emptyFilterCriteria, { name: 'This month', counts }))
-      .toBe('61 of 109 open tasks shown: the lens “This month” hides 48. A filter set here applies to every widget; the lens is the layout’s.')
+      .toBe('61 of 109 open tasks shown: the lens “This month” hides 48. A filter set here applies to every widget, on top of the lens.')
     expect(screenTaskDialogDescription(priya, { name: 'This month', counts: { ...counts, shown: 6 } }))
       .toBe('6 of 109 open tasks match the filter under the lens “This month”. A change here applies to every widget.')
   })

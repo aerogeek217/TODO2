@@ -1,30 +1,40 @@
-/* The top bar's lens control (D15): the glasses (on / lifted) and the
- * lens's name, which opens the picker. */
+/* The top bar's lens control (D15, cr22): its own part of the bar between
+ * the layout tabs and the screen-filter tray, the tray's sibling in height
+ * and frame. The glasses (on / lifted) and the lens's name, which opens the
+ * picker. While a lens is on, the whole control takes the accent the way
+ * the tray takes red while a filter is on: a tinted surface, an inset
+ * accent border, the glasses and the name in the text accent. Lifted or no
+ * lens: neutral. Mixed from `--color-accent` (a custom accent follows). */
 
 .lens {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  border-radius: var(--radius-md);
+  gap: 1px;
+  height: 32px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
   box-shadow: inset 0 0 0 1px var(--color-border-muted);
   white-space: nowrap;
   flex-shrink: 0;
   min-width: 0;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .lens[data-state='on'] {
-  background: var(--color-tint-6);
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
 }
 
 .toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  width: 26px;
   height: 26px;
   padding: 0;
   border: none;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   flex-shrink: 0;
@@ -34,28 +44,14 @@ button.toggle {
   cursor: pointer;
 }
 
-.lens[data-state='on'] .toggle {
-  background: var(--color-accent-bg);
-  color: var(--color-accent-text);
-}
-
-button.toggle:hover {
-  color: var(--color-text-primary);
-}
-
-.lens[data-state='on'] button.toggle:hover {
-  color: var(--color-accent-text);
-  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
-}
-
 .name {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 26px;
-  padding: 0 7px 0 2px;
+  padding: 0 6px 0 4px;
   border: none;
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-secondary);
   font-family: inherit;
@@ -65,19 +61,28 @@ button.toggle:hover {
   min-width: 0;
 }
 
-.name:hover {
-  color: var(--color-text-primary);
-}
-
 .name svg {
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
+/* Its cap is `LENS_NAME_MAX_WIDTH` (lens-fold.ts); the top bar may cut it
+ * further, inline, as its last resort. */
 .nameText {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 160px;
+}
+
+/* Neutral (no lens, lifted): the bar's quiet hover. */
+button.toggle:hover,
+.name:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.lens[data-state='none'] .toggle {
+  width: 22px;
 }
 
 .lens[data-state='none'] .name {
@@ -86,11 +91,38 @@ button.toggle:hover {
   color: var(--color-text-muted);
 }
 
-.lens[data-state='on'] .name {
+.lens[data-state='none'] .name:hover {
   color: var(--color-text-primary);
 }
 
 .lens[data-state='lifted'] .nameText {
   color: var(--color-text-muted);
   text-decoration: line-through;
+}
+
+/* On: the glasses, the name and its chevron in the text accent; hover
+ * deepens the tint (as the tray's funnel does in red). */
+.lens[data-state='on'] .toggle,
+.lens[data-state='on'] .name,
+.lens[data-state='on'] .name svg {
+  color: var(--color-accent-text);
+}
+
+.lens[data-state='on'] button.toggle:hover,
+.lens[data-state='on'] .name:hover {
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent-text);
+}
+
+/* Open: pressed, like the tray's counter while its panel is open. */
+.name[aria-expanded='true'],
+.name[aria-expanded='true']:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.lens[data-state='on'] .name[aria-expanded='true'],
+.lens[data-state='on'] .name[aria-expanded='true']:hover {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  color: var(--color-accent-text);
 }

@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, act, fireEvent, within } from '@testing-library/react'
+import { render, screen, cleanup, act, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../../components/layout/TopBar'
 import {
   FILTER_PANEL_GUTTER, FILTER_PANEL_MIN_WIDTH, filterPanelPlacement,
 } from '../../../components/overlays/filter-panel-placement'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -205,6 +206,17 @@ describe('FilteredTasksPanel', () => {
     expect(panel()).toBeNull()
     fireEvent.click(gear)
     expect(useUIStore.getState().settingsOpen).toBe(true)
+  })
+
+  it('the lens control is outside the tray: a press on it closes the panel, then its picker opens and picks', () => {
+    useSettingsStore.setState({ lenses: [{ id: 'lens-a', name: 'Mine', predicate: emptyPredicate() }] })
+    openPanel()
+    const name = within(screen.getByTestId('lens-control')).getByRole('button', { name: 'Lens: none' })
+    fireEvent.mouseDown(name)
+    expect(panel()).toBeNull()
+    fireEvent.click(name)
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Lens' })).getByRole('menuitemradio', { name: /^Mine/ }))
+    expect(useSettingsStore.getState().activeLensId).toBe('lens-a')
   })
 
   it('the palette’s command focuses it again while it is open', () => {

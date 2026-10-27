@@ -9,7 +9,7 @@ import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
 
 /**
- * What the screen filter (the chips with the open layout's lens) keeps —
+ * What the screen filter (the chips with the top bar's lens) keeps —
  * what its task dialog lists (open ones, completed too under Show
  * completed) — of every such task, and what the lens alone keeps
  * (`screenTaskCounts`), kept current.

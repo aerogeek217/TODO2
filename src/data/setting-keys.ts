@@ -90,7 +90,7 @@ export const SETTING_KEYS = {
   /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
   rowDensity: 'rowDensity',
   /**
-   * The lenses (named screen filters, picked per layout): JSON array of
+   * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of
    * `{ id, name, predicate }`, the predicate a list predicate with
    * completed tasks off (`data/lens-shape`). Absent = none.
    */
@@ -100,6 +100,11 @@ export const SETTING_KEYS = {
    * `true`. Absent = not yet; nothing seeds them again once set.
    */
   lensPresetsSeeded: 'lensPresetsSeeded',
+  /**
+   * The lens picked in the top bar (app-wide, for every layout): a lens's
+   * id (`lenses`). Absent = No lens; an id no lens has reads as No lens.
+   */
+  activeLensId: 'activeLensId',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

@@ -427,7 +427,7 @@ export function TopBar() {
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
   const manyLayouts = useWorkspaceStore((s) => s.layouts.length > MAX_LAYOUT_TABS)
-  // The counter shows while a chip is on or the layout has a lens (lifted
+  // The counter shows while a chip is on or a lens is picked (lifted
   // too: 109 of 109), or the panel is open (it stays the panel's toggle when
   // Clear all empties the filter).
   const lensPicked = usePickedLens() != null
@@ -445,7 +445,7 @@ export function TopBar() {
   const slotRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   // The tray gains or loses Show N tasks, or is lifted out: measured again then.
-  const { fold, squeeze: barSqueeze, trayOpen, trayOpenMin, trayFolded, values } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
+  const { fold, squeeze: barSqueeze, trayOpen, trayOpenMin, trayFolded, values, lensName } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
   const expandable = panelOpen && filtersFolded(fold) && trayOpen !== undefined
   const expansion = expandable ? placed : null
   // The expanded tray shrinks to its own width; in the bar, to the bar's room.
@@ -464,8 +464,16 @@ export function TopBar() {
         && prev?.coversRight === next?.coversRight ? prev : next))
     }
     place()
+    // A part before it changing width (the lens control on a pick from the
+    // keyboard or the palette, the layout tabs) moves its place unresized.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
+    const anchor = slotRef.current ?? trayRef.current
+    for (let part = anchor?.previousElementSibling; part; part = part.previousElementSibling) observer?.observe(part)
     window.addEventListener('resize', place)
-    return () => window.removeEventListener('resize', place)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', place)
+    }
   }, [expandable, trayOpen, trayOpenMin, trayFolded, tabsKey])
 
   const clearSearch = box.clear
@@ -518,6 +526,13 @@ export function TopBar() {
         {isWorkspace && (
           <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
             <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />
+          </div>
+        )}
+        {/* The top bar's lens: its own part, outside the tray (never lifted
+            with it), a fixed width the fold counts like New task's. */}
+        {isWorkspace && (
+          <div className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
+            <LensControl nameWidth={lensName} />
           </div>
         )}
 
@@ -632,12 +647,6 @@ export function TopBar() {
             )}
           </div>
 
-          {isWorkspace && (
-            <>
-              <LensControl />
-              <span className={styles.lensSeparator} aria-hidden="true" />
-            </>
-          )}
           <FilterChipBar
             predicate={filterPredicate}
             onChange={handleFilterChange}

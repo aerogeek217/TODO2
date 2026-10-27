@@ -141,7 +141,7 @@ export function FilterSheet() {
 }
 
 /**
- * The sheet's foot while a filter is on or the layout has a lens, as the top
+ * The sheet's foot while a filter is on or a lens is picked, as the top
  * bar's tray end: how many tasks the filter and the lens keep; a tap closes the sheet and opens them in the
  * task dialog (whose filter bar edits this filter).
  */

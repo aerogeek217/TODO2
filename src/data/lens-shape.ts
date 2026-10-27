@@ -14,6 +14,15 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  * `LENSES_SETTING_MAX_LEN`, reads as no lenses.
  */
 
+/**
+ * A lens id's shape (a short, non-empty string) — what the top bar's pick
+ * (`activeLensId`) stores. Whether a lens has it is read where the pick is
+ * used: an id no lens has is No lens.
+ */
+export function isLensId(v: unknown): v is string {
+  return typeof v === 'string' && v.length > 0 && v.length <= LENS_ID_MAX
+}
+
 /** The lenses read from their stored text, and what was dropped on the way (empty when nothing). */
 export interface ReadLenses {
   lenses: Lens[]
@@ -45,7 +54,7 @@ export function pickLenses(raw: unknown): ReadLenses {
       dropped++
       continue
     }
-    const id = isRecord(item) && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= LENS_ID_MAX ? item.id : null
+    const id = isRecord(item) && isLensId(item.id) ? item.id : null
     const name = isRecord(item) && typeof item.name === 'string' ? cleanLensName(item.name) : null
     if (!isRecord(item) || id == null || ids.has(id) || name == null || checkPredicateShape(item.predicate) !== true) {
       dropped++

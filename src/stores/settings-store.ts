@@ -49,7 +49,7 @@ import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/ch
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
 import { DEFAULT_ROW_DENSITY, isRowDensity, type RowDensity } from '../utils/row-density'
 import { cleanLensName, findLens, lensPredicate, newLensId, presetLenses, uniqueLensName, type Lens } from '../utils/lens'
-import { formatLensesSetting, readLensesSetting } from '../data/lens-shape'
+import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
 import type { TodoPredicate } from '../models/filter-predicate'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
@@ -118,10 +118,15 @@ interface SettingsState {
   staleAfterDays: number
   /** Row density of the desktop task rows (`utils/row-density`). */
   rowDensity: RowDensity
-  /** The lenses (named screen filters, picked per layout — `utils/lens`), in Settings' order. */
+  /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
   lenses: readonly Lens[]
   /** The preset lenses were seeded once (`seedLensPresets`); nothing seeds them again. */
   lensPresetsSeeded: boolean
+  /**
+   * The lens picked in the top bar, for every layout (a lens's id); `null` =
+   * No lens. An id no lens has (a lens deleted since) reads as No lens.
+   */
+  activeLensId: string | null
   /** The user's keyboard shortcut changes by binding id (the rest keep their defaults). */
   shortcutOverrides: ShortcutOverrides
   /**
@@ -204,6 +209,14 @@ interface SettingsState {
    * did — no undo step. Does nothing once seeded.
    */
   seedLensPresets: (waitingId: number | null) => Promise<void>
+  /**
+   * Picks the top bar's lens (`null` = No lens: the row goes): shown at
+   * once and saved — no unsaved state and no undo step, like a layout
+   * switch. A failed save puts the pick back and says so. Resolves whether
+   * the pick is saved (the same pick again: true; anything but a lens id's
+   * shape is ignored: false).
+   */
+  setActiveLens: (id: string | null) => Promise<boolean>
   /**
    * Gives `id` new keys. Resolves the reason when they are refused (a
    * reserved key, or another binding's — nothing is written), else null.
@@ -371,6 +384,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   rowDensity: DEFAULT_ROW_DENSITY,
   lenses: [],
   lensPresetsSeeded: false,
+  activeLensId: null,
   shortcutOverrides: {},
   eisenhowerPanes: NO_PANES,
   eisenhowerListId: null,
@@ -403,6 +417,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let rowDensity: RowDensity = DEFAULT_ROW_DENSITY
       let lenses: readonly Lens[] = []
       let lensPresetsSeeded = false
+      let activeLensId: string | null = null
       let shortcutOverrides: ShortcutOverrides = {}
       let eisenhowerPanes: EisenhowerPanes = NO_PANES
       let eisenhowerListId: number | null = null
@@ -457,6 +472,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           lenses = readLensesSetting(row.value).lenses
         } else if (row.key === SETTING_KEYS.lensPresetsSeeded) {
           lensPresetsSeeded = row.value === 'true'
+        } else if (row.key === SETTING_KEYS.activeLensId) {
+          if (isLensId(row.value)) activeLensId = row.value
         } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
           shortcutOverrides = readShortcutOverrides(row.value).overrides
         } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
@@ -472,7 +489,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         colors, defaultStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
         followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
-        rowDensity, lenses, lensPresetsSeeded, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
+        rowDensity, lenses, lensPresetsSeeded, activeLensId, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
@@ -772,6 +789,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     })
   },
 
+  async setActiveLens(id: string | null) {
+    if (id !== null && !isLensId(id)) return false
+    if (get().activeLensId === id) return true
+    const saved = await writeSetting({ activeLensId: id }, async () => {
+      if (id === null) await settingsRepository.delete(SETTING_KEYS.activeLensId)
+      else await settingsRepository.put(SETTING_KEYS.activeLensId, id)
+    }, 'the lens pick')
+    if (!saved) useUndoStore.getState().notify('Couldn’t save the lens pick.')
+    return saved
+  },
+
   setPurgePromptLastAt(at: Date) {
     return trackWrite(async () => {
       if (Number.isNaN(at.getTime())) return
@@ -965,7 +993,9 @@ async function recordSettingWrite(
 
 /**
  * Shows one setting's new value at once, then saves it with `persist`; a
- * failed save puts the value before it back and resolves false.
+ * failed save puts the value before it back and resolves false — only where
+ * the store still shows this write's value: a later write (a quick second
+ * pick, saved first) or a reload since keeps its own.
  */
 function writeSetting<K extends keyof SettingsState>(
   patch: Pick<SettingsState, K>,
@@ -973,15 +1003,18 @@ function writeSetting<K extends keyof SettingsState>(
   label: string,
 ): Promise<boolean> {
   return trackWrite(async () => {
+    const keys = Object.keys(patch) as K[]
     const state = useSettingsStore.getState()
-    const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, state[k as K]])) as Pick<SettingsState, K>
+    const prev = Object.fromEntries(keys.map((k) => [k, state[k]])) as Pick<SettingsState, K>
     useSettingsStore.setState(patch)
     try {
       await persist()
       return true
     } catch (e) {
       console.error(`Failed to save ${label}:`, e)
-      useSettingsStore.setState(prev)
+      const now = useSettingsStore.getState()
+      const back = keys.filter((k) => Object.is(now[k], patch[k]))
+      if (back.length > 0) useSettingsStore.setState(Object.fromEntries(back.map((k) => [k, prev[k]])) as Partial<SettingsState>)
       return false
     }
   })

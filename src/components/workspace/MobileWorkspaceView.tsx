@@ -187,8 +187,8 @@ function MobileTopBar({ name, hue, status }: { name: string; hue?: string; statu
 
 /**
  * The phone top bar's `61 of 109` (D15): what the screen filter's chips and
- * the layout's lens keep of every open task, while a chip is on or the
- * layout has a lens; a tap lists them in the task dialog (whose filter bar
+ * the top bar's lens keep of every open task, while a chip is on or a
+ * lens is picked; a tap lists them in the task dialog (whose filter bar
  * edits the chips). Its own component, so only it renders for a task write.
  */
 function ShownOfTotalPill() {
