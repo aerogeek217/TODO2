@@ -301,6 +301,32 @@ test.describe('the filter line does not clip an open or focused trigger’s ring
   })
 })
 
+test('a chip’s picker flipped above it: searching shortens it, it stays on its gap and the caret on its edge', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const people = ['Ann', ...Array.from({ length: 14 }, (_, n) => `Person number ${n + 1}`)]
+  await seedWorkspace(page, {
+    people,
+    listDefinitions: [{ name: 'Notes' }, { name: 'Team', people: ['Ann'] }],
+    tasks: [{ title: 'Ann one', people: ['Ann'] }],
+    layouts: [{
+      name: 'Main',
+      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'n1', kind: 'notes' }] }] }],
+      // A list in the bottom band: its filter line sits low, so the picker flips above the chip.
+      bottom: { id: 'bb', height: 200, tabs: [{ id: 'band', kind: 'lens', listDefIdx: 1 }] },
+    }],
+  })
+  const chip = wsListWidget(page, 'band').getByTestId('list-filter-chip')
+  await chip.click()
+  const picker = page.getByTestId('list-filter-picker')
+  await expect(picker.getByRole('option', { name: 'Person number 14' })).toBeVisible()
+  await expectCaretAt(picker, chip, 'bottom')
+  const before = await box(picker)
+  await page.keyboard.type('Ann')
+  await expect(picker.getByRole('option', { name: 'Person number 14' })).toHaveCount(0)
+  await expect.poll(async () => (await box(picker)).height).toBeLessThan(before.height)
+  await expectCaretAt(picker, chip, 'bottom')
+})
+
 test.describe('carets on a row’s note popover', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
 

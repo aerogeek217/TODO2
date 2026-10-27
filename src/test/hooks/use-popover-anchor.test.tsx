@@ -868,6 +868,82 @@ describe('usePopoverAnchor — caret option', () => {
     expect(getByTestId('panel').style.top).toBe('204px')
   })
 
+  describe('a panel that changes size (a picker’s list filtering as the user types)', () => {
+    const callbacks: Array<() => void> = []
+    const observed: Element[] = []
+    beforeEach(() => {
+      callbacks.length = 0
+      observed.length = 0
+      class FakeResizeObserver {
+        constructor(cb: () => void) { callbacks.push(cb) }
+        observe(el: Element) { observed.push(el) }
+        unobserve() {}
+        disconnect() {}
+      }
+      vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    })
+
+    function ResizingHarness({ anchor, size, placement, caret = true }: {
+      anchor: PopoverAnchor
+      size: { width: number; height: number }
+      placement?: 'bottom-start' | 'bottom-end'
+      caret?: boolean
+    }) {
+      const sizeRef = useLatestRef(size)
+      const result = usePopoverAnchor({ anchor, open: true, onClose: () => {}, placement, caret })
+      const { panelRef } = result
+      const setPanel = useCallback((el: HTMLDivElement | null) => {
+        if (el) {
+          Object.defineProperty(el, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => makeRect(0, 0, sizeRef.current.width, sizeRef.current.height),
+          })
+        }
+        panelRef(el)
+      }, [panelRef, sizeRef])
+      const c = result.caret
+      return <div ref={setPanel} data-testid="panel" data-caret={c ? `${c.side} ${c.x} ${c.y}` : 'none'} style={result.style}>panel</div>
+    }
+
+    const resize = () => act(() => { for (const cb of callbacks) cb() })
+
+    it('flipped above: the panel shortens, its bottom stays on the gap and the caret with it', () => {
+      const size = { width: 200, height: 300 }
+      const anchor: PopoverAnchor = { kind: 'rect', left: 100, top: 680, right: 180, bottom: 702 }
+      const { getByTestId } = render(<ResizingHarness anchor={anchor} size={size} />)
+      const panel = getByTestId('panel')
+      expect(observed).toContain(panel)
+      expect(panel.style.top).toBe(`${680 - CARET_GAP_PX - 300}px`)
+      expect(panel.dataset.caret).toBe(`bottom 120 ${680 - CARET_GAP_PX}`)
+      // Shorter, but still too tall to fit below: still above, re-placed against the anchor.
+      size.height = 120
+      resize()
+      expect(panel.style.top).toBe(`${680 - CARET_GAP_PX - 120}px`)
+      expect(panel.dataset.caret).toBe(`bottom 120 ${680 - CARET_GAP_PX}`)
+    })
+
+    it('end-aligned: the panel narrows, its right edge stays at the anchor’s and the caret under the anchor', () => {
+      const size = { width: 280, height: 150 }
+      const anchor: PopoverAnchor = { kind: 'rect', left: 400, top: 100, right: 480, bottom: 122 }
+      const { getByTestId } = render(<ResizingHarness anchor={anchor} size={size} placement="bottom-end" />)
+      const panel = getByTestId('panel')
+      expect(panel.style.left).toBe('200px') // 480 - 280
+      expect(panel.dataset.caret).toBe(`top 460 ${122 + CARET_GAP_PX}`)
+      size.width = 220
+      resize()
+      expect(panel.style.left).toBe('260px') // 480 - 220
+      expect(panel.dataset.caret).toBe(`top 460 ${122 + CARET_GAP_PX}`)
+    })
+
+    it('observes nothing without a caret (or for a point anchor, which gets none)', () => {
+      render(<ResizingHarness anchor={{ kind: 'rect', left: 100, top: 200, right: 180, bottom: 222 }} size={{ width: 200, height: 150 }} caret={false} />)
+      expect(observed).toEqual([])
+      cleanup()
+      render(<ResizingHarness anchor={{ kind: 'point', x: 100, y: 200 }} size={{ width: 200, height: 150 }} />)
+      expect(observed).toEqual([])
+    })
+  })
+
   it('anchorAtPoint: a point with its element’s rect anchors to the rect', () => {
     expect(anchorAtPoint({ x: 1, y: 2 })).toEqual({ kind: 'point', x: 1, y: 2 })
     expect(anchorAtPoint({ x: 1, y: 2, rect: { left: 1, top: 0, right: 9, bottom: 2 } }))

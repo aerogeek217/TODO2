@@ -145,8 +145,9 @@ export interface UsePopoverAnchorOptions {
   /**
    * Draw a caret towards the anchor (D21): the result's `caret` then holds
    * where (`computePopoverCaret`), and the gap to the anchor is at least
-   * `CARET_GAP_PX`. A `point` anchor has nothing to point at: no caret, the
-   * gap as given. Default `false`.
+   * `CARET_GAP_PX`. It implies `observeSize` (a panel that changes size is
+   * re-placed, its caret with it). A `point` anchor has nothing to point
+   * at: no caret, the gap as given, nothing observed. Default `false`.
    */
   caret?: boolean
 }
@@ -569,15 +570,22 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   }, [open, placement, offset, anchorElRef, anchorX, anchorY, anchorRight, anchorBottom, contentKey, compute])
 
   // Size changes of the panel / a ref anchor re-place it (flip and clamp use
-  // the new size).
+  // the new size). A caret implies it: the caret sits at a fixed viewport
+  // point on the panel's edge, so a panel that grows, shrinks or narrows
+  // (a picker's list filtering as the user types) must be re-placed — and
+  // the caret with it — or the caret comes loose from its edge. Only the
+  // size is observed, and a re-place moves the panel without resizing it
+  // (its max size is the viewport's; the clamp leaves it room for its
+  // natural width), so one re-place doesn't set off another.
+  const observing = observeSize || (wantsCaret && anchor.kind !== 'point')
   useLayoutEffect(() => {
-    if (!open || !observeSize || typeof ResizeObserver === 'undefined') return
+    if (!open || !observing || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(() => compute())
     if (panelElRef.current) ro.observe(panelElRef.current)
     const a = anchorRef.current
     if (a.kind === 'ref' && a.ref.current) ro.observe(a.ref.current)
     return () => ro.disconnect()
-  }, [open, observeSize, anchorElRef, compute, anchorRef])
+  }, [open, observing, anchorElRef, compute, anchorRef])
 
   // Scroll/resize listeners. Capture-phase scroll catches ancestors.
   useEffect(() => {
