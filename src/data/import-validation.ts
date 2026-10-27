@@ -423,6 +423,9 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (staleAfterDays must be a day count 0–365)'
   }
+  if (v.key === SETTING_KEYS.activeLensId) {
+    return isLensId(v.value) ? true : 'value (activeLensId must be a lens id)'
+  }
   if (v.key === SETTING_KEYS.lensPresetsSeeded) {
     return v.value === 'true' ? true : 'value (lensPresetsSeeded must be true)'
   }

@@ -103,6 +103,7 @@ function buildSeed(): Seed {
       { key: 'rowDensity', value: 'comfortable' },
       { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: 'hot', negate: { statusIds: true }, orGroups: OR_GROUPS } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
+      { key: 'activeLensId', value: 'lens-a' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'completedRetentionDays', value: '30' },

@@ -495,6 +495,17 @@ describe('validateImportData', () => {
         .toEqual({ ok: false, error: expect.stringContaining('lensPresetsSeeded must be true') })
     })
 
+    it('the top bar’s lens pick imports as a lens id; anything else fails with the key’s reason', () => {
+      const result = validateImportData(validData({ settings: [{ key: 'activeLensId', value: 'lens-a' }] }))
+      if (!result.ok) throw new Error(result.error)
+      expect(result.data.settings).toEqual([{ key: 'activeLensId', value: 'lens-a' }])
+      expect(result.warnings).toEqual([])
+      for (const value of ['', 'x'.repeat(101)]) {
+        expect(validateImportData(validData({ settings: [{ key: 'activeLensId', value }] })))
+          .toEqual({ ok: false, error: expect.stringContaining('activeLensId must be a lens id') })
+      }
+    })
+
     it('the check-in scope of older builds is an unknown setting (the check-in filter replaced it)', () => {
       const result = validateImportData(validData({ settings: [{ key: 'checkinTaskScope', value: 'hot' }] }))
       if (!result.ok) throw new Error(result.error)
