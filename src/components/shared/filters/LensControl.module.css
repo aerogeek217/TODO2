@@ -66,6 +66,8 @@ button.toggle {
   flex-shrink: 0;
 }
 
+/* Its cap is `LENS_NAME_MAX_WIDTH` (lens-fold.ts); the top bar may cut it
+ * further, inline, as its last resort. */
 .nameText {
   overflow: hidden;
   text-overflow: ellipsis;

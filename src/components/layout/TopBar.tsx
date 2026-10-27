@@ -445,7 +445,7 @@ export function TopBar() {
   const slotRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
   // The tray gains or loses Show N tasks, or is lifted out: measured again then.
-  const { fold, squeeze: barSqueeze, trayOpen, trayOpenMin, trayFolded, values } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
+  const { fold, squeeze: barSqueeze, trayOpen, trayOpenMin, trayFolded, values, lensName } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
   const expandable = panelOpen && filtersFolded(fold) && trayOpen !== undefined
   const expansion = expandable ? placed : null
   // The expanded tray shrinks to its own width; in the bar, to the bar's room.
@@ -524,7 +524,7 @@ export function TopBar() {
             with it), a fixed width the fold counts like New task's. */}
         {isWorkspace && (
           <div className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
-            <LensControl />
+            <LensControl nameWidth={lensName} />
           </div>
         )}
 

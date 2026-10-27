@@ -8,6 +8,7 @@ import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, GearIcon, GlassesIcon } from '../icons'
 import { useTooltip } from '../use-tooltip'
 import { useChipNames } from './filter-menu'
+import { LENS_NAME_ATTR } from './lens-fold'
 import { lensSummary } from './lens-text'
 import styles from './LensControl.module.css'
 
@@ -21,8 +22,11 @@ import styles from './LensControl.module.css'
  * — and the name opens the picker (No lens, each lens with its filters in a
  * line and how many open tasks it hides, Edit lenses…). A pick is saved at
  * once (`settings-store.setActiveLens`): no unsaved state, no undo step.
+ * The name is cut at 160px; the top bar cuts it further (`nameWidth`) only
+ * when even its most folded state is short of room — the whole name then in
+ * the name's tooltip.
  */
-export function LensControl() {
+export function LensControl({ nameWidth = null }: { nameWidth?: number | null } = {}) {
   const lenses = useSettingsStore((s) => s.lenses)
   const lens = usePickedLens()
   const lifted = useUIStore((s) => s.lensLifted)
@@ -32,7 +36,7 @@ export function LensControl() {
   // A click on the name while its menu is open closes it (the menu's outside click already did).
   const menuWasOpen = useRef(false)
   const toggleTip = useTooltip(!lens ? null : lifted ? `Put “${lens.name}” back` : `Lift “${lens.name}” for now\nThe pick stays`)
-  const nameTip = useTooltip(menuOpen ? null : 'Lens')
+  const nameTip = useTooltip(menuOpen ? null : nameWidth !== null && lens ? `Lens: ${lens.name}` : 'Lens')
 
   return (
     <span className={styles.lens} data-state={state} data-testid="lens-control">
@@ -67,7 +71,13 @@ export function LensControl() {
         }}
         {...nameTip.triggerProps}
       >
-        <span className={styles.nameText}>{lens?.name ?? 'No lens'}</span>
+        <span
+          className={styles.nameText}
+          style={nameWidth !== null ? { maxWidth: nameWidth } : undefined}
+          {...{ [LENS_NAME_ATTR]: '' }}
+        >
+          {lens?.name ?? 'No lens'}
+        </span>
         <ChevronDownIcon />
       </button>
       {toggleTip.tooltip}

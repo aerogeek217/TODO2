@@ -1,8 +1,9 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import {
-  filtersFolded, measureTopBar, SEARCH_MIN_WIDTH, SEARCH_WIDTH, tabsFolded, topBarFold, trayRoom, traySqueeze, VALUE_MIN_WIDTH,
-  type TopBarMeasure,
+  filtersFolded, LENS_NAME_MIN_WIDTH, lensNameSqueeze, measureTopBar, SEARCH_MIN_WIDTH, SEARCH_WIDTH, tabsFolded, topBarFold, trayRoom,
+  traySqueeze, VALUE_MIN_WIDTH, type TopBarMeasure,
 } from '../../../components/layout/use-top-bar-fold'
+import { LENS_NAME_MAX_WIDTH } from '../../../components/shared/filters/lens-fold'
 import { trayExpansion } from '../../../components/layout/tray-expansion'
 
 /**
@@ -187,6 +188,44 @@ describe('measureTopBar', () => {
 
   it('while the tray is lifted out its slot keeps its place in the bar: the base and widths don’t change', () => {
     expect(measureTopBar(bar({ lifted: true }), 'filters', 'k')).toEqual(measureTopBar(bar(), 'filters', 'k'))
+  })
+
+  /** The bar with the lens control (130 wide, 6 margin) after the layout tabs, its name `shown` of `natural` wide. */
+  function withLens(shown: number, natural: number) {
+    const header = bar()
+    const name = box(el('span', { 'data-lens-name': '' }), 350, shown)
+    Object.defineProperty(name, 'scrollWidth', { configurable: true, value: natural })
+    const lens = box(el('div', { 'data-fold-part': 'lens' }, name), 344, 130 - (Math.min(natural, LENS_NAME_MAX_WIDTH) - shown))
+    lens.style.marginLeft = '6px'
+    header.querySelector('[data-fold-part="layout"]')!.after(lens)
+    return header
+  }
+
+  it('the lens control is a fixed part, in the base at its natural width however its name is cut', () => {
+    const without = measureTopBar(bar(), 'both', 'k')
+    const lens = measureTopBar(withLens(90, 90), 'both', 'k')
+    expect(lens).toMatchObject({ base: without.base + 130 + 6 + 4, lensName: 90, picker: 300 })
+    expect(measureTopBar(withLens(56, 90), 'both', 'k')).toEqual(lens)
+    // Past the CSS cap the name never counts wider than it shows uncut.
+    expect(measureTopBar(withLens(LENS_NAME_MAX_WIDTH, 400), 'both', 'k').lensName).toBe(LENS_NAME_MAX_WIDTH)
+  })
+})
+
+describe('lensNameSqueeze', () => {
+  // Room for the tray at `both`: 1000 − 200 − the picker (100) = 700.
+  const both = (extra: Partial<TopBarMeasure>) => m({ picker: 100, trayFoldedMin: 650, lensName: 120, ...extra })
+
+  it('uncut while the most folded bar holds the tray at its least, and never before the tabs fold', () => {
+    expect(lensNameSqueeze(both({}), 'both')).toBeNull()
+    expect(lensNameSqueeze(both({ trayFoldedMin: 700 }), 'both')).toBeNull()
+    expect(lensNameSqueeze(both({ trayFoldedMin: 760 }), 'filters')).toBeNull()
+    expect(lensNameSqueeze(both({ lensName: undefined, trayFoldedMin: 760 }), 'both')).toBeNull()
+  })
+
+  it('the last resort: cut by what the bar is short, to no less than its least; a short name never', () => {
+    expect(lensNameSqueeze(both({ trayFoldedMin: 730 }), 'both')).toBe(90)
+    expect(lensNameSqueeze(both({ trayFoldedMin: 900 }), 'both')).toBe(LENS_NAME_MIN_WIDTH)
+    expect(lensNameSqueeze(both({ trayFoldedMin: 900, lensName: 50 }), 'both')).toBeNull()
   })
 })
 

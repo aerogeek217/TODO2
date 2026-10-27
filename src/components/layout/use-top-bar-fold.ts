@@ -2,6 +2,7 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { attrSelector } from '../../utils/dom-contract'
 import { FOLD_HIDDEN_ATTR, FOLD_VALUE_ATTR, FOLD_VARIANT_ATTR, type FoldVariant } from '../shared/filters/FilterChipBar.shared'
+import { LENS_NAME_ATTR, LENS_NAME_MAX_WIDTH } from '../shared/filters/lens-fold'
 
 /**
  * What of the top bar is folded so that it never wraps or overflows:
@@ -27,6 +28,8 @@ export const SEARCH_WIDTH = 200
 export const SEARCH_MIN_WIDTH = 110
 /** The least a filter value is cut to (a shorter value is never cut): its first 6–8 letters and the ellipsis. */
 export const VALUE_MIN_WIDTH = 56
+/** The least the lens control's name is cut to, the last resort of a bar folded as far as it goes (a shorter name is never cut). */
+export const LENS_NAME_MIN_WIDTH = 56
 
 /** A filter value shown on its button: the field and the value's natural width, px. */
 export interface TrayValue {
@@ -54,6 +57,8 @@ export interface TopBarMeasure {
   tabs?: { width: number; key: string }
   /** The layout picker (the tabs folded), when last shown. */
   picker?: number
+  /** The lens control's name at its natural width (counted so in `base`, however it is cut). */
+  lensName?: number
 }
 
 /**
@@ -76,6 +81,21 @@ export function topBarFold(m: TopBarMeasure, tabsKey: string): TopBarFold {
 export function trayRoom(m: TopBarMeasure, fold: TopBarFold): number | null {
   if (m.bar <= 0) return null
   return m.bar - m.base - ((tabsFolded(fold) ? m.picker : m.tabs?.width) ?? 0)
+}
+
+/**
+ * The width the lens control's name is cut to when even the bar folded as
+ * far as it goes, the tray shrunk as far as it goes, doesn't hold it — the
+ * last resort, after everything else (`over` px short); to no less than
+ * `LENS_NAME_MIN_WIDTH` (a shorter name is never cut). `null` when it fits.
+ */
+export function lensNameSqueeze(m: TopBarMeasure, fold: TopBarFold): number | null {
+  const room = trayRoom(m, fold)
+  if (room === null || !tabsFolded(fold) || m.lensName === undefined) return null
+  const over = Math.ceil((m.trayFoldedMin ?? m.trayFolded ?? 0) - room)
+  if (over <= 0) return null
+  const width = Math.max(Math.min(m.lensName, LENS_NAME_MIN_WIDTH), m.lensName - over)
+  return width < m.lensName ? width : null
 }
 
 /** How the tray shrinks to fit: the search's width, and the width of each value that is cut (by field). */
@@ -222,6 +242,7 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
   let layout = 0
   let shown = 0
   let tray: HTMLElement | null = null
+  let lensName: number | undefined
   for (const child of Array.from(bar.children)) {
     if (!(child instanceof HTMLElement)) continue
     const part = child.dataset.foldPart
@@ -234,10 +255,19 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
     need += width + margins + (shown > 0 ? gap : 0)
     shown++
     if (part === FOLD_PART.layout) layout = width
+    // The lens control at its natural width, its name uncut (`lensNameSqueeze` cuts it last).
+    const name = part === FOLD_PART.lens ? child.querySelector<HTMLElement>(attrSelector(LENS_NAME_ATTR)) : null
+    if (name) {
+      const shownName = name.getBoundingClientRect().width
+      const natural = Math.min(name.scrollWidth, LENS_NAME_MAX_WIDTH)
+      lensName = natural > shownName + 0.5 ? natural : shownName
+      need += lensName - shownName
+    }
   }
   return {
     bar: bar.clientWidth,
     base: Math.ceil(need - layout),
+    lensName: lensName === undefined ? undefined : Math.ceil(lensName),
     ...(tray ? measureTray(tray, filtersFolded(fold)) : {}),
     ...(tabsFolded(fold) ? { picker: layout } : { tabs: { width: layout, key: tabsKey } }),
   }
@@ -253,6 +283,7 @@ function sameMeasure(a: TopBarMeasure, b: TopBarMeasure): boolean {
   return a.bar === b.bar && a.base === b.base && a.trayOpen === b.trayOpen && a.trayFolded === b.trayFolded
     && a.trayOpenMin === b.trayOpenMin && a.trayFoldedMin === b.trayFoldedMin && sameValues(a.values, b.values)
     && a.tabs?.width === b.tabs?.width && a.tabs?.key === b.tabs?.key && a.picker === b.picker
+    && a.lensName === b.lensName
 }
 
 /** The measure update for the bar as shown now, measured at once (the same object when nothing changed). */
@@ -277,6 +308,8 @@ export interface TopBarFoldState {
   trayFolded: number | undefined
   /** The values on the filter buttons, natural. */
   values: readonly TrayValue[] | undefined
+  /** The width the lens control's name is cut to (the bar short even folded as far as it goes); `null` = uncut. */
+  lensName: number | null
 }
 
 /**
@@ -324,5 +357,6 @@ export function useTopBarFold(
     trayOpenMin: measure.trayOpenMin,
     trayFolded: measure.trayFolded,
     values: measure.values,
+    lensName: lensNameSqueeze(measure, fold),
   }
 }
