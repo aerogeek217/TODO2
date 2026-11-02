@@ -43,6 +43,7 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 
 ## Constraints
 - Local-first, offline — all data in IndexedDB, no backend
+- The offline file makes no network request: the build's egress check and `e2e/built-csp.spec.ts` enforce it (and ESLint bans the network APIs in `src/`)
 - Minimal dependencies — prefer built-in browser APIs
 - Dark theme as primary (design tokens in tokens.css)
 
