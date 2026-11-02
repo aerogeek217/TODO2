@@ -4,7 +4,7 @@ import { sendPersonCheckin } from '../../../services/checkin-email/person-checki
 import { personTaskDialog } from '../../../services/task-dialog'
 import { copyTasks } from '../../../services/task-copy'
 import { useUIStore } from '../../../stores/ui-store'
-import { AtIcon, CopyIcon, EnvelopeIcon } from '../../shared/icons'
+import { AtIcon, CopyIcon, EnvelopeIcon, ReplyIcon } from '../../shared/icons'
 import type { MenuEntry } from '../../shared/MenuPopover'
 
 /** The person a People group stands for. */
@@ -27,10 +27,15 @@ export function emailPersonCheckin(person: GroupPerson): void {
   void sendPersonCheckin(person.id)
 }
 
-/** A People group header's menu: email the person a check-in, or show all their tasks. */
+/**
+ * A People group header's menu: email the person a check-in, paste a
+ * check-in reply (the import dialog, which reads the person from the reply),
+ * or show all their tasks.
+ */
 export function personGroupMenu(person: GroupPerson): MenuEntry[] {
   return [
     { kind: 'item', label: `Email check-in: ${person.name}`, icon: <EnvelopeIcon />, onSelect: () => emailPersonCheckin(person) },
+    { kind: 'item', label: 'Paste check-in reply…', icon: <ReplyIcon />, onSelect: () => useUIStore.getState().openCheckinImport() },
     {
       kind: 'item',
       label: `Show all of ${person.name}’s tasks`,
@@ -42,7 +47,7 @@ export function personGroupMenu(person: GroupPerson): MenuEntry[] {
 
 /**
  * A list group header's menu: `Copy N tasks` — the group's tasks as one list
- * headed by the group's name — after a People group's own two items.
+ * headed by the group's name — after a People group's own items.
  */
 export function listGroupMenu(section: Section, person: GroupPerson | null): MenuEntry[] {
   const n = section.todos.length

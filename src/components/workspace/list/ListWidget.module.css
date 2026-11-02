@@ -95,12 +95,14 @@
 }
 
 .groupHeaderRow:hover .groupAction,
-.groupHeaderRow:focus-within .groupAction {
+.groupHeaderRow:focus-within .groupAction,
+.groupAction[aria-expanded='true'] {
   opacity: 1;
   pointer-events: auto;
 }
 
-.groupAction:hover {
+.groupAction:hover,
+.groupAction[aria-expanded='true'] {
   background: var(--color-accent-bg);
 }
 

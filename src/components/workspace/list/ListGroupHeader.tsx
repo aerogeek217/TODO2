@@ -1,15 +1,17 @@
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useTooltip } from '../../shared/use-tooltip'
 import { EnvelopeIcon } from '../../shared/icons'
-import { emailPersonCheckin, type GroupPerson } from './person-group'
+import { PersonCheckinMenu } from '../../shared/PersonCheckinMenu'
+import type { GroupPerson } from './person-group'
 import styles from './ListWidget.module.css'
 
 /**
  * A list group's header (`children`, the collapse button). Right-click, the
  * context-menu key or Shift+F10 on it opens the group's menu (`onOpenMenu`,
  * at the pointer or under the header). A People group's header also has an
- * envelope button at its end, shown on hover or keyboard focus, that opens
- * the email check-in for the person.
+ * envelope button at its end, shown on hover or keyboard focus (and while
+ * its menu is open), that opens the person's check-in menu: send a check-in,
+ * or paste their reply (`PersonCheckinMenu`).
  */
 export function ListGroupHeader({ person, showAction, onOpenMenu, children }: {
   /** The People group's person; null for every other group. */
@@ -43,18 +45,24 @@ export function ListGroupHeader({ person, showAction, onOpenMenu, children }: {
 
 function CheckinButton({ person }: { person: GroupPerson }) {
   const { triggerProps, tooltip } = useTooltip('Email check-in')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLButtonElement>(null)
   return (
     <>
       <button
+        ref={ref}
         type="button"
         className={styles.groupAction}
-        aria-label={`Email check-in to ${person.name}`}
-        onClick={() => emailPersonCheckin(person)}
+        aria-label={`Email check-in options for ${person.name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
         {...triggerProps}
       >
         <EnvelopeIcon />
       </button>
       {tooltip}
+      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-end" onClose={() => setOpen(false)} />}
     </>
   )
 }

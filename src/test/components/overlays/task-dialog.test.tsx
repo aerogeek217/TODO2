@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, act, fireEvent, within } from '@testing-library/react'
+import { render, cleanup, act, fireEvent, screen, within } from '@testing-library/react'
 import { TaskDialog } from '../../../components/overlays/TaskDialog'
 import { createTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { personTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
@@ -185,13 +185,20 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog offers Email check-in next to Copy tasks, which sends that person’s check-in at once', async () => {
+  it('a person’s dialog offers Email check-in next to Copy tasks: a menu whose Send sends that person’s check-in at once', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
     const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
     expect(footerButtons.slice(0, 2)).toEqual(['Copy tasks', 'Email check-in'])
+    const trigger = within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    const menu = screen.getByRole('menu', { name: 'Check-in for Priya Nair' })
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
+      .toEqual(['Send check-in to Priya Nair', 'Paste reply from Priya Nair…'])
     // No clipboard here: the send can't copy, so the check-in dialog opens for her with the reason.
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Send check-in to Priya Nair' }))
     await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toEqual({
       personIds: [priya.id],
       notice: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.',
@@ -200,9 +207,20 @@ describe('TaskDialog', () => {
     expect(dialog()).not.toBeNull()
   })
 
+  it('a person’s dialog’s Paste reply opens the check-in reply import over it', () => {
+    const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
+    useUIStore.setState({ checkinImportOpen: false })
+    open(personTaskDialog(priya))
+    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Priya Nair…' }))
+    expect(useUIStore.getState().checkinImportOpen).toBe(true)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(dialog()).not.toBeNull()
+  })
+
   it('other dialogs have no Email check-in', () => {
     open(HOT)
-    expect(within(dialog()!).queryByRole('button', { name: 'Email check-in' })).toBeNull()
+    expect(within(dialog()!).queryByRole('button', { name: /Email check-in/ })).toBeNull()
   })
 })
 
