@@ -9,7 +9,11 @@ import { checkOfflineFile, scriptHash, splitHtml, unusedInertTexts } from '../..
 
 const ICON = '<link rel="icon" type="image/png" sizes="192x192" href="data:image/png;base64,iVBORw0KGgo//XMLHttpRequest+WebSocket//AAAANSUhEUg==" />'
 
-/** The app's script in the fixtures: inert library texts, a `<script>` string, Dexie's `open()` and React Router's `fetch`. */
+/**
+ * The app's script in the fixtures: inert library texts, a `<script>` string,
+ * Dexie's `open()`, React Router's `fetch` and `"//"`, `window.opener`, React
+ * DOM's unused resource-hint code, a word that starts like a rel value.
+ */
 const APP = [
   'var e=document.createElementNS(`http://www.w3.org/2000/svg`,`svg`);',
   'var t=`https://react.dev/errors/`+n;',
@@ -19,6 +23,9 @@ const APP = [
   'console.warn(`Dexie: Workaround for Chrome UnknownError on open()`);t.open().then(r);',
   'var f={navigate:De,fetch:Le};r=e.fetch;',
   'throw Error(`must be used within a data router.  See https://reactrouter.com/en/main/routers/picking-a-router.`)',
+  ';if(e.startsWith(`//`))return!0;var w=window.opener;',
+  'function Lm(e){Nm.D(e),Im(`dns-prefetch`,e,null)}function Rm(e,t){Nm.C(e,t),Im(`preconnect`,e,t)}',
+  'var q=`prefetching`;',
 ].join('')
 
 /** A file shaped like the built one: `parts` override its pieces. */
@@ -116,15 +123,25 @@ describe('checkOfflineFile', () => {
     ['importScripts', 'importScripts(u)'],
     ['window.open', 'window.open(u)'],
     ['window.open', 'open(u,`_blank`)'],
+    ['window.open', 'const o=window.open'],
+    ['window.open', 'globalThis.open.call(globalThis,u)'],
+    ['window.open', 'self["open"](u)'],
     ['a resource hint', 'e.innerHTML=`<link rel="dns-prefetch" href="${h}">`'],
+    ['a resource hint', 'l.setAttribute(`rel`,`preconnect`)'],
+    ['a resource hint', 'h("dns-prefetch",u)'],
+    ['a resource hint', "x={rel:'modulepreload',href:u}"],
+    ['a resource hint', 'l.relList.add(`preload`)'],
+    ['a resource hint', 'Im(`prefetch`,u,null)'],
+    ['a resource hint', 'Im(`prerender`,u)'],
     ["React DOM's resource hints", 'Mr.preconnect(h)'],
     ['speculation rules', 's.type=`speculationrules`'],
   ])('fails %s in the code: %s', (name, code) => {
     const script = `${APP}${code};`
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
     const problems = checkOfflineFile(offlineFile({ script, csp }))
-    expect(problems).toHaveLength(1)
-    expect(problems[0]).toMatch(new RegExp(`^uses ${name.replace(/[.()]/g, '\\$&')}: …`))
+    // A rel value in markup in a string is both a `rel=` and a quoted value: one hint, said twice.
+    expect(problems).toHaveLength(code.includes('rel="') ? 2 : 1)
+    for (const p of problems) expect(p).toMatch(new RegExp(`^uses ${name.replace(/[.()]/g, '\\$&')}: …`))
   })
 
   it.each([
@@ -133,12 +150,15 @@ describe('checkOfflineFile', () => {
     ['ws://host/socket', 'u=`ws://host/socket`'],
     ['file://server/share/x.json', 'u=`file://server/share/x.json`'],
     ['//cdn.example.com/lib.js', 'u="//cdn.example.com/lib.js"'],
+    ['//fileserver/share/x.json', 'u="//fileserver/share/x.json"'],
+    ['//fileserver', 'u=`//fileserver`'],
+    ['//[::1]/x', "u='//[::1]/x'"],
   ])('fails a URL not on the inert list: %s', (url, code) => {
     const script = `${APP}${code};`
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
     const problems = checkOfflineFile(offlineFile({ script, csp }))
     expect(problems).toHaveLength(1)
-    expect(problems[0]).toMatch(new RegExp(`^holds a URL not in INERT_URLS: ${url.replace(/[.()/]/g, '\\$&')} \\(…`))
+    expect(problems[0]).toMatch(new RegExp(`^holds a URL not in INERT_URLS: ${url.replace(/[.()/[\]]/g, '\\$&')} \\(…`))
   })
 
   it('reads a regex with escaped slashes as no URL', () => {

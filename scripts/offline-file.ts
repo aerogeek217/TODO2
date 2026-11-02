@@ -123,6 +123,24 @@ export const INERT_SCHEMES: readonly InertText[] = [
  */
 export const INERT_API_TEXTS: readonly InertText[] = [
   { text: 'Workaround for Chrome UnknownError on open()', reason: "Dexie's console warning (its IndexedDB open), as text" },
+  // Resource hints: library code that would add a <link rel=…> if called.
+  // Nothing in the app calls it. Each text is written with its function's
+  // own locals (e, t, n), not the bundle's top-level names, so an app change
+  // doesn't move it. preload / prefetch / modulepreload would also be
+  // refused by the CSP (default-src 'none'); preconnect and dns-prefetch
+  // would not — hence the check.
+  { text: '(`dns-prefetch`,e,null)', reason: "React DOM's ReactDOM.prefetchDNS(): the app never calls it" },
+  { text: '(`preconnect`,e,t)', reason: "React DOM's ReactDOM.preconnect(): the app never calls it" },
+  { text: 'link[rel="preload"][as="', reason: "React DOM's lookup selector for ReactDOM.preload() and a suspended stylesheet's preload: the app calls none, renders no <link>" },
+  { text: 'rel:`preload`,href:t===`image`', reason: "React DOM's ReactDOM.preload(): the app never calls it" },
+  { text: 'link[rel="modulepreload"][as="', reason: "React DOM's lookup selector for ReactDOM.preloadModule(): the app never calls it" },
+  { text: '{rel:`modulepreload`,href:e},t)', reason: "React DOM's ReactDOM.preloadModule(): the app never calls it" },
+  { text: '{rel:`preload`,as:`style`,href:n.href,crossOrigin:n.crossOrigin', reason: "React DOM's preload of a suspended <link rel=stylesheet precedence>: the app renders no <link>" },
+  { text: 'e.supports(`modulepreload`)?`modulepreload`:`preload`', reason: "Vite's dynamic-import preload helper: it adds links only for a call's deps, and every call in the single file passes none (void 0 / [])" },
+  { text: 'e.rel===`preload`&&typeof e.imageSrcSet==`string`', reason: "React Router's framework-mode <PrefetchPageLinks> / <Links>: the data router renders neither" },
+  { text: 'e.rel===`stylesheet`||e.rel===`preload`).map(e=>e.rel===`stylesheet`?{...e,rel:`prefetch`,as:`style`}:{...e,rel:`prefetch`})', reason: "React Router's framework-mode <PrefetchPageLinks>: the data router renders none" },
+  { text: '{key:e,rel:`prefetch`,as:`fetch`,href:e,...n}', reason: "React Router's framework-mode <PrefetchPageLinks> (data links): the data router renders none" },
+  { text: '{key:e,rel:`modulepreload`,href:e,...n}', reason: "React Router's framework-mode <PrefetchPageLinks> (module links): the data router renders none" },
 ]
 
 /**
@@ -141,17 +159,27 @@ export const NETWORK_APIS: readonly { name: string; pattern: RegExp }[] = [
   { name: 'a worker', pattern: /\bWorker\s*\(|\bSharedWorker\b/g },
   { name: 'a service worker', pattern: /\bserviceWorker\b/g },
   { name: 'importScripts', pattern: /\bimportScripts\b/g },
-  { name: 'window.open', pattern: /\b(?:window|self|globalThis|top|parent|opener)\.open\s*\(|(?<![\w$.])open\s*\(/g },
-  // The CSP doesn't stop a DNS prefetch or a preconnect.
-  { name: 'a resource hint', pattern: /\brel\s*=\s*\\?["'`]?\s*(?:preconnect|dns-prefetch|prefetch|prerender)\b/gi },
+  // A reference, called or not (`const o=window.open`, `window.open.call(…)`,
+  // `window["open"]`); a bare `open(` is the global's call.
+  { name: 'window.open', pattern: /\b(?:window|self|globalThis|top|parent|opener)(?:\.open\b|\[\s*["'`]open["'`]\s*\])|(?<![\w$.])open\s*\(/g },
+  // The CSP doesn't stop a DNS prefetch or a preconnect. In markup, or a
+  // rel value anywhere in script text — quoted as a string however it is
+  // set (`l.rel="preconnect"`, `setAttribute("rel",…)`, a helper's argument).
+  { name: 'a resource hint', pattern: /\brel\s*=\s*\\?["'`]?\s*(?:preconnect|dns-prefetch|prefetch|prerender|modulepreload|preload)\b/gi },
+  { name: 'a resource hint', pattern: /["'`](?:preconnect|dns-prefetch|prefetch|prerender|modulepreload|preload)["'`]/gi },
   { name: "React DOM's resource hints", pattern: /\.(?:preconnect|prefetchDNS)\s*\(/g },
   { name: 'speculation rules', pattern: /speculationrules/gi },
 ]
 
 /** An absolute URL (any scheme with `//`), up to a quote, a bracket, a backslash or a space. */
 const ABSOLUTE_URL = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`<>()\\]*/gi
-/** A protocol-relative `//host.tld…`, not part of an absolute URL or a regex. */
-const RELATIVE_URL = /(?<![\w:/\\])\/\/(?:[a-z0-9-]+\.)+[a-z]{2,}\b[^\s"'`<>()\\]*/gi
+/**
+ * A protocol-relative `//host…` — a dotted name, one without a dot (a UNC
+ * `//fileserver/share`: an SMB request on file://) or a bracketed IPv6 —
+ * not part of an absolute URL or a regex's escaped slashes; a bare `"//"`
+ * names no host.
+ */
+const RELATIVE_URL = /(?<![\w:/\\])\/\/(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])[^\s"'`<>()\\]*/gi
 /** A data: URL's base64 payload: random letters, where `//` and API names turn up by chance. */
 const BASE64_PAYLOAD = /(;base64,)[A-Za-z0-9+/=]+/g
 
